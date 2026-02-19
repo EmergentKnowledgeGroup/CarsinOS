@@ -11,7 +11,10 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use carsinos_channels_discord as discord_channel;
 use carsinos_channels_telegram as telegram_channel;
-use carsinos_core::{GatewayConfig, TokenSource};
+use carsinos_core::{
+    GatewayConfig, PluginCapability as CorePluginCapability, PluginManifest as CorePluginManifest,
+    PluginRegistry, TokenSource, PLUGIN_API_VERSION_V1,
+};
 use carsinos_protocol::{
     AnthropicSetupTokenIngestRequest, AnthropicSetupTokenIngestResponse, ApprovalResponse,
     AuthProfileResponse, CreateApprovalRequest, CreateApprovalResponse, CreateAuthProfileRequest,
@@ -23,10 +26,11 @@ use carsinos_protocol::{
     IngestTelegramMessageRequest, JobResponse, JobRunResponse, JobStatusResponse,
     ListApprovalsQuery, ListApprovalsResponse, ListAuthProfilesQuery, ListAuthProfilesResponse,
     ListJobHistoryQuery, ListJobHistoryResponse, ListJobsQuery, ListJobsResponse,
-    ListMessagesQuery, ListMessagesResponse, ListNotesQuery, ListNotesResponse,
-    ListProviderCapabilitiesQuery, ListProviderCapabilitiesResponse, ListSessionsQuery,
-    ListSessionsResponse, MessageResponse, MetricsResponse, NoteResponse, OpenAiOauthFinishRequest,
-    OpenAiOauthFinishResponse, OpenAiOauthStartRequest, OpenAiOauthStartResponse,
+    ListMessagesQuery, ListMessagesResponse, ListNotesQuery, ListNotesResponse, ListPluginsQuery,
+    ListPluginsResponse, ListProviderCapabilitiesQuery, ListProviderCapabilitiesResponse,
+    ListSessionsQuery, ListSessionsResponse, MessageResponse, MetricsResponse, NoteResponse,
+    OpenAiOauthFinishRequest, OpenAiOauthFinishResponse, OpenAiOauthStartRequest,
+    OpenAiOauthStartResponse, PluginCapabilityResponse, PluginManifestResponse,
     ProviderCapabilityResponse, RemoveJobResponse, ResolveApprovalRequest, ResolveApprovalResponse,
     ResolveChannelApprovalActionRequest, RunJobNowResponse, RunResponse, SearchMemoryRequest,
     SearchMemoryResponse, SearchMemoryResult, SessionDetailResponse, SessionSummary,
@@ -57,7 +61,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::net::IpAddr;
-use std::path::Path as FsPath;
+use std::path::{Path as FsPath, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock as StdRwLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -86,6 +90,7 @@ struct AppState {
     secret_store: SecretStore,
     oauth_sessions: Arc<RwLock<HashMap<String, PendingOpenAiOauthSession>>>,
     numquam_client: Option<NumquamClient>,
+    plugin_registry: Arc<RwLock<PluginRegistry>>,
     storage: Storage,
     metrics: Arc<GatewayMetrics>,
     event_tx: broadcast::Sender<String>,
@@ -265,6 +270,7 @@ const KILL_SWITCH_SCOPE_GLOBAL: &str = "global";
 
 const APP_KV_CHANNELS_DISCORD: &str = "config.channels.discord";
 const APP_KV_CHANNELS_TELEGRAM: &str = "config.channels.telegram";
+const PLUGIN_REGISTRY_CONTRACT_VERSION: &str = "plugin.registry.v1";
 const NUMQUAM_SCHEMA_VERSION: &str = "integration.v1";
 const NUMQUAM_APPROVAL_KIND_WRITEBACK: &str = "memory.writeback";
 const AUTH_PROVIDER_OPENAI: &str = "openai";
@@ -769,6 +775,17 @@ async fn main() -> AnyResult<()> {
     carsinos_storage::init(&paths)?;
     let storage = Storage::from_paths(&paths);
     let providers = ProviderRegistry::new();
+    let plugin_manifest_dirs = load_plugin_manifest_dirs_from_env(&config.state_dir);
+    let plugin_registry =
+        PluginRegistry::load_from_dirs(&plugin_manifest_dirs).with_context(|| {
+            let display = plugin_manifest_dirs
+                .iter()
+                .map(|path| path.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("failed to load plugin manifests from configured directories: {display}")
+        })?;
+    let plugin_count = plugin_registry.len();
     let tool_runner = LocalToolRunner::default();
     let secret_store = SecretStore::from_env();
     let oauth_sessions = Arc::new(RwLock::new(HashMap::new()));
@@ -786,6 +803,11 @@ async fn main() -> AnyResult<()> {
             "Numquam integration client enabled"
         );
     }
+    info!(
+        plugin_count,
+        plugin_manifest_dirs = ?plugin_manifest_dirs,
+        "plugin registry initialized"
+    );
 
     let state = AppState {
         auth_mode,
@@ -801,6 +823,7 @@ async fn main() -> AnyResult<()> {
         secret_store: secret_store.clone(),
         oauth_sessions,
         numquam_client,
+        plugin_registry: Arc::new(RwLock::new(plugin_registry)),
         storage,
         metrics: Arc::new(GatewayMetrics::default()),
         event_tx,
@@ -968,6 +991,38 @@ async fn list_provider_capabilities(
         .collect::<Vec<_>>();
     Ok(Json(ListProviderCapabilitiesResponse {
         contract_version: "v2".to_string(),
+        items,
+    }))
+}
+
+async fn list_plugins(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Query(query): Query<ListPluginsQuery>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "plugin.registry.list",
+        "plugins",
+    )?;
+
+    let include_disabled = query.include_disabled.unwrap_or(false);
+    let mut manifests = state.plugin_registry.read().await.list_manifests();
+    if !include_disabled {
+        manifests.retain(|manifest| manifest.enabled);
+    }
+    let items = manifests
+        .into_iter()
+        .map(to_plugin_manifest_response)
+        .collect::<Vec<_>>();
+
+    Ok(Json(ListPluginsResponse {
+        contract_version: PLUGIN_REGISTRY_CONTRACT_VERSION.to_string(),
+        plugin_api_version: PLUGIN_API_VERSION_V1.to_string(),
         items,
     }))
 }
@@ -1538,6 +1593,7 @@ fn build_app(state: AppState) -> Router {
             "/api/v1/providers/capabilities",
             get(list_provider_capabilities),
         )
+        .route("/api/v1/extensions/plugins", get(list_plugins))
         .route("/api/v1/ws", get(ws_handler))
         .route("/api/v1/sessions", get(list_sessions).post(create_session))
         .route("/api/v1/sessions/{session_id}", get(get_session))
@@ -7842,6 +7898,70 @@ fn to_security_audit_event_response(
     }
 }
 
+fn to_plugin_manifest_response(manifest: CorePluginManifest) -> PluginManifestResponse {
+    PluginManifestResponse {
+        plugin_id: manifest.plugin_id,
+        display_name: manifest.display_name,
+        plugin_version: manifest.plugin_version,
+        api_version: manifest.api_version,
+        enabled: manifest.enabled,
+        tools: manifest
+            .capabilities
+            .tools
+            .into_iter()
+            .map(to_plugin_capability_response)
+            .collect(),
+        hooks: manifest
+            .capabilities
+            .hooks
+            .into_iter()
+            .map(to_plugin_capability_response)
+            .collect(),
+        providers: manifest
+            .capabilities
+            .providers
+            .into_iter()
+            .map(to_plugin_capability_response)
+            .collect(),
+        channels: manifest
+            .capabilities
+            .channels
+            .into_iter()
+            .map(to_plugin_capability_response)
+            .collect(),
+    }
+}
+
+fn to_plugin_capability_response(capability: CorePluginCapability) -> PluginCapabilityResponse {
+    PluginCapabilityResponse {
+        name: capability.name,
+        description: capability.description,
+    }
+}
+
+fn load_plugin_manifest_dirs_from_env(state_dir: &FsPath) -> Vec<PathBuf> {
+    let configured = std::env::var("CARSINOS_PLUGIN_MANIFEST_DIRS").unwrap_or_default();
+    let mut directories = Vec::new();
+    let mut seen = HashSet::new();
+
+    for raw in configured.split(',') {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let path = PathBuf::from(trimmed);
+        let key = path.to_string_lossy().to_string();
+        if seen.insert(key) {
+            directories.push(path);
+        }
+    }
+
+    if directories.is_empty() {
+        directories.push(state_dir.join("plugins"));
+    }
+    directories
+}
+
 fn emit_event(state: &AppState, event_name: &str, data: serde_json::Value) {
     let seq = state.event_seq.fetch_add(1, Ordering::Relaxed);
     let frame = serde_json::json!({
@@ -8111,6 +8231,7 @@ mod tests {
             None,
             false,
             HashSet::new(),
+            vec![],
         )
     }
 
@@ -8124,6 +8245,7 @@ mod tests {
             None,
             false,
             HashSet::new(),
+            vec![],
         )
     }
 
@@ -8137,6 +8259,7 @@ mod tests {
             None,
             false,
             HashSet::new(),
+            vec![],
         )
     }
 
@@ -8166,6 +8289,7 @@ mod tests {
             None,
             false,
             HashSet::new(),
+            vec![],
         )
     }
 
@@ -8179,6 +8303,21 @@ mod tests {
             Some(config),
             false,
             HashSet::new(),
+            vec![],
+        )
+    }
+
+    fn test_context_with_plugins(plugin_manifests: Vec<CorePluginManifest>) -> TestContext {
+        build_test_context(
+            vec![],
+            None,
+            AuthMode::StaticBearer,
+            None,
+            "test-token".to_string(),
+            None,
+            false,
+            HashSet::new(),
+            plugin_manifests,
         )
     }
 
@@ -8192,6 +8331,7 @@ mod tests {
         rate_limit_config: Option<RequestRateLimitConfig>,
         trusted_proxy_headers: bool,
         trusted_proxy_allowlist: HashSet<String>,
+        plugin_manifests: Vec<CorePluginManifest>,
     ) -> TestContext {
         let temp_dir = TempDir::new().expect("tempdir");
         let paths = AppPaths::from_root(temp_dir.path().to_path_buf());
@@ -8199,6 +8339,12 @@ mod tests {
         let (event_tx, _) = broadcast::channel(64);
         let storage = Storage::from_paths(&paths);
         let secret_store = SecretStore::from_env();
+        let mut plugin_registry = PluginRegistry::new();
+        for manifest in plugin_manifests {
+            plugin_registry
+                .register_manifest(manifest)
+                .expect("register plugin manifest");
+        }
         let rate_limiter = RequestRateLimiter {
             config: rate_limit_config.unwrap_or(RequestRateLimitConfig {
                 enabled: false,
@@ -8225,6 +8371,7 @@ mod tests {
             secret_store: secret_store.clone(),
             oauth_sessions: Arc::new(RwLock::new(HashMap::new())),
             numquam_client,
+            plugin_registry: Arc::new(RwLock::new(plugin_registry)),
             storage: storage.clone(),
             metrics: Arc::new(GatewayMetrics::default()),
             event_tx,
@@ -13487,5 +13634,75 @@ mod tests {
             .await
             .expect("provider capabilities filtered response");
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    fn sample_plugin_manifest(plugin_id: &str, enabled: bool) -> CorePluginManifest {
+        CorePluginManifest {
+            schema_version: "carsinos.plugin.manifest.v1".to_string(),
+            plugin_id: plugin_id.to_string(),
+            display_name: format!("Plugin {plugin_id}"),
+            plugin_version: "1.0.0".to_string(),
+            api_version: PLUGIN_API_VERSION_V1.to_string(),
+            enabled,
+            capabilities: carsinos_core::PluginCapabilities {
+                tools: vec![carsinos_core::PluginCapability {
+                    name: format!("tool.{plugin_id}"),
+                    description: Some("test tool".to_string()),
+                }],
+                hooks: vec![],
+                providers: vec![],
+                channels: vec![],
+            },
+            metadata: std::collections::BTreeMap::new(),
+        }
+    }
+
+    #[tokio::test]
+    async fn extension_plugins_list_filters_disabled_by_default() {
+        let ctx = test_context_with_plugins(vec![
+            sample_plugin_manifest("plugin.alpha", true),
+            sample_plugin_manifest("plugin.beta", false),
+        ]);
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/extensions/plugins",
+                Body::empty(),
+            ))
+            .await
+            .expect("plugins list response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = parse_json(response).await;
+        assert_eq!(body["contract_version"], "plugin.registry.v1");
+        assert_eq!(body["plugin_api_version"], "carsinos.plugin.api.v1");
+        let items = body["items"].as_array().expect("plugin list items");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["plugin_id"], "plugin.alpha");
+    }
+
+    #[tokio::test]
+    async fn extension_plugins_list_includes_disabled_with_query_flag() {
+        let ctx = test_context_with_plugins(vec![
+            sample_plugin_manifest("plugin.alpha", true),
+            sample_plugin_manifest("plugin.beta", false),
+        ]);
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/extensions/plugins?include_disabled=true",
+                Body::empty(),
+            ))
+            .await
+            .expect("plugins list include disabled response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = parse_json(response).await;
+        let items = body["items"].as_array().expect("plugin list items");
+        assert_eq!(items.len(), 2);
+        assert!(items.iter().any(|item| item["plugin_id"] == "plugin.alpha"));
+        assert!(items.iter().any(|item| item["plugin_id"] == "plugin.beta"));
     }
 }

@@ -58,6 +58,37 @@ pub struct ListProviderCapabilitiesResponse {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct ListPluginsQuery {
+    pub include_disabled: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PluginCapabilityResponse {
+    pub name: String,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PluginManifestResponse {
+    pub plugin_id: String,
+    pub display_name: String,
+    pub plugin_version: String,
+    pub api_version: String,
+    pub enabled: bool,
+    pub tools: Vec<PluginCapabilityResponse>,
+    pub hooks: Vec<PluginCapabilityResponse>,
+    pub providers: Vec<PluginCapabilityResponse>,
+    pub channels: Vec<PluginCapabilityResponse>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListPluginsResponse {
+    pub contract_version: String,
+    pub plugin_api_version: String,
+    pub items: Vec<PluginManifestResponse>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct ListSessionsQuery {
     pub limit: Option<u32>,
 }
