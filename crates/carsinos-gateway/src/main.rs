@@ -9,6 +9,8 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
+use carsinos_channels_discord as discord_channel;
+use carsinos_channels_telegram as telegram_channel;
 use carsinos_core::{GatewayConfig, TokenSource};
 use carsinos_protocol::{
     AnthropicSetupTokenIngestRequest, AnthropicSetupTokenIngestResponse, ApprovalResponse,
@@ -17,10 +19,11 @@ use carsinos_protocol::{
     CreateMessageResponse, CreateNoteRequest, CreateNoteResponse, CreateRunRequest,
     CreateRunResponse, CreateSessionRequest, CreateSessionResponse, DiscordChannelConfig,
     GetAgentProviderProfileOrderResponse, GetChannelConfigResponse, GetNoteResponse,
-    HealthResponse, JobResponse, JobRunResponse, JobStatusResponse, ListApprovalsQuery,
-    ListApprovalsResponse, ListAuthProfilesQuery, ListAuthProfilesResponse, ListJobHistoryQuery,
-    ListJobHistoryResponse, ListJobsQuery, ListJobsResponse, ListMessagesQuery,
-    ListMessagesResponse, ListNotesQuery, ListNotesResponse, ListSessionsQuery,
+    HealthResponse, IngestChannelMessageResponse, IngestDiscordMessageRequest,
+    IngestTelegramMessageRequest, JobResponse, JobRunResponse, JobStatusResponse,
+    ListApprovalsQuery, ListApprovalsResponse, ListAuthProfilesQuery, ListAuthProfilesResponse,
+    ListJobHistoryQuery, ListJobHistoryResponse, ListJobsQuery, ListJobsResponse,
+    ListMessagesQuery, ListMessagesResponse, ListNotesQuery, ListNotesResponse, ListSessionsQuery,
     ListSessionsResponse, MessageResponse, MetricsResponse, NoteResponse, OpenAiOauthFinishRequest,
     OpenAiOauthFinishResponse, OpenAiOauthStartRequest, OpenAiOauthStartResponse,
     RemoveJobResponse, ResolveApprovalRequest, ResolveApprovalResponse, RunJobNowResponse,
@@ -1510,6 +1513,14 @@ fn build_app(state: AppState) -> Router {
         .route(
             "/api/v1/config/channels",
             get(get_channel_config).post(update_channel_config),
+        )
+        .route(
+            "/api/v1/channels/telegram/inbound",
+            post(ingest_telegram_channel_message),
+        )
+        .route(
+            "/api/v1/channels/discord/inbound",
+            post(ingest_discord_channel_message),
         )
         .route("/api/v1/jobs", get(list_jobs))
         .route("/api/v1/jobs/status", get(job_status))
@@ -3074,6 +3085,424 @@ async fn update_channel_config(
         updated_at,
     };
     Ok(Json(UpdateChannelConfigResponse { config }))
+}
+
+fn get_or_create_channel_session(
+    state: &AppState,
+    session_key: &str,
+    title: String,
+) -> AnyResult<SessionRecord> {
+    if let Some(existing) = state.storage.get_session_by_key(session_key)? {
+        return Ok(existing);
+    }
+
+    match state.storage.create_session(NewSession {
+        session_key: Some(session_key.to_string()),
+        agent_id: "default".to_string(),
+        title: Some(title),
+    }) {
+        Ok(created) => Ok(created),
+        Err(err) => {
+            if err
+                .to_string()
+                .contains("UNIQUE constraint failed: sessions.session_key")
+            {
+                if let Some(existing) = state.storage.get_session_by_key(session_key)? {
+                    return Ok(existing);
+                }
+            }
+            Err(err)
+        }
+    }
+}
+
+async fn execute_channel_run(
+    state: &AppState,
+    session: &SessionRecord,
+    model_provider: String,
+    model_id: String,
+    requested_auth_profile_id: Option<&str>,
+) -> AnyResult<RunRecord> {
+    let created_run = state
+        .storage
+        .create_run(NewRun {
+            session_id: session.session_id.clone(),
+            model_provider,
+            model_id,
+        })?
+        .with_context(|| format!("creating run for session {} failed", session.session_id))?;
+    execute_run_with_status_handling(
+        state,
+        &created_run,
+        &session.agent_id,
+        requested_auth_profile_id,
+    )
+    .await
+}
+
+async fn ingest_telegram_channel_message(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<IngestTelegramMessageRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_CHANNEL_ADAPTER, ROLE_OPERATOR_ADMIN],
+        "channel.telegram.ingest",
+        &format!("telegram:chat:{}", request.chat_id),
+    )?;
+    require_endpoint_rate_limit_with_error(&state, &auth, "run")?;
+
+    let config = load_channel_config(&state)
+        .map_err(|err| internal_err_with_error("loading channel config failed", err))?;
+    let route_config = telegram_channel::TelegramAdapterConfig {
+        require_mention_in_groups: config.telegram.require_mention_in_groups,
+        allowlisted_user_ids: config.telegram.allowlisted_user_ids.clone(),
+    };
+    let inbound = telegram_channel::TelegramInboundMessage {
+        chat_id: request.chat_id,
+        user_id: request.user_id,
+        text: request.text.clone(),
+        is_group_chat: request.is_group_chat,
+        mentions_bot: request.mentions_bot,
+        reply_to_bot: request.reply_to_bot,
+    };
+
+    match telegram_channel::route_message(&route_config, &inbound) {
+        telegram_channel::RouteDecision::Reject(reason) => {
+            let reason_text = reason.to_string();
+            record_security_audit(
+                &headers,
+                &state,
+                &auth,
+                "channel.telegram.ingest",
+                &format!("telegram:chat:{}", request.chat_id),
+                "deny",
+                Some(reason_text.clone()),
+                StatusCode::OK,
+                Some("CHANNEL_ROUTE_REJECTED"),
+                None,
+                None,
+                None,
+            );
+            Ok(Json(IngestChannelMessageResponse {
+                decision: "rejected".to_string(),
+                reason: Some(reason_text),
+                session_id: None,
+                message_id: None,
+                run_id: None,
+            }))
+        }
+        telegram_channel::RouteDecision::Ignore(reason) => {
+            let reason_text = reason.to_string();
+            record_security_audit(
+                &headers,
+                &state,
+                &auth,
+                "channel.telegram.ingest",
+                &format!("telegram:chat:{}", request.chat_id),
+                "allow",
+                Some(reason_text.clone()),
+                StatusCode::OK,
+                None,
+                None,
+                None,
+                Some(serde_json::json!({
+                    "decision": "ignored"
+                })),
+            );
+            Ok(Json(IngestChannelMessageResponse {
+                decision: "ignored".to_string(),
+                reason: Some(reason_text),
+                session_id: None,
+                message_id: None,
+                run_id: None,
+            }))
+        }
+        telegram_channel::RouteDecision::Accept => {
+            let session_key = telegram_channel::session_key(&inbound);
+            let session = get_or_create_channel_session(
+                &state,
+                &session_key,
+                format!("telegram {}", request.chat_id),
+            )
+            .map_err(|err| internal_err_with_error("creating channel session failed", err))?;
+            let created_message = state
+                .storage
+                .create_message(NewMessage {
+                    session_id: session.session_id.clone(),
+                    source_channel: "telegram".to_string(),
+                    source_peer_id: Some(request.user_id.to_string()),
+                    source_message_id: request.source_message_id.clone(),
+                    role: "user".to_string(),
+                    content_text: request.text.clone(),
+                    content_format: "markdown".to_string(),
+                })
+                .map_err(|err| internal_err_with_error("creating channel message failed", err))?
+                .ok_or_else(|| {
+                    api_error(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "channel session missing while writing inbound message",
+                    )
+                })?;
+
+            let run_immediately = request.run_immediately.unwrap_or(true);
+            let mut run_id = None;
+            if run_immediately {
+                let model_provider = request
+                    .model_provider
+                    .unwrap_or_else(|| "mock".to_string())
+                    .trim()
+                    .to_string();
+                let model_id = request
+                    .model_id
+                    .unwrap_or_else(|| "mock-echo-v1".to_string())
+                    .trim()
+                    .to_string();
+                if model_provider.is_empty() || model_id.is_empty() {
+                    return Err(api_error(
+                        StatusCode::BAD_REQUEST,
+                        "model_provider and model_id must be non-empty when run_immediately=true",
+                    ));
+                }
+                if !provider_supported(&model_provider) {
+                    return Err(api_error(
+                        StatusCode::BAD_REQUEST,
+                        "unsupported model_provider",
+                    ));
+                }
+                let requested_auth_profile_id = request
+                    .auth_profile_id
+                    .as_ref()
+                    .map(|value| value.trim().to_string())
+                    .filter(|value| !value.is_empty());
+                let run = execute_channel_run(
+                    &state,
+                    &session,
+                    model_provider,
+                    model_id,
+                    requested_auth_profile_id.as_deref(),
+                )
+                .await
+                .map_err(|err| {
+                    internal_err_with_error("executing inbound channel run failed", err)
+                })?;
+                run_id = Some(run.run_id);
+            }
+
+            record_security_audit(
+                &headers,
+                &state,
+                &auth,
+                "channel.telegram.ingest",
+                &format!("telegram:chat:{}", request.chat_id),
+                "allow",
+                Some("inbound message ingested".to_string()),
+                StatusCode::OK,
+                None,
+                Some(&session.session_id),
+                run_id.as_deref(),
+                Some(serde_json::json!({
+                    "decision": "accepted",
+                    "run_immediately": run_immediately
+                })),
+            );
+
+            Ok(Json(IngestChannelMessageResponse {
+                decision: "accepted".to_string(),
+                reason: None,
+                session_id: Some(session.session_id),
+                message_id: Some(created_message.message_id),
+                run_id,
+            }))
+        }
+    }
+}
+
+async fn ingest_discord_channel_message(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<IngestDiscordMessageRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_CHANNEL_ADAPTER, ROLE_OPERATOR_ADMIN],
+        "channel.discord.ingest",
+        &format!("discord:channel:{}", request.channel_id),
+    )?;
+    require_endpoint_rate_limit_with_error(&state, &auth, "run")?;
+
+    let config = load_channel_config(&state)
+        .map_err(|err| internal_err_with_error("loading channel config failed", err))?;
+    let route_config = discord_channel::DiscordAdapterConfig {
+        require_mention_in_guild_channels: config.discord.require_mention_in_guild_channels,
+        allowlisted_user_ids: config.discord.allowlisted_user_ids.clone(),
+    };
+    let inbound = discord_channel::DiscordInboundMessage {
+        guild_id: request.guild_id.clone(),
+        channel_id: request.channel_id.clone(),
+        thread_id: request.thread_id.clone(),
+        author_id: request.author_id.clone(),
+        text: request.text.clone(),
+        mentions_bot: request.mentions_bot,
+        is_dm: request.is_dm,
+    };
+
+    match discord_channel::route_message(&route_config, &inbound) {
+        discord_channel::RouteDecision::Reject(reason) => {
+            let reason_text = reason.to_string();
+            record_security_audit(
+                &headers,
+                &state,
+                &auth,
+                "channel.discord.ingest",
+                &format!("discord:channel:{}", request.channel_id),
+                "deny",
+                Some(reason_text.clone()),
+                StatusCode::OK,
+                Some("CHANNEL_ROUTE_REJECTED"),
+                None,
+                None,
+                None,
+            );
+            Ok(Json(IngestChannelMessageResponse {
+                decision: "rejected".to_string(),
+                reason: Some(reason_text),
+                session_id: None,
+                message_id: None,
+                run_id: None,
+            }))
+        }
+        discord_channel::RouteDecision::Ignore(reason) => {
+            let reason_text = reason.to_string();
+            record_security_audit(
+                &headers,
+                &state,
+                &auth,
+                "channel.discord.ingest",
+                &format!("discord:channel:{}", request.channel_id),
+                "allow",
+                Some(reason_text.clone()),
+                StatusCode::OK,
+                None,
+                None,
+                None,
+                Some(serde_json::json!({
+                    "decision": "ignored"
+                })),
+            );
+            Ok(Json(IngestChannelMessageResponse {
+                decision: "ignored".to_string(),
+                reason: Some(reason_text),
+                session_id: None,
+                message_id: None,
+                run_id: None,
+            }))
+        }
+        discord_channel::RouteDecision::Accept => {
+            let session_key = discord_channel::session_key(&inbound);
+            let session = get_or_create_channel_session(
+                &state,
+                &session_key,
+                format!("discord {}", request.channel_id),
+            )
+            .map_err(|err| internal_err_with_error("creating channel session failed", err))?;
+            let created_message = state
+                .storage
+                .create_message(NewMessage {
+                    session_id: session.session_id.clone(),
+                    source_channel: "discord".to_string(),
+                    source_peer_id: Some(request.author_id.clone()),
+                    source_message_id: request.source_message_id.clone(),
+                    role: "user".to_string(),
+                    content_text: request.text.clone(),
+                    content_format: "markdown".to_string(),
+                })
+                .map_err(|err| internal_err_with_error("creating channel message failed", err))?
+                .ok_or_else(|| {
+                    api_error(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "channel session missing while writing inbound message",
+                    )
+                })?;
+
+            let run_immediately = request.run_immediately.unwrap_or(true);
+            let mut run_id = None;
+            if run_immediately {
+                let model_provider = request
+                    .model_provider
+                    .unwrap_or_else(|| "mock".to_string())
+                    .trim()
+                    .to_string();
+                let model_id = request
+                    .model_id
+                    .unwrap_or_else(|| "mock-echo-v1".to_string())
+                    .trim()
+                    .to_string();
+                if model_provider.is_empty() || model_id.is_empty() {
+                    return Err(api_error(
+                        StatusCode::BAD_REQUEST,
+                        "model_provider and model_id must be non-empty when run_immediately=true",
+                    ));
+                }
+                if !provider_supported(&model_provider) {
+                    return Err(api_error(
+                        StatusCode::BAD_REQUEST,
+                        "unsupported model_provider",
+                    ));
+                }
+                let requested_auth_profile_id = request
+                    .auth_profile_id
+                    .as_ref()
+                    .map(|value| value.trim().to_string())
+                    .filter(|value| !value.is_empty());
+                let run = execute_channel_run(
+                    &state,
+                    &session,
+                    model_provider,
+                    model_id,
+                    requested_auth_profile_id.as_deref(),
+                )
+                .await
+                .map_err(|err| {
+                    internal_err_with_error("executing inbound channel run failed", err)
+                })?;
+                run_id = Some(run.run_id);
+            }
+
+            record_security_audit(
+                &headers,
+                &state,
+                &auth,
+                "channel.discord.ingest",
+                &format!("discord:channel:{}", request.channel_id),
+                "allow",
+                Some("inbound message ingested".to_string()),
+                StatusCode::OK,
+                None,
+                Some(&session.session_id),
+                run_id.as_deref(),
+                Some(serde_json::json!({
+                    "decision": "accepted",
+                    "run_immediately": run_immediately
+                })),
+            );
+
+            Ok(Json(IngestChannelMessageResponse {
+                decision: "accepted".to_string(),
+                reason: None,
+                session_id: Some(session.session_id),
+                message_id: Some(created_message.message_id),
+                run_id,
+            }))
+        }
+    }
 }
 
 async fn list_jobs(
@@ -11175,6 +11604,184 @@ mod tests {
             updated_json["config"]["telegram"]["allowlisted_user_ids"][1],
             1002
         );
+    }
+
+    #[tokio::test]
+    async fn telegram_channel_inbound_rejects_non_allowlisted_sender() {
+        let ctx = test_context();
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/channels",
+                Body::from(
+                    r#"{
+                        "telegram":{"require_mention_in_groups":false,"allowlisted_user_ids":[1001]}
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update channel config");
+
+        let inbound = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/telegram/inbound",
+                Body::from(
+                    r#"{
+                        "chat_id":123,
+                        "user_id":999,
+                        "text":"hello",
+                        "is_group_chat":false,
+                        "mentions_bot":false,
+                        "reply_to_bot":false,
+                        "run_immediately":false
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("telegram inbound");
+        assert_eq!(inbound.status(), StatusCode::OK);
+        let inbound_json = parse_json(inbound).await;
+        assert_eq!(inbound_json["decision"], "rejected");
+        assert_eq!(inbound_json["reason"], "sender_not_allowlisted");
+        assert!(inbound_json["session_id"].is_null());
+        assert!(inbound_json["run_id"].is_null());
+    }
+
+    #[tokio::test]
+    async fn telegram_channel_inbound_accept_reuses_session_key() {
+        let ctx = test_context();
+        let first = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/telegram/inbound",
+                Body::from(
+                    r#"{
+                        "chat_id":777,
+                        "user_id":42,
+                        "text":"first",
+                        "is_group_chat":true,
+                        "mentions_bot":true,
+                        "reply_to_bot":false,
+                        "run_immediately":false
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("telegram inbound first");
+        assert_eq!(first.status(), StatusCode::OK);
+        let first_json = parse_json(first).await;
+        assert_eq!(first_json["decision"], "accepted");
+        let session_id = first_json["session_id"]
+            .as_str()
+            .expect("session id")
+            .to_string();
+
+        let second = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/telegram/inbound",
+                Body::from(
+                    r#"{
+                        "chat_id":777,
+                        "user_id":42,
+                        "text":"second",
+                        "is_group_chat":true,
+                        "mentions_bot":true,
+                        "reply_to_bot":false,
+                        "run_immediately":false
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("telegram inbound second");
+        assert_eq!(second.status(), StatusCode::OK);
+        let second_json = parse_json(second).await;
+        assert_eq!(second_json["decision"], "accepted");
+        assert_eq!(second_json["session_id"], session_id);
+        assert!(second_json["run_id"].is_null());
+
+        let messages = ctx
+            .storage
+            .list_messages(&session_id, 10)
+            .expect("list messages for channel session");
+        assert_eq!(messages.len(), 2);
+        assert_eq!(messages[0].content_text, "first");
+        assert_eq!(messages[1].content_text, "second");
+    }
+
+    #[tokio::test]
+    async fn discord_channel_inbound_ignores_guild_message_without_mention() {
+        let ctx = test_context();
+        let inbound = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/discord/inbound",
+                Body::from(
+                    r#"{
+                        "guild_id":"g1",
+                        "channel_id":"c1",
+                        "author_id":"u1",
+                        "text":"hello",
+                        "mentions_bot":false,
+                        "is_dm":false,
+                        "run_immediately":false
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("discord inbound");
+        assert_eq!(inbound.status(), StatusCode::OK);
+        let inbound_json = parse_json(inbound).await;
+        assert_eq!(inbound_json["decision"], "ignored");
+        assert_eq!(inbound_json["reason"], "mention_required_in_guild_channel");
+        assert!(inbound_json["session_id"].is_null());
+    }
+
+    #[tokio::test]
+    async fn discord_channel_inbound_can_trigger_run_execution() {
+        let ctx = test_context();
+        let inbound = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/discord/inbound",
+                Body::from(
+                    r#"{
+                        "channel_id":"dm-c1",
+                        "author_id":"u-run",
+                        "text":"run now",
+                        "mentions_bot":false,
+                        "is_dm":true,
+                        "run_immediately":true,
+                        "model_provider":"mock",
+                        "model_id":"mock-echo-v1"
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("discord inbound run");
+        assert_eq!(inbound.status(), StatusCode::OK);
+        let inbound_json = parse_json(inbound).await;
+        assert_eq!(inbound_json["decision"], "accepted");
+        let run_id = inbound_json["run_id"].as_str().expect("run id");
+        let run = ctx
+            .storage
+            .get_run(run_id)
+            .expect("get run")
+            .expect("run exists");
+        assert_eq!(run.status, "succeeded");
     }
 
     #[tokio::test]
