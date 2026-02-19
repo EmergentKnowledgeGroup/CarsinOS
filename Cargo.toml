@@ -2,6 +2,7 @@
 members = [
   "crates/carsinos-channels-discord",
   "crates/carsinos-channels-telegram",
+  "crates/carsinos-channels-whatsapp",
   "crates/carsinos-cli",
   "crates/carsinos-core",
   "crates/carsinos-gateway",

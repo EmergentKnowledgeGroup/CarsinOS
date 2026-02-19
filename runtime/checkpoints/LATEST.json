@@ -1,39 +1,50 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T15:50:25+00:00",
+  "captured_at": "2026-02-19T15:53:10+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/chunk-pr21-scheduler-delivery-routing",
-  "head_short": "fdaa9d7",
-  "head": "fdaa9d723f5fbfef8d61b8a5e6c228b2f7f75d14",
-  "step": "chunk-pr21-pr-open",
-  "note": "Opened PR #21 for MC-AUTO-002 scheduler delivery routing and outcomes.",
-  "next_cmd": "Monitor PR #15-#21 checks and continue next chunk branch.",
+  "branch": "codex/chunk-pr22-future-whatsapp-adapter",
+  "head_short": "f4a985d",
+  "head": "f4a985d8ea7f76f3153f99b3ec89f813588f9f3a",
+  "step": "chunk-pr22-postgreen",
+  "note": "Completed MC-FUT-010 WhatsApp adapter scaffold crate and workspace integration with full validation green.",
+  "next_cmd": "Commit chunk-pr22 changes, push branch, and open PR #22.",
   "validations": [
-    "PR opened: https://github.com/ProfessahX/CarsinOS/pull/21",
-    "cargo test -p carsinos-gateway run_now_session_run_payload_routes_delivery_targets_and_audits -- --nocapture",
-    "cargo test -p carsinos-gateway session_run_delivery_first_success_falls_back_after_failed_target -- --nocapture",
-    "cargo test -p carsinos-gateway run_now_session_run_payload_executes_real_run_path -- --nocapture",
-    "cargo test -p carsinos-gateway --test e2e_process websocket_stream_includes_run_and_approval_events -- --nocapture",
+    "cargo test -p carsinos-channels-whatsapp -- --nocapture",
     "cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings",
     "REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh"
   ],
   "status": {
     "staged": [],
-    "modified": [],
-    "untracked": [],
+    "modified": [
+      "CHECKPOINT.md",
+      "Cargo.toml",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
+    "untracked": [
+      "crates/carsinos-channels-whatsapp/Cargo.toml",
+      "crates/carsinos-channels-whatsapp/src/lib.rs"
+    ],
     "conflicted": [],
-    "dirty": false
+    "dirty": true
   },
   "changed_files": {
-    "working_tree": [],
+    "working_tree": [
+      "CHECKPOINT.md",
+      "Cargo.toml",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md",
+      "crates/carsinos-channels-whatsapp/Cargo.toml",
+      "crates/carsinos-channels-whatsapp/src/lib.rs"
+    ],
     "staged": []
   },
   "recent_commits": [
+    "f4a985d docs: checkpoint PR #21 open state",
     "fdaa9d7 feat(auto): add scheduler delivery target routing and outcomes",
     "95382a5 docs: checkpoint PR #20 open state",
     "8700204 feat(auth): add health-scored auth profile fallback ordering",
-    "be54424 docs: checkpoint PR #19 open state",
-    "a4d989a feat(tool): add channel action tooling with policy audits"
+    "be54424 docs: checkpoint PR #19 open state"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
