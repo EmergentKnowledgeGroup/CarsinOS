@@ -3313,3 +3313,55 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 174
+
+- checklist refs: PR cleanup wave #15
+- past action:
+- Merged convergence PR #27 into `main` and fast-forwarded local `main` to commit `2ffa95262009458e161636e9ac019f52e42e18ad`.
+- present action:
+- Started branch `codex/chunk-pr28-pr-cleanup-after-27` for post-merge PR hygiene cleanup.
+- future action:
+- Close superseded stacked PRs #15-#26, then checkpoint finalized cleanup state.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 175
+
+- checklist refs: PR cleanup wave #15
+- past action:
+- Started post-merge cleanup branch after convergence merge.
+- present action:
+- Closed superseded PRs #15 through #26 with explicit supersession notes referencing merged PR #27.
+- validation outcomes:
+- `gh pr close` succeeded for each PR in #15-#26.
+- `gh pr list --state open` returned empty set.
+- future action:
+- Commit/push cleanup checkpoint docs and open docs-only hygiene PR.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 176
+
+- checklist refs: PR cleanup wave #15
+- past action:
+- Completed checkpoint cleanup commit and pushed branch.
+- present action:
+- Opened PR #28 for docs-only checkpoint hygiene:
+- https://github.com/ProfessahX/CarsinOS/pull/28
+- future action:
+- Merge PR #28 to persist cleanup checkpoint state into `main`.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
