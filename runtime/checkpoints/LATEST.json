@@ -1,12 +1,12 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T13:46:49.012179+00:00",
+  "captured_at": "2026-02-19T13:50:36.975090+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "main",
-  "head_short": "86ae692",
-  "step": "chunk-pr7-post-merge",
-  "note": "PR #7 merged; channel inbound runtime is now in main.",
-  "next_cmd": "Start chunk PR #8 from main for next channel/runtime backlog slice.",
+  "branch": "codex/chunk-pr8-channel-runtime-policy-defaults",
+  "head_short": "b312672",
+  "step": "chunk-pr8-pr-open",
+  "note": "PR #8 opened for channel runtime policy defaults.",
+  "next_cmd": "Monitor/merge PR #8 and begin chunk PR #9.",
   "status": {
     "staged": [],
     "modified": [],
@@ -19,11 +19,11 @@
     "staged": []
   },
   "recent_commits": [
+    "b312672 feat: add channel runtime policy defaults",
+    "490ce23 docs: checkpoint PR #7 post-merge state",
     "86ae692 feat: add channel inbound ingest runtime endpoints (#7)",
     "2cc7d4a docs: checkpoint PR #5 post-merge state",
-    "e771024 feat: add security audit retention archive operations (#5)",
-    "d1d35d5 docs: checkpoint PR #4 post-merge state",
-    "7922846 feat: add JWT replay token-id protection (#4)"
+    "e771024 feat: add security audit retention archive operations (#5)"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",

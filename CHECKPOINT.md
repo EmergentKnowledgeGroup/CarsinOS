@@ -2030,3 +2030,59 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 104
+
+- checklist refs: `MC-CH-002` chunk wave #3
+- past action:
+- Merged PR #7 and checkpointed post-merge state on main.
+- present action:
+- Started `codex/chunk-pr8-channel-runtime-policy-defaults` for per-channel runtime policy defaults.
+- future action:
+- Add config schema/runtime fallback behavior and validate before opening PR #8.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 105
+
+- checklist refs: `MC-CH-002` chunk wave #3
+- past action:
+- Implemented channel runtime policy defaults across protocol schema, config defaults, and inbound execution fallback logic.
+- present action:
+- Completed full validation sweep and security gate run for PR #8.
+- validation outcomes:
+- `cargo test -p carsinos-gateway channel_config_endpoints_round_trip -- --nocapture` passed.
+- `cargo test -p carsinos-gateway discord_channel_inbound -- --nocapture` passed.
+- `cargo clippy -p carsinos-gateway -p carsinos-protocol --all-targets -- -D warnings` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push and open PR #8.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-protocol/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 106
+
+- checklist refs: `MC-CH-002` chunk wave #3
+- past action:
+- Completed and validated channel runtime policy defaults implementation.
+- present action:
+- Opened PR #8 for review/merge:
+- https://github.com/ProfessahX/CarsinOS/pull/8
+- future action:
+- Merge PR #8 and start chunk PR #9.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
