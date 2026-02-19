@@ -14,7 +14,7 @@ use carsinos_channels_telegram as telegram_channel;
 use carsinos_core::{
     GatewayConfig, HookBus, HookEvent, HookPoint, HookRegistration,
     PluginCapability as CorePluginCapability, PluginManifest as CorePluginManifest, PluginRegistry,
-    TokenSource, PLUGIN_API_VERSION_V1,
+    SkillDocument as CoreSkillDocument, SkillRegistry, TokenSource, PLUGIN_API_VERSION_V1,
 };
 use carsinos_protocol::{
     AnthropicSetupTokenIngestRequest, AnthropicSetupTokenIngestResponse, ApprovalResponse,
@@ -29,16 +29,17 @@ use carsinos_protocol::{
     ListJobHistoryQuery, ListJobHistoryResponse, ListJobsQuery, ListJobsResponse,
     ListMessagesQuery, ListMessagesResponse, ListNotesQuery, ListNotesResponse, ListPluginsQuery,
     ListPluginsResponse, ListProviderCapabilitiesQuery, ListProviderCapabilitiesResponse,
-    ListSessionsQuery, ListSessionsResponse, MessageResponse, MetricsResponse, NoteResponse,
-    OpenAiOauthFinishRequest, OpenAiOauthFinishResponse, OpenAiOauthStartRequest,
-    OpenAiOauthStartResponse, PluginCapabilityResponse, PluginManifestResponse,
-    ProviderCapabilityResponse, RemoveJobResponse, ResolveApprovalRequest, ResolveApprovalResponse,
-    ResolveChannelApprovalActionRequest, RunJobNowResponse, RunResponse, SearchMemoryRequest,
-    SearchMemoryResponse, SearchMemoryResult, SessionDetailResponse, SessionSummary,
-    SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse, StatusResponse,
-    TelegramChannelConfig, UpdateAuthProfileStateRequest, UpdateAuthProfileStateResponse,
-    UpdateChannelConfigRequest, UpdateChannelConfigResponse, UpdateJobRequest, UpdateJobResponse,
-    UpdateNoteRequest, UpdateNoteResponse,
+    ListSessionsQuery, ListSessionsResponse, ListSkillsQuery, ListSkillsResponse, MessageResponse,
+    MetricsResponse, NoteResponse, OpenAiOauthFinishRequest, OpenAiOauthFinishResponse,
+    OpenAiOauthStartRequest, OpenAiOauthStartResponse, PluginCapabilityResponse,
+    PluginManifestResponse, ProviderCapabilityResponse, RemoveJobResponse, ResolveApprovalRequest,
+    ResolveApprovalResponse, ResolveChannelApprovalActionRequest, RunJobNowResponse, RunResponse,
+    SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult, SessionDetailResponse,
+    SessionSummary, SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse,
+    SkillResponse, StatusResponse, TelegramChannelConfig, UpdateAuthProfileStateRequest,
+    UpdateAuthProfileStateResponse, UpdateChannelConfigRequest, UpdateChannelConfigResponse,
+    UpdateJobRequest, UpdateJobResponse, UpdateNoteRequest, UpdateNoteResponse,
+    UpdateSkillStateRequest, UpdateSkillStateResponse,
 };
 use carsinos_providers::{
     parse_provider_error_class as parse_provider_error_class_normalized,
@@ -60,7 +61,7 @@ use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::net::IpAddr;
 use std::path::{Path as FsPath, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -93,6 +94,7 @@ struct AppState {
     numquam_client: Option<NumquamClient>,
     plugin_registry: Arc<RwLock<PluginRegistry>>,
     hook_bus: Arc<HookBus>,
+    skill_registry: Arc<RwLock<SkillRegistry>>,
     storage: Storage,
     metrics: Arc<GatewayMetrics>,
     event_tx: broadcast::Sender<String>,
@@ -272,7 +274,9 @@ const KILL_SWITCH_SCOPE_GLOBAL: &str = "global";
 
 const APP_KV_CHANNELS_DISCORD: &str = "config.channels.discord";
 const APP_KV_CHANNELS_TELEGRAM: &str = "config.channels.telegram";
+const APP_KV_SKILLS_STATE: &str = "config.skills.state";
 const PLUGIN_REGISTRY_CONTRACT_VERSION: &str = "plugin.registry.v1";
+const SKILL_REGISTRY_CONTRACT_VERSION: &str = "skills.registry.v1";
 const NUMQUAM_SCHEMA_VERSION: &str = "integration.v1";
 const NUMQUAM_APPROVAL_KIND_WRITEBACK: &str = "memory.writeback";
 const AUTH_PROVIDER_OPENAI: &str = "openai";
@@ -789,6 +793,18 @@ async fn main() -> AnyResult<()> {
         })?;
     let plugin_count = plugin_registry.len();
     let hook_bus = build_hook_bus_from_registry(&plugin_registry)?;
+    let skill_dirs = load_skill_dirs_from_env(&config.state_dir);
+    let mut skill_registry = SkillRegistry::load_from_dirs(&skill_dirs).with_context(|| {
+        let display = skill_dirs
+            .iter()
+            .map(|path| path.display().to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("failed to load skills from configured directories: {display}")
+    })?;
+    let skill_overrides = load_skill_state_overrides(&storage)?;
+    skill_registry.apply_enabled_overrides(&skill_overrides);
+    let skill_count = skill_registry.len();
     let tool_runner = LocalToolRunner::default();
     let secret_store = SecretStore::from_env();
     let oauth_sessions = Arc::new(RwLock::new(HashMap::new()));
@@ -810,7 +826,9 @@ async fn main() -> AnyResult<()> {
         plugin_count,
         plugin_manifest_dirs = ?plugin_manifest_dirs,
         hook_count = hook_bus.list_registrations().len(),
-        "plugin registry initialized"
+        skill_count,
+        skill_dirs = ?skill_dirs,
+        "extension registries initialized"
     );
 
     let state = AppState {
@@ -829,6 +847,7 @@ async fn main() -> AnyResult<()> {
         numquam_client,
         plugin_registry: Arc::new(RwLock::new(plugin_registry)),
         hook_bus: Arc::new(hook_bus),
+        skill_registry: Arc::new(RwLock::new(skill_registry)),
         storage,
         metrics: Arc::new(GatewayMetrics::default()),
         event_tx,
@@ -1029,6 +1048,91 @@ async fn list_plugins(
         contract_version: PLUGIN_REGISTRY_CONTRACT_VERSION.to_string(),
         plugin_api_version: PLUGIN_API_VERSION_V1.to_string(),
         items,
+    }))
+}
+
+async fn list_skills(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Query(query): Query<ListSkillsQuery>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "skill.registry.list",
+        "skills",
+    )?;
+
+    let include_disabled = query.include_disabled.unwrap_or(false);
+    let mut skills = state.skill_registry.read().await.list();
+    if !include_disabled {
+        skills.retain(|skill| skill.enabled);
+    }
+    let items = skills
+        .into_iter()
+        .map(to_skill_response)
+        .collect::<Vec<_>>();
+    Ok(Json(ListSkillsResponse {
+        contract_version: SKILL_REGISTRY_CONTRACT_VERSION.to_string(),
+        items,
+    }))
+}
+
+async fn update_skill_state(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(skill_id): Path<String>,
+    Json(request): Json<UpdateSkillStateRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN],
+        "skill.state.update",
+        &format!("skill:{skill_id}"),
+    )?;
+
+    let (updated, overrides) = {
+        let mut registry = state.skill_registry.write().await;
+        let updated = registry
+            .set_enabled(&skill_id, request.enabled)
+            .map_err(|err| api_error(StatusCode::NOT_FOUND, &err.to_string()))?;
+        let overrides = skill_state_overrides_from_registry(&registry);
+        (updated, overrides)
+    };
+    let overrides_json = serde_json::to_string(&overrides).map_err(|err| {
+        internal_err_with_error("serializing skill state overrides failed", err.into())
+    })?;
+    state
+        .storage
+        .set_app_kv_json(APP_KV_SKILLS_STATE, overrides_json)
+        .map_err(|err| internal_err_with_error("saving skill state overrides failed", err))?;
+
+    record_security_audit(
+        &headers,
+        &state,
+        &auth,
+        "skill.state.update",
+        &format!("skill:{}", updated.skill_id),
+        "allow",
+        Some("skill state updated".to_string()),
+        StatusCode::OK,
+        None,
+        None,
+        None,
+        Some(serde_json::json!({
+            "skill_id": &updated.skill_id,
+            "enabled": updated.enabled
+        })),
+    );
+
+    Ok(Json(UpdateSkillStateResponse {
+        skill: to_skill_response(updated),
     }))
 }
 
@@ -1599,6 +1703,11 @@ fn build_app(state: AppState) -> Router {
             get(list_provider_capabilities),
         )
         .route("/api/v1/extensions/plugins", get(list_plugins))
+        .route("/api/v1/extensions/skills", get(list_skills))
+        .route(
+            "/api/v1/extensions/skills/{skill_id}/state",
+            post(update_skill_state),
+        )
         .route("/api/v1/ws", get(ws_handler))
         .route("/api/v1/sessions", get(list_sessions).post(create_session))
         .route("/api/v1/sessions/{session_id}", get(get_session))
@@ -5069,11 +5178,16 @@ async fn execute_run(
         };
 
     let mut context_sections = Vec::new();
+    let mut applied_skill_ids = Vec::new();
     if let Some(context_text) = memory_context_text {
         context_sections.push(format!("Numquam memory context:\n{}", context_text));
     }
     if let Some(local_context) = local_memory_context {
         context_sections.push(format!("Local notes context:\n{}", local_context));
+    }
+    if let Some((skills_context, skill_ids)) = resolve_skill_context(state, &input).await {
+        applied_skill_ids = skill_ids;
+        context_sections.push(skills_context);
     }
     let provider_input = if context_sections.is_empty() {
         provider_base_input
@@ -5091,7 +5205,8 @@ async fn execute_run(
         None,
         serde_json::json!({
             "provider_input_chars": provider_input.len(),
-            "context_sections": context_sections.len()
+            "context_sections": context_sections.len(),
+            "applied_skill_ids": &applied_skill_ids
         }),
     )
     .await;
@@ -5388,6 +5503,7 @@ async fn execute_run(
     if memory_metadata.enabled
         || local_memory_metadata.enabled
         || local_memory_metadata.error.is_some()
+        || !applied_skill_ids.is_empty()
     {
         let mut usage_payload = serde_json::Map::new();
         if memory_metadata.enabled {
@@ -5397,6 +5513,14 @@ async fn execute_run(
             "local_memory".to_string(),
             serde_json::json!(&local_memory_metadata),
         );
+        if !applied_skill_ids.is_empty() {
+            usage_payload.insert(
+                "skills".to_string(),
+                serde_json::json!({
+                    "applied_skill_ids": applied_skill_ids
+                }),
+            );
+        }
         let usage_json = serde_json::Value::Object(usage_payload).to_string();
         state
             .storage
@@ -7745,6 +7869,49 @@ async fn emit_extension_hook_point(
     }
 }
 
+async fn resolve_skill_context(state: &AppState, input: &str) -> Option<(String, Vec<String>)> {
+    let max_skills = parse_usize_env("CARSINOS_SKILL_INJECTION_MAX_SKILLS", 3, 1, 16);
+    let max_total_chars = parse_usize_env("CARSINOS_SKILL_INJECTION_MAX_CHARS", 4000, 256, 50_000);
+    let max_per_skill_chars = parse_usize_env(
+        "CARSINOS_SKILL_INJECTION_MAX_CHARS_PER_SKILL",
+        1400,
+        128,
+        20_000,
+    );
+    let selected =
+        state
+            .skill_registry
+            .read()
+            .await
+            .resolve_for_input(input, max_skills, max_total_chars);
+    if selected.is_empty() {
+        return None;
+    }
+
+    let mut rendered = Vec::new();
+    let mut ids = Vec::new();
+    for skill in selected {
+        ids.push(skill.skill_id.clone());
+        let content = if skill.content.chars().count() > max_per_skill_chars {
+            let clipped = skill
+                .content
+                .chars()
+                .take(max_per_skill_chars)
+                .collect::<String>();
+            format!("{clipped}...")
+        } else {
+            skill.content
+        };
+        rendered.push(format!(
+            "[{}] {}\n{}",
+            skill.skill_id,
+            skill.title.trim(),
+            content
+        ));
+    }
+    Some((format!("Skills context:\n{}", rendered.join("\n\n")), ids))
+}
+
 #[allow(clippy::too_many_arguments)]
 fn record_security_audit_internal(
     state: &AppState,
@@ -8200,6 +8367,66 @@ fn to_plugin_capability_response(capability: CorePluginCapability) -> PluginCapa
     }
 }
 
+fn to_skill_response(skill: CoreSkillDocument) -> SkillResponse {
+    let preview = if skill.content.chars().count() > 180 {
+        let truncated = skill.content.chars().take(180).collect::<String>();
+        format!("{truncated}...")
+    } else {
+        skill.content.clone()
+    };
+    SkillResponse {
+        skill_id: skill.skill_id,
+        title: skill.title,
+        source_path: skill.source_path,
+        enabled: skill.enabled,
+        content_chars: skill.content.chars().count(),
+        preview,
+    }
+}
+
+fn skill_state_overrides_from_registry(registry: &SkillRegistry) -> BTreeMap<String, bool> {
+    registry
+        .list()
+        .into_iter()
+        .map(|skill| (skill.skill_id, skill.enabled))
+        .collect()
+}
+
+fn load_skill_dirs_from_env(state_dir: &FsPath) -> Vec<PathBuf> {
+    let configured = std::env::var("CARSINOS_SKILL_DIRS").unwrap_or_default();
+    let mut directories = Vec::new();
+    let mut seen = HashSet::new();
+
+    for raw in configured.split(',') {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let path = PathBuf::from(trimmed);
+        let key = path.to_string_lossy().to_string();
+        if seen.insert(key) {
+            directories.push(path);
+        }
+    }
+
+    if directories.is_empty() {
+        directories.push(state_dir.join("skills"));
+    }
+    directories
+}
+
+fn load_skill_state_overrides(storage: &Storage) -> AnyResult<BTreeMap<String, bool>> {
+    let Some((raw, _updated_at)) = storage
+        .get_app_kv_json(APP_KV_SKILLS_STATE)
+        .context("loading skill state overrides failed")?
+    else {
+        return Ok(BTreeMap::new());
+    };
+    let parsed = serde_json::from_str::<BTreeMap<String, bool>>(&raw)
+        .context("parsing skill state overrides failed")?;
+    Ok(parsed)
+}
+
 fn load_plugin_manifest_dirs_from_env(state_dir: &FsPath) -> Vec<PathBuf> {
     let configured = std::env::var("CARSINOS_PLUGIN_MANIFEST_DIRS").unwrap_or_default();
     let mut directories = Vec::new();
@@ -8537,6 +8764,7 @@ mod tests {
         storage: Storage,
         secret_store: SecretStore,
         hook_bus: Arc<HookBus>,
+        skill_registry: Arc<RwLock<SkillRegistry>>,
     }
 
     fn test_context() -> TestContext {
@@ -8666,6 +8894,7 @@ mod tests {
         let hook_bus = Arc::new(
             build_hook_bus_from_registry(&plugin_registry).expect("build hook bus from registry"),
         );
+        let skill_registry = Arc::new(RwLock::new(SkillRegistry::new()));
         let rate_limiter = RequestRateLimiter {
             config: rate_limit_config.unwrap_or(RequestRateLimitConfig {
                 enabled: false,
@@ -8694,6 +8923,7 @@ mod tests {
             numquam_client,
             plugin_registry: Arc::new(RwLock::new(plugin_registry)),
             hook_bus: hook_bus.clone(),
+            skill_registry: skill_registry.clone(),
             storage: storage.clone(),
             metrics: Arc::new(GatewayMetrics::default()),
             event_tx,
@@ -8710,6 +8940,7 @@ mod tests {
             storage,
             secret_store,
             hook_bus,
+            skill_registry,
         }
     }
 
@@ -14101,5 +14332,211 @@ mod tests {
                 && item["principal"] == "service_internal"
                 && item["decision"] == "deny"
         }));
+    }
+
+    async fn seed_skill(
+        ctx: &TestContext,
+        skill_id: &str,
+        title: &str,
+        content: &str,
+    ) -> CoreSkillDocument {
+        let skill = CoreSkillDocument {
+            skill_id: skill_id.to_string(),
+            title: title.to_string(),
+            source_path: format!("/tmp/{skill_id}.md"),
+            enabled: true,
+            content: content.to_string(),
+        };
+        let mut registry = ctx.skill_registry.write().await;
+        registry
+            .register_skill(skill.clone())
+            .expect("register test skill");
+        skill
+    }
+
+    #[tokio::test]
+    async fn skills_list_and_toggle_state_round_trip() {
+        let ctx = test_context();
+        let skill = seed_skill(
+            &ctx,
+            "ops-notes",
+            "Ops Notes",
+            "Always check health and rollback plan.",
+        )
+        .await;
+
+        let list_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/extensions/skills",
+                Body::empty(),
+            ))
+            .await
+            .expect("list skills response");
+        assert_eq!(list_response.status(), StatusCode::OK);
+        let list_json = parse_json(list_response).await;
+        assert_eq!(list_json["contract_version"], "skills.registry.v1");
+        assert!(list_json["items"]
+            .as_array()
+            .expect("skills items")
+            .iter()
+            .any(|item| item["skill_id"] == skill.skill_id));
+
+        let disable_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/extensions/skills/ops-notes/state",
+                Body::from(r#"{"enabled":false}"#),
+            ))
+            .await
+            .expect("disable skill response");
+        assert_eq!(disable_response.status(), StatusCode::OK);
+        let disable_json = parse_json(disable_response).await;
+        assert_eq!(disable_json["skill"]["enabled"], false);
+
+        let filtered_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/extensions/skills",
+                Body::empty(),
+            ))
+            .await
+            .expect("filtered skills response");
+        let filtered_json = parse_json(filtered_response).await;
+        assert_eq!(
+            filtered_json["items"]
+                .as_array()
+                .expect("skills array")
+                .len(),
+            0
+        );
+
+        let include_disabled_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/extensions/skills?include_disabled=true",
+                Body::empty(),
+            ))
+            .await
+            .expect("include disabled skills response");
+        let include_disabled_json = parse_json(include_disabled_response).await;
+        assert!(include_disabled_json["items"]
+            .as_array()
+            .expect("skills array")
+            .iter()
+            .any(|item| item["skill_id"] == "ops-notes" && item["enabled"] == false));
+
+        let persisted = ctx
+            .storage
+            .get_app_kv_json(APP_KV_SKILLS_STATE)
+            .expect("load persisted skills state")
+            .expect("skills state json");
+        let persisted_map: serde_json::Value =
+            serde_json::from_str(&persisted.0).expect("parse persisted skills state");
+        assert_eq!(persisted_map["ops-notes"], false);
+    }
+
+    #[tokio::test]
+    async fn skills_requested_in_user_input_are_injected_into_run_context() {
+        let ctx = test_context();
+        let _skill = seed_skill(
+            &ctx,
+            "ops-notes",
+            "Ops Notes",
+            "SPECIAL_SKILL_CONTEXT: enforce staged rollout.",
+        )
+        .await;
+
+        let create_session_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"skills-injection"}"#),
+            ))
+            .await
+            .expect("create session");
+        let create_session_json = parse_json(create_session_response).await;
+        let session_id = create_session_json["session"]["session_id"]
+            .as_str()
+            .expect("session id")
+            .to_string();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(
+                    r#"{"role":"user","content_text":"please follow @skill:ops-notes for this run"}"#,
+                ),
+            ))
+            .await
+            .expect("create message");
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from(r#"{"model_provider":"mock","model_id":"mock-echo-v1"}"#),
+            ))
+            .await
+            .expect("create run");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+        let run_json = parse_json(run_response).await;
+        let run_id = run_json["run"]["run_id"]
+            .as_str()
+            .expect("run id")
+            .to_string();
+
+        let messages_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/sessions/{session_id}/messages?limit=20"),
+                Body::empty(),
+            ))
+            .await
+            .expect("list messages");
+        let messages_json = parse_json(messages_response).await;
+        assert!(messages_json["items"]
+            .as_array()
+            .expect("messages array")
+            .iter()
+            .any(|item| {
+                item["role"] == "assistant"
+                    && item["content_text"]
+                        .as_str()
+                        .unwrap_or_default()
+                        .contains("SPECIAL_SKILL_CONTEXT")
+            }));
+
+        let run_record = ctx
+            .storage
+            .get_run(&run_id)
+            .expect("load run")
+            .expect("run record");
+        let usage_json = run_record.usage_json.expect("run usage_json");
+        let usage_value: serde_json::Value =
+            serde_json::from_str(&usage_json).expect("parse usage_json");
+        assert_eq!(
+            usage_value["skills"]["applied_skill_ids"][0]
+                .as_str()
+                .unwrap_or_default(),
+            "ops-notes"
+        );
     }
 }

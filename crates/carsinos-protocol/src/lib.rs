@@ -89,6 +89,37 @@ pub struct ListPluginsResponse {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct ListSkillsQuery {
+    pub include_disabled: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SkillResponse {
+    pub skill_id: String,
+    pub title: String,
+    pub source_path: String,
+    pub enabled: bool,
+    pub content_chars: usize,
+    pub preview: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListSkillsResponse {
+    pub contract_version: String,
+    pub items: Vec<SkillResponse>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdateSkillStateRequest {
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UpdateSkillStateResponse {
+    pub skill: SkillResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct ListSessionsQuery {
     pub limit: Option<u32>,
 }

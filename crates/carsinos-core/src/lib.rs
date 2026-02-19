@@ -422,6 +422,227 @@ impl HookBus {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SkillDocument {
+    pub skill_id: String,
+    pub title: String,
+    pub source_path: String,
+    pub enabled: bool,
+    pub content: String,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct SkillRegistry {
+    skills: BTreeMap<String, SkillDocument>,
+}
+
+impl SkillRegistry {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn load_from_dirs(directories: &[PathBuf]) -> Result<Self> {
+        let mut registry = Self::new();
+        for directory in directories {
+            let skills = load_skills_from_dir(directory).with_context(|| {
+                format!(
+                    "failed to load skills from directory {}",
+                    directory.display()
+                )
+            })?;
+            for skill in skills {
+                registry.register_skill(skill)?;
+            }
+        }
+        Ok(registry)
+    }
+
+    pub fn list(&self) -> Vec<SkillDocument> {
+        self.skills.values().cloned().collect()
+    }
+
+    pub fn len(&self) -> usize {
+        self.skills.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.skills.is_empty()
+    }
+
+    pub fn get(&self, skill_id: &str) -> Option<SkillDocument> {
+        let normalized = normalize_identifier(skill_id).ok()?;
+        self.skills.get(&normalized).cloned()
+    }
+
+    pub fn set_enabled(&mut self, skill_id: &str, enabled: bool) -> Result<SkillDocument> {
+        let normalized = normalize_identifier(skill_id)
+            .context("skill_id must be non-empty and use [a-z0-9._-] characters")?;
+        let entry = self
+            .skills
+            .get_mut(&normalized)
+            .with_context(|| format!("skill not found: {normalized}"))?;
+        entry.enabled = enabled;
+        Ok(entry.clone())
+    }
+
+    pub fn apply_enabled_overrides(&mut self, overrides: &BTreeMap<String, bool>) {
+        for (skill_id, enabled) in overrides {
+            if let Ok(normalized) = normalize_identifier(skill_id) {
+                if let Some(entry) = self.skills.get_mut(&normalized) {
+                    entry.enabled = *enabled;
+                }
+            }
+        }
+    }
+
+    pub fn register_skill(&mut self, mut skill: SkillDocument) -> Result<()> {
+        let skill_id = normalize_identifier(&skill.skill_id)
+            .context("skill_id must be non-empty and use [a-z0-9._-] characters")?;
+        if self.skills.contains_key(&skill_id) {
+            bail!("skill_id already loaded: {skill_id}");
+        }
+        if skill.title.trim().is_empty() {
+            bail!("skill title cannot be empty");
+        }
+        if skill.content.trim().is_empty() {
+            bail!("skill content cannot be empty");
+        }
+        skill.skill_id = skill_id.clone();
+        skill.title = skill.title.trim().to_string();
+        skill.content = skill.content.trim().to_string();
+        self.skills.insert(skill_id, skill);
+        Ok(())
+    }
+
+    pub fn resolve_for_input(
+        &self,
+        input: &str,
+        max_skills: usize,
+        max_chars: usize,
+    ) -> Vec<SkillDocument> {
+        let requested_ids = requested_skill_ids(input);
+        if requested_ids.is_empty() || max_skills == 0 || max_chars == 0 {
+            return Vec::new();
+        }
+
+        let mut selected = Vec::new();
+        let mut used_chars = 0usize;
+        for skill_id in requested_ids {
+            if selected.len() >= max_skills {
+                break;
+            }
+            let Some(skill) = self.skills.get(&skill_id) else {
+                continue;
+            };
+            if !skill.enabled {
+                continue;
+            }
+            if used_chars.saturating_add(skill.content.len()) > max_chars {
+                break;
+            }
+            used_chars = used_chars.saturating_add(skill.content.len());
+            selected.push(skill.clone());
+        }
+        selected
+    }
+}
+
+fn requested_skill_ids(input: &str) -> Vec<String> {
+    let mut ids = Vec::new();
+    let mut seen = BTreeSet::new();
+    for token in input.split_whitespace() {
+        let Some(rest) = token.strip_prefix("@skill:") else {
+            continue;
+        };
+        let candidate = rest.trim_matches(|value: char| {
+            !(value.is_ascii_alphanumeric() || matches!(value, '-' | '_' | '.'))
+        });
+        let Ok(normalized) = normalize_identifier(candidate) else {
+            continue;
+        };
+        if seen.insert(normalized.clone()) {
+            ids.push(normalized);
+        }
+    }
+    ids
+}
+
+fn load_skills_from_dir(directory: &Path) -> Result<Vec<SkillDocument>> {
+    if !directory.exists() {
+        return Ok(Vec::new());
+    }
+    if !directory.is_dir() {
+        bail!("skills path is not a directory: {}", directory.display());
+    }
+
+    let mut entries = fs::read_dir(directory)
+        .with_context(|| format!("failed to read skills directory {}", directory.display()))?
+        .collect::<std::result::Result<Vec<_>, _>>()
+        .with_context(|| {
+            format!(
+                "failed to enumerate skills directory {}",
+                directory.display()
+            )
+        })?;
+    entries.sort_by_key(|entry| entry.path());
+
+    let mut skills = Vec::new();
+    for entry in entries {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        let extension = path
+            .extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or("");
+        if !matches!(extension, "md" | "txt") {
+            continue;
+        }
+
+        let raw = fs::read_to_string(&path)
+            .with_context(|| format!("failed reading skill file {}", path.display()))?;
+        let content = raw.trim().to_string();
+        if content.is_empty() {
+            continue;
+        }
+        let file_stem = path
+            .file_stem()
+            .and_then(|value| value.to_str())
+            .unwrap_or_default();
+        let skill_id = normalize_identifier(file_stem).with_context(|| {
+            format!(
+                "skill filename '{}' must map to a valid skill identifier",
+                path.display()
+            )
+        })?;
+        let title = extract_skill_title(&content).unwrap_or_else(|| file_stem.to_string());
+        let source_path = path.to_string_lossy().to_string();
+        skills.push(SkillDocument {
+            skill_id,
+            title,
+            source_path,
+            enabled: true,
+            content,
+        });
+    }
+    Ok(skills)
+}
+
+fn extract_skill_title(content: &str) -> Option<String> {
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if let Some(value) = trimmed.strip_prefix("# ") {
+            return Some(value.trim().to_string());
+        }
+        return Some(trimmed.to_string());
+    }
+    None
+}
+
 fn default_plugin_manifest_schema_version() -> String {
     PLUGIN_MANIFEST_SCHEMA_VERSION_V1.to_string()
 }
@@ -690,5 +911,60 @@ mod tests {
         bus.register(registration.clone())
             .expect("register first hook");
         assert!(bus.register(registration).is_err());
+    }
+
+    #[test]
+    fn skill_registry_load_resolve_and_toggle() {
+        let root = std::env::temp_dir().join(format!("carsinos-skill-test-{}", Uuid::new_v4()));
+        fs::create_dir_all(&root).expect("create temp skill dir");
+        fs::write(
+            root.join("ops-notes.md"),
+            "# Ops Notes\nUse careful rollout and health checks.",
+        )
+        .expect("write skill file");
+        fs::write(root.join("ignore.bin"), "ignored").expect("write ignored file");
+
+        let mut registry = SkillRegistry::load_from_dirs(std::slice::from_ref(&root))
+            .expect("load skill registry");
+        assert_eq!(registry.len(), 1);
+        let selected = registry.resolve_for_input("Please apply @skill:ops-notes now.", 3, 5000);
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].skill_id, "ops-notes");
+
+        registry
+            .set_enabled("ops-notes", false)
+            .expect("disable skill");
+        let disabled = registry.resolve_for_input("Please apply @skill:ops-notes now.", 3, 5000);
+        assert!(disabled.is_empty());
+
+        fs::remove_dir_all(&root).expect("cleanup temp skill dir");
+    }
+
+    #[test]
+    fn skill_registry_respects_skill_and_char_limits() {
+        let mut registry = SkillRegistry::new();
+        registry.skills.insert(
+            "alpha".to_string(),
+            SkillDocument {
+                skill_id: "alpha".to_string(),
+                title: "Alpha".to_string(),
+                source_path: "/tmp/alpha.md".to_string(),
+                enabled: true,
+                content: "A".repeat(400),
+            },
+        );
+        registry.skills.insert(
+            "beta".to_string(),
+            SkillDocument {
+                skill_id: "beta".to_string(),
+                title: "Beta".to_string(),
+                source_path: "/tmp/beta.md".to_string(),
+                enabled: true,
+                content: "B".repeat(400),
+            },
+        );
+        let selected = registry.resolve_for_input("@skill:alpha @skill:beta", 1, 500);
+        assert_eq!(selected.len(), 1);
+        assert_eq!(selected[0].skill_id, "alpha");
     }
 }

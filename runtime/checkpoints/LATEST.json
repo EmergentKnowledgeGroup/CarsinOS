@@ -1,29 +1,43 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T14:44:35.931473+00:00",
+  "captured_at": "2026-02-19T14:52:28.716431+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/chunk-pr14-ext-hook-bus-lifecycle",
-  "head_short": "d712aa5",
-  "step": "chunk-pr14-pr-open",
-  "note": "Opened PR #14 for MC-EXT-002 hook bus lifecycle integration.",
-  "next_cmd": "Monitor PR checks/reviews (#10-#14), merge/close in sequence, and continue next chunk implementation.",
+  "branch": "codex/chunk-pr15-ext-skills-system-v1",
+  "head_short": "5f8b78a",
+  "step": "chunk-pr15-postgreen",
+  "note": "Implemented MC-EXT-003 skills system v1 (discovery/toggle/injection) with full security gate green.",
+  "next_cmd": "git add crates/carsinos-core/src/lib.rs crates/carsinos-protocol/src/lib.rs crates/carsinos-gateway/src/main.rs CHECKPOINT.md runtime/checkpoints/LATEST.md runtime/checkpoints/LATEST.json && git commit -m \"feat(ext): add skills discovery and injection\" && git push -u origin codex/chunk-pr15-ext-skills-system-v1 && gh pr create ...",
   "status": {
     "staged": [],
-    "modified": [],
+    "modified": [
+      "CHECKPOINT.md",
+      "crates/carsinos-core/src/lib.rs",
+      "crates/carsinos-gateway/src/main.rs",
+      "crates/carsinos-protocol/src/lib.rs",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "untracked": [],
     "conflicted": [],
-    "dirty": false
+    "dirty": true
   },
   "changed_files": {
-    "working_tree": [],
+    "working_tree": [
+      "CHECKPOINT.md",
+      "crates/carsinos-core/src/lib.rs",
+      "crates/carsinos-gateway/src/main.rs",
+      "crates/carsinos-protocol/src/lib.rs",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "staged": []
   },
   "recent_commits": [
+    "5f8b78a docs: checkpoint PR #14 open state",
     "d712aa5 feat(ext): add hook bus lifecycle execution",
     "20ecf21 docs: checkpoint PR #13 open state",
     "beeb72d feat(ext): add plugin manifest registry foundation",
-    "09a1d5d docs: checkpoint start for stacked PR logfix propagation",
-    "917e5c8 test(gateway): harden request log assertion for CI"
+    "09a1d5d docs: checkpoint start for stacked PR logfix propagation"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
