@@ -7187,6 +7187,201 @@ fn scheduler_headers(job_id: &str, mode: &str) -> HeaderMap {
     headers
 }
 
+#[derive(Debug, Clone)]
+struct SchedulerDeliveryTarget {
+    provider: String,
+    target: String,
+    action: String,
+}
+
+fn parse_scheduler_delivery_targets(payload: &serde_json::Value) -> Vec<SchedulerDeliveryTarget> {
+    let Some(items) = payload
+        .get("delivery_targets")
+        .and_then(|value| value.as_array())
+    else {
+        return Vec::new();
+    };
+    let mut targets = Vec::new();
+    for item in items {
+        let Some(object) = item.as_object() else {
+            continue;
+        };
+        let provider = object
+            .get("provider")
+            .and_then(|value| value.as_str())
+            .map(|value| value.trim().to_ascii_lowercase())
+            .unwrap_or_default();
+        let target = object
+            .get("target")
+            .and_then(|value| value.as_str())
+            .map(|value| value.trim().to_string())
+            .unwrap_or_default();
+        let action = object
+            .get("action")
+            .and_then(|value| value.as_str())
+            .map(|value| value.trim().to_ascii_lowercase())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| "send".to_string());
+        targets.push(SchedulerDeliveryTarget {
+            provider,
+            target,
+            action,
+        });
+    }
+    targets
+}
+
+fn scheduler_delivery_retry_attempts(payload: &serde_json::Value) -> usize {
+    payload
+        .get("delivery_retry_attempts")
+        .and_then(|value| value.as_i64())
+        .unwrap_or(1)
+        .clamp(1, 5) as usize
+}
+
+fn scheduler_delivery_mode(payload: &serde_json::Value) -> &'static str {
+    let mode = payload
+        .get("delivery_mode")
+        .and_then(|value| value.as_str())
+        .map(|value| value.trim().to_ascii_lowercase())
+        .unwrap_or_else(|| "all".to_string());
+    if mode == "first_success" {
+        "first_success"
+    } else {
+        "all"
+    }
+}
+
+fn scheduler_delivery_text(state: &AppState, session_id: &str, run_id: &str) -> AnyResult<String> {
+    let messages = state.storage.list_messages(session_id, 64)?;
+    if let Some(message) = messages
+        .iter()
+        .rev()
+        .find(|item| item.role == "assistant" && !item.content_text.trim().is_empty())
+    {
+        return Ok(message.content_text.clone());
+    }
+    Ok(format!("Scheduled run {run_id} completed."))
+}
+
+fn dispatch_scheduler_delivery(
+    state: &AppState,
+    job: &JobRecord,
+    session_id: &str,
+    run_id: &str,
+    target: &SchedulerDeliveryTarget,
+    content_text: &str,
+    attempt: usize,
+) -> AnyResult<usize> {
+    let provider = target.provider.trim().to_ascii_lowercase();
+    let action = target.action.trim().to_ascii_lowercase();
+    let target_id = target.target.trim();
+    let resource = format!("channel:{}:{}", provider, target_id);
+
+    let deny = |reason: String, error_code: &'static str| -> AnyResult<usize> {
+        record_security_audit_internal(
+            state,
+            "job.delivery.dispatch",
+            &resource,
+            "deny",
+            Some(reason.clone()),
+            StatusCode::BAD_REQUEST,
+            Some(error_code),
+            Some(session_id),
+            Some(run_id),
+            Some(serde_json::json!({
+                "job_id": &job.job_id,
+                "provider": provider,
+                "target": target_id,
+                "action": action,
+                "attempt": attempt
+            })),
+        );
+        anyhow::bail!("{reason}");
+    };
+
+    if provider.is_empty() || target_id.is_empty() {
+        return deny(
+            "delivery target requires non-empty provider and target".to_string(),
+            "INVALID_INPUT",
+        );
+    }
+    if !matches!(provider.as_str(), "telegram" | "discord") {
+        return deny(
+            format!("unsupported delivery provider '{}'", provider),
+            "INVALID_INPUT",
+        );
+    }
+    if !matches!(action.as_str(), "send" | "reply") {
+        return deny(
+            format!("unsupported delivery action '{}'", action),
+            "INVALID_INPUT",
+        );
+    }
+    if !state
+        .channel_tool_allowed_providers
+        .contains(provider.as_str())
+    {
+        return deny(
+            format!("delivery provider '{}' is disabled by policy", provider),
+            "AUTH_FORBIDDEN",
+        );
+    }
+    if content_text.trim().is_empty() {
+        return deny(
+            "delivery content is empty; refusing channel dispatch".to_string(),
+            "INVALID_INPUT",
+        );
+    }
+
+    let chunks = match provider.as_str() {
+        "telegram" => telegram_channel::split_outbound_chunks(
+            content_text,
+            telegram_channel::TELEGRAM_DEFAULT_CHUNK_LIMIT,
+        ),
+        _ => discord_channel::split_outbound_chunks(
+            content_text,
+            discord_channel::DISCORD_DEFAULT_CHUNK_LIMIT,
+        ),
+    };
+    let chunk_count = chunks.len();
+
+    emit_event(
+        state,
+        "channel.tool_action.dispatched",
+        serde_json::json!({
+            "run_id": run_id,
+            "session_id": session_id,
+            "provider": provider,
+            "action": action,
+            "target": target_id,
+            "chunk_count": chunk_count,
+            "source": "scheduler",
+            "job_id": &job.job_id
+        }),
+    );
+    record_security_audit_internal(
+        state,
+        "job.delivery.dispatch",
+        &resource,
+        "allow",
+        None,
+        StatusCode::OK,
+        None,
+        Some(session_id),
+        Some(run_id),
+        Some(serde_json::json!({
+            "job_id": &job.job_id,
+            "provider": provider,
+            "target": target_id,
+            "action": action,
+            "attempt": attempt,
+            "chunk_count": chunk_count
+        })),
+    );
+    Ok(chunk_count)
+}
+
 fn execute_secret_rotate_job(
     state: &AppState,
     job: &JobRecord,
@@ -7427,6 +7622,101 @@ async fn execute_session_run_job(
             .await?;
 
     let run_succeeded = refreshed.status == "succeeded";
+    let delivery_targets = parse_scheduler_delivery_targets(payload);
+    let delivery_retry_attempts = scheduler_delivery_retry_attempts(payload);
+    let delivery_mode = scheduler_delivery_mode(payload);
+    let mut delivery_results = Vec::new();
+    let mut delivery_attempted: usize = 0;
+    let mut delivery_delivered: usize = 0;
+
+    if run_succeeded && !delivery_targets.is_empty() {
+        let delivery_text = scheduler_delivery_text(state, &session.session_id, &refreshed.run_id)?;
+        for target in delivery_targets {
+            delivery_attempted = delivery_attempted.saturating_add(1);
+            let mut delivered = false;
+            let mut last_error: Option<String> = None;
+            let mut chunk_count: usize = 0;
+            let mut attempts_used: usize = 0;
+
+            for attempt in 1..=delivery_retry_attempts {
+                attempts_used = attempt;
+                emit_event(
+                    state,
+                    "job.delivery",
+                    serde_json::json!({
+                        "job_id": &job.job_id,
+                        "session_id": &session.session_id,
+                        "run_id": &refreshed.run_id,
+                        "provider": &target.provider,
+                        "target": &target.target,
+                        "action": &target.action,
+                        "delivery_mode": delivery_mode,
+                        "attempt": attempt,
+                        "status": "attempt"
+                    }),
+                );
+                match dispatch_scheduler_delivery(
+                    state,
+                    job,
+                    &session.session_id,
+                    &refreshed.run_id,
+                    &target,
+                    &delivery_text,
+                    attempt,
+                ) {
+                    Ok(chunks) => {
+                        delivered = true;
+                        chunk_count = chunks;
+                        break;
+                    }
+                    Err(err) => {
+                        last_error = Some(err.to_string());
+                        if attempt < delivery_retry_attempts {
+                            sleep(Duration::from_millis(25)).await;
+                        }
+                    }
+                }
+            }
+
+            if delivered {
+                delivery_delivered = delivery_delivered.saturating_add(1);
+            }
+            let event_error = last_error.clone();
+            emit_event(
+                state,
+                "job.delivery",
+                serde_json::json!({
+                    "job_id": &job.job_id,
+                    "session_id": &session.session_id,
+                    "run_id": &refreshed.run_id,
+                    "provider": &target.provider,
+                    "target": &target.target,
+                    "action": &target.action,
+                    "delivery_mode": delivery_mode,
+                    "attempts_used": attempts_used,
+                    "status": if delivered { "delivered" } else { "failed" },
+                    "chunk_count": chunk_count,
+                    "error": event_error
+                }),
+            );
+
+            delivery_results.push(serde_json::json!({
+                "provider": &target.provider,
+                "target": &target.target,
+                "action": &target.action,
+                "attempts_used": attempts_used,
+                "status": if delivered { "delivered" } else { "failed" },
+                "chunk_count": chunk_count,
+                "error": last_error
+            }));
+
+            if delivered && delivery_mode == "first_success" {
+                break;
+            }
+        }
+    }
+
+    let delivery_failed = delivery_attempted.saturating_sub(delivery_delivered);
     record_security_audit(
         &headers,
         state,
@@ -7462,7 +7752,11 @@ async fn execute_session_run_job(
             "model_provider": &model_provider,
             "model_id": &model_id,
             "auth_profile_id": auth_profile_id.as_deref().unwrap_or(""),
-            "run_status": &refreshed.status
+            "run_status": &refreshed.status,
+            "delivery_mode": delivery_mode,
+            "delivery_attempted": delivery_attempted,
+            "delivery_delivered": delivery_delivered,
+            "delivery_failed": delivery_failed
         })),
     );
 
@@ -7478,6 +7772,14 @@ async fn execute_session_run_job(
         "model_provider": &refreshed.model_provider,
         "model_id": &refreshed.model_id,
         "auth_profile_id": auth_profile_id,
+        "delivery": {
+            "mode": delivery_mode,
+            "retry_attempts": delivery_retry_attempts,
+            "attempted": delivery_attempted,
+            "delivered": delivery_delivered,
+            "failed": delivery_failed,
+            "results": delivery_results
+        },
         "now_ms": current_time_ms()
     })
     .to_string())
@@ -15058,6 +15360,178 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             messages.iter().any(|item| item.role == "assistant"),
             "expected assistant message from executed run"
         );
+    }
+
+    #[tokio::test]
+    async fn run_now_session_run_payload_routes_delivery_targets_and_audits() {
+        let ctx = test_context();
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(
+                    r#"{
+                        "agent_id":"default",
+                        "name":"job-session-run-delivery",
+                        "enabled":true,
+                        "schedule_kind":"interval",
+                        "interval_seconds":60,
+                        "payload_json":{
+                            "mode":"session.run",
+                            "session_key":"scheduler:test:delivery",
+                            "session_title":"scheduler delivery run",
+                            "input":"deliver this output",
+                            "model_provider":"mock",
+                            "model_id":"mock-echo-v1",
+                            "delivery_mode":"all",
+                            "delivery_retry_attempts":2,
+                            "delivery_targets":[
+                                {"provider":"telegram","target":"chat:111","action":"send"},
+                                {"provider":"discord","target":"channel:222","action":"reply"}
+                            ]
+                        },
+                        "max_retries":1,
+                        "retry_backoff_ms":5,
+                        "timeout_ms":1000
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create delivery job");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_json = parse_json(create_response).await;
+        let job_id = create_json["job"]["job_id"]
+            .as_str()
+            .expect("job_id")
+            .to_string();
+
+        let run_now_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/jobs/{job_id}/run"),
+                Body::empty(),
+            ))
+            .await
+            .expect("run delivery job");
+        assert_eq!(run_now_response.status(), StatusCode::OK);
+        let run_json = parse_json(run_now_response).await;
+        assert_eq!(run_json["job_run"]["status"], "succeeded");
+
+        let output_json = run_json["job_run"]["output_json"]
+            .as_str()
+            .expect("delivery output json");
+        let output: serde_json::Value =
+            serde_json::from_str(output_json).expect("parse delivery output");
+        assert_eq!(output["delivery"]["attempted"], 2);
+        assert_eq!(output["delivery"]["delivered"], 2);
+        assert_eq!(output["delivery"]["failed"], 0);
+        let results = output["delivery"]["results"]
+            .as_array()
+            .expect("delivery results");
+        assert_eq!(results.len(), 2);
+        assert!(results.iter().all(|item| item["status"] == "delivered"));
+
+        let audit_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/security/audit?action=job.delivery.dispatch&decision=allow&limit=20",
+                Body::empty(),
+            ))
+            .await
+            .expect("delivery audit response");
+        assert_eq!(audit_response.status(), StatusCode::OK);
+        let audit_json = parse_json(audit_response).await;
+        let items = audit_json["items"].as_array().expect("audit items");
+        assert!(
+            items
+                .iter()
+                .filter(|item| item["action"] == "job.delivery.dispatch")
+                .count()
+                >= 2
+        );
+    }
+
+    #[tokio::test]
+    async fn session_run_delivery_first_success_falls_back_after_failed_target() {
+        let ctx = test_context();
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(
+                    r#"{
+                        "agent_id":"default",
+                        "name":"job-session-run-delivery-fallback",
+                        "enabled":true,
+                        "schedule_kind":"interval",
+                        "interval_seconds":60,
+                        "payload_json":{
+                            "mode":"session.run",
+                            "session_key":"scheduler:test:delivery-fallback",
+                            "input":"fallback delivery output",
+                            "model_provider":"mock",
+                            "model_id":"mock-echo-v1",
+                            "delivery_mode":"first_success",
+                            "delivery_retry_attempts":2,
+                            "delivery_targets":[
+                                {"provider":"slack","target":"channel:bad","action":"send"},
+                                {"provider":"telegram","target":"chat:ok","action":"send"}
+                            ]
+                        },
+                        "max_retries":1,
+                        "retry_backoff_ms":5,
+                        "timeout_ms":1000
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create fallback delivery job");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_json = parse_json(create_response).await;
+        let job_id = create_json["job"]["job_id"]
+            .as_str()
+            .expect("job_id")
+            .to_string();
+
+        let run_now_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/jobs/{job_id}/run"),
+                Body::empty(),
+            ))
+            .await
+            .expect("run fallback delivery job");
+        assert_eq!(run_now_response.status(), StatusCode::OK);
+        let run_json = parse_json(run_now_response).await;
+        assert_eq!(run_json["job_run"]["status"], "succeeded");
+
+        let output_json = run_json["job_run"]["output_json"]
+            .as_str()
+            .expect("fallback output json");
+        let output: serde_json::Value =
+            serde_json::from_str(output_json).expect("parse fallback output");
+        assert_eq!(output["delivery"]["attempted"], 2);
+        assert_eq!(output["delivery"]["delivered"], 1);
+        assert_eq!(output["delivery"]["failed"], 1);
+        let results = output["delivery"]["results"]
+            .as_array()
+            .expect("fallback results");
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0]["provider"], "slack");
+        assert_eq!(results[0]["status"], "failed");
+        assert_eq!(results[0]["attempts_used"], 2);
+        assert_eq!(results[1]["provider"], "telegram");
+        assert_eq!(results[1]["status"], "delivered");
     }
 
     #[tokio::test]

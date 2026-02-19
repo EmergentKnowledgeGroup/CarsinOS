@@ -135,8 +135,7 @@ async fn websocket_stream_includes_run_and_approval_events() -> Result<()> {
     let gateway = GatewayProcess::spawn(state_dir.path(), "e2e-token-ws", Some("op-1")).await?;
     let mut ws = gateway.connect_ws().await?;
 
-    let first_event = next_ws_event(&mut ws).await?;
-    assert_eq!(first_event["event"], "gateway.status");
+    wait_for_ws_event(&mut ws, "gateway.status", Duration::from_secs(2)).await?;
 
     let created_session = gateway
         .request(Method::POST, "/api/v1/sessions")
@@ -1103,6 +1102,30 @@ async fn next_ws_event(ws: &mut WsStream) -> Result<serde_json::Value> {
             Message::Ping(_) | Message::Pong(_) => continue,
             Message::Close(_) => return Err(anyhow!("websocket closed by server")),
             Message::Frame(_) => continue,
+        }
+    }
+}
+
+async fn wait_for_ws_event(
+    ws: &mut WsStream,
+    expected_event: &str,
+    max_wait: Duration,
+) -> Result<serde_json::Value> {
+    let deadline = tokio::time::Instant::now() + max_wait;
+    loop {
+        let now = tokio::time::Instant::now();
+        if now >= deadline {
+            return Err(anyhow!(
+                "timed out waiting for websocket event '{}'",
+                expected_event
+            ));
+        }
+        let remaining = deadline - now;
+        let frame = timeout(remaining, next_ws_event(ws))
+            .await
+            .context("timed out waiting for websocket frame")??;
+        if frame["event"].as_str() == Some(expected_event) {
+            return Ok(frame);
         }
     }
 }

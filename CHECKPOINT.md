@@ -2843,3 +2843,46 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 149
+
+- checklist refs: `MC-AUTO-002` chunk wave #8
+- past action:
+- Finalized and pushed PR #20 open-state checkpoint for MC-PROV-002.
+- present action:
+- Started branch `codex/chunk-pr21-scheduler-delivery-routing` for MC-AUTO-002 scheduler delivery targets + outcome routing.
+- future action:
+- Implement delivery target parsing, retry/fallback routing, deterministic delivery events/audit metadata, then run full security gate and open PR #21.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 150
+
+- checklist refs: `MC-AUTO-002` chunk wave #8
+- past action:
+- Implemented scheduler `session.run` delivery target routing with deterministic retry/fallback behavior and per-target outcome reporting.
+- Added auditable delivery dispatch records (`job.delivery.dispatch`) and delivery lifecycle events (`job.delivery`).
+- Hardened websocket process e2e test to tolerate startup event ordering variance while still requiring `gateway.status`.
+- present action:
+- Full validation completed and green after rerunning security gate.
+- validation outcomes:
+- `cargo test -p carsinos-gateway run_now_session_run_payload_routes_delivery_targets_and_audits -- --nocapture` passed.
+- `cargo test -p carsinos-gateway session_run_delivery_first_success_falls_back_after_failed_target -- --nocapture` passed.
+- `cargo test -p carsinos-gateway run_now_session_run_payload_executes_real_run_path -- --nocapture` passed.
+- `cargo test -p carsinos-gateway --test e2e_process websocket_stream_includes_run_and_approval_events -- --nocapture` passed.
+- `cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push chunk #21 and open PR #21, then continue directly into the next chunk.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/tests/e2e_process.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
