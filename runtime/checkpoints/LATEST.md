@@ -1,11 +1,10 @@
 # LATEST Checkpoint
 
-- step: pr3-cr-fix-pushed
-- note: PR #3 remediation commit pushed; waiting for review/check refresh.
+- step: pr3-merge-conflict-start
+- note: PR #3 cannot merge cleanly after PR #2 landed; beginning local conflict resolution against main.
 - branch: codex/chunk-pr3-audit-query-filters
-- head: 585d22773d48a79cdbea5b27bd1c26a01fb8acb3
-- next_cmd: gh pr checks 3 && gh pr view 3 --json reviews,statusCheckRollup,url
+- head: 9005b8043388cdecfff44fd784ff2ea84d940a2b
+- next_cmd: git fetch origin main && git merge origin/main
 - validations:
-  - cargo fmt --all passed.
-  - cargo test -p carsinos-gateway security_audit_ passed.
-  - git push completed for codex/chunk-pr3-audit-query-filters.
+  - PR #2 merged into main.
+  - PR #3 merge attempt reported conflict.
