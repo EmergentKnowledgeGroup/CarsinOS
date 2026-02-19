@@ -131,3 +131,43 @@ Execution checklist derived from `PLAN.md`. IDs are stable and must be used by `
 - [x] `N8` `MC-SEC-009` Add per-PR + nightly supply-chain/vulnerability scan automation scripts and enforcement hooks.
 - [x] `N9` `MC-SEC-010` Implement incident-response drill execution harness and measurable kill-switch operation runbooks.
 - [x] `N10` Run post-hardening regression suite (`clippy`, `test`, `benchmark`) and capture outputs for checkpoint signoff.
+
+## Phase O - Remaining Work (Verified Blockers Only)
+
+- [ ] `O1` `MC-SEC-001` Publish and approve threat-model package (STRIDE register, asset classification, trust-boundary map, risk owners).
+- [ ] `O2` `MC-SEC-010` Publish human-usable incident runbooks (auth compromise, key leak, provider abuse, tool abuse, data exfil) with named ownership.
+- [ ] `O3` Security Gate 0 evidence bundling/signoff workflow: produce machine-readable release evidence that gates unresolved critical/high findings and drill outcomes.
+- [ ] `O4` `MC-CH-010` Complete Telegram production connector path (real transport operation mode, delivery retry semantics, and production soak evidence).
+- [ ] `O5` `MC-CH-020` Complete Discord production connector path (real gateway event intake, outbound operational behavior, and production soak evidence).
+- [ ] `O6` Execute 7-day Telegram/Discord soak and publish resilience report (reconnect, retry, message integrity, approval round-trip).
+- [ ] `O7` Complete archive-retention operational proof for security audit trail beyond 90-day hot window.
+- [ ] `O8` Decide and schedule `MC-FUT-900` expansion set (if future channels continue in this wave).
+- [ ] `O9` Run mandatory repository-wide hardcoded runtime-value audit and convert every deployment-specific constant to config/wizard-backed fields (`MC-CONF-005`).
+
+## Phase P - Setup Wizard + Dynamic Configuration (MC-CONF)
+
+- [ ] `P1` `MC-CONF-001` Freeze configuration contract for runtime-scoped values (`global`, `provider`, `auth_profile`, `channel`, `security`) with schema versioning.
+- [ ] `P2` `MC-CONF-002` Implement Mission Control first-run/reconfigure wizard that captures required operator inputs without source edits.
+- [ ] `P3` `MC-CONF-003` Wire wizard-driven secret references to keychain/secret backends (no plaintext secret persistence in config records).
+- [ ] `P4` `MC-CONF-004` Implement config mutation audit trail + rollback to last-known-good snapshots.
+- [ ] `P5` `MC-CONF-005` Enforce CI hardcoded-value guardrail with explicit allowlist + owner + expiry metadata.
+- [ ] `P6` Run full regression + benchmark + security gate suite after MC-CONF implementation.
+
+## Owner Inputs Required (Prevents Hard Blockers)
+
+- [ ] `R1` JWT/API gateway production contract values: issuer allowlist, audience values, trusted proxy/header policy, TLS termination model.
+- [ ] `R2` Telegram production integration details: bot token strategy, webhook domain vs long-poll decision, allowlist seed policy, staging chat IDs.
+- [ ] `R3` Discord production integration details: bot token/app IDs, required intents, staging guild/channel IDs, role/permission model.
+- [ ] `R4` Security ownership and signoff authority: threat-model approver, risk acceptance owner, release-block exception owner.
+- [ ] `R5` Incident operations ownership: on-call escalation map and authority boundaries for profile/provider/global kill-switch actions.
+- [ ] `R6` Audit retention/archive target: backend destination, encryption/KMS requirement, retrieval SLA, immutable retention policy.
+- [ ] `R7` Consumer OAuth production stance: enabled/disabled modes, approved operator warning text, explicit risk acceptance decision.
+- [ ] `R8` Priority order for `MC-FUT-900` channels (only needed if expansion continues now).
+
+## Verification Snapshot (2026-02-19)
+
+- [x] `V1` Confirmed `MC-SEC-002` through `MC-SEC-010` runtime controls and test gates are implemented in repository.
+- [x] `V2` Confirmed security automation scripts/workflows exist: `scripts/security_pr_gate.sh`, `scripts/security_nightly_deep_scan.sh`, `scripts/security_killswitch_drill.sh`, `scripts/security_secret_lifecycle_drill.sh`, plus GitHub workflows.
+- [x] `V3` Confirmed channel adapter scaffolds for `MC-FUT-010..050` exist (WhatsApp, Slack, iMessage/BlueBubbles, Signal, Twitch).
+- [x] `V4` Confirmed no open PR backlog remains after convergence/cleanup merge wave.
+- [x] `V5` Confirmed threat-model artifact set and formal incident runbook docs are not yet published in-repo and remain blocker items.

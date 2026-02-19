@@ -1,37 +1,49 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T16:41:17.611944+00:00",
+  "captured_at": "2026-02-19T23:35:54.471625+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/chunk-pr29-postmerge-checkpoint",
-  "head_short": "3aafbb7",
-  "step": "chunk-pr28-post-merge",
-  "note": "Post-merge state after PR #27 convergence and PR #28 cleanup-checkpoint merge.",
-  "next_cmd": "Push checkpoint sync PR and merge to main.",
+  "branch": "codex/chunk-pr30-config-wizard-hardcode-audit",
+  "head_short": "c10d54b",
+  "step": "config-wizard-post-green-tests",
+  "note": "Doc/config-wizard planning updates validated with full cargo test --workspace --locked (all green incl benchmark_process + e2e_process).",
+  "next_cmd": "Commit docs+checkpoints and open PR chunk for CodeRabbit review.",
   "status": {
     "staged": [],
-    "modified": [],
-    "untracked": [],
+    "modified": [
+      "APPDEX_IMPLEMENTATION_TICKET_PACK.md",
+      "CHECKLIST.md",
+      "CHECKPOINT.md",
+      "SECURITY_HARDENING_PROGRAM.md",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
+    "untracked": [
+      "docs/CLIDEX_HARDCODE_CONFIG_AUDIT_TASK.md"
+    ],
     "conflicted": [],
-    "dirty": false
+    "dirty": true
   },
   "changed_files": {
-    "working_tree": [],
+    "working_tree": [
+      "APPDEX_IMPLEMENTATION_TICKET_PACK.md",
+      "CHECKLIST.md",
+      "CHECKPOINT.md",
+      "SECURITY_HARDENING_PROGRAM.md",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "staged": []
   },
   "recent_commits": [
+    "c10d54b docs: checkpoint explicit post-merge state (#29)",
     "3aafbb7 docs: record post-merge PR cleanup checkpoints (#28)",
     "2ffa952 test(gateway): stabilize request-log e2e assertion (#27)",
     "c167af9 docs: checkpoint PR #9 post-merge state",
-    "06c8bcc feat: add channel approval action resolve endpoint (#9)",
-    "c588189 docs: checkpoint PR #8 post-merge state"
+    "06c8bcc feat: add channel approval action resolve endpoint (#9)"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
     "Open diff for changed files listed in checkpoint.",
     "Resume from step + next_cmd, then write a new checkpoint after each major edit block."
-  ],
-  "validations": [
-    "PR #27 merged; stacked PRs #15-#26 closed as superseded",
-    "PR #28 merged; open PR count is zero"
   ]
 }

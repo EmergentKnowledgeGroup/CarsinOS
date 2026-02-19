@@ -9,6 +9,7 @@ Define the security baseline and execution program for internet-facing carsinOS 
 - Edge identity/authentication contract for JWT + API gateway model.
 - Service-side authorization policy and deny-by-default enforcement.
 - Secret/key lifecycle controls and operational rotation/revocation.
+- Setup wizard and dynamic configuration controls for deployment-specific runtime values.
 - Network exposure controls (public bind mode, transport constraints, trusted proxy rules).
 - Abuse protection and rate-limit controls.
 - Tool runtime containment (filesystem/process/network).
@@ -21,6 +22,7 @@ Define the security baseline and execution program for internet-facing carsinOS 
 - Full enterprise SIEM/SOAR platform integration (only required event export contracts are defined).
 - Mobile endpoint hardening and BYOD policy management.
 - Replacing existing product roadmap phases (`MC-CH/EXT/TOOL/PROV/AUTO/FUT`); this program gates release-readiness.
+- Hardcoding per-deployment runtime identities and secrets in source code.
 
 ## 2. System Trust Boundaries and Threat Model Summary
 
@@ -334,6 +336,29 @@ Consumer OAuth is allowed in production but always treated as high-risk.
 - Existing session/run/approval/channel regression suites green with security controls enabled.
 - Performance impact report for critical endpoints under enabled controls.
 
+## 15. Setup Wizard + Hardcoded-Value Elimination Control
+
+### Policy (Locked)
+- Deployment-specific runtime values must be operator-provided via configuration workflows, not source constants.
+- Security-sensitive deployment values include, at minimum:
+  - JWT issuer/audience and trusted-proxy settings,
+  - provider/channel IDs and routing identifiers,
+  - retention/archive targets and security ownership mappings,
+  - OAuth mode enablement and risk-warning policy text.
+- Secrets may be entered through wizard flows but must resolve to secret references, not plaintext config persistence.
+
+### Required Control Implementation
+- Mission Control first-run/reconfigure wizard must collect and validate required deployment values before enabling high-risk runtime paths.
+- Configuration contract must support scoped values (`global`, `provider`, `auth_profile`, `channel`, `security`) with schema versioning.
+- Missing required configuration must fail closed with deterministic operator-visible errors.
+- Configuration changes must emit security audit events and support rollback to last-known-good snapshots.
+
+### Hardcoded-Value Guardrail
+- Maintain an explicit allowlist for intentional constants, each with owner and expiry.
+- Per-PR policy check must detect new disallowed hardcoded runtime-value patterns.
+- Nightly deep scan must publish trend/report data for hardcoded-value risk drift.
+- Security Gate 0 and release signoff must fail if hardcoded-value guardrail is red.
+
 ## Public APIs / Interfaces / Types to Add or Freeze
 1. JWT claims contract (required claims, issuer/audience rules, clock skew policy).
 2. Auth context propagation contract from edge gateway to carsinOS services (`principal_id`, `role_set`, `auth_method`, `token_id`/`jti`, `request_id`).
@@ -342,6 +367,7 @@ Consumer OAuth is allowed in production but always treated as high-risk.
 5. Security audit event envelope (`event_id`, `request_id`, `principal`, `action`, `resource`, `decision`, `reason`, `timestamp_utc`, plus metadata fields).
 6. Tool sandbox policy schema (`allowed_roots`, `allowed_binaries`, `network_policy`, risk mapping, timeout/output bounds, approval requirement).
 7. Kill-switch control contract and precedence rules (`profile < provider < global`).
+8. Dynamic configuration contract for deployment/runtime values (scoped schema + validation + versioning + rollback metadata).
 
 ## Security Test Cases and Scenarios
 1. JWT invalid signature, invalid issuer/audience, expired token, replayed token ID.
@@ -356,6 +382,8 @@ Consumer OAuth is allowed in production but always treated as high-risk.
 10. CI policy tests proving unresolved critical/high findings block release.
 11. Nightly deep scans produce artifacts and diff against previous run.
 12. Regression proof that existing session/run/approval/channel flows still pass with security controls active.
+13. Setup wizard completeness tests prove high-risk paths remain disabled until required config is present.
+14. Hardcoded-value guard tests fail PRs for newly introduced disallowed runtime constants.
 
 ## Assumptions and Defaults
 1. Internet-facing deployment is the primary target now.
@@ -366,11 +394,13 @@ Consumer OAuth is allowed in production but always treated as high-risk.
 6. Release policy blocks unresolved critical/high security findings.
 7. Security checks are mandatory per PR; deeper scans run nightly.
 8. Existing functional backlog remains valid but is gated by `MC-SEC` exit criteria for release readiness.
+9. Deployment-specific runtime values are provided through configuration/wizard paths and remain mutable without code edits.
 
 ## Implementation Sequence (Decision-Complete)
 1. Patch the ticket pack with `MC-SEC` phase, revised order, new gates, and sprint map.
-2. Validate ticket dependency graph consistency and remove ambiguous wording.
-3. Draft `SECURITY_HARDENING_PROGRAM.md` with the exact sections and control mappings in this document.
-4. Add test matrix and evidence checklist.
-5. Run document QA review for contradiction checks between packet and security doc.
-6. Publish both docs as the single source of truth for the next implementation wave.
+2. Add `MC-CONF-*` setup-wizard and hardcoded-value elimination controls to ticket sequencing and dependencies.
+3. Validate ticket dependency graph consistency and remove ambiguous wording.
+4. Draft `SECURITY_HARDENING_PROGRAM.md` with the exact sections and control mappings in this document.
+5. Add test matrix and evidence checklist.
+6. Run document QA review for contradiction checks between packet and security doc.
+7. Publish both docs as the single source of truth for the next implementation wave.
