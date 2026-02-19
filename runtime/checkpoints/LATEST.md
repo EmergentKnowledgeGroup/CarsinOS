@@ -1,10 +1,11 @@
 # LATEST Checkpoint
 
-- step: pr3-cr-fix-postgreen
-- note: PR #3 CodeRabbit fix complete; audit created_after/created_before inversion now returns deterministic 400 INVALID_INPUT.
+- step: pr3-cr-fix-pushed
+- note: PR #3 remediation commit pushed; waiting for review/check refresh.
 - branch: codex/chunk-pr3-audit-query-filters
-- head: 56dfed2e642252f61bd122b167336a221a878580
-- next_cmd: Commit and push PR #3 fixes, then verify GitHub checks.
+- head: 585d22773d48a79cdbea5b27bd1c26a01fb8acb3
+- next_cmd: gh pr checks 3 && gh pr view 3 --json reviews,statusCheckRollup,url
 - validations:
   - cargo fmt --all passed.
   - cargo test -p carsinos-gateway security_audit_ passed.
+  - git push completed for codex/chunk-pr3-audit-query-filters.
