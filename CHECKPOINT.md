@@ -2401,3 +2401,42 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 126
+
+- checklist refs: `MC-EXT-002` chunk wave #5
+- past action:
+- Opened dedicated branch `codex/chunk-pr14-ext-hook-bus-lifecycle` to isolate hook-bus lifecycle work from PR #13.
+- present action:
+- Hook bus lifecycle implementation is in progress on chunk #14 branch.
+- future action:
+- Finalize post-green checkpoint, commit/push, and open PR #14.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 127
+
+- checklist refs: `MC-EXT-002` chunk wave #5
+- past action:
+- Implemented hook bus contracts in `carsinos-core` and lifecycle hook emission/audit wiring in gateway run execution paths.
+- present action:
+- Completed full post-green validation sweep for chunk #14.
+- validation outcomes:
+- `cargo test -p carsinos-core` passed.
+- `cargo test -p carsinos-gateway hook_failures_are_isolated_and_audited -- --nocapture` passed.
+- `cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push chunk #14 and open PR, then continue merge/chunk execution loop.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-core/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`

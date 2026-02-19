@@ -12,8 +12,9 @@ use base64::Engine;
 use carsinos_channels_discord as discord_channel;
 use carsinos_channels_telegram as telegram_channel;
 use carsinos_core::{
-    GatewayConfig, PluginCapability as CorePluginCapability, PluginManifest as CorePluginManifest,
-    PluginRegistry, TokenSource, PLUGIN_API_VERSION_V1,
+    GatewayConfig, HookBus, HookEvent, HookPoint, HookRegistration,
+    PluginCapability as CorePluginCapability, PluginManifest as CorePluginManifest, PluginRegistry,
+    TokenSource, PLUGIN_API_VERSION_V1,
 };
 use carsinos_protocol::{
     AnthropicSetupTokenIngestRequest, AnthropicSetupTokenIngestResponse, ApprovalResponse,
@@ -91,6 +92,7 @@ struct AppState {
     oauth_sessions: Arc<RwLock<HashMap<String, PendingOpenAiOauthSession>>>,
     numquam_client: Option<NumquamClient>,
     plugin_registry: Arc<RwLock<PluginRegistry>>,
+    hook_bus: Arc<HookBus>,
     storage: Storage,
     metrics: Arc<GatewayMetrics>,
     event_tx: broadcast::Sender<String>,
@@ -786,6 +788,7 @@ async fn main() -> AnyResult<()> {
             format!("failed to load plugin manifests from configured directories: {display}")
         })?;
     let plugin_count = plugin_registry.len();
+    let hook_bus = build_hook_bus_from_registry(&plugin_registry)?;
     let tool_runner = LocalToolRunner::default();
     let secret_store = SecretStore::from_env();
     let oauth_sessions = Arc::new(RwLock::new(HashMap::new()));
@@ -806,6 +809,7 @@ async fn main() -> AnyResult<()> {
     info!(
         plugin_count,
         plugin_manifest_dirs = ?plugin_manifest_dirs,
+        hook_count = hook_bus.list_registrations().len(),
         "plugin registry initialized"
     );
 
@@ -824,6 +828,7 @@ async fn main() -> AnyResult<()> {
         oauth_sessions,
         numquam_client,
         plugin_registry: Arc::new(RwLock::new(plugin_registry)),
+        hook_bus: Arc::new(hook_bus),
         storage,
         metrics: Arc::new(GatewayMetrics::default()),
         event_tx,
@@ -4715,6 +4720,17 @@ async fn execute_run(
             "status": "running"
         }),
     );
+    emit_extension_hook_point(
+        state,
+        run,
+        HookPoint::RunStart,
+        None,
+        serde_json::json!({
+            "model_provider": &run.model_provider,
+            "model_id": &run.model_id
+        }),
+    )
+    .await;
 
     let input = state
         .storage
@@ -4730,6 +4746,16 @@ async fn execute_run(
             .storage
             .create_tool_call(&run.run_id, tool_name, args_json.clone())?
             .with_context(|| format!("failed to create tool call for {}", tool_name))?;
+        emit_extension_hook_point(
+            state,
+            run,
+            HookPoint::ToolBefore,
+            Some(tool_name),
+            serde_json::json!({
+                "tool_call_id": &tool_call.tool_call_id
+            }),
+        )
+        .await;
 
         if tool_requires_approval(&request) && !bool_env("CARSINOS_AUTO_APPROVE_TOOLS", false) {
             let mut approved_by_existing = false;
@@ -4749,6 +4775,17 @@ async fn execute_run(
                             None,
                             Some(format!("approval denied: {}", existing.approval_id)),
                         );
+                        emit_extension_hook_point(
+                            state,
+                            run,
+                            HookPoint::ToolAfter,
+                            Some(tool_name),
+                            serde_json::json!({
+                                "tool_call_id": &tool_call.tool_call_id,
+                                "status": "denied"
+                            }),
+                        )
+                        .await;
                         anyhow::bail!(
                             "approval denied for tool {}; approval_id={}",
                             tool_name,
@@ -4762,6 +4799,17 @@ async fn execute_run(
                             None,
                             Some(format!("approval pending: {}", existing.approval_id)),
                         );
+                        emit_extension_hook_point(
+                            state,
+                            run,
+                            HookPoint::ToolAfter,
+                            Some(tool_name),
+                            serde_json::json!({
+                                "tool_call_id": &tool_call.tool_call_id,
+                                "status": "blocked"
+                            }),
+                        )
+                        .await;
                         anyhow::bail!(
                             "approval pending for tool {}; approval_id={}",
                             tool_name,
@@ -4800,6 +4848,18 @@ async fn execute_run(
                     None,
                     Some(format!("approval required: {}", approval.approval_id)),
                 );
+                emit_extension_hook_point(
+                    state,
+                    run,
+                    HookPoint::ToolAfter,
+                    Some(tool_name),
+                    serde_json::json!({
+                        "tool_call_id": &tool_call.tool_call_id,
+                        "status": "blocked",
+                        "approval_id": &approval.approval_id
+                    }),
+                )
+                .await;
                 anyhow::bail!(
                     "approval required for tool {}; approval_id={}",
                     tool_name,
@@ -4810,10 +4870,52 @@ async fn execute_run(
 
         let runner = state.tool_runner.clone();
         let request_for_runner = request.clone();
-        let tool_result = tokio::task::spawn_blocking(move || runner.run(request_for_runner))
-            .await
-            .map_err(|join_err| anyhow::anyhow!("tool runner join error: {join_err}"))?
-            .map_err(|tool_err| anyhow::anyhow!("tool execution failed: {tool_err}"))?;
+        let tool_result =
+            match tokio::task::spawn_blocking(move || runner.run(request_for_runner)).await {
+                Ok(Ok(result)) => result,
+                Ok(Err(tool_err)) => {
+                    let error_text = format!("tool execution failed: {tool_err}");
+                    let _ = state.storage.finish_tool_call(
+                        &tool_call.tool_call_id,
+                        "failed",
+                        None,
+                        Some(error_text.clone()),
+                    );
+                    emit_extension_hook_point(
+                        state,
+                        run,
+                        HookPoint::ToolAfter,
+                        Some(tool_name),
+                        serde_json::json!({
+                            "tool_call_id": &tool_call.tool_call_id,
+                            "status": "failed"
+                        }),
+                    )
+                    .await;
+                    anyhow::bail!("{error_text}");
+                }
+                Err(join_err) => {
+                    let error_text = format!("tool runner join error: {join_err}");
+                    let _ = state.storage.finish_tool_call(
+                        &tool_call.tool_call_id,
+                        "failed",
+                        None,
+                        Some(error_text.clone()),
+                    );
+                    emit_extension_hook_point(
+                        state,
+                        run,
+                        HookPoint::ToolAfter,
+                        Some(tool_name),
+                        serde_json::json!({
+                            "tool_call_id": &tool_call.tool_call_id,
+                            "status": "failed"
+                        }),
+                    )
+                    .await;
+                    anyhow::bail!("{error_text}");
+                }
+            };
 
         let tool_output_json = tool_result.output.to_string();
         let _ = state.storage.finish_tool_call(
@@ -4822,6 +4924,18 @@ async fn execute_run(
             Some(tool_output_json.clone()),
             None,
         )?;
+        emit_extension_hook_point(
+            state,
+            run,
+            HookPoint::ToolAfter,
+            Some(tool_name),
+            serde_json::json!({
+                "tool_call_id": &tool_call.tool_call_id,
+                "status": "succeeded",
+                "output_chars": tool_output_json.len()
+            }),
+        )
+        .await;
         let tool_summary = if tool_output_json.len() > 400 {
             format!("{}...", &tool_output_json[..400])
         } else {
@@ -4923,6 +5037,17 @@ async fn execute_run(
             tool_output_blocks.join("\n")
         )
     };
+    emit_extension_hook_point(
+        state,
+        run,
+        HookPoint::CompactionBefore,
+        None,
+        serde_json::json!({
+            "provider_base_input_chars": provider_base_input.len(),
+            "tool_output_blocks": tool_output_blocks.len()
+        }),
+    )
+    .await;
     let (local_memory_context, local_memory_metadata) =
         match retrieve_local_memory_context(state, &input) {
             Ok(value) => value,
@@ -4959,6 +5084,17 @@ async fn execute_run(
             provider_base_input
         )
     };
+    emit_extension_hook_point(
+        state,
+        run,
+        HookPoint::CompactionAfter,
+        None,
+        serde_json::json!({
+            "provider_input_chars": provider_input.len(),
+            "context_sections": context_sections.len()
+        }),
+    )
+    .await;
 
     let auth_candidates = resolve_run_auth_profiles(
         state,
@@ -5336,6 +5472,16 @@ async fn execute_run_with_status_handling(
         .get_run(&run.run_id)
         .with_context(|| format!("failed loading run {} after execution", run.run_id))?
         .with_context(|| format!("run {} missing after execution", run.run_id))?;
+    emit_extension_hook_point(
+        state,
+        &refreshed,
+        HookPoint::RunEnd,
+        None,
+        serde_json::json!({
+            "status": &refreshed.status
+        }),
+    )
+    .await;
     if refreshed.status == "succeeded" {
         state
             .metrics
@@ -7529,6 +7675,121 @@ fn record_security_audit(
     }
 }
 
+async fn emit_extension_hook_point(
+    state: &AppState,
+    run: &RunRecord,
+    hook_point: HookPoint,
+    tool_name: Option<&str>,
+    metadata: serde_json::Value,
+) {
+    let event = HookEvent {
+        hook_point,
+        run_id: run.run_id.clone(),
+        session_id: run.session_id.clone(),
+        tool_name: tool_name.map(|value| value.to_string()),
+        metadata,
+    };
+    let outcomes = state.hook_bus.emit(&event);
+    for outcome in outcomes {
+        let status_ok = outcome.status == "ok";
+        if status_ok {
+            debug!(
+                run_id = %run.run_id,
+                session_id = %run.session_id,
+                hook_point = %hook_point.as_str(),
+                hook_id = %outcome.hook_id,
+                plugin_id = %outcome.plugin_id,
+                duration_ms = outcome.duration_ms,
+                "extension hook completed"
+            );
+        } else {
+            warn!(
+                run_id = %run.run_id,
+                session_id = %run.session_id,
+                hook_point = %hook_point.as_str(),
+                hook_id = %outcome.hook_id,
+                plugin_id = %outcome.plugin_id,
+                status = %outcome.status,
+                error = %outcome.error.as_deref().unwrap_or_default(),
+                duration_ms = outcome.duration_ms,
+                "extension hook failed but execution continued"
+            );
+        }
+        record_security_audit_internal(
+            state,
+            &format!("extension.hook.{}", hook_point.as_str()),
+            &format!("hook:{}", outcome.hook_id),
+            if status_ok { "allow" } else { "deny" },
+            outcome.error.clone(),
+            if status_ok {
+                StatusCode::OK
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            },
+            if status_ok {
+                None
+            } else {
+                Some("DEPENDENCY_UNAVAILABLE")
+            },
+            Some(&run.session_id),
+            Some(&run.run_id),
+            Some(serde_json::json!({
+                "hook_id": outcome.hook_id,
+                "plugin_id": outcome.plugin_id,
+                "hook_point": hook_point.as_str(),
+                "status": outcome.status,
+                "duration_ms": outcome.duration_ms,
+                "tool_name": tool_name
+            })),
+        );
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn record_security_audit_internal(
+    state: &AppState,
+    action: &str,
+    resource: &str,
+    decision: &str,
+    reason: Option<String>,
+    status: StatusCode,
+    error_code: Option<&str>,
+    session_id: Option<&str>,
+    run_id: Option<&str>,
+    metadata: Option<serde_json::Value>,
+) {
+    let request_id = uuid::Uuid::new_v4().to_string();
+    let metadata_json = metadata
+        .as_ref()
+        .and_then(|value| serde_json::to_string(value).ok());
+    if let Err(err) = state
+        .storage
+        .append_security_audit_event(NewSecurityAuditEvent {
+            request_id: request_id.clone(),
+            correlation_id: request_id.clone(),
+            principal: "service_internal".to_string(),
+            action: action.to_string(),
+            resource: resource.to_string(),
+            decision: decision.to_string(),
+            reason,
+            transport: "internal".to_string(),
+            status: status.as_u16().to_string(),
+            error_code: error_code.map(|value| value.to_string()),
+            session_id: session_id.map(|value| value.to_string()),
+            run_id: run_id.map(|value| value.to_string()),
+            metadata_json,
+        })
+    {
+        warn!(
+            request_id = %request_id,
+            action = %action,
+            resource = %resource,
+            error = %err,
+            "failed to persist internal security audit event"
+        );
+    }
+}
+
 fn request_id_from_headers(headers: &HeaderMap) -> String {
     headers
         .get("x-request-id")
@@ -7962,6 +8223,62 @@ fn load_plugin_manifest_dirs_from_env(state_dir: &FsPath) -> Vec<PathBuf> {
     directories
 }
 
+fn hook_point_from_capability_name(name: &str) -> AnyResult<HookPoint> {
+    match name {
+        "run.start" => Ok(HookPoint::RunStart),
+        "run.end" => Ok(HookPoint::RunEnd),
+        "tool.before" => Ok(HookPoint::ToolBefore),
+        "tool.after" => Ok(HookPoint::ToolAfter),
+        "compaction.before" => Ok(HookPoint::CompactionBefore),
+        "compaction.after" => Ok(HookPoint::CompactionAfter),
+        other => anyhow::bail!(
+            "unsupported hook capability '{}' (expected one of run.start|run.end|tool.before|tool.after|compaction.before|compaction.after)",
+            other
+        ),
+    }
+}
+
+fn build_hook_bus_from_registry(plugin_registry: &PluginRegistry) -> AnyResult<HookBus> {
+    let hook_bus = HookBus::new();
+    for manifest in plugin_registry.list_manifests() {
+        for (index, hook_capability) in manifest.capabilities.hooks.iter().enumerate() {
+            let hook_name = hook_capability.name.clone();
+            let hook_point = hook_point_from_capability_name(&hook_name).with_context(|| {
+                format!(
+                    "plugin '{}' declares invalid hook capability '{}'",
+                    manifest.plugin_id, hook_name
+                )
+            })?;
+            let plugin_id = manifest.plugin_id.clone();
+            let hook_id = format!("{}.{}", plugin_id, hook_name);
+            let registration = HookRegistration {
+                hook_id,
+                plugin_id: plugin_id.clone(),
+                hook_point,
+                priority: 10_000_i32.saturating_sub(index as i32),
+                handler: Arc::new(move |event| {
+                    debug!(
+                        plugin_id = %plugin_id,
+                        hook_name = %hook_name,
+                        hook_point = %hook_point.as_str(),
+                        run_id = %event.run_id,
+                        session_id = %event.session_id,
+                        "extension hook executed"
+                    );
+                    Ok(())
+                }),
+            };
+            hook_bus.register(registration).with_context(|| {
+                format!(
+                    "failed to register hook '{}' for plugin '{}'",
+                    hook_capability.name, manifest.plugin_id
+                )
+            })?;
+        }
+    }
+    Ok(hook_bus)
+}
+
 fn emit_event(state: &AppState, event_name: &str, data: serde_json::Value) {
     let seq = state.event_seq.fetch_add(1, Ordering::Relaxed);
     let frame = serde_json::json!({
@@ -8219,6 +8536,7 @@ mod tests {
         app: Router,
         storage: Storage,
         secret_store: SecretStore,
+        hook_bus: Arc<HookBus>,
     }
 
     fn test_context() -> TestContext {
@@ -8345,6 +8663,9 @@ mod tests {
                 .register_manifest(manifest)
                 .expect("register plugin manifest");
         }
+        let hook_bus = Arc::new(
+            build_hook_bus_from_registry(&plugin_registry).expect("build hook bus from registry"),
+        );
         let rate_limiter = RequestRateLimiter {
             config: rate_limit_config.unwrap_or(RequestRateLimitConfig {
                 enabled: false,
@@ -8372,6 +8693,7 @@ mod tests {
             oauth_sessions: Arc::new(RwLock::new(HashMap::new())),
             numquam_client,
             plugin_registry: Arc::new(RwLock::new(plugin_registry)),
+            hook_bus: hook_bus.clone(),
             storage: storage.clone(),
             metrics: Arc::new(GatewayMetrics::default()),
             event_tx,
@@ -8387,6 +8709,7 @@ mod tests {
             app: build_app(state),
             storage,
             secret_store,
+            hook_bus,
         }
     }
 
@@ -13704,5 +14027,79 @@ mod tests {
         assert_eq!(items.len(), 2);
         assert!(items.iter().any(|item| item["plugin_id"] == "plugin.alpha"));
         assert!(items.iter().any(|item| item["plugin_id"] == "plugin.beta"));
+    }
+
+    #[tokio::test]
+    async fn hook_failures_are_isolated_and_audited() {
+        let ctx = test_context();
+        ctx.hook_bus
+            .register(HookRegistration {
+                hook_id: "hook.fail.run_start".to_string(),
+                plugin_id: "plugin.test".to_string(),
+                hook_point: HookPoint::RunStart,
+                priority: 500,
+                handler: Arc::new(|_| anyhow::bail!("forced hook failure")),
+            })
+            .expect("register failing hook");
+
+        let create_session_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"hook-isolation"}"#),
+            ))
+            .await
+            .expect("create session");
+        let create_session_json = parse_json(create_session_response).await;
+        let session_id = create_session_json["session"]["session_id"]
+            .as_str()
+            .expect("session id")
+            .to_string();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(r#"{"role":"user","content_text":"test hook isolation"}"#),
+            ))
+            .await
+            .expect("create message");
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from(r#"{"model_provider":"mock","model_id":"mock-echo-v1"}"#),
+            ))
+            .await
+            .expect("create run");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+        let run_json = parse_json(run_response).await;
+        assert_eq!(run_json["run"]["status"], "succeeded");
+
+        let audit_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/security/audit?action=extension.hook.run_start&limit=50",
+                Body::empty(),
+            ))
+            .await
+            .expect("security audit list");
+        assert_eq!(audit_response.status(), StatusCode::OK);
+        let audit_json = parse_json(audit_response).await;
+        let items = audit_json["items"].as_array().expect("audit items");
+        assert!(items.iter().any(|item| {
+            item["action"] == "extension.hook.run_start"
+                && item["principal"] == "service_internal"
+                && item["decision"] == "deny"
+        }));
     }
 }

@@ -1,10 +1,12 @@
 # LATEST Checkpoint
 
-- step: chunk-pr13-pr-open
-- note: Opened PR #13 for MC-EXT-001 plugin runtime foundation.
-- branch: codex/chunk-pr13-ext-plugin-runtime-foundation
-- head: beeb72d0e47a5ac1201fcec1c84d6bcd9ff515c9
-- next_cmd: Monitor open chunk PR checks (#10-#13), merge/close in sequence, and continue next chunk implementation while CI executes.
+- step: chunk-pr14-postgreen
+- note: Completed MC-EXT-002 hook bus lifecycle integration and validated full security gate.
+- branch: codex/chunk-pr14-ext-hook-bus-lifecycle
+- head: 20ecf21d206e52b8c2df975c96d2b79017a9d50d
+- next_cmd: Commit/push chunk #14, open PR, then continue merge/chunk flow.
 - validations:
-  - PR open: https://github.com/ProfessahX/CarsinOS/pull/13
-  - pending stacked checks: #10, #11, #12
+  - cargo test -p carsinos-core
+  - cargo test -p carsinos-gateway hook_failures_are_isolated_and_audited -- --nocapture
+  - cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings
+  - REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh

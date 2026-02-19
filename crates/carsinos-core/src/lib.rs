@@ -6,6 +6,8 @@ use std::fs;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::sync::{Arc, RwLock};
+use std::time::Instant;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenSource {
@@ -261,6 +263,165 @@ impl PluginRegistry {
     }
 }
 
+pub type HookHandler = Arc<dyn Fn(&HookEvent) -> Result<()> + Send + Sync + 'static>;
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[serde(rename_all = "snake_case")]
+pub enum HookPoint {
+    RunStart,
+    RunEnd,
+    ToolBefore,
+    ToolAfter,
+    CompactionBefore,
+    CompactionAfter,
+}
+
+impl HookPoint {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::RunStart => "run_start",
+            Self::RunEnd => "run_end",
+            Self::ToolBefore => "tool_before",
+            Self::ToolAfter => "tool_after",
+            Self::CompactionBefore => "compaction_before",
+            Self::CompactionAfter => "compaction_after",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct HookEvent {
+    pub hook_point: HookPoint,
+    pub run_id: String,
+    pub session_id: String,
+    #[serde(default)]
+    pub tool_name: Option<String>,
+    #[serde(default)]
+    pub metadata: serde_json::Value,
+}
+
+#[derive(Clone)]
+pub struct HookRegistration {
+    pub hook_id: String,
+    pub plugin_id: String,
+    pub hook_point: HookPoint,
+    pub priority: i32,
+    pub handler: HookHandler,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct HookRegistrationInfo {
+    pub hook_id: String,
+    pub plugin_id: String,
+    pub hook_point: HookPoint,
+    pub priority: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct HookInvocationResult {
+    pub hook_id: String,
+    pub plugin_id: String,
+    pub hook_point: HookPoint,
+    pub status: String,
+    pub error: Option<String>,
+    pub duration_ms: u64,
+}
+
+#[derive(Clone, Default)]
+pub struct HookBus {
+    registrations: Arc<RwLock<Vec<HookRegistration>>>,
+}
+
+impl HookBus {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn register(&self, mut registration: HookRegistration) -> Result<()> {
+        let hook_id = normalize_identifier(&registration.hook_id)
+            .context("hook_id must be non-empty and use [a-z0-9._-] characters")?;
+        let plugin_id = normalize_identifier(&registration.plugin_id)
+            .context("plugin_id must be non-empty and use [a-z0-9._-] characters")?;
+        registration.hook_id = hook_id.clone();
+        registration.plugin_id = plugin_id;
+
+        let mut guard = self
+            .registrations
+            .write()
+            .map_err(|_| anyhow::anyhow!("hook bus lock poisoned"))?;
+        if guard.iter().any(|existing| existing.hook_id == hook_id) {
+            bail!("hook_id already registered: {hook_id}");
+        }
+
+        guard.push(registration);
+        guard.sort_by(|left, right| {
+            left.hook_point
+                .cmp(&right.hook_point)
+                .then_with(|| right.priority.cmp(&left.priority))
+                .then_with(|| left.hook_id.cmp(&right.hook_id))
+        });
+        Ok(())
+    }
+
+    pub fn list_registrations(&self) -> Vec<HookRegistrationInfo> {
+        let guard = match self.registrations.read() {
+            Ok(guard) => guard,
+            Err(_) => return Vec::new(),
+        };
+        guard
+            .iter()
+            .map(|registration| HookRegistrationInfo {
+                hook_id: registration.hook_id.clone(),
+                plugin_id: registration.plugin_id.clone(),
+                hook_point: registration.hook_point,
+                priority: registration.priority,
+            })
+            .collect()
+    }
+
+    pub fn emit(&self, event: &HookEvent) -> Vec<HookInvocationResult> {
+        let handlers = match self.registrations.read() {
+            Ok(guard) => guard
+                .iter()
+                .filter(|registration| registration.hook_point == event.hook_point)
+                .cloned()
+                .collect::<Vec<_>>(),
+            Err(_) => {
+                return vec![HookInvocationResult {
+                    hook_id: "hookbus.lock".to_string(),
+                    plugin_id: "system".to_string(),
+                    hook_point: event.hook_point,
+                    status: "error".to_string(),
+                    error: Some("hook bus lock poisoned".to_string()),
+                    duration_ms: 0,
+                }];
+            }
+        };
+
+        let mut results = Vec::with_capacity(handlers.len());
+        for registration in handlers {
+            let started = Instant::now();
+            let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                (registration.handler)(event)
+            }));
+            let (status, error) = match outcome {
+                Ok(Ok(())) => ("ok".to_string(), None),
+                Ok(Err(err)) => ("error".to_string(), Some(err.to_string())),
+                Err(_) => ("panic".to_string(), Some("hook panicked".to_string())),
+            };
+            results.push(HookInvocationResult {
+                hook_id: registration.hook_id.clone(),
+                plugin_id: registration.plugin_id.clone(),
+                hook_point: registration.hook_point,
+                status,
+                error,
+                duration_ms: started.elapsed().as_millis() as u64,
+            });
+        }
+        results
+    }
+}
+
 fn default_plugin_manifest_schema_version() -> String {
     PLUGIN_MANIFEST_SCHEMA_VERSION_V1.to_string()
 }
@@ -379,6 +540,7 @@ fn load_manifests_from_dir(directory: &Path) -> Result<Vec<PluginManifest>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
     use uuid::Uuid;
 
     fn sample_manifest(plugin_id: &str) -> PluginManifest {
@@ -453,5 +615,80 @@ mod tests {
         );
 
         fs::remove_dir_all(&root).expect("cleanup temp plugin dir");
+    }
+
+    #[test]
+    fn hook_bus_orders_by_priority_and_isolates_failures() {
+        let bus = HookBus::new();
+        let order = Arc::new(Mutex::new(Vec::new()));
+
+        let order_high = Arc::clone(&order);
+        bus.register(HookRegistration {
+            hook_id: "hook.high".to_string(),
+            plugin_id: "plugin.alpha".to_string(),
+            hook_point: HookPoint::RunStart,
+            priority: 100,
+            handler: Arc::new(move |_| {
+                order_high
+                    .lock()
+                    .expect("lock order")
+                    .push("hook.high".to_string());
+                Ok(())
+            }),
+        })
+        .expect("register high");
+
+        let order_low = Arc::clone(&order);
+        bus.register(HookRegistration {
+            hook_id: "hook.low".to_string(),
+            plugin_id: "plugin.beta".to_string(),
+            hook_point: HookPoint::RunStart,
+            priority: 10,
+            handler: Arc::new(move |_| {
+                order_low
+                    .lock()
+                    .expect("lock order")
+                    .push("hook.low".to_string());
+                anyhow::bail!("intentional low-priority failure")
+            }),
+        })
+        .expect("register low");
+
+        let event = HookEvent {
+            hook_point: HookPoint::RunStart,
+            run_id: "run-1".to_string(),
+            session_id: "session-1".to_string(),
+            tool_name: None,
+            metadata: serde_json::json!({}),
+        };
+        let results = bus.emit(&event);
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].hook_id, "hook.high");
+        assert_eq!(results[0].status, "ok");
+        assert_eq!(results[1].hook_id, "hook.low");
+        assert_eq!(results[1].status, "error");
+        assert!(results[1]
+            .error
+            .as_deref()
+            .unwrap_or_default()
+            .contains("intentional"));
+
+        let observed = order.lock().expect("lock order");
+        assert_eq!(observed.as_slice(), ["hook.high", "hook.low"]);
+    }
+
+    #[test]
+    fn hook_bus_rejects_duplicate_hook_ids() {
+        let bus = HookBus::new();
+        let registration = HookRegistration {
+            hook_id: "hook.duplicate".to_string(),
+            plugin_id: "plugin.alpha".to_string(),
+            hook_point: HookPoint::RunEnd,
+            priority: 1,
+            handler: Arc::new(|_| Ok(())),
+        };
+        bus.register(registration.clone())
+            .expect("register first hook");
+        assert!(bus.register(registration).is_err());
     }
 }

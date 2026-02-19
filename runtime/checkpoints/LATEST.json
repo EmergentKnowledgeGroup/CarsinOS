@@ -1,29 +1,41 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T14:36:36.705680+00:00",
+  "captured_at": "2026-02-19T14:43:54.290360+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/chunk-pr13-ext-plugin-runtime-foundation",
-  "head_short": "beeb72d",
-  "step": "chunk-pr13-pr-open",
-  "note": "Opened PR #13 for MC-EXT-001 plugin runtime foundation.",
-  "next_cmd": "Monitor PR checks/reviews and merge/close in sequence with other open chunk PRs; continue next chunk implementation while CI runs.",
+  "branch": "codex/chunk-pr14-ext-hook-bus-lifecycle",
+  "head_short": "20ecf21",
+  "step": "chunk-pr14-postgreen",
+  "note": "Implemented MC-EXT-002 hook bus lifecycle integration with failure isolation and auditability; full security gate green.",
+  "next_cmd": "git add crates/carsinos-core/src/lib.rs crates/carsinos-gateway/src/main.rs CHECKPOINT.md runtime/checkpoints/LATEST.md runtime/checkpoints/LATEST.json && git commit -m \"feat(ext): add hook bus lifecycle execution\" && git push -u origin codex/chunk-pr14-ext-hook-bus-lifecycle && gh pr create ...",
   "status": {
     "staged": [],
-    "modified": [],
+    "modified": [
+      "CHECKPOINT.md",
+      "crates/carsinos-core/src/lib.rs",
+      "crates/carsinos-gateway/src/main.rs",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "untracked": [],
     "conflicted": [],
-    "dirty": false
+    "dirty": true
   },
   "changed_files": {
-    "working_tree": [],
+    "working_tree": [
+      "CHECKPOINT.md",
+      "crates/carsinos-core/src/lib.rs",
+      "crates/carsinos-gateway/src/main.rs",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "staged": []
   },
   "recent_commits": [
+    "20ecf21 docs: checkpoint PR #13 open state",
     "beeb72d feat(ext): add plugin manifest registry foundation",
     "09a1d5d docs: checkpoint start for stacked PR logfix propagation",
     "917e5c8 test(gateway): harden request log assertion for CI",
-    "986dc37 docs: checkpoint PR #12 open state",
-    "a73901a feat: execute scheduler session.run payloads via real run path"
+    "986dc37 docs: checkpoint PR #12 open state"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
