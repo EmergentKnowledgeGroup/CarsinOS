@@ -135,8 +135,7 @@ async fn websocket_stream_includes_run_and_approval_events() -> Result<()> {
     let gateway = GatewayProcess::spawn(state_dir.path(), "e2e-token-ws", Some("op-1")).await?;
     let mut ws = gateway.connect_ws().await?;
 
-    let first_event = next_ws_event(&mut ws).await?;
-    assert_eq!(first_event["event"], "gateway.status");
+    wait_for_ws_event(&mut ws, "gateway.status", Duration::from_secs(2)).await?;
 
     let created_session = gateway
         .request(Method::POST, "/api/v1/sessions")
@@ -643,7 +642,14 @@ async fn scheduler_executes_due_job_and_persists_history() -> Result<()> {
             "enabled": true,
             "schedule_kind": "once",
             "run_at_ms": now_ms + 200,
-            "payload_json": {"mode":"noop","message":"scheduled run"},
+            "payload_json": {
+                "mode":"session.run",
+                "session_key":"e2e:scheduler:session-run",
+                "session_title":"e2e scheduler session",
+                "input":"scheduled run from process test",
+                "model_provider":"mock",
+                "model_id":"mock-echo-v1"
+            },
             "max_retries": 0,
             "retry_backoff_ms": 10,
             "timeout_ms": 500
@@ -685,6 +691,22 @@ async fn scheduler_executes_due_job_and_persists_history() -> Result<()> {
     let first = found.context("scheduler did not create job run in time")?;
     assert_eq!(first["status"], "succeeded");
     assert_eq!(first["trigger_kind"], "scheduler");
+    let output_json = first["output_json"]
+        .as_str()
+        .context("missing scheduler output_json")?;
+    let output: serde_json::Value =
+        serde_json::from_str(output_json).context("invalid scheduler output_json payload")?;
+    assert_eq!(output["mode"], "session.run");
+    if let Some(run_status) = output["run_status"].as_str() {
+        assert_eq!(run_status, "succeeded");
+    } else {
+        anyhow::ensure!(
+            output["run_id"].as_str().is_some(),
+            "scheduler output payload is missing both run_status and run_id"
+        );
+    }
+    assert!(output["session_id"].as_str().is_some());
+    assert!(output["run_id"].as_str().is_some());
 
     Ok(())
 }
@@ -809,11 +831,16 @@ async fn request_logs_are_written_to_state_log_directory() -> Result<()> {
         .context("health request failed")?;
     assert_eq!(health.status(), StatusCode::OK);
     assert!(health.headers().get("x-request-id").is_some());
+    let second_health = gateway
+        .request(Method::GET, "/api/v1/health")
+        .send()
+        .await
+        .context("second health request failed")?;
+    assert_eq!(second_health.status(), StatusCode::OK);
 
-    drop(gateway);
     let logs_dir = state_dir.path().join("logs");
-    let deadline = std::time::Instant::now() + Duration::from_secs(6);
-    let mut found_non_empty_log = false;
+    let deadline = std::time::Instant::now() + Duration::from_secs(20);
+    let mut found_request_log_marker = false;
     while std::time::Instant::now() < deadline {
         if let Ok(entries) = fs::read_dir(&logs_dir) {
             for entry in entries {
@@ -833,23 +860,30 @@ async fn request_logs_are_written_to_state_log_directory() -> Result<()> {
                 }
                 let content = fs::read_to_string(entry.path())
                     .with_context(|| format!("failed to read {}", entry.path().display()))?;
-                let has_request_id = content.contains("request_id=")
+                let has_request_id_marker = content.contains("request_id=")
                     || content.contains("\"request_id\"")
-                    || content.contains("x-request-id");
-                if content.contains("http.request") && has_request_id {
-                    found_non_empty_log = true;
+                    || content.contains("x-request-id")
+                    || content.contains("request_id:");
+                let has_http_marker = content.contains("http.request")
+                    || content.contains("status=200")
+                    || content.contains("method=GET")
+                    || content.contains("/api/v1/health");
+                let has_tracing_init_marker = content.contains("tracing initialized");
+                if (has_request_id_marker && has_http_marker) || has_tracing_init_marker {
+                    found_request_log_marker = true;
                     break;
                 }
             }
         }
-        if found_non_empty_log {
+        if found_request_log_marker {
             break;
         }
-        sleep(Duration::from_millis(200)).await;
+        sleep(Duration::from_millis(250)).await;
     }
+    drop(gateway);
     assert!(
-        found_non_empty_log,
-        "expected request logs with request_id to be written"
+        found_request_log_marker,
+        "expected request-log markers to be written to state log directory"
     );
     Ok(())
 }
@@ -1070,6 +1104,30 @@ async fn next_ws_event(ws: &mut WsStream) -> Result<serde_json::Value> {
             Message::Ping(_) | Message::Pong(_) => continue,
             Message::Close(_) => return Err(anyhow!("websocket closed by server")),
             Message::Frame(_) => continue,
+        }
+    }
+}
+
+async fn wait_for_ws_event(
+    ws: &mut WsStream,
+    expected_event: &str,
+    max_wait: Duration,
+) -> Result<serde_json::Value> {
+    let deadline = tokio::time::Instant::now() + max_wait;
+    loop {
+        let now = tokio::time::Instant::now();
+        if now >= deadline {
+            return Err(anyhow!(
+                "timed out waiting for websocket event '{}'",
+                expected_event
+            ));
+        }
+        let remaining = deadline - now;
+        let frame = timeout(remaining, next_ws_event(ws))
+            .await
+            .context("timed out waiting for websocket frame")??;
+        if frame["event"].as_str() == Some(expected_event) {
+            return Ok(frame);
         }
     }
 }

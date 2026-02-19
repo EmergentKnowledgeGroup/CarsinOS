@@ -1,10 +1,10 @@
 # LATEST Checkpoint
 
-- step: chunk-pr9-post-merge
-- note: PR #9 merged to main; channel approval-action resolution is now baseline.
-- branch: main
-- head: 06c8bcc95d584227d43fce44c625c63f60f98e11
-- next_cmd: Continue next chunk wave from remaining AppDex roadmap items.
+- step: chunk-pr27-pr-sync-v2
+- note: Pushed v3 stabilization patch to PR #27 and triggered fresh CI run.
+- branch: codex/chunk-pr27-e2e-log-check-stability
+- head: a49d7878146484fb607bb5b24c52acb895d6f9c4
+- next_cmd: Monitor latest PR #27 run and merge if green.
 - validations:
-  - PR merged: https://github.com/ProfessahX/CarsinOS/pull/9
-  - main fast-forward synchronization complete.
+- git push updated PR #27 with fallback marker hardening
+- local full gate was green before push

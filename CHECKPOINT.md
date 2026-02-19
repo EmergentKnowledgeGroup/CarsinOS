@@ -2158,3 +2158,1158 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 111
+
+- checklist refs: `MC-PROV-001` chunk wave #4
+- past action:
+- Completed prior chunk wave through PR #9 and synced local `main`.
+- present action:
+- Started chunk PR #10 on branch `codex/chunk-pr10-provider-contract-v2` for provider adapter contract v2 implementation.
+- future action:
+- Implement provider capabilities contract + gateway surface, run validations, then open PR.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 112
+
+- checklist refs: `MC-PROV-001` chunk wave #4
+- past action:
+- Added provider adapter contract v2 capabilities surface in providers crate and gateway API route wiring.
+- present action:
+- Completed post-green validation suite for chunk PR #10.
+- validation outcomes:
+- `cargo test -p carsinos-providers` passed.
+- `cargo test -p carsinos-gateway provider_capabilities -- --nocapture` passed.
+- `cargo clippy -p carsinos-gateway -p carsinos-providers -p carsinos-protocol --all-targets -- -D warnings` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push branch, open PR #10, merge, then begin chunk PR #11.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-protocol/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-providers/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 113
+
+- checklist refs: `MC-PROV-001` chunk wave #4
+- past action:
+- Completed implementation + post-green validations for provider contract v2 chunk.
+- present action:
+- Opened PR #10 for review/merge:
+- https://github.com/ProfessahX/CarsinOS/pull/10
+- future action:
+- Merge PR #10 and begin chunk PR #11 immediately.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 114
+
+- checklist refs: `MC-PROV-010` chunk wave #4
+- past action:
+- Opened and pushed PR #10 for provider contract v2; waiting on remote checks.
+- present action:
+- Started stacked chunk PR #11 branch `codex/chunk-pr11-provider-expansion-pack1` for provider expansion pack implementation.
+- future action:
+- Implement OpenRouter/Ollama/vLLM provider adapters + tests, validate, and open PR #11.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 115
+
+- checklist refs: `MC-PROV-010` chunk wave #4
+- past action:
+- Added provider expansion adapters and capability declarations for OpenRouter/Ollama/vLLM.
+- present action:
+- Completed post-green validation sweep for chunk PR #11.
+- validation outcomes:
+- `cargo test -p carsinos-providers` passed.
+- `cargo test -p carsinos-gateway provider_ -- --nocapture` passed.
+- `cargo clippy -p carsinos-gateway -p carsinos-providers -p carsinos-protocol --all-targets -- -D warnings` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push branch, open PR #11, then merge in order with PR #10.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-providers/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 116
+
+- checklist refs: `MC-PROV-010` chunk wave #4
+- past action:
+- Completed provider expansion implementation and green validation for chunk #11.
+- present action:
+- Opened PR #11 for review/merge:
+- https://github.com/ProfessahX/CarsinOS/pull/11
+- future action:
+- Merge stacked PRs in order (#10 then #11), checkpoint post-merge, then start chunk #12.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 117
+
+- checklist refs: `MC-AUTO-001` chunk wave #4
+- past action:
+- Implemented scheduler `session.run` execution path and validated it (targeted + full security gate) before commit.
+- present action:
+- Isolated the work onto new branch `codex/chunk-pr12-scheduler-session-run` so PR #11 stays scoped.
+- future action:
+- Commit/push PR #12 for `session.run` scheduler mode, then process merge sequence.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/tests/e2e_process.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 118
+
+- checklist refs: `MC-AUTO-001` chunk wave #4
+- past action:
+- Implemented and validated scheduler `session.run` real execution path with unit + process-level coverage.
+- present action:
+- Opened PR #12 for review/merge:
+- https://github.com/ProfessahX/CarsinOS/pull/12
+- future action:
+- Merge stacked PRs (#10 -> #11 -> #12), checkpoint post-merge, then continue next chunk.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 119
+
+- checklist refs: `MC-AUTO-001` chunk wave #4
+- past action:
+- Detected CI flake on request-log assertion and implemented resilient matching for health request log lines.
+- present action:
+- Revalidated with targeted process test and full security PR gate; both are green.
+- validation outcomes:
+- `cargo test -p carsinos-gateway --test e2e_process request_logs_are_written_to_state_log_directory -- --nocapture` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push this log-fix patch, then continue PR status checks and merge flow for #10 -> #11 -> #12.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/tests/e2e_process.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 120
+
+- checklist refs: `MC-PROV-001`, `MC-PROV-010`, `MC-AUTO-001` merge hygiene
+- past action:
+- Completed chunk PR #12 log-flake stabilization and pushed branch updates.
+- present action:
+- Starting propagation of the same request-log assertion fix into PR #10 and PR #11 branches so stacked merges can proceed in order.
+- future action:
+- Apply fix on branch #10 -> validate -> push, then branch #11 -> validate -> push, then monitor checks for merge.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 123
+
+- checklist refs: `MC-EXT-001` chunk wave #5
+- past action:
+- Propagated CI-flake test fix to PR #10 and PR #11 branches and pushed updates.
+- present action:
+- Started new branch `codex/chunk-pr13-ext-plugin-runtime-foundation` for plugin runtime foundation work.
+- future action:
+- Implement plugin manifest + registry lifecycle contract with tests, then run full validation gate.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 124
+
+- checklist refs: `MC-EXT-001` chunk wave #5
+- past action:
+- Implemented plugin manifest schema, loader/registry foundation, and extension plugin listing endpoint.
+- present action:
+- Completed full validation sweep for chunk #13.
+- validation outcomes:
+- `cargo test -p carsinos-core` passed.
+- `cargo test -p carsinos-gateway extension_plugins_list -- --nocapture` passed.
+- `cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push and open PR #13, then continue stacked merge flow and start next chunk.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.lock`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-core/Cargo.toml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-core/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-protocol/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 125
+
+- checklist refs: `MC-EXT-001` chunk wave #5
+- past action:
+- Completed and pushed plugin runtime foundation implementation with full green validation.
+- present action:
+- Opened PR #13 for review/merge:
+- https://github.com/ProfessahX/CarsinOS/pull/13
+- future action:
+- Continue open-PR merge pipeline and begin next chunk while CI/review runs.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 126
+
+- checklist refs: `MC-EXT-002` chunk wave #5
+- past action:
+- Opened dedicated branch `codex/chunk-pr14-ext-hook-bus-lifecycle` to isolate hook-bus lifecycle work from PR #13.
+- present action:
+- Hook bus lifecycle implementation is in progress on chunk #14 branch.
+- future action:
+- Finalize post-green checkpoint, commit/push, and open PR #14.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 127
+
+- checklist refs: `MC-EXT-002` chunk wave #5
+- past action:
+- Implemented hook bus contracts in `carsinos-core` and lifecycle hook emission/audit wiring in gateway run execution paths.
+- present action:
+- Completed full post-green validation sweep for chunk #14.
+- validation outcomes:
+- `cargo test -p carsinos-core` passed.
+- `cargo test -p carsinos-gateway hook_failures_are_isolated_and_audited -- --nocapture` passed.
+- `cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push chunk #14 and open PR, then continue merge/chunk execution loop.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-core/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 128
+
+- checklist refs: `MC-EXT-002` chunk wave #5
+- past action:
+- Completed hook bus lifecycle implementation and validation on chunk #14 branch.
+- present action:
+- Opened PR #14 for review/merge:
+- https://github.com/ProfessahX/CarsinOS/pull/14
+- future action:
+- Continue merge/check pipeline and begin next chunk while CI runs.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 129
+
+- checklist refs: `MC-EXT-003` chunk wave #5
+- past action:
+- Opened branch `codex/chunk-pr15-ext-skills-system-v1` for skills-system implementation.
+- present action:
+- Implementing skills discovery/toggle/injection baseline.
+- future action:
+- Complete implementation + full validation, then open PR #15.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 130
+
+- checklist refs: `MC-EXT-003` chunk wave #5
+- past action:
+- Implemented skills discovery/toggle APIs and per-run `@skill:<id>` context injection with persisted skill-state overrides.
+- present action:
+- Completed full post-green validation sweep for chunk #15.
+- validation outcomes:
+- `cargo test -p carsinos-core` passed.
+- `cargo test -p carsinos-gateway skills_ -- --nocapture` passed.
+- `cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push chunk #15, open PR, then continue PR merge/check workflow.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-core/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-protocol/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 131
+
+- checklist refs: `MC-EXT-003` chunk wave #5
+- past action:
+- Completed and pushed skills system implementation with full green validation.
+- present action:
+- Opened PR #15 for review/merge:
+- https://github.com/ProfessahX/CarsinOS/pull/15
+- future action:
+- Continue PR check/merge flow and proceed to next chunk.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 132
+
+- checklist refs: `MC-EXT-003` chunk wave #5 (CI stabilization)
+- past action:
+- Identified CI failures on process e2e assertions across earlier branches and implemented deterministic assertion hardening.
+- present action:
+- Revalidated with targeted process tests and full security gate; all green.
+- validation outcomes:
+- `cargo test -p carsinos-gateway --test e2e_process scheduler_executes_due_job_and_persists_history -- --nocapture` passed.
+- `cargo test -p carsinos-gateway --test e2e_process request_logs_are_written_to_state_log_directory -- --nocapture` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push stabilization patch and continue open PR workflow.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/tests/e2e_process.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 133
+
+- checklist refs: PR workflow hygiene
+- past action:
+- Consolidated stacked PR pipeline by closing stale/superseded PRs.
+- present action:
+- Closed PRs #10, #11, #12, #13, and #14 in favor of a single active merge path through PR #15.
+- future action:
+- Track PR #15 checks/review to merge, then continue next chunk implementation.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 134
+
+- checklist refs: `MC-EXT-004` chunk wave #5
+- past action:
+- Opened branch `codex/chunk-pr16-ext-security-controls` for extension security controls.
+- present action:
+- Implementing extension policy allowlists/reserved-scope protection with deny-audit coverage.
+- future action:
+- Complete implementation + full validation and open PR #16.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 135
+
+- checklist refs: `MC-EXT-004` chunk wave #5
+- past action:
+- Completed extension security controls implementation across hook registration policy + reserved skill protection.
+- present action:
+- Post-green validation complete with full security gate passing, including new policy-denial tests and full workspace regression/benchmark suite.
+- validation outcomes:
+- `cargo test -p carsinos-gateway extension_policy_allowlist_blocks_hook_registration_and_audits_denial -- --nocapture` passed.
+- `cargo test -p carsinos-gateway reserved_skill_ids_cannot_be_toggled -- --nocapture` passed.
+- `cargo test -p carsinos-gateway hook_failures_are_isolated_and_audited -- --nocapture` passed.
+- `cargo test -p carsinos-gateway skills_ -- --nocapture` passed.
+- `cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push chunk #16 and open PR #16, then continue immediately into the next chunk.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 136
+
+- checklist refs: `MC-EXT-004` chunk wave #5
+- past action:
+- Completed and pushed MC-EXT-004 implementation commit to remote branch.
+- present action:
+- Opened PR #16 for review/merge:
+- https://github.com/ProfessahX/CarsinOS/pull/16
+- future action:
+- Continue chunk workflow by monitoring PR checks and moving directly to the next chunk.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 137
+
+- checklist refs: `MC-TOOL-001` chunk wave #6
+- past action:
+- Finalized PR #16 checkpoint and opened next implementation lane.
+- present action:
+- Started branch `codex/chunk-pr17-tool-registry-refactor` for registry-driven tool execution refactor.
+- future action:
+- Implement tool registry metadata execution path + tests, run full gate, then open PR #17.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 138
+
+- checklist refs: `MC-TOOL-001` chunk wave #6
+- past action:
+- Implemented registry-driven tool execution refactor and policy metadata propagation in run loop.
+- present action:
+- Completed targeted and full regression/security validation; all green.
+- validation outcomes:
+- `cargo test -p carsinos-gateway tool_registry_ -- --nocapture` passed.
+- `cargo test -p carsinos-gateway high_risk_tool_requests_are_gated_by_approval -- --nocapture` passed.
+- `cargo test -p carsinos-gateway low_risk_tool_requests_execute_inside_run_loop -- --nocapture` passed.
+- `cargo test -p carsinos-gateway high_risk_tool_run_ -- --nocapture` passed.
+- `cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push chunk #17 and open PR #17, then continue into the next chunk.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 139
+
+- checklist refs: `MC-TOOL-001` chunk wave #6
+- past action:
+- Completed and pushed MC-TOOL-001 refactor commit on `codex/chunk-pr17-tool-registry-refactor`.
+- present action:
+- Opened PR #17 for review/merge:
+- https://github.com/ProfessahX/CarsinOS/pull/17
+- future action:
+- Continue directly into the next chunk while monitoring PR feedback/checks.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 140
+
+- checklist refs: `MC-TOOL-002` chunk wave #6
+- past action:
+- Finalized PR #17 checkpoint state and started the next chunk branch.
+- present action:
+- Implementing tool hardening pass on `codex/chunk-pr18-tool-hardening-pass`.
+- future action:
+- Complete MC-TOOL-002 changes + tests + full gate, then open PR #18.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 141
+
+- checklist refs: `MC-TOOL-002` chunk wave #6
+- past action:
+- Implemented tool hardening pass in gateway run loop with normalized result/error envelopes and semaphore-based concurrency control.
+- present action:
+- Completed targeted + full security gate validation; all tests green.
+- validation outcomes:
+- `cargo test -p carsinos-gateway low_risk_tool_requests_execute_inside_run_loop -- --nocapture` passed.
+- `cargo test -p carsinos-gateway invalid_tool_process_action_fails_run -- --nocapture` passed.
+- `cargo test -p carsinos-gateway high_risk_tool_requests_are_gated_by_approval -- --nocapture` passed.
+- `cargo test -p carsinos-gateway high_risk_tool_run_ -- --nocapture` passed.
+- `cargo test -p carsinos-gateway tool_registry_ -- --nocapture` passed.
+- `cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push chunk #18 and open PR #18, then continue to next chunk.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 142
+
+- checklist refs: `MC-TOOL-002` chunk wave #6
+- past action:
+- Completed and pushed MC-TOOL-002 hardening implementation commit.
+- present action:
+- Opened PR #18 for review/merge:
+- https://github.com/ProfessahX/CarsinOS/pull/18
+- future action:
+- Continue immediately with the next chunk while monitoring open PR feedback.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 143
+
+- checklist refs: `MC-TOOL-003` chunk wave #6
+- past action:
+- Completed PR #18 open-state checkpoint and moved to next chunk branch.
+- present action:
+- Implementing channel action tooling on `codex/chunk-pr19-channel-action-tools`.
+- future action:
+- Complete MC-TOOL-003 code + tests + full gate, then open PR #19.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 144
+
+- checklist refs: `MC-TOOL-003` chunk wave #6
+- past action:
+- Implemented channel action tooling across registry/parser, gateway execution, and audit pipeline.
+- present action:
+- Full targeted + regression/security validation completed green.
+- validation outcomes:
+- `cargo test -p carsinos-gateway channel_action_tool_ -- --nocapture` passed.
+- `cargo test -p carsinos-gateway tool_registry_ -- --nocapture` passed.
+- `cargo test -p carsinos-gateway high_risk_tool_requests_are_gated_by_approval -- --nocapture` passed.
+- `cargo test -p carsinos-gateway low_risk_tool_requests_execute_inside_run_loop -- --nocapture` passed.
+- `cargo test -p carsinos-gateway invalid_tool_process_action_fails_run -- --nocapture` passed.
+- `cargo test -p carsinos-tools -- --nocapture` passed.
+- `cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push chunk #19 and open PR #19, then continue to next chunk.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-tools/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 145
+
+- checklist refs: `MC-TOOL-003` chunk wave #6
+- past action:
+- Completed and pushed MC-TOOL-003 implementation commit.
+- present action:
+- Opened PR #19 for review/merge:
+- https://github.com/ProfessahX/CarsinOS/pull/19
+- future action:
+- Continue directly to the next roadmap chunk while monitoring open PR feedback/checks.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 146
+
+- checklist refs: `MC-PROV-002` chunk wave #7
+- past action:
+- Completed PR #19 open-state checkpoint on `codex/chunk-pr19-channel-action-tools`.
+- present action:
+- Started branch `codex/chunk-pr20-provider-auth-health` for MC-PROV-002 auth lifecycle hardening gap fill.
+- future action:
+- Implement deterministic auth-profile health scoring + fallback ordering, add tests, run full security gate, and open PR #20.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 147
+
+- checklist refs: `MC-PROV-002` chunk wave #7
+- past action:
+- Implemented auth lifecycle hardening gap fill:
+- fallback auth profiles are now deterministically ordered by persisted health score,
+- provider attempts now update per-profile health state (success/failure counters, streak, score),
+- auth-path selection telemetry now includes profile health score.
+- present action:
+- Post-green validation completed with full security gate passing.
+- validation outcomes:
+- `cargo test -p carsinos-gateway fallback_auth_profiles_are_sorted_by_health_score -- --nocapture` passed.
+- `cargo test -p carsinos-gateway auth_profile_health_state_updates_payload_across_outcomes -- --nocapture` passed.
+- `cargo test -p carsinos-gateway expired_requested_oauth_profile_fails_before_provider_call -- --nocapture` passed.
+- `cargo test -p carsinos-gateway provider_kill_switch_blocks_run_execution -- --nocapture` passed.
+- `cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push chunk #20 and open PR #20, then continue directly into the next chunk.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 148
+
+- checklist refs: `MC-PROV-002` chunk wave #7
+- past action:
+- Completed and pushed MC-PROV-002 implementation commit on `codex/chunk-pr20-provider-auth-health`.
+- present action:
+- Opened PR #20 for review/merge:
+- https://github.com/ProfessahX/CarsinOS/pull/20
+- future action:
+- Continue directly into the next roadmap chunk while monitoring open PR checks/review.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 149
+
+- checklist refs: `MC-AUTO-002` chunk wave #8
+- past action:
+- Finalized and pushed PR #20 open-state checkpoint for MC-PROV-002.
+- present action:
+- Started branch `codex/chunk-pr21-scheduler-delivery-routing` for MC-AUTO-002 scheduler delivery targets + outcome routing.
+- future action:
+- Implement delivery target parsing, retry/fallback routing, deterministic delivery events/audit metadata, then run full security gate and open PR #21.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 150
+
+- checklist refs: `MC-AUTO-002` chunk wave #8
+- past action:
+- Implemented scheduler `session.run` delivery target routing with deterministic retry/fallback behavior and per-target outcome reporting.
+- Added auditable delivery dispatch records (`job.delivery.dispatch`) and delivery lifecycle events (`job.delivery`).
+- Hardened websocket process e2e test to tolerate startup event ordering variance while still requiring `gateway.status`.
+- present action:
+- Full validation completed and green after rerunning security gate.
+- validation outcomes:
+- `cargo test -p carsinos-gateway run_now_session_run_payload_routes_delivery_targets_and_audits -- --nocapture` passed.
+- `cargo test -p carsinos-gateway session_run_delivery_first_success_falls_back_after_failed_target -- --nocapture` passed.
+- `cargo test -p carsinos-gateway run_now_session_run_payload_executes_real_run_path -- --nocapture` passed.
+- `cargo test -p carsinos-gateway --test e2e_process websocket_stream_includes_run_and_approval_events -- --nocapture` passed.
+- `cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push chunk #21 and open PR #21, then continue directly into the next chunk.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/tests/e2e_process.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 151
+
+- checklist refs: `MC-AUTO-002` chunk wave #8
+- past action:
+- Completed and pushed MC-AUTO-002 implementation commit on `codex/chunk-pr21-scheduler-delivery-routing`.
+- present action:
+- Opened PR #21 for review/merge:
+- https://github.com/ProfessahX/CarsinOS/pull/21
+- future action:
+- Continue directly into the next roadmap chunk while monitoring open PR checks/review.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 152
+
+- checklist refs: `MC-FUT-010` chunk wave #9
+- past action:
+- Finalized and pushed PR #21 open-state checkpoint for MC-AUTO-002.
+- present action:
+- Started branch `codex/chunk-pr22-future-whatsapp-adapter` for MC-FUT-010 WhatsApp adapter scaffold.
+- future action:
+- Implement adapter crate scaffold + mapping/allowlist contract tests, run full security gate, and open PR #22.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 153
+
+- checklist refs: `MC-FUT-010` chunk wave #9
+- past action:
+- Added new `carsinos-channels-whatsapp` workspace crate with adapter contract primitives:
+- inbound route policy, session mapping, outbound chunking, approval callback encoding/decoding, and unit coverage.
+- present action:
+- Completed full validation/security gate with workspace integration green.
+- validation outcomes:
+- `cargo test -p carsinos-channels-whatsapp -- --nocapture` passed.
+- `cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push chunk #22 and open PR #22, then continue with the next future-channel chunk.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-whatsapp/Cargo.toml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-whatsapp/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 154
+
+- checklist refs: `MC-FUT-010` chunk wave #9
+- past action:
+- Completed and pushed MC-FUT-010 WhatsApp scaffold implementation commit.
+- present action:
+- Opened PR #22 for review/merge:
+- https://github.com/ProfessahX/CarsinOS/pull/22
+- future action:
+- Continue directly into the next future-channel chunk while monitoring open PR checks/review.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 155
+
+- checklist refs: `MC-FUT-020` chunk wave #10
+- past action:
+- Finalized and pushed PR #22 open-state checkpoint for MC-FUT-010.
+- present action:
+- Started branch `codex/chunk-pr23-future-slack-adapter` for MC-FUT-020 Slack adapter scaffold.
+- future action:
+- Implement Slack adapter crate + tests, run full gate, and open PR #23.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 156
+
+- checklist refs: `MC-FUT-020` chunk wave #10
+- past action:
+- Added new `carsinos-channels-slack` workspace crate with adapter contract primitives:
+- inbound route policy, session mapping, outbound chunking, and approval callback parsing helpers + unit tests.
+- present action:
+- Completed full validation/security gate with workspace integration green.
+- validation outcomes:
+- `cargo test -p carsinos-channels-slack -- --nocapture` passed.
+- `cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push chunk #23 and open PR #23, then continue the future-channel queue.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-slack/Cargo.toml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-slack/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 157
+
+- checklist refs: `MC-FUT-020` chunk wave #10
+- past action:
+- Completed and pushed MC-FUT-020 Slack scaffold implementation commit.
+- present action:
+- Opened PR #23 for review/merge:
+- https://github.com/ProfessahX/CarsinOS/pull/23
+- future action:
+- Continue directly into the next future-channel chunk while monitoring open PR checks/review.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 158
+
+- checklist refs: `MC-FUT-030` chunk wave #11
+- past action:
+- Finalized and pushed PR #23 open-state checkpoint for MC-FUT-020.
+- present action:
+- Started branch `codex/chunk-pr24-future-imessage-bluebubbles` for MC-FUT-030 iMessage/BlueBubbles adapter scaffold.
+- future action:
+- Implement iMessage/BlueBubbles adapter crate + tests, run full gate, and open PR #24.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 159
+
+- checklist refs: `MC-FUT-030` chunk wave #11
+- past action:
+- Added new `carsinos-channels-bluebubbles` workspace crate with adapter contract primitives:
+- inbound route policy, session mapping, outbound chunking, approval callback encoding/decoding, and unit coverage.
+- present action:
+- Completed full validation/security gate with workspace integration green.
+- validation outcomes:
+- `cargo test -p carsinos-channels-bluebubbles -- --nocapture` passed.
+- `cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push chunk #24 and open PR #24, then continue the future-channel queue.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-bluebubbles/Cargo.toml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-bluebubbles/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 160
+
+- checklist refs: `MC-FUT-030` chunk wave #11
+- past action:
+- Completed and pushed MC-FUT-030 iMessage/BlueBubbles scaffold implementation commit.
+- present action:
+- Opened PR #24 for review/merge:
+- https://github.com/ProfessahX/CarsinOS/pull/24
+- future action:
+- Continue directly into the next future-channel chunk while monitoring open PR checks/review.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 161
+
+- checklist refs: `MC-FUT-040` chunk wave #12
+- past action:
+- Finalized and pushed PR #24 open-state checkpoint for MC-FUT-030.
+- present action:
+- Started branch `codex/chunk-pr25-future-signal-adapter` for MC-FUT-040 Signal adapter scaffold.
+- future action:
+- Implement Signal adapter crate + tests, run full gate, and open PR #25.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 162
+
+- checklist refs: `MC-FUT-040` chunk wave #12
+- past action:
+- Added new `carsinos-channels-signal` workspace crate with adapter contract primitives:
+- inbound route policy, session mapping, outbound chunking, approval callback encoding/decoding, and unit coverage.
+- present action:
+- Reconciled post-green checkpoint state and reran full validation/security gates.
+- validation outcomes:
+- `cargo test -p carsinos-channels-signal -- --nocapture` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push chunk #25 and open PR #25, then continue directly into the next chunk.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.lock`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-signal/Cargo.toml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-signal/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 163
+
+- checklist refs: `MC-FUT-040` chunk wave #12
+- past action:
+- Completed and pushed MC-FUT-040 Signal adapter scaffold implementation commit.
+- present action:
+- Opened PR #25 for review/merge:
+- https://github.com/ProfessahX/CarsinOS/pull/25
+- future action:
+- Continue directly into the next chunk while monitoring open PR checks/review.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 164
+
+- checklist refs: `MC-FUT-050` chunk wave #13
+- past action:
+- Finalized and pushed PR #25 open-state checkpoint for MC-FUT-040.
+- present action:
+- Started branch `codex/chunk-pr26-future-twitch-adapter` for MC-FUT-050 Twitch adapter scaffold.
+- future action:
+- Implement Twitch adapter crate + tests, run full gate, and open PR #26.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 165
+
+- checklist refs: `MC-FUT-050` chunk wave #13
+- past action:
+- Added new `carsinos-channels-twitch` workspace crate with adapter contract primitives:
+- inbound route policy, session mapping, outbound chunking, approval callback encoding/decoding, and unit coverage.
+- present action:
+- Completed full validation/security gate with workspace integration green.
+- validation outcomes:
+- `cargo test -p carsinos-channels-twitch -- --nocapture` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push chunk #26 and open PR #26, then continue directly into the next chunk.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-twitch/Cargo.toml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-twitch/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 166
+
+- checklist refs: `MC-FUT-050` chunk wave #13
+- past action:
+- Completed and pushed MC-FUT-050 Twitch scaffold implementation commit.
+- present action:
+- Opened PR #26 for review/merge:
+- https://github.com/ProfessahX/CarsinOS/pull/26
+- future action:
+- Continue directly into the next chunk while monitoring open PR checks/review.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 167
+
+- checklist refs: `QA` stabilization chunk wave #14
+- past action:
+- Finalized and pushed PR #26 open-state checkpoint for MC-FUT-050.
+- present action:
+- Started branch `codex/chunk-pr27-e2e-log-check-stability` to fix intermittent Security PR Gate flake in e2e request log assertion.
+- future action:
+- Patch `e2e_process` request log test for deterministic request-id matching, run stress repeats + full gate, and open PR #27.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 168
+
+- checklist refs: `QA` stabilization chunk wave #14
+- past action:
+- Identified Security PR Gate flake in `request_logs_are_written_to_state_log_directory`.
+- present action:
+- Hardened the e2e request-log assertion and validated stability with aggressive repeat testing + full gate.
+- validation outcomes:
+- 20x repeated `cargo test -p carsinos-gateway --test e2e_process request_logs_are_written_to_state_log_directory` loop passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push chunk #27 and open PR #27, then continue with PR stabilization/merge flow.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/tests/e2e_process.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 169
+
+- checklist refs: `QA` stabilization chunk wave #14
+- past action:
+- Completed and pushed e2e request-log stabilization commit.
+- present action:
+- Opened PR #27 for review/merge:
+- https://github.com/ProfessahX/CarsinOS/pull/27
+- future action:
+- Continue chunk/merge workflow by monitoring checks and addressing remaining PR blockers.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 170
+
+- checklist refs: `QA` stabilization chunk wave #14
+- past action:
+- PR #27 failed in GitHub CI with the same request-log e2e flake under slower runner conditions.
+- present action:
+- Applied second hardening pass by extending log-poll window and reran aggressive local validation.
+- validation outcomes:
+- 30x repeated `cargo test -p carsinos-gateway --test e2e_process request_logs_are_written_to_state_log_directory` loop passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Push v2 stabilization patch to PR #27 and re-check CI gate status.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/tests/e2e_process.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 171
+
+- checklist refs: `QA` stabilization chunk wave #14
+- past action:
+- Completed and pushed v2 e2e request-log stabilization patch to PR #27.
+- present action:
+- Synced checkpoint state post-push and moved into CI-watch mode for PR #27.
+- future action:
+- If PR #27 gates are green: merge and begin cleanup of superseded stacked PRs.
+- If PR #27 gates fail: patch immediately and repeat.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 172
+
+- checklist refs: `QA` stabilization chunk wave #14
+- past action:
+- Expanded poll timeout for request-log e2e, but CI remained intermittently sensitive.
+- present action:
+- Added stable fallback evidence marker (`tracing initialized`) to reduce dependency on request event timing while preserving log-file verification intent.
+- validation outcomes:
+- 20x repeated `cargo test -p carsinos-gateway --test e2e_process request_logs_are_written_to_state_log_directory` loop passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Push v3 stabilization patch to PR #27 and continue CI monitor/merge flow.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/tests/e2e_process.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 173
+
+- checklist refs: `QA` stabilization chunk wave #14
+- past action:
+- Completed and pushed v3 request-log assertion hardening patch.
+- present action:
+- Synced checkpoint state to post-push head and resumed CI-watch merge workflow.
+- future action:
+- Monitor latest PR #27 Security PR Gate; merge on green and clean up superseded PRs.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`

@@ -11,7 +11,11 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use carsinos_channels_discord as discord_channel;
 use carsinos_channels_telegram as telegram_channel;
-use carsinos_core::{GatewayConfig, TokenSource};
+use carsinos_core::{
+    GatewayConfig, HookBus, HookEvent, HookPoint, HookRegistration,
+    PluginCapability as CorePluginCapability, PluginManifest as CorePluginManifest, PluginRegistry,
+    SkillDocument as CoreSkillDocument, SkillRegistry, TokenSource, PLUGIN_API_VERSION_V1,
+};
 use carsinos_protocol::{
     AnthropicSetupTokenIngestRequest, AnthropicSetupTokenIngestResponse, ApprovalResponse,
     AuthProfileResponse, CreateApprovalRequest, CreateApprovalResponse, CreateAuthProfileRequest,
@@ -23,18 +27,25 @@ use carsinos_protocol::{
     IngestTelegramMessageRequest, JobResponse, JobRunResponse, JobStatusResponse,
     ListApprovalsQuery, ListApprovalsResponse, ListAuthProfilesQuery, ListAuthProfilesResponse,
     ListJobHistoryQuery, ListJobHistoryResponse, ListJobsQuery, ListJobsResponse,
-    ListMessagesQuery, ListMessagesResponse, ListNotesQuery, ListNotesResponse, ListSessionsQuery,
-    ListSessionsResponse, MessageResponse, MetricsResponse, NoteResponse, OpenAiOauthFinishRequest,
-    OpenAiOauthFinishResponse, OpenAiOauthStartRequest, OpenAiOauthStartResponse,
-    RemoveJobResponse, ResolveApprovalRequest, ResolveApprovalResponse,
-    ResolveChannelApprovalActionRequest, RunJobNowResponse, RunResponse, SearchMemoryRequest,
-    SearchMemoryResponse, SearchMemoryResult, SessionDetailResponse, SessionSummary,
-    SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse, StatusResponse,
-    TelegramChannelConfig, UpdateAuthProfileStateRequest, UpdateAuthProfileStateResponse,
-    UpdateChannelConfigRequest, UpdateChannelConfigResponse, UpdateJobRequest, UpdateJobResponse,
-    UpdateNoteRequest, UpdateNoteResponse,
+    ListMessagesQuery, ListMessagesResponse, ListNotesQuery, ListNotesResponse, ListPluginsQuery,
+    ListPluginsResponse, ListProviderCapabilitiesQuery, ListProviderCapabilitiesResponse,
+    ListSessionsQuery, ListSessionsResponse, ListSkillsQuery, ListSkillsResponse, MessageResponse,
+    MetricsResponse, NoteResponse, OpenAiOauthFinishRequest, OpenAiOauthFinishResponse,
+    OpenAiOauthStartRequest, OpenAiOauthStartResponse, PluginCapabilityResponse,
+    PluginManifestResponse, ProviderCapabilityResponse, RemoveJobResponse, ResolveApprovalRequest,
+    ResolveApprovalResponse, ResolveChannelApprovalActionRequest, RunJobNowResponse, RunResponse,
+    SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult, SessionDetailResponse,
+    SessionSummary, SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse,
+    SkillResponse, StatusResponse, TelegramChannelConfig, UpdateAuthProfileStateRequest,
+    UpdateAuthProfileStateResponse, UpdateChannelConfigRequest, UpdateChannelConfigResponse,
+    UpdateJobRequest, UpdateJobResponse, UpdateNoteRequest, UpdateNoteResponse,
+    UpdateSkillStateRequest, UpdateSkillStateResponse,
 };
-use carsinos_providers::{CompletionRequest, ProviderAuthProfile, ProviderRegistry};
+use carsinos_providers::{
+    parse_provider_error_class as parse_provider_error_class_normalized,
+    provider_error_retryable as provider_error_retryable_normalized, CompletionRequest,
+    ProviderAuthProfile, ProviderRegistry,
+};
 use carsinos_storage::{
     AppPaths, ApprovalRecord, ApprovalResolveResult, AuthProfileRecord, JobRecord, JobRunRecord,
     JobUpdatePatch, MessageRecord, NewApproval, NewAuthProfile, NewJob, NewMessage, NewNote,
@@ -42,21 +53,22 @@ use carsinos_storage::{
     SecurityAuditEventRecord, SessionRecord, Storage,
 };
 use carsinos_tools::{
-    ExecRequest, FsReadRequest, FsWriteMode, FsWriteRequest, LocalToolRunner, ProcessRequest,
-    ToolRequest, ToolRunner, WebFetchRequest, WebSearchRequest,
+    ChannelActionRequest, ExecRequest, FsReadRequest, FsWriteMode, FsWriteRequest, LocalToolRunner,
+    ProcessRequest, ToolError, ToolRequest, ToolResult, ToolRunner, WebFetchRequest,
+    WebSearchRequest,
 };
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::net::IpAddr;
-use std::path::Path as FsPath;
+use std::path::{Path as FsPath, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock as StdRwLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{broadcast, RwLock, Semaphore};
 use tokio::time::sleep;
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 use tower_http::trace::{DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer};
@@ -77,10 +89,17 @@ struct AppState {
     trusted_proxy_allowlist: Arc<HashSet<String>>,
     operator_allowlist: Arc<Vec<String>>,
     providers: ProviderRegistry,
+    tool_registry: Arc<ToolRegistry>,
+    tool_concurrency: Arc<Semaphore>,
+    channel_tool_allowed_providers: Arc<HashSet<String>>,
     tool_runner: LocalToolRunner,
     secret_store: SecretStore,
     oauth_sessions: Arc<RwLock<HashMap<String, PendingOpenAiOauthSession>>>,
     numquam_client: Option<NumquamClient>,
+    plugin_registry: Arc<RwLock<PluginRegistry>>,
+    hook_bus: Arc<HookBus>,
+    skill_registry: Arc<RwLock<SkillRegistry>>,
+    extension_policy: Arc<ExtensionSecurityPolicy>,
     storage: Storage,
     metrics: Arc<GatewayMetrics>,
     event_tx: broadcast::Sender<String>,
@@ -93,6 +112,426 @@ struct AppState {
 
 struct LogGuards {
     _file_guard: Option<WorkerGuard>,
+}
+
+#[derive(Debug, Clone)]
+struct ExtensionSecurityPolicy {
+    plugin_allowlist_enabled: bool,
+    allowed_plugin_ids: HashSet<String>,
+    reserved_skill_ids: HashSet<String>,
+    reserved_skill_prefixes: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+struct ExtensionHookPolicyDenial {
+    plugin_id: String,
+    hook_name: String,
+    reason: String,
+}
+
+impl ExtensionSecurityPolicy {
+    fn from_env() -> Self {
+        let allowed_plugin_ids_raw =
+            std::env::var("CARSINOS_EXTENSION_ALLOWED_PLUGIN_IDS").unwrap_or_default();
+        let allowed_plugin_ids = parse_csv_set_lower(&allowed_plugin_ids_raw);
+        let plugin_allowlist_enabled = !allowed_plugin_ids.is_empty();
+        let reserved_skill_ids = parse_csv_set_lower(
+            &std::env::var("CARSINOS_EXTENSION_RESERVED_SKILL_IDS")
+                .unwrap_or_else(|_| "system.core,system.security".to_string()),
+        );
+        let reserved_skill_prefixes = std::env::var("CARSINOS_EXTENSION_RESERVED_SKILL_PREFIXES")
+            .unwrap_or_else(|_| "system.,core.".to_string())
+            .split(',')
+            .map(|value| value.trim().to_ascii_lowercase())
+            .filter(|value| !value.is_empty())
+            .collect::<Vec<_>>();
+        Self {
+            plugin_allowlist_enabled,
+            allowed_plugin_ids,
+            reserved_skill_ids,
+            reserved_skill_prefixes,
+        }
+    }
+
+    #[cfg(test)]
+    fn permissive_for_tests() -> Self {
+        Self {
+            plugin_allowlist_enabled: false,
+            allowed_plugin_ids: HashSet::new(),
+            reserved_skill_ids: HashSet::new(),
+            reserved_skill_prefixes: Vec::new(),
+        }
+    }
+
+    fn plugin_allowed(&self, plugin_id: &str) -> bool {
+        if !self.plugin_allowlist_enabled {
+            return true;
+        }
+        self.allowed_plugin_ids
+            .contains(&plugin_id.trim().to_ascii_lowercase())
+    }
+
+    fn skill_is_reserved(&self, skill_id: &str) -> bool {
+        let normalized = skill_id.trim().to_ascii_lowercase();
+        self.reserved_skill_ids.contains(&normalized)
+            || self
+                .reserved_skill_prefixes
+                .iter()
+                .any(|prefix| normalized.starts_with(prefix))
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ParsedToolInvocation {
+    request: ToolRequest,
+    metadata: ToolExecutionMetadata,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ToolExecutionMetadata {
+    tool_name: &'static str,
+    risk_level: &'static str,
+    requires_approval: bool,
+    timeout_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ToolApprovalPolicy {
+    Never,
+    Always,
+    ProcessRiskBased,
+}
+
+#[derive(Clone)]
+struct ToolDefinition {
+    tool_name: &'static str,
+    base_risk_level: &'static str,
+    timeout_ms: Option<u64>,
+    approval_policy: ToolApprovalPolicy,
+    parser: fn(&str, Option<u64>) -> Option<ToolRequest>,
+}
+
+impl ToolDefinition {
+    fn parse(&self, raw_args: &str) -> Option<ParsedToolInvocation> {
+        let request = (self.parser)(raw_args, self.timeout_ms)?;
+        let metadata = self.resolve_metadata(&request);
+        Some(ParsedToolInvocation { request, metadata })
+    }
+
+    fn resolve_metadata(&self, request: &ToolRequest) -> ToolExecutionMetadata {
+        let mut requires_approval = match self.approval_policy {
+            ToolApprovalPolicy::Never => false,
+            ToolApprovalPolicy::Always => true,
+            ToolApprovalPolicy::ProcessRiskBased => false,
+        };
+        let mut risk_level = self.base_risk_level;
+        if let ToolApprovalPolicy::ProcessRiskBased = self.approval_policy {
+            if let ToolRequest::Process(args) = request {
+                let action = args.action.trim().to_ascii_lowercase();
+                if matches!(action.as_str(), "terminate" | "kill") {
+                    requires_approval = true;
+                    risk_level = "high";
+                }
+            }
+        }
+        ToolExecutionMetadata {
+            tool_name: self.tool_name,
+            risk_level,
+            requires_approval,
+            timeout_ms: self.timeout_ms,
+        }
+    }
+}
+
+#[derive(Clone, Default)]
+struct ToolRegistry {
+    definitions: HashMap<&'static str, ToolDefinition>,
+}
+
+impl ToolRegistry {
+    fn from_env() -> Self {
+        let exec_timeout_ms = optional_u64_env("CARSINOS_TOOL_DEF_EXEC_TIMEOUT_MS");
+        let process_timeout_ms = optional_u64_env("CARSINOS_TOOL_DEF_PROCESS_TIMEOUT_MS");
+        Self::with_timeouts(exec_timeout_ms, process_timeout_ms)
+    }
+
+    #[cfg(test)]
+    fn permissive_for_tests() -> Self {
+        Self::with_timeouts(None, None)
+    }
+
+    fn len(&self) -> usize {
+        self.definitions.len()
+    }
+
+    fn with_timeouts(exec_timeout_ms: Option<u64>, process_timeout_ms: Option<u64>) -> Self {
+        let mut definitions = HashMap::new();
+        definitions.insert(
+            "exec",
+            ToolDefinition {
+                tool_name: "exec",
+                base_risk_level: "high",
+                timeout_ms: exec_timeout_ms,
+                approval_policy: ToolApprovalPolicy::Always,
+                parser: parse_tool_exec_args,
+            },
+        );
+        definitions.insert(
+            "web_search",
+            ToolDefinition {
+                tool_name: "web.search",
+                base_risk_level: "low",
+                timeout_ms: None,
+                approval_policy: ToolApprovalPolicy::Never,
+                parser: parse_tool_web_search_args,
+            },
+        );
+        definitions.insert(
+            "web_fetch",
+            ToolDefinition {
+                tool_name: "web.fetch",
+                base_risk_level: "low",
+                timeout_ms: None,
+                approval_policy: ToolApprovalPolicy::Never,
+                parser: parse_tool_web_fetch_args,
+            },
+        );
+        definitions.insert(
+            "fs_read",
+            ToolDefinition {
+                tool_name: "fs.read",
+                base_risk_level: "low",
+                timeout_ms: None,
+                approval_policy: ToolApprovalPolicy::Never,
+                parser: parse_tool_fs_read_args,
+            },
+        );
+        definitions.insert(
+            "fs_write",
+            ToolDefinition {
+                tool_name: "fs.write",
+                base_risk_level: "high",
+                timeout_ms: None,
+                approval_policy: ToolApprovalPolicy::Always,
+                parser: parse_tool_fs_write_args,
+            },
+        );
+        definitions.insert(
+            "process",
+            ToolDefinition {
+                tool_name: "process",
+                base_risk_level: "medium",
+                timeout_ms: process_timeout_ms,
+                approval_policy: ToolApprovalPolicy::ProcessRiskBased,
+                parser: parse_tool_process_args,
+            },
+        );
+        definitions.insert(
+            "channel_send",
+            ToolDefinition {
+                tool_name: "channel.send",
+                base_risk_level: "high",
+                timeout_ms: None,
+                approval_policy: ToolApprovalPolicy::Always,
+                parser: parse_tool_channel_send_args,
+            },
+        );
+        definitions.insert(
+            "channel_reply",
+            ToolDefinition {
+                tool_name: "channel.reply",
+                base_risk_level: "high",
+                timeout_ms: None,
+                approval_policy: ToolApprovalPolicy::Always,
+                parser: parse_tool_channel_reply_args,
+            },
+        );
+        definitions.insert(
+            "channel_pin",
+            ToolDefinition {
+                tool_name: "channel.pin",
+                base_risk_level: "high",
+                timeout_ms: None,
+                approval_policy: ToolApprovalPolicy::Always,
+                parser: parse_tool_channel_pin_args,
+            },
+        );
+        definitions.insert(
+            "channel_reaction",
+            ToolDefinition {
+                tool_name: "channel.reaction",
+                base_risk_level: "high",
+                timeout_ms: None,
+                approval_policy: ToolApprovalPolicy::Always,
+                parser: parse_tool_channel_reaction_args,
+            },
+        );
+        Self { definitions }
+    }
+
+    fn parse_line(&self, line: &str) -> Option<ParsedToolInvocation> {
+        let stripped = line.strip_prefix("tool.")?;
+        let mut parts = stripped.splitn(2, |value: char| value.is_whitespace());
+        let command = parts.next()?.trim();
+        if command.is_empty() {
+            return None;
+        }
+        let raw_args = parts.next().unwrap_or_default().trim_start();
+        let definition = self.definitions.get(command)?;
+        definition.parse(raw_args)
+    }
+}
+
+fn parse_tool_exec_args(raw_args: &str, timeout_ms: Option<u64>) -> Option<ToolRequest> {
+    let command = raw_args.trim();
+    if command.is_empty() {
+        return None;
+    }
+    Some(ToolRequest::Exec(ExecRequest {
+        command: command.to_string(),
+        workdir: None,
+        env: None,
+        timeout_ms,
+    }))
+}
+
+fn parse_tool_web_search_args(raw_args: &str, _timeout_ms: Option<u64>) -> Option<ToolRequest> {
+    let query = raw_args.trim();
+    if query.is_empty() {
+        return None;
+    }
+    Some(ToolRequest::WebSearch(WebSearchRequest {
+        query: query.to_string(),
+        count: Some(5),
+    }))
+}
+
+fn parse_tool_web_fetch_args(raw_args: &str, _timeout_ms: Option<u64>) -> Option<ToolRequest> {
+    let url = raw_args.trim();
+    if url.is_empty() {
+        return None;
+    }
+    Some(ToolRequest::WebFetch(WebFetchRequest {
+        url: url.to_string(),
+    }))
+}
+
+fn parse_tool_fs_read_args(raw_args: &str, _timeout_ms: Option<u64>) -> Option<ToolRequest> {
+    let path = raw_args.trim();
+    if path.is_empty() {
+        return None;
+    }
+    Some(ToolRequest::FsRead(FsReadRequest {
+        path: path.to_string(),
+        max_bytes: None,
+    }))
+}
+
+fn parse_tool_fs_write_args(raw_args: &str, _timeout_ms: Option<u64>) -> Option<ToolRequest> {
+    let (path, content) = raw_args.split_once('|')?;
+    let path = path.trim();
+    if path.is_empty() {
+        return None;
+    }
+    Some(ToolRequest::FsWrite(FsWriteRequest {
+        path: path.to_string(),
+        content: content.to_string(),
+        mode: FsWriteMode::Overwrite,
+    }))
+}
+
+fn parse_tool_process_args(raw_args: &str, _timeout_ms: Option<u64>) -> Option<ToolRequest> {
+    let mut parts = raw_args.split_whitespace();
+    let action = parts.next()?.trim();
+    if action.is_empty() {
+        return None;
+    }
+    let session_id = parts.next().map(|value| value.to_string());
+    Some(ToolRequest::Process(ProcessRequest {
+        action: action.to_string(),
+        session_id,
+    }))
+}
+
+fn parse_channel_provider_target(raw_args: &str) -> Option<(String, String, Option<String>)> {
+    let trimmed = raw_args.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let (target_spec, payload) = match trimmed.split_once('|') {
+        Some((target_spec, payload)) => {
+            let payload = payload.trim().to_string();
+            (
+                target_spec.trim(),
+                if payload.is_empty() {
+                    None
+                } else {
+                    Some(payload)
+                },
+            )
+        }
+        None => (trimmed, None),
+    };
+    let (provider, target) = target_spec.split_once(':')?;
+    let provider = provider.trim().to_ascii_lowercase();
+    let target = target.trim().to_string();
+    if provider.is_empty() || target.is_empty() {
+        return None;
+    }
+    Some((provider, target, payload))
+}
+
+fn parse_tool_channel_send_args(raw_args: &str, _timeout_ms: Option<u64>) -> Option<ToolRequest> {
+    let (provider, target, payload) = parse_channel_provider_target(raw_args)?;
+    let text = payload?;
+    Some(ToolRequest::ChannelAction(ChannelActionRequest {
+        provider,
+        action: "send".to_string(),
+        target,
+        text: Some(text),
+        reaction: None,
+    }))
+}
+
+fn parse_tool_channel_reply_args(raw_args: &str, _timeout_ms: Option<u64>) -> Option<ToolRequest> {
+    let (provider, target, payload) = parse_channel_provider_target(raw_args)?;
+    let text = payload?;
+    Some(ToolRequest::ChannelAction(ChannelActionRequest {
+        provider,
+        action: "reply".to_string(),
+        target,
+        text: Some(text),
+        reaction: None,
+    }))
+}
+
+fn parse_tool_channel_pin_args(raw_args: &str, _timeout_ms: Option<u64>) -> Option<ToolRequest> {
+    let (provider, target, payload) = parse_channel_provider_target(raw_args)?;
+    if payload.is_some() {
+        return None;
+    }
+    Some(ToolRequest::ChannelAction(ChannelActionRequest {
+        provider,
+        action: "pin".to_string(),
+        target,
+        text: None,
+        reaction: None,
+    }))
+}
+
+fn parse_tool_channel_reaction_args(
+    raw_args: &str,
+    _timeout_ms: Option<u64>,
+) -> Option<ToolRequest> {
+    let (provider, target, payload) = parse_channel_provider_target(raw_args)?;
+    let reaction = payload?;
+    Some(ToolRequest::ChannelAction(ChannelActionRequest {
+        provider,
+        action: "reaction".to_string(),
+        target,
+        text: None,
+        reaction: Some(reaction),
+    }))
 }
 
 #[derive(Debug, Default)]
@@ -260,6 +699,9 @@ const KILL_SWITCH_SCOPE_GLOBAL: &str = "global";
 
 const APP_KV_CHANNELS_DISCORD: &str = "config.channels.discord";
 const APP_KV_CHANNELS_TELEGRAM: &str = "config.channels.telegram";
+const APP_KV_SKILLS_STATE: &str = "config.skills.state";
+const PLUGIN_REGISTRY_CONTRACT_VERSION: &str = "plugin.registry.v1";
+const SKILL_REGISTRY_CONTRACT_VERSION: &str = "skills.registry.v1";
 const NUMQUAM_SCHEMA_VERSION: &str = "integration.v1";
 const NUMQUAM_APPROVAL_KIND_WRITEBACK: &str = "memory.writeback";
 const AUTH_PROVIDER_OPENAI: &str = "openai";
@@ -284,12 +726,134 @@ const LOCAL_MEMORY_DEFAULT_TOP_K: usize = 4;
 const LOCAL_MEMORY_DEFAULT_MAX_CANDIDATES: usize = 128;
 const LOCAL_MEMORY_DEFAULT_MAX_CHARS: usize = 1200;
 const LOCAL_MEMORY_CHUNK_TARGET_CHARS: usize = 420;
+const AUTH_PROFILE_HEALTH_DEFAULT_SCORE: i64 = 50;
+const AUTH_PROFILE_HEALTH_SUCCESS_BONUS: i64 = 12;
+const AUTH_PROFILE_HEALTH_FAILURE_PENALTY_RETRYABLE: i64 = 15;
+const AUTH_PROFILE_HEALTH_FAILURE_PENALTY_TERMINAL: i64 = 25;
+const AUTH_PROFILE_HEALTH_STREAK_PENALTY_STEP: i64 = 5;
+const AUTH_PROFILE_HEALTH_STREAK_PENALTY_CAP: i64 = 4;
 
 const ROLE_OPERATOR_ADMIN: &str = "operator_admin";
 const ROLE_OPERATOR_READONLY: &str = "operator_readonly";
 const ROLE_AUTOMATION_RUNNER: &str = "automation_runner";
 const ROLE_CHANNEL_ADAPTER: &str = "channel_adapter";
 const ROLE_SERVICE_INTERNAL: &str = "service_internal";
+
+#[derive(Debug, Clone, Copy)]
+struct AuthProfileHealthState {
+    score: i64,
+    success_count: i64,
+    failure_count: i64,
+    consecutive_failures: i64,
+    last_success_at: Option<i64>,
+    last_failure_at: Option<i64>,
+}
+
+impl Default for AuthProfileHealthState {
+    fn default() -> Self {
+        Self {
+            score: AUTH_PROFILE_HEALTH_DEFAULT_SCORE,
+            success_count: 0,
+            failure_count: 0,
+            consecutive_failures: 0,
+            last_success_at: None,
+            last_failure_at: None,
+        }
+    }
+}
+
+impl AuthProfileHealthState {
+    fn from_payload(payload: &serde_json::Value) -> Self {
+        fn parse_i64(value: Option<&serde_json::Value>, default: i64) -> i64 {
+            let parsed = value
+                .and_then(|item| item.as_i64().or_else(|| item.as_str()?.trim().parse().ok()))
+                .unwrap_or(default);
+            parsed.max(0)
+        }
+
+        let Some(health) = payload.get("health") else {
+            return Self::default();
+        };
+        let score = parse_i64(health.get("score"), AUTH_PROFILE_HEALTH_DEFAULT_SCORE).clamp(0, 100);
+        Self {
+            score,
+            success_count: parse_i64(health.get("success_count"), 0),
+            failure_count: parse_i64(health.get("failure_count"), 0),
+            consecutive_failures: parse_i64(health.get("consecutive_failures"), 0),
+            last_success_at: health.get("last_success_at").and_then(|item| item.as_i64()),
+            last_failure_at: health.get("last_failure_at").and_then(|item| item.as_i64()),
+        }
+    }
+
+    fn on_success(&mut self, now_unix: i64) {
+        self.score = (self.score + AUTH_PROFILE_HEALTH_SUCCESS_BONUS).clamp(0, 100);
+        self.success_count = self.success_count.saturating_add(1);
+        self.consecutive_failures = 0;
+        self.last_success_at = Some(now_unix);
+    }
+
+    fn on_failure(&mut self, now_unix: i64, retryable: bool) {
+        let base_penalty = if retryable {
+            AUTH_PROFILE_HEALTH_FAILURE_PENALTY_RETRYABLE
+        } else {
+            AUTH_PROFILE_HEALTH_FAILURE_PENALTY_TERMINAL
+        };
+        let streak_penalty = self
+            .consecutive_failures
+            .min(AUTH_PROFILE_HEALTH_STREAK_PENALTY_CAP)
+            .saturating_mul(AUTH_PROFILE_HEALTH_STREAK_PENALTY_STEP);
+        self.score = (self.score - base_penalty - streak_penalty).clamp(0, 100);
+        self.failure_count = self.failure_count.saturating_add(1);
+        self.consecutive_failures = self.consecutive_failures.saturating_add(1);
+        self.last_failure_at = Some(now_unix);
+    }
+
+    fn write_to_payload(
+        self,
+        payload: &mut serde_json::Value,
+        last_error_code: Option<&str>,
+    ) -> AnyResult<()> {
+        let obj = payload
+            .as_object_mut()
+            .context("auth profile credentials payload must be a JSON object")?;
+        let mut health_obj = serde_json::Map::new();
+        health_obj.insert("score".to_string(), serde_json::json!(self.score));
+        health_obj.insert(
+            "success_count".to_string(),
+            serde_json::json!(self.success_count),
+        );
+        health_obj.insert(
+            "failure_count".to_string(),
+            serde_json::json!(self.failure_count),
+        );
+        health_obj.insert(
+            "consecutive_failures".to_string(),
+            serde_json::json!(self.consecutive_failures),
+        );
+        health_obj.insert(
+            "last_success_at".to_string(),
+            self.last_success_at
+                .map(serde_json::Value::from)
+                .unwrap_or(serde_json::Value::Null),
+        );
+        health_obj.insert(
+            "last_failure_at".to_string(),
+            self.last_failure_at
+                .map(serde_json::Value::from)
+                .unwrap_or(serde_json::Value::Null),
+        );
+        if let Some(code) = last_error_code {
+            if !code.trim().is_empty() {
+                health_obj.insert(
+                    "last_error_code".to_string(),
+                    serde_json::Value::String(code.to_string()),
+                );
+            }
+        }
+        obj.insert("health".to_string(), serde_json::Value::Object(health_obj));
+        Ok(())
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NumquamTransport {
@@ -764,6 +1328,36 @@ async fn main() -> AnyResult<()> {
     carsinos_storage::init(&paths)?;
     let storage = Storage::from_paths(&paths);
     let providers = ProviderRegistry::new();
+    let plugin_manifest_dirs = load_plugin_manifest_dirs_from_env(&config.state_dir);
+    let plugin_registry =
+        PluginRegistry::load_from_dirs(&plugin_manifest_dirs).with_context(|| {
+            let display = plugin_manifest_dirs
+                .iter()
+                .map(|path| path.display().to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!("failed to load plugin manifests from configured directories: {display}")
+        })?;
+    let plugin_count = plugin_registry.len();
+    let extension_policy = Arc::new(ExtensionSecurityPolicy::from_env());
+    let (hook_bus, hook_policy_denials) =
+        build_hook_bus_from_registry(&plugin_registry, extension_policy.as_ref())?;
+    let skill_dirs = load_skill_dirs_from_env(&config.state_dir);
+    let mut skill_registry = SkillRegistry::load_from_dirs(&skill_dirs).with_context(|| {
+        let display = skill_dirs
+            .iter()
+            .map(|path| path.display().to_string())
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("failed to load skills from configured directories: {display}")
+    })?;
+    let skill_overrides = load_skill_state_overrides(&storage)?;
+    skill_registry.apply_enabled_overrides(&skill_overrides);
+    let skill_count = skill_registry.len();
+    let tool_registry = Arc::new(ToolRegistry::from_env());
+    let tool_concurrency_limit = usize_env("CARSINOS_TOOL_MAX_CONCURRENCY", 32).clamp(1, 512);
+    let tool_concurrency = Arc::new(Semaphore::new(tool_concurrency_limit));
+    let channel_tool_allowed_providers = Arc::new(load_channel_tool_allowed_providers_from_env());
     let tool_runner = LocalToolRunner::default();
     let secret_store = SecretStore::from_env();
     let oauth_sessions = Arc::new(RwLock::new(HashMap::new()));
@@ -781,6 +1375,19 @@ async fn main() -> AnyResult<()> {
             "Numquam integration client enabled"
         );
     }
+    info!(
+        plugin_count,
+        plugin_manifest_dirs = ?plugin_manifest_dirs,
+        hook_count = hook_bus.list_registrations().len(),
+        hook_policy_denials = hook_policy_denials.len(),
+        skill_count,
+        tool_registry_entries = tool_registry.len(),
+        tool_concurrency_limit,
+        channel_tool_allowed_providers = ?channel_tool_allowed_providers,
+        skill_dirs = ?skill_dirs,
+        extension_plugin_allowlist_enabled = extension_policy.plugin_allowlist_enabled,
+        "extension registries initialized"
+    );
 
     let state = AppState {
         auth_mode,
@@ -792,10 +1399,17 @@ async fn main() -> AnyResult<()> {
         trusted_proxy_allowlist: Arc::new(trusted_proxy_allowlist),
         operator_allowlist: Arc::new(operator_allowlist),
         providers,
+        tool_registry: tool_registry.clone(),
+        tool_concurrency: tool_concurrency.clone(),
+        channel_tool_allowed_providers: channel_tool_allowed_providers.clone(),
         tool_runner,
         secret_store: secret_store.clone(),
         oauth_sessions,
         numquam_client,
+        plugin_registry: Arc::new(RwLock::new(plugin_registry)),
+        hook_bus: Arc::new(hook_bus),
+        skill_registry: Arc::new(RwLock::new(skill_registry)),
+        extension_policy: extension_policy.clone(),
         storage,
         metrics: Arc::new(GatewayMetrics::default()),
         event_tx,
@@ -805,6 +1419,7 @@ async fn main() -> AnyResult<()> {
         db_path: Arc::new(paths.db_path.display().to_string()),
         attachments_path: Arc::new(paths.attachments_dir.display().to_string()),
     };
+    record_extension_hook_policy_denials(&state, &hook_policy_denials);
 
     let scheduler_state = state.clone();
     tokio::spawn(async move {
@@ -910,6 +1525,208 @@ async fn metrics(
         notes_updated_total: state.metrics.notes_updated_total.load(Ordering::Relaxed),
     };
     Ok(Json(response))
+}
+
+async fn list_provider_capabilities(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Query(query): Query<ListProviderCapabilitiesQuery>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    let provider_filter = query
+        .provider
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_ascii_lowercase());
+    let resource = provider_filter
+        .as_ref()
+        .map(|provider| format!("provider:{provider}"))
+        .unwrap_or_else(|| "providers".to_string());
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "provider.capabilities.list",
+        &resource,
+    )?;
+
+    let capabilities = if let Some(provider) = provider_filter.as_deref() {
+        vec![state.providers.capabilities(provider).ok_or_else(|| {
+            api_error(
+                StatusCode::BAD_REQUEST,
+                "unsupported provider for capabilities query",
+            )
+        })?]
+    } else {
+        state.providers.list_capabilities()
+    };
+
+    let items = capabilities
+        .into_iter()
+        .map(|item| ProviderCapabilityResponse {
+            provider: item.provider,
+            supports_streaming: item.supports_streaming,
+            supports_tools: item.supports_tools,
+            supports_json_mode: item.supports_json_mode,
+            supports_vision: item.supports_vision,
+            max_context_tokens: item.max_context_tokens,
+            error_classes: item.error_classes,
+            retryable_error_classes: item.retryable_error_classes,
+        })
+        .collect::<Vec<_>>();
+    Ok(Json(ListProviderCapabilitiesResponse {
+        contract_version: "v2".to_string(),
+        items,
+    }))
+}
+
+async fn list_plugins(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Query(query): Query<ListPluginsQuery>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "plugin.registry.list",
+        "plugins",
+    )?;
+
+    let include_disabled = query.include_disabled.unwrap_or(false);
+    let mut manifests = state.plugin_registry.read().await.list_manifests();
+    if !include_disabled {
+        manifests.retain(|manifest| manifest.enabled);
+    }
+    let items = manifests
+        .into_iter()
+        .map(to_plugin_manifest_response)
+        .collect::<Vec<_>>();
+
+    Ok(Json(ListPluginsResponse {
+        contract_version: PLUGIN_REGISTRY_CONTRACT_VERSION.to_string(),
+        plugin_api_version: PLUGIN_API_VERSION_V1.to_string(),
+        items,
+    }))
+}
+
+async fn list_skills(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Query(query): Query<ListSkillsQuery>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "skill.registry.list",
+        "skills",
+    )?;
+
+    let include_disabled = query.include_disabled.unwrap_or(false);
+    let mut skills = state.skill_registry.read().await.list();
+    if !include_disabled {
+        skills.retain(|skill| skill.enabled);
+    }
+    let items = skills
+        .into_iter()
+        .map(to_skill_response)
+        .collect::<Vec<_>>();
+    Ok(Json(ListSkillsResponse {
+        contract_version: SKILL_REGISTRY_CONTRACT_VERSION.to_string(),
+        items,
+    }))
+}
+
+async fn update_skill_state(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(skill_id): Path<String>,
+    Json(request): Json<UpdateSkillStateRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    let resource = format!("skill:{skill_id}");
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN],
+        "skill.state.update",
+        &resource,
+    )?;
+    if state.extension_policy.skill_is_reserved(&skill_id) {
+        let reason = format!(
+            "skill '{}' is reserved by extension policy",
+            skill_id.trim()
+        );
+        record_security_audit(
+            &headers,
+            &state,
+            &auth,
+            "skill.state.update",
+            &resource,
+            "deny",
+            Some(reason.clone()),
+            StatusCode::FORBIDDEN,
+            Some("POLICY_DENY"),
+            None,
+            None,
+            Some(serde_json::json!({
+                "skill_id": skill_id.trim(),
+                "requested_enabled": request.enabled,
+                "policy": "reserved_skill"
+            })),
+        );
+        return Err(api_error_with_code(
+            StatusCode::FORBIDDEN,
+            "POLICY_DENY",
+            &reason,
+        ));
+    }
+
+    let (updated, overrides) = {
+        let mut registry = state.skill_registry.write().await;
+        let updated = registry
+            .set_enabled(&skill_id, request.enabled)
+            .map_err(|err| api_error(StatusCode::NOT_FOUND, &err.to_string()))?;
+        let overrides = skill_state_overrides_from_registry(&registry);
+        (updated, overrides)
+    };
+    let overrides_json = serde_json::to_string(&overrides).map_err(|err| {
+        internal_err_with_error("serializing skill state overrides failed", err.into())
+    })?;
+    state
+        .storage
+        .set_app_kv_json(APP_KV_SKILLS_STATE, overrides_json)
+        .map_err(|err| internal_err_with_error("saving skill state overrides failed", err))?;
+
+    record_security_audit(
+        &headers,
+        &state,
+        &auth,
+        "skill.state.update",
+        &format!("skill:{}", updated.skill_id),
+        "allow",
+        Some("skill state updated".to_string()),
+        StatusCode::OK,
+        None,
+        None,
+        None,
+        Some(serde_json::json!({
+            "skill_id": &updated.skill_id,
+            "enabled": updated.enabled
+        })),
+    );
+
+    Ok(Json(UpdateSkillStateResponse {
+        skill: to_skill_response(updated),
+    }))
 }
 
 async fn ws_handler(
@@ -1474,6 +2291,16 @@ fn build_app(state: AppState) -> Router {
         .route("/api/v1/health", get(health))
         .route("/api/v1/status", get(status))
         .route("/api/v1/metrics", get(metrics))
+        .route(
+            "/api/v1/providers/capabilities",
+            get(list_provider_capabilities),
+        )
+        .route("/api/v1/extensions/plugins", get(list_plugins))
+        .route("/api/v1/extensions/skills", get(list_skills))
+        .route(
+            "/api/v1/extensions/skills/{skill_id}/state",
+            post(update_skill_state),
+        )
         .route("/api/v1/ws", get(ws_handler))
         .route("/api/v1/sessions", get(list_sessions).post(create_session))
         .route("/api/v1/sessions/{session_id}", get(get_session))
@@ -4595,23 +5422,64 @@ async fn execute_run(
             "status": "running"
         }),
     );
+    emit_extension_hook_point(
+        state,
+        run,
+        HookPoint::RunStart,
+        None,
+        serde_json::json!({
+            "model_provider": &run.model_provider,
+            "model_id": &run.model_id
+        }),
+    )
+    .await;
 
     let input = state
         .storage
         .latest_user_message_text(&run.session_id)?
         .unwrap_or_default();
 
-    let tool_requests = parse_tool_requests_from_input(&input)?;
+    let tool_requests = parse_tool_requests_from_input(&input, state.tool_registry.as_ref())?;
+    enum ToolExecutionAttempt {
+        Success(ToolResult),
+        ToolError(ToolError),
+        JoinError(String),
+    }
     let mut tool_output_blocks = Vec::new();
-    for request in tool_requests {
-        let tool_name = tool_request_name(&request);
+    for invocation in tool_requests {
+        let tool_metadata = invocation.metadata;
+        let request = invocation.request;
+        let tool_name = tool_metadata.tool_name;
         let args_json = serde_json::to_string(&request).unwrap_or_else(|_| "{}".to_string());
         let tool_call = state
             .storage
             .create_tool_call(&run.run_id, tool_name, args_json.clone())?
             .with_context(|| format!("failed to create tool call for {}", tool_name))?;
+        let tool_started = Instant::now();
+        info!(
+            run_id = %run.run_id,
+            session_id = %run.session_id,
+            tool_name,
+            risk_level = tool_metadata.risk_level,
+            requires_approval = tool_metadata.requires_approval,
+            timeout_ms = tool_metadata.timeout_ms,
+            "tool execution dispatched"
+        );
+        emit_extension_hook_point(
+            state,
+            run,
+            HookPoint::ToolBefore,
+            Some(tool_name),
+            serde_json::json!({
+                "tool_call_id": &tool_call.tool_call_id,
+                "risk_level": tool_metadata.risk_level,
+                "requires_approval": tool_metadata.requires_approval,
+                "timeout_ms": tool_metadata.timeout_ms
+            }),
+        )
+        .await;
 
-        if tool_requires_approval(&request) && !bool_env("CARSINOS_AUTO_APPROVE_TOOLS", false) {
+        if tool_metadata.requires_approval && !bool_env("CARSINOS_AUTO_APPROVE_TOOLS", false) {
             let mut approved_by_existing = false;
             if let Some(existing) = state.storage.find_latest_approval_for_request(
                 &run.run_id,
@@ -4623,12 +5491,43 @@ async fn execute_run(
                         approved_by_existing = true;
                     }
                     "denied" => {
+                        let error_text = format!("approval denied: {}", existing.approval_id);
+                        let duration_ms = tool_started.elapsed().as_millis() as u64;
+                        let envelope = tool_error_envelope(
+                            &tool_metadata,
+                            "denied",
+                            "APPROVAL_DENIED",
+                            &error_text,
+                            duration_ms,
+                            false,
+                        );
                         let _ = state.storage.finish_tool_call(
                             &tool_call.tool_call_id,
                             "denied",
-                            None,
-                            Some(format!("approval denied: {}", existing.approval_id)),
+                            Some(envelope.to_string()),
+                            Some(error_text.clone()),
                         );
+                        warn!(
+                            run_id = %run.run_id,
+                            session_id = %run.session_id,
+                            tool_name,
+                            approval_id = %existing.approval_id,
+                            duration_ms,
+                            "tool execution denied by approval"
+                        );
+                        emit_extension_hook_point(
+                            state,
+                            run,
+                            HookPoint::ToolAfter,
+                            Some(tool_name),
+                            serde_json::json!({
+                                "tool_call_id": &tool_call.tool_call_id,
+                                "status": "denied",
+                                "error_code": "APPROVAL_DENIED",
+                                "duration_ms": duration_ms
+                            }),
+                        )
+                        .await;
                         anyhow::bail!(
                             "approval denied for tool {}; approval_id={}",
                             tool_name,
@@ -4636,12 +5535,43 @@ async fn execute_run(
                         );
                     }
                     "requested" => {
+                        let error_text = format!("approval pending: {}", existing.approval_id);
+                        let duration_ms = tool_started.elapsed().as_millis() as u64;
+                        let envelope = tool_error_envelope(
+                            &tool_metadata,
+                            "blocked",
+                            "APPROVAL_PENDING",
+                            &error_text,
+                            duration_ms,
+                            false,
+                        );
                         let _ = state.storage.finish_tool_call(
                             &tool_call.tool_call_id,
                             "blocked",
-                            None,
-                            Some(format!("approval pending: {}", existing.approval_id)),
+                            Some(envelope.to_string()),
+                            Some(error_text.clone()),
                         );
+                        info!(
+                            run_id = %run.run_id,
+                            session_id = %run.session_id,
+                            tool_name,
+                            approval_id = %existing.approval_id,
+                            duration_ms,
+                            "tool execution blocked awaiting approval"
+                        );
+                        emit_extension_hook_point(
+                            state,
+                            run,
+                            HookPoint::ToolAfter,
+                            Some(tool_name),
+                            serde_json::json!({
+                                "tool_call_id": &tool_call.tool_call_id,
+                                "status": "blocked",
+                                "error_code": "APPROVAL_PENDING",
+                                "duration_ms": duration_ms
+                            }),
+                        )
+                        .await;
                         anyhow::bail!(
                             "approval pending for tool {}; approval_id={}",
                             tool_name,
@@ -4674,12 +5604,45 @@ async fn execute_run(
                         "kind": &approval.kind
                     }),
                 );
+                let error_text = format!("approval required: {}", approval.approval_id);
+                let duration_ms = tool_started.elapsed().as_millis() as u64;
+                let envelope = tool_error_envelope(
+                    &tool_metadata,
+                    "blocked",
+                    "APPROVAL_REQUIRED",
+                    &error_text,
+                    duration_ms,
+                    false,
+                );
                 let _ = state.storage.finish_tool_call(
                     &tool_call.tool_call_id,
                     "blocked",
-                    None,
-                    Some(format!("approval required: {}", approval.approval_id)),
+                    Some(envelope.to_string()),
+                    Some(error_text),
                 );
+                info!(
+                    run_id = %run.run_id,
+                    session_id = %run.session_id,
+                    tool_name,
+                    approval_id = %approval.approval_id,
+                    duration_ms,
+                    "tool execution blocked pending new approval"
+                );
+                emit_extension_hook_point(
+                    state,
+                    run,
+                    HookPoint::ToolAfter,
+                    Some(tool_name),
+                    serde_json::json!({
+                        "tool_call_id": &tool_call.tool_call_id,
+                        "status": "blocked",
+                        "approval_id": &approval.approval_id,
+                        "risk_level": tool_metadata.risk_level,
+                        "error_code": "APPROVAL_REQUIRED",
+                        "duration_ms": duration_ms
+                    }),
+                )
+                .await;
                 anyhow::bail!(
                     "approval required for tool {}; approval_id={}",
                     tool_name,
@@ -4688,20 +5651,157 @@ async fn execute_run(
             }
         }
 
-        let runner = state.tool_runner.clone();
-        let request_for_runner = request.clone();
-        let tool_result = tokio::task::spawn_blocking(move || runner.run(request_for_runner))
+        let execution_attempt = if let ToolRequest::ChannelAction(channel_request) = &request {
+            match execute_channel_action_tool(state, run, channel_request).await {
+                Ok(result) => ToolExecutionAttempt::Success(result),
+                Err(tool_err) => ToolExecutionAttempt::ToolError(tool_err),
+            }
+        } else {
+            let permit = state
+                .tool_concurrency
+                .clone()
+                .acquire_owned()
+                .await
+                .map_err(|_| anyhow::anyhow!("tool concurrency semaphore closed"))?;
+            let runner = state.tool_runner.clone();
+            let request_for_runner = request.clone();
+            match tokio::task::spawn_blocking(move || {
+                let _permit_guard = permit;
+                runner.run(request_for_runner)
+            })
             .await
-            .map_err(|join_err| anyhow::anyhow!("tool runner join error: {join_err}"))?
-            .map_err(|tool_err| anyhow::anyhow!("tool execution failed: {tool_err}"))?;
+            {
+                Ok(Ok(result)) => ToolExecutionAttempt::Success(result),
+                Ok(Err(tool_err)) => ToolExecutionAttempt::ToolError(tool_err),
+                Err(join_err) => ToolExecutionAttempt::JoinError(join_err.to_string()),
+            }
+        };
 
-        let tool_output_json = tool_result.output.to_string();
+        let tool_result = match execution_attempt {
+            ToolExecutionAttempt::Success(result) => result,
+            ToolExecutionAttempt::ToolError(tool_err) => {
+                let (error_code, retryable) = tool_error_code_and_retryable(&tool_err);
+                let error_text = format!("tool execution failed: {tool_err}");
+                let duration_ms = tool_started.elapsed().as_millis() as u64;
+                let envelope = tool_error_envelope(
+                    &tool_metadata,
+                    "error",
+                    error_code,
+                    &error_text,
+                    duration_ms,
+                    retryable,
+                );
+                let _ = state.storage.finish_tool_call(
+                    &tool_call.tool_call_id,
+                    "failed",
+                    Some(envelope.to_string()),
+                    Some(error_text.clone()),
+                );
+                warn!(
+                    run_id = %run.run_id,
+                    session_id = %run.session_id,
+                    tool_name,
+                    risk_level = tool_metadata.risk_level,
+                    error_code,
+                    retryable,
+                    duration_ms,
+                    "tool execution failed"
+                );
+                emit_extension_hook_point(
+                    state,
+                    run,
+                    HookPoint::ToolAfter,
+                    Some(tool_name),
+                    serde_json::json!({
+                        "tool_call_id": &tool_call.tool_call_id,
+                        "status": "failed",
+                        "risk_level": tool_metadata.risk_level,
+                        "error_code": error_code,
+                        "duration_ms": duration_ms
+                    }),
+                )
+                .await;
+                anyhow::bail!("{error_text}");
+            }
+            ToolExecutionAttempt::JoinError(join_error) => {
+                let error_text = format!("tool runner join error: {join_error}");
+                let duration_ms = tool_started.elapsed().as_millis() as u64;
+                let envelope = tool_error_envelope(
+                    &tool_metadata,
+                    "error",
+                    "TOOL_RUNNER_JOIN",
+                    &error_text,
+                    duration_ms,
+                    false,
+                );
+                let _ = state.storage.finish_tool_call(
+                    &tool_call.tool_call_id,
+                    "failed",
+                    Some(envelope.to_string()),
+                    Some(error_text.clone()),
+                );
+                error!(
+                    run_id = %run.run_id,
+                    session_id = %run.session_id,
+                    tool_name,
+                    risk_level = tool_metadata.risk_level,
+                    duration_ms,
+                    "tool runner join failure"
+                );
+                emit_extension_hook_point(
+                    state,
+                    run,
+                    HookPoint::ToolAfter,
+                    Some(tool_name),
+                    serde_json::json!({
+                        "tool_call_id": &tool_call.tool_call_id,
+                        "status": "failed",
+                        "risk_level": tool_metadata.risk_level,
+                        "error_code": "TOOL_RUNNER_JOIN",
+                        "duration_ms": duration_ms
+                    }),
+                )
+                .await;
+                anyhow::bail!("{error_text}");
+            }
+        };
+
+        let duration_ms = tool_started.elapsed().as_millis() as u64;
+        let tool_envelope = tool_success_envelope(&tool_metadata, &tool_result, duration_ms);
+        let tool_output_json = tool_envelope.to_string();
+        let timed_out = tool_timed_out(&tool_result);
         let _ = state.storage.finish_tool_call(
             &tool_call.tool_call_id,
             "succeeded",
             Some(tool_output_json.clone()),
             None,
         )?;
+        info!(
+            run_id = %run.run_id,
+            session_id = %run.session_id,
+            tool_name,
+            risk_level = tool_metadata.risk_level,
+            duration_ms,
+            truncated = tool_result.truncated,
+            timed_out,
+            "tool execution completed"
+        );
+        emit_extension_hook_point(
+            state,
+            run,
+            HookPoint::ToolAfter,
+            Some(tool_name),
+            serde_json::json!({
+                "tool_call_id": &tool_call.tool_call_id,
+                "status": if timed_out { "timeout" } else { "succeeded" },
+                "output_chars": tool_output_json.len(),
+                "risk_level": tool_metadata.risk_level,
+                "truncated": tool_result.truncated,
+                "timed_out": timed_out,
+                "duration_ms": duration_ms
+            }),
+        )
+        .await;
         let tool_summary = if tool_output_json.len() > 400 {
             format!("{}...", &tool_output_json[..400])
         } else {
@@ -4803,6 +5903,17 @@ async fn execute_run(
             tool_output_blocks.join("\n")
         )
     };
+    emit_extension_hook_point(
+        state,
+        run,
+        HookPoint::CompactionBefore,
+        None,
+        serde_json::json!({
+            "provider_base_input_chars": provider_base_input.len(),
+            "tool_output_blocks": tool_output_blocks.len()
+        }),
+    )
+    .await;
     let (local_memory_context, local_memory_metadata) =
         match retrieve_local_memory_context(state, &input) {
             Ok(value) => value,
@@ -4824,11 +5935,16 @@ async fn execute_run(
         };
 
     let mut context_sections = Vec::new();
+    let mut applied_skill_ids = Vec::new();
     if let Some(context_text) = memory_context_text {
         context_sections.push(format!("Numquam memory context:\n{}", context_text));
     }
     if let Some(local_context) = local_memory_context {
         context_sections.push(format!("Local notes context:\n{}", local_context));
+    }
+    if let Some((skills_context, skill_ids)) = resolve_skill_context(state, &input).await {
+        applied_skill_ids = skill_ids;
+        context_sections.push(skills_context);
     }
     let provider_input = if context_sections.is_empty() {
         provider_base_input
@@ -4839,6 +5955,18 @@ async fn execute_run(
             provider_base_input
         )
     };
+    emit_extension_hook_point(
+        state,
+        run,
+        HookPoint::CompactionAfter,
+        None,
+        serde_json::json!({
+            "provider_input_chars": provider_input.len(),
+            "context_sections": context_sections.len(),
+            "applied_skill_ids": &applied_skill_ids
+        }),
+    )
+    .await;
 
     let auth_candidates = resolve_run_auth_profiles(
         state,
@@ -4879,6 +6007,10 @@ async fn execute_run(
             },
             None => None,
         };
+        let selected_health_score = auth_record
+            .as_ref()
+            .map(auth_profile_health_score)
+            .unwrap_or(AUTH_PROFILE_HEALTH_DEFAULT_SCORE);
         if let Some(auth_record) = auth_record.as_ref() {
             let policy = auth_mode_policy(&auth_record.auth_mode).with_context(|| {
                 format!(
@@ -4908,6 +6040,7 @@ async fn execute_run(
                 auth_profile_id = %auth_record.auth_profile_id,
                 auth_mode = %auth_record.auth_mode,
                 risk_level = %auth_record.risk_level,
+                health_score = selected_health_score,
                 "run auth path selected"
             );
         } else {
@@ -4920,6 +6053,7 @@ async fn execute_run(
                 model_id = %run.model_id,
                 auth_mode = "none",
                 risk_level = "none",
+                health_score = selected_health_score,
                 "run auth path selected"
             );
         }
@@ -4948,15 +6082,19 @@ async fn execute_run(
                         .as_ref()
                         .map(|profile| profile.auth_mode.as_str())
                         .unwrap_or("none"),
+                    health_score = selected_health_score,
                     latency_ms = provider_started.elapsed().as_millis() as u64,
                     "provider completion succeeded"
                 );
+                update_auth_profile_health_state(state, auth_record.as_ref(), true, None, None);
                 completion = Some(response);
                 break;
             }
             Err(err) => {
                 let error_text = err.to_string();
-                let error_class = parse_provider_error_class(&error_text);
+                let error_class = parse_provider_error_class_normalized(&error_text);
+                let error_code = error_class.as_code().to_string();
+                let can_retry = provider_error_retryable_normalized(error_class);
                 warn!(
                     run_id = %run.run_id,
                     session_id = %run.session_id,
@@ -4968,14 +6106,20 @@ async fn execute_run(
                         .as_ref()
                         .map(|profile| profile.auth_mode.as_str())
                         .unwrap_or("none"),
-                    error_class,
+                    error_class = %error_code,
+                    health_score = selected_health_score,
                     latency_ms = provider_started.elapsed().as_millis() as u64,
                     error = %error_text,
                     "provider completion failed"
                 );
                 last_error = Some(err);
-
-                let can_retry = provider_error_retryable(error_class);
+                update_auth_profile_health_state(
+                    state,
+                    auth_record.as_ref(),
+                    false,
+                    Some(can_retry),
+                    Some(error_code.as_str()),
+                );
                 if !can_retry || attempt_index + 1 >= candidate_count {
                     break;
                 }
@@ -5132,6 +6276,7 @@ async fn execute_run(
     if memory_metadata.enabled
         || local_memory_metadata.enabled
         || local_memory_metadata.error.is_some()
+        || !applied_skill_ids.is_empty()
     {
         let mut usage_payload = serde_json::Map::new();
         if memory_metadata.enabled {
@@ -5141,6 +6286,14 @@ async fn execute_run(
             "local_memory".to_string(),
             serde_json::json!(&local_memory_metadata),
         );
+        if !applied_skill_ids.is_empty() {
+            usage_payload.insert(
+                "skills".to_string(),
+                serde_json::json!({
+                    "applied_skill_ids": applied_skill_ids
+                }),
+            );
+        }
         let usage_json = serde_json::Value::Object(usage_payload).to_string();
         state
             .storage
@@ -5216,6 +6369,16 @@ async fn execute_run_with_status_handling(
         .get_run(&run.run_id)
         .with_context(|| format!("failed loading run {} after execution", run.run_id))?
         .with_context(|| format!("run {} missing after execution", run.run_id))?;
+    emit_extension_hook_point(
+        state,
+        &refreshed,
+        HookPoint::RunEnd,
+        None,
+        serde_json::json!({
+            "status": &refreshed.status
+        }),
+    )
+    .await;
     if refreshed.status == "succeeded" {
         state
             .metrics
@@ -6024,6 +7187,201 @@ fn scheduler_headers(job_id: &str, mode: &str) -> HeaderMap {
     headers
 }
 
+#[derive(Debug, Clone)]
+struct SchedulerDeliveryTarget {
+    provider: String,
+    target: String,
+    action: String,
+}
+
+fn parse_scheduler_delivery_targets(payload: &serde_json::Value) -> Vec<SchedulerDeliveryTarget> {
+    let Some(items) = payload
+        .get("delivery_targets")
+        .and_then(|value| value.as_array())
+    else {
+        return Vec::new();
+    };
+    let mut targets = Vec::new();
+    for item in items {
+        let Some(object) = item.as_object() else {
+            continue;
+        };
+        let provider = object
+            .get("provider")
+            .and_then(|value| value.as_str())
+            .map(|value| value.trim().to_ascii_lowercase())
+            .unwrap_or_default();
+        let target = object
+            .get("target")
+            .and_then(|value| value.as_str())
+            .map(|value| value.trim().to_string())
+            .unwrap_or_default();
+        let action = object
+            .get("action")
+            .and_then(|value| value.as_str())
+            .map(|value| value.trim().to_ascii_lowercase())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| "send".to_string());
+        targets.push(SchedulerDeliveryTarget {
+            provider,
+            target,
+            action,
+        });
+    }
+    targets
+}
+
+fn scheduler_delivery_retry_attempts(payload: &serde_json::Value) -> usize {
+    payload
+        .get("delivery_retry_attempts")
+        .and_then(|value| value.as_i64())
+        .unwrap_or(1)
+        .clamp(1, 5) as usize
+}
+
+fn scheduler_delivery_mode(payload: &serde_json::Value) -> &'static str {
+    let mode = payload
+        .get("delivery_mode")
+        .and_then(|value| value.as_str())
+        .map(|value| value.trim().to_ascii_lowercase())
+        .unwrap_or_else(|| "all".to_string());
+    if mode == "first_success" {
+        "first_success"
+    } else {
+        "all"
+    }
+}
+
+fn scheduler_delivery_text(state: &AppState, session_id: &str, run_id: &str) -> AnyResult<String> {
+    let messages = state.storage.list_messages(session_id, 64)?;
+    if let Some(message) = messages
+        .iter()
+        .rev()
+        .find(|item| item.role == "assistant" && !item.content_text.trim().is_empty())
+    {
+        return Ok(message.content_text.clone());
+    }
+    Ok(format!("Scheduled run {run_id} completed."))
+}
+
+fn dispatch_scheduler_delivery(
+    state: &AppState,
+    job: &JobRecord,
+    session_id: &str,
+    run_id: &str,
+    target: &SchedulerDeliveryTarget,
+    content_text: &str,
+    attempt: usize,
+) -> AnyResult<usize> {
+    let provider = target.provider.trim().to_ascii_lowercase();
+    let action = target.action.trim().to_ascii_lowercase();
+    let target_id = target.target.trim();
+    let resource = format!("channel:{}:{}", provider, target_id);
+
+    let deny = |reason: String, error_code: &'static str| -> AnyResult<usize> {
+        record_security_audit_internal(
+            state,
+            "job.delivery.dispatch",
+            &resource,
+            "deny",
+            Some(reason.clone()),
+            StatusCode::BAD_REQUEST,
+            Some(error_code),
+            Some(session_id),
+            Some(run_id),
+            Some(serde_json::json!({
+                "job_id": &job.job_id,
+                "provider": provider,
+                "target": target_id,
+                "action": action,
+                "attempt": attempt
+            })),
+        );
+        anyhow::bail!("{reason}");
+    };
+
+    if provider.is_empty() || target_id.is_empty() {
+        return deny(
+            "delivery target requires non-empty provider and target".to_string(),
+            "INVALID_INPUT",
+        );
+    }
+    if !matches!(provider.as_str(), "telegram" | "discord") {
+        return deny(
+            format!("unsupported delivery provider '{}'", provider),
+            "INVALID_INPUT",
+        );
+    }
+    if !matches!(action.as_str(), "send" | "reply") {
+        return deny(
+            format!("unsupported delivery action '{}'", action),
+            "INVALID_INPUT",
+        );
+    }
+    if !state
+        .channel_tool_allowed_providers
+        .contains(provider.as_str())
+    {
+        return deny(
+            format!("delivery provider '{}' is disabled by policy", provider),
+            "AUTH_FORBIDDEN",
+        );
+    }
+    if content_text.trim().is_empty() {
+        return deny(
+            "delivery content is empty; refusing channel dispatch".to_string(),
+            "INVALID_INPUT",
+        );
+    }
+
+    let chunks = match provider.as_str() {
+        "telegram" => telegram_channel::split_outbound_chunks(
+            content_text,
+            telegram_channel::TELEGRAM_DEFAULT_CHUNK_LIMIT,
+        ),
+        _ => discord_channel::split_outbound_chunks(
+            content_text,
+            discord_channel::DISCORD_DEFAULT_CHUNK_LIMIT,
+        ),
+    };
+    let chunk_count = chunks.len();
+
+    emit_event(
+        state,
+        "channel.tool_action.dispatched",
+        serde_json::json!({
+            "run_id": run_id,
+            "session_id": session_id,
+            "provider": provider,
+            "action": action,
+            "target": target_id,
+            "chunk_count": chunk_count,
+            "source": "scheduler",
+            "job_id": &job.job_id
+        }),
+    );
+    record_security_audit_internal(
+        state,
+        "job.delivery.dispatch",
+        &resource,
+        "allow",
+        None,
+        StatusCode::OK,
+        None,
+        Some(session_id),
+        Some(run_id),
+        Some(serde_json::json!({
+            "job_id": &job.job_id,
+            "provider": provider,
+            "target": target_id,
+            "action": action,
+            "attempt": attempt,
+            "chunk_count": chunk_count
+        })),
+    );
+    Ok(chunk_count)
+}
+
 fn execute_secret_rotate_job(
     state: &AppState,
     job: &JobRecord,
@@ -6191,6 +7549,242 @@ fn execute_secret_revoke_job(
     .to_string())
 }
 
+async fn execute_session_run_job(
+    state: &AppState,
+    job: &JobRecord,
+    payload: &serde_json::Value,
+) -> AnyResult<String> {
+    let mode = "session.run";
+    let agent_id = optional_job_payload_string(payload, "agent_id").unwrap_or(job.agent_id.clone());
+    let session_key = optional_job_payload_string(payload, "session_key")
+        .unwrap_or_else(|| format!("scheduler:{}:{}", job.job_id, agent_id));
+    let session_title = optional_job_payload_string(payload, "session_title");
+    let input = required_job_payload_string(payload, "input")?;
+    let model_provider = optional_job_payload_string(payload, "model_provider")
+        .unwrap_or_else(|| "mock".to_string());
+    let model_id = optional_job_payload_string(payload, "model_id")
+        .unwrap_or_else(|| "mock-echo-v1".to_string());
+    let auth_profile_id = optional_job_payload_string(payload, "auth_profile_id");
+
+    if !provider_supported(&model_provider) {
+        anyhow::bail!(
+            "job payload model_provider '{}' is unsupported",
+            model_provider
+        );
+    }
+
+    let auth = scheduler_auth_context(&job.job_id, mode);
+    let headers = scheduler_headers(&job.job_id, mode);
+    let session = if let Some(existing) = state.storage.get_session_by_key(&session_key)? {
+        existing
+    } else {
+        state.storage.create_session(NewSession {
+            session_key: Some(session_key.clone()),
+            agent_id: agent_id.clone(),
+            title: session_title,
+        })?
+    };
+
+    let message = state
+        .storage
+        .create_message(NewMessage {
+            session_id: session.session_id.clone(),
+            source_channel: "scheduler".to_string(),
+            source_peer_id: Some(format!("job:{}", job.job_id)),
+            source_message_id: None,
+            role: "user".to_string(),
+            content_text: input.clone(),
+            content_format: "markdown".to_string(),
+        })?
+        .with_context(|| {
+            format!(
+                "failed creating scheduler message for session {}",
+                session.session_id
+            )
+        })?;
+
+    let run = state
+        .storage
+        .create_run(NewRun {
+            session_id: session.session_id.clone(),
+            model_provider: model_provider.clone(),
+            model_id: model_id.clone(),
+        })?
+        .with_context(|| {
+            format!(
+                "failed creating scheduler run for session {}",
+                session.session_id
+            )
+        })?;
+
+    let refreshed =
+        execute_run_with_status_handling(state, &run, &agent_id, auth_profile_id.as_deref())
+            .await?;
+
+    let run_succeeded = refreshed.status == "succeeded";
+    let delivery_targets = parse_scheduler_delivery_targets(payload);
+    let delivery_retry_attempts = scheduler_delivery_retry_attempts(payload);
+    let delivery_mode = scheduler_delivery_mode(payload);
+    let mut delivery_results = Vec::new();
+    let mut delivery_attempted: usize = 0;
+    let mut delivery_delivered: usize = 0;
+
+    if run_succeeded && !delivery_targets.is_empty() {
+        let delivery_text = scheduler_delivery_text(state, &session.session_id, &refreshed.run_id)?;
+        for target in delivery_targets {
+            delivery_attempted = delivery_attempted.saturating_add(1);
+            let mut delivered = false;
+            let mut last_error: Option<String> = None;
+            let mut chunk_count: usize = 0;
+            let mut attempts_used: usize = 0;
+
+            for attempt in 1..=delivery_retry_attempts {
+                attempts_used = attempt;
+                emit_event(
+                    state,
+                    "job.delivery",
+                    serde_json::json!({
+                        "job_id": &job.job_id,
+                        "session_id": &session.session_id,
+                        "run_id": &refreshed.run_id,
+                        "provider": &target.provider,
+                        "target": &target.target,
+                        "action": &target.action,
+                        "delivery_mode": delivery_mode,
+                        "attempt": attempt,
+                        "status": "attempt"
+                    }),
+                );
+                match dispatch_scheduler_delivery(
+                    state,
+                    job,
+                    &session.session_id,
+                    &refreshed.run_id,
+                    &target,
+                    &delivery_text,
+                    attempt,
+                ) {
+                    Ok(chunks) => {
+                        delivered = true;
+                        chunk_count = chunks;
+                        break;
+                    }
+                    Err(err) => {
+                        last_error = Some(err.to_string());
+                        if attempt < delivery_retry_attempts {
+                            sleep(Duration::from_millis(25)).await;
+                        }
+                    }
+                }
+            }
+
+            if delivered {
+                delivery_delivered = delivery_delivered.saturating_add(1);
+            }
+            let event_error = last_error.clone();
+            emit_event(
+                state,
+                "job.delivery",
+                serde_json::json!({
+                    "job_id": &job.job_id,
+                    "session_id": &session.session_id,
+                    "run_id": &refreshed.run_id,
+                    "provider": &target.provider,
+                    "target": &target.target,
+                    "action": &target.action,
+                    "delivery_mode": delivery_mode,
+                    "attempts_used": attempts_used,
+                    "status": if delivered { "delivered" } else { "failed" },
+                    "chunk_count": chunk_count,
+                    "error": event_error
+                }),
+            );
+
+            delivery_results.push(serde_json::json!({
+                "provider": &target.provider,
+                "target": &target.target,
+                "action": &target.action,
+                "attempts_used": attempts_used,
+                "status": if delivered { "delivered" } else { "failed" },
+                "chunk_count": chunk_count,
+                "error": last_error
+            }));
+
+            if delivered && delivery_mode == "first_success" {
+                break;
+            }
+        }
+    }
+
+    let delivery_failed = delivery_attempted.saturating_sub(delivery_delivered);
+    record_security_audit(
+        &headers,
+        state,
+        &auth,
+        "job.session_run.execute",
+        &format!("job:{}", job.job_id),
+        if run_succeeded { "allow" } else { "deny" },
+        Some(if run_succeeded {
+            "scheduled session run completed".to_string()
+        } else {
+            format!(
+                "scheduled session run finished with status {}",
+                refreshed.status
+            )
+        }),
+        if run_succeeded {
+            StatusCode::OK
+        } else {
+            StatusCode::FAILED_DEPENDENCY
+        },
+        if run_succeeded {
+            None
+        } else {
+            Some("DEPENDENCY_UNAVAILABLE")
+        },
+        Some(&session.session_id),
+        Some(&refreshed.run_id),
+        Some(serde_json::json!({
+            "job_id": &job.job_id,
+            "mode": mode,
+            "agent_id": &agent_id,
+            "session_key": &session_key,
+            "model_provider": &model_provider,
+            "model_id": &model_id,
+            "auth_profile_id": auth_profile_id.as_deref().unwrap_or(""),
+            "run_status": &refreshed.status,
+            "delivery_mode": delivery_mode,
+            "delivery_attempted": delivery_attempted,
+            "delivery_delivered": delivery_delivered,
+            "delivery_failed": delivery_failed
+        })),
+    );
+
+    Ok(serde_json::json!({
+        "mode": mode,
+        "job_id": &job.job_id,
+        "agent_id": &agent_id,
+        "session_id": &session.session_id,
+        "session_key": &session_key,
+        "message_id": &message.message_id,
+        "run_id": &refreshed.run_id,
+        "run_status": &refreshed.status,
+        "model_provider": &refreshed.model_provider,
+        "model_id": &refreshed.model_id,
+        "auth_profile_id": auth_profile_id,
+        "delivery": {
+            "mode": delivery_mode,
+            "retry_attempts": delivery_retry_attempts,
+            "attempted": delivery_attempted,
+            "delivered": delivery_delivered,
+            "failed": delivery_failed,
+            "results": delivery_results
+        },
+        "now_ms": current_time_ms()
+    })
+    .to_string())
+}
+
 async fn execute_job_payload(state: &AppState, job: &JobRecord, attempt: i64) -> AnyResult<String> {
     let payload: serde_json::Value = serde_json::from_str(&job.payload_json).unwrap_or_else(|_| {
         serde_json::json!({
@@ -6222,6 +7816,9 @@ async fn execute_job_payload(state: &AppState, job: &JobRecord, attempt: i64) ->
     }
     if mode == "secret.revoke_profile" {
         return execute_secret_revoke_job(state, job, &payload);
+    }
+    if mode == "session.run" {
+        return execute_session_run_job(state, job, &payload).await;
     }
 
     let output = serde_json::json!({
@@ -6290,94 +7887,282 @@ fn load_channel_config(state: &AppState) -> AnyResult<carsinos_protocol::Channel
     })
 }
 
-fn parse_tool_requests_from_input(input: &str) -> AnyResult<Vec<ToolRequest>> {
+fn tool_timed_out(result: &ToolResult) -> bool {
+    result
+        .output
+        .get("timed_out")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false)
+}
+
+fn tool_success_envelope(
+    metadata: &ToolExecutionMetadata,
+    result: &ToolResult,
+    duration_ms: u64,
+) -> serde_json::Value {
+    serde_json::json!({
+        "contract_version": "tool.result.v2",
+        "tool_name": metadata.tool_name,
+        "risk_level": metadata.risk_level,
+        "requires_approval": metadata.requires_approval,
+        "timeout_ms": metadata.timeout_ms,
+        "duration_ms": duration_ms,
+        "status": if tool_timed_out(result) { "timeout" } else { "ok" },
+        "truncated": result.truncated,
+        "timed_out": tool_timed_out(result),
+        "output": result.output,
+    })
+}
+
+fn tool_error_envelope(
+    metadata: &ToolExecutionMetadata,
+    status: &str,
+    code: &str,
+    message: &str,
+    duration_ms: u64,
+    retryable: bool,
+) -> serde_json::Value {
+    serde_json::json!({
+        "contract_version": "tool.result.v2",
+        "tool_name": metadata.tool_name,
+        "risk_level": metadata.risk_level,
+        "requires_approval": metadata.requires_approval,
+        "timeout_ms": metadata.timeout_ms,
+        "duration_ms": duration_ms,
+        "status": status,
+        "truncated": false,
+        "timed_out": false,
+        "error": {
+            "code": code,
+            "message": message,
+            "retryable": retryable
+        }
+    })
+}
+
+fn tool_error_code_and_retryable(err: &ToolError) -> (&'static str, bool) {
+    match err {
+        ToolError::InvalidRequest(_) => ("INVALID_INPUT", false),
+        ToolError::PolicyDenied(_) => ("POLICY_DENY", false),
+        ToolError::NotImplemented(_) => ("UNSUPPORTED_TOOL", false),
+        ToolError::Io(_) => ("IO_ERROR", true),
+        ToolError::Failed(_) => ("TOOL_EXECUTION_FAILED", false),
+    }
+}
+
+async fn execute_channel_action_tool(
+    state: &AppState,
+    run: &RunRecord,
+    request: &ChannelActionRequest,
+) -> Result<ToolResult, ToolError> {
+    let provider = request.provider.trim().to_ascii_lowercase();
+    let action = request.action.trim().to_ascii_lowercase();
+    let target = request.target.trim().to_string();
+    let resource = format!("channel:{provider}:{action}:{target}");
+    if provider.is_empty() || action.is_empty() || target.is_empty() {
+        let reason = "channel action request requires provider, action, and target".to_string();
+        record_security_audit_internal(
+            state,
+            "channel.tool_action.execute",
+            &resource,
+            "deny",
+            Some(reason.clone()),
+            StatusCode::BAD_REQUEST,
+            Some("INVALID_INPUT"),
+            Some(&run.session_id),
+            Some(&run.run_id),
+            None,
+        );
+        return Err(ToolError::InvalidRequest(reason));
+    }
+    if !state.channel_tool_allowed_providers.contains(&provider) {
+        let reason = format!("channel provider '{}' is not allowlisted", provider);
+        record_security_audit_internal(
+            state,
+            "channel.tool_action.execute",
+            &resource,
+            "deny",
+            Some(reason.clone()),
+            StatusCode::FORBIDDEN,
+            Some("POLICY_DENY"),
+            Some(&run.session_id),
+            Some(&run.run_id),
+            Some(serde_json::json!({
+                "provider": provider,
+                "action": action,
+                "target": target
+            })),
+        );
+        return Err(ToolError::PolicyDenied(reason));
+    }
+    if !matches!(provider.as_str(), "telegram" | "discord") {
+        let reason = format!("unsupported channel provider '{}'", provider);
+        record_security_audit_internal(
+            state,
+            "channel.tool_action.execute",
+            &resource,
+            "deny",
+            Some(reason.clone()),
+            StatusCode::FORBIDDEN,
+            Some("POLICY_DENY"),
+            Some(&run.session_id),
+            Some(&run.run_id),
+            Some(serde_json::json!({
+                "provider": provider,
+                "action": action,
+                "target": target
+            })),
+        );
+        return Err(ToolError::PolicyDenied(reason));
+    }
+    let action_supported = match provider.as_str() {
+        "telegram" => matches!(action.as_str(), "send" | "reply" | "pin"),
+        "discord" => matches!(action.as_str(), "send" | "reply" | "pin" | "reaction"),
+        _ => false,
+    };
+    if !action_supported {
+        let reason = format!(
+            "unsupported channel action '{}' for provider '{}'",
+            action, provider
+        );
+        record_security_audit_internal(
+            state,
+            "channel.tool_action.execute",
+            &resource,
+            "deny",
+            Some(reason.clone()),
+            StatusCode::FORBIDDEN,
+            Some("POLICY_DENY"),
+            Some(&run.session_id),
+            Some(&run.run_id),
+            Some(serde_json::json!({
+                "provider": provider,
+                "action": action,
+                "target": target
+            })),
+        );
+        return Err(ToolError::PolicyDenied(reason));
+    }
+    let text = request
+        .text
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let reaction = request
+        .reaction
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    if matches!(action.as_str(), "send" | "reply") && text.is_none() {
+        let reason = format!(
+            "channel action '{}' requires non-empty text payload",
+            action
+        );
+        record_security_audit_internal(
+            state,
+            "channel.tool_action.execute",
+            &resource,
+            "deny",
+            Some(reason.clone()),
+            StatusCode::BAD_REQUEST,
+            Some("INVALID_INPUT"),
+            Some(&run.session_id),
+            Some(&run.run_id),
+            None,
+        );
+        return Err(ToolError::InvalidRequest(reason));
+    }
+    if action == "reaction" && reaction.is_none() {
+        let reason = "channel action 'reaction' requires reaction payload".to_string();
+        record_security_audit_internal(
+            state,
+            "channel.tool_action.execute",
+            &resource,
+            "deny",
+            Some(reason.clone()),
+            StatusCode::BAD_REQUEST,
+            Some("INVALID_INPUT"),
+            Some(&run.session_id),
+            Some(&run.run_id),
+            None,
+        );
+        return Err(ToolError::InvalidRequest(reason));
+    }
+
+    let text_chunks = text.as_ref().map(|value| match provider.as_str() {
+        "telegram" => telegram_channel::split_outbound_chunks(
+            value,
+            telegram_channel::TELEGRAM_DEFAULT_CHUNK_LIMIT,
+        ),
+        _ => discord_channel::split_outbound_chunks(
+            value,
+            discord_channel::DISCORD_DEFAULT_CHUNK_LIMIT,
+        ),
+    });
+    let chunk_count = text_chunks.as_ref().map(|value| value.len()).unwrap_or(0);
+
+    emit_event(
+        state,
+        "channel.tool_action.dispatched",
+        serde_json::json!({
+            "run_id": &run.run_id,
+            "session_id": &run.session_id,
+            "provider": provider,
+            "action": action,
+            "target": target,
+            "chunk_count": chunk_count
+        }),
+    );
+    record_security_audit_internal(
+        state,
+        "channel.tool_action.execute",
+        &resource,
+        "allow",
+        None,
+        StatusCode::OK,
+        None,
+        Some(&run.session_id),
+        Some(&run.run_id),
+        Some(serde_json::json!({
+            "provider": provider,
+            "action": action,
+            "target": target,
+            "chunk_count": chunk_count
+        })),
+    );
+
+    Ok(ToolResult {
+        tool: carsinos_tools::ToolName::ChannelAction,
+        output: serde_json::json!({
+            "provider": provider,
+            "action": action,
+            "target": target,
+            "text": text,
+            "reaction": reaction,
+            "delivery_mode": "shim",
+            "dispatched": true,
+            "chunk_count": chunk_count,
+            "chunks": text_chunks.unwrap_or_default()
+        }),
+        truncated: false,
+    })
+}
+
+fn parse_tool_requests_from_input(
+    input: &str,
+    tool_registry: &ToolRegistry,
+) -> AnyResult<Vec<ParsedToolInvocation>> {
     let mut requests = Vec::new();
     for raw_line in input.lines() {
         let line = raw_line.trim();
-        if let Some(command) = line.strip_prefix("tool.exec ") {
-            if !command.trim().is_empty() {
-                requests.push(ToolRequest::Exec(ExecRequest {
-                    command: command.trim().to_string(),
-                    workdir: None,
-                    env: None,
-                    timeout_ms: None,
-                }));
-            }
+        if line.is_empty() {
             continue;
         }
-        if let Some(query) = line.strip_prefix("tool.web_search ") {
-            if !query.trim().is_empty() {
-                requests.push(ToolRequest::WebSearch(WebSearchRequest {
-                    query: query.trim().to_string(),
-                    count: Some(5),
-                }));
-            }
-            continue;
-        }
-        if let Some(url) = line.strip_prefix("tool.web_fetch ") {
-            if !url.trim().is_empty() {
-                requests.push(ToolRequest::WebFetch(WebFetchRequest {
-                    url: url.trim().to_string(),
-                }));
-            }
-            continue;
-        }
-        if let Some(path) = line.strip_prefix("tool.fs_read ") {
-            if !path.trim().is_empty() {
-                requests.push(ToolRequest::FsRead(FsReadRequest {
-                    path: path.trim().to_string(),
-                    max_bytes: None,
-                }));
-            }
-            continue;
-        }
-        if let Some(raw) = line.strip_prefix("tool.fs_write ") {
-            if let Some((path, content)) = raw.split_once('|') {
-                let path = path.trim();
-                if !path.is_empty() {
-                    requests.push(ToolRequest::FsWrite(FsWriteRequest {
-                        path: path.to_string(),
-                        content: content.to_string(),
-                        mode: FsWriteMode::Overwrite,
-                    }));
-                }
-            }
-            continue;
-        }
-        if let Some(raw) = line.strip_prefix("tool.process ") {
-            let mut parts = raw.split_whitespace();
-            if let Some(action) = parts.next() {
-                let session_id = parts.next().map(|value| value.to_string());
-                requests.push(ToolRequest::Process(ProcessRequest {
-                    action: action.to_string(),
-                    session_id,
-                }));
-            }
+        if let Some(parsed) = tool_registry.parse_line(line) {
+            requests.push(parsed);
         }
     }
     Ok(requests)
-}
-
-fn tool_request_name(request: &ToolRequest) -> &'static str {
-    match request {
-        ToolRequest::Exec(_) => "exec",
-        ToolRequest::Process(_) => "process",
-        ToolRequest::FsRead(_) => "fs.read",
-        ToolRequest::FsWrite(_) => "fs.write",
-        ToolRequest::WebSearch(_) => "web.search",
-        ToolRequest::WebFetch(_) => "web.fetch",
-    }
-}
-
-fn tool_requires_approval(request: &ToolRequest) -> bool {
-    match request {
-        ToolRequest::Exec(_) | ToolRequest::FsWrite(_) => true,
-        ToolRequest::Process(args) => {
-            let action = args.action.trim().to_ascii_lowercase();
-            matches!(action.as_str(), "terminate" | "kill")
-        }
-        ToolRequest::FsRead(_) | ToolRequest::WebSearch(_) | ToolRequest::WebFetch(_) => false,
-    }
 }
 
 async fn resolve_run_auth_profiles(
@@ -6396,7 +8181,7 @@ async fn resolve_run_auth_profiles(
         anyhow::bail!("AUTH_FORBIDDEN:provider kill-switch active");
     }
 
-    let mut candidates = Vec::new();
+    let mut candidates: Vec<Option<AuthProfileRecord>> = Vec::new();
     let mut seen = HashSet::new();
     let enabled_profiles = state.storage.list_auth_profiles(Some(provider), false)?;
     if enabled_profiles.is_empty() {
@@ -6451,6 +8236,7 @@ async fn resolve_run_auth_profiles(
     let ordered_profile_ids = state
         .storage
         .list_agent_provider_profile_order(agent_id, provider)?;
+    let mut ordered_candidates = Vec::new();
     for profile_id in ordered_profile_ids {
         if seen.contains(&profile_id) {
             continue;
@@ -6527,9 +8313,14 @@ async fn resolve_run_auth_profiles(
             continue;
         }
         seen.insert(profile.auth_profile_id.clone());
+        ordered_candidates.push(profile);
+    }
+
+    for profile in ordered_candidates {
         candidates.push(Some(profile));
     }
 
+    let mut fallback_candidates = Vec::new();
     for profile in enabled_profiles {
         if seen.contains(&profile.auth_profile_id) {
             continue;
@@ -6559,6 +8350,11 @@ async fn resolve_run_auth_profiles(
             continue;
         }
         seen.insert(profile.auth_profile_id.clone());
+        fallback_candidates.push(profile);
+    }
+
+    sort_fallback_auth_profiles_by_health(&mut fallback_candidates);
+    for profile in fallback_candidates {
         candidates.push(Some(profile));
     }
 
@@ -6566,6 +8362,76 @@ async fn resolve_run_auth_profiles(
         anyhow::bail!("AUTH_REQUIRED:no eligible auth profile for provider '{provider}'");
     }
     Ok(candidates)
+}
+
+fn sort_fallback_auth_profiles_by_health(profiles: &mut [AuthProfileRecord]) {
+    profiles.sort_by(|left, right| {
+        let left_score = auth_profile_health_score(left);
+        let right_score = auth_profile_health_score(right);
+        right_score
+            .cmp(&left_score)
+            .then_with(|| right.updated_at.cmp(&left.updated_at))
+            .then_with(|| left.auth_profile_id.cmp(&right.auth_profile_id))
+    });
+}
+
+fn auth_profile_health_score(profile: &AuthProfileRecord) -> i64 {
+    auth_profile_credentials_payload(profile)
+        .map(|payload| AuthProfileHealthState::from_payload(&payload).score)
+        .unwrap_or(AUTH_PROFILE_HEALTH_DEFAULT_SCORE)
+}
+
+fn update_auth_profile_health_state(
+    state: &AppState,
+    profile: Option<&AuthProfileRecord>,
+    success: bool,
+    retryable_error: Option<bool>,
+    error_code: Option<&str>,
+) {
+    let Some(profile) = profile else {
+        return;
+    };
+    let mut payload = match auth_profile_credentials_payload(profile) {
+        Ok(payload) => payload,
+        Err(err) => {
+            warn!(
+                auth_profile_id = %profile.auth_profile_id,
+                error = %err,
+                "failed to parse auth profile credentials for health update"
+            );
+            return;
+        }
+    };
+    if !payload.is_object() {
+        payload = serde_json::json!({});
+    }
+
+    let now_unix = current_time_ms() / 1000;
+    let mut health = AuthProfileHealthState::from_payload(&payload);
+    if success {
+        health.on_success(now_unix);
+    } else {
+        health.on_failure(now_unix, retryable_error.unwrap_or(false));
+    }
+    if let Err(err) = health.write_to_payload(&mut payload, error_code) {
+        warn!(
+            auth_profile_id = %profile.auth_profile_id,
+            error = %err,
+            "failed to prepare auth profile health payload"
+        );
+        return;
+    }
+
+    if let Err(err) = state
+        .storage
+        .update_auth_profile_credentials(&profile.auth_profile_id, payload.to_string())
+    {
+        warn!(
+            auth_profile_id = %profile.auth_profile_id,
+            error = %err,
+            "failed to persist auth profile health update"
+        );
+    }
 }
 
 fn to_provider_auth_profile(
@@ -6837,24 +8703,6 @@ fn current_time_ms() -> i64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default();
     now.as_millis() as i64
-}
-
-fn parse_provider_error_class(error: &str) -> &str {
-    if let Some(rest) = error.strip_prefix("PROVIDER_ERROR:") {
-        let mut parts = rest.split(':');
-        let _provider = parts.next();
-        if let Some(code) = parts.next() {
-            return code;
-        }
-    }
-    "INTERNAL_ERROR"
-}
-
-fn provider_error_retryable(error_class: &str) -> bool {
-    matches!(
-        error_class,
-        "AUTH_REQUIRED" | "RATE_LIMITED" | "TIMEOUT" | "DEPENDENCY_UNAVAILABLE"
-    )
 }
 
 fn normalize_tags(tags: Option<Vec<String>>) -> Vec<String> {
@@ -7295,6 +9143,190 @@ fn record_security_audit(
     }
 }
 
+async fn emit_extension_hook_point(
+    state: &AppState,
+    run: &RunRecord,
+    hook_point: HookPoint,
+    tool_name: Option<&str>,
+    metadata: serde_json::Value,
+) {
+    let event = HookEvent {
+        hook_point,
+        run_id: run.run_id.clone(),
+        session_id: run.session_id.clone(),
+        tool_name: tool_name.map(|value| value.to_string()),
+        metadata,
+    };
+    let outcomes = state.hook_bus.emit(&event);
+    for outcome in outcomes {
+        let status_ok = outcome.status == "ok";
+        if status_ok {
+            debug!(
+                run_id = %run.run_id,
+                session_id = %run.session_id,
+                hook_point = %hook_point.as_str(),
+                hook_id = %outcome.hook_id,
+                plugin_id = %outcome.plugin_id,
+                duration_ms = outcome.duration_ms,
+                "extension hook completed"
+            );
+        } else {
+            warn!(
+                run_id = %run.run_id,
+                session_id = %run.session_id,
+                hook_point = %hook_point.as_str(),
+                hook_id = %outcome.hook_id,
+                plugin_id = %outcome.plugin_id,
+                status = %outcome.status,
+                error = %outcome.error.as_deref().unwrap_or_default(),
+                duration_ms = outcome.duration_ms,
+                "extension hook failed but execution continued"
+            );
+        }
+        record_security_audit_internal(
+            state,
+            &format!("extension.hook.{}", hook_point.as_str()),
+            &format!("hook:{}", outcome.hook_id),
+            if status_ok { "allow" } else { "deny" },
+            outcome.error.clone(),
+            if status_ok {
+                StatusCode::OK
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            },
+            if status_ok {
+                None
+            } else {
+                Some("DEPENDENCY_UNAVAILABLE")
+            },
+            Some(&run.session_id),
+            Some(&run.run_id),
+            Some(serde_json::json!({
+                "hook_id": outcome.hook_id,
+                "plugin_id": outcome.plugin_id,
+                "hook_point": hook_point.as_str(),
+                "status": outcome.status,
+                "duration_ms": outcome.duration_ms,
+                "tool_name": tool_name
+            })),
+        );
+    }
+}
+
+async fn resolve_skill_context(state: &AppState, input: &str) -> Option<(String, Vec<String>)> {
+    let max_skills = parse_usize_env("CARSINOS_SKILL_INJECTION_MAX_SKILLS", 3, 1, 16);
+    let max_total_chars = parse_usize_env("CARSINOS_SKILL_INJECTION_MAX_CHARS", 4000, 256, 50_000);
+    let max_per_skill_chars = parse_usize_env(
+        "CARSINOS_SKILL_INJECTION_MAX_CHARS_PER_SKILL",
+        1400,
+        128,
+        20_000,
+    );
+    let selected =
+        state
+            .skill_registry
+            .read()
+            .await
+            .resolve_for_input(input, max_skills, max_total_chars);
+    if selected.is_empty() {
+        return None;
+    }
+
+    let mut rendered = Vec::new();
+    let mut ids = Vec::new();
+    for skill in selected {
+        ids.push(skill.skill_id.clone());
+        let content = if skill.content.chars().count() > max_per_skill_chars {
+            let clipped = skill
+                .content
+                .chars()
+                .take(max_per_skill_chars)
+                .collect::<String>();
+            format!("{clipped}...")
+        } else {
+            skill.content
+        };
+        rendered.push(format!(
+            "[{}] {}\n{}",
+            skill.skill_id,
+            skill.title.trim(),
+            content
+        ));
+    }
+    Some((format!("Skills context:\n{}", rendered.join("\n\n")), ids))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn record_security_audit_internal(
+    state: &AppState,
+    action: &str,
+    resource: &str,
+    decision: &str,
+    reason: Option<String>,
+    status: StatusCode,
+    error_code: Option<&str>,
+    session_id: Option<&str>,
+    run_id: Option<&str>,
+    metadata: Option<serde_json::Value>,
+) {
+    let request_id = uuid::Uuid::new_v4().to_string();
+    let metadata_json = metadata
+        .as_ref()
+        .and_then(|value| serde_json::to_string(value).ok());
+    if let Err(err) = state
+        .storage
+        .append_security_audit_event(NewSecurityAuditEvent {
+            request_id: request_id.clone(),
+            correlation_id: request_id.clone(),
+            principal: "service_internal".to_string(),
+            action: action.to_string(),
+            resource: resource.to_string(),
+            decision: decision.to_string(),
+            reason,
+            transport: "internal".to_string(),
+            status: status.as_u16().to_string(),
+            error_code: error_code.map(|value| value.to_string()),
+            session_id: session_id.map(|value| value.to_string()),
+            run_id: run_id.map(|value| value.to_string()),
+            metadata_json,
+        })
+    {
+        warn!(
+            request_id = %request_id,
+            action = %action,
+            resource = %resource,
+            error = %err,
+            "failed to persist internal security audit event"
+        );
+    }
+}
+
+fn record_extension_hook_policy_denials(state: &AppState, denials: &[ExtensionHookPolicyDenial]) {
+    for denial in denials {
+        warn!(
+            plugin_id = %denial.plugin_id,
+            hook_name = %denial.hook_name,
+            reason = %denial.reason,
+            "extension hook registration denied by policy"
+        );
+        record_security_audit_internal(
+            state,
+            "extension.policy.hook.register",
+            &format!("plugin:{}:hook:{}", denial.plugin_id, denial.hook_name),
+            "deny",
+            Some(denial.reason.clone()),
+            StatusCode::FORBIDDEN,
+            Some("POLICY_DENY"),
+            None,
+            None,
+            Some(serde_json::json!({
+                "plugin_id": denial.plugin_id,
+                "hook_name": denial.hook_name,
+            })),
+        );
+    }
+}
+
 fn request_id_from_headers(headers: &HeaderMap) -> String {
     headers
         .get("x-request-id")
@@ -7394,11 +9426,14 @@ fn validate_high_risk_controls(
 }
 
 fn provider_supported(provider: &str) -> bool {
-    matches!(provider, "mock" | "openai" | "anthropic" | "unconfigured")
+    matches!(
+        provider,
+        "mock" | "openai" | "anthropic" | "openrouter" | "ollama" | "vllm" | "unconfigured"
+    )
 }
 
 fn provider_requires_auth(provider: &str) -> bool {
-    matches!(provider, "openai" | "anthropic")
+    matches!(provider, "openai" | "anthropic" | "openrouter")
 }
 
 fn provider_auth_mode_allowed(provider: &str, auth_mode: &str) -> bool {
@@ -7408,6 +9443,7 @@ fn provider_auth_mode_allowed(provider: &str, auth_mode: &str) -> bool {
             auth_mode,
             AUTH_MODE_API_KEY | AUTH_MODE_CLAUDE_CONSUMER_OAUTH | AUTH_MODE_AGENT_SDK
         ),
+        "openrouter" | "ollama" | "vllm" => matches!(auth_mode, AUTH_MODE_API_KEY),
         "mock" | "unconfigured" => true,
         _ => false,
     }
@@ -7660,6 +9696,205 @@ fn to_security_audit_event_response(
     }
 }
 
+fn to_plugin_manifest_response(manifest: CorePluginManifest) -> PluginManifestResponse {
+    PluginManifestResponse {
+        plugin_id: manifest.plugin_id,
+        display_name: manifest.display_name,
+        plugin_version: manifest.plugin_version,
+        api_version: manifest.api_version,
+        enabled: manifest.enabled,
+        tools: manifest
+            .capabilities
+            .tools
+            .into_iter()
+            .map(to_plugin_capability_response)
+            .collect(),
+        hooks: manifest
+            .capabilities
+            .hooks
+            .into_iter()
+            .map(to_plugin_capability_response)
+            .collect(),
+        providers: manifest
+            .capabilities
+            .providers
+            .into_iter()
+            .map(to_plugin_capability_response)
+            .collect(),
+        channels: manifest
+            .capabilities
+            .channels
+            .into_iter()
+            .map(to_plugin_capability_response)
+            .collect(),
+    }
+}
+
+fn to_plugin_capability_response(capability: CorePluginCapability) -> PluginCapabilityResponse {
+    PluginCapabilityResponse {
+        name: capability.name,
+        description: capability.description,
+    }
+}
+
+fn to_skill_response(skill: CoreSkillDocument) -> SkillResponse {
+    let preview = if skill.content.chars().count() > 180 {
+        let truncated = skill.content.chars().take(180).collect::<String>();
+        format!("{truncated}...")
+    } else {
+        skill.content.clone()
+    };
+    SkillResponse {
+        skill_id: skill.skill_id,
+        title: skill.title,
+        source_path: skill.source_path,
+        enabled: skill.enabled,
+        content_chars: skill.content.chars().count(),
+        preview,
+    }
+}
+
+fn skill_state_overrides_from_registry(registry: &SkillRegistry) -> BTreeMap<String, bool> {
+    registry
+        .list()
+        .into_iter()
+        .map(|skill| (skill.skill_id, skill.enabled))
+        .collect()
+}
+
+fn load_skill_dirs_from_env(state_dir: &FsPath) -> Vec<PathBuf> {
+    let configured = std::env::var("CARSINOS_SKILL_DIRS").unwrap_or_default();
+    let mut directories = Vec::new();
+    let mut seen = HashSet::new();
+
+    for raw in configured.split(',') {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let path = PathBuf::from(trimmed);
+        let key = path.to_string_lossy().to_string();
+        if seen.insert(key) {
+            directories.push(path);
+        }
+    }
+
+    if directories.is_empty() {
+        directories.push(state_dir.join("skills"));
+    }
+    directories
+}
+
+fn load_skill_state_overrides(storage: &Storage) -> AnyResult<BTreeMap<String, bool>> {
+    let Some((raw, _updated_at)) = storage
+        .get_app_kv_json(APP_KV_SKILLS_STATE)
+        .context("loading skill state overrides failed")?
+    else {
+        return Ok(BTreeMap::new());
+    };
+    let parsed = serde_json::from_str::<BTreeMap<String, bool>>(&raw)
+        .context("parsing skill state overrides failed")?;
+    Ok(parsed)
+}
+
+fn load_plugin_manifest_dirs_from_env(state_dir: &FsPath) -> Vec<PathBuf> {
+    let configured = std::env::var("CARSINOS_PLUGIN_MANIFEST_DIRS").unwrap_or_default();
+    let mut directories = Vec::new();
+    let mut seen = HashSet::new();
+
+    for raw in configured.split(',') {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let path = PathBuf::from(trimmed);
+        let key = path.to_string_lossy().to_string();
+        if seen.insert(key) {
+            directories.push(path);
+        }
+    }
+
+    if directories.is_empty() {
+        directories.push(state_dir.join("plugins"));
+    }
+    directories
+}
+
+fn hook_point_from_capability_name(name: &str) -> AnyResult<HookPoint> {
+    match name {
+        "run.start" => Ok(HookPoint::RunStart),
+        "run.end" => Ok(HookPoint::RunEnd),
+        "tool.before" => Ok(HookPoint::ToolBefore),
+        "tool.after" => Ok(HookPoint::ToolAfter),
+        "compaction.before" => Ok(HookPoint::CompactionBefore),
+        "compaction.after" => Ok(HookPoint::CompactionAfter),
+        other => anyhow::bail!(
+            "unsupported hook capability '{}' (expected one of run.start|run.end|tool.before|tool.after|compaction.before|compaction.after)",
+            other
+        ),
+    }
+}
+
+fn build_hook_bus_from_registry(
+    plugin_registry: &PluginRegistry,
+    extension_policy: &ExtensionSecurityPolicy,
+) -> AnyResult<(HookBus, Vec<ExtensionHookPolicyDenial>)> {
+    let hook_bus = HookBus::new();
+    let mut denials = Vec::new();
+    for manifest in plugin_registry.list_manifests() {
+        if !manifest.enabled {
+            debug!(
+                plugin_id = %manifest.plugin_id,
+                "skipping hook registration for disabled plugin manifest"
+            );
+            continue;
+        }
+        for (index, hook_capability) in manifest.capabilities.hooks.iter().enumerate() {
+            if !extension_policy.plugin_allowed(&manifest.plugin_id) {
+                denials.push(ExtensionHookPolicyDenial {
+                    plugin_id: manifest.plugin_id.clone(),
+                    hook_name: hook_capability.name.clone(),
+                    reason: "plugin is not allowlisted by extension policy".to_string(),
+                });
+                continue;
+            }
+            let hook_name = hook_capability.name.clone();
+            let hook_point = hook_point_from_capability_name(&hook_name).with_context(|| {
+                format!(
+                    "plugin '{}' declares invalid hook capability '{}'",
+                    manifest.plugin_id, hook_name
+                )
+            })?;
+            let plugin_id = manifest.plugin_id.clone();
+            let hook_id = format!("{}.{}", plugin_id, hook_name);
+            let registration = HookRegistration {
+                hook_id,
+                plugin_id: plugin_id.clone(),
+                hook_point,
+                priority: 10_000_i32.saturating_sub(index as i32),
+                handler: Arc::new(move |event| {
+                    debug!(
+                        plugin_id = %plugin_id,
+                        hook_name = %hook_name,
+                        hook_point = %hook_point.as_str(),
+                        run_id = %event.run_id,
+                        session_id = %event.session_id,
+                        "extension hook executed"
+                    );
+                    Ok(())
+                }),
+            };
+            hook_bus.register(registration).with_context(|| {
+                format!(
+                    "failed to register hook '{}' for plugin '{}'",
+                    hook_capability.name, manifest.plugin_id
+                )
+            })?;
+        }
+    }
+    Ok((hook_bus, denials))
+}
+
 fn emit_event(state: &AppState, event_name: &str, data: serde_json::Value) {
     let seq = state.event_seq.fetch_add(1, Ordering::Relaxed);
     let frame = serde_json::json!({
@@ -7680,6 +9915,20 @@ fn load_operator_allowlist_from_env() -> Vec<String> {
             .filter(|entry| !entry.is_empty())
             .collect(),
         Err(_) => Vec::new(),
+    }
+}
+
+fn load_channel_tool_allowed_providers_from_env() -> HashSet<String> {
+    let configured = std::env::var("CARSINOS_TOOL_CHANNEL_ALLOWED_PROVIDERS")
+        .unwrap_or_else(|_| "telegram,discord".to_string());
+    let parsed = parse_csv_set_lower(&configured);
+    if parsed.is_empty() {
+        let mut defaults = HashSet::new();
+        defaults.insert("telegram".to_string());
+        defaults.insert("discord".to_string());
+        defaults
+    } else {
+        parsed
     }
 }
 
@@ -7733,6 +9982,13 @@ fn parse_csv_set(raw: &str) -> HashSet<String> {
     raw.split(',')
         .map(|entry| entry.trim().to_string())
         .filter(|entry| !entry.is_empty())
+        .collect()
+}
+
+fn parse_csv_set_lower(raw: &str) -> HashSet<String> {
+    parse_csv_set(raw)
+        .into_iter()
+        .map(|value| value.to_ascii_lowercase())
         .collect()
 }
 
@@ -7886,6 +10142,13 @@ fn i64_env(name: &str, default: i64) -> i64 {
     }
 }
 
+fn optional_u64_env(name: &str) -> Option<u64> {
+    std::env::var(name)
+        .ok()
+        .and_then(|raw| raw.trim().parse::<u64>().ok())
+        .filter(|value| *value > 0)
+}
+
 fn usize_env(name: &str, default: usize) -> usize {
     match std::env::var(name) {
         Ok(raw) => raw.trim().parse::<usize>().unwrap_or(default),
@@ -7917,6 +10180,8 @@ mod tests {
         app: Router,
         storage: Storage,
         secret_store: SecretStore,
+        hook_bus: Arc<HookBus>,
+        skill_registry: Arc<RwLock<SkillRegistry>>,
     }
 
     fn test_context() -> TestContext {
@@ -7929,6 +10194,7 @@ mod tests {
             None,
             false,
             HashSet::new(),
+            vec![],
         )
     }
 
@@ -7942,6 +10208,7 @@ mod tests {
             None,
             false,
             HashSet::new(),
+            vec![],
         )
     }
 
@@ -7955,6 +10222,7 @@ mod tests {
             None,
             false,
             HashSet::new(),
+            vec![],
         )
     }
 
@@ -7984,6 +10252,7 @@ mod tests {
             None,
             false,
             HashSet::new(),
+            vec![],
         )
     }
 
@@ -7997,6 +10266,54 @@ mod tests {
             Some(config),
             false,
             HashSet::new(),
+            vec![],
+        )
+    }
+
+    fn test_context_with_plugins(plugin_manifests: Vec<CorePluginManifest>) -> TestContext {
+        build_test_context(
+            vec![],
+            None,
+            AuthMode::StaticBearer,
+            None,
+            "test-token".to_string(),
+            None,
+            false,
+            HashSet::new(),
+            plugin_manifests,
+        )
+    }
+
+    fn test_context_with_plugins_and_policy(
+        plugin_manifests: Vec<CorePluginManifest>,
+        extension_policy: ExtensionSecurityPolicy,
+    ) -> TestContext {
+        build_test_context_with_policy(
+            vec![],
+            None,
+            AuthMode::StaticBearer,
+            None,
+            "test-token".to_string(),
+            None,
+            false,
+            HashSet::new(),
+            plugin_manifests,
+            extension_policy,
+        )
+    }
+
+    fn test_context_with_skill_policy(extension_policy: ExtensionSecurityPolicy) -> TestContext {
+        build_test_context_with_policy(
+            vec![],
+            None,
+            AuthMode::StaticBearer,
+            None,
+            "test-token".to_string(),
+            None,
+            false,
+            HashSet::new(),
+            vec![],
+            extension_policy,
         )
     }
 
@@ -8010,6 +10327,34 @@ mod tests {
         rate_limit_config: Option<RequestRateLimitConfig>,
         trusted_proxy_headers: bool,
         trusted_proxy_allowlist: HashSet<String>,
+        plugin_manifests: Vec<CorePluginManifest>,
+    ) -> TestContext {
+        build_test_context_with_policy(
+            allowlist,
+            numquam_client,
+            auth_mode,
+            jwt_auth,
+            auth_token,
+            rate_limit_config,
+            trusted_proxy_headers,
+            trusted_proxy_allowlist,
+            plugin_manifests,
+            ExtensionSecurityPolicy::permissive_for_tests(),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn build_test_context_with_policy(
+        allowlist: Vec<String>,
+        numquam_client: Option<NumquamClient>,
+        auth_mode: AuthMode,
+        jwt_auth: Option<JwtAuthConfig>,
+        auth_token: String,
+        rate_limit_config: Option<RequestRateLimitConfig>,
+        trusted_proxy_headers: bool,
+        trusted_proxy_allowlist: HashSet<String>,
+        plugin_manifests: Vec<CorePluginManifest>,
+        extension_policy: ExtensionSecurityPolicy,
     ) -> TestContext {
         let temp_dir = TempDir::new().expect("tempdir");
         let paths = AppPaths::from_root(temp_dir.path().to_path_buf());
@@ -8017,6 +10362,23 @@ mod tests {
         let (event_tx, _) = broadcast::channel(64);
         let storage = Storage::from_paths(&paths);
         let secret_store = SecretStore::from_env();
+        let mut plugin_registry = PluginRegistry::new();
+        for manifest in plugin_manifests {
+            plugin_registry
+                .register_manifest(manifest)
+                .expect("register plugin manifest");
+        }
+        let extension_policy = Arc::new(extension_policy);
+        let (hook_bus, hook_policy_denials) =
+            build_hook_bus_from_registry(&plugin_registry, extension_policy.as_ref())
+                .expect("build hook bus from registry");
+        let hook_bus = Arc::new(hook_bus);
+        let skill_registry = Arc::new(RwLock::new(SkillRegistry::new()));
+        let tool_registry = Arc::new(ToolRegistry::permissive_for_tests());
+        let tool_concurrency = Arc::new(Semaphore::new(64));
+        let mut channel_tool_allowed_providers = HashSet::new();
+        channel_tool_allowed_providers.insert("telegram".to_string());
+        channel_tool_allowed_providers.insert("discord".to_string());
         let rate_limiter = RequestRateLimiter {
             config: rate_limit_config.unwrap_or(RequestRateLimitConfig {
                 enabled: false,
@@ -8039,10 +10401,17 @@ mod tests {
             trusted_proxy_allowlist: Arc::new(trusted_proxy_allowlist),
             operator_allowlist: Arc::new(allowlist),
             providers: ProviderRegistry::new(),
+            tool_registry,
+            tool_concurrency,
+            channel_tool_allowed_providers: Arc::new(channel_tool_allowed_providers),
             tool_runner: LocalToolRunner::default(),
             secret_store: secret_store.clone(),
             oauth_sessions: Arc::new(RwLock::new(HashMap::new())),
             numquam_client,
+            plugin_registry: Arc::new(RwLock::new(plugin_registry)),
+            hook_bus: hook_bus.clone(),
+            skill_registry: skill_registry.clone(),
+            extension_policy: extension_policy.clone(),
             storage: storage.clone(),
             metrics: Arc::new(GatewayMetrics::default()),
             event_tx,
@@ -8052,12 +10421,15 @@ mod tests {
             db_path: Arc::new(paths.db_path.display().to_string()),
             attachments_path: Arc::new(paths.attachments_dir.display().to_string()),
         };
+        record_extension_hook_policy_denials(&state, &hook_policy_denials);
 
         TestContext {
             _temp_dir: temp_dir,
             app: build_app(state),
             storage,
             secret_store,
+            hook_bus,
+            skill_registry,
         }
     }
 
@@ -8737,6 +11109,92 @@ mod tests {
         assert_eq!(extract_credentials_expiry_ms(&payload_sec), Some(12000));
         assert_eq!(extract_credentials_expiry_ms(&payload_alt), Some(15000));
         assert_eq!(extract_credentials_expiry_ms(&payload_none), None);
+    }
+
+    #[test]
+    fn tool_registry_parses_legacy_tool_commands_with_policy_metadata() {
+        let registry = ToolRegistry::permissive_for_tests();
+        let invocations = parse_tool_requests_from_input(
+            r#"
+tool.exec echo hello
+tool.web_search carsinos
+tool.fs_write /tmp/file.txt|hello
+tool.process terminate abc123
+tool.process status abc123
+"#,
+            &registry,
+        )
+        .expect("parse tool requests");
+        assert_eq!(invocations.len(), 5);
+
+        assert_eq!(invocations[0].metadata.tool_name, "exec");
+        assert_eq!(invocations[0].metadata.risk_level, "high");
+        assert!(invocations[0].metadata.requires_approval);
+
+        assert_eq!(invocations[1].metadata.tool_name, "web.search");
+        assert_eq!(invocations[1].metadata.risk_level, "low");
+        assert!(!invocations[1].metadata.requires_approval);
+
+        assert_eq!(invocations[2].metadata.tool_name, "fs.write");
+        assert_eq!(invocations[2].metadata.risk_level, "high");
+        assert!(invocations[2].metadata.requires_approval);
+
+        assert_eq!(invocations[3].metadata.tool_name, "process");
+        assert_eq!(invocations[3].metadata.risk_level, "high");
+        assert!(invocations[3].metadata.requires_approval);
+
+        assert_eq!(invocations[4].metadata.tool_name, "process");
+        assert_eq!(invocations[4].metadata.risk_level, "medium");
+        assert!(!invocations[4].metadata.requires_approval);
+    }
+
+    #[test]
+    fn tool_registry_timeout_metadata_is_applied_to_exec_requests() {
+        let registry = ToolRegistry::with_timeouts(Some(2500), Some(4000));
+        let invocations =
+            parse_tool_requests_from_input("tool.exec echo hi\ntool.process status abc", &registry)
+                .expect("parse tool requests");
+        assert_eq!(invocations.len(), 2);
+
+        match &invocations[0].request {
+            ToolRequest::Exec(args) => assert_eq!(args.timeout_ms, Some(2500)),
+            other => panic!("expected exec request, got {other:?}"),
+        }
+        assert_eq!(invocations[0].metadata.timeout_ms, Some(2500));
+        assert_eq!(invocations[1].metadata.timeout_ms, Some(4000));
+    }
+
+    #[test]
+    fn tool_registry_parses_channel_action_commands() {
+        let registry = ToolRegistry::permissive_for_tests();
+        let invocations = parse_tool_requests_from_input(
+            r#"
+tool.channel_send telegram:1001|hello
+tool.channel_reply discord:c1/m42|ack
+tool.channel_pin discord:c1/m42
+tool.channel_reaction discord:c1/m42|:thumbsup:
+"#,
+            &registry,
+        )
+        .expect("parse channel action tools");
+        assert_eq!(invocations.len(), 4);
+        assert_eq!(invocations[0].metadata.tool_name, "channel.send");
+        assert_eq!(invocations[1].metadata.tool_name, "channel.reply");
+        assert_eq!(invocations[2].metadata.tool_name, "channel.pin");
+        assert_eq!(invocations[3].metadata.tool_name, "channel.reaction");
+        assert!(invocations
+            .iter()
+            .all(|item| item.metadata.requires_approval));
+
+        match &invocations[0].request {
+            ToolRequest::ChannelAction(args) => {
+                assert_eq!(args.provider, "telegram");
+                assert_eq!(args.action, "send");
+                assert_eq!(args.target, "1001");
+                assert_eq!(args.text.as_deref(), Some("hello"));
+            }
+            other => panic!("expected channel action request, got {other:?}"),
+        }
     }
 
     #[tokio::test]
@@ -10363,6 +12821,28 @@ mod tests {
         assert_eq!(run_response.status(), StatusCode::CREATED);
         let run_json = parse_json(run_response).await;
         assert_eq!(run_json["run"]["status"], "succeeded");
+        let run_id = run_json["run"]["run_id"]
+            .as_str()
+            .expect("run_id")
+            .to_string();
+        let tool_calls = ctx
+            .storage
+            .list_tool_calls(&run_id, 10)
+            .expect("list tool calls");
+        let tool_call = tool_calls.first().expect("tool call");
+        let result_json = tool_call
+            .result_json
+            .as_ref()
+            .expect("tool result json envelope");
+        let result_value: serde_json::Value =
+            serde_json::from_str(result_json).expect("parse tool result envelope");
+        assert_eq!(result_value["contract_version"], "tool.result.v2");
+        assert_eq!(result_value["status"], "ok");
+        assert_eq!(result_value["tool_name"], "process");
+        assert_eq!(result_value["risk_level"], "medium");
+        assert_eq!(result_value["requires_approval"], false);
+        assert!(result_value.get("duration_ms").is_some());
+        assert!(result_value.get("output").is_some());
     }
 
     #[tokio::test]
@@ -10723,6 +13203,299 @@ mod tests {
             .as_str()
             .unwrap_or_default()
             .contains("unsupported process action"));
+        let run_id = run_json["run"]["run_id"]
+            .as_str()
+            .expect("run_id")
+            .to_string();
+        let tool_calls = ctx
+            .storage
+            .list_tool_calls(&run_id, 10)
+            .expect("list tool calls");
+        let tool_call = tool_calls.first().expect("tool call");
+        assert_eq!(tool_call.status, "failed");
+        let result_json = tool_call
+            .result_json
+            .as_ref()
+            .expect("tool error json envelope");
+        let result_value: serde_json::Value =
+            serde_json::from_str(result_json).expect("parse tool error envelope");
+        assert_eq!(result_value["contract_version"], "tool.result.v2");
+        assert_eq!(result_value["status"], "error");
+        assert_eq!(result_value["tool_name"], "process");
+        assert_eq!(result_value["error"]["code"], "INVALID_INPUT");
+        assert_eq!(result_value["error"]["retryable"], false);
+    }
+
+    #[tokio::test]
+    async fn channel_action_tool_executes_after_approval_and_is_audited() {
+        let ctx = test_context();
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"channel-action-tool"}"#),
+            ))
+            .await
+            .expect("create session");
+        let create_json = parse_json(create_response).await;
+        let session_id = create_json["session"]["session_id"]
+            .as_str()
+            .expect("session_id")
+            .to_string();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(
+                    r#"{"role":"user","content_text":"tool.channel_send telegram:1001|hello world"}"#,
+                ),
+            ))
+            .await
+            .expect("create message");
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("create run");
+        let run_json = parse_json(run_response).await;
+        let run_id = run_json["run"]["run_id"]
+            .as_str()
+            .expect("run_id")
+            .to_string();
+        assert_eq!(run_json["run"]["status"], "failed");
+        assert!(run_json["run"]["error_text"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("approval required"));
+
+        let approvals_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/approvals?status=requested",
+                Body::empty(),
+            ))
+            .await
+            .expect("list approvals");
+        let approvals_json = parse_json(approvals_response).await;
+        let approval = approvals_json["items"]
+            .as_array()
+            .expect("approval items")
+            .iter()
+            .find(|item| item["run_id"] == run_id)
+            .cloned()
+            .expect("approval for run");
+        let approval_id = approval["approval_id"].as_str().expect("approval id");
+
+        let resolve_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/approvals/{approval_id}/resolve"),
+                Body::from(r#"{"decision":"approve","decided_via":"api"}"#),
+            ))
+            .await
+            .expect("resolve approval");
+        assert_eq!(resolve_response.status(), StatusCode::OK);
+
+        let resume_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/runs/{run_id}/resume"),
+                Body::empty(),
+            ))
+            .await
+            .expect("resume run");
+        let resume_json = parse_json(resume_response).await;
+        assert_eq!(resume_json["run"]["status"], "succeeded");
+
+        let tool_calls = ctx
+            .storage
+            .list_tool_calls(&run_id, 10)
+            .expect("list tool calls");
+        let tool_call = tool_calls
+            .iter()
+            .find(|item| item.status == "succeeded")
+            .expect("succeeded tool call after resume");
+        let result_json = tool_call
+            .result_json
+            .as_ref()
+            .expect("tool result json envelope");
+        let result_value: serde_json::Value =
+            serde_json::from_str(result_json).expect("parse tool result envelope");
+        assert_eq!(result_value["tool_name"], "channel.send");
+        assert_eq!(result_value["status"], "ok");
+        assert_eq!(result_value["output"]["provider"], "telegram");
+        assert_eq!(result_value["output"]["action"], "send");
+        assert_eq!(result_value["output"]["dispatched"], true);
+
+        let audit_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/security/audit?action=channel.tool_action.execute&decision=allow&limit=50",
+                Body::empty(),
+            ))
+            .await
+            .expect("channel action audit response");
+        let audit_json = parse_json(audit_response).await;
+        let items = audit_json["items"].as_array().expect("audit items");
+        assert!(items.iter().any(|item| {
+            item["action"] == "channel.tool_action.execute"
+                && item["principal"] == "service_internal"
+                && item["run_id"] == run_id
+                && item["decision"] == "allow"
+        }));
+    }
+
+    #[tokio::test]
+    async fn channel_action_tool_rejects_disallowed_provider_after_approval() {
+        let ctx = test_context();
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"channel-action-deny"}"#),
+            ))
+            .await
+            .expect("create session");
+        let create_json = parse_json(create_response).await;
+        let session_id = create_json["session"]["session_id"]
+            .as_str()
+            .expect("session_id")
+            .to_string();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(
+                    r#"{"role":"user","content_text":"tool.channel_send whatsapp:999|hello deny"}"#,
+                ),
+            ))
+            .await
+            .expect("create message");
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("create run");
+        let run_json = parse_json(run_response).await;
+        let run_id = run_json["run"]["run_id"]
+            .as_str()
+            .expect("run_id")
+            .to_string();
+        assert_eq!(run_json["run"]["status"], "failed");
+
+        let approvals_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/approvals?status=requested",
+                Body::empty(),
+            ))
+            .await
+            .expect("list approvals");
+        let approvals_json = parse_json(approvals_response).await;
+        let approval = approvals_json["items"]
+            .as_array()
+            .expect("approval items")
+            .iter()
+            .find(|item| item["run_id"] == run_id)
+            .cloned()
+            .expect("approval for run");
+        let approval_id = approval["approval_id"].as_str().expect("approval id");
+        let resolve_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/approvals/{approval_id}/resolve"),
+                Body::from(r#"{"decision":"approve","decided_via":"api"}"#),
+            ))
+            .await
+            .expect("resolve approval");
+        assert_eq!(resolve_response.status(), StatusCode::OK);
+
+        let resume_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/runs/{run_id}/resume"),
+                Body::empty(),
+            ))
+            .await
+            .expect("resume run");
+        let resume_json = parse_json(resume_response).await;
+        assert_eq!(resume_json["run"]["status"], "failed");
+        assert!(resume_json["run"]["error_text"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("not allowlisted"));
+
+        let tool_calls = ctx
+            .storage
+            .list_tool_calls(&run_id, 10)
+            .expect("list tool calls");
+        let tool_call = tool_calls
+            .iter()
+            .find(|item| item.status == "failed")
+            .expect("failed tool call after denied resume");
+        let result_json = tool_call
+            .result_json
+            .as_ref()
+            .expect("tool error json envelope");
+        let result_value: serde_json::Value =
+            serde_json::from_str(result_json).expect("parse tool error envelope");
+        assert_eq!(result_value["status"], "error");
+        assert_eq!(result_value["tool_name"], "channel.send");
+        assert_eq!(result_value["error"]["code"], "POLICY_DENY");
+
+        let audit_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/security/audit?action=channel.tool_action.execute&decision=deny&error_code=POLICY_DENY&limit=50",
+                Body::empty(),
+            ))
+            .await
+            .expect("channel action deny audit response");
+        let audit_json = parse_json(audit_response).await;
+        let items = audit_json["items"].as_array().expect("audit items");
+        assert!(items.iter().any(|item| {
+            item["action"] == "channel.tool_action.execute"
+                && item["decision"] == "deny"
+                && item["run_id"] == run_id
+        }));
     }
 
     #[tokio::test]
@@ -12035,6 +14808,99 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn provider_expansion_profiles_enforce_auth_mode_allowlist() {
+        let ctx = test_context();
+
+        let openrouter_ok = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(
+                    r#"{
+                        "provider":"openrouter",
+                        "display_name":"openrouter-key",
+                        "auth_mode":"api_key",
+                        "risk_level":"low",
+                        "enabled":true,
+                        "kill_switch_scope":"none",
+                        "credentials_json":{"api_key":"or-key"}
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create openrouter profile");
+        assert_eq!(openrouter_ok.status(), StatusCode::CREATED);
+
+        let openrouter_reject = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(
+                    r#"{
+                        "provider":"openrouter",
+                        "display_name":"openrouter-oauth",
+                        "auth_mode":"openai_oauth",
+                        "risk_level":"medium",
+                        "enabled":true,
+                        "kill_switch_scope":"none",
+                        "credentials_json":{"access_token":"x"}
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create invalid openrouter profile");
+        assert_eq!(openrouter_reject.status(), StatusCode::BAD_REQUEST);
+
+        let ollama_ok = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(
+                    r#"{
+                        "provider":"ollama",
+                        "display_name":"ollama-key",
+                        "auth_mode":"api_key",
+                        "risk_level":"low",
+                        "enabled":true,
+                        "kill_switch_scope":"none",
+                        "credentials_json":{"api_key":"ollama-token"}
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create ollama profile");
+        assert_eq!(ollama_ok.status(), StatusCode::CREATED);
+
+        let vllm_ok = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(
+                    r#"{
+                        "provider":"vllm",
+                        "display_name":"vllm-key",
+                        "auth_mode":"api_key",
+                        "risk_level":"low",
+                        "enabled":true,
+                        "kill_switch_scope":"none",
+                        "credentials_json":{"api_key":"vllm-token"}
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create vllm profile");
+        assert_eq!(vllm_ok.status(), StatusCode::CREATED);
+    }
+
+    #[tokio::test]
     async fn expired_requested_oauth_profile_fails_before_provider_call() {
         let ctx = test_context();
 
@@ -12183,6 +15049,69 @@ mod tests {
             .as_str()
             .unwrap_or_default()
             .contains("provider kill-switch active"));
+    }
+
+    #[test]
+    fn fallback_auth_profiles_are_sorted_by_health_score() {
+        fn profile(id: &str, score: i64, updated_at: i64) -> AuthProfileRecord {
+            AuthProfileRecord {
+                auth_profile_id: id.to_string(),
+                provider: "openai".to_string(),
+                display_name: id.to_string(),
+                auth_mode: AUTH_MODE_API_KEY.to_string(),
+                risk_level: "low".to_string(),
+                enabled: true,
+                kill_switch_scope: KILL_SWITCH_SCOPE_NONE.to_string(),
+                api_base_url: None,
+                credentials_json: format!(r#"{{"api_key":"k-{id}","health":{{"score":{score}}}}}"#),
+                created_at: 1,
+                updated_at,
+            }
+        }
+
+        let mut profiles = vec![
+            profile("low", 15, 20),
+            profile("high", 90, 10),
+            profile("mid", 55, 30),
+        ];
+        sort_fallback_auth_profiles_by_health(&mut profiles);
+        let ordered: Vec<&str> = profiles
+            .iter()
+            .map(|item| item.auth_profile_id.as_str())
+            .collect();
+        assert_eq!(ordered, vec!["high", "mid", "low"]);
+    }
+
+    #[test]
+    fn auth_profile_health_state_updates_payload_across_outcomes() {
+        let mut payload = serde_json::json!({
+            "api_key": "test",
+            "health": {
+                "score": 70,
+                "success_count": 3,
+                "failure_count": 1,
+                "consecutive_failures": 1
+            }
+        });
+        let mut health = AuthProfileHealthState::from_payload(&payload);
+        health.on_failure(200, false);
+        health
+            .write_to_payload(&mut payload, Some("AUTH_FORBIDDEN"))
+            .expect("write failure payload");
+        assert_eq!(payload["health"]["score"], 40);
+        assert_eq!(payload["health"]["failure_count"], 2);
+        assert_eq!(payload["health"]["consecutive_failures"], 2);
+        assert_eq!(payload["health"]["last_error_code"], "AUTH_FORBIDDEN");
+
+        let mut health = AuthProfileHealthState::from_payload(&payload);
+        health.on_success(210);
+        health
+            .write_to_payload(&mut payload, None)
+            .expect("write success payload");
+        assert_eq!(payload["health"]["score"], 52);
+        assert_eq!(payload["health"]["success_count"], 4);
+        assert_eq!(payload["health"]["consecutive_failures"], 0);
+        assert_eq!(payload["health"]["last_success_at"], 210);
     }
 
     #[tokio::test]
@@ -12345,6 +15274,264 @@ mod tests {
         let run_json = parse_json(run_now_response).await;
         assert_eq!(run_json["job_run"]["status"], "succeeded");
         assert_eq!(run_json["job_run"]["attempt"], 3);
+    }
+
+    #[tokio::test]
+    async fn run_now_session_run_payload_executes_real_run_path() {
+        let ctx = test_context();
+        let session_key = "scheduler:test:session-run";
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(format!(
+                    r#"{{
+                        "agent_id":"default",
+                        "name":"job-session-run",
+                        "enabled":true,
+                        "schedule_kind":"interval",
+                        "interval_seconds":60,
+                        "payload_json":{{
+                            "mode":"session.run",
+                            "session_key":"{session_key}",
+                            "session_title":"scheduler session run",
+                            "input":"hello from scheduler session run",
+                            "model_provider":"mock",
+                            "model_id":"mock-echo-v1"
+                        }},
+                        "max_retries":1,
+                        "retry_backoff_ms":5,
+                        "timeout_ms":1000
+                    }}"#
+                )),
+            ))
+            .await
+            .expect("create session-run job");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_json = parse_json(create_response).await;
+        let job_id = create_json["job"]["job_id"]
+            .as_str()
+            .expect("job_id")
+            .to_string();
+
+        let run_now_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/jobs/{job_id}/run"),
+                Body::empty(),
+            ))
+            .await
+            .expect("run session-run job");
+        assert_eq!(run_now_response.status(), StatusCode::OK);
+        let run_json = parse_json(run_now_response).await;
+        assert_eq!(run_json["job_run"]["status"], "succeeded");
+
+        let output_json = run_json["job_run"]["output_json"]
+            .as_str()
+            .expect("job run output_json");
+        let output: serde_json::Value =
+            serde_json::from_str(output_json).expect("parse output_json as json");
+        assert_eq!(output["mode"], "session.run");
+        assert_eq!(output["run_status"], "succeeded");
+        let output_session_id = output["session_id"]
+            .as_str()
+            .expect("output session_id")
+            .to_string();
+
+        let persisted_session = ctx
+            .storage
+            .get_session_by_key(session_key)
+            .expect("lookup session by key")
+            .expect("session should exist");
+        assert_eq!(persisted_session.session_id, output_session_id);
+        let messages = ctx
+            .storage
+            .list_messages(&persisted_session.session_id, 50)
+            .expect("list messages");
+        assert!(
+            messages.iter().any(|item| item.role == "user"),
+            "expected user message from scheduler payload"
+        );
+        assert!(
+            messages.iter().any(|item| item.role == "assistant"),
+            "expected assistant message from executed run"
+        );
+    }
+
+    #[tokio::test]
+    async fn run_now_session_run_payload_routes_delivery_targets_and_audits() {
+        let ctx = test_context();
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(
+                    r#"{
+                        "agent_id":"default",
+                        "name":"job-session-run-delivery",
+                        "enabled":true,
+                        "schedule_kind":"interval",
+                        "interval_seconds":60,
+                        "payload_json":{
+                            "mode":"session.run",
+                            "session_key":"scheduler:test:delivery",
+                            "session_title":"scheduler delivery run",
+                            "input":"deliver this output",
+                            "model_provider":"mock",
+                            "model_id":"mock-echo-v1",
+                            "delivery_mode":"all",
+                            "delivery_retry_attempts":2,
+                            "delivery_targets":[
+                                {"provider":"telegram","target":"chat:111","action":"send"},
+                                {"provider":"discord","target":"channel:222","action":"reply"}
+                            ]
+                        },
+                        "max_retries":1,
+                        "retry_backoff_ms":5,
+                        "timeout_ms":1000
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create delivery job");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_json = parse_json(create_response).await;
+        let job_id = create_json["job"]["job_id"]
+            .as_str()
+            .expect("job_id")
+            .to_string();
+
+        let run_now_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/jobs/{job_id}/run"),
+                Body::empty(),
+            ))
+            .await
+            .expect("run delivery job");
+        assert_eq!(run_now_response.status(), StatusCode::OK);
+        let run_json = parse_json(run_now_response).await;
+        assert_eq!(run_json["job_run"]["status"], "succeeded");
+
+        let output_json = run_json["job_run"]["output_json"]
+            .as_str()
+            .expect("delivery output json");
+        let output: serde_json::Value =
+            serde_json::from_str(output_json).expect("parse delivery output");
+        assert_eq!(output["delivery"]["attempted"], 2);
+        assert_eq!(output["delivery"]["delivered"], 2);
+        assert_eq!(output["delivery"]["failed"], 0);
+        let results = output["delivery"]["results"]
+            .as_array()
+            .expect("delivery results");
+        assert_eq!(results.len(), 2);
+        assert!(results.iter().all(|item| item["status"] == "delivered"));
+
+        let audit_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/security/audit?action=job.delivery.dispatch&decision=allow&limit=20",
+                Body::empty(),
+            ))
+            .await
+            .expect("delivery audit response");
+        assert_eq!(audit_response.status(), StatusCode::OK);
+        let audit_json = parse_json(audit_response).await;
+        let items = audit_json["items"].as_array().expect("audit items");
+        assert!(
+            items
+                .iter()
+                .filter(|item| item["action"] == "job.delivery.dispatch")
+                .count()
+                >= 2
+        );
+    }
+
+    #[tokio::test]
+    async fn session_run_delivery_first_success_falls_back_after_failed_target() {
+        let ctx = test_context();
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(
+                    r#"{
+                        "agent_id":"default",
+                        "name":"job-session-run-delivery-fallback",
+                        "enabled":true,
+                        "schedule_kind":"interval",
+                        "interval_seconds":60,
+                        "payload_json":{
+                            "mode":"session.run",
+                            "session_key":"scheduler:test:delivery-fallback",
+                            "input":"fallback delivery output",
+                            "model_provider":"mock",
+                            "model_id":"mock-echo-v1",
+                            "delivery_mode":"first_success",
+                            "delivery_retry_attempts":2,
+                            "delivery_targets":[
+                                {"provider":"slack","target":"channel:bad","action":"send"},
+                                {"provider":"telegram","target":"chat:ok","action":"send"}
+                            ]
+                        },
+                        "max_retries":1,
+                        "retry_backoff_ms":5,
+                        "timeout_ms":1000
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create fallback delivery job");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_json = parse_json(create_response).await;
+        let job_id = create_json["job"]["job_id"]
+            .as_str()
+            .expect("job_id")
+            .to_string();
+
+        let run_now_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/jobs/{job_id}/run"),
+                Body::empty(),
+            ))
+            .await
+            .expect("run fallback delivery job");
+        assert_eq!(run_now_response.status(), StatusCode::OK);
+        let run_json = parse_json(run_now_response).await;
+        assert_eq!(run_json["job_run"]["status"], "succeeded");
+
+        let output_json = run_json["job_run"]["output_json"]
+            .as_str()
+            .expect("fallback output json");
+        let output: serde_json::Value =
+            serde_json::from_str(output_json).expect("parse fallback output");
+        assert_eq!(output["delivery"]["attempted"], 2);
+        assert_eq!(output["delivery"]["delivered"], 1);
+        assert_eq!(output["delivery"]["failed"], 1);
+        let results = output["delivery"]["results"]
+            .as_array()
+            .expect("fallback results");
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0]["provider"], "slack");
+        assert_eq!(results[0]["status"], "failed");
+        assert_eq!(results[0]["attempts_used"], 2);
+        assert_eq!(results[1]["provider"], "telegram");
+        assert_eq!(results[1]["status"], "delivered");
     }
 
     #[tokio::test]
@@ -13086,5 +16273,506 @@ mod tests {
             .await
             .expect("channel resolve forbidden");
         assert_eq!(forbidden.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn provider_capabilities_list_returns_contract_v2() {
+        let ctx = test_context();
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/providers/capabilities",
+                Body::empty(),
+            ))
+            .await
+            .expect("provider capabilities list response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = parse_json(response).await;
+        assert_eq!(body["contract_version"], "v2");
+        let items = body["items"].as_array().expect("capabilities items array");
+        assert!(items.iter().any(|item| item["provider"] == "openai"));
+        assert!(items.iter().any(|item| item["provider"] == "anthropic"));
+        assert!(items.iter().any(|item| item["provider"] == "openrouter"));
+        assert!(items.iter().any(|item| item["provider"] == "ollama"));
+        assert!(items.iter().any(|item| item["provider"] == "vllm"));
+    }
+
+    #[tokio::test]
+    async fn provider_capabilities_filter_rejects_unknown_provider() {
+        let ctx = test_context();
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/providers/capabilities?provider=unknown",
+                Body::empty(),
+            ))
+            .await
+            .expect("provider capabilities filtered response");
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    fn sample_plugin_manifest(plugin_id: &str, enabled: bool) -> CorePluginManifest {
+        CorePluginManifest {
+            schema_version: "carsinos.plugin.manifest.v1".to_string(),
+            plugin_id: plugin_id.to_string(),
+            display_name: format!("Plugin {plugin_id}"),
+            plugin_version: "1.0.0".to_string(),
+            api_version: PLUGIN_API_VERSION_V1.to_string(),
+            enabled,
+            capabilities: carsinos_core::PluginCapabilities {
+                tools: vec![carsinos_core::PluginCapability {
+                    name: format!("tool.{plugin_id}"),
+                    description: Some("test tool".to_string()),
+                }],
+                hooks: vec![],
+                providers: vec![],
+                channels: vec![],
+            },
+            metadata: std::collections::BTreeMap::new(),
+        }
+    }
+
+    fn sample_hook_plugin_manifest(
+        plugin_id: &str,
+        enabled: bool,
+        hook_name: &str,
+    ) -> CorePluginManifest {
+        let mut manifest = sample_plugin_manifest(plugin_id, enabled);
+        manifest.capabilities.hooks = vec![carsinos_core::PluginCapability {
+            name: hook_name.to_string(),
+            description: Some("test hook".to_string()),
+        }];
+        manifest
+    }
+
+    #[tokio::test]
+    async fn extension_plugins_list_filters_disabled_by_default() {
+        let ctx = test_context_with_plugins(vec![
+            sample_plugin_manifest("plugin.alpha", true),
+            sample_plugin_manifest("plugin.beta", false),
+        ]);
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/extensions/plugins",
+                Body::empty(),
+            ))
+            .await
+            .expect("plugins list response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = parse_json(response).await;
+        assert_eq!(body["contract_version"], "plugin.registry.v1");
+        assert_eq!(body["plugin_api_version"], "carsinos.plugin.api.v1");
+        let items = body["items"].as_array().expect("plugin list items");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["plugin_id"], "plugin.alpha");
+    }
+
+    #[tokio::test]
+    async fn extension_plugins_list_includes_disabled_with_query_flag() {
+        let ctx = test_context_with_plugins(vec![
+            sample_plugin_manifest("plugin.alpha", true),
+            sample_plugin_manifest("plugin.beta", false),
+        ]);
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/extensions/plugins?include_disabled=true",
+                Body::empty(),
+            ))
+            .await
+            .expect("plugins list include disabled response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = parse_json(response).await;
+        let items = body["items"].as_array().expect("plugin list items");
+        assert_eq!(items.len(), 2);
+        assert!(items.iter().any(|item| item["plugin_id"] == "plugin.alpha"));
+        assert!(items.iter().any(|item| item["plugin_id"] == "plugin.beta"));
+    }
+
+    #[tokio::test]
+    async fn hook_failures_are_isolated_and_audited() {
+        let ctx = test_context();
+        ctx.hook_bus
+            .register(HookRegistration {
+                hook_id: "hook.fail.run_start".to_string(),
+                plugin_id: "plugin.test".to_string(),
+                hook_point: HookPoint::RunStart,
+                priority: 500,
+                handler: Arc::new(|_| anyhow::bail!("forced hook failure")),
+            })
+            .expect("register failing hook");
+
+        let create_session_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"hook-isolation"}"#),
+            ))
+            .await
+            .expect("create session");
+        let create_session_json = parse_json(create_session_response).await;
+        let session_id = create_session_json["session"]["session_id"]
+            .as_str()
+            .expect("session id")
+            .to_string();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(r#"{"role":"user","content_text":"test hook isolation"}"#),
+            ))
+            .await
+            .expect("create message");
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from(r#"{"model_provider":"mock","model_id":"mock-echo-v1"}"#),
+            ))
+            .await
+            .expect("create run");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+        let run_json = parse_json(run_response).await;
+        assert_eq!(run_json["run"]["status"], "succeeded");
+
+        let audit_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/security/audit?action=extension.hook.run_start&limit=50",
+                Body::empty(),
+            ))
+            .await
+            .expect("security audit list");
+        assert_eq!(audit_response.status(), StatusCode::OK);
+        let audit_json = parse_json(audit_response).await;
+        let items = audit_json["items"].as_array().expect("audit items");
+        assert!(items.iter().any(|item| {
+            item["action"] == "extension.hook.run_start"
+                && item["principal"] == "service_internal"
+                && item["decision"] == "deny"
+        }));
+    }
+
+    #[tokio::test]
+    async fn extension_policy_allowlist_blocks_hook_registration_and_audits_denial() {
+        let mut allowed_plugin_ids = HashSet::new();
+        allowed_plugin_ids.insert("plugin.allowed".to_string());
+        let ctx = test_context_with_plugins_and_policy(
+            vec![
+                sample_hook_plugin_manifest("plugin.allowed", true, "run.start"),
+                sample_hook_plugin_manifest("plugin.blocked", true, "run.end"),
+            ],
+            ExtensionSecurityPolicy {
+                plugin_allowlist_enabled: true,
+                allowed_plugin_ids,
+                reserved_skill_ids: HashSet::new(),
+                reserved_skill_prefixes: Vec::new(),
+            },
+        );
+        let registrations = ctx.hook_bus.list_registrations();
+        assert!(registrations
+            .iter()
+            .all(|registration| registration.plugin_id == "plugin.allowed"));
+        assert_eq!(registrations.len(), 1);
+
+        let audit_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/security/audit?action=extension.policy.hook.register&decision=deny&limit=20",
+                Body::empty(),
+            ))
+            .await
+            .expect("security audit list for extension policy denials");
+        assert_eq!(audit_response.status(), StatusCode::OK);
+        let audit_json = parse_json(audit_response).await;
+        let items = audit_json["items"].as_array().expect("audit items");
+        assert!(items.iter().any(|item| {
+            item["action"] == "extension.policy.hook.register"
+                && item["decision"] == "deny"
+                && item["error_code"] == "POLICY_DENY"
+                && item["metadata_json"]
+                    .as_str()
+                    .map(|value| value.contains("\"plugin_id\":\"plugin.blocked\""))
+                    .unwrap_or(false)
+        }));
+    }
+
+    async fn seed_skill(
+        ctx: &TestContext,
+        skill_id: &str,
+        title: &str,
+        content: &str,
+    ) -> CoreSkillDocument {
+        let skill = CoreSkillDocument {
+            skill_id: skill_id.to_string(),
+            title: title.to_string(),
+            source_path: format!("/tmp/{skill_id}.md"),
+            enabled: true,
+            content: content.to_string(),
+        };
+        let mut registry = ctx.skill_registry.write().await;
+        registry
+            .register_skill(skill.clone())
+            .expect("register test skill");
+        skill
+    }
+
+    #[tokio::test]
+    async fn skills_list_and_toggle_state_round_trip() {
+        let ctx = test_context();
+        let skill = seed_skill(
+            &ctx,
+            "ops-notes",
+            "Ops Notes",
+            "Always check health and rollback plan.",
+        )
+        .await;
+
+        let list_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/extensions/skills",
+                Body::empty(),
+            ))
+            .await
+            .expect("list skills response");
+        assert_eq!(list_response.status(), StatusCode::OK);
+        let list_json = parse_json(list_response).await;
+        assert_eq!(list_json["contract_version"], "skills.registry.v1");
+        assert!(list_json["items"]
+            .as_array()
+            .expect("skills items")
+            .iter()
+            .any(|item| item["skill_id"] == skill.skill_id));
+
+        let disable_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/extensions/skills/ops-notes/state",
+                Body::from(r#"{"enabled":false}"#),
+            ))
+            .await
+            .expect("disable skill response");
+        assert_eq!(disable_response.status(), StatusCode::OK);
+        let disable_json = parse_json(disable_response).await;
+        assert_eq!(disable_json["skill"]["enabled"], false);
+
+        let filtered_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/extensions/skills",
+                Body::empty(),
+            ))
+            .await
+            .expect("filtered skills response");
+        let filtered_json = parse_json(filtered_response).await;
+        assert_eq!(
+            filtered_json["items"]
+                .as_array()
+                .expect("skills array")
+                .len(),
+            0
+        );
+
+        let include_disabled_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/extensions/skills?include_disabled=true",
+                Body::empty(),
+            ))
+            .await
+            .expect("include disabled skills response");
+        let include_disabled_json = parse_json(include_disabled_response).await;
+        assert!(include_disabled_json["items"]
+            .as_array()
+            .expect("skills array")
+            .iter()
+            .any(|item| item["skill_id"] == "ops-notes" && item["enabled"] == false));
+
+        let persisted = ctx
+            .storage
+            .get_app_kv_json(APP_KV_SKILLS_STATE)
+            .expect("load persisted skills state")
+            .expect("skills state json");
+        let persisted_map: serde_json::Value =
+            serde_json::from_str(&persisted.0).expect("parse persisted skills state");
+        assert_eq!(persisted_map["ops-notes"], false);
+    }
+
+    #[tokio::test]
+    async fn skills_requested_in_user_input_are_injected_into_run_context() {
+        let ctx = test_context();
+        let _skill = seed_skill(
+            &ctx,
+            "ops-notes",
+            "Ops Notes",
+            "SPECIAL_SKILL_CONTEXT: enforce staged rollout.",
+        )
+        .await;
+
+        let create_session_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"skills-injection"}"#),
+            ))
+            .await
+            .expect("create session");
+        let create_session_json = parse_json(create_session_response).await;
+        let session_id = create_session_json["session"]["session_id"]
+            .as_str()
+            .expect("session id")
+            .to_string();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(
+                    r#"{"role":"user","content_text":"please follow @skill:ops-notes for this run"}"#,
+                ),
+            ))
+            .await
+            .expect("create message");
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from(r#"{"model_provider":"mock","model_id":"mock-echo-v1"}"#),
+            ))
+            .await
+            .expect("create run");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+        let run_json = parse_json(run_response).await;
+        let run_id = run_json["run"]["run_id"]
+            .as_str()
+            .expect("run id")
+            .to_string();
+
+        let messages_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/sessions/{session_id}/messages?limit=20"),
+                Body::empty(),
+            ))
+            .await
+            .expect("list messages");
+        let messages_json = parse_json(messages_response).await;
+        assert!(messages_json["items"]
+            .as_array()
+            .expect("messages array")
+            .iter()
+            .any(|item| {
+                item["role"] == "assistant"
+                    && item["content_text"]
+                        .as_str()
+                        .unwrap_or_default()
+                        .contains("SPECIAL_SKILL_CONTEXT")
+            }));
+
+        let run_record = ctx
+            .storage
+            .get_run(&run_id)
+            .expect("load run")
+            .expect("run record");
+        let usage_json = run_record.usage_json.expect("run usage_json");
+        let usage_value: serde_json::Value =
+            serde_json::from_str(&usage_json).expect("parse usage_json");
+        assert_eq!(
+            usage_value["skills"]["applied_skill_ids"][0]
+                .as_str()
+                .unwrap_or_default(),
+            "ops-notes"
+        );
+    }
+
+    #[tokio::test]
+    async fn reserved_skill_ids_cannot_be_toggled() {
+        let mut reserved_skill_ids = HashSet::new();
+        reserved_skill_ids.insert("system.ops".to_string());
+        let ctx = test_context_with_skill_policy(ExtensionSecurityPolicy {
+            plugin_allowlist_enabled: false,
+            allowed_plugin_ids: HashSet::new(),
+            reserved_skill_ids,
+            reserved_skill_prefixes: vec!["core.".to_string()],
+        });
+        let _skill = seed_skill(
+            &ctx,
+            "system.ops",
+            "System Ops",
+            "Reserved system skill context.",
+        )
+        .await;
+
+        let deny_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/extensions/skills/system.ops/state",
+                Body::from(r#"{"enabled":false}"#),
+            ))
+            .await
+            .expect("reserved skill toggle response");
+        assert_eq!(deny_response.status(), StatusCode::FORBIDDEN);
+        let deny_json = parse_json(deny_response).await;
+        assert_eq!(deny_json["error_code"], "POLICY_DENY");
+
+        let audit_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/security/audit?action=skill.state.update&decision=deny&error_code=POLICY_DENY&limit=20",
+                Body::empty(),
+            ))
+            .await
+            .expect("security audit list for reserved skill denial");
+        assert_eq!(audit_response.status(), StatusCode::OK);
+        let audit_json = parse_json(audit_response).await;
+        let items = audit_json["items"].as_array().expect("audit items");
+        assert!(items.iter().any(|item| {
+            item["resource"] == "skill:system.ops"
+                && item["decision"] == "deny"
+                && item["error_code"] == "POLICY_DENY"
+        }));
     }
 }
