@@ -1,10 +1,10 @@
 # LATEST Checkpoint
 
-- step: chunk-pr11-pr-open
-- note: Opened PR #11 for MC-PROV-010 provider expansion pack.
-- branch: codex/chunk-pr11-provider-expansion-pack1
-- head: 306b9afbdaab159112978176f269c6ad14751923
-- next_cmd: Merge PR #10 then merge PR #11; checkpoint post-merge and continue chunk #12.
+- step: chunk-pr12-start
+- note: Starting MC-AUTO-001 scheduler real-task execution upgrade (`session.run` mode).
+- branch: codex/chunk-pr12-scheduler-session-run
+- head: 0f6760713c8557be6c68f4b31b6680a7679b7b60
+- next_cmd: Finalize and commit `session.run` scheduler path changes, push PR #12, then continue merge queue.
 - validations:
-  - PR open: https://github.com/ProfessahX/CarsinOS/pull/11
-  - stacked dependency: https://github.com/ProfessahX/CarsinOS/pull/10
+  - phase-start checkpoint captured: context_checkpoint_20260219T142132Z_chunk-pr12-start.json
+  - base branch for scope isolation: codex/chunk-pr11-provider-expansion-pack1

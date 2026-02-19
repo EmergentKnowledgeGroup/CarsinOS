@@ -6255,6 +6255,135 @@ fn execute_secret_revoke_job(
     .to_string())
 }
 
+async fn execute_session_run_job(
+    state: &AppState,
+    job: &JobRecord,
+    payload: &serde_json::Value,
+) -> AnyResult<String> {
+    let mode = "session.run";
+    let agent_id = optional_job_payload_string(payload, "agent_id").unwrap_or(job.agent_id.clone());
+    let session_key = optional_job_payload_string(payload, "session_key")
+        .unwrap_or_else(|| format!("scheduler:{}:{}", job.job_id, agent_id));
+    let session_title = optional_job_payload_string(payload, "session_title");
+    let input = required_job_payload_string(payload, "input")?;
+    let model_provider = optional_job_payload_string(payload, "model_provider")
+        .unwrap_or_else(|| "mock".to_string());
+    let model_id = optional_job_payload_string(payload, "model_id")
+        .unwrap_or_else(|| "mock-echo-v1".to_string());
+    let auth_profile_id = optional_job_payload_string(payload, "auth_profile_id");
+
+    if !provider_supported(&model_provider) {
+        anyhow::bail!(
+            "job payload model_provider '{}' is unsupported",
+            model_provider
+        );
+    }
+
+    let auth = scheduler_auth_context(&job.job_id, mode);
+    let headers = scheduler_headers(&job.job_id, mode);
+    let session = if let Some(existing) = state.storage.get_session_by_key(&session_key)? {
+        existing
+    } else {
+        state.storage.create_session(NewSession {
+            session_key: Some(session_key.clone()),
+            agent_id: agent_id.clone(),
+            title: session_title,
+        })?
+    };
+
+    let message = state
+        .storage
+        .create_message(NewMessage {
+            session_id: session.session_id.clone(),
+            source_channel: "scheduler".to_string(),
+            source_peer_id: Some(format!("job:{}", job.job_id)),
+            source_message_id: None,
+            role: "user".to_string(),
+            content_text: input.clone(),
+            content_format: "markdown".to_string(),
+        })?
+        .with_context(|| {
+            format!(
+                "failed creating scheduler message for session {}",
+                session.session_id
+            )
+        })?;
+
+    let run = state
+        .storage
+        .create_run(NewRun {
+            session_id: session.session_id.clone(),
+            model_provider: model_provider.clone(),
+            model_id: model_id.clone(),
+        })?
+        .with_context(|| {
+            format!(
+                "failed creating scheduler run for session {}",
+                session.session_id
+            )
+        })?;
+
+    let refreshed =
+        execute_run_with_status_handling(state, &run, &agent_id, auth_profile_id.as_deref())
+            .await?;
+
+    let run_succeeded = refreshed.status == "succeeded";
+    record_security_audit(
+        &headers,
+        state,
+        &auth,
+        "job.session_run.execute",
+        &format!("job:{}", job.job_id),
+        if run_succeeded { "allow" } else { "deny" },
+        Some(if run_succeeded {
+            "scheduled session run completed".to_string()
+        } else {
+            format!(
+                "scheduled session run finished with status {}",
+                refreshed.status
+            )
+        }),
+        if run_succeeded {
+            StatusCode::OK
+        } else {
+            StatusCode::FAILED_DEPENDENCY
+        },
+        if run_succeeded {
+            None
+        } else {
+            Some("DEPENDENCY_UNAVAILABLE")
+        },
+        Some(&session.session_id),
+        Some(&refreshed.run_id),
+        Some(serde_json::json!({
+            "job_id": &job.job_id,
+            "mode": mode,
+            "agent_id": &agent_id,
+            "session_key": &session_key,
+            "model_provider": &model_provider,
+            "model_id": &model_id,
+            "auth_profile_id": auth_profile_id.as_deref().unwrap_or(""),
+            "run_status": &refreshed.status
+        })),
+    );
+
+    Ok(serde_json::json!({
+        "mode": mode,
+        "job_id": &job.job_id,
+        "agent_id": &agent_id,
+        "session_id": &session.session_id,
+        "session_key": &session_key,
+        "message_id": &message.message_id,
+        "run_id": &refreshed.run_id,
+        "run_status": &refreshed.status,
+        "model_provider": &refreshed.model_provider,
+        "model_id": &refreshed.model_id,
+        "auth_profile_id": auth_profile_id,
+        "now_ms": current_time_ms()
+    })
+    .to_string())
+}
+
 async fn execute_job_payload(state: &AppState, job: &JobRecord, attempt: i64) -> AnyResult<String> {
     let payload: serde_json::Value = serde_json::from_str(&job.payload_json).unwrap_or_else(|_| {
         serde_json::json!({
@@ -6286,6 +6415,9 @@ async fn execute_job_payload(state: &AppState, job: &JobRecord, attempt: i64) ->
     }
     if mode == "secret.revoke_profile" {
         return execute_secret_revoke_job(state, job, &payload);
+    }
+    if mode == "session.run" {
+        return execute_session_run_job(state, job, &payload).await;
     }
 
     let output = serde_json::json!({
@@ -12488,6 +12620,92 @@ mod tests {
         let run_json = parse_json(run_now_response).await;
         assert_eq!(run_json["job_run"]["status"], "succeeded");
         assert_eq!(run_json["job_run"]["attempt"], 3);
+    }
+
+    #[tokio::test]
+    async fn run_now_session_run_payload_executes_real_run_path() {
+        let ctx = test_context();
+        let session_key = "scheduler:test:session-run";
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(format!(
+                    r#"{{
+                        "agent_id":"default",
+                        "name":"job-session-run",
+                        "enabled":true,
+                        "schedule_kind":"interval",
+                        "interval_seconds":60,
+                        "payload_json":{{
+                            "mode":"session.run",
+                            "session_key":"{session_key}",
+                            "session_title":"scheduler session run",
+                            "input":"hello from scheduler session run",
+                            "model_provider":"mock",
+                            "model_id":"mock-echo-v1"
+                        }},
+                        "max_retries":1,
+                        "retry_backoff_ms":5,
+                        "timeout_ms":1000
+                    }}"#
+                )),
+            ))
+            .await
+            .expect("create session-run job");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_json = parse_json(create_response).await;
+        let job_id = create_json["job"]["job_id"]
+            .as_str()
+            .expect("job_id")
+            .to_string();
+
+        let run_now_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/jobs/{job_id}/run"),
+                Body::empty(),
+            ))
+            .await
+            .expect("run session-run job");
+        assert_eq!(run_now_response.status(), StatusCode::OK);
+        let run_json = parse_json(run_now_response).await;
+        assert_eq!(run_json["job_run"]["status"], "succeeded");
+
+        let output_json = run_json["job_run"]["output_json"]
+            .as_str()
+            .expect("job run output_json");
+        let output: serde_json::Value =
+            serde_json::from_str(output_json).expect("parse output_json as json");
+        assert_eq!(output["mode"], "session.run");
+        assert_eq!(output["run_status"], "succeeded");
+        let output_session_id = output["session_id"]
+            .as_str()
+            .expect("output session_id")
+            .to_string();
+
+        let persisted_session = ctx
+            .storage
+            .get_session_by_key(session_key)
+            .expect("lookup session by key")
+            .expect("session should exist");
+        assert_eq!(persisted_session.session_id, output_session_id);
+        let messages = ctx
+            .storage
+            .list_messages(&persisted_session.session_id, 50)
+            .expect("list messages");
+        assert!(
+            messages.iter().any(|item| item.role == "user"),
+            "expected user message from scheduler payload"
+        );
+        assert!(
+            messages.iter().any(|item| item.role == "assistant"),
+            "expected assistant message from executed run"
+        );
     }
 
     #[tokio::test]
