@@ -1,10 +1,10 @@
 # LATEST Checkpoint
 
-- step: chunk-pr25-pr-open
-- note: Opened PR #25 for MC-FUT-040 Signal adapter scaffold.
-- branch: codex/chunk-pr25-future-signal-adapter
-- head: c34e369711880236b643a0382c3bfc9ca8ae63b3
-- next_cmd: Start next chunk branch and continue execution backlog while monitoring PR checks.
+- step: chunk-pr26-postgreen
+- note: Completed MC-FUT-050 Twitch adapter scaffold crate and workspace integration with full gate green.
+- branch: codex/chunk-pr26-future-twitch-adapter
+- head: 40e35d7b7d0cc3ea5d8f6dfe44284e376a0d7333
+- next_cmd: Commit chunk-pr26 changes and open PR #26.
 - validations:
-- git push -u origin codex/chunk-pr25-future-signal-adapter passed
-- PR opened: https://github.com/ProfessahX/CarsinOS/pull/25
+- cargo test -p carsinos-channels-twitch -- --nocapture passed
+- REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh passed

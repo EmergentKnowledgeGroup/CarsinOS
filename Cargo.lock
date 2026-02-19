@@ -871,6 +871,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "carsinos-channels-twitch"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "carsinos-channels-whatsapp"
 version = "0.1.0"
 dependencies = [
