@@ -1,29 +1,33 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T14:16:46.883550+00:00",
+  "captured_at": "2026-02-19T14:28:52.685176+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
   "branch": "codex/chunk-pr11-provider-expansion-pack1",
-  "head_short": "306b9af",
-  "step": "chunk-pr11-pr-open",
-  "note": "Opened PR #11 for MC-PROV-010 provider expansion pack.",
-  "next_cmd": "Merge PR #10 then merge PR #11; checkpoint post-merge and continue chunk #12.",
+  "head_short": "0f67607",
+  "step": "chunk-pr11-logfix-postgreen",
+  "note": "Applied request-log assertion stabilization on PR #11 branch and validated with targeted e2e test.",
+  "next_cmd": "git add crates/carsinos-gateway/tests/e2e_process.rs CHECKPOINT.md runtime/checkpoints/LATEST.md runtime/checkpoints/LATEST.json && git commit -m \"test(gateway): stabilize request log assertion in PR11\" && git push",
   "status": {
-    "staged": [],
+    "staged": [
+      "crates/carsinos-gateway/tests/e2e_process.rs"
+    ],
     "modified": [],
     "untracked": [],
     "conflicted": [],
-    "dirty": false
+    "dirty": true
   },
   "changed_files": {
     "working_tree": [],
-    "staged": []
+    "staged": [
+      "crates/carsinos-gateway/tests/e2e_process.rs"
+    ]
   },
   "recent_commits": [
+    "0f67607 docs: checkpoint PR #11 open state",
     "306b9af feat: add openrouter ollama vllm provider adapters",
     "9b47aed docs: checkpoint PR #10 open state",
     "362648e feat: add provider contract v2 capabilities surface",
-    "c167af9 docs: checkpoint PR #9 post-merge state",
-    "06c8bcc feat: add channel approval action resolve endpoint (#9)"
+    "c167af9 docs: checkpoint PR #9 post-merge state"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",

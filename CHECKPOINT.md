@@ -2271,3 +2271,22 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 122
+
+- checklist refs: `MC-PROV-010` merge hygiene (`PR #11`)
+- past action:
+- Switched to `codex/chunk-pr11-provider-expansion-pack1` and applied the request-log assertion resilience patch.
+- present action:
+- Completed targeted validation on PR #11 branch.
+- validation outcomes:
+- `cargo test -p carsinos-gateway --test e2e_process request_logs_are_written_to_state_log_directory -- --nocapture` passed.
+- future action:
+- Commit/push PR #11 branch fix, then watch PR checks and continue merge sequence.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/tests/e2e_process.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
