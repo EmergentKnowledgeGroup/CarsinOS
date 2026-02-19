@@ -1,12 +1,10 @@
 # LATEST Checkpoint
 
-- step: chunk-pr14-postgreen
-- note: Completed MC-EXT-002 hook bus lifecycle integration and validated full security gate.
+- step: chunk-pr14-pr-open
+- note: Opened PR #14 for MC-EXT-002 hook bus lifecycle integration.
 - branch: codex/chunk-pr14-ext-hook-bus-lifecycle
-- head: 20ecf21d206e52b8c2df975c96d2b79017a9d50d
-- next_cmd: Commit/push chunk #14, open PR, then continue merge/chunk flow.
+- head: d712aa56eebc57dce6f755ad61b9eb8e18778d8f
+- next_cmd: Monitor PR checks/reviews for #10-#14 and continue next chunk while CI runs.
 - validations:
-  - cargo test -p carsinos-core
-  - cargo test -p carsinos-gateway hook_failures_are_isolated_and_audited -- --nocapture
-  - cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings
-  - REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh
+  - PR open: https://github.com/ProfessahX/CarsinOS/pull/14
+  - previous chunk PRs still pending merge/check flow
