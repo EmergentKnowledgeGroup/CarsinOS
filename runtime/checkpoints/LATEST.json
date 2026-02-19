@@ -1,39 +1,49 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T15:14:07.829293+00:00",
+  "captured_at": "2026-02-19T15:20:51.178763+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/chunk-pr17-tool-registry-refactor",
-  "head_short": "5e39430",
-  "head": "5e39430a4f23d883d9d61c4e552c411bc45ec892",
-  "step": "chunk-pr17-pr-open",
-  "note": "Opened PR #17 for MC-TOOL-001 registry-driven tool execution refactor after full validation green.",
-  "next_cmd": "Monitor PR #16/#17 checks and continue with next chunk implementation branch.",
+  "branch": "codex/chunk-pr18-tool-hardening-pass",
+  "head_short": "dab776e",
+  "head": "dab776e85547262dac22864fb4f63951c59c620e",
+  "step": "chunk-pr18-postgreen",
+  "note": "Implemented MC-TOOL-002 hardening pass (normalized tool result/error envelopes, structured telemetry, tool concurrency limit semaphore) with full security gate green.",
+  "next_cmd": "Commit/push chunk #18, open PR #18, then continue next chunk workflow.",
   "validations": [
-    "PR opened: https://github.com/ProfessahX/CarsinOS/pull/17",
-    "cargo test -p carsinos-gateway tool_registry_ -- --nocapture",
-    "cargo test -p carsinos-gateway high_risk_tool_requests_are_gated_by_approval -- --nocapture",
     "cargo test -p carsinos-gateway low_risk_tool_requests_execute_inside_run_loop -- --nocapture",
+    "cargo test -p carsinos-gateway invalid_tool_process_action_fails_run -- --nocapture",
+    "cargo test -p carsinos-gateway high_risk_tool_requests_are_gated_by_approval -- --nocapture",
     "cargo test -p carsinos-gateway high_risk_tool_run_ -- --nocapture",
+    "cargo test -p carsinos-gateway tool_registry_ -- --nocapture",
     "cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings",
     "REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh"
   ],
   "status": {
     "staged": [],
-    "modified": [],
+    "modified": [
+      "CHECKPOINT.md",
+      "crates/carsinos-gateway/src/main.rs",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "untracked": [],
     "conflicted": [],
-    "dirty": false
+    "dirty": true
   },
   "changed_files": {
-    "working_tree": [],
+    "working_tree": [
+      "CHECKPOINT.md",
+      "crates/carsinos-gateway/src/main.rs",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "staged": []
   },
   "recent_commits": [
+    "dab776e docs: checkpoint PR #17 open state",
     "5e39430 feat(tool): add registry-driven tool execution metadata",
     "8c701dc docs: checkpoint PR #16 open state",
     "fb5ee08 feat(ext): enforce extension security policy controls",
-    "62aa873 docs: checkpoint close superseded PR stack",
-    "e88a201 test(gateway): stabilize process e2e assertions"
+    "62aa873 docs: checkpoint close superseded PR stack"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",

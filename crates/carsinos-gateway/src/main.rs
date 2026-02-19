@@ -54,7 +54,7 @@ use carsinos_storage::{
 };
 use carsinos_tools::{
     ExecRequest, FsReadRequest, FsWriteMode, FsWriteRequest, LocalToolRunner, ProcessRequest,
-    ToolRequest, ToolRunner, WebFetchRequest, WebSearchRequest,
+    ToolError, ToolRequest, ToolResult, ToolRunner, WebFetchRequest, WebSearchRequest,
 };
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
@@ -67,7 +67,7 @@ use std::path::{Path as FsPath, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock as StdRwLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{broadcast, RwLock, Semaphore};
 use tokio::time::sleep;
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 use tower_http::trace::{DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer};
@@ -89,6 +89,7 @@ struct AppState {
     operator_allowlist: Arc<Vec<String>>,
     providers: ProviderRegistry,
     tool_registry: Arc<ToolRegistry>,
+    tool_concurrency: Arc<Semaphore>,
     tool_runner: LocalToolRunner,
     secret_store: SecretStore,
     oauth_sessions: Arc<RwLock<HashMap<String, PendingOpenAiOauthSession>>>,
@@ -1109,6 +1110,8 @@ async fn main() -> AnyResult<()> {
     skill_registry.apply_enabled_overrides(&skill_overrides);
     let skill_count = skill_registry.len();
     let tool_registry = Arc::new(ToolRegistry::from_env());
+    let tool_concurrency_limit = usize_env("CARSINOS_TOOL_MAX_CONCURRENCY", 32).clamp(1, 512);
+    let tool_concurrency = Arc::new(Semaphore::new(tool_concurrency_limit));
     let tool_runner = LocalToolRunner::default();
     let secret_store = SecretStore::from_env();
     let oauth_sessions = Arc::new(RwLock::new(HashMap::new()));
@@ -1133,6 +1136,7 @@ async fn main() -> AnyResult<()> {
         hook_policy_denials = hook_policy_denials.len(),
         skill_count,
         tool_registry_entries = tool_registry.len(),
+        tool_concurrency_limit,
         skill_dirs = ?skill_dirs,
         extension_plugin_allowlist_enabled = extension_policy.plugin_allowlist_enabled,
         "extension registries initialized"
@@ -1149,6 +1153,7 @@ async fn main() -> AnyResult<()> {
         operator_allowlist: Arc::new(operator_allowlist),
         providers,
         tool_registry: tool_registry.clone(),
+        tool_concurrency: tool_concurrency.clone(),
         tool_runner,
         secret_store: secret_store.clone(),
         oauth_sessions,
@@ -5197,6 +5202,16 @@ async fn execute_run(
             .storage
             .create_tool_call(&run.run_id, tool_name, args_json.clone())?
             .with_context(|| format!("failed to create tool call for {}", tool_name))?;
+        let tool_started = Instant::now();
+        info!(
+            run_id = %run.run_id,
+            session_id = %run.session_id,
+            tool_name,
+            risk_level = tool_metadata.risk_level,
+            requires_approval = tool_metadata.requires_approval,
+            timeout_ms = tool_metadata.timeout_ms,
+            "tool execution dispatched"
+        );
         emit_extension_hook_point(
             state,
             run,
@@ -5223,11 +5238,29 @@ async fn execute_run(
                         approved_by_existing = true;
                     }
                     "denied" => {
+                        let error_text = format!("approval denied: {}", existing.approval_id);
+                        let duration_ms = tool_started.elapsed().as_millis() as u64;
+                        let envelope = tool_error_envelope(
+                            &tool_metadata,
+                            "denied",
+                            "APPROVAL_DENIED",
+                            &error_text,
+                            duration_ms,
+                            false,
+                        );
                         let _ = state.storage.finish_tool_call(
                             &tool_call.tool_call_id,
                             "denied",
-                            None,
-                            Some(format!("approval denied: {}", existing.approval_id)),
+                            Some(envelope.to_string()),
+                            Some(error_text.clone()),
+                        );
+                        warn!(
+                            run_id = %run.run_id,
+                            session_id = %run.session_id,
+                            tool_name,
+                            approval_id = %existing.approval_id,
+                            duration_ms,
+                            "tool execution denied by approval"
                         );
                         emit_extension_hook_point(
                             state,
@@ -5236,7 +5269,9 @@ async fn execute_run(
                             Some(tool_name),
                             serde_json::json!({
                                 "tool_call_id": &tool_call.tool_call_id,
-                                "status": "denied"
+                                "status": "denied",
+                                "error_code": "APPROVAL_DENIED",
+                                "duration_ms": duration_ms
                             }),
                         )
                         .await;
@@ -5247,11 +5282,29 @@ async fn execute_run(
                         );
                     }
                     "requested" => {
+                        let error_text = format!("approval pending: {}", existing.approval_id);
+                        let duration_ms = tool_started.elapsed().as_millis() as u64;
+                        let envelope = tool_error_envelope(
+                            &tool_metadata,
+                            "blocked",
+                            "APPROVAL_PENDING",
+                            &error_text,
+                            duration_ms,
+                            false,
+                        );
                         let _ = state.storage.finish_tool_call(
                             &tool_call.tool_call_id,
                             "blocked",
-                            None,
-                            Some(format!("approval pending: {}", existing.approval_id)),
+                            Some(envelope.to_string()),
+                            Some(error_text.clone()),
+                        );
+                        info!(
+                            run_id = %run.run_id,
+                            session_id = %run.session_id,
+                            tool_name,
+                            approval_id = %existing.approval_id,
+                            duration_ms,
+                            "tool execution blocked awaiting approval"
                         );
                         emit_extension_hook_point(
                             state,
@@ -5260,7 +5313,9 @@ async fn execute_run(
                             Some(tool_name),
                             serde_json::json!({
                                 "tool_call_id": &tool_call.tool_call_id,
-                                "status": "blocked"
+                                "status": "blocked",
+                                "error_code": "APPROVAL_PENDING",
+                                "duration_ms": duration_ms
                             }),
                         )
                         .await;
@@ -5296,11 +5351,29 @@ async fn execute_run(
                         "kind": &approval.kind
                     }),
                 );
+                let error_text = format!("approval required: {}", approval.approval_id);
+                let duration_ms = tool_started.elapsed().as_millis() as u64;
+                let envelope = tool_error_envelope(
+                    &tool_metadata,
+                    "blocked",
+                    "APPROVAL_REQUIRED",
+                    &error_text,
+                    duration_ms,
+                    false,
+                );
                 let _ = state.storage.finish_tool_call(
                     &tool_call.tool_call_id,
                     "blocked",
-                    None,
-                    Some(format!("approval required: {}", approval.approval_id)),
+                    Some(envelope.to_string()),
+                    Some(error_text),
+                );
+                info!(
+                    run_id = %run.run_id,
+                    session_id = %run.session_id,
+                    tool_name,
+                    approval_id = %approval.approval_id,
+                    duration_ms,
+                    "tool execution blocked pending new approval"
                 );
                 emit_extension_hook_point(
                     state,
@@ -5311,7 +5384,9 @@ async fn execute_run(
                         "tool_call_id": &tool_call.tool_call_id,
                         "status": "blocked",
                         "approval_id": &approval.approval_id,
-                        "risk_level": tool_metadata.risk_level
+                        "risk_level": tool_metadata.risk_level,
+                        "error_code": "APPROVAL_REQUIRED",
+                        "duration_ms": duration_ms
                     }),
                 )
                 .await;
@@ -5323,64 +5398,128 @@ async fn execute_run(
             }
         }
 
+        let permit = state
+            .tool_concurrency
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|_| anyhow::anyhow!("tool concurrency semaphore closed"))?;
         let runner = state.tool_runner.clone();
         let request_for_runner = request.clone();
-        let tool_result =
-            match tokio::task::spawn_blocking(move || runner.run(request_for_runner)).await {
-                Ok(Ok(result)) => result,
-                Ok(Err(tool_err)) => {
-                    let error_text = format!("tool execution failed: {tool_err}");
-                    let _ = state.storage.finish_tool_call(
-                        &tool_call.tool_call_id,
-                        "failed",
-                        None,
-                        Some(error_text.clone()),
-                    );
-                    emit_extension_hook_point(
-                        state,
-                        run,
-                        HookPoint::ToolAfter,
-                        Some(tool_name),
-                        serde_json::json!({
-                            "tool_call_id": &tool_call.tool_call_id,
-                            "status": "failed",
-                            "risk_level": tool_metadata.risk_level
-                        }),
-                    )
-                    .await;
-                    anyhow::bail!("{error_text}");
-                }
-                Err(join_err) => {
-                    let error_text = format!("tool runner join error: {join_err}");
-                    let _ = state.storage.finish_tool_call(
-                        &tool_call.tool_call_id,
-                        "failed",
-                        None,
-                        Some(error_text.clone()),
-                    );
-                    emit_extension_hook_point(
-                        state,
-                        run,
-                        HookPoint::ToolAfter,
-                        Some(tool_name),
-                        serde_json::json!({
-                            "tool_call_id": &tool_call.tool_call_id,
-                            "status": "failed",
-                            "risk_level": tool_metadata.risk_level
-                        }),
-                    )
-                    .await;
-                    anyhow::bail!("{error_text}");
-                }
-            };
+        let tool_result = match tokio::task::spawn_blocking(move || {
+            let _permit_guard = permit;
+            runner.run(request_for_runner)
+        })
+        .await
+        {
+            Ok(Ok(result)) => result,
+            Ok(Err(tool_err)) => {
+                let (error_code, retryable) = tool_error_code_and_retryable(&tool_err);
+                let error_text = format!("tool execution failed: {tool_err}");
+                let duration_ms = tool_started.elapsed().as_millis() as u64;
+                let envelope = tool_error_envelope(
+                    &tool_metadata,
+                    "error",
+                    error_code,
+                    &error_text,
+                    duration_ms,
+                    retryable,
+                );
+                let _ = state.storage.finish_tool_call(
+                    &tool_call.tool_call_id,
+                    "failed",
+                    Some(envelope.to_string()),
+                    Some(error_text.clone()),
+                );
+                warn!(
+                    run_id = %run.run_id,
+                    session_id = %run.session_id,
+                    tool_name,
+                    risk_level = tool_metadata.risk_level,
+                    error_code,
+                    retryable,
+                    duration_ms,
+                    "tool execution failed"
+                );
+                emit_extension_hook_point(
+                    state,
+                    run,
+                    HookPoint::ToolAfter,
+                    Some(tool_name),
+                    serde_json::json!({
+                        "tool_call_id": &tool_call.tool_call_id,
+                        "status": "failed",
+                        "risk_level": tool_metadata.risk_level,
+                        "error_code": error_code,
+                        "duration_ms": duration_ms
+                    }),
+                )
+                .await;
+                anyhow::bail!("{error_text}");
+            }
+            Err(join_err) => {
+                let error_text = format!("tool runner join error: {join_err}");
+                let duration_ms = tool_started.elapsed().as_millis() as u64;
+                let envelope = tool_error_envelope(
+                    &tool_metadata,
+                    "error",
+                    "TOOL_RUNNER_JOIN",
+                    &error_text,
+                    duration_ms,
+                    false,
+                );
+                let _ = state.storage.finish_tool_call(
+                    &tool_call.tool_call_id,
+                    "failed",
+                    Some(envelope.to_string()),
+                    Some(error_text.clone()),
+                );
+                error!(
+                    run_id = %run.run_id,
+                    session_id = %run.session_id,
+                    tool_name,
+                    risk_level = tool_metadata.risk_level,
+                    duration_ms,
+                    "tool runner join failure"
+                );
+                emit_extension_hook_point(
+                    state,
+                    run,
+                    HookPoint::ToolAfter,
+                    Some(tool_name),
+                    serde_json::json!({
+                        "tool_call_id": &tool_call.tool_call_id,
+                        "status": "failed",
+                        "risk_level": tool_metadata.risk_level,
+                        "error_code": "TOOL_RUNNER_JOIN",
+                        "duration_ms": duration_ms
+                    }),
+                )
+                .await;
+                anyhow::bail!("{error_text}");
+            }
+        };
 
-        let tool_output_json = tool_result.output.to_string();
+        let duration_ms = tool_started.elapsed().as_millis() as u64;
+        let tool_envelope = tool_success_envelope(&tool_metadata, &tool_result, duration_ms);
+        let tool_output_json = tool_envelope.to_string();
+        let timed_out = tool_timed_out(&tool_result);
         let _ = state.storage.finish_tool_call(
             &tool_call.tool_call_id,
             "succeeded",
             Some(tool_output_json.clone()),
             None,
         )?;
+        info!(
+            run_id = %run.run_id,
+            session_id = %run.session_id,
+            tool_name,
+            risk_level = tool_metadata.risk_level,
+            duration_ms,
+            truncated = tool_result.truncated,
+            timed_out,
+            "tool execution completed"
+        );
         emit_extension_hook_point(
             state,
             run,
@@ -5388,9 +5527,12 @@ async fn execute_run(
             Some(tool_name),
             serde_json::json!({
                 "tool_call_id": &tool_call.tool_call_id,
-                "status": "succeeded",
+                "status": if timed_out { "timeout" } else { "succeeded" },
                 "output_chars": tool_output_json.len(),
-                "risk_level": tool_metadata.risk_level
+                "risk_level": tool_metadata.risk_level,
+                "truncated": tool_result.truncated,
+                "timed_out": timed_out,
+                "duration_ms": duration_ms
             }),
         )
         .await;
@@ -7159,6 +7301,69 @@ fn load_channel_config(state: &AppState) -> AnyResult<carsinos_protocol::Channel
         telegram,
         updated_at,
     })
+}
+
+fn tool_timed_out(result: &ToolResult) -> bool {
+    result
+        .output
+        .get("timed_out")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false)
+}
+
+fn tool_success_envelope(
+    metadata: &ToolExecutionMetadata,
+    result: &ToolResult,
+    duration_ms: u64,
+) -> serde_json::Value {
+    serde_json::json!({
+        "contract_version": "tool.result.v2",
+        "tool_name": metadata.tool_name,
+        "risk_level": metadata.risk_level,
+        "requires_approval": metadata.requires_approval,
+        "timeout_ms": metadata.timeout_ms,
+        "duration_ms": duration_ms,
+        "status": if tool_timed_out(result) { "timeout" } else { "ok" },
+        "truncated": result.truncated,
+        "timed_out": tool_timed_out(result),
+        "output": result.output,
+    })
+}
+
+fn tool_error_envelope(
+    metadata: &ToolExecutionMetadata,
+    status: &str,
+    code: &str,
+    message: &str,
+    duration_ms: u64,
+    retryable: bool,
+) -> serde_json::Value {
+    serde_json::json!({
+        "contract_version": "tool.result.v2",
+        "tool_name": metadata.tool_name,
+        "risk_level": metadata.risk_level,
+        "requires_approval": metadata.requires_approval,
+        "timeout_ms": metadata.timeout_ms,
+        "duration_ms": duration_ms,
+        "status": status,
+        "truncated": false,
+        "timed_out": false,
+        "error": {
+            "code": code,
+            "message": message,
+            "retryable": retryable
+        }
+    })
+}
+
+fn tool_error_code_and_retryable(err: &ToolError) -> (&'static str, bool) {
+    match err {
+        ToolError::InvalidRequest(_) => ("INVALID_INPUT", false),
+        ToolError::PolicyDenied(_) => ("POLICY_DENY", false),
+        ToolError::NotImplemented(_) => ("UNSUPPORTED_TOOL", false),
+        ToolError::Io(_) => ("IO_ERROR", true),
+        ToolError::Failed(_) => ("TOOL_EXECUTION_FAILED", false),
+    }
 }
 
 fn parse_tool_requests_from_input(
@@ -9293,6 +9498,7 @@ mod tests {
         let hook_bus = Arc::new(hook_bus);
         let skill_registry = Arc::new(RwLock::new(SkillRegistry::new()));
         let tool_registry = Arc::new(ToolRegistry::permissive_for_tests());
+        let tool_concurrency = Arc::new(Semaphore::new(64));
         let rate_limiter = RequestRateLimiter {
             config: rate_limit_config.unwrap_or(RequestRateLimitConfig {
                 enabled: false,
@@ -9316,6 +9522,7 @@ mod tests {
             operator_allowlist: Arc::new(allowlist),
             providers: ProviderRegistry::new(),
             tool_registry,
+            tool_concurrency,
             tool_runner: LocalToolRunner::default(),
             secret_store: secret_store.clone(),
             oauth_sessions: Arc::new(RwLock::new(HashMap::new())),
@@ -11700,6 +11907,28 @@ tool.process status abc123
         assert_eq!(run_response.status(), StatusCode::CREATED);
         let run_json = parse_json(run_response).await;
         assert_eq!(run_json["run"]["status"], "succeeded");
+        let run_id = run_json["run"]["run_id"]
+            .as_str()
+            .expect("run_id")
+            .to_string();
+        let tool_calls = ctx
+            .storage
+            .list_tool_calls(&run_id, 10)
+            .expect("list tool calls");
+        let tool_call = tool_calls.first().expect("tool call");
+        let result_json = tool_call
+            .result_json
+            .as_ref()
+            .expect("tool result json envelope");
+        let result_value: serde_json::Value =
+            serde_json::from_str(result_json).expect("parse tool result envelope");
+        assert_eq!(result_value["contract_version"], "tool.result.v2");
+        assert_eq!(result_value["status"], "ok");
+        assert_eq!(result_value["tool_name"], "process");
+        assert_eq!(result_value["risk_level"], "medium");
+        assert_eq!(result_value["requires_approval"], false);
+        assert!(result_value.get("duration_ms").is_some());
+        assert!(result_value.get("output").is_some());
     }
 
     #[tokio::test]
@@ -12060,6 +12289,27 @@ tool.process status abc123
             .as_str()
             .unwrap_or_default()
             .contains("unsupported process action"));
+        let run_id = run_json["run"]["run_id"]
+            .as_str()
+            .expect("run_id")
+            .to_string();
+        let tool_calls = ctx
+            .storage
+            .list_tool_calls(&run_id, 10)
+            .expect("list tool calls");
+        let tool_call = tool_calls.first().expect("tool call");
+        assert_eq!(tool_call.status, "failed");
+        let result_json = tool_call
+            .result_json
+            .as_ref()
+            .expect("tool error json envelope");
+        let result_value: serde_json::Value =
+            serde_json::from_str(result_json).expect("parse tool error envelope");
+        assert_eq!(result_value["contract_version"], "tool.result.v2");
+        assert_eq!(result_value["status"], "error");
+        assert_eq!(result_value["tool_name"], "process");
+        assert_eq!(result_value["error"]["code"], "INVALID_INPUT");
+        assert_eq!(result_value["error"]["retryable"], false);
     }
 
     #[tokio::test]
