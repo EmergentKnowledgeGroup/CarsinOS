@@ -1,0 +1,10 @@
+# LATEST Checkpoint
+
+- step: chunk-pr3-postgreen
+- note: Chunk PR #3 security audit query filter expansion implemented and validated.
+- branch: codex/chunk-pr3-audit-query-filters
+- head: 34e8ac1cbf5c0e86253c71ffb1821ff4bfaeb16b
+- next_cmd: Commit chunk #3, push branch, and open PR to main.
+- validations:
+  - cargo fmt passed.
+  - cargo test -p carsinos-storage -p carsinos-gateway passed.
