@@ -1,37 +1,38 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T23:51:15.626783+00:00",
+  "captured_at": "2026-02-19T23:54:25.261225+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
   "branch": "codex/chunk-pr30-config-wizard-hardcode-audit",
-  "head_short": "434b9ee",
-  "step": "mc-conf-004-post-green",
-  "note": "Implemented runtime config rollback + config mutation audit metadata; full workspace tests green.",
-  "next_cmd": "Commit MC-CONF-004 changes + checklist/checkpoint updates and push to PR #30.",
+  "head_short": "7fb0e05",
+  "step": "mc-conf-005-post-green",
+  "note": "Implemented hardcoded-value CI guardrail with allowlist and PR-gate integration; security_pr_gate validated green (audit optional).",
+  "next_cmd": "Commit MC-CONF-005 guardrail files and push to PR #30.",
   "status": {
     "staged": [],
     "modified": [
       "CHECKLIST.md",
-      "crates/carsinos-gateway/src/main.rs",
-      "crates/carsinos-protocol/src/lib.rs"
+      "scripts/security_pr_gate.sh"
     ],
-    "untracked": [],
+    "untracked": [
+      "docs/security/HARDCODED_VALUE_ALLOWLIST.csv",
+      "scripts/security_hardcoded_value_guard.py"
+    ],
     "conflicted": [],
     "dirty": true
   },
   "changed_files": {
     "working_tree": [
       "CHECKLIST.md",
-      "crates/carsinos-gateway/src/main.rs",
-      "crates/carsinos-protocol/src/lib.rs"
+      "scripts/security_pr_gate.sh"
     ],
     "staged": []
   },
   "recent_commits": [
+    "7fb0e05 feat(config): add runtime rollback and audited mutation metadata",
     "434b9ee feat(config): add runtime config contract and management endpoints",
     "3bbea57 docs(security): add phase O threat/runbook artifacts and gate0 evidence workflow",
     "8f8c6cb docs: checkpoint PR #30 open state",
-    "9beb0ce docs: add setup wizard config track and hardcoded-value audit gates",
-    "c10d54b docs: checkpoint explicit post-merge state (#29)"
+    "9beb0ce docs: add setup wizard config track and hardcoded-value audit gates"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",

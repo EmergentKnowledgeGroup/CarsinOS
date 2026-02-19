@@ -3615,3 +3615,26 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 189
+
+- checklist refs: `P5`
+- past action:
+- Implemented runtime config rollback + audit metadata and validated full regression.
+- present action:
+- Implemented hardcoded-value guardrail with explicit allowlist and integrated it into PR security gate.
+- validation outcomes:
+- `python3 scripts/security_hardcoded_value_guard.py --repo-root .` passed (green).
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed including new hardcoded-value-guard stage.
+- future action:
+- Commit MC-CONF-005 files and push update to PR #30.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/scripts/security_hardcoded_value_guard.py`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/security/HARDCODED_VALUE_ALLOWLIST.csv`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/scripts/security_pr_gate.sh`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`

@@ -150,7 +150,7 @@ Execution checklist derived from `PLAN.md`. IDs are stable and must be used by `
 - [ ] `P2` `MC-CONF-002` Implement Mission Control first-run/reconfigure wizard that captures required operator inputs without source edits.
 - [ ] `P3` `MC-CONF-003` Wire wizard-driven secret references to keychain/secret backends (no plaintext secret persistence in config records).
 - [x] `P4` `MC-CONF-004` Implement config mutation audit trail + rollback to last-known-good snapshots. Implemented via runtime config hash-audited mutations + `POST /api/v1/config/runtime/rollback`.
-- [ ] `P5` `MC-CONF-005` Enforce CI hardcoded-value guardrail with explicit allowlist + owner + expiry metadata.
+- [x] `P5` `MC-CONF-005` Enforce CI hardcoded-value guardrail with explicit allowlist + owner + expiry metadata. Implemented via `scripts/security_hardcoded_value_guard.py` + `docs/security/HARDCODED_VALUE_ALLOWLIST.csv` + PR gate integration.
 - [ ] `P6` Run full regression + benchmark + security gate suite after MC-CONF implementation.
 
 ## Owner Inputs Required (Prevents Hard Blockers)
