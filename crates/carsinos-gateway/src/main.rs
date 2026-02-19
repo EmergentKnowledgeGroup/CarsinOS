@@ -95,6 +95,7 @@ struct AppState {
     plugin_registry: Arc<RwLock<PluginRegistry>>,
     hook_bus: Arc<HookBus>,
     skill_registry: Arc<RwLock<SkillRegistry>>,
+    extension_policy: Arc<ExtensionSecurityPolicy>,
     storage: Storage,
     metrics: Arc<GatewayMetrics>,
     event_tx: broadcast::Sender<String>,
@@ -107,6 +108,73 @@ struct AppState {
 
 struct LogGuards {
     _file_guard: Option<WorkerGuard>,
+}
+
+#[derive(Debug, Clone)]
+struct ExtensionSecurityPolicy {
+    plugin_allowlist_enabled: bool,
+    allowed_plugin_ids: HashSet<String>,
+    reserved_skill_ids: HashSet<String>,
+    reserved_skill_prefixes: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+struct ExtensionHookPolicyDenial {
+    plugin_id: String,
+    hook_name: String,
+    reason: String,
+}
+
+impl ExtensionSecurityPolicy {
+    fn from_env() -> Self {
+        let allowed_plugin_ids_raw =
+            std::env::var("CARSINOS_EXTENSION_ALLOWED_PLUGIN_IDS").unwrap_or_default();
+        let allowed_plugin_ids = parse_csv_set_lower(&allowed_plugin_ids_raw);
+        let plugin_allowlist_enabled = !allowed_plugin_ids.is_empty();
+        let reserved_skill_ids = parse_csv_set_lower(
+            &std::env::var("CARSINOS_EXTENSION_RESERVED_SKILL_IDS")
+                .unwrap_or_else(|_| "system.core,system.security".to_string()),
+        );
+        let reserved_skill_prefixes = std::env::var("CARSINOS_EXTENSION_RESERVED_SKILL_PREFIXES")
+            .unwrap_or_else(|_| "system.,core.".to_string())
+            .split(',')
+            .map(|value| value.trim().to_ascii_lowercase())
+            .filter(|value| !value.is_empty())
+            .collect::<Vec<_>>();
+        Self {
+            plugin_allowlist_enabled,
+            allowed_plugin_ids,
+            reserved_skill_ids,
+            reserved_skill_prefixes,
+        }
+    }
+
+    #[cfg(test)]
+    fn permissive_for_tests() -> Self {
+        Self {
+            plugin_allowlist_enabled: false,
+            allowed_plugin_ids: HashSet::new(),
+            reserved_skill_ids: HashSet::new(),
+            reserved_skill_prefixes: Vec::new(),
+        }
+    }
+
+    fn plugin_allowed(&self, plugin_id: &str) -> bool {
+        if !self.plugin_allowlist_enabled {
+            return true;
+        }
+        self.allowed_plugin_ids
+            .contains(&plugin_id.trim().to_ascii_lowercase())
+    }
+
+    fn skill_is_reserved(&self, skill_id: &str) -> bool {
+        let normalized = skill_id.trim().to_ascii_lowercase();
+        self.reserved_skill_ids.contains(&normalized)
+            || self
+                .reserved_skill_prefixes
+                .iter()
+                .any(|prefix| normalized.starts_with(prefix))
+    }
 }
 
 #[derive(Debug, Default)]
@@ -792,7 +860,9 @@ async fn main() -> AnyResult<()> {
             format!("failed to load plugin manifests from configured directories: {display}")
         })?;
     let plugin_count = plugin_registry.len();
-    let hook_bus = build_hook_bus_from_registry(&plugin_registry)?;
+    let extension_policy = Arc::new(ExtensionSecurityPolicy::from_env());
+    let (hook_bus, hook_policy_denials) =
+        build_hook_bus_from_registry(&plugin_registry, extension_policy.as_ref())?;
     let skill_dirs = load_skill_dirs_from_env(&config.state_dir);
     let mut skill_registry = SkillRegistry::load_from_dirs(&skill_dirs).with_context(|| {
         let display = skill_dirs
@@ -826,8 +896,10 @@ async fn main() -> AnyResult<()> {
         plugin_count,
         plugin_manifest_dirs = ?plugin_manifest_dirs,
         hook_count = hook_bus.list_registrations().len(),
+        hook_policy_denials = hook_policy_denials.len(),
         skill_count,
         skill_dirs = ?skill_dirs,
+        extension_plugin_allowlist_enabled = extension_policy.plugin_allowlist_enabled,
         "extension registries initialized"
     );
 
@@ -848,6 +920,7 @@ async fn main() -> AnyResult<()> {
         plugin_registry: Arc::new(RwLock::new(plugin_registry)),
         hook_bus: Arc::new(hook_bus),
         skill_registry: Arc::new(RwLock::new(skill_registry)),
+        extension_policy: extension_policy.clone(),
         storage,
         metrics: Arc::new(GatewayMetrics::default()),
         event_tx,
@@ -857,6 +930,7 @@ async fn main() -> AnyResult<()> {
         db_path: Arc::new(paths.db_path.display().to_string()),
         attachments_path: Arc::new(paths.attachments_dir.display().to_string()),
     };
+    record_extension_hook_policy_denials(&state, &hook_policy_denials);
 
     let scheduler_state = state.clone();
     tokio::spawn(async move {
@@ -1088,14 +1162,44 @@ async fn update_skill_state(
     Json(request): Json<UpdateSkillStateRequest>,
 ) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
     let auth = require_bearer_auth_with_error(&headers, &state)?;
+    let resource = format!("skill:{skill_id}");
     require_roles_with_audit(
         &headers,
         &state,
         &auth,
         &[ROLE_OPERATOR_ADMIN],
         "skill.state.update",
-        &format!("skill:{skill_id}"),
+        &resource,
     )?;
+    if state.extension_policy.skill_is_reserved(&skill_id) {
+        let reason = format!(
+            "skill '{}' is reserved by extension policy",
+            skill_id.trim()
+        );
+        record_security_audit(
+            &headers,
+            &state,
+            &auth,
+            "skill.state.update",
+            &resource,
+            "deny",
+            Some(reason.clone()),
+            StatusCode::FORBIDDEN,
+            Some("POLICY_DENY"),
+            None,
+            None,
+            Some(serde_json::json!({
+                "skill_id": skill_id.trim(),
+                "requested_enabled": request.enabled,
+                "policy": "reserved_skill"
+            })),
+        );
+        return Err(api_error_with_code(
+            StatusCode::FORBIDDEN,
+            "POLICY_DENY",
+            &reason,
+        ));
+    }
 
     let (updated, overrides) = {
         let mut registry = state.skill_registry.write().await;
@@ -7957,6 +8061,32 @@ fn record_security_audit_internal(
     }
 }
 
+fn record_extension_hook_policy_denials(state: &AppState, denials: &[ExtensionHookPolicyDenial]) {
+    for denial in denials {
+        warn!(
+            plugin_id = %denial.plugin_id,
+            hook_name = %denial.hook_name,
+            reason = %denial.reason,
+            "extension hook registration denied by policy"
+        );
+        record_security_audit_internal(
+            state,
+            "extension.policy.hook.register",
+            &format!("plugin:{}:hook:{}", denial.plugin_id, denial.hook_name),
+            "deny",
+            Some(denial.reason.clone()),
+            StatusCode::FORBIDDEN,
+            Some("POLICY_DENY"),
+            None,
+            None,
+            Some(serde_json::json!({
+                "plugin_id": denial.plugin_id,
+                "hook_name": denial.hook_name,
+            })),
+        );
+    }
+}
+
 fn request_id_from_headers(headers: &HeaderMap) -> String {
     headers
         .get("x-request-id")
@@ -8465,10 +8595,29 @@ fn hook_point_from_capability_name(name: &str) -> AnyResult<HookPoint> {
     }
 }
 
-fn build_hook_bus_from_registry(plugin_registry: &PluginRegistry) -> AnyResult<HookBus> {
+fn build_hook_bus_from_registry(
+    plugin_registry: &PluginRegistry,
+    extension_policy: &ExtensionSecurityPolicy,
+) -> AnyResult<(HookBus, Vec<ExtensionHookPolicyDenial>)> {
     let hook_bus = HookBus::new();
+    let mut denials = Vec::new();
     for manifest in plugin_registry.list_manifests() {
+        if !manifest.enabled {
+            debug!(
+                plugin_id = %manifest.plugin_id,
+                "skipping hook registration for disabled plugin manifest"
+            );
+            continue;
+        }
         for (index, hook_capability) in manifest.capabilities.hooks.iter().enumerate() {
+            if !extension_policy.plugin_allowed(&manifest.plugin_id) {
+                denials.push(ExtensionHookPolicyDenial {
+                    plugin_id: manifest.plugin_id.clone(),
+                    hook_name: hook_capability.name.clone(),
+                    reason: "plugin is not allowlisted by extension policy".to_string(),
+                });
+                continue;
+            }
             let hook_name = hook_capability.name.clone();
             let hook_point = hook_point_from_capability_name(&hook_name).with_context(|| {
                 format!(
@@ -8503,7 +8652,7 @@ fn build_hook_bus_from_registry(plugin_registry: &PluginRegistry) -> AnyResult<H
             })?;
         }
     }
-    Ok(hook_bus)
+    Ok((hook_bus, denials))
 }
 
 fn emit_event(state: &AppState, event_name: &str, data: serde_json::Value) {
@@ -8579,6 +8728,13 @@ fn parse_csv_set(raw: &str) -> HashSet<String> {
     raw.split(',')
         .map(|entry| entry.trim().to_string())
         .filter(|entry| !entry.is_empty())
+        .collect()
+}
+
+fn parse_csv_set_lower(raw: &str) -> HashSet<String> {
+    parse_csv_set(raw)
+        .into_iter()
+        .map(|value| value.to_ascii_lowercase())
         .collect()
 }
 
@@ -8867,6 +9023,39 @@ mod tests {
         )
     }
 
+    fn test_context_with_plugins_and_policy(
+        plugin_manifests: Vec<CorePluginManifest>,
+        extension_policy: ExtensionSecurityPolicy,
+    ) -> TestContext {
+        build_test_context_with_policy(
+            vec![],
+            None,
+            AuthMode::StaticBearer,
+            None,
+            "test-token".to_string(),
+            None,
+            false,
+            HashSet::new(),
+            plugin_manifests,
+            extension_policy,
+        )
+    }
+
+    fn test_context_with_skill_policy(extension_policy: ExtensionSecurityPolicy) -> TestContext {
+        build_test_context_with_policy(
+            vec![],
+            None,
+            AuthMode::StaticBearer,
+            None,
+            "test-token".to_string(),
+            None,
+            false,
+            HashSet::new(),
+            vec![],
+            extension_policy,
+        )
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn build_test_context(
         allowlist: Vec<String>,
@@ -8878,6 +9067,33 @@ mod tests {
         trusted_proxy_headers: bool,
         trusted_proxy_allowlist: HashSet<String>,
         plugin_manifests: Vec<CorePluginManifest>,
+    ) -> TestContext {
+        build_test_context_with_policy(
+            allowlist,
+            numquam_client,
+            auth_mode,
+            jwt_auth,
+            auth_token,
+            rate_limit_config,
+            trusted_proxy_headers,
+            trusted_proxy_allowlist,
+            plugin_manifests,
+            ExtensionSecurityPolicy::permissive_for_tests(),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn build_test_context_with_policy(
+        allowlist: Vec<String>,
+        numquam_client: Option<NumquamClient>,
+        auth_mode: AuthMode,
+        jwt_auth: Option<JwtAuthConfig>,
+        auth_token: String,
+        rate_limit_config: Option<RequestRateLimitConfig>,
+        trusted_proxy_headers: bool,
+        trusted_proxy_allowlist: HashSet<String>,
+        plugin_manifests: Vec<CorePluginManifest>,
+        extension_policy: ExtensionSecurityPolicy,
     ) -> TestContext {
         let temp_dir = TempDir::new().expect("tempdir");
         let paths = AppPaths::from_root(temp_dir.path().to_path_buf());
@@ -8891,9 +9107,11 @@ mod tests {
                 .register_manifest(manifest)
                 .expect("register plugin manifest");
         }
-        let hook_bus = Arc::new(
-            build_hook_bus_from_registry(&plugin_registry).expect("build hook bus from registry"),
-        );
+        let extension_policy = Arc::new(extension_policy);
+        let (hook_bus, hook_policy_denials) =
+            build_hook_bus_from_registry(&plugin_registry, extension_policy.as_ref())
+                .expect("build hook bus from registry");
+        let hook_bus = Arc::new(hook_bus);
         let skill_registry = Arc::new(RwLock::new(SkillRegistry::new()));
         let rate_limiter = RequestRateLimiter {
             config: rate_limit_config.unwrap_or(RequestRateLimitConfig {
@@ -8924,6 +9142,7 @@ mod tests {
             plugin_registry: Arc::new(RwLock::new(plugin_registry)),
             hook_bus: hook_bus.clone(),
             skill_registry: skill_registry.clone(),
+            extension_policy: extension_policy.clone(),
             storage: storage.clone(),
             metrics: Arc::new(GatewayMetrics::default()),
             event_tx,
@@ -8933,6 +9152,7 @@ mod tests {
             db_path: Arc::new(paths.db_path.display().to_string()),
             attachments_path: Arc::new(paths.attachments_dir.display().to_string()),
         };
+        record_extension_hook_policy_denials(&state, &hook_policy_denials);
 
         TestContext {
             _temp_dir: temp_dir,
@@ -14211,6 +14431,19 @@ mod tests {
         }
     }
 
+    fn sample_hook_plugin_manifest(
+        plugin_id: &str,
+        enabled: bool,
+        hook_name: &str,
+    ) -> CorePluginManifest {
+        let mut manifest = sample_plugin_manifest(plugin_id, enabled);
+        manifest.capabilities.hooks = vec![carsinos_core::PluginCapability {
+            name: hook_name.to_string(),
+            description: Some("test hook".to_string()),
+        }];
+        manifest
+    }
+
     #[tokio::test]
     async fn extension_plugins_list_filters_disabled_by_default() {
         let ctx = test_context_with_plugins(vec![
@@ -14331,6 +14564,52 @@ mod tests {
             item["action"] == "extension.hook.run_start"
                 && item["principal"] == "service_internal"
                 && item["decision"] == "deny"
+        }));
+    }
+
+    #[tokio::test]
+    async fn extension_policy_allowlist_blocks_hook_registration_and_audits_denial() {
+        let mut allowed_plugin_ids = HashSet::new();
+        allowed_plugin_ids.insert("plugin.allowed".to_string());
+        let ctx = test_context_with_plugins_and_policy(
+            vec![
+                sample_hook_plugin_manifest("plugin.allowed", true, "run.start"),
+                sample_hook_plugin_manifest("plugin.blocked", true, "run.end"),
+            ],
+            ExtensionSecurityPolicy {
+                plugin_allowlist_enabled: true,
+                allowed_plugin_ids,
+                reserved_skill_ids: HashSet::new(),
+                reserved_skill_prefixes: Vec::new(),
+            },
+        );
+        let registrations = ctx.hook_bus.list_registrations();
+        assert!(registrations
+            .iter()
+            .all(|registration| registration.plugin_id == "plugin.allowed"));
+        assert_eq!(registrations.len(), 1);
+
+        let audit_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/security/audit?action=extension.policy.hook.register&decision=deny&limit=20",
+                Body::empty(),
+            ))
+            .await
+            .expect("security audit list for extension policy denials");
+        assert_eq!(audit_response.status(), StatusCode::OK);
+        let audit_json = parse_json(audit_response).await;
+        let items = audit_json["items"].as_array().expect("audit items");
+        assert!(items.iter().any(|item| {
+            item["action"] == "extension.policy.hook.register"
+                && item["decision"] == "deny"
+                && item["error_code"] == "POLICY_DENY"
+                && item["metadata_json"]
+                    .as_str()
+                    .map(|value| value.contains("\"plugin_id\":\"plugin.blocked\""))
+                    .unwrap_or(false)
         }));
     }
 
@@ -14538,5 +14817,57 @@ mod tests {
                 .unwrap_or_default(),
             "ops-notes"
         );
+    }
+
+    #[tokio::test]
+    async fn reserved_skill_ids_cannot_be_toggled() {
+        let mut reserved_skill_ids = HashSet::new();
+        reserved_skill_ids.insert("system.ops".to_string());
+        let ctx = test_context_with_skill_policy(ExtensionSecurityPolicy {
+            plugin_allowlist_enabled: false,
+            allowed_plugin_ids: HashSet::new(),
+            reserved_skill_ids,
+            reserved_skill_prefixes: vec!["core.".to_string()],
+        });
+        let _skill = seed_skill(
+            &ctx,
+            "system.ops",
+            "System Ops",
+            "Reserved system skill context.",
+        )
+        .await;
+
+        let deny_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/extensions/skills/system.ops/state",
+                Body::from(r#"{"enabled":false}"#),
+            ))
+            .await
+            .expect("reserved skill toggle response");
+        assert_eq!(deny_response.status(), StatusCode::FORBIDDEN);
+        let deny_json = parse_json(deny_response).await;
+        assert_eq!(deny_json["error_code"], "POLICY_DENY");
+
+        let audit_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/security/audit?action=skill.state.update&decision=deny&error_code=POLICY_DENY&limit=20",
+                Body::empty(),
+            ))
+            .await
+            .expect("security audit list for reserved skill denial");
+        assert_eq!(audit_response.status(), StatusCode::OK);
+        let audit_json = parse_json(audit_response).await;
+        let items = audit_json["items"].as_array().expect("audit items");
+        assert!(items.iter().any(|item| {
+            item["resource"] == "skill:system.ops"
+                && item["decision"] == "deny"
+                && item["error_code"] == "POLICY_DENY"
+        }));
     }
 }

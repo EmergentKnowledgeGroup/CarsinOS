@@ -2551,3 +2551,43 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 134
+
+- checklist refs: `MC-EXT-004` chunk wave #5
+- past action:
+- Opened branch `codex/chunk-pr16-ext-security-controls` for extension security controls.
+- present action:
+- Implementing extension policy allowlists/reserved-scope protection with deny-audit coverage.
+- future action:
+- Complete implementation + full validation and open PR #16.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 135
+
+- checklist refs: `MC-EXT-004` chunk wave #5
+- past action:
+- Completed extension security controls implementation across hook registration policy + reserved skill protection.
+- present action:
+- Post-green validation complete with full security gate passing, including new policy-denial tests and full workspace regression/benchmark suite.
+- validation outcomes:
+- `cargo test -p carsinos-gateway extension_policy_allowlist_blocks_hook_registration_and_audits_denial -- --nocapture` passed.
+- `cargo test -p carsinos-gateway reserved_skill_ids_cannot_be_toggled -- --nocapture` passed.
+- `cargo test -p carsinos-gateway hook_failures_are_isolated_and_audited -- --nocapture` passed.
+- `cargo test -p carsinos-gateway skills_ -- --nocapture` passed.
+- `cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push chunk #16 and open PR #16, then continue immediately into the next chunk.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`

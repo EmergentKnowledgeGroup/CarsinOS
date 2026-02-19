@@ -1,29 +1,48 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T14:55:59.570577+00:00",
+  "captured_at": "2026-02-19T15:04:38.112227+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/chunk-pr15-ext-skills-system-v1",
-  "head_short": "e88a201",
-  "step": "chunk-pr10-14-closed-superseded",
-  "note": "Closed PRs #10-#14 as superseded by #15 to maintain one clean merge path.",
-  "next_cmd": "Monitor PR #15 checks/reviews and merge when green, then continue next chunk.",
+  "branch": "codex/chunk-pr16-ext-security-controls",
+  "head_short": "62aa873",
+  "head": "62aa873657f4570bbe3456695056e9c7cf262561",
+  "step": "chunk-pr16-postgreen",
+  "note": "Implemented MC-EXT-004 extension policy controls (plugin allowlist enforcement for hooks, reserved skill deny path, policy-denial audit trails) with new tests and full security gate green.",
+  "next_cmd": "Commit/push chunk #16 changes and open PR #16, then continue to next chunk.",
+  "validations": [
+    "cargo test -p carsinos-gateway extension_policy_allowlist_blocks_hook_registration_and_audits_denial -- --nocapture",
+    "cargo test -p carsinos-gateway reserved_skill_ids_cannot_be_toggled -- --nocapture",
+    "cargo test -p carsinos-gateway hook_failures_are_isolated_and_audited -- --nocapture",
+    "cargo test -p carsinos-gateway skills_ -- --nocapture",
+    "cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings",
+    "REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh"
+  ],
   "status": {
     "staged": [],
-    "modified": [],
+    "modified": [
+      "CHECKPOINT.md",
+      "crates/carsinos-gateway/src/main.rs",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "untracked": [],
     "conflicted": [],
-    "dirty": false
+    "dirty": true
   },
   "changed_files": {
-    "working_tree": [],
+    "working_tree": [
+      "CHECKPOINT.md",
+      "crates/carsinos-gateway/src/main.rs",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "staged": []
   },
   "recent_commits": [
+    "62aa873 docs: checkpoint close superseded PR stack",
     "e88a201 test(gateway): stabilize process e2e assertions",
     "200f343 docs: checkpoint PR #15 open state",
     "38e0fae feat(ext): add skills discovery and injection",
-    "5f8b78a docs: checkpoint PR #14 open state",
-    "d712aa5 feat(ext): add hook bus lifecycle execution"
+    "5f8b78a docs: checkpoint PR #14 open state"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
