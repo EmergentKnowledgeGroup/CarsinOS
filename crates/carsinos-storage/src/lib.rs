@@ -347,6 +347,17 @@ pub struct NewSecurityAuditEvent {
     pub metadata_json: Option<String>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct SecurityAuditEventListFilter {
+    pub action: Option<String>,
+    pub principal: Option<String>,
+    pub decision: Option<String>,
+    pub status: Option<String>,
+    pub error_code: Option<String>,
+    pub created_after: Option<i64>,
+    pub created_before: Option<i64>,
+}
+
 #[derive(Debug, Clone)]
 pub struct NoteRecord {
     pub note_id: String,
@@ -1071,13 +1082,7 @@ impl Storage {
     pub fn list_security_audit_events(
         &self,
         limit: u32,
-        action: Option<&str>,
-        principal: Option<&str>,
-        decision: Option<&str>,
-        status: Option<&str>,
-        error_code: Option<&str>,
-        created_after: Option<i64>,
-        created_before: Option<i64>,
+        filter: &SecurityAuditEventListFilter,
     ) -> Result<Vec<SecurityAuditEventRecord>> {
         let conn = self.connect()?;
         let mut stmt = conn.prepare(
@@ -1098,6 +1103,13 @@ impl Storage {
             LIMIT ?8
             "#,
         )?;
+        let action = filter.action.as_deref();
+        let principal = filter.principal.as_deref();
+        let decision = filter.decision.as_deref();
+        let status = filter.status.as_deref();
+        let error_code = filter.error_code.as_deref();
+        let created_after = filter.created_after;
+        let created_before = filter.created_before;
         let rows = stmt.query_map(
             params![
                 action,
@@ -2816,13 +2828,10 @@ mod tests {
         let listed = storage
             .list_security_audit_events(
                 20,
-                Some("auth.profile.update"),
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
+                &SecurityAuditEventListFilter {
+                    action: Some("auth.profile.update".to_string()),
+                    ..SecurityAuditEventListFilter::default()
+                },
             )
             .expect("list audit events");
         assert!(!listed.is_empty());
@@ -2831,13 +2840,10 @@ mod tests {
         let principal_filtered = storage
             .list_security_audit_events(
                 20,
-                None,
-                Some("operator_admin:test"),
-                None,
-                None,
-                None,
-                None,
-                None,
+                &SecurityAuditEventListFilter {
+                    principal: Some("operator_admin:test".to_string()),
+                    ..SecurityAuditEventListFilter::default()
+                },
             )
             .expect("list principal filtered");
         assert!(!principal_filtered.is_empty());
@@ -2846,13 +2852,14 @@ mod tests {
         let deny_filtered = storage
             .list_security_audit_events(
                 20,
-                None,
-                None,
-                Some("deny"),
-                Some("403"),
-                Some("AUTH_ROLE_MISMATCH"),
-                Some(created.created_at),
-                Some(denied.created_at),
+                &SecurityAuditEventListFilter {
+                    decision: Some("deny".to_string()),
+                    status: Some("403".to_string()),
+                    error_code: Some("AUTH_ROLE_MISMATCH".to_string()),
+                    created_after: Some(created.created_at),
+                    created_before: Some(denied.created_at),
+                    ..SecurityAuditEventListFilter::default()
+                },
             )
             .expect("list deny filtered");
         assert_eq!(deny_filtered.len(), 1);

@@ -1,13 +1,33 @@
 {
-  "timestamp_utc": "2026-02-19T13:18:08Z",
-  "step": "chunk-pr4-pr-open",
-  "note": "PR #4 opened for JWT replay token-id protection.",
-  "branch": "codex/chunk-pr4-jwt-replay-protection",
-  "head": "258fce14a6b3e61382d865a723bf0c6cbe5c6ef2",
-  "next_cmd": "Monitor PR #4 review/check status while starting chunk PR #5 from main.",
-  "validations": [
-    "PR opened: https://github.com/ProfessahX/CarsinOS/pull/4",
-    "cargo fmt --all passed.",
-    "targeted JWT auth tests passed."
+  "schema": "impressio.context_checkpoint.v1",
+  "captured_at": "2026-02-19T13:29:02.829231+00:00",
+  "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
+  "branch": "codex/chunk-pr6-security-audit-filter-contract",
+  "head_short": "6cd41bd",
+  "step": "chunk-pr6-pr-open",
+  "note": "PR #6 opened to fix clippy failure by using SecurityAuditEventListFilter contract.",
+  "next_cmd": "Monitor PR #6 checks, merge when green, rerun PR #4/#5 checks and merge if clean.",
+  "status": {
+    "staged": [],
+    "modified": [],
+    "untracked": [],
+    "conflicted": [],
+    "dirty": false
+  },
+  "changed_files": {
+    "working_tree": [],
+    "staged": []
+  },
+  "recent_commits": [
+    "6cd41bd refactor: replace security audit list arg fanout with filter contract",
+    "61fad51 docs: checkpoint post-merge workflow lock state",
+    "b8d1479 docs: lock chunk workflow and security goal continuity",
+    "ba21363 Merge pull request #1 from ProfessahX/codex/chunk-pr1-ci-review-gates",
+    "3fbfe74 merge: reconcile PR #1 branch with main"
+  ],
+  "checklist": [
+    "Run git status -sb and verify branch/head.",
+    "Open diff for changed files listed in checkpoint.",
+    "Resume from step + next_cmd, then write a new checkpoint after each major edit block."
   ]
 }

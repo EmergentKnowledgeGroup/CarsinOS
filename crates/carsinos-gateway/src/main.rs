@@ -35,8 +35,8 @@ use carsinos_providers::{CompletionRequest, ProviderAuthProfile, ProviderRegistr
 use carsinos_storage::{
     AppPaths, ApprovalRecord, ApprovalResolveResult, AuthProfileRecord, JobRecord, JobRunRecord,
     JobUpdatePatch, MessageRecord, NewApproval, NewAuthProfile, NewJob, NewMessage, NewNote,
-    NewRun, NewSecurityAuditEvent, NewSession, NoteRecord, RunRecord, SecurityAuditEventRecord,
-    SessionRecord, Storage,
+    NewRun, NewSecurityAuditEvent, NewSession, NoteRecord, RunRecord, SecurityAuditEventListFilter,
+    SecurityAuditEventRecord, SessionRecord, Storage,
 };
 use carsinos_tools::{
     ExecRequest, FsReadRequest, FsWriteMode, FsWriteRequest, LocalToolRunner, ProcessRequest,
@@ -3937,18 +3937,18 @@ async fn list_security_audit(
             ));
         }
     }
+    let filter = SecurityAuditEventListFilter {
+        action: action.map(str::to_string),
+        principal: principal.map(str::to_string),
+        decision: decision.map(str::to_string),
+        status: status.map(str::to_string),
+        error_code: error_code.map(str::to_string),
+        created_after,
+        created_before,
+    };
     let items = state
         .storage
-        .list_security_audit_events(
-            limit,
-            action,
-            principal,
-            decision,
-            status,
-            error_code,
-            created_after,
-            created_before,
-        )
+        .list_security_audit_events(limit, &filter)
         .map_err(|err| internal_err_with_error("listing security audit events failed", err))?
         .into_iter()
         .map(to_security_audit_event_response)
