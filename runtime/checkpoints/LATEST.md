@@ -1,10 +1,11 @@
 # LATEST Checkpoint
 
-- step: chunk-pr1-postgreen
-- note: PR chunk #1 CI/review scaffolding implemented and local validation is green.
+- step: chunk-pr1-pr-open
+- note: PR #1 opened for CI/review scaffolding. Proceeding to next chunk in parallel.
 - branch: codex/chunk-pr1-ci-review-gates
-- head: 34e8ac1cbf5c0e86253c71ffb1821ff4bfaeb16b
-- next_cmd: Commit branch, push to origin, open PR to main for CodeRabbit review.
+- head: 85d6421f64b3424b60076c28cc7608bf9cae0d45
+- next_cmd: Checkout main and start codex/chunk-pr2-rate-limit-contract implementation branch.
 - validations:
+  - PR opened: https://github.com/ProfessahX/CarsinOS/pull/1
   - cargo fmt --all --check passed.
   - cargo test -p carsinos-gateway passed.
