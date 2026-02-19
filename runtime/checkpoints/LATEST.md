@@ -1,11 +1,12 @@
 # LATEST Checkpoint
 
-- step: chunk-pr18-postgreen
-- note: Implemented MC-TOOL-002 tool hardening pass with normalized envelopes, structured telemetry, and concurrency limiting.
+- step: chunk-pr18-pr-open
+- note: Opened PR #18 for MC-TOOL-002 tool hardening pass after full green validation.
 - branch: codex/chunk-pr18-tool-hardening-pass
-- head: dab776e85547262dac22864fb4f63951c59c620e
-- next_cmd: Commit/push chunk #18, open PR #18, and continue directly to next chunk.
+- head: 4f99dea6228a0ebd5396c2fe271ff4cb5b375bc3
+- next_cmd: Monitor PR #16/#17/#18 checks while continuing into the next chunk branch.
 - validations:
+  - PR opened: `https://github.com/ProfessahX/CarsinOS/pull/18`
   - `cargo test -p carsinos-gateway low_risk_tool_requests_execute_inside_run_loop -- --nocapture` passed
   - `cargo test -p carsinos-gateway invalid_tool_process_action_fails_run -- --nocapture` passed
   - `cargo test -p carsinos-gateway high_risk_tool_requests_are_gated_by_approval -- --nocapture` passed

@@ -1,14 +1,15 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T15:20:51.178763+00:00",
+  "captured_at": "2026-02-19T15:22:14.761170+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
   "branch": "codex/chunk-pr18-tool-hardening-pass",
-  "head_short": "dab776e",
-  "head": "dab776e85547262dac22864fb4f63951c59c620e",
-  "step": "chunk-pr18-postgreen",
-  "note": "Implemented MC-TOOL-002 hardening pass (normalized tool result/error envelopes, structured telemetry, tool concurrency limit semaphore) with full security gate green.",
-  "next_cmd": "Commit/push chunk #18, open PR #18, then continue next chunk workflow.",
+  "head_short": "4f99dea",
+  "head": "4f99dea6228a0ebd5396c2fe271ff4cb5b375bc3",
+  "step": "chunk-pr18-pr-open",
+  "note": "Opened PR #18 for MC-TOOL-002 hardening pass after full validation green.",
+  "next_cmd": "Monitor PR #16/#17/#18 checks and continue next chunk implementation.",
   "validations": [
+    "PR opened: https://github.com/ProfessahX/CarsinOS/pull/18",
     "cargo test -p carsinos-gateway low_risk_tool_requests_execute_inside_run_loop -- --nocapture",
     "cargo test -p carsinos-gateway invalid_tool_process_action_fails_run -- --nocapture",
     "cargo test -p carsinos-gateway high_risk_tool_requests_are_gated_by_approval -- --nocapture",
@@ -19,31 +20,21 @@
   ],
   "status": {
     "staged": [],
-    "modified": [
-      "CHECKPOINT.md",
-      "crates/carsinos-gateway/src/main.rs",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
+    "modified": [],
     "untracked": [],
     "conflicted": [],
-    "dirty": true
+    "dirty": false
   },
   "changed_files": {
-    "working_tree": [
-      "CHECKPOINT.md",
-      "crates/carsinos-gateway/src/main.rs",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
+    "working_tree": [],
     "staged": []
   },
   "recent_commits": [
+    "4f99dea feat(tool): harden tool execution envelopes and telemetry",
     "dab776e docs: checkpoint PR #17 open state",
     "5e39430 feat(tool): add registry-driven tool execution metadata",
     "8c701dc docs: checkpoint PR #16 open state",
-    "fb5ee08 feat(ext): enforce extension security policy controls",
-    "62aa873 docs: checkpoint close superseded PR stack"
+    "fb5ee08 feat(ext): enforce extension security policy controls"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
