@@ -3827,6 +3827,17 @@ async fn list_security_audit(
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty());
+    let created_after = query.created_after;
+    let created_before = query.created_before;
+    if let (Some(after), Some(before)) = (created_after, created_before) {
+        if after > before {
+            return Err(api_error_with_code(
+                StatusCode::BAD_REQUEST,
+                "INVALID_INPUT",
+                "created_after must be <= created_before",
+            ));
+        }
+    }
     let items = state
         .storage
         .list_security_audit_events(
@@ -3836,8 +3847,8 @@ async fn list_security_audit(
             decision,
             status,
             error_code,
-            query.created_after,
-            query.created_before,
+            created_after,
+            created_before,
         )
         .map_err(|err| internal_err_with_error("listing security audit events failed", err))?
         .into_iter()
@@ -8373,6 +8384,27 @@ mod tests {
         assert_eq!(response.status(), StatusCode::FORBIDDEN);
         let json = parse_json(response).await;
         assert_eq!(json["error_code"], "POLICY_DENY");
+    }
+
+    #[tokio::test]
+    async fn security_audit_rejects_inverted_created_time_range() {
+        let ctx = test_context();
+
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/security/audit?created_after=200&created_before=100",
+                Body::empty(),
+            ))
+            .await
+            .expect("audit list response");
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let json = parse_json(response).await;
+        assert_eq!(json["error_code"], "INVALID_INPUT");
+        assert_eq!(json["error"], "created_after must be <= created_before");
     }
 
     #[tokio::test]
