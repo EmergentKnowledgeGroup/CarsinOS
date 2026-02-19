@@ -1,10 +1,10 @@
 # LATEST Checkpoint
 
-- step: chunk-pr27-pr-sync-v2
-- note: Pushed v3 stabilization patch to PR #27 and triggered fresh CI run.
-- branch: codex/chunk-pr27-e2e-log-check-stability
-- head: a49d7878146484fb607bb5b24c52acb895d6f9c4
-- next_cmd: Monitor latest PR #27 run and merge if green.
+- step: chunk-pr28-postcleanup
+- note: Closed superseded stacked PRs #15-#26 after convergence merge #27.
+- branch: codex/chunk-pr28-pr-cleanup-after-27
+- head: 2ffa95262009458e161636e9ac019f52e42e18ad
+- next_cmd: Commit cleanup checkpoints and open PR #28 (docs workflow hygiene).
 - validations:
-- git push updated PR #27 with fallback marker hardening
-- local full gate was green before push
+- PRs #15-#26 closed as superseded by #27
+- No open PRs remain in repository

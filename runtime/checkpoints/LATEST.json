@@ -1,29 +1,37 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T16:28:12.884674+00:00",
+  "captured_at": "2026-02-19T16:40:08.165610+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/chunk-pr27-e2e-log-check-stability",
-  "head_short": "a49d787",
-  "step": "chunk-pr27-pr-sync-v2",
-  "note": "Pushed v3 stabilization patch to PR #27 and triggered fresh CI run.",
-  "next_cmd": "Monitor latest PR #27 run and merge if green.",
+  "branch": "codex/chunk-pr28-pr-cleanup-after-27",
+  "head_short": "2ffa952",
+  "step": "chunk-pr28-postcleanup",
+  "note": "Closed superseded stacked PRs #15-#26 after convergence merge #27.",
+  "next_cmd": "Commit cleanup checkpoints and open PR #28 (docs workflow hygiene).",
   "status": {
     "staged": [],
-    "modified": [],
+    "modified": [
+      "CHECKPOINT.md",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "untracked": [],
     "conflicted": [],
-    "dirty": false
+    "dirty": true
   },
   "changed_files": {
-    "working_tree": [],
+    "working_tree": [
+      "CHECKPOINT.md",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "staged": []
   },
   "recent_commits": [
-    "a49d787 test(gateway): add stable tracing marker fallback to log e2e assertion",
-    "79e2842 docs: checkpoint PR #27 sync state",
-    "c7bc5a4 test(gateway): extend request-log e2e timeout for CI stability",
-    "2031ba0 docs: checkpoint PR #27 open state",
-    "bada6ba test(gateway): harden request log e2e assertion stability"
+    "2ffa952 test(gateway): stabilize request-log e2e assertion (#27)",
+    "c167af9 docs: checkpoint PR #9 post-merge state",
+    "06c8bcc feat: add channel approval action resolve endpoint (#9)",
+    "c588189 docs: checkpoint PR #8 post-merge state",
+    "8ccdc35 feat: add channel runtime policy defaults (#8)"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
@@ -31,7 +39,7 @@
     "Resume from step + next_cmd, then write a new checkpoint after each major edit block."
   ],
   "validations": [
-    "git push updated PR #27 with fallback marker hardening",
-    "local full gate was green before push"
+    "PRs #15-#26 closed as superseded by #27",
+    "No open PRs remain in repository"
   ]
 }
