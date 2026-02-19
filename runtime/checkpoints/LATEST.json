@@ -1,14 +1,15 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T15:12:55.518460+00:00",
+  "captured_at": "2026-02-19T15:14:07.829293+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
   "branch": "codex/chunk-pr17-tool-registry-refactor",
-  "head_short": "8c701dc",
-  "head": "8c701dc266d09a03411b5bcaf94ca12a9e6cd055",
-  "step": "chunk-pr17-postgreen",
-  "note": "Implemented MC-TOOL-001 registry-driven tool parsing/execution metadata path with backward-compatible tool.* commands; full security gate green.",
-  "next_cmd": "Commit/push chunk #17 and open PR #17, then continue next chunk workflow.",
+  "head_short": "5e39430",
+  "head": "5e39430a4f23d883d9d61c4e552c411bc45ec892",
+  "step": "chunk-pr17-pr-open",
+  "note": "Opened PR #17 for MC-TOOL-001 registry-driven tool execution refactor after full validation green.",
+  "next_cmd": "Monitor PR #16/#17 checks and continue with next chunk implementation branch.",
   "validations": [
+    "PR opened: https://github.com/ProfessahX/CarsinOS/pull/17",
     "cargo test -p carsinos-gateway tool_registry_ -- --nocapture",
     "cargo test -p carsinos-gateway high_risk_tool_requests_are_gated_by_approval -- --nocapture",
     "cargo test -p carsinos-gateway low_risk_tool_requests_execute_inside_run_loop -- --nocapture",
@@ -18,31 +19,21 @@
   ],
   "status": {
     "staged": [],
-    "modified": [
-      "CHECKPOINT.md",
-      "crates/carsinos-gateway/src/main.rs",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
+    "modified": [],
     "untracked": [],
     "conflicted": [],
-    "dirty": true
+    "dirty": false
   },
   "changed_files": {
-    "working_tree": [
-      "CHECKPOINT.md",
-      "crates/carsinos-gateway/src/main.rs",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
+    "working_tree": [],
     "staged": []
   },
   "recent_commits": [
+    "5e39430 feat(tool): add registry-driven tool execution metadata",
     "8c701dc docs: checkpoint PR #16 open state",
     "fb5ee08 feat(ext): enforce extension security policy controls",
     "62aa873 docs: checkpoint close superseded PR stack",
-    "e88a201 test(gateway): stabilize process e2e assertions",
-    "200f343 docs: checkpoint PR #15 open state"
+    "e88a201 test(gateway): stabilize process e2e assertions"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
