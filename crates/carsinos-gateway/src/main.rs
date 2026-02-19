@@ -3249,17 +3249,19 @@ async fn ingest_telegram_channel_message(
                     )
                 })?;
 
-            let run_immediately = request.run_immediately.unwrap_or(true);
+            let run_immediately = request
+                .run_immediately
+                .unwrap_or(config.telegram.auto_run_enabled);
             let mut run_id = None;
             if run_immediately {
                 let model_provider = request
                     .model_provider
-                    .unwrap_or_else(|| "mock".to_string())
+                    .unwrap_or_else(|| config.telegram.default_model_provider.clone())
                     .trim()
                     .to_string();
                 let model_id = request
                     .model_id
-                    .unwrap_or_else(|| "mock-echo-v1".to_string())
+                    .unwrap_or_else(|| config.telegram.default_model_id.clone())
                     .trim()
                     .to_string();
                 if model_provider.is_empty() || model_id.is_empty() {
@@ -3432,17 +3434,19 @@ async fn ingest_discord_channel_message(
                     )
                 })?;
 
-            let run_immediately = request.run_immediately.unwrap_or(true);
+            let run_immediately = request
+                .run_immediately
+                .unwrap_or(config.discord.auto_run_enabled);
             let mut run_id = None;
             if run_immediately {
                 let model_provider = request
                     .model_provider
-                    .unwrap_or_else(|| "mock".to_string())
+                    .unwrap_or_else(|| config.discord.default_model_provider.clone())
                     .trim()
                     .to_string();
                 let model_id = request
                     .model_id
-                    .unwrap_or_else(|| "mock-echo-v1".to_string())
+                    .unwrap_or_else(|| config.discord.default_model_id.clone())
                     .trim()
                     .to_string();
                 if model_provider.is_empty() || model_id.is_empty() {
@@ -6175,6 +6179,9 @@ fn default_discord_channel_config() -> DiscordChannelConfig {
     DiscordChannelConfig {
         require_mention_in_guild_channels: true,
         allowlisted_user_ids: Vec::new(),
+        auto_run_enabled: true,
+        default_model_provider: "mock".to_string(),
+        default_model_id: "mock-echo-v1".to_string(),
     }
 }
 
@@ -6182,6 +6189,9 @@ fn default_telegram_channel_config() -> TelegramChannelConfig {
     TelegramChannelConfig {
         require_mention_in_groups: true,
         allowlisted_user_ids: Vec::new(),
+        auto_run_enabled: true,
+        default_model_provider: "mock".to_string(),
+        default_model_id: "mock-echo-v1".to_string(),
     }
 }
 
@@ -11553,6 +11563,8 @@ mod tests {
             default_json["config"]["telegram"]["require_mention_in_groups"],
             true
         );
+        assert_eq!(default_json["config"]["discord"]["auto_run_enabled"], true);
+        assert_eq!(default_json["config"]["telegram"]["auto_run_enabled"], true);
 
         let update = ctx
             .app
@@ -11562,8 +11574,20 @@ mod tests {
                 "/api/v1/config/channels",
                 Body::from(
                     r#"{
-                        "discord":{"require_mention_in_guild_channels":false,"allowlisted_user_ids":["du1","du2"]},
-                        "telegram":{"require_mention_in_groups":false,"allowlisted_user_ids":[1001,1002]}
+                        "discord":{
+                            "require_mention_in_guild_channels":false,
+                            "allowlisted_user_ids":["du1","du2"],
+                            "auto_run_enabled":false,
+                            "default_model_provider":"mock",
+                            "default_model_id":"mock-echo-v1"
+                        },
+                        "telegram":{
+                            "require_mention_in_groups":false,
+                            "allowlisted_user_ids":[1001,1002],
+                            "auto_run_enabled":true,
+                            "default_model_provider":"mock",
+                            "default_model_id":"mock-echo-v1"
+                        }
                     }"#,
                 ),
             ))
@@ -11579,6 +11603,8 @@ mod tests {
             update_json["config"]["telegram"]["require_mention_in_groups"],
             false
         );
+        assert_eq!(update_json["config"]["discord"]["auto_run_enabled"], false);
+        assert_eq!(update_json["config"]["telegram"]["auto_run_enabled"], true);
         let updated_at = update_json["config"]["updated_at"]
             .as_i64()
             .expect("updated_at");
@@ -11772,6 +11798,109 @@ mod tests {
             ))
             .await
             .expect("discord inbound run");
+        assert_eq!(inbound.status(), StatusCode::OK);
+        let inbound_json = parse_json(inbound).await;
+        assert_eq!(inbound_json["decision"], "accepted");
+        let run_id = inbound_json["run_id"].as_str().expect("run id");
+        let run = ctx
+            .storage
+            .get_run(run_id)
+            .expect("get run")
+            .expect("run exists");
+        assert_eq!(run.status, "succeeded");
+    }
+
+    #[tokio::test]
+    async fn discord_channel_inbound_respects_auto_run_disabled_default() {
+        let ctx = test_context();
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/channels",
+                Body::from(
+                    r#"{
+                        "discord":{
+                            "require_mention_in_guild_channels":false,
+                            "allowlisted_user_ids":[],
+                            "auto_run_enabled":false,
+                            "default_model_provider":"mock",
+                            "default_model_id":"mock-echo-v1"
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update channel config");
+
+        let inbound = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/discord/inbound",
+                Body::from(
+                    r#"{
+                        "channel_id":"dm-no-auto-run",
+                        "author_id":"u-no-auto-run",
+                        "text":"no auto run",
+                        "mentions_bot":false,
+                        "is_dm":true
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("discord inbound");
+        assert_eq!(inbound.status(), StatusCode::OK);
+        let inbound_json = parse_json(inbound).await;
+        assert_eq!(inbound_json["decision"], "accepted");
+        assert!(inbound_json["run_id"].is_null());
+    }
+
+    #[tokio::test]
+    async fn discord_channel_inbound_can_override_disabled_auto_run() {
+        let ctx = test_context();
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/channels",
+                Body::from(
+                    r#"{
+                        "discord":{
+                            "require_mention_in_guild_channels":false,
+                            "allowlisted_user_ids":[],
+                            "auto_run_enabled":false,
+                            "default_model_provider":"mock",
+                            "default_model_id":"mock-echo-v1"
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update channel config");
+
+        let inbound = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/discord/inbound",
+                Body::from(
+                    r#"{
+                        "channel_id":"dm-override-auto-run",
+                        "author_id":"u-override-auto-run",
+                        "text":"force run",
+                        "mentions_bot":false,
+                        "is_dm":true,
+                        "run_immediately":true
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("discord inbound");
         assert_eq!(inbound.status(), StatusCode::OK);
         let inbound_json = parse_json(inbound).await;
         assert_eq!(inbound_json["decision"], "accepted");

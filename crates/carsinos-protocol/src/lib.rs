@@ -387,12 +387,36 @@ pub struct GetAgentProviderProfileOrderResponse {
 pub struct DiscordChannelConfig {
     pub require_mention_in_guild_channels: bool,
     pub allowlisted_user_ids: Vec<String>,
+    #[serde(default = "default_channel_auto_run_enabled")]
+    pub auto_run_enabled: bool,
+    #[serde(default = "default_channel_model_provider")]
+    pub default_model_provider: String,
+    #[serde(default = "default_channel_model_id")]
+    pub default_model_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TelegramChannelConfig {
     pub require_mention_in_groups: bool,
     pub allowlisted_user_ids: Vec<i64>,
+    #[serde(default = "default_channel_auto_run_enabled")]
+    pub auto_run_enabled: bool,
+    #[serde(default = "default_channel_model_provider")]
+    pub default_model_provider: String,
+    #[serde(default = "default_channel_model_id")]
+    pub default_model_id: String,
+}
+
+fn default_channel_auto_run_enabled() -> bool {
+    true
+}
+
+fn default_channel_model_provider() -> String {
+    "mock".to_string()
+}
+
+fn default_channel_model_id() -> String {
+    "mock-echo-v1".to_string()
 }
 
 #[derive(Debug, Clone, Serialize)]

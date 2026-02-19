@@ -1,10 +1,12 @@
 # LATEST Checkpoint
 
-- step: chunk-pr7-post-merge
-- note: PR #7 merged to main; channel inbound runtime endpoints are now baseline.
-- branch: main
-- head: 86ae6922bd71f14fd80157a6fe1eab0f7db7bf78
-- next_cmd: Start chunk PR #8 from main for next channel/runtime backlog slice.
+- step: chunk-pr8-postgreen
+- note: PR #8 per-channel runtime policy defaults (auto-run + model fallback) is locally green.
+- branch: codex/chunk-pr8-channel-runtime-policy-defaults
+- head: 490ce2308b81bd2de8c4f030f1c99d1bd455da67
+- next_cmd: Commit and push PR #8 changes, open PR, then process checks/review.
 - validations:
-  - PR merged: https://github.com/ProfessahX/CarsinOS/pull/7
-  - Main fast-forward sync complete.
+  - `cargo test -p carsinos-gateway channel_config_endpoints_round_trip -- --nocapture` passed.
+  - `cargo test -p carsinos-gateway discord_channel_inbound -- --nocapture` passed.
+  - `cargo clippy -p carsinos-gateway -p carsinos-protocol --all-targets -- -D warnings` passed.
+  - `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
