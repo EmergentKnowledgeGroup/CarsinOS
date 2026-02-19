@@ -1,33 +1,29 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T16:24:00.500651+00:00",
+  "captured_at": "2026-02-19T16:24:15.752434+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
   "branch": "codex/chunk-pr27-e2e-log-check-stability",
-  "head_short": "2031ba0",
-  "step": "chunk-pr27-postgreen-v2",
-  "note": "Second e2e log stability hardening pass increased polling window for CI latency; stress and full gates green.",
-  "next_cmd": "Commit and push PR #27 stabilization v2 patch.",
+  "head_short": "c7bc5a4",
+  "step": "chunk-pr27-pr-sync",
+  "note": "Pushed v2 stabilization patch to PR #27 and triggered CI rerun.",
+  "next_cmd": "Monitor PR #27 checks; merge if green, patch again if red.",
   "status": {
     "staged": [],
-    "modified": [
-      "crates/carsinos-gateway/tests/e2e_process.rs"
-    ],
+    "modified": [],
     "untracked": [],
     "conflicted": [],
-    "dirty": true
+    "dirty": false
   },
   "changed_files": {
-    "working_tree": [
-      "crates/carsinos-gateway/tests/e2e_process.rs"
-    ],
+    "working_tree": [],
     "staged": []
   },
   "recent_commits": [
+    "c7bc5a4 test(gateway): extend request-log e2e timeout for CI stability",
     "2031ba0 docs: checkpoint PR #27 open state",
     "bada6ba test(gateway): harden request log e2e assertion stability",
     "7281d74 docs: checkpoint PR #26 open state",
-    "ffa5a9c feat(channel): add Twitch adapter scaffold crate",
-    "40e35d7 docs: checkpoint PR #25 open state"
+    "ffa5a9c feat(channel): add Twitch adapter scaffold crate"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
@@ -35,7 +31,7 @@
     "Resume from step + next_cmd, then write a new checkpoint after each major edit block."
   ],
   "validations": [
-    "30x repeated e2e request-log test loop passed",
-    "REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh passed"
+    "git push updated PR #27 with timeout hardening",
+    "local full gate remained green prior to push"
   ]
 }
