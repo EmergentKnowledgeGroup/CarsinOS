@@ -483,6 +483,13 @@ pub struct IngestChannelMessageResponse {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct ResolveChannelApprovalActionRequest {
+    pub provider: String,
+    pub action_payload: String,
+    pub actor_peer_id: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct ListJobsQuery {
     pub limit: Option<u32>,
     pub include_disabled: Option<bool>,

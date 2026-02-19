@@ -26,13 +26,13 @@ use carsinos_protocol::{
     ListMessagesQuery, ListMessagesResponse, ListNotesQuery, ListNotesResponse, ListSessionsQuery,
     ListSessionsResponse, MessageResponse, MetricsResponse, NoteResponse, OpenAiOauthFinishRequest,
     OpenAiOauthFinishResponse, OpenAiOauthStartRequest, OpenAiOauthStartResponse,
-    RemoveJobResponse, ResolveApprovalRequest, ResolveApprovalResponse, RunJobNowResponse,
-    RunResponse, SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult,
-    SessionDetailResponse, SessionSummary, SetAgentProviderProfileOrderRequest,
-    SetAgentProviderProfileOrderResponse, StatusResponse, TelegramChannelConfig,
-    UpdateAuthProfileStateRequest, UpdateAuthProfileStateResponse, UpdateChannelConfigRequest,
-    UpdateChannelConfigResponse, UpdateJobRequest, UpdateJobResponse, UpdateNoteRequest,
-    UpdateNoteResponse,
+    RemoveJobResponse, ResolveApprovalRequest, ResolveApprovalResponse,
+    ResolveChannelApprovalActionRequest, RunJobNowResponse, RunResponse, SearchMemoryRequest,
+    SearchMemoryResponse, SearchMemoryResult, SessionDetailResponse, SessionSummary,
+    SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse, StatusResponse,
+    TelegramChannelConfig, UpdateAuthProfileStateRequest, UpdateAuthProfileStateResponse,
+    UpdateChannelConfigRequest, UpdateChannelConfigResponse, UpdateJobRequest, UpdateJobResponse,
+    UpdateNoteRequest, UpdateNoteResponse,
 };
 use carsinos_providers::{CompletionRequest, ProviderAuthProfile, ProviderRegistry};
 use carsinos_storage::{
@@ -1521,6 +1521,10 @@ fn build_app(state: AppState) -> Router {
         .route(
             "/api/v1/channels/discord/inbound",
             post(ingest_discord_channel_message),
+        )
+        .route(
+            "/api/v1/channels/approvals/resolve",
+            post(resolve_channel_approval_action),
         )
         .route("/api/v1/jobs", get(list_jobs))
         .route("/api/v1/jobs/status", get(job_status))
@@ -3509,6 +3513,74 @@ async fn ingest_discord_channel_message(
     }
 }
 
+async fn resolve_channel_approval_action(
+    headers: HeaderMap,
+    state: State<AppState>,
+    Json(request): Json<ResolveChannelApprovalActionRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let provider = request.provider.trim().to_ascii_lowercase();
+    if provider.is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "provider cannot be empty",
+        ));
+    }
+
+    let action_payload = request.action_payload.trim();
+    if action_payload.is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "action_payload cannot be empty",
+        ));
+    }
+
+    let actor_peer_id = request.actor_peer_id.trim();
+    if actor_peer_id.is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "actor_peer_id cannot be empty",
+        ));
+    }
+
+    let parsed = match provider.as_str() {
+        "telegram" => telegram_channel::parse_approval_callback_payload(action_payload),
+        "discord" => discord_channel::parse_approval_custom_id(action_payload),
+        _ => {
+            return Err(api_error(
+                StatusCode::BAD_REQUEST,
+                "provider must be one of: telegram, discord",
+            ))
+        }
+    };
+    let (approval_id, decision) = parsed.ok_or_else(|| {
+        api_error(
+            StatusCode::BAD_REQUEST,
+            "invalid action_payload for provider approval action format",
+        )
+    })?;
+
+    let mut forwarded_headers = headers.clone();
+    let actor_header = HeaderValue::from_str(actor_peer_id).map_err(|_| {
+        api_error(
+            StatusCode::BAD_REQUEST,
+            "actor_peer_id contains invalid header characters",
+        )
+    })?;
+    forwarded_headers.insert("x-operator-id", actor_header);
+
+    resolve_approval(
+        forwarded_headers,
+        state,
+        Path(approval_id),
+        Json(ResolveApprovalRequest {
+            decision,
+            decided_via: Some(provider),
+            decided_by_peer_id: Some(actor_peer_id.to_string()),
+        }),
+    )
+    .await
+}
+
 async fn list_jobs(
     headers: HeaderMap,
     State(state): State<AppState>,
@@ -4142,7 +4214,7 @@ async fn resolve_approval(
         &headers,
         &state,
         &auth,
-        &[ROLE_OPERATOR_ADMIN],
+        &[ROLE_OPERATOR_ADMIN, ROLE_CHANNEL_ADAPTER],
         "approval.resolve",
         &format!("approval:{approval_id}"),
     )?;
@@ -12830,5 +12902,189 @@ mod tests {
             .await
             .expect("approval request allowlisted operator");
         assert_eq!(allowed_response.status(), StatusCode::CREATED);
+    }
+
+    #[tokio::test]
+    async fn channel_approval_action_resolves_discord_payload() {
+        let ctx = test_context_with_allowlist(vec!["op-1".to_string()]);
+
+        let create_session_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"channel-approval"}"#),
+            ))
+            .await
+            .expect("create session");
+        let create_session_json = parse_json(create_session_response).await;
+        let session_id = create_session_json["session"]["session_id"]
+            .as_str()
+            .expect("session_id")
+            .to_string();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(r#"{"role":"user","content_text":"approve me"}"#),
+            ))
+            .await
+            .expect("message");
+
+        let create_run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("run");
+        let create_run_json = parse_json(create_run_response).await;
+        let run_id = create_run_json["run"]["run_id"]
+            .as_str()
+            .expect("run_id")
+            .to_string();
+
+        let create_approval_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request_with_operator(
+                "POST",
+                "/api/v1/approvals/request",
+                Body::from(format!(
+                    r#"{{"run_id":"{run_id}","tool_name":"exec","request_summary":"channel","request_json":{{"command":"echo hi"}}}}"#
+                )),
+                "op-1",
+            ))
+            .await
+            .expect("create approval");
+        assert_eq!(create_approval_response.status(), StatusCode::CREATED);
+        let create_approval_json = parse_json(create_approval_response).await;
+        let approval_id = create_approval_json["approval"]["approval_id"]
+            .as_str()
+            .expect("approval id");
+        let action_payload =
+            discord_channel::approval_custom_id(approval_id, "approve").expect("custom id");
+
+        let resolve_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/approvals/resolve",
+                Body::from(format!(
+                    r#"{{"provider":"discord","action_payload":"{action_payload}","actor_peer_id":"op-1"}}"#
+                )),
+            ))
+            .await
+            .expect("channel approval resolve");
+        assert_eq!(resolve_response.status(), StatusCode::OK);
+        let resolve_json = parse_json(resolve_response).await;
+        assert_eq!(resolve_json["approval"]["status"], "approved");
+        assert_eq!(resolve_json["approval"]["decided_via"], "discord");
+        assert_eq!(resolve_json["approval"]["decided_by_peer_id"], "op-1");
+    }
+
+    #[tokio::test]
+    async fn channel_approval_action_rejects_invalid_payload() {
+        let ctx = test_context();
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/approvals/resolve",
+                Body::from(
+                    r#"{"provider":"discord","action_payload":"not-a-custom-id","actor_peer_id":"op-1"}"#,
+                ),
+            ))
+            .await
+            .expect("channel resolve response");
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn channel_approval_action_respects_operator_allowlist() {
+        let ctx = test_context_with_allowlist(vec!["op-1".to_string()]);
+        let create_session_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"channel-approval-allowlist"}"#),
+            ))
+            .await
+            .expect("create session");
+        let create_session_json = parse_json(create_session_response).await;
+        let session_id = create_session_json["session"]["session_id"]
+            .as_str()
+            .expect("session id")
+            .to_string();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(r#"{"role":"user","content_text":"approve"}"#),
+            ))
+            .await
+            .expect("message");
+        let create_run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("run");
+        let create_run_json = parse_json(create_run_response).await;
+        let run_id = create_run_json["run"]["run_id"]
+            .as_str()
+            .expect("run id")
+            .to_string();
+        let create_approval_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request_with_operator(
+                "POST",
+                "/api/v1/approvals/request",
+                Body::from(format!(
+                    r#"{{"run_id":"{run_id}","tool_name":"exec","request_summary":"channel","request_json":{{"command":"echo hi"}}}}"#
+                )),
+                "op-1",
+            ))
+            .await
+            .expect("create approval");
+        let create_approval_json = parse_json(create_approval_response).await;
+        let approval_id = create_approval_json["approval"]["approval_id"]
+            .as_str()
+            .expect("approval id");
+        let action_payload =
+            telegram_channel::approval_callback_payload(approval_id, "deny").expect("payload");
+
+        let forbidden = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/approvals/resolve",
+                Body::from(format!(
+                    r#"{{"provider":"telegram","action_payload":"{action_payload}","actor_peer_id":"op-2"}}"#
+                )),
+            ))
+            .await
+            .expect("channel resolve forbidden");
+        assert_eq!(forbidden.status(), StatusCode::FORBIDDEN);
     }
 }
