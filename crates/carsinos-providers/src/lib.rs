@@ -135,15 +135,26 @@ impl ProviderRegistry {
             "mock" | "unconfigured" => EchoProvider.complete(request).await,
             "openai" => complete_openai(&self.http_client, request).await,
             "anthropic" => complete_anthropic(&self.http_client, request).await,
+            "openrouter" => complete_openrouter(&self.http_client, request).await,
+            "ollama" => complete_ollama(&self.http_client, request).await,
+            "vllm" => complete_vllm(&self.http_client, request).await,
             provider => anyhow::bail!("unsupported model provider: {provider}"),
         }
     }
 
     pub fn list_capabilities(&self) -> Vec<ProviderCapabilities> {
-        ["mock", "unconfigured", "openai", "anthropic"]
-            .into_iter()
-            .filter_map(provider_capabilities)
-            .collect()
+        [
+            "mock",
+            "unconfigured",
+            "openai",
+            "anthropic",
+            "openrouter",
+            "ollama",
+            "vllm",
+        ]
+        .into_iter()
+        .filter_map(provider_capabilities)
+        .collect()
     }
 
     pub fn capabilities(&self, provider: &str) -> Option<ProviderCapabilities> {
@@ -291,6 +302,171 @@ async fn complete_anthropic(
     })
 }
 
+async fn complete_openrouter(
+    client: &Client,
+    request: CompletionRequest,
+) -> Result<CompletionResponse> {
+    let auth = require_auth_profile("openrouter", &request)?;
+    let token = auth.api_key().map_err(|err| {
+        anyhow!(
+            "PROVIDER_ERROR:openrouter:AUTH_REQUIRED:invalid_credentials:{}",
+            err.to_string().replace(':', "_")
+        )
+    })?;
+    let base_url = auth
+        .api_base_url
+        .as_deref()
+        .unwrap_or("https://openrouter.ai/api")
+        .trim_end_matches('/')
+        .to_string();
+    complete_openai_compatible(
+        client,
+        "openrouter",
+        &base_url,
+        &request.model_id,
+        &request.input,
+        Some(token),
+    )
+    .await
+}
+
+async fn complete_vllm(client: &Client, request: CompletionRequest) -> Result<CompletionResponse> {
+    let (base_url, bearer_token) = if let Some(auth) = request.auth_profile.as_ref() {
+        let token = auth.api_key().map_err(|err| {
+            anyhow!(
+                "PROVIDER_ERROR:vllm:AUTH_REQUIRED:invalid_credentials:{}",
+                err.to_string().replace(':', "_")
+            )
+        })?;
+        (
+            auth.api_base_url
+                .as_deref()
+                .unwrap_or("http://127.0.0.1:8000")
+                .trim_end_matches('/')
+                .to_string(),
+            Some(token),
+        )
+    } else {
+        ("http://127.0.0.1:8000".to_string(), None)
+    };
+    complete_openai_compatible(
+        client,
+        "vllm",
+        &base_url,
+        &request.model_id,
+        &request.input,
+        bearer_token,
+    )
+    .await
+}
+
+async fn complete_ollama(
+    client: &Client,
+    request: CompletionRequest,
+) -> Result<CompletionResponse> {
+    let (base_url, bearer_token) = if let Some(auth) = request.auth_profile.as_ref() {
+        let token = auth.api_key().map_err(|err| {
+            anyhow!(
+                "PROVIDER_ERROR:ollama:AUTH_REQUIRED:invalid_credentials:{}",
+                err.to_string().replace(':', "_")
+            )
+        })?;
+        (
+            auth.api_base_url
+                .as_deref()
+                .unwrap_or("http://127.0.0.1:11434")
+                .trim_end_matches('/')
+                .to_string(),
+            Some(token),
+        )
+    } else {
+        ("http://127.0.0.1:11434".to_string(), None)
+    };
+    let url = format!("{base_url}/api/chat");
+    let body = json!({
+        "model": request.model_id,
+        "messages": [
+            {
+                "role": "user",
+                "content": request.input
+            }
+        ],
+        "stream": false
+    });
+    let mut req = client.post(url).json(&body);
+    if let Some(token) = bearer_token {
+        req = req.bearer_auth(token);
+    }
+    let response = req
+        .send()
+        .await
+        .context("ollama completion request failed")?;
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        return Err(normalize_provider_http_error("ollama", status, &body));
+    }
+
+    let payload: serde_json::Value = response
+        .json()
+        .await
+        .context("failed to parse ollama completion response JSON")?;
+    let output_text = extract_ollama_content(&payload)
+        .ok_or_else(|| anyhow!("PROVIDER_ERROR:ollama:INTERNAL_ERROR:missing_output_content"))?;
+
+    Ok(CompletionResponse {
+        deltas: split_word_deltas(&output_text),
+        output_text,
+    })
+}
+
+async fn complete_openai_compatible(
+    client: &Client,
+    provider: &str,
+    base_url: &str,
+    model_id: &str,
+    input: &str,
+    bearer_token: Option<String>,
+) -> Result<CompletionResponse> {
+    let url = format!("{base_url}/v1/chat/completions");
+    let body = json!({
+        "model": model_id,
+        "messages": [
+            {
+                "role": "user",
+                "content": input
+            }
+        ],
+        "stream": false
+    });
+    let mut req = client.post(url).json(&body);
+    if let Some(token) = bearer_token {
+        req = req.bearer_auth(token);
+    }
+    let response = req
+        .send()
+        .await
+        .with_context(|| format!("{provider} openai-compatible completion request failed"))?;
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        return Err(normalize_provider_http_error(provider, status, &body));
+    }
+
+    let payload: serde_json::Value = response
+        .json()
+        .await
+        .with_context(|| format!("failed to parse {provider} completion response JSON"))?;
+    let output_text = extract_openai_content(&payload).ok_or_else(|| {
+        anyhow!("PROVIDER_ERROR:{provider}:INTERNAL_ERROR:missing_output_content")
+    })?;
+
+    Ok(CompletionResponse {
+        deltas: split_word_deltas(&output_text),
+        output_text,
+    })
+}
+
 fn require_auth_profile<'a>(
     provider: &str,
     request: &'a CompletionRequest,
@@ -385,6 +561,36 @@ fn provider_capabilities(provider: &str) -> Option<ProviderCapabilities> {
             error_classes: all_error_classes,
             retryable_error_classes,
         }),
+        "openrouter" => Some(ProviderCapabilities {
+            provider: "openrouter".to_string(),
+            supports_streaming: true,
+            supports_tools: true,
+            supports_json_mode: true,
+            supports_vision: true,
+            max_context_tokens: Some(200_000),
+            error_classes: all_error_classes,
+            retryable_error_classes,
+        }),
+        "ollama" => Some(ProviderCapabilities {
+            provider: "ollama".to_string(),
+            supports_streaming: true,
+            supports_tools: false,
+            supports_json_mode: true,
+            supports_vision: false,
+            max_context_tokens: Some(32_000),
+            error_classes: all_error_classes,
+            retryable_error_classes,
+        }),
+        "vllm" => Some(ProviderCapabilities {
+            provider: "vllm".to_string(),
+            supports_streaming: true,
+            supports_tools: true,
+            supports_json_mode: true,
+            supports_vision: false,
+            max_context_tokens: Some(32_000),
+            error_classes: all_error_classes,
+            retryable_error_classes,
+        }),
         _ => None,
     }
 }
@@ -444,6 +650,16 @@ fn extract_anthropic_content(payload: &serde_json::Value) -> Option<String> {
         None
     } else {
         Some(combined)
+    }
+}
+
+fn extract_ollama_content(payload: &serde_json::Value) -> Option<String> {
+    let content = payload.get("message")?.get("content")?.as_str()?;
+    let content = content.trim();
+    if content.is_empty() {
+        None
+    } else {
+        Some(content.to_string())
     }
 }
 
@@ -535,7 +751,7 @@ mod tests {
         let registry = ProviderRegistry::new();
         let error = registry
             .complete(CompletionRequest {
-                model_provider: "openai".to_string(),
+                model_provider: "openrouter".to_string(),
                 model_id: "gpt-test".to_string(),
                 input: "hello".to_string(),
                 auth_profile: None,
@@ -545,7 +761,7 @@ mod tests {
 
         assert!(error
             .to_string()
-            .contains("PROVIDER_ERROR:openai:AUTH_REQUIRED"));
+            .contains("PROVIDER_ERROR:openrouter:AUTH_REQUIRED"));
     }
 
     #[test]
@@ -554,6 +770,9 @@ mod tests {
         let all = registry.list_capabilities();
         assert!(all.iter().any(|item| item.provider == "openai"));
         assert!(all.iter().any(|item| item.provider == "anthropic"));
+        assert!(all.iter().any(|item| item.provider == "openrouter"));
+        assert!(all.iter().any(|item| item.provider == "ollama"));
+        assert!(all.iter().any(|item| item.provider == "vllm"));
 
         let openai = registry
             .capabilities("openai")
@@ -575,5 +794,118 @@ mod tests {
         let unknown = parse_provider_error_class("PROVIDER_ERROR:openai:SOMETHING_ELSE");
         assert_eq!(unknown, ProviderErrorClass::InternalError);
         assert!(!provider_error_retryable(unknown));
+    }
+
+    #[tokio::test]
+    async fn openrouter_provider_returns_output_with_auth_profile() {
+        let server = MockServer::start_async().await;
+        let mock = server
+            .mock_async(|when, then| {
+                when.method(POST).path("/v1/chat/completions");
+                then.status(200).json_body(json!({
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "openrouter says hi"
+                            }
+                        }
+                    ]
+                }));
+            })
+            .await;
+
+        let registry = ProviderRegistry::new();
+        let response = registry
+            .complete(CompletionRequest {
+                model_provider: "openrouter".to_string(),
+                model_id: "openrouter/test-model".to_string(),
+                input: "hello".to_string(),
+                auth_profile: Some(ProviderAuthProfile {
+                    auth_profile_id: Some("p3".to_string()),
+                    auth_mode: "api_key".to_string(),
+                    risk_level: "low".to_string(),
+                    api_base_url: Some(server.base_url()),
+                    credentials_json: r#"{"api_key":"test-token"}"#.to_string(),
+                }),
+            })
+            .await
+            .expect("openrouter completion");
+
+        mock.assert_async().await;
+        assert_eq!(response.output_text, "openrouter says hi");
+    }
+
+    #[tokio::test]
+    async fn ollama_provider_returns_output_with_optional_auth_profile() {
+        let server = MockServer::start_async().await;
+        let mock = server
+            .mock_async(|when, then| {
+                when.method(POST).path("/api/chat");
+                then.status(200).json_body(json!({
+                    "message": {
+                        "content": "ollama says hi"
+                    }
+                }));
+            })
+            .await;
+
+        let registry = ProviderRegistry::new();
+        let response = registry
+            .complete(CompletionRequest {
+                model_provider: "ollama".to_string(),
+                model_id: "llama3.2".to_string(),
+                input: "hello".to_string(),
+                auth_profile: Some(ProviderAuthProfile {
+                    auth_profile_id: Some("p4".to_string()),
+                    auth_mode: "api_key".to_string(),
+                    risk_level: "low".to_string(),
+                    api_base_url: Some(server.base_url()),
+                    credentials_json: r#"{"api_key":"test-token"}"#.to_string(),
+                }),
+            })
+            .await
+            .expect("ollama completion");
+
+        mock.assert_async().await;
+        assert_eq!(response.output_text, "ollama says hi");
+    }
+
+    #[tokio::test]
+    async fn vllm_provider_returns_output_with_optional_auth_profile() {
+        let server = MockServer::start_async().await;
+        let mock = server
+            .mock_async(|when, then| {
+                when.method(POST).path("/v1/chat/completions");
+                then.status(200).json_body(json!({
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "vllm says hi"
+                            }
+                        }
+                    ]
+                }));
+            })
+            .await;
+
+        let registry = ProviderRegistry::new();
+        let response = registry
+            .complete(CompletionRequest {
+                model_provider: "vllm".to_string(),
+                model_id: "vllm-model".to_string(),
+                input: "hello".to_string(),
+                auth_profile: Some(ProviderAuthProfile {
+                    auth_profile_id: Some("p5".to_string()),
+                    auth_mode: "api_key".to_string(),
+                    risk_level: "low".to_string(),
+                    api_base_url: Some(server.base_url()),
+                    credentials_json: r#"{"api_key":"test-token"}"#.to_string(),
+                }),
+            })
+            .await
+            .expect("vllm completion");
+
+        mock.assert_async().await;
+        assert_eq!(response.output_text, "vllm says hi");
     }
 }

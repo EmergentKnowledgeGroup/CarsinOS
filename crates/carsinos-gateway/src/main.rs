@@ -7440,11 +7440,14 @@ fn validate_high_risk_controls(
 }
 
 fn provider_supported(provider: &str) -> bool {
-    matches!(provider, "mock" | "openai" | "anthropic" | "unconfigured")
+    matches!(
+        provider,
+        "mock" | "openai" | "anthropic" | "openrouter" | "ollama" | "vllm" | "unconfigured"
+    )
 }
 
 fn provider_requires_auth(provider: &str) -> bool {
-    matches!(provider, "openai" | "anthropic")
+    matches!(provider, "openai" | "anthropic" | "openrouter")
 }
 
 fn provider_auth_mode_allowed(provider: &str, auth_mode: &str) -> bool {
@@ -7454,6 +7457,7 @@ fn provider_auth_mode_allowed(provider: &str, auth_mode: &str) -> bool {
             auth_mode,
             AUTH_MODE_API_KEY | AUTH_MODE_CLAUDE_CONSUMER_OAUTH | AUTH_MODE_AGENT_SDK
         ),
+        "openrouter" | "ollama" | "vllm" => matches!(auth_mode, AUTH_MODE_API_KEY),
         "mock" | "unconfigured" => true,
         _ => false,
     }
@@ -12081,6 +12085,99 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn provider_expansion_profiles_enforce_auth_mode_allowlist() {
+        let ctx = test_context();
+
+        let openrouter_ok = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(
+                    r#"{
+                        "provider":"openrouter",
+                        "display_name":"openrouter-key",
+                        "auth_mode":"api_key",
+                        "risk_level":"low",
+                        "enabled":true,
+                        "kill_switch_scope":"none",
+                        "credentials_json":{"api_key":"or-key"}
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create openrouter profile");
+        assert_eq!(openrouter_ok.status(), StatusCode::CREATED);
+
+        let openrouter_reject = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(
+                    r#"{
+                        "provider":"openrouter",
+                        "display_name":"openrouter-oauth",
+                        "auth_mode":"openai_oauth",
+                        "risk_level":"medium",
+                        "enabled":true,
+                        "kill_switch_scope":"none",
+                        "credentials_json":{"access_token":"x"}
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create invalid openrouter profile");
+        assert_eq!(openrouter_reject.status(), StatusCode::BAD_REQUEST);
+
+        let ollama_ok = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(
+                    r#"{
+                        "provider":"ollama",
+                        "display_name":"ollama-key",
+                        "auth_mode":"api_key",
+                        "risk_level":"low",
+                        "enabled":true,
+                        "kill_switch_scope":"none",
+                        "credentials_json":{"api_key":"ollama-token"}
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create ollama profile");
+        assert_eq!(ollama_ok.status(), StatusCode::CREATED);
+
+        let vllm_ok = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(
+                    r#"{
+                        "provider":"vllm",
+                        "display_name":"vllm-key",
+                        "auth_mode":"api_key",
+                        "risk_level":"low",
+                        "enabled":true,
+                        "kill_switch_scope":"none",
+                        "credentials_json":{"api_key":"vllm-token"}
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create vllm profile");
+        assert_eq!(vllm_ok.status(), StatusCode::CREATED);
+    }
+
+    #[tokio::test]
     async fn expired_requested_oauth_profile_fails_before_provider_call() {
         let ctx = test_context();
 
@@ -13153,6 +13250,9 @@ mod tests {
         let items = body["items"].as_array().expect("capabilities items array");
         assert!(items.iter().any(|item| item["provider"] == "openai"));
         assert!(items.iter().any(|item| item["provider"] == "anthropic"));
+        assert!(items.iter().any(|item| item["provider"] == "openrouter"));
+        assert!(items.iter().any(|item| item["provider"] == "ollama"));
+        assert!(items.iter().any(|item| item["provider"] == "vllm"));
     }
 
     #[tokio::test]

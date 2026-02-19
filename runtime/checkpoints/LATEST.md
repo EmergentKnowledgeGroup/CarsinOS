@@ -1,10 +1,12 @@
 # LATEST Checkpoint
 
-- step: chunk-pr10-pr-open
-- note: Opened PR #10 for MC-PROV-001 provider adapter contract v2 chunk.
-- branch: codex/chunk-pr10-provider-contract-v2
-- head: 362648e81b3f0c8b9e662ae743fbf08087ddb5e5
-- next_cmd: Merge PR #10 and checkpoint post-merge before starting chunk #11.
+- step: chunk-pr11-postgreen
+- note: MC-PROV-010 provider expansion pack implemented and validation suite is green.
+- branch: codex/chunk-pr11-provider-expansion-pack1
+- head: 9b47aedab786497408bf1a9fb4644209da8e138c
+- next_cmd: Commit/push chunk PR #11, open PR, then process merge sequence with PR #10.
 - validations:
-  - PR open: https://github.com/ProfessahX/CarsinOS/pull/10
-  - local branch pushed and tracking origin/codex/chunk-pr10-provider-contract-v2
+  - `cargo test -p carsinos-providers` passed.
+  - `cargo test -p carsinos-gateway provider_ -- --nocapture` passed.
+  - `cargo clippy -p carsinos-gateway -p carsinos-providers -p carsinos-protocol --all-targets -- -D warnings` passed.
+  - `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.

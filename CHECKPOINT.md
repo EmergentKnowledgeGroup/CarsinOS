@@ -2215,3 +2215,42 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 114
+
+- checklist refs: `MC-PROV-010` chunk wave #4
+- past action:
+- Opened and pushed PR #10 for provider contract v2; waiting on remote checks.
+- present action:
+- Started stacked chunk PR #11 branch `codex/chunk-pr11-provider-expansion-pack1` for provider expansion pack implementation.
+- future action:
+- Implement OpenRouter/Ollama/vLLM provider adapters + tests, validate, and open PR #11.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 115
+
+- checklist refs: `MC-PROV-010` chunk wave #4
+- past action:
+- Added provider expansion adapters and capability declarations for OpenRouter/Ollama/vLLM.
+- present action:
+- Completed post-green validation sweep for chunk PR #11.
+- validation outcomes:
+- `cargo test -p carsinos-providers` passed.
+- `cargo test -p carsinos-gateway provider_ -- --nocapture` passed.
+- `cargo clippy -p carsinos-gateway -p carsinos-providers -p carsinos-protocol --all-targets -- -D warnings` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push branch, open PR #11, then merge in order with PR #10.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-providers/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
