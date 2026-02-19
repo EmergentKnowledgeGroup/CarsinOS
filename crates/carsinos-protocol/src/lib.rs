@@ -638,6 +638,17 @@ pub struct UpdateRuntimeConfigResponse {
     pub config: RuntimeConfigResponse,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct RollbackRuntimeConfigRequest {
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RollbackRuntimeConfigResponse {
+    pub config: RuntimeConfigResponse,
+    pub restored_from_updated_at: i64,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ChannelConfigResponse {
     pub discord: DiscordChannelConfig,

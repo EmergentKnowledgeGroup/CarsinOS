@@ -34,7 +34,8 @@ use carsinos_protocol::{
     OpenAiOauthFinishResponse, OpenAiOauthStartRequest, OpenAiOauthStartResponse,
     PluginCapabilityResponse, PluginManifestResponse, ProviderCapabilityResponse,
     RemoveJobResponse, ResolveApprovalRequest, ResolveApprovalResponse,
-    ResolveChannelApprovalActionRequest, RunJobNowResponse, RunResponse, RuntimeChannelsConfig,
+    ResolveChannelApprovalActionRequest, RollbackRuntimeConfigRequest,
+    RollbackRuntimeConfigResponse, RunJobNowResponse, RunResponse, RuntimeChannelsConfig,
     RuntimeConfigResponse, RuntimeDiscordDeploymentConfig, RuntimeGlobalConfig,
     RuntimeProviderPolicyConfig, RuntimeSecurityOpsConfig, RuntimeTelegramDeploymentConfig,
     SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult, SessionDetailResponse,
@@ -704,6 +705,7 @@ const KILL_SWITCH_SCOPE_GLOBAL: &str = "global";
 const APP_KV_CHANNELS_DISCORD: &str = "config.channels.discord";
 const APP_KV_CHANNELS_TELEGRAM: &str = "config.channels.telegram";
 const APP_KV_RUNTIME_CONFIG: &str = "config.runtime.v1";
+const APP_KV_RUNTIME_CONFIG_LAST_GOOD: &str = "config.runtime.last_good.v1";
 const APP_KV_SKILLS_STATE: &str = "config.skills.state";
 const RUNTIME_CONFIG_SCHEMA_VERSION: &str = "runtime.config.v1";
 const PLUGIN_REGISTRY_CONTRACT_VERSION: &str = "plugin.registry.v1";
@@ -2352,6 +2354,10 @@ fn build_app(state: AppState) -> Router {
             get(get_runtime_config).post(update_runtime_config),
         )
         .route(
+            "/api/v1/config/runtime/rollback",
+            post(rollback_runtime_config),
+        )
+        .route(
             "/api/v1/channels/telegram/inbound",
             post(ingest_telegram_channel_message),
         )
@@ -3954,8 +3960,18 @@ async fn update_runtime_config(
         "config.runtime",
     )?;
 
+    let update_global = request.global.is_some();
+    let update_providers = request.providers.is_some();
+    let update_channels = request.channels.is_some();
+    let update_security = request.security.is_some();
+
     let existing = load_runtime_config(&state)
         .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
+    let existing_json = serde_json::to_string(&existing).map_err(|err| {
+        internal_err_with_error("serializing existing runtime config failed", err.into())
+    })?;
+    let existing_hash = sha256_hex(&existing_json);
+
     let mut config = existing;
     if let Some(global) = request.global {
         config.global = global;
@@ -3976,13 +3992,150 @@ async fn update_runtime_config(
 
     let config_json = serde_json::to_string(&config)
         .map_err(|err| internal_err_with_error("serializing runtime config failed", err.into()))?;
+    let config_hash = sha256_hex(&config_json);
+    let previous_snapshot_updated_at = state
+        .storage
+        .set_app_kv_json(APP_KV_RUNTIME_CONFIG_LAST_GOOD, existing_json)
+        .map_err(|err| {
+            internal_err_with_error("saving runtime config rollback snapshot failed", err)
+        })?;
     let updated_at = state
         .storage
         .set_app_kv_json(APP_KV_RUNTIME_CONFIG, config_json)
         .map_err(|err| internal_err_with_error("saving runtime config failed", err))?;
     config.updated_at = updated_at;
 
+    let mut changed_scopes = Vec::new();
+    if update_global {
+        changed_scopes.push("global");
+    }
+    if update_providers {
+        changed_scopes.push("providers");
+    }
+    if update_channels {
+        changed_scopes.push("channels");
+    }
+    if update_security {
+        changed_scopes.push("security");
+    }
+    record_security_audit(
+        &headers,
+        &state,
+        &auth,
+        "runtime.config.update",
+        "config.runtime",
+        "allow",
+        None,
+        StatusCode::OK,
+        None,
+        None,
+        None,
+        Some(serde_json::json!({
+            "schema_version": RUNTIME_CONFIG_SCHEMA_VERSION,
+            "updated_at": updated_at,
+            "rollback_snapshot_updated_at": previous_snapshot_updated_at,
+            "changed_scopes": changed_scopes,
+            "previous_hash": existing_hash,
+            "new_hash": config_hash
+        })),
+    );
+
     Ok(Json(UpdateRuntimeConfigResponse { config }))
+}
+
+async fn rollback_runtime_config(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<RollbackRuntimeConfigRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN],
+        "runtime.config.rollback",
+        "config.runtime",
+    )?;
+
+    let current = load_runtime_config(&state)
+        .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
+    let current_json = serde_json::to_string(&current).map_err(|err| {
+        internal_err_with_error("serializing current runtime config failed", err.into())
+    })?;
+    let current_hash = sha256_hex(&current_json);
+
+    let (rollback_json, rollback_source_updated_at) = state
+        .storage
+        .get_app_kv_json(APP_KV_RUNTIME_CONFIG_LAST_GOOD)
+        .map_err(|err| internal_err_with_error("loading runtime rollback snapshot failed", err))?
+        .ok_or_else(|| {
+            api_error(
+                StatusCode::BAD_REQUEST,
+                "runtime rollback snapshot is missing; update config at least once before rollback",
+            )
+        })?;
+
+    let mut rollback_config: RuntimeConfigResponse =
+        serde_json::from_str(&rollback_json).map_err(|err| {
+            internal_err_with_error("deserializing runtime rollback snapshot failed", err.into())
+        })?;
+    rollback_config = normalize_runtime_config(rollback_config);
+    rollback_config.schema_version = RUNTIME_CONFIG_SCHEMA_VERSION.to_string();
+    validate_runtime_config(&rollback_config)
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+    let rollback_hash = sha256_hex(&rollback_json);
+    let persisted_rollback_json = serde_json::to_string(&rollback_config).map_err(|err| {
+        internal_err_with_error("serializing rollback runtime config failed", err.into())
+    })?;
+
+    let rollback_snapshot_updated_at = state
+        .storage
+        .set_app_kv_json(APP_KV_RUNTIME_CONFIG_LAST_GOOD, current_json)
+        .map_err(|err| {
+            internal_err_with_error(
+                "saving current runtime config as rollback snapshot failed",
+                err,
+            )
+        })?;
+    let updated_at = state
+        .storage
+        .set_app_kv_json(APP_KV_RUNTIME_CONFIG, persisted_rollback_json)
+        .map_err(|err| internal_err_with_error("writing runtime rollback config failed", err))?;
+    rollback_config.updated_at = updated_at;
+
+    let reason = request
+        .reason
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let audit_reason = reason.clone();
+    record_security_audit(
+        &headers,
+        &state,
+        &auth,
+        "runtime.config.rollback",
+        "config.runtime",
+        "allow",
+        audit_reason,
+        StatusCode::OK,
+        None,
+        None,
+        None,
+        Some(serde_json::json!({
+            "schema_version": RUNTIME_CONFIG_SCHEMA_VERSION,
+            "restored_from_updated_at": rollback_source_updated_at,
+            "updated_at": updated_at,
+            "rollback_snapshot_updated_at": rollback_snapshot_updated_at,
+            "restored_hash": rollback_hash,
+            "replaced_hash": current_hash,
+            "reason": reason
+        })),
+    );
+
+    Ok(Json(RollbackRuntimeConfigResponse {
+        config: rollback_config,
+        restored_from_updated_at: rollback_source_updated_at,
+    }))
 }
 
 fn get_or_create_channel_session(
@@ -8114,6 +8267,11 @@ fn validate_runtime_config(config: &RuntimeConfigResponse) -> AnyResult<()> {
     }
 
     Ok(())
+}
+
+fn sha256_hex(value: &str) -> String {
+    let digest = Sha256::digest(value.as_bytes());
+    format!("{digest:x}")
 }
 
 fn load_channel_config(state: &AppState) -> AnyResult<carsinos_protocol::ChannelConfigResponse> {
@@ -14831,6 +14989,56 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             365
         );
 
+        let second_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    r#"{
+                        "global": {
+                            "jwt_issuer_allowlist": ["https://issuer.example"],
+                            "jwt_audience_allowlist": ["carsinos-gateway"],
+                            "trusted_proxy_allowlist": ["10.0.0.2"],
+                            "tls_termination_mode": "gateway",
+                            "public_base_url": "https://carsinos.example"
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("second runtime config update");
+        assert_eq!(second_update.status(), StatusCode::OK);
+        let second_update_json = parse_json(second_update).await;
+        assert_eq!(
+            second_update_json["config"]["global"]["tls_termination_mode"],
+            "gateway"
+        );
+
+        let rollback = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime/rollback",
+                Body::from(r#"{"reason":"test rollback"}"#),
+            ))
+            .await
+            .expect("rollback runtime config");
+        assert_eq!(rollback.status(), StatusCode::OK);
+        let rollback_json = parse_json(rollback).await;
+        assert_eq!(
+            rollback_json["config"]["global"]["tls_termination_mode"],
+            "edge"
+        );
+        assert!(
+            rollback_json["restored_from_updated_at"]
+                .as_i64()
+                .expect("restored_from_updated_at")
+                > 0
+        );
+
         let invalid = ctx
             .app
             .clone()
@@ -14860,6 +15068,22 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .await
             .expect("invalid runtime config update");
         assert_eq!(invalid.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn runtime_config_rollback_requires_existing_snapshot() {
+        let ctx = test_context();
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime/rollback",
+                Body::from(r#"{"reason":"no snapshot yet"}"#),
+            ))
+            .await
+            .expect("runtime rollback request");
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]

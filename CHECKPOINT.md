@@ -3593,3 +3593,25 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 188
+
+- checklist refs: `P1`, `P4`
+- past action:
+- Implemented runtime config contract/API and validated with full regression.
+- present action:
+- Added runtime config rollback endpoint + config mutation audit metadata/hashes and validated strict regressions.
+- validation outcomes:
+- `cargo test -p carsinos-gateway runtime_config_ -- --nocapture` passed.
+- `cargo test --workspace --locked` passed end-to-end (82 gateway tests + benchmark + process e2e).
+- future action:
+- Commit and push MC-CONF-004 block to PR #30.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-protocol/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`

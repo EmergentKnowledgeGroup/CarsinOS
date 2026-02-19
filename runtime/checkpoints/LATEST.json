@@ -1,12 +1,12 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T23:47:45.016987+00:00",
+  "captured_at": "2026-02-19T23:51:15.626783+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
   "branch": "codex/chunk-pr30-config-wizard-hardcode-audit",
-  "head_short": "3bbea57",
-  "step": "mc-conf-001-post-green",
-  "note": "Implemented runtime.config.v1 typed contract and /api/v1/config/runtime endpoints with validation; full workspace regression green.",
-  "next_cmd": "Commit MC-CONF-001 implementation + Phase O artifacts and push to PR #30.",
+  "head_short": "434b9ee",
+  "step": "mc-conf-004-post-green",
+  "note": "Implemented runtime config rollback + config mutation audit metadata; full workspace tests green.",
+  "next_cmd": "Commit MC-CONF-004 changes + checklist/checkpoint updates and push to PR #30.",
   "status": {
     "staged": [],
     "modified": [
@@ -27,11 +27,11 @@
     "staged": []
   },
   "recent_commits": [
+    "434b9ee feat(config): add runtime config contract and management endpoints",
     "3bbea57 docs(security): add phase O threat/runbook artifacts and gate0 evidence workflow",
     "8f8c6cb docs: checkpoint PR #30 open state",
     "9beb0ce docs: add setup wizard config track and hardcoded-value audit gates",
-    "c10d54b docs: checkpoint explicit post-merge state (#29)",
-    "3aafbb7 docs: record post-merge PR cleanup checkpoints (#28)"
+    "c10d54b docs: checkpoint explicit post-merge state (#29)"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
