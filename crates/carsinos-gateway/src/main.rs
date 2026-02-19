@@ -35,8 +35,8 @@ use carsinos_providers::{CompletionRequest, ProviderAuthProfile, ProviderRegistr
 use carsinos_storage::{
     AppPaths, ApprovalRecord, ApprovalResolveResult, AuthProfileRecord, JobRecord, JobRunRecord,
     JobUpdatePatch, MessageRecord, NewApproval, NewAuthProfile, NewJob, NewMessage, NewNote,
-    NewRun, NewSecurityAuditEvent, NewSession, NoteRecord, RunRecord, SecurityAuditEventRecord,
-    SessionRecord, Storage,
+    NewRun, NewSecurityAuditEvent, NewSession, NoteRecord, RunRecord, SecurityAuditEventListFilter,
+    SecurityAuditEventRecord, SessionRecord, Storage,
 };
 use carsinos_tools::{
     ExecRequest, FsReadRequest, FsWriteMode, FsWriteRequest, LocalToolRunner, ProcessRequest,
@@ -68,6 +68,7 @@ struct AppState {
     auth_mode: AuthMode,
     auth_token: Arc<String>,
     jwt_auth: Option<Arc<JwtAuthConfig>>,
+    jwt_replay_jti: Arc<StdRwLock<HashMap<String, i64>>>,
     rate_limiter: Arc<RequestRateLimiter>,
     trusted_proxy_headers: bool,
     trusted_proxy_allowlist: Arc<HashSet<String>>,
@@ -115,6 +116,7 @@ struct JwtAuthConfig {
     secret: String,
     max_token_age_seconds: i64,
     clock_skew_seconds: i64,
+    replay_protection_enabled: bool,
     revoked_jti: HashSet<String>,
 }
 
@@ -781,6 +783,7 @@ async fn main() -> AnyResult<()> {
         auth_mode,
         auth_token: Arc::new(config.token.clone()),
         jwt_auth: jwt_auth.map(Arc::new),
+        jwt_replay_jti: Arc::new(StdRwLock::new(HashMap::new())),
         rate_limiter,
         trusted_proxy_headers,
         trusted_proxy_allowlist: Arc::new(trusted_proxy_allowlist),
@@ -1208,6 +1211,20 @@ fn authenticate_jwt(
             retry_after_seconds: None,
         });
     }
+    if jwt.replay_protection_enabled {
+        enforce_jwt_replay_protection(
+            &state.jwt_replay_jti,
+            claims.jti.trim(),
+            claims.exp.saturating_add(skew),
+            now,
+        )
+        .inspect_err(|_| {
+            state
+                .metrics
+                .auth_failures_total
+                .fetch_add(1, Ordering::Relaxed);
+        })?;
+    }
 
     let roles = normalize_roles(&claims.roles).inspect_err(|_| {
         state
@@ -1228,6 +1245,31 @@ fn authenticate_jwt(
             .filter(|value| !value.is_empty()),
         client_ip,
     })
+}
+
+fn enforce_jwt_replay_protection(
+    seen_jti: &StdRwLock<HashMap<String, i64>>,
+    token_id: &str,
+    expires_at: i64,
+    now: i64,
+) -> std::result::Result<(), AuthError> {
+    let mut guard = seen_jti.write().map_err(|_| AuthError {
+        status: StatusCode::INTERNAL_SERVER_ERROR,
+        code: "INTERNAL_ERROR",
+        message: "jwt replay lock poisoned".to_string(),
+        retry_after_seconds: None,
+    })?;
+    guard.retain(|_, expiry| *expiry > now);
+    if guard.get(token_id).is_some_and(|expiry| *expiry > now) {
+        return Err(AuthError {
+            status: StatusCode::FORBIDDEN,
+            code: "AUTH_FORBIDDEN",
+            message: "jwt token id replay detected".to_string(),
+            retry_after_seconds: None,
+        });
+    }
+    guard.insert(token_id.to_string(), expires_at.max(now.saturating_add(1)));
+    Ok(())
 }
 
 fn audience_matches(aud_claim: &serde_json::Value, expected: &str) -> bool {
@@ -3917,18 +3959,18 @@ async fn list_security_audit(
             ));
         }
     }
+    let filter = SecurityAuditEventListFilter {
+        action: action.map(str::to_string),
+        principal: principal.map(str::to_string),
+        decision: decision.map(str::to_string),
+        status: status.map(str::to_string),
+        error_code: error_code.map(str::to_string),
+        created_after,
+        created_before,
+    };
     let items = state
         .storage
-        .list_security_audit_events(
-            limit,
-            action,
-            principal,
-            decision,
-            status,
-            error_code,
-            created_after,
-            created_before,
-        )
+        .list_security_audit_events(limit, &filter)
         .map_err(|err| internal_err_with_error("listing security audit events failed", err))?
         .into_iter()
         .map(to_security_audit_event_response)
@@ -7157,6 +7199,7 @@ fn load_jwt_auth_from_env(auth_mode: AuthMode) -> AnyResult<Option<JwtAuthConfig
     let max_token_age_seconds =
         i64_env("CARSINOS_AUTH_JWT_MAX_TOKEN_AGE_SECONDS", 86_400).clamp(60, 7 * 24 * 3600);
     let clock_skew_seconds = i64_env("CARSINOS_AUTH_JWT_CLOCK_SKEW_SECONDS", 60).clamp(0, 300);
+    let replay_protection_enabled = bool_env("CARSINOS_AUTH_JWT_REPLAY_PROTECTION_ENABLED", true);
     let revoked_jti =
         parse_csv_set(&std::env::var("CARSINOS_AUTH_JWT_REVOKED_JTIS").unwrap_or_default());
 
@@ -7166,6 +7209,7 @@ fn load_jwt_auth_from_env(auth_mode: AuthMode) -> AnyResult<Option<JwtAuthConfig
         secret,
         max_token_age_seconds,
         clock_skew_seconds,
+        replay_protection_enabled,
         revoked_jti,
     }))
 }
@@ -7404,6 +7448,14 @@ mod tests {
     }
 
     fn test_context_with_jwt(secret: &str, revoked_jti: HashSet<String>) -> TestContext {
+        test_context_with_jwt_replay(secret, revoked_jti, false)
+    }
+
+    fn test_context_with_jwt_replay(
+        secret: &str,
+        revoked_jti: HashSet<String>,
+        replay_protection_enabled: bool,
+    ) -> TestContext {
         build_test_context(
             vec![],
             None,
@@ -7414,6 +7466,7 @@ mod tests {
                 secret: secret.to_string(),
                 max_token_age_seconds: 86_400,
                 clock_skew_seconds: 60,
+                replay_protection_enabled,
                 revoked_jti,
             }),
             "unused-static-token".to_string(),
@@ -7469,6 +7522,7 @@ mod tests {
             auth_mode,
             auth_token: Arc::new(auth_token),
             jwt_auth: jwt_auth.map(Arc::new),
+            jwt_replay_jti: Arc::new(StdRwLock::new(HashMap::new())),
             rate_limiter: Arc::new(rate_limiter),
             trusted_proxy_headers,
             trusted_proxy_allowlist: Arc::new(trusted_proxy_allowlist),
@@ -8561,6 +8615,51 @@ mod tests {
         assert!(deny_items
             .iter()
             .all(|item| item["error_code"] == "AUTH_ROLE_MISMATCH"));
+    }
+
+    #[tokio::test]
+    async fn jwt_replay_protection_rejects_reused_jti() {
+        let secret = "00112233445566778899aabbccddeeff";
+        let ctx = test_context_with_jwt_replay(secret, HashSet::new(), true);
+        let replay_token = mint_test_jwt(
+            secret,
+            "carsinos-test-issuer",
+            "carsinos-test-audience",
+            "replay-principal",
+            "replay-jti-1",
+            &[ROLE_OPERATOR_READONLY],
+            300,
+            0,
+        );
+
+        let first_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request_with_token(
+                "GET",
+                "/api/v1/auth/profiles",
+                Body::empty(),
+                &replay_token,
+            ))
+            .await
+            .expect("first replay-protection request");
+        assert_eq!(first_response.status(), StatusCode::OK);
+
+        let second_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request_with_token(
+                "GET",
+                "/api/v1/auth/profiles",
+                Body::empty(),
+                &replay_token,
+            ))
+            .await
+            .expect("second replay-protection request");
+        assert_eq!(second_response.status(), StatusCode::FORBIDDEN);
+        let second_json = parse_json(second_response).await;
+        assert_eq!(second_json["error_code"], "AUTH_FORBIDDEN");
+        assert_eq!(second_json["error"], "jwt token id replay detected");
     }
 
     #[tokio::test]

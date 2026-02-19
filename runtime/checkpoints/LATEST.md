@@ -1,10 +1,10 @@
 # LATEST Checkpoint
 
-- step: chunk-pr5-pr-open
-- note: PR #5 opened for security audit retention archive operations.
-- branch: codex/chunk-pr5-audit-retention-ops
-- head: 66b2068a3ea40fed68f263f536d850f396f0d37a
-- next_cmd: Start chunk PR #6 implementation from main while monitoring PR #4/#5 review status.
+- step: chunk-pr4-post-merge
+- note: PR #4 merged to main after reconcile; JWT replay protection is now in base.
+- branch: main
+- head: 79228460f15dedc708d63928f9977728444e09f2
+- next_cmd: Reconcile PR #5 against latest main, validate, merge, and checkpoint post-merge.
 - validations:
-  - PR opened: https://github.com/ProfessahX/CarsinOS/pull/5
-  - retention storage and gateway tests passed.
+  - PR merged: https://github.com/ProfessahX/CarsinOS/pull/4
+  - Fast-forward pull to updated main completed.
