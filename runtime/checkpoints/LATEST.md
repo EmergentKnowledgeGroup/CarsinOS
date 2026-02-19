@@ -1,10 +1,10 @@
 # LATEST Checkpoint
 
-- step: chunk-pr8-post-merge
-- note: PR #8 merged to main; channel runtime policy defaults are now baseline.
-- branch: main
-- head: 8ccdc359ff4c29af00a4ac0aa2e061f0f9f3f0af
-- next_cmd: Start chunk PR #9 from main.
+- step: chunk-pr9-pr-open
+- note: PR #9 is open for channel approval-action resolution endpoint.
+- branch: codex/chunk-pr9-channel-approval-actions
+- head: 95228c9a223722ce4761ee0f55c44145f8f986cc
+- next_cmd: Monitor and merge PR #9, then sync main and continue with next chunk set.
 - validations:
-  - PR merged: https://github.com/ProfessahX/CarsinOS/pull/8
-  - main fast-forward completed.
+  - PR opened: https://github.com/ProfessahX/CarsinOS/pull/9
+  - Full local validation/security gate completed.
