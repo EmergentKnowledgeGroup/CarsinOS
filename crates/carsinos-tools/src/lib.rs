@@ -98,6 +98,7 @@ pub enum ToolName {
     FsWrite,
     WebSearch,
     WebFetch,
+    ChannelAction,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -109,6 +110,7 @@ pub enum ToolRequest {
     FsWrite(FsWriteRequest),
     WebSearch(WebSearchRequest),
     WebFetch(WebFetchRequest),
+    ChannelAction(ChannelActionRequest),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -155,6 +157,17 @@ pub struct WebSearchRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebFetchRequest {
     pub url: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChannelActionRequest {
+    pub provider: String,
+    pub action: String,
+    pub target: String,
+    #[serde(default)]
+    pub text: Option<String>,
+    #[serde(default)]
+    pub reaction: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -225,6 +238,7 @@ impl ToolRunner for LocalToolRunner {
             ToolRequest::Process(args) => self.process(args),
             ToolRequest::WebSearch(args) => self.web_search(args),
             ToolRequest::WebFetch(args) => self.web_fetch(args),
+            ToolRequest::ChannelAction(args) => self.channel_action(args),
         }
     }
 }
@@ -618,6 +632,12 @@ impl LocalToolRunner {
                 }
             }
         }
+    }
+
+    fn channel_action(&self, _args: ChannelActionRequest) -> Result<ToolResult, ToolError> {
+        Err(ToolError::NotImplemented(
+            "channel_action must be handled by gateway channel adapters".to_string(),
+        ))
     }
 }
 

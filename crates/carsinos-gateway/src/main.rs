@@ -53,8 +53,9 @@ use carsinos_storage::{
     SecurityAuditEventRecord, SessionRecord, Storage,
 };
 use carsinos_tools::{
-    ExecRequest, FsReadRequest, FsWriteMode, FsWriteRequest, LocalToolRunner, ProcessRequest,
-    ToolError, ToolRequest, ToolResult, ToolRunner, WebFetchRequest, WebSearchRequest,
+    ChannelActionRequest, ExecRequest, FsReadRequest, FsWriteMode, FsWriteRequest, LocalToolRunner,
+    ProcessRequest, ToolError, ToolRequest, ToolResult, ToolRunner, WebFetchRequest,
+    WebSearchRequest,
 };
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
@@ -90,6 +91,7 @@ struct AppState {
     providers: ProviderRegistry,
     tool_registry: Arc<ToolRegistry>,
     tool_concurrency: Arc<Semaphore>,
+    channel_tool_allowed_providers: Arc<HashSet<String>>,
     tool_runner: LocalToolRunner,
     secret_store: SecretStore,
     oauth_sessions: Arc<RwLock<HashMap<String, PendingOpenAiOauthSession>>>,
@@ -324,6 +326,46 @@ impl ToolRegistry {
                 parser: parse_tool_process_args,
             },
         );
+        definitions.insert(
+            "channel_send",
+            ToolDefinition {
+                tool_name: "channel.send",
+                base_risk_level: "high",
+                timeout_ms: None,
+                approval_policy: ToolApprovalPolicy::Always,
+                parser: parse_tool_channel_send_args,
+            },
+        );
+        definitions.insert(
+            "channel_reply",
+            ToolDefinition {
+                tool_name: "channel.reply",
+                base_risk_level: "high",
+                timeout_ms: None,
+                approval_policy: ToolApprovalPolicy::Always,
+                parser: parse_tool_channel_reply_args,
+            },
+        );
+        definitions.insert(
+            "channel_pin",
+            ToolDefinition {
+                tool_name: "channel.pin",
+                base_risk_level: "high",
+                timeout_ms: None,
+                approval_policy: ToolApprovalPolicy::Always,
+                parser: parse_tool_channel_pin_args,
+            },
+        );
+        definitions.insert(
+            "channel_reaction",
+            ToolDefinition {
+                tool_name: "channel.reaction",
+                base_risk_level: "high",
+                timeout_ms: None,
+                approval_policy: ToolApprovalPolicy::Always,
+                parser: parse_tool_channel_reaction_args,
+            },
+        );
         Self { definitions }
     }
 
@@ -408,6 +450,87 @@ fn parse_tool_process_args(raw_args: &str, _timeout_ms: Option<u64>) -> Option<T
     Some(ToolRequest::Process(ProcessRequest {
         action: action.to_string(),
         session_id,
+    }))
+}
+
+fn parse_channel_provider_target(raw_args: &str) -> Option<(String, String, Option<String>)> {
+    let trimmed = raw_args.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let (target_spec, payload) = match trimmed.split_once('|') {
+        Some((target_spec, payload)) => {
+            let payload = payload.trim().to_string();
+            (
+                target_spec.trim(),
+                if payload.is_empty() {
+                    None
+                } else {
+                    Some(payload)
+                },
+            )
+        }
+        None => (trimmed, None),
+    };
+    let (provider, target) = target_spec.split_once(':')?;
+    let provider = provider.trim().to_ascii_lowercase();
+    let target = target.trim().to_string();
+    if provider.is_empty() || target.is_empty() {
+        return None;
+    }
+    Some((provider, target, payload))
+}
+
+fn parse_tool_channel_send_args(raw_args: &str, _timeout_ms: Option<u64>) -> Option<ToolRequest> {
+    let (provider, target, payload) = parse_channel_provider_target(raw_args)?;
+    let text = payload?;
+    Some(ToolRequest::ChannelAction(ChannelActionRequest {
+        provider,
+        action: "send".to_string(),
+        target,
+        text: Some(text),
+        reaction: None,
+    }))
+}
+
+fn parse_tool_channel_reply_args(raw_args: &str, _timeout_ms: Option<u64>) -> Option<ToolRequest> {
+    let (provider, target, payload) = parse_channel_provider_target(raw_args)?;
+    let text = payload?;
+    Some(ToolRequest::ChannelAction(ChannelActionRequest {
+        provider,
+        action: "reply".to_string(),
+        target,
+        text: Some(text),
+        reaction: None,
+    }))
+}
+
+fn parse_tool_channel_pin_args(raw_args: &str, _timeout_ms: Option<u64>) -> Option<ToolRequest> {
+    let (provider, target, payload) = parse_channel_provider_target(raw_args)?;
+    if payload.is_some() {
+        return None;
+    }
+    Some(ToolRequest::ChannelAction(ChannelActionRequest {
+        provider,
+        action: "pin".to_string(),
+        target,
+        text: None,
+        reaction: None,
+    }))
+}
+
+fn parse_tool_channel_reaction_args(
+    raw_args: &str,
+    _timeout_ms: Option<u64>,
+) -> Option<ToolRequest> {
+    let (provider, target, payload) = parse_channel_provider_target(raw_args)?;
+    let reaction = payload?;
+    Some(ToolRequest::ChannelAction(ChannelActionRequest {
+        provider,
+        action: "reaction".to_string(),
+        target,
+        text: None,
+        reaction: Some(reaction),
     }))
 }
 
@@ -1112,6 +1235,7 @@ async fn main() -> AnyResult<()> {
     let tool_registry = Arc::new(ToolRegistry::from_env());
     let tool_concurrency_limit = usize_env("CARSINOS_TOOL_MAX_CONCURRENCY", 32).clamp(1, 512);
     let tool_concurrency = Arc::new(Semaphore::new(tool_concurrency_limit));
+    let channel_tool_allowed_providers = Arc::new(load_channel_tool_allowed_providers_from_env());
     let tool_runner = LocalToolRunner::default();
     let secret_store = SecretStore::from_env();
     let oauth_sessions = Arc::new(RwLock::new(HashMap::new()));
@@ -1137,6 +1261,7 @@ async fn main() -> AnyResult<()> {
         skill_count,
         tool_registry_entries = tool_registry.len(),
         tool_concurrency_limit,
+        channel_tool_allowed_providers = ?channel_tool_allowed_providers,
         skill_dirs = ?skill_dirs,
         extension_plugin_allowlist_enabled = extension_policy.plugin_allowlist_enabled,
         "extension registries initialized"
@@ -1154,6 +1279,7 @@ async fn main() -> AnyResult<()> {
         providers,
         tool_registry: tool_registry.clone(),
         tool_concurrency: tool_concurrency.clone(),
+        channel_tool_allowed_providers: channel_tool_allowed_providers.clone(),
         tool_runner,
         secret_store: secret_store.clone(),
         oauth_sessions,
@@ -5192,6 +5318,11 @@ async fn execute_run(
         .unwrap_or_default();
 
     let tool_requests = parse_tool_requests_from_input(&input, state.tool_registry.as_ref())?;
+    enum ToolExecutionAttempt {
+        Success(ToolResult),
+        ToolError(ToolError),
+        JoinError(String),
+    }
     let mut tool_output_blocks = Vec::new();
     for invocation in tool_requests {
         let tool_metadata = invocation.metadata;
@@ -5398,22 +5529,35 @@ async fn execute_run(
             }
         }
 
-        let permit = state
-            .tool_concurrency
-            .clone()
-            .acquire_owned()
+        let execution_attempt = if let ToolRequest::ChannelAction(channel_request) = &request {
+            match execute_channel_action_tool(state, run, channel_request).await {
+                Ok(result) => ToolExecutionAttempt::Success(result),
+                Err(tool_err) => ToolExecutionAttempt::ToolError(tool_err),
+            }
+        } else {
+            let permit = state
+                .tool_concurrency
+                .clone()
+                .acquire_owned()
+                .await
+                .map_err(|_| anyhow::anyhow!("tool concurrency semaphore closed"))?;
+            let runner = state.tool_runner.clone();
+            let request_for_runner = request.clone();
+            match tokio::task::spawn_blocking(move || {
+                let _permit_guard = permit;
+                runner.run(request_for_runner)
+            })
             .await
-            .map_err(|_| anyhow::anyhow!("tool concurrency semaphore closed"))?;
-        let runner = state.tool_runner.clone();
-        let request_for_runner = request.clone();
-        let tool_result = match tokio::task::spawn_blocking(move || {
-            let _permit_guard = permit;
-            runner.run(request_for_runner)
-        })
-        .await
-        {
-            Ok(Ok(result)) => result,
-            Ok(Err(tool_err)) => {
+            {
+                Ok(Ok(result)) => ToolExecutionAttempt::Success(result),
+                Ok(Err(tool_err)) => ToolExecutionAttempt::ToolError(tool_err),
+                Err(join_err) => ToolExecutionAttempt::JoinError(join_err.to_string()),
+            }
+        };
+
+        let tool_result = match execution_attempt {
+            ToolExecutionAttempt::Success(result) => result,
+            ToolExecutionAttempt::ToolError(tool_err) => {
                 let (error_code, retryable) = tool_error_code_and_retryable(&tool_err);
                 let error_text = format!("tool execution failed: {tool_err}");
                 let duration_ms = tool_started.elapsed().as_millis() as u64;
@@ -5457,8 +5601,8 @@ async fn execute_run(
                 .await;
                 anyhow::bail!("{error_text}");
             }
-            Err(join_err) => {
-                let error_text = format!("tool runner join error: {join_err}");
+            ToolExecutionAttempt::JoinError(join_error) => {
+                let error_text = format!("tool runner join error: {join_error}");
                 let duration_ms = tool_started.elapsed().as_millis() as u64;
                 let envelope = tool_error_envelope(
                     &tool_metadata,
@@ -7366,6 +7510,204 @@ fn tool_error_code_and_retryable(err: &ToolError) -> (&'static str, bool) {
     }
 }
 
+async fn execute_channel_action_tool(
+    state: &AppState,
+    run: &RunRecord,
+    request: &ChannelActionRequest,
+) -> Result<ToolResult, ToolError> {
+    let provider = request.provider.trim().to_ascii_lowercase();
+    let action = request.action.trim().to_ascii_lowercase();
+    let target = request.target.trim().to_string();
+    let resource = format!("channel:{provider}:{action}:{target}");
+    if provider.is_empty() || action.is_empty() || target.is_empty() {
+        let reason = "channel action request requires provider, action, and target".to_string();
+        record_security_audit_internal(
+            state,
+            "channel.tool_action.execute",
+            &resource,
+            "deny",
+            Some(reason.clone()),
+            StatusCode::BAD_REQUEST,
+            Some("INVALID_INPUT"),
+            Some(&run.session_id),
+            Some(&run.run_id),
+            None,
+        );
+        return Err(ToolError::InvalidRequest(reason));
+    }
+    if !state.channel_tool_allowed_providers.contains(&provider) {
+        let reason = format!("channel provider '{}' is not allowlisted", provider);
+        record_security_audit_internal(
+            state,
+            "channel.tool_action.execute",
+            &resource,
+            "deny",
+            Some(reason.clone()),
+            StatusCode::FORBIDDEN,
+            Some("POLICY_DENY"),
+            Some(&run.session_id),
+            Some(&run.run_id),
+            Some(serde_json::json!({
+                "provider": provider,
+                "action": action,
+                "target": target
+            })),
+        );
+        return Err(ToolError::PolicyDenied(reason));
+    }
+    if !matches!(provider.as_str(), "telegram" | "discord") {
+        let reason = format!("unsupported channel provider '{}'", provider);
+        record_security_audit_internal(
+            state,
+            "channel.tool_action.execute",
+            &resource,
+            "deny",
+            Some(reason.clone()),
+            StatusCode::FORBIDDEN,
+            Some("POLICY_DENY"),
+            Some(&run.session_id),
+            Some(&run.run_id),
+            Some(serde_json::json!({
+                "provider": provider,
+                "action": action,
+                "target": target
+            })),
+        );
+        return Err(ToolError::PolicyDenied(reason));
+    }
+    let action_supported = match provider.as_str() {
+        "telegram" => matches!(action.as_str(), "send" | "reply" | "pin"),
+        "discord" => matches!(action.as_str(), "send" | "reply" | "pin" | "reaction"),
+        _ => false,
+    };
+    if !action_supported {
+        let reason = format!(
+            "unsupported channel action '{}' for provider '{}'",
+            action, provider
+        );
+        record_security_audit_internal(
+            state,
+            "channel.tool_action.execute",
+            &resource,
+            "deny",
+            Some(reason.clone()),
+            StatusCode::FORBIDDEN,
+            Some("POLICY_DENY"),
+            Some(&run.session_id),
+            Some(&run.run_id),
+            Some(serde_json::json!({
+                "provider": provider,
+                "action": action,
+                "target": target
+            })),
+        );
+        return Err(ToolError::PolicyDenied(reason));
+    }
+    let text = request
+        .text
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let reaction = request
+        .reaction
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    if matches!(action.as_str(), "send" | "reply") && text.is_none() {
+        let reason = format!(
+            "channel action '{}' requires non-empty text payload",
+            action
+        );
+        record_security_audit_internal(
+            state,
+            "channel.tool_action.execute",
+            &resource,
+            "deny",
+            Some(reason.clone()),
+            StatusCode::BAD_REQUEST,
+            Some("INVALID_INPUT"),
+            Some(&run.session_id),
+            Some(&run.run_id),
+            None,
+        );
+        return Err(ToolError::InvalidRequest(reason));
+    }
+    if action == "reaction" && reaction.is_none() {
+        let reason = "channel action 'reaction' requires reaction payload".to_string();
+        record_security_audit_internal(
+            state,
+            "channel.tool_action.execute",
+            &resource,
+            "deny",
+            Some(reason.clone()),
+            StatusCode::BAD_REQUEST,
+            Some("INVALID_INPUT"),
+            Some(&run.session_id),
+            Some(&run.run_id),
+            None,
+        );
+        return Err(ToolError::InvalidRequest(reason));
+    }
+
+    let text_chunks = text.as_ref().map(|value| match provider.as_str() {
+        "telegram" => telegram_channel::split_outbound_chunks(
+            value,
+            telegram_channel::TELEGRAM_DEFAULT_CHUNK_LIMIT,
+        ),
+        _ => discord_channel::split_outbound_chunks(
+            value,
+            discord_channel::DISCORD_DEFAULT_CHUNK_LIMIT,
+        ),
+    });
+    let chunk_count = text_chunks.as_ref().map(|value| value.len()).unwrap_or(0);
+
+    emit_event(
+        state,
+        "channel.tool_action.dispatched",
+        serde_json::json!({
+            "run_id": &run.run_id,
+            "session_id": &run.session_id,
+            "provider": provider,
+            "action": action,
+            "target": target,
+            "chunk_count": chunk_count
+        }),
+    );
+    record_security_audit_internal(
+        state,
+        "channel.tool_action.execute",
+        &resource,
+        "allow",
+        None,
+        StatusCode::OK,
+        None,
+        Some(&run.session_id),
+        Some(&run.run_id),
+        Some(serde_json::json!({
+            "provider": provider,
+            "action": action,
+            "target": target,
+            "chunk_count": chunk_count
+        })),
+    );
+
+    Ok(ToolResult {
+        tool: carsinos_tools::ToolName::ChannelAction,
+        output: serde_json::json!({
+            "provider": provider,
+            "action": action,
+            "target": target,
+            "text": text,
+            "reaction": reaction,
+            "delivery_mode": "shim",
+            "dispatched": true,
+            "chunk_count": chunk_count,
+            "chunks": text_chunks.unwrap_or_default()
+        }),
+        truncated: false,
+    })
+}
+
 fn parse_tool_requests_from_input(
     input: &str,
     tool_registry: &ToolRegistry,
@@ -9055,6 +9397,20 @@ fn load_operator_allowlist_from_env() -> Vec<String> {
     }
 }
 
+fn load_channel_tool_allowed_providers_from_env() -> HashSet<String> {
+    let configured = std::env::var("CARSINOS_TOOL_CHANNEL_ALLOWED_PROVIDERS")
+        .unwrap_or_else(|_| "telegram,discord".to_string());
+    let parsed = parse_csv_set_lower(&configured);
+    if parsed.is_empty() {
+        let mut defaults = HashSet::new();
+        defaults.insert("telegram".to_string());
+        defaults.insert("discord".to_string());
+        defaults
+    } else {
+        parsed
+    }
+}
+
 fn load_auth_mode_from_env() -> AnyResult<AuthMode> {
     let raw = std::env::var("CARSINOS_AUTH_MODE").unwrap_or_else(|_| "static_bearer".to_string());
     match raw.trim().to_ascii_lowercase().as_str() {
@@ -9499,6 +9855,9 @@ mod tests {
         let skill_registry = Arc::new(RwLock::new(SkillRegistry::new()));
         let tool_registry = Arc::new(ToolRegistry::permissive_for_tests());
         let tool_concurrency = Arc::new(Semaphore::new(64));
+        let mut channel_tool_allowed_providers = HashSet::new();
+        channel_tool_allowed_providers.insert("telegram".to_string());
+        channel_tool_allowed_providers.insert("discord".to_string());
         let rate_limiter = RequestRateLimiter {
             config: rate_limit_config.unwrap_or(RequestRateLimitConfig {
                 enabled: false,
@@ -9523,6 +9882,7 @@ mod tests {
             providers: ProviderRegistry::new(),
             tool_registry,
             tool_concurrency,
+            channel_tool_allowed_providers: Arc::new(channel_tool_allowed_providers),
             tool_runner: LocalToolRunner::default(),
             secret_store: secret_store.clone(),
             oauth_sessions: Arc::new(RwLock::new(HashMap::new())),
@@ -10281,6 +10641,39 @@ tool.process status abc123
         }
         assert_eq!(invocations[0].metadata.timeout_ms, Some(2500));
         assert_eq!(invocations[1].metadata.timeout_ms, Some(4000));
+    }
+
+    #[test]
+    fn tool_registry_parses_channel_action_commands() {
+        let registry = ToolRegistry::permissive_for_tests();
+        let invocations = parse_tool_requests_from_input(
+            r#"
+tool.channel_send telegram:1001|hello
+tool.channel_reply discord:c1/m42|ack
+tool.channel_pin discord:c1/m42
+tool.channel_reaction discord:c1/m42|:thumbsup:
+"#,
+            &registry,
+        )
+        .expect("parse channel action tools");
+        assert_eq!(invocations.len(), 4);
+        assert_eq!(invocations[0].metadata.tool_name, "channel.send");
+        assert_eq!(invocations[1].metadata.tool_name, "channel.reply");
+        assert_eq!(invocations[2].metadata.tool_name, "channel.pin");
+        assert_eq!(invocations[3].metadata.tool_name, "channel.reaction");
+        assert!(invocations
+            .iter()
+            .all(|item| item.metadata.requires_approval));
+
+        match &invocations[0].request {
+            ToolRequest::ChannelAction(args) => {
+                assert_eq!(args.provider, "telegram");
+                assert_eq!(args.action, "send");
+                assert_eq!(args.target, "1001");
+                assert_eq!(args.text.as_deref(), Some("hello"));
+            }
+            other => panic!("expected channel action request, got {other:?}"),
+        }
     }
 
     #[tokio::test]
@@ -12310,6 +12703,278 @@ tool.process status abc123
         assert_eq!(result_value["tool_name"], "process");
         assert_eq!(result_value["error"]["code"], "INVALID_INPUT");
         assert_eq!(result_value["error"]["retryable"], false);
+    }
+
+    #[tokio::test]
+    async fn channel_action_tool_executes_after_approval_and_is_audited() {
+        let ctx = test_context();
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"channel-action-tool"}"#),
+            ))
+            .await
+            .expect("create session");
+        let create_json = parse_json(create_response).await;
+        let session_id = create_json["session"]["session_id"]
+            .as_str()
+            .expect("session_id")
+            .to_string();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(
+                    r#"{"role":"user","content_text":"tool.channel_send telegram:1001|hello world"}"#,
+                ),
+            ))
+            .await
+            .expect("create message");
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("create run");
+        let run_json = parse_json(run_response).await;
+        let run_id = run_json["run"]["run_id"]
+            .as_str()
+            .expect("run_id")
+            .to_string();
+        assert_eq!(run_json["run"]["status"], "failed");
+        assert!(run_json["run"]["error_text"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("approval required"));
+
+        let approvals_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/approvals?status=requested",
+                Body::empty(),
+            ))
+            .await
+            .expect("list approvals");
+        let approvals_json = parse_json(approvals_response).await;
+        let approval = approvals_json["items"]
+            .as_array()
+            .expect("approval items")
+            .iter()
+            .find(|item| item["run_id"] == run_id)
+            .cloned()
+            .expect("approval for run");
+        let approval_id = approval["approval_id"].as_str().expect("approval id");
+
+        let resolve_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/approvals/{approval_id}/resolve"),
+                Body::from(r#"{"decision":"approve","decided_via":"api"}"#),
+            ))
+            .await
+            .expect("resolve approval");
+        assert_eq!(resolve_response.status(), StatusCode::OK);
+
+        let resume_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/runs/{run_id}/resume"),
+                Body::empty(),
+            ))
+            .await
+            .expect("resume run");
+        let resume_json = parse_json(resume_response).await;
+        assert_eq!(resume_json["run"]["status"], "succeeded");
+
+        let tool_calls = ctx
+            .storage
+            .list_tool_calls(&run_id, 10)
+            .expect("list tool calls");
+        let tool_call = tool_calls
+            .iter()
+            .find(|item| item.status == "succeeded")
+            .expect("succeeded tool call after resume");
+        let result_json = tool_call
+            .result_json
+            .as_ref()
+            .expect("tool result json envelope");
+        let result_value: serde_json::Value =
+            serde_json::from_str(result_json).expect("parse tool result envelope");
+        assert_eq!(result_value["tool_name"], "channel.send");
+        assert_eq!(result_value["status"], "ok");
+        assert_eq!(result_value["output"]["provider"], "telegram");
+        assert_eq!(result_value["output"]["action"], "send");
+        assert_eq!(result_value["output"]["dispatched"], true);
+
+        let audit_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/security/audit?action=channel.tool_action.execute&decision=allow&limit=50",
+                Body::empty(),
+            ))
+            .await
+            .expect("channel action audit response");
+        let audit_json = parse_json(audit_response).await;
+        let items = audit_json["items"].as_array().expect("audit items");
+        assert!(items.iter().any(|item| {
+            item["action"] == "channel.tool_action.execute"
+                && item["principal"] == "service_internal"
+                && item["run_id"] == run_id
+                && item["decision"] == "allow"
+        }));
+    }
+
+    #[tokio::test]
+    async fn channel_action_tool_rejects_disallowed_provider_after_approval() {
+        let ctx = test_context();
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"channel-action-deny"}"#),
+            ))
+            .await
+            .expect("create session");
+        let create_json = parse_json(create_response).await;
+        let session_id = create_json["session"]["session_id"]
+            .as_str()
+            .expect("session_id")
+            .to_string();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(
+                    r#"{"role":"user","content_text":"tool.channel_send whatsapp:999|hello deny"}"#,
+                ),
+            ))
+            .await
+            .expect("create message");
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("create run");
+        let run_json = parse_json(run_response).await;
+        let run_id = run_json["run"]["run_id"]
+            .as_str()
+            .expect("run_id")
+            .to_string();
+        assert_eq!(run_json["run"]["status"], "failed");
+
+        let approvals_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/approvals?status=requested",
+                Body::empty(),
+            ))
+            .await
+            .expect("list approvals");
+        let approvals_json = parse_json(approvals_response).await;
+        let approval = approvals_json["items"]
+            .as_array()
+            .expect("approval items")
+            .iter()
+            .find(|item| item["run_id"] == run_id)
+            .cloned()
+            .expect("approval for run");
+        let approval_id = approval["approval_id"].as_str().expect("approval id");
+        let resolve_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/approvals/{approval_id}/resolve"),
+                Body::from(r#"{"decision":"approve","decided_via":"api"}"#),
+            ))
+            .await
+            .expect("resolve approval");
+        assert_eq!(resolve_response.status(), StatusCode::OK);
+
+        let resume_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/runs/{run_id}/resume"),
+                Body::empty(),
+            ))
+            .await
+            .expect("resume run");
+        let resume_json = parse_json(resume_response).await;
+        assert_eq!(resume_json["run"]["status"], "failed");
+        assert!(resume_json["run"]["error_text"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("not allowlisted"));
+
+        let tool_calls = ctx
+            .storage
+            .list_tool_calls(&run_id, 10)
+            .expect("list tool calls");
+        let tool_call = tool_calls
+            .iter()
+            .find(|item| item.status == "failed")
+            .expect("failed tool call after denied resume");
+        let result_json = tool_call
+            .result_json
+            .as_ref()
+            .expect("tool error json envelope");
+        let result_value: serde_json::Value =
+            serde_json::from_str(result_json).expect("parse tool error envelope");
+        assert_eq!(result_value["status"], "error");
+        assert_eq!(result_value["tool_name"], "channel.send");
+        assert_eq!(result_value["error"]["code"], "POLICY_DENY");
+
+        let audit_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/security/audit?action=channel.tool_action.execute&decision=deny&error_code=POLICY_DENY&limit=50",
+                Body::empty(),
+            ))
+            .await
+            .expect("channel action deny audit response");
+        let audit_json = parse_json(audit_response).await;
+        let items = audit_json["items"].as_array().expect("audit items");
+        assert!(items.iter().any(|item| {
+            item["action"] == "channel.tool_action.execute"
+                && item["decision"] == "deny"
+                && item["run_id"] == run_id
+        }));
     }
 
     #[tokio::test]
