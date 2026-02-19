@@ -1,0 +1,8 @@
+/target
+.state/
+.state*/
+runtime/security/reports/
+*.db
+*.db-shm
+*.db-wal
+.DS_Store

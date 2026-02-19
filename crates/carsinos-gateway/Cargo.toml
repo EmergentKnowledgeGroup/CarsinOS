@@ -1,0 +1,37 @@
+[package]
+name = "carsinos-gateway"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+axum.workspace = true
+chrono.workspace = true
+carsinos-core = { path = "../carsinos-core" }
+carsinos-providers = { path = "../carsinos-providers" }
+carsinos-protocol = { path = "../carsinos-protocol" }
+carsinos-storage = { path = "../carsinos-storage" }
+carsinos-tools = { path = "../carsinos-tools" }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+base64 = "0.22"
+keyring = "3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+sha2 = "0.10"
+jsonwebtoken = "9"
+tower = { version = "0.5", features = ["util"] }
+tower-http = { workspace = true, features = ["request-id", "trace"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tracing-appender = "0.2"
+url = "2"
+uuid.workspace = true
+
+[dev-dependencies]
+futures-util = "0.3"
+portpicker = "0.1"
+tempfile = "3"
+tokio-tungstenite = "0.28"
