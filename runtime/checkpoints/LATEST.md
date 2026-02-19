@@ -1,11 +1,11 @@
 # LATEST Checkpoint
 
-- step: workflow-lock-established
-- note: Chunk PR loop completed (PR #1/#2/#3 merged). Workflow lock-in recorded for repeated execution. Overarching goals remain APPDEX_IMPLEMENTATION_TICKET_PACK.md + SECURITY_HARDENING_PROGRAM.md.
+- step: workflow-lock-post-merge
+- note: Workflow lock committed to main; chunk loop and security-document goals are now persisted in-repo.
 - branch: main
-- head: ba2136381f3bbde610131b092a29f44017309157
-- next_cmd: Build next 3 implementation chunks from APPDEX + SECURITY docs, then execute the same chunk PR loop.
+- head: b8d1479196a502335feef0cc6fb9d3536fbdf47b
+- next_cmd: Start next chunk wave (3 PRs) from APPDEX_IMPLEMENTATION_TICKET_PACK.md and SECURITY_HARDENING_PROGRAM.md.
 - validations:
+  - git push to origin/main succeeded for workflow lock commit.
   - gh pr list --state open returned no open PRs.
-  - git status --short --branch clean on main.
-  - local main matches origin/main.
+  - local main is aligned with origin/main.
