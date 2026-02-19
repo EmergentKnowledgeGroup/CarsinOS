@@ -1,14 +1,15 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T15:49:20+00:00",
+  "captured_at": "2026-02-19T15:50:25+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
   "branch": "codex/chunk-pr21-scheduler-delivery-routing",
-  "head_short": "95382a5",
-  "head": "95382a505a86e8ba5ecc8c4f2e7fe8506fc39ce0",
-  "step": "chunk-pr21-postgreen",
-  "note": "Completed MC-AUTO-002 scheduler delivery routing with retry/fallback, auditable outcomes, and websocket e2e flake hardening.",
-  "next_cmd": "Commit chunk-pr21 changes, push branch, and open PR #21.",
+  "head_short": "fdaa9d7",
+  "head": "fdaa9d723f5fbfef8d61b8a5e6c228b2f7f75d14",
+  "step": "chunk-pr21-pr-open",
+  "note": "Opened PR #21 for MC-AUTO-002 scheduler delivery routing and outcomes.",
+  "next_cmd": "Monitor PR #15-#21 checks and continue next chunk branch.",
   "validations": [
+    "PR opened: https://github.com/ProfessahX/CarsinOS/pull/21",
     "cargo test -p carsinos-gateway run_now_session_run_payload_routes_delivery_targets_and_audits -- --nocapture",
     "cargo test -p carsinos-gateway session_run_delivery_first_success_falls_back_after_failed_target -- --nocapture",
     "cargo test -p carsinos-gateway run_now_session_run_payload_executes_real_run_path -- --nocapture",
@@ -18,33 +19,21 @@
   ],
   "status": {
     "staged": [],
-    "modified": [
-      "CHECKPOINT.md",
-      "crates/carsinos-gateway/src/main.rs",
-      "crates/carsinos-gateway/tests/e2e_process.rs",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
+    "modified": [],
     "untracked": [],
     "conflicted": [],
-    "dirty": true
+    "dirty": false
   },
   "changed_files": {
-    "working_tree": [
-      "CHECKPOINT.md",
-      "crates/carsinos-gateway/src/main.rs",
-      "crates/carsinos-gateway/tests/e2e_process.rs",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
+    "working_tree": [],
     "staged": []
   },
   "recent_commits": [
+    "fdaa9d7 feat(auto): add scheduler delivery target routing and outcomes",
     "95382a5 docs: checkpoint PR #20 open state",
     "8700204 feat(auth): add health-scored auth profile fallback ordering",
     "be54424 docs: checkpoint PR #19 open state",
-    "a4d989a feat(tool): add channel action tooling with policy audits",
-    "9f52a46 docs: checkpoint PR #18 open state"
+    "a4d989a feat(tool): add channel action tooling with policy audits"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
