@@ -1,43 +1,29 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T16:03:45.362514+00:00",
+  "captured_at": "2026-02-19T16:05:39.777435+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
   "branch": "codex/chunk-pr25-future-signal-adapter",
-  "head_short": "08b2355",
-  "step": "chunk-pr25-postgreen",
-  "note": "Completed MC-FUT-040 Signal adapter scaffold crate and workspace integration with full gate green.",
-  "next_cmd": "Commit chunk-pr25 changes, push branch, open PR #25, then write PR-open checkpoint.",
+  "head_short": "c34e369",
+  "step": "chunk-pr25-pr-open",
+  "note": "Opened PR #25 for MC-FUT-040 Signal adapter scaffold.",
+  "next_cmd": "Start next chunk branch and continue execution backlog while monitoring PR checks.",
   "status": {
     "staged": [],
-    "modified": [
-      "CHECKPOINT.md",
-      "Cargo.lock",
-      "Cargo.toml",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
-    "untracked": [
-      "crates/carsinos-channels-signal/"
-    ],
+    "modified": [],
+    "untracked": [],
     "conflicted": [],
-    "dirty": true
+    "dirty": false
   },
   "changed_files": {
-    "working_tree": [
-      "CHECKPOINT.md",
-      "Cargo.lock",
-      "Cargo.toml",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
+    "working_tree": [],
     "staged": []
   },
   "recent_commits": [
+    "c34e369 feat(channel): add Signal adapter scaffold crate",
     "08b2355 docs: checkpoint PR #24 open state",
     "af83d61 feat(channel): add iMessage BlueBubbles adapter scaffold",
     "756b0f6 docs: checkpoint PR #23 open state",
-    "3bb4b5b feat(channel): add Slack adapter scaffold crate",
-    "79363b5 docs: checkpoint PR #22 open state"
+    "3bb4b5b feat(channel): add Slack adapter scaffold crate"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
@@ -45,7 +31,7 @@
     "Resume from step + next_cmd, then write a new checkpoint after each major edit block."
   ],
   "validations": [
-    "cargo test -p carsinos-channels-signal -- --nocapture passed",
-    "REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh passed"
+    "git push -u origin codex/chunk-pr25-future-signal-adapter passed",
+    "PR opened: https://github.com/ProfessahX/CarsinOS/pull/25"
   ]
 }

@@ -1,10 +1,10 @@
 # LATEST Checkpoint
 
-- step: chunk-pr25-postgreen
-- note: Completed MC-FUT-040 Signal adapter scaffold crate and workspace integration with full gate green.
+- step: chunk-pr25-pr-open
+- note: Opened PR #25 for MC-FUT-040 Signal adapter scaffold.
 - branch: codex/chunk-pr25-future-signal-adapter
-- head: 08b2355bf3bb5a6e25794ae25e5aff025f0a17e3
-- next_cmd: Commit chunk-pr25 changes, push branch, open PR #25, then write PR-open checkpoint.
+- head: c34e369711880236b643a0382c3bfc9ca8ae63b3
+- next_cmd: Start next chunk branch and continue execution backlog while monitoring PR checks.
 - validations:
-- cargo test -p carsinos-channels-signal -- --nocapture passed
-- REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh passed
+- git push -u origin codex/chunk-pr25-future-signal-adapter passed
+- PR opened: https://github.com/ProfessahX/CarsinOS/pull/25
