@@ -1,10 +1,10 @@
 # LATEST Checkpoint
 
-- step: config-wizard-post-green-tests
-- note: Setup wizard + hardcoded-value-elimination docs/checklist updates are complete and regression tests are green.
+- step: config-wizard-pr-open
+- note: PR #30 opened for setup-wizard config foundation and hardcoded-value guardrail track.
 - branch: codex/chunk-pr30-config-wizard-hardcode-audit
-- head: c10d54be770f55a81ed6de0cb6894922cb15b133
-- next_cmd: Stage docs/checkpoint updates, commit, push, and open PR chunk for review.
+- head: 9beb0ce
+- next_cmd: Monitor PR #30 checks/review, apply follow-up patches if needed, then merge.
 - validations:
-- `cargo test --workspace --locked` passed.
-- Verified `MC-CONF-*` consistency in ticket pack, security program, and checklist.
+- PR opened: https://github.com/ProfessahX/CarsinOS/pull/30
+- Branch is pushed and tracking origin.

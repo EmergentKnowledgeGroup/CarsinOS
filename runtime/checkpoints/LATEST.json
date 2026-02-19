@@ -1,45 +1,29 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T23:35:54.471625+00:00",
+  "captured_at": "2026-02-19T23:37:04.631542+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
   "branch": "codex/chunk-pr30-config-wizard-hardcode-audit",
-  "head_short": "c10d54b",
-  "step": "config-wizard-post-green-tests",
-  "note": "Doc/config-wizard planning updates validated with full cargo test --workspace --locked (all green incl benchmark_process + e2e_process).",
-  "next_cmd": "Commit docs+checkpoints and open PR chunk for CodeRabbit review.",
+  "head_short": "9beb0ce",
+  "step": "config-wizard-pr-open",
+  "note": "Opened PR #30 for setup-wizard config track and hardcoded-value audit guardrails.",
+  "next_cmd": "Monitor CI/CodeRabbit feedback and apply follow-up fixes.",
   "status": {
     "staged": [],
-    "modified": [
-      "APPDEX_IMPLEMENTATION_TICKET_PACK.md",
-      "CHECKLIST.md",
-      "CHECKPOINT.md",
-      "SECURITY_HARDENING_PROGRAM.md",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
-    "untracked": [
-      "docs/CLIDEX_HARDCODE_CONFIG_AUDIT_TASK.md"
-    ],
+    "modified": [],
+    "untracked": [],
     "conflicted": [],
-    "dirty": true
+    "dirty": false
   },
   "changed_files": {
-    "working_tree": [
-      "APPDEX_IMPLEMENTATION_TICKET_PACK.md",
-      "CHECKLIST.md",
-      "CHECKPOINT.md",
-      "SECURITY_HARDENING_PROGRAM.md",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
+    "working_tree": [],
     "staged": []
   },
   "recent_commits": [
+    "9beb0ce docs: add setup wizard config track and hardcoded-value audit gates",
     "c10d54b docs: checkpoint explicit post-merge state (#29)",
     "3aafbb7 docs: record post-merge PR cleanup checkpoints (#28)",
     "2ffa952 test(gateway): stabilize request-log e2e assertion (#27)",
-    "c167af9 docs: checkpoint PR #9 post-merge state",
-    "06c8bcc feat: add channel approval action resolve endpoint (#9)"
+    "c167af9 docs: checkpoint PR #9 post-merge state"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
