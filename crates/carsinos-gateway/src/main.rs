@@ -495,6 +495,11 @@ struct ListSecurityAuditQuery {
     limit: Option<u32>,
     action: Option<String>,
     principal: Option<String>,
+    decision: Option<String>,
+    status: Option<String>,
+    error_code: Option<String>,
+    created_after: Option<i64>,
+    created_before: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -3864,9 +3869,44 @@ async fn list_security_audit(
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty());
+    let decision = query
+        .decision
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let status = query
+        .status
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let error_code = query
+        .error_code
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let created_after = query.created_after;
+    let created_before = query.created_before;
+    if let (Some(after), Some(before)) = (created_after, created_before) {
+        if after > before {
+            return Err(api_error_with_code(
+                StatusCode::BAD_REQUEST,
+                "INVALID_INPUT",
+                "created_after must be <= created_before",
+            ));
+        }
+    }
     let items = state
         .storage
-        .list_security_audit_events(limit, action, principal)
+        .list_security_audit_events(
+            limit,
+            action,
+            principal,
+            decision,
+            status,
+            error_code,
+            created_after,
+            created_before,
+        )
         .map_err(|err| internal_err_with_error("listing security audit events failed", err))?
         .into_iter()
         .map(to_security_audit_event_response)
@@ -8391,6 +8431,29 @@ mod tests {
         assert!(audit_items.iter().any(|item| {
             item["action"] == "channel.config.update" && item["decision"] == "deny"
         }));
+
+        let deny_filtered_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request_with_token(
+                "GET",
+                "/api/v1/security/audit?limit=200&decision=deny&status=403&error_code=AUTH_ROLE_MISMATCH",
+                Body::empty(),
+                &admin_token,
+            ))
+            .await
+            .expect("deny filtered audit response");
+        assert_eq!(deny_filtered_response.status(), StatusCode::OK);
+        let deny_filtered_json = parse_json(deny_filtered_response).await;
+        let deny_items = deny_filtered_json["items"]
+            .as_array()
+            .expect("deny filtered items");
+        assert!(!deny_items.is_empty());
+        assert!(deny_items.iter().all(|item| item["decision"] == "deny"));
+        assert!(deny_items.iter().all(|item| item["status"] == "403"));
+        assert!(deny_items
+            .iter()
+            .all(|item| item["error_code"] == "AUTH_ROLE_MISMATCH"));
     }
 
     #[tokio::test]
@@ -8412,6 +8475,27 @@ mod tests {
         assert_eq!(response.status(), StatusCode::FORBIDDEN);
         let json = parse_json(response).await;
         assert_eq!(json["error_code"], "POLICY_DENY");
+    }
+
+    #[tokio::test]
+    async fn security_audit_rejects_inverted_created_time_range() {
+        let ctx = test_context();
+
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/security/audit?created_after=200&created_before=100",
+                Body::empty(),
+            ))
+            .await
+            .expect("audit list response");
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let json = parse_json(response).await;
+        assert_eq!(json["error_code"], "INVALID_INPUT");
+        assert_eq!(json["error"], "created_after must be <= created_before");
     }
 
     #[tokio::test]

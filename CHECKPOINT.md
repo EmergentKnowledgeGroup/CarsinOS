@@ -1737,3 +1737,69 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 089
+
+- checklist refs: `N10` post-hardening PR remediation
+- past action:
+- Reviewed PR #3 CodeRabbit feedback after PR #2 remediation merged.
+- present action:
+- Implemented `/api/v1/security/audit` validation for inverted time ranges (`created_after` must be `<= created_before`) and added regression coverage.
+- validation outcomes:
+- `cargo fmt --all` passed.
+- `cargo test -p carsinos-gateway security_audit_ -- --nocapture` passed.
+- future action:
+- Push PR #3 remediation commit and verify merge readiness.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+
+### 2026-02-19 - Entry 090
+
+- checklist refs: `N10` post-hardening PR remediation
+- past action:
+- Pushed PR #3 remediation commits (`585d227`, `9005b80`).
+- present action:
+- Attempted merge of PR #3 and encountered conflict after PR #2 landed in `main`.
+- future action:
+- Merge `origin/main` into PR #3 branch, resolve conflicts, revalidate, and push.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 091
+
+- checklist refs: `N10` post-hardening PR remediation
+- past action:
+- Began local conflict reconciliation for PR #3 against `origin/main`.
+- present action:
+- Rebuilt checkpoint baseline to include both merged PR #2 history and ongoing PR #3 merge-resolution work.
+- future action:
+- Finalize merge conflict resolution, run targeted gateway tests, and push branch for clean PR merge.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+
+### 2026-02-19 - Entry 092
+
+- checklist refs: `N10` post-hardening PR remediation
+- past action:
+- Merged `origin/main` into `codex/chunk-pr3-audit-query-filters` and reconciled checkpoint/runtime conflicts.
+- present action:
+- Verified merged branch behavior with targeted gateway validations for rate-limit + security-audit pathways.
+- validation outcomes:
+- `cargo fmt --all` passed.
+- `cargo test -p carsinos-gateway rate_limit_ -- --nocapture` passed.
+- `cargo test -p carsinos-gateway security_audit_ -- --nocapture` passed.
+- checkpoint sync complete in:
+- `runtime/checkpoints/LATEST.md`
+- `runtime/checkpoints/LATEST.json`
+- future action:
+- Commit merge resolution and push PR #3 branch for clean merge.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`

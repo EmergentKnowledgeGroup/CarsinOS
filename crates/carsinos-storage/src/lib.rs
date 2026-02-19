@@ -1073,6 +1073,11 @@ impl Storage {
         limit: u32,
         action: Option<&str>,
         principal: Option<&str>,
+        decision: Option<&str>,
+        status: Option<&str>,
+        error_code: Option<&str>,
+        created_after: Option<i64>,
+        created_before: Option<i64>,
     ) -> Result<Vec<SecurityAuditEventRecord>> {
         let conn = self.connect()?;
         let mut stmt = conn.prepare(
@@ -1084,12 +1089,26 @@ impl Storage {
             FROM security_audit_events
             WHERE (?1 IS NULL OR action = ?1)
               AND (?2 IS NULL OR principal = ?2)
-            ORDER BY created_at DESC
-            LIMIT ?3
+              AND (?3 IS NULL OR decision = ?3)
+              AND (?4 IS NULL OR status = ?4)
+              AND (?5 IS NULL OR error_code = ?5)
+              AND (?6 IS NULL OR created_at >= ?6)
+              AND (?7 IS NULL OR created_at <= ?7)
+            ORDER BY created_at DESC, event_id DESC
+            LIMIT ?8
             "#,
         )?;
         let rows = stmt.query_map(
-            params![action, principal, i64::from(limit.clamp(1, 1000))],
+            params![
+                action,
+                principal,
+                decision,
+                status,
+                error_code,
+                created_after,
+                created_before,
+                i64::from(limit.clamp(1, 1000))
+            ],
             map_security_audit_event_row,
         )?;
         let mut out = Vec::new();
@@ -2770,6 +2789,23 @@ mod tests {
             })
             .expect("append audit event");
         assert_eq!(created.request_id, "req-1");
+        let denied = storage
+            .append_security_audit_event(NewSecurityAuditEvent {
+                request_id: "req-2".to_string(),
+                correlation_id: "corr-2".to_string(),
+                principal: "operator_readonly:test".to_string(),
+                action: "approval.resolve".to_string(),
+                resource: "approval:123".to_string(),
+                decision: "deny".to_string(),
+                reason: Some("role mismatch".to_string()),
+                transport: "http".to_string(),
+                status: "403".to_string(),
+                error_code: Some("AUTH_ROLE_MISMATCH".to_string()),
+                session_id: None,
+                run_id: Some("run-1".to_string()),
+                metadata_json: Some(r#"{"allowed_roles":["operator_admin"]}"#.to_string()),
+            })
+            .expect("append denied audit event");
 
         let by_id = storage
             .get_security_audit_event(&created.event_id)
@@ -2778,16 +2814,49 @@ mod tests {
         assert_eq!(by_id.action, "auth.profile.update");
 
         let listed = storage
-            .list_security_audit_events(20, Some("auth.profile.update"), None)
+            .list_security_audit_events(
+                20,
+                Some("auth.profile.update"),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
             .expect("list audit events");
         assert!(!listed.is_empty());
         assert_eq!(listed[0].action, "auth.profile.update");
 
         let principal_filtered = storage
-            .list_security_audit_events(20, None, Some("operator_admin:test"))
+            .list_security_audit_events(
+                20,
+                None,
+                Some("operator_admin:test"),
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
             .expect("list principal filtered");
         assert!(!principal_filtered.is_empty());
         assert_eq!(principal_filtered[0].principal, "operator_admin:test");
+
+        let deny_filtered = storage
+            .list_security_audit_events(
+                20,
+                None,
+                None,
+                Some("deny"),
+                Some("403"),
+                Some("AUTH_ROLE_MISMATCH"),
+                Some(created.created_at),
+                Some(denied.created_at),
+            )
+            .expect("list deny filtered");
+        assert_eq!(deny_filtered.len(), 1);
+        assert_eq!(deny_filtered[0].event_id, denied.event_id);
     }
 
     #[test]
