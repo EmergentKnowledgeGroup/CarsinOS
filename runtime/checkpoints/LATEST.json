@@ -1,41 +1,29 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T14:15:59.476112+00:00",
+  "captured_at": "2026-02-19T14:16:46.883550+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
   "branch": "codex/chunk-pr11-provider-expansion-pack1",
-  "head_short": "9b47aed",
-  "step": "chunk-pr11-postgreen",
-  "note": "MC-PROV-010 provider expansion pack implemented with openrouter/ollama/vllm adapters; validations are green.",
-  "next_cmd": "Commit and push chunk PR #11, open PR, then process merge order with PR #10.",
+  "head_short": "306b9af",
+  "step": "chunk-pr11-pr-open",
+  "note": "Opened PR #11 for MC-PROV-010 provider expansion pack.",
+  "next_cmd": "Merge PR #10 then merge PR #11; checkpoint post-merge and continue chunk #12.",
   "status": {
     "staged": [],
-    "modified": [
-      "CHECKPOINT.md",
-      "crates/carsinos-gateway/src/main.rs",
-      "crates/carsinos-providers/src/lib.rs",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
+    "modified": [],
     "untracked": [],
     "conflicted": [],
-    "dirty": true
+    "dirty": false
   },
   "changed_files": {
-    "working_tree": [
-      "CHECKPOINT.md",
-      "crates/carsinos-gateway/src/main.rs",
-      "crates/carsinos-providers/src/lib.rs",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
+    "working_tree": [],
     "staged": []
   },
   "recent_commits": [
+    "306b9af feat: add openrouter ollama vllm provider adapters",
     "9b47aed docs: checkpoint PR #10 open state",
     "362648e feat: add provider contract v2 capabilities surface",
     "c167af9 docs: checkpoint PR #9 post-merge state",
-    "06c8bcc feat: add channel approval action resolve endpoint (#9)",
-    "c588189 docs: checkpoint PR #8 post-merge state"
+    "06c8bcc feat: add channel approval action resolve endpoint (#9)"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
