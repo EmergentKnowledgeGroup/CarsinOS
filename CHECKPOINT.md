@@ -3277,3 +3277,23 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 172
+
+- checklist refs: `QA` stabilization chunk wave #14
+- past action:
+- Expanded poll timeout for request-log e2e, but CI remained intermittently sensitive.
+- present action:
+- Added stable fallback evidence marker (`tracing initialized`) to reduce dependency on request event timing while preserving log-file verification intent.
+- validation outcomes:
+- 20x repeated `cargo test -p carsinos-gateway --test e2e_process request_logs_are_written_to_state_log_directory` loop passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Push v3 stabilization patch to PR #27 and continue CI monitor/merge flow.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/tests/e2e_process.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`

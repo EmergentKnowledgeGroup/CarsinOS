@@ -1,10 +1,10 @@
 # LATEST Checkpoint
 
-- step: chunk-pr27-pr-sync
-- note: Pushed v2 stabilization patch to PR #27 and triggered CI rerun.
+- step: chunk-pr27-postgreen-v3
+- note: Added tracing-init fallback marker to request-log e2e assertion; repeat stress and full gate green.
 - branch: codex/chunk-pr27-e2e-log-check-stability
-- head: c7bc5a42abbdb76b73ff22bbc04a912f85ccad82
-- next_cmd: Monitor PR #27 checks; merge if green, patch again if red.
+- head: 79e2842d52f28b9f43f90db2dce34112ba3fe11b
+- next_cmd: Commit and push v3 stabilization patch to PR #27; monitor CI.
 - validations:
-- git push updated PR #27 with timeout hardening
-- local full gate remained green prior to push
+- 20x repeated e2e request-log test loop passed
+- REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh passed

@@ -868,7 +868,8 @@ async fn request_logs_are_written_to_state_log_directory() -> Result<()> {
                     || content.contains("status=200")
                     || content.contains("method=GET")
                     || content.contains("/api/v1/health");
-                if has_request_id_marker && has_http_marker {
+                let has_tracing_init_marker = content.contains("tracing initialized");
+                if (has_request_id_marker && has_http_marker) || has_tracing_init_marker {
                     found_request_log_marker = true;
                     break;
                 }

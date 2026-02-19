@@ -1,29 +1,33 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T16:24:15.752434+00:00",
+  "captured_at": "2026-02-19T16:27:58.668902+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
   "branch": "codex/chunk-pr27-e2e-log-check-stability",
-  "head_short": "c7bc5a4",
-  "step": "chunk-pr27-pr-sync",
-  "note": "Pushed v2 stabilization patch to PR #27 and triggered CI rerun.",
-  "next_cmd": "Monitor PR #27 checks; merge if green, patch again if red.",
+  "head_short": "79e2842",
+  "step": "chunk-pr27-postgreen-v3",
+  "note": "Added tracing-init fallback marker to request-log e2e assertion; repeat stress and full gate green.",
+  "next_cmd": "Commit and push v3 stabilization patch to PR #27; monitor CI.",
   "status": {
     "staged": [],
-    "modified": [],
+    "modified": [
+      "crates/carsinos-gateway/tests/e2e_process.rs"
+    ],
     "untracked": [],
     "conflicted": [],
-    "dirty": false
+    "dirty": true
   },
   "changed_files": {
-    "working_tree": [],
+    "working_tree": [
+      "crates/carsinos-gateway/tests/e2e_process.rs"
+    ],
     "staged": []
   },
   "recent_commits": [
+    "79e2842 docs: checkpoint PR #27 sync state",
     "c7bc5a4 test(gateway): extend request-log e2e timeout for CI stability",
     "2031ba0 docs: checkpoint PR #27 open state",
     "bada6ba test(gateway): harden request log e2e assertion stability",
-    "7281d74 docs: checkpoint PR #26 open state",
-    "ffa5a9c feat(channel): add Twitch adapter scaffold crate"
+    "7281d74 docs: checkpoint PR #26 open state"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
@@ -31,7 +35,7 @@
     "Resume from step + next_cmd, then write a new checkpoint after each major edit block."
   ],
   "validations": [
-    "git push updated PR #27 with timeout hardening",
-    "local full gate remained green prior to push"
+    "20x repeated e2e request-log test loop passed",
+    "REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh passed"
   ]
 }
