@@ -1,29 +1,33 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T14:09:59.625264+00:00",
+  "captured_at": "2026-02-19T14:28:19.796847+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
   "branch": "codex/chunk-pr10-provider-contract-v2",
-  "head_short": "362648e",
-  "step": "chunk-pr10-pr-open",
-  "note": "Opened PR #10 for MC-PROV-001 provider adapter contract v2 chunk.",
-  "next_cmd": "Merge PR #10 and checkpoint post-merge before starting chunk #11.",
+  "head_short": "9b47aed",
+  "step": "chunk-pr10-logfix-postgreen",
+  "note": "Applied request-log assertion stabilization on PR #10 branch and validated with targeted e2e test.",
+  "next_cmd": "git add crates/carsinos-gateway/tests/e2e_process.rs CHECKPOINT.md runtime/checkpoints/LATEST.md runtime/checkpoints/LATEST.json && git commit -m \"test(gateway): stabilize request log assertion in PR10\" && git push",
   "status": {
-    "staged": [],
+    "staged": [
+      "crates/carsinos-gateway/tests/e2e_process.rs"
+    ],
     "modified": [],
     "untracked": [],
     "conflicted": [],
-    "dirty": false
+    "dirty": true
   },
   "changed_files": {
     "working_tree": [],
-    "staged": []
+    "staged": [
+      "crates/carsinos-gateway/tests/e2e_process.rs"
+    ]
   },
   "recent_commits": [
+    "9b47aed docs: checkpoint PR #10 open state",
     "362648e feat: add provider contract v2 capabilities surface",
     "c167af9 docs: checkpoint PR #9 post-merge state",
     "06c8bcc feat: add channel approval action resolve endpoint (#9)",
-    "c588189 docs: checkpoint PR #8 post-merge state",
-    "8ccdc35 feat: add channel runtime policy defaults (#8)"
+    "c588189 docs: checkpoint PR #8 post-merge state"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",

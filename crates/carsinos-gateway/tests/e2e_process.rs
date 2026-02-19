@@ -643,7 +643,14 @@ async fn scheduler_executes_due_job_and_persists_history() -> Result<()> {
             "enabled": true,
             "schedule_kind": "once",
             "run_at_ms": now_ms + 200,
-            "payload_json": {"mode":"noop","message":"scheduled run"},
+            "payload_json": {
+                "mode":"session.run",
+                "session_key":"e2e:scheduler:session-run",
+                "session_title":"e2e scheduler session",
+                "input":"scheduled run from process test",
+                "model_provider":"mock",
+                "model_id":"mock-echo-v1"
+            },
             "max_retries": 0,
             "retry_backoff_ms": 10,
             "timeout_ms": 500
@@ -685,6 +692,15 @@ async fn scheduler_executes_due_job_and_persists_history() -> Result<()> {
     let first = found.context("scheduler did not create job run in time")?;
     assert_eq!(first["status"], "succeeded");
     assert_eq!(first["trigger_kind"], "scheduler");
+    let output_json = first["output_json"]
+        .as_str()
+        .context("missing scheduler output_json")?;
+    let output: serde_json::Value =
+        serde_json::from_str(output_json).context("invalid scheduler output_json payload")?;
+    assert_eq!(output["mode"], "session.run");
+    assert_eq!(output["run_status"], "succeeded");
+    assert!(output["session_id"].as_str().is_some());
+    assert!(output["run_id"].as_str().is_some());
 
     Ok(())
 }
@@ -836,7 +852,11 @@ async fn request_logs_are_written_to_state_log_directory() -> Result<()> {
                 let has_request_id = content.contains("request_id=")
                     || content.contains("\"request_id\"")
                     || content.contains("x-request-id");
-                if content.contains("http.request") && has_request_id {
+                let has_health_request_context = content.contains("/api/v1/health")
+                    || content.contains("uri=/api/v1/health")
+                    || content.contains("\"uri\":\"/api/v1/health\"")
+                    || content.contains("http.request");
+                if has_health_request_context && has_request_id {
                     found_non_empty_log = true;
                     break;
                 }

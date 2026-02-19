@@ -1,10 +1,9 @@
 # LATEST Checkpoint
 
-- step: chunk-pr10-pr-open
-- note: Opened PR #10 for MC-PROV-001 provider adapter contract v2 chunk.
+- step: chunk-pr10-logfix-postgreen
+- note: Applied request-log assertion stabilization on PR #10 branch and validated targeted e2e test.
 - branch: codex/chunk-pr10-provider-contract-v2
-- head: 362648e81b3f0c8b9e662ae743fbf08087ddb5e5
-- next_cmd: Merge PR #10 and checkpoint post-merge before starting chunk #11.
+- head: 9b47aedab786497408bf1a9fb4644209da8e138c
+- next_cmd: Commit and push PR #10 branch fix, then repeat on PR #11 branch.
 - validations:
-  - PR open: https://github.com/ProfessahX/CarsinOS/pull/10
-  - local branch pushed and tracking origin/codex/chunk-pr10-provider-contract-v2
+  - cargo test -p carsinos-gateway --test e2e_process request_logs_are_written_to_state_log_directory -- --nocapture
