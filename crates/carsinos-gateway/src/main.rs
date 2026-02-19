@@ -23,10 +23,11 @@ use carsinos_protocol::{
     IngestTelegramMessageRequest, JobResponse, JobRunResponse, JobStatusResponse,
     ListApprovalsQuery, ListApprovalsResponse, ListAuthProfilesQuery, ListAuthProfilesResponse,
     ListJobHistoryQuery, ListJobHistoryResponse, ListJobsQuery, ListJobsResponse,
-    ListMessagesQuery, ListMessagesResponse, ListNotesQuery, ListNotesResponse, ListSessionsQuery,
+    ListMessagesQuery, ListMessagesResponse, ListNotesQuery, ListNotesResponse,
+    ListProviderCapabilitiesQuery, ListProviderCapabilitiesResponse, ListSessionsQuery,
     ListSessionsResponse, MessageResponse, MetricsResponse, NoteResponse, OpenAiOauthFinishRequest,
     OpenAiOauthFinishResponse, OpenAiOauthStartRequest, OpenAiOauthStartResponse,
-    RemoveJobResponse, ResolveApprovalRequest, ResolveApprovalResponse,
+    ProviderCapabilityResponse, RemoveJobResponse, ResolveApprovalRequest, ResolveApprovalResponse,
     ResolveChannelApprovalActionRequest, RunJobNowResponse, RunResponse, SearchMemoryRequest,
     SearchMemoryResponse, SearchMemoryResult, SessionDetailResponse, SessionSummary,
     SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse, StatusResponse,
@@ -34,7 +35,11 @@ use carsinos_protocol::{
     UpdateChannelConfigRequest, UpdateChannelConfigResponse, UpdateJobRequest, UpdateJobResponse,
     UpdateNoteRequest, UpdateNoteResponse,
 };
-use carsinos_providers::{CompletionRequest, ProviderAuthProfile, ProviderRegistry};
+use carsinos_providers::{
+    parse_provider_error_class as parse_provider_error_class_normalized,
+    provider_error_retryable as provider_error_retryable_normalized, CompletionRequest,
+    ProviderAuthProfile, ProviderRegistry,
+};
 use carsinos_storage::{
     AppPaths, ApprovalRecord, ApprovalResolveResult, AuthProfileRecord, JobRecord, JobRunRecord,
     JobUpdatePatch, MessageRecord, NewApproval, NewAuthProfile, NewJob, NewMessage, NewNote,
@@ -912,6 +917,61 @@ async fn metrics(
     Ok(Json(response))
 }
 
+async fn list_provider_capabilities(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Query(query): Query<ListProviderCapabilitiesQuery>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    let provider_filter = query
+        .provider
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_ascii_lowercase());
+    let resource = provider_filter
+        .as_ref()
+        .map(|provider| format!("provider:{provider}"))
+        .unwrap_or_else(|| "providers".to_string());
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "provider.capabilities.list",
+        &resource,
+    )?;
+
+    let capabilities = if let Some(provider) = provider_filter.as_deref() {
+        vec![state.providers.capabilities(provider).ok_or_else(|| {
+            api_error(
+                StatusCode::BAD_REQUEST,
+                "unsupported provider for capabilities query",
+            )
+        })?]
+    } else {
+        state.providers.list_capabilities()
+    };
+
+    let items = capabilities
+        .into_iter()
+        .map(|item| ProviderCapabilityResponse {
+            provider: item.provider,
+            supports_streaming: item.supports_streaming,
+            supports_tools: item.supports_tools,
+            supports_json_mode: item.supports_json_mode,
+            supports_vision: item.supports_vision,
+            max_context_tokens: item.max_context_tokens,
+            error_classes: item.error_classes,
+            retryable_error_classes: item.retryable_error_classes,
+        })
+        .collect::<Vec<_>>();
+    Ok(Json(ListProviderCapabilitiesResponse {
+        contract_version: "v2".to_string(),
+        items,
+    }))
+}
+
 async fn ws_handler(
     headers: HeaderMap,
     ws: WebSocketUpgrade,
@@ -1474,6 +1534,10 @@ fn build_app(state: AppState) -> Router {
         .route("/api/v1/health", get(health))
         .route("/api/v1/status", get(status))
         .route("/api/v1/metrics", get(metrics))
+        .route(
+            "/api/v1/providers/capabilities",
+            get(list_provider_capabilities),
+        )
         .route("/api/v1/ws", get(ws_handler))
         .route("/api/v1/sessions", get(list_sessions).post(create_session))
         .route("/api/v1/sessions/{session_id}", get(get_session))
@@ -4956,7 +5020,7 @@ async fn execute_run(
             }
             Err(err) => {
                 let error_text = err.to_string();
-                let error_class = parse_provider_error_class(&error_text);
+                let error_class = parse_provider_error_class_normalized(&error_text);
                 warn!(
                     run_id = %run.run_id,
                     session_id = %run.session_id,
@@ -4968,14 +5032,14 @@ async fn execute_run(
                         .as_ref()
                         .map(|profile| profile.auth_mode.as_str())
                         .unwrap_or("none"),
-                    error_class,
+                    error_class = error_class.as_code(),
                     latency_ms = provider_started.elapsed().as_millis() as u64,
                     error = %error_text,
                     "provider completion failed"
                 );
                 last_error = Some(err);
 
-                let can_retry = provider_error_retryable(error_class);
+                let can_retry = provider_error_retryable_normalized(error_class);
                 if !can_retry || attempt_index + 1 >= candidate_count {
                     break;
                 }
@@ -6837,24 +6901,6 @@ fn current_time_ms() -> i64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default();
     now.as_millis() as i64
-}
-
-fn parse_provider_error_class(error: &str) -> &str {
-    if let Some(rest) = error.strip_prefix("PROVIDER_ERROR:") {
-        let mut parts = rest.split(':');
-        let _provider = parts.next();
-        if let Some(code) = parts.next() {
-            return code;
-        }
-    }
-    "INTERNAL_ERROR"
-}
-
-fn provider_error_retryable(error_class: &str) -> bool {
-    matches!(
-        error_class,
-        "AUTH_REQUIRED" | "RATE_LIMITED" | "TIMEOUT" | "DEPENDENCY_UNAVAILABLE"
-    )
 }
 
 fn normalize_tags(tags: Option<Vec<String>>) -> Vec<String> {
@@ -13086,5 +13132,42 @@ mod tests {
             .await
             .expect("channel resolve forbidden");
         assert_eq!(forbidden.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn provider_capabilities_list_returns_contract_v2() {
+        let ctx = test_context();
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/providers/capabilities",
+                Body::empty(),
+            ))
+            .await
+            .expect("provider capabilities list response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = parse_json(response).await;
+        assert_eq!(body["contract_version"], "v2");
+        let items = body["items"].as_array().expect("capabilities items array");
+        assert!(items.iter().any(|item| item["provider"] == "openai"));
+        assert!(items.iter().any(|item| item["provider"] == "anthropic"));
+    }
+
+    #[tokio::test]
+    async fn provider_capabilities_filter_rejects_unknown_provider() {
+        let ctx = test_context();
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/providers/capabilities?provider=unknown",
+                Body::empty(),
+            ))
+            .await
+            .expect("provider capabilities filtered response");
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     }
 }

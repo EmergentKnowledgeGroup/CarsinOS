@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use reqwest::{Client, StatusCode};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 #[derive(Debug, Clone)]
@@ -42,6 +43,68 @@ pub struct CompletionResponse {
     pub deltas: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ProviderErrorClass {
+    AuthRequired,
+    RateLimited,
+    Timeout,
+    DependencyUnavailable,
+    InternalError,
+}
+
+impl ProviderErrorClass {
+    pub fn as_code(self) -> &'static str {
+        match self {
+            Self::AuthRequired => "AUTH_REQUIRED",
+            Self::RateLimited => "RATE_LIMITED",
+            Self::Timeout => "TIMEOUT",
+            Self::DependencyUnavailable => "DEPENDENCY_UNAVAILABLE",
+            Self::InternalError => "INTERNAL_ERROR",
+        }
+    }
+
+    pub fn retryable(self) -> bool {
+        matches!(
+            self,
+            Self::AuthRequired | Self::RateLimited | Self::Timeout | Self::DependencyUnavailable
+        )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProviderCapabilities {
+    pub provider: String,
+    pub supports_streaming: bool,
+    pub supports_tools: bool,
+    pub supports_json_mode: bool,
+    pub supports_vision: bool,
+    pub max_context_tokens: Option<u32>,
+    pub error_classes: Vec<String>,
+    pub retryable_error_classes: Vec<String>,
+}
+
+pub fn parse_provider_error_class(error: &str) -> ProviderErrorClass {
+    if let Some(rest) = error.strip_prefix("PROVIDER_ERROR:") {
+        let mut parts = rest.split(':');
+        let _provider = parts.next();
+        if let Some(code) = parts.next() {
+            return match code {
+                "AUTH_REQUIRED" => ProviderErrorClass::AuthRequired,
+                "RATE_LIMITED" => ProviderErrorClass::RateLimited,
+                "TIMEOUT" => ProviderErrorClass::Timeout,
+                "DEPENDENCY_UNAVAILABLE" => ProviderErrorClass::DependencyUnavailable,
+                _ => ProviderErrorClass::InternalError,
+            };
+        }
+    }
+    ProviderErrorClass::InternalError
+}
+
+pub fn provider_error_retryable(error: ProviderErrorClass) -> bool {
+    error.retryable()
+}
+
 #[async_trait]
 pub trait ProviderClient: Send + Sync {
     async fn complete(&self, request: CompletionRequest) -> Result<CompletionResponse>;
@@ -74,6 +137,17 @@ impl ProviderRegistry {
             "anthropic" => complete_anthropic(&self.http_client, request).await,
             provider => anyhow::bail!("unsupported model provider: {provider}"),
         }
+    }
+
+    pub fn list_capabilities(&self) -> Vec<ProviderCapabilities> {
+        ["mock", "unconfigured", "openai", "anthropic"]
+            .into_iter()
+            .filter_map(provider_capabilities)
+            .collect()
+    }
+
+    pub fn capabilities(&self, provider: &str) -> Option<ProviderCapabilities> {
+        provider_capabilities(provider)
     }
 }
 
@@ -228,13 +302,7 @@ fn require_auth_profile<'a>(
 }
 
 fn normalize_provider_http_error(provider: &str, status: StatusCode, body: &str) -> anyhow::Error {
-    let code = match status {
-        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => "AUTH_REQUIRED",
-        StatusCode::TOO_MANY_REQUESTS => "RATE_LIMITED",
-        StatusCode::REQUEST_TIMEOUT | StatusCode::GATEWAY_TIMEOUT => "TIMEOUT",
-        _ if status.is_server_error() => "DEPENDENCY_UNAVAILABLE",
-        _ => "INTERNAL_ERROR",
-    };
+    let code = provider_error_class_from_status(status).as_code();
 
     let body = body.trim();
     let body = if body.len() > 300 { &body[..300] } else { body };
@@ -243,6 +311,82 @@ fn normalize_provider_http_error(provider: &str, status: StatusCode, body: &str)
         status.as_u16(),
         body
     )
+}
+
+fn provider_error_class_from_status(status: StatusCode) -> ProviderErrorClass {
+    match status {
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => ProviderErrorClass::AuthRequired,
+        StatusCode::TOO_MANY_REQUESTS => ProviderErrorClass::RateLimited,
+        StatusCode::REQUEST_TIMEOUT | StatusCode::GATEWAY_TIMEOUT => ProviderErrorClass::Timeout,
+        _ if status.is_server_error() => ProviderErrorClass::DependencyUnavailable,
+        _ => ProviderErrorClass::InternalError,
+    }
+}
+
+fn provider_capabilities(provider: &str) -> Option<ProviderCapabilities> {
+    let all_error_classes = vec![
+        ProviderErrorClass::AuthRequired,
+        ProviderErrorClass::RateLimited,
+        ProviderErrorClass::Timeout,
+        ProviderErrorClass::DependencyUnavailable,
+        ProviderErrorClass::InternalError,
+    ]
+    .into_iter()
+    .map(|class| class.as_code().to_string())
+    .collect::<Vec<_>>();
+    let retryable_error_classes = vec![
+        ProviderErrorClass::AuthRequired,
+        ProviderErrorClass::RateLimited,
+        ProviderErrorClass::Timeout,
+        ProviderErrorClass::DependencyUnavailable,
+    ]
+    .into_iter()
+    .map(|class| class.as_code().to_string())
+    .collect::<Vec<_>>();
+
+    match provider {
+        "mock" => Some(ProviderCapabilities {
+            provider: "mock".to_string(),
+            supports_streaming: true,
+            supports_tools: false,
+            supports_json_mode: false,
+            supports_vision: false,
+            max_context_tokens: Some(8_192),
+            error_classes: all_error_classes,
+            retryable_error_classes,
+        }),
+        "unconfigured" => Some(ProviderCapabilities {
+            provider: "unconfigured".to_string(),
+            supports_streaming: true,
+            supports_tools: false,
+            supports_json_mode: false,
+            supports_vision: false,
+            max_context_tokens: Some(8_192),
+            error_classes: all_error_classes,
+            retryable_error_classes,
+        }),
+        "openai" => Some(ProviderCapabilities {
+            provider: "openai".to_string(),
+            supports_streaming: true,
+            supports_tools: true,
+            supports_json_mode: true,
+            supports_vision: true,
+            max_context_tokens: Some(128_000),
+            error_classes: all_error_classes,
+            retryable_error_classes,
+        }),
+        "anthropic" => Some(ProviderCapabilities {
+            provider: "anthropic".to_string(),
+            supports_streaming: true,
+            supports_tools: true,
+            supports_json_mode: true,
+            supports_vision: true,
+            max_context_tokens: Some(200_000),
+            error_classes: all_error_classes,
+            retryable_error_classes,
+        }),
+        _ => None,
+    }
 }
 
 fn split_word_deltas(output_text: &str) -> Vec<String> {
@@ -402,5 +546,34 @@ mod tests {
         assert!(error
             .to_string()
             .contains("PROVIDER_ERROR:openai:AUTH_REQUIRED"));
+    }
+
+    #[test]
+    fn provider_capabilities_contract_covers_core_providers() {
+        let registry = ProviderRegistry::new();
+        let all = registry.list_capabilities();
+        assert!(all.iter().any(|item| item.provider == "openai"));
+        assert!(all.iter().any(|item| item.provider == "anthropic"));
+
+        let openai = registry
+            .capabilities("openai")
+            .expect("missing openai capabilities");
+        assert!(openai.supports_streaming);
+        assert!(openai.supports_json_mode);
+        assert!(openai.error_classes.contains(&"AUTH_REQUIRED".to_string()));
+        assert!(openai
+            .retryable_error_classes
+            .contains(&"TIMEOUT".to_string()));
+    }
+
+    #[test]
+    fn parse_provider_error_class_handles_normalized_provider_error_prefix() {
+        let class = parse_provider_error_class("PROVIDER_ERROR:openai:RATE_LIMITED:status=429");
+        assert_eq!(class, ProviderErrorClass::RateLimited);
+        assert!(provider_error_retryable(class));
+
+        let unknown = parse_provider_error_class("PROVIDER_ERROR:openai:SOMETHING_ELSE");
+        assert_eq!(unknown, ProviderErrorClass::InternalError);
+        assert!(!provider_error_retryable(unknown));
     }
 }

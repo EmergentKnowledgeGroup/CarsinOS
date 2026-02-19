@@ -35,6 +35,29 @@ pub struct MetricsResponse {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct ListProviderCapabilitiesQuery {
+    pub provider: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ProviderCapabilityResponse {
+    pub provider: String,
+    pub supports_streaming: bool,
+    pub supports_tools: bool,
+    pub supports_json_mode: bool,
+    pub supports_vision: bool,
+    pub max_context_tokens: Option<u32>,
+    pub error_classes: Vec<String>,
+    pub retryable_error_classes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListProviderCapabilitiesResponse {
+    pub contract_version: String,
+    pub items: Vec<ProviderCapabilityResponse>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct ListSessionsQuery {
     pub limit: Option<u32>,
 }

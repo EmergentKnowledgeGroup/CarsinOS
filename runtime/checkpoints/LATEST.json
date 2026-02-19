@@ -1,29 +1,43 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T13:56:58.350133+00:00",
+  "captured_at": "2026-02-19T14:08:25.098604+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "main",
-  "head_short": "06c8bcc",
-  "step": "chunk-pr9-post-merge",
-  "note": "PR #9 merged; channel approval action flow is now in main.",
-  "next_cmd": "Start next chunk wave from remaining AppDex roadmap items.",
+  "branch": "codex/chunk-pr10-provider-contract-v2",
+  "head_short": "c167af9",
+  "step": "chunk-pr10-postgreen",
+  "note": "MC-PROV-001 provider contract v2 implementation is complete and validation suite is green.",
+  "next_cmd": "Commit chunk PR #10, push branch, open PR, then merge and continue to chunk #11.",
   "status": {
     "staged": [],
-    "modified": [],
+    "modified": [
+      "CHECKPOINT.md",
+      "crates/carsinos-gateway/src/main.rs",
+      "crates/carsinos-protocol/src/lib.rs",
+      "crates/carsinos-providers/src/lib.rs",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "untracked": [],
     "conflicted": [],
-    "dirty": false
+    "dirty": true
   },
   "changed_files": {
-    "working_tree": [],
+    "working_tree": [
+      "CHECKPOINT.md",
+      "crates/carsinos-gateway/src/main.rs",
+      "crates/carsinos-protocol/src/lib.rs",
+      "crates/carsinos-providers/src/lib.rs",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "staged": []
   },
   "recent_commits": [
+    "c167af9 docs: checkpoint PR #9 post-merge state",
     "06c8bcc feat: add channel approval action resolve endpoint (#9)",
     "c588189 docs: checkpoint PR #8 post-merge state",
     "8ccdc35 feat: add channel runtime policy defaults (#8)",
-    "490ce23 docs: checkpoint PR #7 post-merge state",
-    "86ae692 feat: add channel inbound ingest runtime endpoints (#7)"
+    "490ce23 docs: checkpoint PR #7 post-merge state"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
