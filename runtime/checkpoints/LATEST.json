@@ -1,12 +1,12 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T13:50:36.975090+00:00",
+  "captured_at": "2026-02-19T13:51:13.407331+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/chunk-pr8-channel-runtime-policy-defaults",
-  "head_short": "b312672",
-  "step": "chunk-pr8-pr-open",
-  "note": "PR #8 opened for channel runtime policy defaults.",
-  "next_cmd": "Monitor/merge PR #8 and begin chunk PR #9.",
+  "branch": "main",
+  "head_short": "8ccdc35",
+  "step": "chunk-pr8-post-merge",
+  "note": "PR #8 merged; channel runtime policy defaults now in main.",
+  "next_cmd": "Start chunk PR #9 from main.",
   "status": {
     "staged": [],
     "modified": [],
@@ -19,7 +19,7 @@
     "staged": []
   },
   "recent_commits": [
-    "b312672 feat: add channel runtime policy defaults",
+    "8ccdc35 feat: add channel runtime policy defaults (#8)",
     "490ce23 docs: checkpoint PR #7 post-merge state",
     "86ae692 feat: add channel inbound ingest runtime endpoints (#7)",
     "2cc7d4a docs: checkpoint PR #5 post-merge state",
