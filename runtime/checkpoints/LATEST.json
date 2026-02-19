@@ -1,12 +1,12 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T16:40:24.648148+00:00",
+  "captured_at": "2026-02-19T16:41:17.611944+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/chunk-pr28-pr-cleanup-after-27",
-  "head_short": "c0605c3",
-  "step": "chunk-pr28-pr-open",
-  "note": "Opened PR #28 for post-merge checkpoint hygiene docs.",
-  "next_cmd": "Merge PR #28 to persist cleanup checkpoints in main.",
+  "branch": "codex/chunk-pr29-postmerge-checkpoint",
+  "head_short": "3aafbb7",
+  "step": "chunk-pr28-post-merge",
+  "note": "Post-merge state after PR #27 convergence and PR #28 cleanup-checkpoint merge.",
+  "next_cmd": "Push checkpoint sync PR and merge to main.",
   "status": {
     "staged": [],
     "modified": [],
@@ -19,7 +19,7 @@
     "staged": []
   },
   "recent_commits": [
-    "c0605c3 docs: checkpoint post-merge PR cleanup state",
+    "3aafbb7 docs: record post-merge PR cleanup checkpoints (#28)",
     "2ffa952 test(gateway): stabilize request-log e2e assertion (#27)",
     "c167af9 docs: checkpoint PR #9 post-merge state",
     "06c8bcc feat: add channel approval action resolve endpoint (#9)",
@@ -31,7 +31,7 @@
     "Resume from step + next_cmd, then write a new checkpoint after each major edit block."
   ],
   "validations": [
-    "PR opened: https://github.com/ProfessahX/CarsinOS/pull/28",
-    "Branch pushed: codex/chunk-pr28-pr-cleanup-after-27"
+    "PR #27 merged; stacked PRs #15-#26 closed as superseded",
+    "PR #28 merged; open PR count is zero"
   ]
 }
