@@ -1647,7 +1647,7 @@ Tracks execution continuity across context compactions.
 - `runtime/checkpoints/LATEST.md`
 - `runtime/checkpoints/LATEST.json`
 - future action:
-- commit/push branch and open PR #2 into `main` for CodeRabbit review.
+- PR #2 is open and awaiting CodeRabbit review.
 - changed files:
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
@@ -1668,6 +1668,54 @@ Tracks execution continuity across context compactions.
 - future action:
 - start next independent chunk branch while PR #1 and PR #2 review cycles run.
 - changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 086
+
+- checklist refs: `N10` post-hardening PR remediation
+- past action:
+- Retrieved CodeRabbit review on PR #2 and confirmed actionable runtime issue (`retry_after_seconds` overestimated to full window) plus checkpoint narrative nits.
+- present action:
+- Implemented precise rate-limit retry hints by computing remaining bucket release time in the rate limiter and propagating it through `RATE_LIMITED` API responses.
+- reconciled PR #2 checkpoint text drift in `CHECKPOINT.md` and `runtime/checkpoints/LATEST.md`.
+- validation outcomes:
+- `cargo fmt --all` passed.
+- `cargo test -p carsinos-gateway rate_limit_returns_429 -- --nocapture` passed.
+- checkpoint sync complete in:
+- `runtime/checkpoints/LATEST.md`
+- `runtime/checkpoints/LATEST.json`
+- future action:
+- Commit/push PR #2 fix commit and monitor GitHub checks for merge readiness.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 087
+
+- checklist refs: `N10` post-hardening PR remediation
+- past action:
+- Completed baseline PR #2 retry-after propagation fix and initial targeted validation.
+- present action:
+- Added a dedicated regression test proving `retry_after_seconds` tracks remaining rate-limit window (`window_seconds=3`, delayed second call) and revalidated full rate-limit test slice.
+- validation outcomes:
+- `cargo fmt --all` passed.
+- `cargo test -p carsinos-gateway run_endpoint_rate_limit_ -- --nocapture` passed.
+- `cargo test -p carsinos-gateway rate_limit_ -- --nocapture` passed.
+- checkpoint sync complete in:
+- `runtime/checkpoints/LATEST.md`
+- `runtime/checkpoints/LATEST.json`
+- future action:
+- Commit and push PR #2 branch updates, then monitor/verify GitHub PR checks.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`

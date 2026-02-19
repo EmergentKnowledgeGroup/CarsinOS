@@ -168,6 +168,7 @@ impl RequestRateLimiter {
             status: StatusCode::INTERNAL_SERVER_ERROR,
             code: "INTERNAL_ERROR",
             message: "rate limiter lock poisoned".to_string(),
+            retry_after_seconds: None,
         })?;
         let bucket = guard.entry(key.to_string()).or_insert_with(VecDeque::new);
         while let Some(front) = bucket.front() {
@@ -178,10 +179,20 @@ impl RequestRateLimiter {
             }
         }
         if bucket.len() >= limit {
+            let retry_after_seconds = bucket
+                .front()
+                .map(|oldest| {
+                    let window_end = oldest.saturating_add(window_ms);
+                    let remaining_ms = window_end.saturating_sub(now);
+                    // Round up so callers do not retry earlier than the bucket release.
+                    (remaining_ms.saturating_add(999) / 1000).max(1)
+                })
+                .unwrap_or(self.config.window_seconds.max(1));
             return Err(AuthError {
                 status: StatusCode::TOO_MANY_REQUESTS,
                 code: "RATE_LIMITED",
                 message: "request rate limit exceeded".to_string(),
+                retry_after_seconds: Some(retry_after_seconds),
             });
         }
         bucket.push_back(now);
@@ -204,6 +215,7 @@ struct AuthError {
     status: StatusCode,
     code: &'static str,
     message: String,
+    retry_after_seconds: Option<i64>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -969,6 +981,7 @@ fn require_bearer_auth(
             status: StatusCode::UNAUTHORIZED,
             code: "AUTH_REQUIRED",
             message: "missing bearer token".to_string(),
+            retry_after_seconds: None,
         }
     })?;
 
@@ -984,6 +997,7 @@ fn require_bearer_auth(
                     status: StatusCode::UNAUTHORIZED,
                     code: "AUTH_INVALID",
                     message: "invalid bearer token".to_string(),
+                    retry_after_seconds: None,
                 });
             }
             let mut roles = HashSet::new();
@@ -1043,6 +1057,7 @@ fn authenticate_jwt(
         status: StatusCode::INTERNAL_SERVER_ERROR,
         code: "INTERNAL_ERROR",
         message: "jwt mode configured without jwt settings".to_string(),
+        retry_after_seconds: None,
     })?;
 
     let mut validation = Validation::new(Algorithm::HS256);
@@ -1067,6 +1082,7 @@ fn authenticate_jwt(
             status: StatusCode::UNAUTHORIZED,
             code,
             message: "invalid jwt token".to_string(),
+            retry_after_seconds: None,
         }
     })?;
 
@@ -1082,6 +1098,7 @@ fn authenticate_jwt(
             status: StatusCode::UNAUTHORIZED,
             code: "AUTH_INVALID",
             message: "jwt issuer mismatch".to_string(),
+            retry_after_seconds: None,
         });
     }
     if !audience_matches(&claims.aud, &jwt.audience) {
@@ -1093,6 +1110,7 @@ fn authenticate_jwt(
             status: StatusCode::UNAUTHORIZED,
             code: "AUTH_INVALID",
             message: "jwt audience mismatch".to_string(),
+            retry_after_seconds: None,
         });
     }
     if now > claims.exp.saturating_add(skew) {
@@ -1104,6 +1122,7 @@ fn authenticate_jwt(
             status: StatusCode::UNAUTHORIZED,
             code: "AUTH_EXPIRED",
             message: "jwt token expired".to_string(),
+            retry_after_seconds: None,
         });
     }
     if claims.iat > now.saturating_add(skew) {
@@ -1115,6 +1134,7 @@ fn authenticate_jwt(
             status: StatusCode::UNAUTHORIZED,
             code: "AUTH_INVALID",
             message: "jwt issued-at claim is in the future".to_string(),
+            retry_after_seconds: None,
         });
     }
     if now.saturating_sub(claims.iat).saturating_sub(skew) > jwt.max_token_age_seconds {
@@ -1126,6 +1146,7 @@ fn authenticate_jwt(
             status: StatusCode::UNAUTHORIZED,
             code: "AUTH_EXPIRED",
             message: "jwt token age exceeds maximum".to_string(),
+            retry_after_seconds: None,
         });
     }
     if claims.sub.trim().is_empty() {
@@ -1137,6 +1158,7 @@ fn authenticate_jwt(
             status: StatusCode::UNAUTHORIZED,
             code: "AUTH_INVALID",
             message: "jwt subject claim missing".to_string(),
+            retry_after_seconds: None,
         });
     }
     if claims.jti.trim().is_empty() {
@@ -1148,6 +1170,7 @@ fn authenticate_jwt(
             status: StatusCode::UNAUTHORIZED,
             code: "AUTH_INVALID",
             message: "jwt jti claim missing".to_string(),
+            retry_after_seconds: None,
         });
     }
     if jwt.revoked_jti.contains(claims.jti.trim()) {
@@ -1159,6 +1182,7 @@ fn authenticate_jwt(
             status: StatusCode::FORBIDDEN,
             code: "AUTH_FORBIDDEN",
             message: "jwt token id is revoked".to_string(),
+            retry_after_seconds: None,
         });
     }
 
@@ -1200,6 +1224,7 @@ fn normalize_roles(raw_roles: &[String]) -> std::result::Result<HashSet<String>,
             status: StatusCode::FORBIDDEN,
             code: "AUTH_ROLE_MISMATCH",
             message: "jwt roles claim is required".to_string(),
+            retry_after_seconds: None,
         });
     }
     let mut normalized = HashSet::new();
@@ -1220,6 +1245,7 @@ fn normalize_roles(raw_roles: &[String]) -> std::result::Result<HashSet<String>,
                 status: StatusCode::FORBIDDEN,
                 code: "AUTH_ROLE_MISMATCH",
                 message: format!("unsupported role claim: {value}"),
+                retry_after_seconds: None,
             });
         }
         normalized.insert(value);
@@ -1229,6 +1255,7 @@ fn normalize_roles(raw_roles: &[String]) -> std::result::Result<HashSet<String>,
             status: StatusCode::FORBIDDEN,
             code: "AUTH_ROLE_MISMATCH",
             message: "jwt roles claim is required".to_string(),
+            retry_after_seconds: None,
         });
     }
     Ok(normalized)
@@ -1255,24 +1282,28 @@ fn resolve_client_ip(
                 code: "POLICY_DENY",
                 message: "trusted proxy id header is required when proxy headers are enabled"
                     .to_string(),
+                retry_after_seconds: None,
             })?;
         if !state.trusted_proxy_allowlist.contains(&proxy_id) {
             return Err(AuthError {
                 status: StatusCode::FORBIDDEN,
                 code: "POLICY_DENY",
                 message: "untrusted proxy id".to_string(),
+                retry_after_seconds: None,
             });
         }
         let forwarded_for = fwd.ok_or_else(|| AuthError {
             status: StatusCode::FORBIDDEN,
             code: "POLICY_DENY",
             message: "x-forwarded-for is required when proxy headers are enabled".to_string(),
+            retry_after_seconds: None,
         })?;
         let first = forwarded_for.split(',').next().unwrap_or_default().trim();
         let ip = first.parse::<IpAddr>().map_err(|_| AuthError {
             status: StatusCode::FORBIDDEN,
             code: "POLICY_DENY",
             message: "invalid x-forwarded-for client ip".to_string(),
+            retry_after_seconds: None,
         })?;
         return Ok(ip.to_string());
     }
@@ -1283,6 +1314,7 @@ fn resolve_client_ip(
             code: "POLICY_DENY",
             message: "x-forwarded-for is not accepted when trusted proxy headers are disabled"
                 .to_string(),
+            retry_after_seconds: None,
         });
     }
 
@@ -1303,6 +1335,7 @@ fn require_roles_raw(
         status: StatusCode::FORBIDDEN,
         code: "AUTH_ROLE_MISMATCH",
         message: "insufficient role for endpoint".to_string(),
+        retry_after_seconds: None,
     })
 }
 
@@ -1331,7 +1364,8 @@ fn require_endpoint_rate_limit_with_error(
                 api_error_rate_limited(
                     &err.message,
                     &principal_scope,
-                    state.rate_limiter.config.window_seconds,
+                    err.retry_after_seconds
+                        .unwrap_or(state.rate_limiter.config.window_seconds),
                 )
             } else {
                 api_error_with_code(err.status, err.code, &err.message)
@@ -1346,7 +1380,8 @@ fn require_endpoint_rate_limit_with_error(
                 api_error_rate_limited(
                     &err.message,
                     &ip_scope,
-                    state.rate_limiter.config.window_seconds,
+                    err.retry_after_seconds
+                        .unwrap_or(state.rate_limiter.config.window_seconds),
                 )
             } else {
                 api_error_with_code(err.status, err.code, &err.message)
@@ -6426,7 +6461,8 @@ fn require_bearer_auth_with_error(
             api_error_rate_limited(
                 &err.message,
                 "auth",
-                state.rate_limiter.config.window_seconds,
+                err.retry_after_seconds
+                    .unwrap_or(state.rate_limiter.config.window_seconds),
             )
         } else {
             api_error_with_code(err.status, err.code, &err.message)
@@ -8442,6 +8478,80 @@ mod tests {
         assert_eq!(second_run_json["error_code"], "RATE_LIMITED");
         assert_eq!(second_run_json["rate_limit_scope"], "run.principal");
         assert_eq!(second_run_json["retry_after_seconds"], 60);
+    }
+
+    #[tokio::test]
+    async fn run_endpoint_rate_limit_retry_after_tracks_remaining_window() {
+        let ctx = test_context_with_rate_limits(RequestRateLimitConfig {
+            enabled: true,
+            window_seconds: 3,
+            per_ip_limit: 100,
+            per_principal_limit: 100,
+            per_run_endpoint_limit: 1,
+            per_approval_endpoint_limit: 100,
+        });
+
+        let create_session = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"rate-limit-retry-after"}"#),
+            ))
+            .await
+            .expect("create session");
+        let session_json = parse_json(create_session).await;
+        let session_id = session_json["session"]["session_id"]
+            .as_str()
+            .expect("session id")
+            .to_string();
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(r#"{"role":"user","content_text":"retry-after check"}"#),
+            ))
+            .await
+            .expect("create message");
+
+        let first_run = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("first run");
+        assert_eq!(first_run.status(), StatusCode::CREATED);
+
+        sleep(Duration::from_millis(1200)).await;
+
+        let second_run = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("second run");
+        assert_eq!(second_run.status(), StatusCode::TOO_MANY_REQUESTS);
+        let second_run_json = parse_json(second_run).await;
+        assert_eq!(second_run_json["error_code"], "RATE_LIMITED");
+        assert_eq!(second_run_json["rate_limit_scope"], "run.principal");
+        let retry_after_seconds = second_run_json["retry_after_seconds"]
+            .as_i64()
+            .expect("retry_after_seconds");
+        assert!(
+            (1..=2).contains(&retry_after_seconds),
+            "expected retry_after_seconds between 1 and 2, got {retry_after_seconds}"
+        );
     }
 
     #[tokio::test]

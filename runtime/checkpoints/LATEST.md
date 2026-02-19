@@ -1,11 +1,10 @@
 # LATEST Checkpoint
 
-- step: chunk-pr2-pr-open
-- note: PR #2 opened for rate-limit contract hardening. Preparing next independent chunk.
+- step: pr2-cr-fix-postgreen
+- note: PR #2 CodeRabbit fixes finalized with computed retry-after propagation and dedicated remaining-window regression test.
 - branch: codex/chunk-pr2-rate-limit-contract
-- head: 2032f07adadfc05146368ecfecd95f4d1be2b16a
-- next_cmd: Choose next chunk, branch codex/chunk-pr3-*, implement, validate, push, and open PR.
+- head: 0745464307f1177dbc5b49a95315276500403fe4
+- next_cmd: Commit and push PR #2 fixes, then verify GitHub checks.
 - validations:
-  - PR opened: https://github.com/ProfessahX/CarsinOS/pull/2
-  - cargo fmt passed.
-  - cargo test -p carsinos-gateway passed.
+  - cargo fmt --all passed.
+  - cargo test -p carsinos-gateway rate_limit_ passed.
