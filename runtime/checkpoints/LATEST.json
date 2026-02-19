@@ -1,47 +1,29 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T13:44:56.189981+00:00",
+  "captured_at": "2026-02-19T13:45:35.379872+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
   "branch": "codex/chunk-pr7-channel-ingest-runtime",
-  "head_short": "2cc7d4a",
-  "step": "chunk-pr7-postgreen",
-  "note": "MC-CH channel ingest runtime is implemented and green across full security gate validation.",
-  "next_cmd": "Commit PR #7 changes, push branch, open PR, and checkpoint PR-open state.",
+  "head_short": "b8631c3",
+  "step": "chunk-pr7-pr-open",
+  "note": "PR #7 opened for channel inbound runtime endpoints and routing contract.",
+  "next_cmd": "Monitor PR #7 checks/review, merge when clean, then start chunk PR #8.",
   "status": {
     "staged": [],
-    "modified": [
-      "CHECKPOINT.md",
-      "Cargo.lock",
-      "crates/carsinos-gateway/Cargo.toml",
-      "crates/carsinos-gateway/src/main.rs",
-      "crates/carsinos-protocol/src/lib.rs",
-      "crates/carsinos-storage/src/lib.rs",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
+    "modified": [],
     "untracked": [],
     "conflicted": [],
-    "dirty": true
+    "dirty": false
   },
   "changed_files": {
-    "working_tree": [
-      "CHECKPOINT.md",
-      "Cargo.lock",
-      "crates/carsinos-gateway/Cargo.toml",
-      "crates/carsinos-gateway/src/main.rs",
-      "crates/carsinos-protocol/src/lib.rs",
-      "crates/carsinos-storage/src/lib.rs",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
+    "working_tree": [],
     "staged": []
   },
   "recent_commits": [
+    "b8631c3 feat: add channel inbound ingest runtime endpoints",
     "2cc7d4a docs: checkpoint PR #5 post-merge state",
     "e771024 feat: add security audit retention archive operations (#5)",
     "d1d35d5 docs: checkpoint PR #4 post-merge state",
-    "7922846 feat: add JWT replay token-id protection (#4)",
-    "3d26ec3 refactor: replace security audit list arg fanout with filter contract (#6)"
+    "7922846 feat: add JWT replay token-id protection (#4)"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
