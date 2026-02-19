@@ -504,6 +504,140 @@ fn default_channel_model_id() -> String {
     "mock-echo-v1".to_string()
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeGlobalConfig {
+    #[serde(default)]
+    pub jwt_issuer_allowlist: Vec<String>,
+    #[serde(default)]
+    pub jwt_audience_allowlist: Vec<String>,
+    #[serde(default)]
+    pub trusted_proxy_allowlist: Vec<String>,
+    #[serde(default = "default_runtime_tls_termination_mode")]
+    pub tls_termination_mode: String,
+    #[serde(default)]
+    pub public_base_url: Option<String>,
+}
+
+fn default_runtime_tls_termination_mode() -> String {
+    "edge".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeProviderPolicyConfig {
+    pub provider: String,
+    #[serde(default = "default_runtime_provider_enabled")]
+    pub enabled: bool,
+    #[serde(default)]
+    pub allow_consumer_oauth: bool,
+    #[serde(default = "default_runtime_provider_kill_switch_scope")]
+    pub kill_switch_scope: String,
+}
+
+fn default_runtime_provider_enabled() -> bool {
+    true
+}
+
+fn default_runtime_provider_kill_switch_scope() -> String {
+    "none".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeDiscordDeploymentConfig {
+    #[serde(default)]
+    pub bot_token_secret_ref: Option<String>,
+    #[serde(default)]
+    pub application_id: Option<String>,
+    #[serde(default)]
+    pub intents: Vec<String>,
+    #[serde(default)]
+    pub staging_guild_ids: Vec<String>,
+    #[serde(default)]
+    pub staging_channel_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeTelegramDeploymentConfig {
+    #[serde(default)]
+    pub bot_token_secret_ref: Option<String>,
+    #[serde(default = "default_runtime_telegram_webhook_mode")]
+    pub webhook_mode: String,
+    #[serde(default)]
+    pub webhook_url: Option<String>,
+    #[serde(default)]
+    pub staging_chat_ids: Vec<i64>,
+}
+
+fn default_runtime_telegram_webhook_mode() -> String {
+    "long_poll".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeChannelsConfig {
+    pub discord: RuntimeDiscordDeploymentConfig,
+    pub telegram: RuntimeTelegramDeploymentConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeSecurityOpsConfig {
+    #[serde(default)]
+    pub threat_model_approver: Option<String>,
+    #[serde(default)]
+    pub risk_acceptance_owner: Option<String>,
+    #[serde(default)]
+    pub incident_primary: Option<String>,
+    #[serde(default)]
+    pub incident_backup: Option<String>,
+    #[serde(default)]
+    pub audit_archive_target: Option<String>,
+    #[serde(default)]
+    pub audit_archive_encryption: Option<String>,
+    #[serde(default = "default_runtime_hot_retention_days")]
+    pub audit_hot_retention_days: i64,
+    #[serde(default = "default_runtime_archive_retention_days")]
+    pub audit_archive_retention_days: i64,
+}
+
+fn default_runtime_hot_retention_days() -> i64 {
+    90
+}
+
+fn default_runtime_archive_retention_days() -> i64 {
+    365
+}
+
+fn default_runtime_config_schema_version() -> String {
+    "runtime.config.v1".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeConfigResponse {
+    #[serde(default = "default_runtime_config_schema_version")]
+    pub schema_version: String,
+    pub global: RuntimeGlobalConfig,
+    pub providers: Vec<RuntimeProviderPolicyConfig>,
+    pub channels: RuntimeChannelsConfig,
+    pub security: RuntimeSecurityOpsConfig,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GetRuntimeConfigResponse {
+    pub config: RuntimeConfigResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdateRuntimeConfigRequest {
+    pub global: Option<RuntimeGlobalConfig>,
+    pub providers: Option<Vec<RuntimeProviderPolicyConfig>>,
+    pub channels: Option<RuntimeChannelsConfig>,
+    pub security: Option<RuntimeSecurityOpsConfig>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UpdateRuntimeConfigResponse {
+    pub config: RuntimeConfigResponse,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ChannelConfigResponse {
     pub discord: DiscordChannelConfig,

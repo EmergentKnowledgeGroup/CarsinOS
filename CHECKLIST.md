@@ -146,7 +146,7 @@ Execution checklist derived from `PLAN.md`. IDs are stable and must be used by `
 
 ## Phase P - Setup Wizard + Dynamic Configuration (MC-CONF)
 
-- [ ] `P1` `MC-CONF-001` Freeze configuration contract for runtime-scoped values (`global`, `provider`, `auth_profile`, `channel`, `security`) with schema versioning.
+- [x] `P1` `MC-CONF-001` Freeze configuration contract for runtime-scoped values (`global`, `provider`, `auth_profile`, `channel`, `security`) with schema versioning. Implemented via `runtime.config.v1` typed contract + `GET/POST /api/v1/config/runtime`.
 - [ ] `P2` `MC-CONF-002` Implement Mission Control first-run/reconfigure wizard that captures required operator inputs without source edits.
 - [ ] `P3` `MC-CONF-003` Wire wizard-driven secret references to keychain/secret backends (no plaintext secret persistence in config records).
 - [ ] `P4` `MC-CONF-004` Implement config mutation audit trail + rollback to last-known-good snapshots.

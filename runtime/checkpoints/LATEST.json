@@ -1,43 +1,37 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T23:42:59.634941+00:00",
+  "captured_at": "2026-02-19T23:47:45.016987+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
   "branch": "codex/chunk-pr30-config-wizard-hardcode-audit",
-  "head_short": "8f8c6cb",
-  "step": "phase-o-artifacts-post-validation",
-  "note": "Implemented Phase O artifact set (threat model draft, incident runbook draft, Security Gate 0 evidence script/workflow) and validated strict+dry-run gate behavior.",
-  "next_cmd": "Commit Phase O artifact block to branch and push update to PR #30.",
+  "head_short": "3bbea57",
+  "step": "mc-conf-001-post-green",
+  "note": "Implemented runtime.config.v1 typed contract and /api/v1/config/runtime endpoints with validation; full workspace regression green.",
+  "next_cmd": "Commit MC-CONF-001 implementation + Phase O artifacts and push to PR #30.",
   "status": {
     "staged": [],
     "modified": [
       "CHECKLIST.md",
-      "CHECKPOINT.md",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
+      "crates/carsinos-gateway/src/main.rs",
+      "crates/carsinos-protocol/src/lib.rs"
     ],
-    "untracked": [
-      ".github/workflows/security-gate0-evidence.yml",
-      "docs/security/",
-      "scripts/security_gate0_evidence_bundle.sh"
-    ],
+    "untracked": [],
     "conflicted": [],
     "dirty": true
   },
   "changed_files": {
     "working_tree": [
       "CHECKLIST.md",
-      "CHECKPOINT.md",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
+      "crates/carsinos-gateway/src/main.rs",
+      "crates/carsinos-protocol/src/lib.rs"
     ],
     "staged": []
   },
   "recent_commits": [
+    "3bbea57 docs(security): add phase O threat/runbook artifacts and gate0 evidence workflow",
     "8f8c6cb docs: checkpoint PR #30 open state",
     "9beb0ce docs: add setup wizard config track and hardcoded-value audit gates",
     "c10d54b docs: checkpoint explicit post-merge state (#29)",
-    "3aafbb7 docs: record post-merge PR cleanup checkpoints (#28)",
-    "2ffa952 test(gateway): stabilize request-log e2e assertion (#27)"
+    "3aafbb7 docs: record post-merge PR cleanup checkpoints (#28)"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",

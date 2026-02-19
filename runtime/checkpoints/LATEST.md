@@ -1,10 +1,10 @@
 # LATEST Checkpoint
 
-- step: phase-o-artifacts-post-validation
-- note: Phase O artifact set implemented and validated (Security Gate 0 script passes dry-run and fails strict mode until approvals are assigned).
+- step: mc-conf-001-post-green
+- note: MC-CONF-001 runtime config contract + API implemented and full regression is green.
 - branch: codex/chunk-pr30-config-wizard-hardcode-audit
-- head: 8f8c6cb
-- next_cmd: Commit Phase O artifact block and push update to PR #30.
+- head: 3bbea57
+- next_cmd: Commit and push this implementation block to PR #30; then process review/CI feedback.
 - validations:
-- Threat model and incident runbook drafts published under `docs/security/`.
-- Security Gate 0 evidence workflow implemented in script + GitHub Actions workflow.
+- Runtime config endpoint tests passed.
+- Full `cargo test --workspace --locked` passed.

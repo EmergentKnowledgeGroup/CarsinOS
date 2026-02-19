@@ -23,23 +23,27 @@ use carsinos_protocol::{
     CreateMessageResponse, CreateNoteRequest, CreateNoteResponse, CreateRunRequest,
     CreateRunResponse, CreateSessionRequest, CreateSessionResponse, DiscordChannelConfig,
     GetAgentProviderProfileOrderResponse, GetChannelConfigResponse, GetNoteResponse,
-    HealthResponse, IngestChannelMessageResponse, IngestDiscordMessageRequest,
-    IngestTelegramMessageRequest, JobResponse, JobRunResponse, JobStatusResponse,
-    ListApprovalsQuery, ListApprovalsResponse, ListAuthProfilesQuery, ListAuthProfilesResponse,
-    ListJobHistoryQuery, ListJobHistoryResponse, ListJobsQuery, ListJobsResponse,
-    ListMessagesQuery, ListMessagesResponse, ListNotesQuery, ListNotesResponse, ListPluginsQuery,
-    ListPluginsResponse, ListProviderCapabilitiesQuery, ListProviderCapabilitiesResponse,
-    ListSessionsQuery, ListSessionsResponse, ListSkillsQuery, ListSkillsResponse, MessageResponse,
-    MetricsResponse, NoteResponse, OpenAiOauthFinishRequest, OpenAiOauthFinishResponse,
-    OpenAiOauthStartRequest, OpenAiOauthStartResponse, PluginCapabilityResponse,
-    PluginManifestResponse, ProviderCapabilityResponse, RemoveJobResponse, ResolveApprovalRequest,
-    ResolveApprovalResponse, ResolveChannelApprovalActionRequest, RunJobNowResponse, RunResponse,
+    GetRuntimeConfigResponse, HealthResponse, IngestChannelMessageResponse,
+    IngestDiscordMessageRequest, IngestTelegramMessageRequest, JobResponse, JobRunResponse,
+    JobStatusResponse, ListApprovalsQuery, ListApprovalsResponse, ListAuthProfilesQuery,
+    ListAuthProfilesResponse, ListJobHistoryQuery, ListJobHistoryResponse, ListJobsQuery,
+    ListJobsResponse, ListMessagesQuery, ListMessagesResponse, ListNotesQuery, ListNotesResponse,
+    ListPluginsQuery, ListPluginsResponse, ListProviderCapabilitiesQuery,
+    ListProviderCapabilitiesResponse, ListSessionsQuery, ListSessionsResponse, ListSkillsQuery,
+    ListSkillsResponse, MessageResponse, MetricsResponse, NoteResponse, OpenAiOauthFinishRequest,
+    OpenAiOauthFinishResponse, OpenAiOauthStartRequest, OpenAiOauthStartResponse,
+    PluginCapabilityResponse, PluginManifestResponse, ProviderCapabilityResponse,
+    RemoveJobResponse, ResolveApprovalRequest, ResolveApprovalResponse,
+    ResolveChannelApprovalActionRequest, RunJobNowResponse, RunResponse, RuntimeChannelsConfig,
+    RuntimeConfigResponse, RuntimeDiscordDeploymentConfig, RuntimeGlobalConfig,
+    RuntimeProviderPolicyConfig, RuntimeSecurityOpsConfig, RuntimeTelegramDeploymentConfig,
     SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult, SessionDetailResponse,
     SessionSummary, SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse,
     SkillResponse, StatusResponse, TelegramChannelConfig, UpdateAuthProfileStateRequest,
     UpdateAuthProfileStateResponse, UpdateChannelConfigRequest, UpdateChannelConfigResponse,
     UpdateJobRequest, UpdateJobResponse, UpdateNoteRequest, UpdateNoteResponse,
-    UpdateSkillStateRequest, UpdateSkillStateResponse,
+    UpdateRuntimeConfigRequest, UpdateRuntimeConfigResponse, UpdateSkillStateRequest,
+    UpdateSkillStateResponse,
 };
 use carsinos_providers::{
     parse_provider_error_class as parse_provider_error_class_normalized,
@@ -699,7 +703,9 @@ const KILL_SWITCH_SCOPE_GLOBAL: &str = "global";
 
 const APP_KV_CHANNELS_DISCORD: &str = "config.channels.discord";
 const APP_KV_CHANNELS_TELEGRAM: &str = "config.channels.telegram";
+const APP_KV_RUNTIME_CONFIG: &str = "config.runtime.v1";
 const APP_KV_SKILLS_STATE: &str = "config.skills.state";
+const RUNTIME_CONFIG_SCHEMA_VERSION: &str = "runtime.config.v1";
 const PLUGIN_REGISTRY_CONTRACT_VERSION: &str = "plugin.registry.v1";
 const SKILL_REGISTRY_CONTRACT_VERSION: &str = "skills.registry.v1";
 const NUMQUAM_SCHEMA_VERSION: &str = "integration.v1";
@@ -2342,6 +2348,10 @@ fn build_app(state: AppState) -> Router {
             get(get_channel_config).post(update_channel_config),
         )
         .route(
+            "/api/v1/config/runtime",
+            get(get_runtime_config).post(update_runtime_config),
+        )
+        .route(
             "/api/v1/channels/telegram/inbound",
             post(ingest_telegram_channel_message),
         )
@@ -3916,6 +3926,63 @@ async fn update_channel_config(
         updated_at,
     };
     Ok(Json(UpdateChannelConfigResponse { config }))
+}
+
+async fn get_runtime_config(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
+    let config = load_runtime_config(&state)
+        .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
+    Ok(Json(GetRuntimeConfigResponse { config }))
+}
+
+async fn update_runtime_config(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<UpdateRuntimeConfigRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN],
+        "runtime.config.update",
+        "config.runtime",
+    )?;
+
+    let existing = load_runtime_config(&state)
+        .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
+    let mut config = existing;
+    if let Some(global) = request.global {
+        config.global = global;
+    }
+    if let Some(providers) = request.providers {
+        config.providers = providers;
+    }
+    if let Some(channels) = request.channels {
+        config.channels = channels;
+    }
+    if let Some(security) = request.security {
+        config.security = security;
+    }
+    config.schema_version = RUNTIME_CONFIG_SCHEMA_VERSION.to_string();
+
+    validate_runtime_config(&config)
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+
+    let config_json = serde_json::to_string(&config)
+        .map_err(|err| internal_err_with_error("serializing runtime config failed", err.into()))?;
+    let updated_at = state
+        .storage
+        .set_app_kv_json(APP_KV_RUNTIME_CONFIG, config_json)
+        .map_err(|err| internal_err_with_error("saving runtime config failed", err))?;
+    config.updated_at = updated_at;
+
+    Ok(Json(UpdateRuntimeConfigResponse { config }))
 }
 
 fn get_or_create_channel_session(
@@ -7862,6 +7929,191 @@ fn default_telegram_channel_config() -> TelegramChannelConfig {
         default_model_provider: "mock".to_string(),
         default_model_id: "mock-echo-v1".to_string(),
     }
+}
+
+fn default_runtime_provider_policies() -> Vec<RuntimeProviderPolicyConfig> {
+    vec![
+        RuntimeProviderPolicyConfig {
+            provider: AUTH_PROVIDER_OPENAI.to_string(),
+            enabled: true,
+            allow_consumer_oauth: false,
+            kill_switch_scope: KILL_SWITCH_SCOPE_NONE.to_string(),
+        },
+        RuntimeProviderPolicyConfig {
+            provider: AUTH_PROVIDER_ANTHROPIC.to_string(),
+            enabled: true,
+            allow_consumer_oauth: false,
+            kill_switch_scope: KILL_SWITCH_SCOPE_NONE.to_string(),
+        },
+    ]
+}
+
+fn default_runtime_config() -> RuntimeConfigResponse {
+    RuntimeConfigResponse {
+        schema_version: RUNTIME_CONFIG_SCHEMA_VERSION.to_string(),
+        global: RuntimeGlobalConfig {
+            jwt_issuer_allowlist: Vec::new(),
+            jwt_audience_allowlist: Vec::new(),
+            trusted_proxy_allowlist: Vec::new(),
+            tls_termination_mode: "edge".to_string(),
+            public_base_url: None,
+        },
+        providers: default_runtime_provider_policies(),
+        channels: RuntimeChannelsConfig {
+            discord: RuntimeDiscordDeploymentConfig {
+                bot_token_secret_ref: None,
+                application_id: None,
+                intents: vec![
+                    "guilds".to_string(),
+                    "guild_messages".to_string(),
+                    "direct_messages".to_string(),
+                ],
+                staging_guild_ids: Vec::new(),
+                staging_channel_ids: Vec::new(),
+            },
+            telegram: RuntimeTelegramDeploymentConfig {
+                bot_token_secret_ref: None,
+                webhook_mode: "long_poll".to_string(),
+                webhook_url: None,
+                staging_chat_ids: Vec::new(),
+            },
+        },
+        security: RuntimeSecurityOpsConfig {
+            threat_model_approver: None,
+            risk_acceptance_owner: None,
+            incident_primary: None,
+            incident_backup: None,
+            audit_archive_target: None,
+            audit_archive_encryption: None,
+            audit_hot_retention_days: 90,
+            audit_archive_retention_days: 365,
+        },
+        updated_at: 0,
+    }
+}
+
+fn normalize_runtime_config(mut config: RuntimeConfigResponse) -> RuntimeConfigResponse {
+    if config.schema_version.trim().is_empty() {
+        config.schema_version = RUNTIME_CONFIG_SCHEMA_VERSION.to_string();
+    }
+    if config.providers.is_empty() {
+        config.providers = default_runtime_provider_policies();
+    }
+    if config.updated_at < 0 {
+        config.updated_at = 0;
+    }
+    config
+}
+
+fn load_runtime_config(state: &AppState) -> AnyResult<RuntimeConfigResponse> {
+    let mut config =
+        if let Some((json, updated_at)) = state.storage.get_app_kv_json(APP_KV_RUNTIME_CONFIG)? {
+            let mut stored: RuntimeConfigResponse = serde_json::from_str(&json)
+                .with_context(|| "failed to deserialize runtime config from storage")?;
+            stored.updated_at = updated_at;
+            stored
+        } else {
+            default_runtime_config()
+        };
+    config = normalize_runtime_config(config);
+    Ok(config)
+}
+
+fn validate_secret_ref(secret_ref: &Option<String>, field_name: &str) -> AnyResult<()> {
+    if let Some(value) = secret_ref {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            anyhow::bail!("{field_name} cannot be empty when provided");
+        }
+        if !trimmed.starts_with("secret://") {
+            anyhow::bail!("{field_name} must use secret:// reference format");
+        }
+    }
+    Ok(())
+}
+
+fn validate_runtime_config(config: &RuntimeConfigResponse) -> AnyResult<()> {
+    if config.schema_version != RUNTIME_CONFIG_SCHEMA_VERSION {
+        anyhow::bail!(
+            "unsupported runtime config schema_version: {}",
+            config.schema_version
+        );
+    }
+
+    match config.global.tls_termination_mode.as_str() {
+        "edge" | "gateway" | "passthrough" => {}
+        _ => anyhow::bail!(
+            "invalid tls_termination_mode: {} (expected edge|gateway|passthrough)",
+            config.global.tls_termination_mode
+        ),
+    }
+
+    let mut seen_provider_ids = HashSet::new();
+    for provider in &config.providers {
+        let provider_id = provider.provider.trim().to_ascii_lowercase();
+        if provider_id.is_empty() {
+            anyhow::bail!("provider policy contains empty provider id");
+        }
+        if !seen_provider_ids.insert(provider_id.clone()) {
+            anyhow::bail!("duplicate provider policy for provider: {provider_id}");
+        }
+        if !matches!(
+            provider.kill_switch_scope.as_str(),
+            KILL_SWITCH_SCOPE_NONE
+                | KILL_SWITCH_SCOPE_PROFILE
+                | KILL_SWITCH_SCOPE_PROVIDER
+                | KILL_SWITCH_SCOPE_GLOBAL
+        ) {
+            anyhow::bail!(
+                "invalid provider kill_switch_scope: {} (expected none|profile|provider|global)",
+                provider.kill_switch_scope
+            );
+        }
+    }
+
+    validate_secret_ref(
+        &config.channels.discord.bot_token_secret_ref,
+        "channels.discord.bot_token_secret_ref",
+    )?;
+    validate_secret_ref(
+        &config.channels.telegram.bot_token_secret_ref,
+        "channels.telegram.bot_token_secret_ref",
+    )?;
+
+    match config.channels.telegram.webhook_mode.as_str() {
+        "long_poll" => {}
+        "webhook" => {
+            let has_webhook_url = config
+                .channels
+                .telegram
+                .webhook_url
+                .as_ref()
+                .map(|value| !value.trim().is_empty())
+                .unwrap_or(false);
+            if !has_webhook_url {
+                anyhow::bail!(
+                    "channels.telegram.webhook_url is required when webhook_mode=webhook"
+                );
+            }
+        }
+        _ => {
+            anyhow::bail!(
+                "invalid channels.telegram.webhook_mode: {} (expected long_poll|webhook)",
+                config.channels.telegram.webhook_mode
+            )
+        }
+    }
+
+    if config.security.audit_hot_retention_days < 90 {
+        anyhow::bail!("security.audit_hot_retention_days must be >= 90");
+    }
+    if config.security.audit_archive_retention_days < config.security.audit_hot_retention_days {
+        anyhow::bail!(
+            "security.audit_archive_retention_days must be >= security.audit_hot_retention_days"
+        );
+    }
+
+    Ok(())
 }
 
 fn load_channel_config(state: &AppState) -> AnyResult<carsinos_protocol::ChannelConfigResponse> {
@@ -14475,6 +14727,139 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             updated_json["config"]["telegram"]["allowlisted_user_ids"][1],
             1002
         );
+    }
+
+    #[tokio::test]
+    async fn runtime_config_endpoints_round_trip_and_validation() {
+        let ctx = test_context();
+        let get_default = ctx
+            .app
+            .clone()
+            .oneshot(auth_request("GET", "/api/v1/config/runtime", Body::empty()))
+            .await
+            .expect("get runtime config");
+        assert_eq!(get_default.status(), StatusCode::OK);
+        let default_json = parse_json(get_default).await;
+        assert_eq!(
+            default_json["config"]["schema_version"],
+            "runtime.config.v1"
+        );
+        assert_eq!(
+            default_json["config"]["channels"]["telegram"]["webhook_mode"],
+            "long_poll"
+        );
+        assert_eq!(
+            default_json["config"]["security"]["audit_hot_retention_days"],
+            90
+        );
+
+        let update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    r#"{
+                        "global": {
+                            "jwt_issuer_allowlist": ["https://issuer.example"],
+                            "jwt_audience_allowlist": ["carsinos-gateway"],
+                            "trusted_proxy_allowlist": ["10.0.0.1"],
+                            "tls_termination_mode": "edge",
+                            "public_base_url": "https://carsinos.example"
+                        },
+                        "providers": [
+                            {
+                                "provider": "openai",
+                                "enabled": true,
+                                "allow_consumer_oauth": false,
+                                "kill_switch_scope": "none"
+                            },
+                            {
+                                "provider": "anthropic",
+                                "enabled": true,
+                                "allow_consumer_oauth": true,
+                                "kill_switch_scope": "profile"
+                            }
+                        ],
+                        "channels": {
+                            "discord": {
+                                "bot_token_secret_ref": "secret://discord/bot_token",
+                                "application_id": "123456",
+                                "intents": ["guilds","guild_messages","direct_messages"],
+                                "staging_guild_ids": ["guild-a"],
+                                "staging_channel_ids": ["channel-a"]
+                            },
+                            "telegram": {
+                                "bot_token_secret_ref": "secret://telegram/bot_token",
+                                "webhook_mode": "webhook",
+                                "webhook_url": "https://carsinos.example/telegram/webhook",
+                                "staging_chat_ids": [1001]
+                            }
+                        },
+                        "security": {
+                            "threat_model_approver": "owner-a",
+                            "risk_acceptance_owner": "owner-b",
+                            "incident_primary": "owner-c",
+                            "incident_backup": "owner-d",
+                            "audit_archive_target": "s3://carsinos-security-archive",
+                            "audit_archive_encryption": "kms",
+                            "audit_hot_retention_days": 90,
+                            "audit_archive_retention_days": 365
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update runtime config");
+        assert_eq!(update.status(), StatusCode::OK);
+        let update_json = parse_json(update).await;
+        assert_eq!(
+            update_json["config"]["global"]["jwt_issuer_allowlist"][0],
+            "https://issuer.example"
+        );
+        assert_eq!(
+            update_json["config"]["providers"][1]["allow_consumer_oauth"],
+            true
+        );
+        assert_eq!(
+            update_json["config"]["channels"]["telegram"]["webhook_mode"],
+            "webhook"
+        );
+        assert_eq!(
+            update_json["config"]["security"]["audit_archive_retention_days"],
+            365
+        );
+
+        let invalid = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    r#"{
+                        "channels": {
+                            "discord": {
+                                "bot_token_secret_ref": "secret://discord/bot_token",
+                                "application_id": null,
+                                "intents": ["guilds"],
+                                "staging_guild_ids": [],
+                                "staging_channel_ids": []
+                            },
+                            "telegram": {
+                                "bot_token_secret_ref": "secret://telegram/bot_token",
+                                "webhook_mode": "webhook",
+                                "webhook_url": null,
+                                "staging_chat_ids": []
+                            }
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("invalid runtime config update");
+        assert_eq!(invalid.status(), StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]
