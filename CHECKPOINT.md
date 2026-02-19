@@ -1729,3 +1729,19 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+
+### 2026-02-19 - Entry 090
+
+- checklist refs: `N10` post-hardening PR maintenance
+- past action:
+- PR #1 branch was repushed to retrigger review and showed merge-state drift against `main`.
+- present action:
+- Captured a fresh rebase/reconcile phase checkpoint for PR #1 before merging `main` into branch.
+- future action:
+- Merge `origin/main`, resolve conflicts (favoring latest checkpoint history from main), rerun targeted tests, and push.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`

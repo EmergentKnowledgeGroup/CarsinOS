@@ -1,10 +1,10 @@
 # LATEST Checkpoint
 
-- step: pr-review-phase-start
-- note: Starting PR debt closure for PR #2 and PR #3 with source-of-truth preservation.
+- step: pr1-rebase-start
+- note: PR #1 branch diverged from main; starting merge/reconcile to restore clean mergeability.
 - branch: codex/chunk-pr1-ci-review-gates
-- head: a23247e0777a77a9c760b84ebe9cef93fb6a5654
-- next_cmd: gh pr checks 1 && gh pr view 2 --json reviews,statusCheckRollup,url,headRefName && gh pr view 3 --json reviews,statusCheckRollup,url,headRefName
+- head: 5c97a634b6bb1f888162ef916260812a438cf765
+- next_cmd: git fetch origin main && git merge origin/main
 - validations:
-  - git status --short --branch clean on working tree.
-  - context checkpoint snapshot written (pr-review-start).
+  - PR #1 merge state reported DIRTY.
+  - local branch pushed and up to date with origin.
