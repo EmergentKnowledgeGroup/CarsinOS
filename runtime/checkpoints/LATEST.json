@@ -1,13 +1,13 @@
 {
-  "timestamp_utc": "2026-02-19T09:26:15Z",
-  "step": "chunk-pr1-pr-open",
-  "note": "PR #1 opened for CI/review scaffolding. Proceeding to next chunk in parallel.",
+  "timestamp_utc": "2026-02-19T10:44:20Z",
+  "step": "pr1-fix-postgreen",
+  "note": "PR #1 fixes complete: CodeRabbit comments addressed and flaky CI log e2e test stabilized.",
   "branch": "codex/chunk-pr1-ci-review-gates",
-  "head": "85d6421f64b3424b60076c28cc7608bf9cae0d45",
-  "next_cmd": "Checkout main and start codex/chunk-pr2-rate-limit-contract implementation branch.",
+  "head": "c49c8fd4909cea4a7d144f54f77776d327e9251b",
+  "next_cmd": "Commit and push PR #1 fixes, then re-run GitHub checks.",
   "validations": [
-    "PR opened: https://github.com/ProfessahX/CarsinOS/pull/1",
     "cargo fmt --all --check passed.",
-    "cargo test -p carsinos-gateway passed."
+    "cargo test -p carsinos-gateway --test e2e_process request_logs_are_written_to_state_log_directory passed.",
+    "REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh passed."
   ]
 }

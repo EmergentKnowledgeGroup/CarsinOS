@@ -1678,3 +1678,38 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 088
+
+- checklist refs: PR #1 review remediation + CI stabilization
+- past action:
+- PR #1 failed CI on `request_logs_are_written_to_state_log_directory` and received CodeRabbit review comments.
+- present action:
+- Addressed all PR #1 review/CI issues on `codex/chunk-pr1-ci-review-gates`:
+- README path changed to repo-relative (`docs/GIT_PR_WORKFLOW.md`),
+- `docs/GIT_PR_WORKFLOW.md` PR flow now includes explicit checkpoint update step,
+- `.github/workflows/nightly-security.yml` now declares top-level least-privilege permissions,
+- `.github/workflows/pr-gate.yml` now pins `cargo-audit` (`0.21.0`) with cached-install short-circuit,
+- stabilized log e2e behavior by improving gateway process shutdown in tests (TERM + graceful wait, kill fallback),
+- hardened log e2e assertion with bounded polling and support for both structured/non-structured request-id log formats.
+- validation outcomes:
+- `cargo fmt --all --check` passed.
+- `cargo test -p carsinos-gateway --test e2e_process request_logs_are_written_to_state_log_directory -- --nocapture` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- checkpoint sync complete in:
+- `runtime/checkpoints/LATEST.md`
+- `runtime/checkpoints/LATEST.json`
+- future action:
+- push PR #1 fix commit and monitor rerun of GitHub checks/CodeRabbit state.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/.github/workflows/pr-gate.yml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/.github/workflows/nightly-security.yml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/README.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/GIT_PR_WORKFLOW.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/tests/common/mod.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/tests/e2e_process.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`

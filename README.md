@@ -73,7 +73,7 @@ Security artifacts are written under `runtime/security/reports/`.
 
 ## Git/PR review flow
 
-- Follow `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/GIT_PR_WORKFLOW.md`.
+- Follow `docs/GIT_PR_WORKFLOW.md`.
 - CI is wired through:
   - `.github/workflows/pr-gate.yml`
   - `.github/workflows/nightly-security.yml`

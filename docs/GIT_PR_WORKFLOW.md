@@ -25,9 +25,10 @@ Ship work in small PR chunks into `main` so CodeRabbit can review each change se
 ## PR Flow
 1. Push branch to origin.
 2. Open PR into `main`.
-3. Let CodeRabbit + CI run.
-4. Address review comments on same branch.
-5. Merge to `main` when green.
+3. Update `runtime/checkpoints/LATEST.md` and `runtime/checkpoints/LATEST.json`.
+4. Let CodeRabbit + CI run.
+5. Address review comments on same branch.
+6. Merge to `main` when green.
 
 ## Why This Helps
 1. Faster, cleaner reviews.

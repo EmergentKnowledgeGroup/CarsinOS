@@ -9,6 +9,10 @@ concurrency:
   group: nightly-security
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  actions: write
+
 jobs:
   nightly-deep-scan:
     name: Nightly Deep Scan
