@@ -12,6 +12,8 @@ chrono.workspace = true
 carsinos-core = { path = "../carsinos-core" }
 carsinos-providers = { path = "../carsinos-providers" }
 carsinos-protocol = { path = "../carsinos-protocol" }
+carsinos-channels-discord = { path = "../carsinos-channels-discord" }
+carsinos-channels-telegram = { path = "../carsinos-channels-telegram" }
 carsinos-storage = { path = "../carsinos-storage" }
 carsinos-tools = { path = "../carsinos-tools" }
 serde.workspace = true

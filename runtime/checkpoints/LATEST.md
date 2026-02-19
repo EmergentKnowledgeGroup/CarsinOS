@@ -1,11 +1,10 @@
 # LATEST Checkpoint
 
-- step: chunk-pr5-post-merge
-- note: PR #5 merged to main after reconcile; security-audit retention archive operations are now in base.
-- branch: main
-- head: e7710241128e3362fb541f7f4566e166e52bf2e1
-- next_cmd: Start next 3-chunk wave from security-hardening and ticket-pack backlog.
+- step: chunk-pr7-pr-open
+- note: PR #7 is open for channel inbound runtime endpoints and session/run wiring.
+- branch: codex/chunk-pr7-channel-ingest-runtime
+- head: b8631c3f4f5488fd96d0fffbb779cfe87469ad88
+- next_cmd: Monitor/merge PR #7, then begin chunk PR #8.
 - validations:
-  - PR merged: https://github.com/ProfessahX/CarsinOS/pull/5
-  - Local branch fast-forwarded to latest main.
-  - Prior PRs #4 and #6 already merged.
+  - PR opened: https://github.com/ProfessahX/CarsinOS/pull/7
+  - Full local security gate passed for branch changes.

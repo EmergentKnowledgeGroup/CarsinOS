@@ -477,6 +477,44 @@ impl Storage {
         Ok(record)
     }
 
+    pub fn get_session_by_key(&self, session_key: &str) -> Result<Option<SessionRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              s.session_id,
+              s.session_key,
+              s.agent_id,
+              s.title,
+              s.created_at,
+              s.updated_at,
+              s.closed_at,
+              (SELECT COUNT(*) FROM messages m WHERE m.session_id = s.session_id) AS message_count,
+              (SELECT COUNT(*) FROM runs r WHERE r.session_id = s.session_id) AS run_count
+            FROM sessions s
+            WHERE s.session_key = ?1
+            "#,
+        )?;
+
+        let record = stmt
+            .query_row(params![session_key], |row| {
+                Ok(SessionRecord {
+                    session_id: row.get(0)?,
+                    session_key: row.get(1)?,
+                    agent_id: row.get(2)?,
+                    title: row.get(3)?,
+                    created_at: row.get(4)?,
+                    updated_at: row.get(5)?,
+                    closed_at: row.get(6)?,
+                    message_count: row.get(7)?,
+                    run_count: row.get(8)?,
+                })
+            })
+            .optional()?;
+
+        Ok(record)
+    }
+
     pub fn create_session(&self, new_session: NewSession) -> Result<SessionRecord> {
         let conn = self.connect()?;
         self.ensure_agent_exists(&conn, &new_session.agent_id)?;
@@ -2474,6 +2512,25 @@ mod tests {
             })
             .expect("create run result");
         assert!(run.is_none());
+    }
+
+    #[test]
+    fn get_session_by_key_returns_created_session() {
+        let (_temp_dir, storage) = test_storage();
+        let session = storage
+            .create_session(NewSession {
+                session_key: Some("telegram:dm:42".to_string()),
+                agent_id: "default".to_string(),
+                title: Some("channel-session".to_string()),
+            })
+            .expect("create session");
+
+        let by_key = storage
+            .get_session_by_key("telegram:dm:42")
+            .expect("lookup by key")
+            .expect("session exists");
+        assert_eq!(by_key.session_id, session.session_id);
+        assert_eq!(by_key.session_key, "telegram:dm:42");
     }
 
     #[test]

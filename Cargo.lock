@@ -875,6 +875,8 @@ dependencies = [
  "anyhow",
  "axum",
  "base64 0.22.1",
+ "carsinos-channels-discord",
+ "carsinos-channels-telegram",
  "carsinos-core",
  "carsinos-protocol",
  "carsinos-providers",

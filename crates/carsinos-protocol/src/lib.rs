@@ -419,6 +419,46 @@ pub struct UpdateChannelConfigResponse {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct IngestTelegramMessageRequest {
+    pub chat_id: i64,
+    pub user_id: i64,
+    pub text: String,
+    pub is_group_chat: bool,
+    pub mentions_bot: bool,
+    pub reply_to_bot: bool,
+    pub source_message_id: Option<String>,
+    pub run_immediately: Option<bool>,
+    pub model_provider: Option<String>,
+    pub model_id: Option<String>,
+    pub auth_profile_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct IngestDiscordMessageRequest {
+    pub guild_id: Option<String>,
+    pub channel_id: String,
+    pub thread_id: Option<String>,
+    pub author_id: String,
+    pub text: String,
+    pub mentions_bot: bool,
+    pub is_dm: bool,
+    pub source_message_id: Option<String>,
+    pub run_immediately: Option<bool>,
+    pub model_provider: Option<String>,
+    pub model_id: Option<String>,
+    pub auth_profile_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct IngestChannelMessageResponse {
+    pub decision: String,
+    pub reason: Option<String>,
+    pub session_id: Option<String>,
+    pub message_id: Option<String>,
+    pub run_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct ListJobsQuery {
     pub limit: Option<u32>,
     pub include_disabled: Option<bool>,
