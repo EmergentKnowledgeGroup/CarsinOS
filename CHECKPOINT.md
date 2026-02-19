@@ -3017,3 +3017,43 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 158
+
+- checklist refs: `MC-FUT-030` chunk wave #11
+- past action:
+- Finalized and pushed PR #23 open-state checkpoint for MC-FUT-020.
+- present action:
+- Started branch `codex/chunk-pr24-future-imessage-bluebubbles` for MC-FUT-030 iMessage/BlueBubbles adapter scaffold.
+- future action:
+- Implement iMessage/BlueBubbles adapter crate + tests, run full gate, and open PR #24.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 159
+
+- checklist refs: `MC-FUT-030` chunk wave #11
+- past action:
+- Added new `carsinos-channels-bluebubbles` workspace crate with adapter contract primitives:
+- inbound route policy, session mapping, outbound chunking, approval callback encoding/decoding, and unit coverage.
+- present action:
+- Completed full validation/security gate with workspace integration green.
+- validation outcomes:
+- `cargo test -p carsinos-channels-bluebubbles -- --nocapture` passed.
+- `cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push chunk #24 and open PR #24, then continue the future-channel queue.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-bluebubbles/Cargo.toml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-bluebubbles/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`

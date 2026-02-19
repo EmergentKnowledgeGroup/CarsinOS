@@ -1,36 +1,50 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T15:57:05+00:00",
+  "captured_at": "2026-02-19T15:59:25+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/chunk-pr23-future-slack-adapter",
-  "head_short": "3bb4b5b",
-  "head": "3bb4b5b5ca4eb3dbf710ce1cdfe62f85a58ee38a",
-  "step": "chunk-pr23-pr-open",
-  "note": "Opened PR #23 for MC-FUT-020 Slack adapter scaffold.",
-  "next_cmd": "Monitor PR #15-#23 checks and continue next chunk branch.",
+  "branch": "codex/chunk-pr24-future-imessage-bluebubbles",
+  "head_short": "756b0f6",
+  "head": "756b0f6f9dc9130feface730be999ee3f7f13ec7",
+  "step": "chunk-pr24-postgreen",
+  "note": "Completed MC-FUT-030 iMessage/BlueBubbles adapter scaffold crate and workspace integration with full validation green.",
+  "next_cmd": "Commit chunk-pr24 changes, push branch, and open PR #24.",
   "validations": [
-    "PR opened: https://github.com/ProfessahX/CarsinOS/pull/23",
-    "cargo test -p carsinos-channels-slack -- --nocapture",
+    "cargo test -p carsinos-channels-bluebubbles -- --nocapture",
     "cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings",
     "REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh"
   ],
   "status": {
     "staged": [],
-    "modified": [],
-    "untracked": [],
+    "modified": [
+      "CHECKPOINT.md",
+      "Cargo.toml",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
+    "untracked": [
+      "crates/carsinos-channels-bluebubbles/Cargo.toml",
+      "crates/carsinos-channels-bluebubbles/src/lib.rs"
+    ],
     "conflicted": [],
-    "dirty": false
+    "dirty": true
   },
   "changed_files": {
-    "working_tree": [],
+    "working_tree": [
+      "CHECKPOINT.md",
+      "Cargo.toml",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md",
+      "crates/carsinos-channels-bluebubbles/Cargo.toml",
+      "crates/carsinos-channels-bluebubbles/src/lib.rs"
+    ],
     "staged": []
   },
   "recent_commits": [
+    "756b0f6 docs: checkpoint PR #23 open state",
     "3bb4b5b feat(channel): add Slack adapter scaffold crate",
     "79363b5 docs: checkpoint PR #22 open state",
     "4d6b772 feat(channel): add WhatsApp adapter scaffold crate",
-    "f4a985d docs: checkpoint PR #21 open state",
-    "fdaa9d7 feat(auto): add scheduler delivery target routing and outcomes"
+    "f4a985d docs: checkpoint PR #21 open state"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
