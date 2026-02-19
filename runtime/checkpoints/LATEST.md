@@ -1,11 +1,10 @@
 # LATEST Checkpoint
 
-- step: chunk-pr12-postgreen-logfix
-- note: Applied CI-flake fix for request-log assertion and reran full security PR gate green.
+- step: chunk-pr10-pr11-logfix-propagation-start
+- note: Starting branch sync to propagate request-log stability fix into PR #10 and #11 so stacked merge flow can continue.
 - branch: codex/chunk-pr12-scheduler-session-run
-- head: 986dc37e3acafeffb440706fb69922dbd1cf4203
-- next_cmd: Commit and push log-fix checkpoint update, then process PR #10/#11/#12 statuses and merge path.
+- head: 917e5c8506ffa29713ecd8d7e3e0b64529e5fc36
+- next_cmd: Checkout PR #10 branch, apply e2e_process log assertion fix, run targeted validation, push; repeat for PR #11.
 - validations:
-  - targeted test: cargo test -p carsinos-gateway --test e2e_process request_logs_are_written_to_state_log_directory -- --nocapture
-  - full gate: REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh
-  - gate report: runtime/security/reports/pr-gate-20260219T142355Z.log
+  - baseline gate on source branch passed: REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh
+  - source fix branch: codex/chunk-pr12-scheduler-session-run

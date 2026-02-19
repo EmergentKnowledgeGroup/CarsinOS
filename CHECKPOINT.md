@@ -2326,3 +2326,19 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 120
+
+- checklist refs: `MC-PROV-001`, `MC-PROV-010`, `MC-AUTO-001` merge hygiene
+- past action:
+- Completed chunk PR #12 log-flake stabilization and pushed branch updates.
+- present action:
+- Starting propagation of the same request-log assertion fix into PR #10 and PR #11 branches so stacked merges can proceed in order.
+- future action:
+- Apply fix on branch #10 -> validate -> push, then branch #11 -> validate -> push, then monitor checks for merge.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
