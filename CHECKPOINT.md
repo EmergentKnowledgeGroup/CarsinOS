@@ -1868,3 +1868,43 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 095
+
+- checklist refs: chunk wave #2, PR #4 (`MC-SEC-002` replay-protection follow-through)
+- past action:
+- Completed previous chunk wave and locked recurring chunk/PR workflow.
+- present action:
+- Started chunk PR #4 branch `codex/chunk-pr4-jwt-replay-protection` to implement JWT token-id replay protection and contract tests.
+- future action:
+- Implement replay cache control in auth path, add env-config toggle + regression tests, run validations, and open PR.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 096
+
+- checklist refs: chunk wave #2, PR #4 (`MC-SEC-002` replay-protection follow-through)
+- past action:
+- Initialized chunk PR #4 branch and phase checkpoints for replay-protection implementation.
+- present action:
+- Implemented JWT replay token-id protection using in-memory expiry-tracked `jti` cache, added env toggle (`CARSINOS_AUTH_JWT_REPLAY_PROTECTION_ENABLED`, default `true` in runtime env loader), and added regression test coverage.
+- validation outcomes:
+- `cargo fmt --all` passed.
+- `cargo test -p carsinos-gateway jwt_ -- --nocapture` passed.
+- `cargo test -p carsinos-gateway role_mismatch_blocks_auth_profile_mutation_and_approval_resolution -- --nocapture` passed.
+- checkpoint sync complete in:
+- `runtime/checkpoints/LATEST.md`
+- `runtime/checkpoints/LATEST.json`
+- future action:
+- Commit and push chunk PR #4, open PR to `main`, then proceed to chunk PR #5.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`

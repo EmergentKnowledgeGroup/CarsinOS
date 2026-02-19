@@ -1,11 +1,11 @@
 # LATEST Checkpoint
 
-- step: workflow-lock-post-merge
-- note: Workflow lock committed to main; chunk loop and security-document goals are now persisted in-repo.
-- branch: main
-- head: b8d1479196a502335feef0cc6fb9d3536fbdf47b
-- next_cmd: Start next chunk wave (3 PRs) from APPDEX_IMPLEMENTATION_TICKET_PACK.md and SECURITY_HARDENING_PROGRAM.md.
+- step: chunk-pr4-postgreen
+- note: JWT replay protection chunk is implemented and validated locally.
+- branch: codex/chunk-pr4-jwt-replay-protection
+- head: 61fad5168b07f50a46058013243b85073892795c
+- next_cmd: Commit, push, and open PR #4 for CodeRabbit review.
 - validations:
-  - git push to origin/main succeeded for workflow lock commit.
-  - gh pr list --state open returned no open PRs.
-  - local main is aligned with origin/main.
+  - cargo fmt --all passed.
+  - cargo test -p carsinos-gateway jwt_ passed.
+  - cargo test -p carsinos-gateway role_mismatch_blocks_auth_profile_mutation_and_approval_resolution passed.
