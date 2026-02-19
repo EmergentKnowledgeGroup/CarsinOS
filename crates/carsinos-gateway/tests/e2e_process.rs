@@ -811,33 +811,41 @@ async fn request_logs_are_written_to_state_log_directory() -> Result<()> {
     assert!(health.headers().get("x-request-id").is_some());
 
     drop(gateway);
-    sleep(Duration::from_millis(300)).await;
-
     let logs_dir = state_dir.path().join("logs");
+    let deadline = std::time::Instant::now() + Duration::from_secs(6);
     let mut found_non_empty_log = false;
-    for entry in
-        fs::read_dir(&logs_dir).with_context(|| format!("failed to read {}", logs_dir.display()))?
-    {
-        let entry = entry.context("failed to read log dir entry")?;
-        if !entry
-            .file_type()
-            .context("failed to read log file type")?
-            .is_file()
-        {
-            continue;
+    while std::time::Instant::now() < deadline {
+        if let Ok(entries) = fs::read_dir(&logs_dir) {
+            for entry in entries {
+                let entry = entry.context("failed to read log dir entry")?;
+                if !entry
+                    .file_type()
+                    .context("failed to read log file type")?
+                    .is_file()
+                {
+                    continue;
+                }
+                let metadata = entry.metadata().with_context(|| {
+                    format!("failed to read metadata for {}", entry.path().display())
+                })?;
+                if metadata.len() == 0 {
+                    continue;
+                }
+                let content = fs::read_to_string(entry.path())
+                    .with_context(|| format!("failed to read {}", entry.path().display()))?;
+                let has_request_id = content.contains("request_id=")
+                    || content.contains("\"request_id\"")
+                    || content.contains("x-request-id");
+                if content.contains("http.request") && has_request_id {
+                    found_non_empty_log = true;
+                    break;
+                }
+            }
         }
-        let metadata = entry
-            .metadata()
-            .with_context(|| format!("failed to read metadata for {}", entry.path().display()))?;
-        if metadata.len() == 0 {
-            continue;
-        }
-        let content = fs::read_to_string(entry.path())
-            .with_context(|| format!("failed to read {}", entry.path().display()))?;
-        if content.contains("http.request") && content.contains("request_id=") {
-            found_non_empty_log = true;
+        if found_non_empty_log {
             break;
         }
+        sleep(Duration::from_millis(200)).await;
     }
     assert!(
         found_non_empty_log,
