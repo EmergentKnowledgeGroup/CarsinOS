@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "crates/carsinos-channels-discord",
+  "crates/carsinos-channels-slack",
   "crates/carsinos-channels-telegram",
   "crates/carsinos-channels-whatsapp",
   "crates/carsinos-cli",

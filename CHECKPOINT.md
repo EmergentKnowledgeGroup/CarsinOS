@@ -2960,3 +2960,43 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 155
+
+- checklist refs: `MC-FUT-020` chunk wave #10
+- past action:
+- Finalized and pushed PR #22 open-state checkpoint for MC-FUT-010.
+- present action:
+- Started branch `codex/chunk-pr23-future-slack-adapter` for MC-FUT-020 Slack adapter scaffold.
+- future action:
+- Implement Slack adapter crate + tests, run full gate, and open PR #23.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 156
+
+- checklist refs: `MC-FUT-020` chunk wave #10
+- past action:
+- Added new `carsinos-channels-slack` workspace crate with adapter contract primitives:
+- inbound route policy, session mapping, outbound chunking, and approval callback parsing helpers + unit tests.
+- present action:
+- Completed full validation/security gate with workspace integration green.
+- validation outcomes:
+- `cargo test -p carsinos-channels-slack -- --nocapture` passed.
+- `cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push chunk #23 and open PR #23, then continue the future-channel queue.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-slack/Cargo.toml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-slack/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
