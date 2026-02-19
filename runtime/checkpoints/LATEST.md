@@ -1,10 +1,11 @@
 # LATEST Checkpoint
 
-- step: pr3-merge-conflict-start
-- note: PR #3 cannot merge cleanly after PR #2 landed; beginning local conflict resolution against main.
+- step: pr3-merge-conflict-postgreen
+- note: PR #3 conflict resolution against main is complete and validated locally.
 - branch: codex/chunk-pr3-audit-query-filters
-- head: 9005b8043388cdecfff44fd784ff2ea84d940a2b
-- next_cmd: git fetch origin main && git merge origin/main
+- head: a661a51d876770591353aed722c8645ba605b5c6
+- next_cmd: Commit merge resolution and push PR #3 branch.
 - validations:
-  - PR #2 merged into main.
-  - PR #3 merge attempt reported conflict.
+  - cargo fmt --all passed.
+  - cargo test -p carsinos-gateway rate_limit_ passed.
+  - cargo test -p carsinos-gateway security_audit_ passed.

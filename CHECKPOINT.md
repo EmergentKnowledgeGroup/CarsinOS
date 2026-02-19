@@ -1627,27 +1627,70 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
 
-### 2026-02-19 - Entry 086
+### 2026-02-19 - Entry 084
 
-- checklist refs: PR chunk #3 security audit usability hardening
+- checklist refs: PR chunk #2 runtime contract hardening
 - past action:
-- Opened PR #1 and PR #2 to keep CodeRabbit review queue active while development continues.
+- Opened PR #1 for CI/review scaffolding so CodeRabbit can begin review.
 - present action:
-- Expanded security audit query/filter contract across gateway + storage:
-- gateway query params now support `decision`, `status`, `error_code`, `created_after`, `created_before`,
-- storage audit listing now supports the same filters with stable ordering (`created_at DESC, event_id DESC`),
-- storage regression test expanded to verify deny/status/error_code/time-range filters,
-- gateway regression test expanded to verify filtered deny/auth-role-mismatch audit retrieval via HTTP.
+- Implemented a stable `429 RATE_LIMITED` response contract for runtime limits:
+- expanded `ApiError` envelope with optional `retry_after_seconds` and `rate_limit_scope`,
+- added `api_error_rate_limited(...)` helper,
+- upgraded endpoint limiter mapping to return deterministic scope identifiers (`run.principal`, `run.ip`, `approval.principal`, `approval.ip`),
+- upgraded auth limiter mapping to return scoped `auth` rate-limit envelope,
+- expanded rate-limit tests to assert scope + retry fields,
+- added auth-level rate-limit regression test.
 - validation outcomes:
 - `cargo fmt` passed.
-- `cargo test -p carsinos-storage -p carsinos-gateway` passed.
+- `cargo test -p carsinos-gateway` passed (`46` unit + `10` e2e + `2` benchmark tests).
 - checkpoint sync complete in:
 - `runtime/checkpoints/LATEST.md`
 - `runtime/checkpoints/LATEST.json`
 - future action:
-- commit/push chunk #3 and open PR to `main` for CodeRabbit review.
+- PR #2 is open and awaiting CodeRabbit review.
 - changed files:
-- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-storage/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 085
+
+- checklist refs: PR chunk #2 open
+- past action:
+- Implemented and validated stable 429 rate-limit response contract changes.
+- present action:
+- Opened PR #2 to `main` for CodeRabbit review:
+- https://github.com/ProfessahX/CarsinOS/pull/2
+- corrected PR body formatting and synced post-PR checkpoint state.
+- future action:
+- start next independent chunk branch while PR #1 and PR #2 review cycles run.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 086
+
+- checklist refs: `N10` post-hardening PR remediation
+- past action:
+- Retrieved CodeRabbit review on PR #2 and confirmed actionable runtime issue (`retry_after_seconds` overestimated to full window) plus checkpoint narrative nits.
+- present action:
+- Implemented precise rate-limit retry hints by computing remaining bucket release time in the rate limiter and propagating it through `RATE_LIMITED` API responses.
+- reconciled PR #2 checkpoint text drift in `CHECKPOINT.md` and `runtime/checkpoints/LATEST.md`.
+- validation outcomes:
+- `cargo fmt --all` passed.
+- `cargo test -p carsinos-gateway rate_limit_returns_429 -- --nocapture` passed.
+- checkpoint sync complete in:
+- `runtime/checkpoints/LATEST.md`
+- `runtime/checkpoints/LATEST.json`
+- future action:
+- Commit/push PR #2 fix commit and monitor GitHub checks for merge readiness.
+- changed files:
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
@@ -1657,16 +1700,22 @@ Tracks execution continuity across context compactions.
 
 ### 2026-02-19 - Entry 087
 
-- checklist refs: PR chunk #3 open
+- checklist refs: `N10` post-hardening PR remediation
 - past action:
-- Implemented and validated security audit query/filter expansion in gateway + storage.
+- Completed baseline PR #2 retry-after propagation fix and initial targeted validation.
 - present action:
-- Opened PR #3 to `main` for CodeRabbit review:
-- https://github.com/ProfessahX/CarsinOS/pull/3
-- synced post-PR checkpoint state in repo/workspace checkpoint files.
+- Added a dedicated regression test proving `retry_after_seconds` tracks remaining rate-limit window (`window_seconds=3`, delayed second call) and revalidated full rate-limit test slice.
+- validation outcomes:
+- `cargo fmt --all` passed.
+- `cargo test -p carsinos-gateway run_endpoint_rate_limit_ -- --nocapture` passed.
+- `cargo test -p carsinos-gateway rate_limit_ -- --nocapture` passed.
+- checkpoint sync complete in:
+- `runtime/checkpoints/LATEST.md`
+- `runtime/checkpoints/LATEST.json`
 - future action:
-- monitor review feedback for PR #1/#2/#3 and continue next chunk in parallel.
+- Commit and push PR #2 branch updates, then monitor/verify GitHub PR checks.
 - changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
@@ -1677,20 +1726,12 @@ Tracks execution continuity across context compactions.
 
 - checklist refs: `N10` post-hardening PR remediation
 - past action:
-- Retrieved PR #3 CodeRabbit review and confirmed requested audit query validation for inverted time ranges.
+- Finalized PR #2 CodeRabbit remediation implementation and green local validation.
 - present action:
-- Added explicit API input guard (`created_after <= created_before`) for `/api/v1/security/audit` and added a regression test asserting `400 INVALID_INPUT` on inverted range input.
-- validation outcomes:
-- `cargo fmt --all` passed.
-- `cargo test -p carsinos-gateway security_audit_ -- --nocapture` passed.
-- `cargo test -p carsinos-gateway audit -- --nocapture` passed.
-- checkpoint sync complete in:
-- `runtime/checkpoints/LATEST.md`
-- `runtime/checkpoints/LATEST.json`
+- Pushed remediation commit (`f363237`) to `codex/chunk-pr2-rate-limit-contract` and synced post-push checkpoint state.
 - future action:
-- Commit/push PR #3 fix commit and verify GitHub review/check status.
+- Monitor PR #2 checks/review, then switch to PR #3 branch and close remaining CodeRabbit feedback.
 - changed files:
-- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
@@ -1701,29 +1742,63 @@ Tracks execution continuity across context compactions.
 
 - checklist refs: `N10` post-hardening PR remediation
 - past action:
-- Completed PR #3 CodeRabbit code fix and pushed commit `585d227`.
+- Reviewed PR #3 CodeRabbit feedback after PR #2 remediation merged.
 - present action:
-- Synced post-push checkpoint state for PR #3 branch and prepared check/review verification commands.
+- Implemented `/api/v1/security/audit` validation for inverted time ranges (`created_after` must be `<= created_before`) and added regression coverage.
+- validation outcomes:
+- `cargo fmt --all` passed.
+- `cargo test -p carsinos-gateway security_audit_ -- --nocapture` passed.
 - future action:
-- Verify PR #3 check/review state, then return to PR #1 failure triage and merge flow.
+- Push PR #3 remediation commit and verify merge readiness.
 - changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
-- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
-- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
-- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
-- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
 
 ### 2026-02-19 - Entry 090
 
 - checklist refs: `N10` post-hardening PR remediation
 - past action:
-- Merged PR #2 into `main` and attempted to merge PR #3.
+- Pushed PR #3 remediation commits (`585d227`, `9005b80`).
 - present action:
-- PR #3 merge is blocked by conflict versus updated `main`; synchronized conflict-resolution phase start checkpoints before local merge/reconcile work.
+- Attempted merge of PR #3 and encountered conflict after PR #2 landed in `main`.
 - future action:
-- Merge `origin/main` into `codex/chunk-pr3-audit-query-filters`, resolve conflicts, rerun targeted tests, and push.
+- Merge `origin/main` into PR #3 branch, resolve conflicts, revalidate, and push.
 - changed files:
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 091
+
+- checklist refs: `N10` post-hardening PR remediation
+- past action:
+- Began local conflict reconciliation for PR #3 against `origin/main`.
+- present action:
+- Rebuilt checkpoint baseline to include both merged PR #2 history and ongoing PR #3 merge-resolution work.
+- future action:
+- Finalize merge conflict resolution, run targeted gateway tests, and push branch for clean PR merge.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+
+### 2026-02-19 - Entry 092
+
+- checklist refs: `N10` post-hardening PR remediation
+- past action:
+- Merged `origin/main` into `codex/chunk-pr3-audit-query-filters` and reconciled checkpoint/runtime conflicts.
+- present action:
+- Verified merged branch behavior with targeted gateway validations for rate-limit + security-audit pathways.
+- validation outcomes:
+- `cargo fmt --all` passed.
+- `cargo test -p carsinos-gateway rate_limit_ -- --nocapture` passed.
+- `cargo test -p carsinos-gateway security_audit_ -- --nocapture` passed.
+- checkpoint sync complete in:
+- `runtime/checkpoints/LATEST.md`
+- `runtime/checkpoints/LATEST.json`
+- future action:
+- Commit merge resolution and push PR #3 branch for clean merge.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
