@@ -839,7 +839,7 @@ async fn request_logs_are_written_to_state_log_directory() -> Result<()> {
     assert_eq!(second_health.status(), StatusCode::OK);
 
     let logs_dir = state_dir.path().join("logs");
-    let deadline = std::time::Instant::now() + Duration::from_secs(6);
+    let deadline = std::time::Instant::now() + Duration::from_secs(20);
     let mut found_request_log_marker = false;
     while std::time::Instant::now() < deadline {
         if let Ok(entries) = fs::read_dir(&logs_dir) {
@@ -877,7 +877,7 @@ async fn request_logs_are_written_to_state_log_directory() -> Result<()> {
         if found_request_log_marker {
             break;
         }
-        sleep(Duration::from_millis(200)).await;
+        sleep(Duration::from_millis(250)).await;
     }
     drop(gateway);
     assert!(

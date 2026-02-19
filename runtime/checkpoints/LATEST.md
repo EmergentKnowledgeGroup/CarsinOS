@@ -1,10 +1,10 @@
 # LATEST Checkpoint
 
-- step: chunk-pr27-pr-open
-- note: Opened PR #27 for e2e request-log stability hardening.
+- step: chunk-pr27-postgreen-v2
+- note: Second e2e log stability hardening pass increased polling window for CI latency; stress and full gates green.
 - branch: codex/chunk-pr27-e2e-log-check-stability
-- head: bada6ba94bcfe45b8fad588cc52b7dd344f085bb
-- next_cmd: Continue chunk/merge workflow; monitor PR checks and address blockers.
+- head: 2031ba0c048111441040e36a75449e4c5d96e46b
+- next_cmd: Commit and push PR #27 stabilization v2 patch.
 - validations:
-- git push -u origin codex/chunk-pr27-e2e-log-check-stability passed
-- PR opened: https://github.com/ProfessahX/CarsinOS/pull/27
+- 30x repeated e2e request-log test loop passed
+- REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh passed

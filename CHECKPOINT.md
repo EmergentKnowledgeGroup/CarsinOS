@@ -3240,3 +3240,23 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 170
+
+- checklist refs: `QA` stabilization chunk wave #14
+- past action:
+- PR #27 failed in GitHub CI with the same request-log e2e flake under slower runner conditions.
+- present action:
+- Applied second hardening pass by extending log-poll window and reran aggressive local validation.
+- validation outcomes:
+- 30x repeated `cargo test -p carsinos-gateway --test e2e_process request_logs_are_written_to_state_log_directory` loop passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Push v2 stabilization patch to PR #27 and re-check CI gate status.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/tests/e2e_process.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`

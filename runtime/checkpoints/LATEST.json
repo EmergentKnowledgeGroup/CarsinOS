@@ -1,29 +1,33 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T16:12:14.147088+00:00",
+  "captured_at": "2026-02-19T16:24:00.500651+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
   "branch": "codex/chunk-pr27-e2e-log-check-stability",
-  "head_short": "bada6ba",
-  "step": "chunk-pr27-pr-open",
-  "note": "Opened PR #27 for e2e request-log stability hardening.",
-  "next_cmd": "Continue chunk/merge workflow; monitor PR checks and address blockers.",
+  "head_short": "2031ba0",
+  "step": "chunk-pr27-postgreen-v2",
+  "note": "Second e2e log stability hardening pass increased polling window for CI latency; stress and full gates green.",
+  "next_cmd": "Commit and push PR #27 stabilization v2 patch.",
   "status": {
     "staged": [],
-    "modified": [],
+    "modified": [
+      "crates/carsinos-gateway/tests/e2e_process.rs"
+    ],
     "untracked": [],
     "conflicted": [],
-    "dirty": false
+    "dirty": true
   },
   "changed_files": {
-    "working_tree": [],
+    "working_tree": [
+      "crates/carsinos-gateway/tests/e2e_process.rs"
+    ],
     "staged": []
   },
   "recent_commits": [
+    "2031ba0 docs: checkpoint PR #27 open state",
     "bada6ba test(gateway): harden request log e2e assertion stability",
     "7281d74 docs: checkpoint PR #26 open state",
     "ffa5a9c feat(channel): add Twitch adapter scaffold crate",
-    "40e35d7 docs: checkpoint PR #25 open state",
-    "c34e369 feat(channel): add Signal adapter scaffold crate"
+    "40e35d7 docs: checkpoint PR #25 open state"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
@@ -31,7 +35,7 @@
     "Resume from step + next_cmd, then write a new checkpoint after each major edit block."
   ],
   "validations": [
-    "git push -u origin codex/chunk-pr27-e2e-log-check-stability passed",
-    "PR opened: https://github.com/ProfessahX/CarsinOS/pull/27"
+    "30x repeated e2e request-log test loop passed",
+    "REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh passed"
   ]
 }
