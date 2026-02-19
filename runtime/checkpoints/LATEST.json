@@ -1,37 +1,29 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T16:40:08.165610+00:00",
+  "captured_at": "2026-02-19T16:40:24.648148+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
   "branch": "codex/chunk-pr28-pr-cleanup-after-27",
-  "head_short": "2ffa952",
-  "step": "chunk-pr28-postcleanup",
-  "note": "Closed superseded stacked PRs #15-#26 after convergence merge #27.",
-  "next_cmd": "Commit cleanup checkpoints and open PR #28 (docs workflow hygiene).",
+  "head_short": "c0605c3",
+  "step": "chunk-pr28-pr-open",
+  "note": "Opened PR #28 for post-merge checkpoint hygiene docs.",
+  "next_cmd": "Merge PR #28 to persist cleanup checkpoints in main.",
   "status": {
     "staged": [],
-    "modified": [
-      "CHECKPOINT.md",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
+    "modified": [],
     "untracked": [],
     "conflicted": [],
-    "dirty": true
+    "dirty": false
   },
   "changed_files": {
-    "working_tree": [
-      "CHECKPOINT.md",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
+    "working_tree": [],
     "staged": []
   },
   "recent_commits": [
+    "c0605c3 docs: checkpoint post-merge PR cleanup state",
     "2ffa952 test(gateway): stabilize request-log e2e assertion (#27)",
     "c167af9 docs: checkpoint PR #9 post-merge state",
     "06c8bcc feat: add channel approval action resolve endpoint (#9)",
-    "c588189 docs: checkpoint PR #8 post-merge state",
-    "8ccdc35 feat: add channel runtime policy defaults (#8)"
+    "c588189 docs: checkpoint PR #8 post-merge state"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
@@ -39,7 +31,7 @@
     "Resume from step + next_cmd, then write a new checkpoint after each major edit block."
   ],
   "validations": [
-    "PRs #15-#26 closed as superseded by #27",
-    "No open PRs remain in repository"
+    "PR opened: https://github.com/ProfessahX/CarsinOS/pull/28",
+    "Branch pushed: codex/chunk-pr28-pr-cleanup-after-27"
   ]
 }
