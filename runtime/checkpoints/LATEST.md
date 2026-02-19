@@ -1,10 +1,10 @@
 # LATEST Checkpoint
 
-- step: config-wizard-pr-open
-- note: PR #30 opened for setup-wizard config foundation and hardcoded-value guardrail track.
+- step: phase-o-artifacts-post-validation
+- note: Phase O artifact set implemented and validated (Security Gate 0 script passes dry-run and fails strict mode until approvals are assigned).
 - branch: codex/chunk-pr30-config-wizard-hardcode-audit
-- head: 9beb0ce
-- next_cmd: Monitor PR #30 checks/review, apply follow-up patches if needed, then merge.
+- head: 8f8c6cb
+- next_cmd: Commit Phase O artifact block and push update to PR #30.
 - validations:
-- PR opened: https://github.com/ProfessahX/CarsinOS/pull/30
-- Branch is pushed and tracking origin.
+- Threat model and incident runbook drafts published under `docs/security/`.
+- Security Gate 0 evidence workflow implemented in script + GitHub Actions workflow.

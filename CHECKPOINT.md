@@ -3521,3 +3521,47 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 185
+
+- checklist refs: `O1`, `O2`, `O3`
+- past action:
+- Opened PR #30 for setup-wizard/configuration track and hardcoded-value guardrail planning updates.
+- present action:
+- Started Phase O artifact block to remove remaining non-channel blockers.
+- validation outcomes:
+- Snapshot `phase-o-artifacts-start` captured before edits.
+- future action:
+- Implement threat model package docs, incident runbooks, and Security Gate 0 evidence workflow docs/scripts.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 186
+
+- checklist refs: `O1`, `O2`, `O3`
+- past action:
+- Started Phase O artifact implementation block.
+- present action:
+- Published threat-model and incident-runbook draft docs; implemented Security Gate 0 evidence bundling script + workflow and validated fail-closed behavior.
+- validation outcomes:
+- `bash -n scripts/security_gate0_evidence_bundle.sh` passed.
+- `ALLOW_PENDING_APPROVALS=1 SECURITY_FINDINGS_CRITICAL=0 SECURITY_FINDINGS_HIGH=0 scripts/security_gate0_evidence_bundle.sh` passed (dry-run green).
+- `SECURITY_FINDINGS_CRITICAL=0 SECURITY_FINDINGS_HIGH=0 scripts/security_gate0_evidence_bundle.sh` failed as expected (strict mode red due pending approvals/owners).
+- future action:
+- Commit and push Phase O artifact block to PR #30.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/security/THREAT_MODEL_PACKAGE.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/security/INCIDENT_RUNBOOKS.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/security/SECURITY_GATE0_EVIDENCE_WORKFLOW.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/scripts/security_gate0_evidence_bundle.sh`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/.github/workflows/security-gate0-evidence.yml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
