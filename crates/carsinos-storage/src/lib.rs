@@ -1130,6 +1130,76 @@ impl Storage {
         Ok(out)
     }
 
+    pub fn count_security_audit_events_before(&self, created_before: i64) -> Result<i64> {
+        let conn = self.connect()?;
+        let count = conn.query_row(
+            r#"
+            SELECT COUNT(1)
+            FROM security_audit_events
+            WHERE created_at < ?1
+            "#,
+            params![created_before],
+            |row| row.get::<_, i64>(0),
+        )?;
+        Ok(count)
+    }
+
+    pub fn archive_security_audit_events_before(&self, created_before: i64) -> Result<i64> {
+        let conn = self.connect()?;
+        let archived_at = now_ms();
+        let inserted = conn
+            .execute(
+                r#"
+                INSERT OR IGNORE INTO security_audit_events_archive (
+                  event_id, request_id, correlation_id, principal, action, resource,
+                  decision, reason, transport, status, error_code, session_id, run_id,
+                  metadata_json, created_at, archived_at
+                )
+                SELECT
+                  event_id, request_id, correlation_id, principal, action, resource,
+                  decision, reason, transport, status, error_code, session_id, run_id,
+                  metadata_json, created_at, ?2
+                FROM security_audit_events
+                WHERE created_at < ?1
+                "#,
+                params![created_before, archived_at],
+            )
+            .context("failed to archive security audit events")?;
+        Ok(inserted as i64)
+    }
+
+    pub fn delete_security_audit_events_before(&self, created_before: i64) -> Result<i64> {
+        let conn = self.connect()?;
+        let deleted = conn
+            .execute(
+                "DELETE FROM security_audit_events WHERE created_at < ?1",
+                params![created_before],
+            )
+            .context("failed to delete old security audit events")?;
+        Ok(deleted as i64)
+    }
+
+    pub fn get_archived_security_audit_event(
+        &self,
+        event_id: &str,
+    ) -> Result<Option<SecurityAuditEventRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              event_id, request_id, correlation_id, principal, action, resource,
+              decision, reason, transport, status, error_code, session_id, run_id,
+              metadata_json, created_at
+            FROM security_audit_events_archive
+            WHERE event_id = ?1
+            "#,
+        )?;
+        let record = stmt
+            .query_row(params![event_id], map_security_audit_event_row)
+            .optional()?;
+        Ok(record)
+    }
+
     pub fn get_app_kv_json(&self, key: &str) -> Result<Option<(String, i64)>> {
         let conn = self.connect()?;
         let record = conn
@@ -2867,6 +2937,81 @@ mod tests {
     }
 
     #[test]
+    fn security_audit_retention_archive_and_delete_work() {
+        let (_temp_dir, storage) = test_storage();
+        let old = storage
+            .append_security_audit_event(NewSecurityAuditEvent {
+                request_id: "req-old".to_string(),
+                correlation_id: "corr-old".to_string(),
+                principal: "operator_admin:test".to_string(),
+                action: "security.test.old".to_string(),
+                resource: "test:old".to_string(),
+                decision: "allow".to_string(),
+                reason: None,
+                transport: "http".to_string(),
+                status: "200".to_string(),
+                error_code: None,
+                session_id: None,
+                run_id: None,
+                metadata_json: None,
+            })
+            .expect("append old audit event");
+        let fresh = storage
+            .append_security_audit_event(NewSecurityAuditEvent {
+                request_id: "req-fresh".to_string(),
+                correlation_id: "corr-fresh".to_string(),
+                principal: "operator_admin:test".to_string(),
+                action: "security.test.fresh".to_string(),
+                resource: "test:fresh".to_string(),
+                decision: "allow".to_string(),
+                reason: None,
+                transport: "http".to_string(),
+                status: "200".to_string(),
+                error_code: None,
+                session_id: None,
+                run_id: None,
+                metadata_json: None,
+            })
+            .expect("append fresh audit event");
+
+        let cutoff_ms = now_ms().saturating_sub(60_000);
+        let conn = storage.connect().expect("connect for test update");
+        conn.execute(
+            "UPDATE security_audit_events SET created_at = ?1 WHERE event_id = ?2",
+            params![cutoff_ms.saturating_sub(1), old.event_id],
+        )
+        .expect("mark old audit event created_at");
+
+        let candidate_count = storage
+            .count_security_audit_events_before(cutoff_ms)
+            .expect("count retention candidates");
+        assert_eq!(candidate_count, 1);
+
+        let archived_count = storage
+            .archive_security_audit_events_before(cutoff_ms)
+            .expect("archive retention candidates");
+        assert_eq!(archived_count, 1);
+
+        let deleted_count = storage
+            .delete_security_audit_events_before(cutoff_ms)
+            .expect("delete retention candidates");
+        assert_eq!(deleted_count, 1);
+
+        assert!(storage
+            .get_security_audit_event(&old.event_id)
+            .expect("load old after delete")
+            .is_none());
+        assert!(storage
+            .get_archived_security_audit_event(&old.event_id)
+            .expect("load old in archive")
+            .is_some());
+        assert!(storage
+            .get_security_audit_event(&fresh.event_id)
+            .expect("load fresh after retention")
+            .is_some());
+    }
+
+    #[test]
     fn init_upgrades_legacy_db_to_current_schema() {
         let temp_dir = TempDir::new().expect("tempdir");
         let paths = AppPaths::from_root(temp_dir.path().to_path_buf());
@@ -2898,6 +3043,7 @@ mod tests {
             "jobs",
             "job_runs",
             "security_audit_events",
+            "security_audit_events_archive",
         ] {
             let exists = conn
                 .query_row(

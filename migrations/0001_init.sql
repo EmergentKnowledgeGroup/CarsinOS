@@ -159,6 +159,25 @@ CREATE TABLE IF NOT EXISTS security_audit_events (
   created_at INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS security_audit_events_archive (
+  event_id TEXT PRIMARY KEY,
+  request_id TEXT NOT NULL,
+  correlation_id TEXT NOT NULL,
+  principal TEXT NOT NULL,
+  action TEXT NOT NULL,
+  resource TEXT NOT NULL,
+  decision TEXT NOT NULL,
+  reason TEXT,
+  transport TEXT NOT NULL,
+  status TEXT NOT NULL,
+  error_code TEXT,
+  session_id TEXT,
+  run_id TEXT,
+  metadata_json TEXT,
+  created_at INTEGER NOT NULL,
+  archived_at INTEGER NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_security_audit_events_created
 ON security_audit_events(created_at DESC);
 
@@ -167,6 +186,9 @@ ON security_audit_events(request_id);
 
 CREATE INDEX IF NOT EXISTS idx_security_audit_events_principal_action
 ON security_audit_events(principal, action, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_security_audit_events_archive_created
+ON security_audit_events_archive(created_at DESC);
 
 CREATE TABLE IF NOT EXISTS jobs (
   job_id TEXT PRIMARY KEY,

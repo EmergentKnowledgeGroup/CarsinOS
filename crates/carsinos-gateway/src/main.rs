@@ -529,6 +529,24 @@ struct ListSecurityAuditResponse {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+struct RunSecurityAuditRetentionRequest {
+    #[serde(default)]
+    hot_retention_days: Option<i64>,
+    #[serde(default)]
+    dry_run: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct RunSecurityAuditRetentionResponse {
+    hot_retention_days: i64,
+    cutoff_ms: i64,
+    candidate_count: i64,
+    archived_count: i64,
+    deleted_count: i64,
+    dry_run: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 struct RotateAuthProfileSecretRequest {
     #[serde(default)]
     reason: Option<String>,
@@ -1507,6 +1525,10 @@ fn build_app(state: AppState) -> Router {
             post(resolve_approval),
         )
         .route("/api/v1/security/audit", get(list_security_audit))
+        .route(
+            "/api/v1/security/audit/retention/run",
+            post(run_security_audit_retention),
+        )
         .route(
             "/api/v1/security/auth-profiles/{auth_profile_id}/rotate-secret",
             post(rotate_auth_profile_secret),
@@ -3954,6 +3976,91 @@ async fn list_security_audit(
         .map(to_security_audit_event_response)
         .collect();
     Ok(Json(ListSecurityAuditResponse { items }))
+}
+
+async fn run_security_audit_retention(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<RunSecurityAuditRetentionRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_SERVICE_INTERNAL],
+        "security.audit.retention.run",
+        "security_audit_events",
+    )?;
+
+    let hot_retention_days = request
+        .hot_retention_days
+        .unwrap_or_else(|| i64_env("CARSINOS_SECURITY_AUDIT_HOT_RETENTION_DAYS", 90));
+    if !(0..=3650).contains(&hot_retention_days) {
+        return Err(api_error_with_code(
+            StatusCode::BAD_REQUEST,
+            "INVALID_INPUT",
+            "hot_retention_days must be between 0 and 3650",
+        ));
+    }
+
+    let dry_run = request.dry_run.unwrap_or(false);
+    let cutoff_ms = current_time_ms().saturating_sub(hot_retention_days.saturating_mul(86_400_000));
+    let candidate_count = state
+        .storage
+        .count_security_audit_events_before(cutoff_ms)
+        .map_err(|err| {
+            internal_err_with_error("counting security audit retention candidates failed", err)
+        })?;
+
+    let (archived_count, deleted_count) = if dry_run {
+        (0, 0)
+    } else {
+        let archived = state
+            .storage
+            .archive_security_audit_events_before(cutoff_ms)
+            .map_err(|err| {
+                internal_err_with_error("archiving security audit retention candidates failed", err)
+            })?;
+        let deleted = state
+            .storage
+            .delete_security_audit_events_before(cutoff_ms)
+            .map_err(|err| {
+                internal_err_with_error("deleting security audit retention candidates failed", err)
+            })?;
+        (archived, deleted)
+    };
+
+    record_security_audit(
+        &headers,
+        &state,
+        &auth,
+        "security.audit.retention.run",
+        "security_audit_events",
+        "allow",
+        None,
+        StatusCode::OK,
+        None,
+        None,
+        None,
+        Some(serde_json::json!({
+            "hot_retention_days": hot_retention_days,
+            "cutoff_ms": cutoff_ms,
+            "candidate_count": candidate_count,
+            "archived_count": archived_count,
+            "deleted_count": deleted_count,
+            "dry_run": dry_run
+        })),
+    );
+
+    Ok(Json(RunSecurityAuditRetentionResponse {
+        hot_retention_days,
+        cutoff_ms,
+        candidate_count,
+        archived_count,
+        deleted_count,
+        dry_run,
+    }))
 }
 
 async fn execute_run(
@@ -8595,6 +8702,81 @@ mod tests {
         let json = parse_json(response).await;
         assert_eq!(json["error_code"], "INVALID_INPUT");
         assert_eq!(json["error"], "created_after must be <= created_before");
+    }
+
+    #[tokio::test]
+    async fn security_audit_retention_run_archives_and_prunes_events() {
+        let ctx = test_context();
+        let created = ctx
+            .storage
+            .append_security_audit_event(NewSecurityAuditEvent {
+                request_id: "retention-seed-1".to_string(),
+                correlation_id: "retention-seed-1".to_string(),
+                principal: "operator_admin:test".to_string(),
+                action: "security.audit.retention.seed".to_string(),
+                resource: "seed:event".to_string(),
+                decision: "allow".to_string(),
+                reason: None,
+                transport: "http".to_string(),
+                status: "200".to_string(),
+                error_code: None,
+                session_id: None,
+                run_id: None,
+                metadata_json: None,
+            })
+            .expect("seed security audit event");
+        sleep(Duration::from_millis(5)).await;
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/security/audit/retention/run",
+                Body::from(r#"{"hot_retention_days":0,"dry_run":false}"#),
+            ))
+            .await
+            .expect("retention run response");
+        assert_eq!(run_response.status(), StatusCode::OK);
+        let run_json = parse_json(run_response).await;
+        assert_eq!(run_json["hot_retention_days"], 0);
+        assert!(run_json["candidate_count"].as_i64().unwrap_or_default() >= 1);
+        assert!(run_json["archived_count"].as_i64().unwrap_or_default() >= 1);
+        assert!(run_json["deleted_count"].as_i64().unwrap_or_default() >= 1);
+        assert_eq!(run_json["dry_run"], false);
+
+        assert!(ctx
+            .storage
+            .get_security_audit_event(&created.event_id)
+            .expect("load seeded live event")
+            .is_none());
+        assert!(ctx
+            .storage
+            .get_archived_security_audit_event(&created.event_id)
+            .expect("load seeded archived event")
+            .is_some());
+    }
+
+    #[tokio::test]
+    async fn security_audit_retention_run_rejects_invalid_day_range() {
+        let ctx = test_context();
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/security/audit/retention/run",
+                Body::from(r#"{"hot_retention_days":4000,"dry_run":true}"#),
+            ))
+            .await
+            .expect("invalid retention request");
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let json = parse_json(response).await;
+        assert_eq!(json["error_code"], "INVALID_INPUT");
+        assert_eq!(
+            json["error"],
+            "hot_retention_days must be between 0 and 3650"
+        );
     }
 
     #[tokio::test]
