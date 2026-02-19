@@ -71,6 +71,13 @@ scripts/security_secret_lifecycle_drill.sh
 
 Security artifacts are written under `runtime/security/reports/`.
 
+## Git/PR review flow
+
+- Follow `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/GIT_PR_WORKFLOW.md`.
+- CI is wired through:
+  - `.github/workflows/pr-gate.yml`
+  - `.github/workflows/nightly-security.yml`
+
 ## Secret lifecycle scheduling (jobs)
 
 Secret rotate/revoke operations can run on a cadence through `jobs` payload modes.

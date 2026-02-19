@@ -1,0 +1,39 @@
+name: Nightly Security Deep Scan
+
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-security
+  cancel-in-progress: true
+
+jobs:
+  nightly-deep-scan:
+    name: Nightly Deep Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo and target
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Run nightly deep scan
+        run: scripts/security_nightly_deep_scan.sh
+
+      - name: Upload security report artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-reports-${{ github.run_id }}
+          path: runtime/security/reports/
+          if-no-files-found: warn
