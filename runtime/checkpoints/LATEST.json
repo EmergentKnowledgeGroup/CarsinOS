@@ -1,41 +1,29 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T13:28:26.965636+00:00",
+  "captured_at": "2026-02-19T13:29:02.829231+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
   "branch": "codex/chunk-pr6-security-audit-filter-contract",
-  "head_short": "61fad51",
-  "step": "chunk-pr6-postgreen",
-  "note": "Storage filter-contract refactor is green; clippy gate fixed locally and security_pr_gate passed (with REQUIRE_CARGO_AUDIT=0 due missing local binary).",
-  "next_cmd": "Commit PR #6 changes, push branch, open PR, then re-run PR #4/#5 checks.",
+  "head_short": "6cd41bd",
+  "step": "chunk-pr6-pr-open",
+  "note": "PR #6 opened to fix clippy failure by using SecurityAuditEventListFilter contract.",
+  "next_cmd": "Monitor PR #6 checks, merge when green, rerun PR #4/#5 checks and merge if clean.",
   "status": {
     "staged": [],
-    "modified": [
-      "CHECKPOINT.md",
-      "crates/carsinos-gateway/src/main.rs",
-      "crates/carsinos-storage/src/lib.rs",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
+    "modified": [],
     "untracked": [],
     "conflicted": [],
-    "dirty": true
+    "dirty": false
   },
   "changed_files": {
-    "working_tree": [
-      "CHECKPOINT.md",
-      "crates/carsinos-gateway/src/main.rs",
-      "crates/carsinos-storage/src/lib.rs",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
+    "working_tree": [],
     "staged": []
   },
   "recent_commits": [
+    "6cd41bd refactor: replace security audit list arg fanout with filter contract",
     "61fad51 docs: checkpoint post-merge workflow lock state",
     "b8d1479 docs: lock chunk workflow and security goal continuity",
     "ba21363 Merge pull request #1 from ProfessahX/codex/chunk-pr1-ci-review-gates",
-    "3fbfe74 merge: reconcile PR #1 branch with main",
-    "f41f32d docs: checkpoint PR #1 main-reconcile start"
+    "3fbfe74 merge: reconcile PR #1 branch with main"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",

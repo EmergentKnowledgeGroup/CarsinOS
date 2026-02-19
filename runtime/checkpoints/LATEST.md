@@ -1,13 +1,10 @@
 # LATEST Checkpoint
 
-- step: chunk-pr6-postgreen
-- note: PR #6 security-audit filter contract refactor is green and unblocks clippy gate failures seen in open PR checks.
+- step: chunk-pr6-pr-open
+- note: PR #6 is open to unblock clippy failures by introducing a typed security-audit list filter contract.
 - branch: codex/chunk-pr6-security-audit-filter-contract
-- head: 61fad51f8b70abfefbf6e4d832f43b67c80c8cc8
-- next_cmd: Commit PR #6 changes, push branch, open PR, then re-run PR #4/#5 checks.
+- head: 6cd41bd95715ecaf2754f6d5a5b4cae840f84847
+- next_cmd: Monitor/merge PR #6, then rerun and close PR #4/#5 checks in order.
 - validations:
-  - `cargo fmt --all` passed.
-  - `cargo clippy -p carsinos-storage -p carsinos-gateway --all-targets -- -D warnings` passed.
-  - `cargo test -p carsinos-storage security_audit_ -- --nocapture` passed.
-  - `cargo test -p carsinos-gateway security_audit_ -- --nocapture` passed.
-  - `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+  - PR opened: https://github.com/ProfessahX/CarsinOS/pull/6
+  - Local security PR gate passed (with REQUIRE_CARGO_AUDIT=0 fallback).
