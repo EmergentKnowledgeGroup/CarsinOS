@@ -1319,17 +1319,39 @@ fn require_endpoint_rate_limit_with_error(
         "approval" => state.rate_limiter.config.per_approval_endpoint_limit,
         _ => state.rate_limiter.config.per_principal_limit,
     };
+    let principal_scope = format!("{endpoint_kind}.principal");
     state
         .rate_limiter
         .check(
             &format!("{endpoint_kind}:principal:{}", auth.principal_id),
             limit,
         )
-        .map_err(|err| api_error_with_code(err.status, err.code, &err.message))?;
+        .map_err(|err| {
+            if err.code == "RATE_LIMITED" {
+                api_error_rate_limited(
+                    &err.message,
+                    &principal_scope,
+                    state.rate_limiter.config.window_seconds,
+                )
+            } else {
+                api_error_with_code(err.status, err.code, &err.message)
+            }
+        })?;
+    let ip_scope = format!("{endpoint_kind}.ip");
     state
         .rate_limiter
         .check(&format!("{endpoint_kind}:ip:{}", auth.client_ip), limit)
-        .map_err(|err| api_error_with_code(err.status, err.code, &err.message))?;
+        .map_err(|err| {
+            if err.code == "RATE_LIMITED" {
+                api_error_rate_limited(
+                    &err.message,
+                    &ip_scope,
+                    state.rate_limiter.config.window_seconds,
+                )
+            } else {
+                api_error_with_code(err.status, err.code, &err.message)
+            }
+        })?;
     Ok(())
 }
 
@@ -6335,6 +6357,10 @@ struct ApiError {
     error: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     error_code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    retry_after_seconds: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    rate_limit_scope: Option<String>,
 }
 
 fn api_error(status: StatusCode, message: &str) -> (StatusCode, Json<ApiError>) {
@@ -6343,6 +6369,8 @@ fn api_error(status: StatusCode, message: &str) -> (StatusCode, Json<ApiError>) 
         Json(ApiError {
             error: message.to_string(),
             error_code: None,
+            retry_after_seconds: None,
+            rate_limit_scope: None,
         }),
     )
 }
@@ -6357,6 +6385,24 @@ fn api_error_with_code(
         Json(ApiError {
             error: message.to_string(),
             error_code: Some(error_code.to_string()),
+            retry_after_seconds: None,
+            rate_limit_scope: None,
+        }),
+    )
+}
+
+fn api_error_rate_limited(
+    message: &str,
+    scope: &str,
+    retry_after_seconds: i64,
+) -> (StatusCode, Json<ApiError>) {
+    (
+        StatusCode::TOO_MANY_REQUESTS,
+        Json(ApiError {
+            error: message.to_string(),
+            error_code: Some("RATE_LIMITED".to_string()),
+            retry_after_seconds: Some(retry_after_seconds.max(1)),
+            rate_limit_scope: Some(scope.to_string()),
         }),
     )
 }
@@ -6375,8 +6421,17 @@ fn require_bearer_auth_with_error(
     headers: &HeaderMap,
     state: &AppState,
 ) -> std::result::Result<AuthContext, (StatusCode, Json<ApiError>)> {
-    let auth = require_bearer_auth(headers, state)
-        .map_err(|err| api_error_with_code(err.status, err.code, &err.message))?;
+    let auth = require_bearer_auth(headers, state).map_err(|err| {
+        if err.code == "RATE_LIMITED" {
+            api_error_rate_limited(
+                &err.message,
+                "auth",
+                state.rate_limiter.config.window_seconds,
+            )
+        } else {
+            api_error_with_code(err.status, err.code, &err.message)
+        }
+    })?;
     debug!(
         principal_id = %auth.principal_id,
         auth_method = auth.auth_method,
@@ -8385,6 +8440,8 @@ mod tests {
         assert_eq!(second_run.status(), StatusCode::TOO_MANY_REQUESTS);
         let second_run_json = parse_json(second_run).await;
         assert_eq!(second_run_json["error_code"], "RATE_LIMITED");
+        assert_eq!(second_run_json["rate_limit_scope"], "run.principal");
+        assert_eq!(second_run_json["retry_after_seconds"], 60);
     }
 
     #[tokio::test]
@@ -8466,6 +8523,51 @@ mod tests {
         assert_eq!(second_approval.status(), StatusCode::TOO_MANY_REQUESTS);
         let second_approval_json = parse_json(second_approval).await;
         assert_eq!(second_approval_json["error_code"], "RATE_LIMITED");
+        assert_eq!(
+            second_approval_json["rate_limit_scope"],
+            "approval.principal"
+        );
+        assert_eq!(second_approval_json["retry_after_seconds"], 60);
+    }
+
+    #[tokio::test]
+    async fn auth_rate_limit_returns_429_with_scope_and_retry_hint() {
+        let ctx = test_context_with_rate_limits(RequestRateLimitConfig {
+            enabled: true,
+            window_seconds: 60,
+            per_ip_limit: 1,
+            per_principal_limit: 100,
+            per_run_endpoint_limit: 100,
+            per_approval_endpoint_limit: 100,
+        });
+
+        let first = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"rate-limit-auth-1"}"#),
+            ))
+            .await
+            .expect("first create session");
+        assert_eq!(first.status(), StatusCode::CREATED);
+
+        let second = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"rate-limit-auth-2"}"#),
+            ))
+            .await
+            .expect("second create session");
+        assert_eq!(second.status(), StatusCode::TOO_MANY_REQUESTS);
+        let second_json = parse_json(second).await;
+        assert_eq!(second_json["error_code"], "RATE_LIMITED");
+        assert_eq!(second_json["rate_limit_scope"], "auth");
+        assert_eq!(second_json["retry_after_seconds"], 60);
     }
 
     #[tokio::test]

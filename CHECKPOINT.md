@@ -1626,3 +1626,32 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 084
+
+- checklist refs: PR chunk #2 runtime contract hardening
+- past action:
+- Opened PR #1 for CI/review scaffolding so CodeRabbit can begin review.
+- present action:
+- Implemented a stable `429 RATE_LIMITED` response contract for runtime limits:
+- expanded `ApiError` envelope with optional `retry_after_seconds` and `rate_limit_scope`,
+- added `api_error_rate_limited(...)` helper,
+- upgraded endpoint limiter mapping to return deterministic scope identifiers (`run.principal`, `run.ip`, `approval.principal`, `approval.ip`),
+- upgraded auth limiter mapping to return scoped `auth` rate-limit envelope,
+- expanded rate-limit tests to assert scope + retry fields,
+- added auth-level rate-limit regression test.
+- validation outcomes:
+- `cargo fmt` passed.
+- `cargo test -p carsinos-gateway` passed (`46` unit + `10` e2e + `2` benchmark tests).
+- checkpoint sync complete in:
+- `runtime/checkpoints/LATEST.md`
+- `runtime/checkpoints/LATEST.json`
+- future action:
+- commit/push branch and open PR #2 into `main` for CodeRabbit review.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
