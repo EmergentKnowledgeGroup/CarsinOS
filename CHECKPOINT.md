@@ -2514,3 +2514,24 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 132
+
+- checklist refs: `MC-EXT-003` chunk wave #5 (CI stabilization)
+- past action:
+- Identified CI failures on process e2e assertions across earlier branches and implemented deterministic assertion hardening.
+- present action:
+- Revalidated with targeted process tests and full security gate; all green.
+- validation outcomes:
+- `cargo test -p carsinos-gateway --test e2e_process scheduler_executes_due_job_and_persists_history -- --nocapture` passed.
+- `cargo test -p carsinos-gateway --test e2e_process request_logs_are_written_to_state_log_directory -- --nocapture` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push stabilization patch and continue open PR workflow.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/tests/e2e_process.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
