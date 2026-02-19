@@ -1,33 +1,43 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T14:22:27.097363+00:00",
+  "captured_at": "2026-02-19T14:24:56.257155+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
   "branch": "codex/chunk-pr12-scheduler-session-run",
-  "head_short": "a73901a",
-  "step": "chunk-pr12-pr-open",
-  "note": "Opened PR #12 for MC-AUTO-001 scheduler session.run execution path.",
-  "next_cmd": "Merge PRs in order (#10, #11, #12), checkpoint each post-merge, then continue next chunk.",
+  "head_short": "986dc37",
+  "step": "chunk-pr12-postgreen-logfix",
+  "note": "Applied CI-flake fix for request-log assertion and reran full security PR gate green.",
+  "next_cmd": "Commit and push log-fix checkpoint update, then process PR #10/#11/#12 statuses and merge path.",
   "status": {
     "staged": [],
-    "modified": [],
+    "modified": [
+      "crates/carsinos-gateway/tests/e2e_process.rs"
+    ],
     "untracked": [],
     "conflicted": [],
-    "dirty": false
+    "dirty": true
   },
   "changed_files": {
-    "working_tree": [],
+    "working_tree": [
+      "crates/carsinos-gateway/tests/e2e_process.rs"
+    ],
     "staged": []
   },
   "recent_commits": [
+    "986dc37 docs: checkpoint PR #12 open state",
     "a73901a feat: execute scheduler session.run payloads via real run path",
     "0f67607 docs: checkpoint PR #11 open state",
     "306b9af feat: add openrouter ollama vllm provider adapters",
-    "9b47aed docs: checkpoint PR #10 open state",
-    "362648e feat: add provider contract v2 capabilities surface"
+    "9b47aed docs: checkpoint PR #10 open state"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
     "Open diff for changed files listed in checkpoint.",
     "Resume from step + next_cmd, then write a new checkpoint after each major edit block."
+  ],
+  "head": "986dc37e3acafeffb440706fb69922dbd1cf4203",
+  "validations": [
+    "cargo test -p carsinos-gateway --test e2e_process request_logs_are_written_to_state_log_directory -- --nocapture (pass)",
+    "REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh (pass)",
+    "runtime/security/reports/pr-gate-20260219T142355Z.log"
   ]
 }

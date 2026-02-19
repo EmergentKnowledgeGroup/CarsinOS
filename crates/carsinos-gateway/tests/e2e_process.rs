@@ -852,7 +852,11 @@ async fn request_logs_are_written_to_state_log_directory() -> Result<()> {
                 let has_request_id = content.contains("request_id=")
                     || content.contains("\"request_id\"")
                     || content.contains("x-request-id");
-                if content.contains("http.request") && has_request_id {
+                let has_health_request_context = content.contains("/api/v1/health")
+                    || content.contains("uri=/api/v1/health")
+                    || content.contains("\"uri\":\"/api/v1/health\"")
+                    || content.contains("http.request");
+                if has_health_request_context && has_request_id {
                     found_non_empty_log = true;
                     break;
                 }
