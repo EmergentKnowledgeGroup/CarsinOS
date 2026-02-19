@@ -1,12 +1,10 @@
 # LATEST Checkpoint
 
-- step: chunk-pr8-postgreen
-- note: PR #8 per-channel runtime policy defaults (auto-run + model fallback) is locally green.
+- step: chunk-pr8-pr-open
+- note: PR #8 is open for channel runtime policy defaults.
 - branch: codex/chunk-pr8-channel-runtime-policy-defaults
-- head: 490ce2308b81bd2de8c4f030f1c99d1bd455da67
-- next_cmd: Commit and push PR #8 changes, open PR, then process checks/review.
+- head: b31267274d552ca25b2b2e67ede0f9d6737485fc
+- next_cmd: Monitor/merge PR #8, then implement chunk PR #9.
 - validations:
-  - `cargo test -p carsinos-gateway channel_config_endpoints_round_trip -- --nocapture` passed.
-  - `cargo test -p carsinos-gateway discord_channel_inbound -- --nocapture` passed.
-  - `cargo clippy -p carsinos-gateway -p carsinos-protocol --all-targets -- -D warnings` passed.
-  - `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+  - PR opened: https://github.com/ProfessahX/CarsinOS/pull/8
+  - Local validation and security gate are green.
