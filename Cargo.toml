@@ -2,6 +2,7 @@
 members = [
   "crates/carsinos-channels-bluebubbles",
   "crates/carsinos-channels-discord",
+  "crates/carsinos-channels-signal",
   "crates/carsinos-channels-slack",
   "crates/carsinos-channels-telegram",
   "crates/carsinos-channels-whatsapp",

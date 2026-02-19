@@ -836,6 +836,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "carsinos-channels-bluebubbles"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "carsinos-channels-discord"
 version = "0.1.0"
 dependencies = [
@@ -843,7 +850,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "carsinos-channels-signal"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "carsinos-channels-slack"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "carsinos-channels-telegram"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "carsinos-channels-whatsapp"
 version = "0.1.0"
 dependencies = [
  "serde",

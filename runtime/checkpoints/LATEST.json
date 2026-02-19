@@ -1,40 +1,51 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T16:00:15+00:00",
+  "captured_at": "2026-02-19T16:03:45.362514+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/chunk-pr24-future-imessage-bluebubbles",
-  "head_short": "af83d61",
-  "head": "af83d61dd0506859ede88877658b3359d5f95303",
-  "step": "chunk-pr24-pr-open",
-  "note": "Opened PR #24 for MC-FUT-030 iMessage/BlueBubbles adapter scaffold.",
-  "next_cmd": "Monitor PR #15-#24 checks and continue next chunk branch.",
-  "validations": [
-    "PR opened: https://github.com/ProfessahX/CarsinOS/pull/24",
-    "cargo test -p carsinos-channels-bluebubbles -- --nocapture",
-    "cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings",
-    "REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh"
-  ],
+  "branch": "codex/chunk-pr25-future-signal-adapter",
+  "head_short": "08b2355",
+  "step": "chunk-pr25-postgreen",
+  "note": "Completed MC-FUT-040 Signal adapter scaffold crate and workspace integration with full gate green.",
+  "next_cmd": "Commit chunk-pr25 changes, push branch, open PR #25, then write PR-open checkpoint.",
   "status": {
     "staged": [],
-    "modified": [],
-    "untracked": [],
+    "modified": [
+      "CHECKPOINT.md",
+      "Cargo.lock",
+      "Cargo.toml",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
+    "untracked": [
+      "crates/carsinos-channels-signal/"
+    ],
     "conflicted": [],
-    "dirty": false
+    "dirty": true
   },
   "changed_files": {
-    "working_tree": [],
+    "working_tree": [
+      "CHECKPOINT.md",
+      "Cargo.lock",
+      "Cargo.toml",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "staged": []
   },
   "recent_commits": [
+    "08b2355 docs: checkpoint PR #24 open state",
     "af83d61 feat(channel): add iMessage BlueBubbles adapter scaffold",
     "756b0f6 docs: checkpoint PR #23 open state",
     "3bb4b5b feat(channel): add Slack adapter scaffold crate",
-    "79363b5 docs: checkpoint PR #22 open state",
-    "4d6b772 feat(channel): add WhatsApp adapter scaffold crate"
+    "79363b5 docs: checkpoint PR #22 open state"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
     "Open diff for changed files listed in checkpoint.",
     "Resume from step + next_cmd, then write a new checkpoint after each major edit block."
+  ],
+  "validations": [
+    "cargo test -p carsinos-channels-signal -- --nocapture passed",
+    "REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh passed"
   ]
 }
