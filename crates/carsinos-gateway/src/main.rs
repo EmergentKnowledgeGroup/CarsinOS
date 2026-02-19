@@ -88,6 +88,7 @@ struct AppState {
     trusted_proxy_allowlist: Arc<HashSet<String>>,
     operator_allowlist: Arc<Vec<String>>,
     providers: ProviderRegistry,
+    tool_registry: Arc<ToolRegistry>,
     tool_runner: LocalToolRunner,
     secret_store: SecretStore,
     oauth_sessions: Arc<RwLock<HashMap<String, PendingOpenAiOauthSession>>>,
@@ -175,6 +176,238 @@ impl ExtensionSecurityPolicy {
                 .iter()
                 .any(|prefix| normalized.starts_with(prefix))
     }
+}
+
+#[derive(Debug, Clone)]
+struct ParsedToolInvocation {
+    request: ToolRequest,
+    metadata: ToolExecutionMetadata,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ToolExecutionMetadata {
+    tool_name: &'static str,
+    risk_level: &'static str,
+    requires_approval: bool,
+    timeout_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ToolApprovalPolicy {
+    Never,
+    Always,
+    ProcessRiskBased,
+}
+
+#[derive(Clone)]
+struct ToolDefinition {
+    tool_name: &'static str,
+    base_risk_level: &'static str,
+    timeout_ms: Option<u64>,
+    approval_policy: ToolApprovalPolicy,
+    parser: fn(&str, Option<u64>) -> Option<ToolRequest>,
+}
+
+impl ToolDefinition {
+    fn parse(&self, raw_args: &str) -> Option<ParsedToolInvocation> {
+        let request = (self.parser)(raw_args, self.timeout_ms)?;
+        let metadata = self.resolve_metadata(&request);
+        Some(ParsedToolInvocation { request, metadata })
+    }
+
+    fn resolve_metadata(&self, request: &ToolRequest) -> ToolExecutionMetadata {
+        let mut requires_approval = match self.approval_policy {
+            ToolApprovalPolicy::Never => false,
+            ToolApprovalPolicy::Always => true,
+            ToolApprovalPolicy::ProcessRiskBased => false,
+        };
+        let mut risk_level = self.base_risk_level;
+        if let ToolApprovalPolicy::ProcessRiskBased = self.approval_policy {
+            if let ToolRequest::Process(args) = request {
+                let action = args.action.trim().to_ascii_lowercase();
+                if matches!(action.as_str(), "terminate" | "kill") {
+                    requires_approval = true;
+                    risk_level = "high";
+                }
+            }
+        }
+        ToolExecutionMetadata {
+            tool_name: self.tool_name,
+            risk_level,
+            requires_approval,
+            timeout_ms: self.timeout_ms,
+        }
+    }
+}
+
+#[derive(Clone, Default)]
+struct ToolRegistry {
+    definitions: HashMap<&'static str, ToolDefinition>,
+}
+
+impl ToolRegistry {
+    fn from_env() -> Self {
+        let exec_timeout_ms = optional_u64_env("CARSINOS_TOOL_DEF_EXEC_TIMEOUT_MS");
+        let process_timeout_ms = optional_u64_env("CARSINOS_TOOL_DEF_PROCESS_TIMEOUT_MS");
+        Self::with_timeouts(exec_timeout_ms, process_timeout_ms)
+    }
+
+    #[cfg(test)]
+    fn permissive_for_tests() -> Self {
+        Self::with_timeouts(None, None)
+    }
+
+    fn len(&self) -> usize {
+        self.definitions.len()
+    }
+
+    fn with_timeouts(exec_timeout_ms: Option<u64>, process_timeout_ms: Option<u64>) -> Self {
+        let mut definitions = HashMap::new();
+        definitions.insert(
+            "exec",
+            ToolDefinition {
+                tool_name: "exec",
+                base_risk_level: "high",
+                timeout_ms: exec_timeout_ms,
+                approval_policy: ToolApprovalPolicy::Always,
+                parser: parse_tool_exec_args,
+            },
+        );
+        definitions.insert(
+            "web_search",
+            ToolDefinition {
+                tool_name: "web.search",
+                base_risk_level: "low",
+                timeout_ms: None,
+                approval_policy: ToolApprovalPolicy::Never,
+                parser: parse_tool_web_search_args,
+            },
+        );
+        definitions.insert(
+            "web_fetch",
+            ToolDefinition {
+                tool_name: "web.fetch",
+                base_risk_level: "low",
+                timeout_ms: None,
+                approval_policy: ToolApprovalPolicy::Never,
+                parser: parse_tool_web_fetch_args,
+            },
+        );
+        definitions.insert(
+            "fs_read",
+            ToolDefinition {
+                tool_name: "fs.read",
+                base_risk_level: "low",
+                timeout_ms: None,
+                approval_policy: ToolApprovalPolicy::Never,
+                parser: parse_tool_fs_read_args,
+            },
+        );
+        definitions.insert(
+            "fs_write",
+            ToolDefinition {
+                tool_name: "fs.write",
+                base_risk_level: "high",
+                timeout_ms: None,
+                approval_policy: ToolApprovalPolicy::Always,
+                parser: parse_tool_fs_write_args,
+            },
+        );
+        definitions.insert(
+            "process",
+            ToolDefinition {
+                tool_name: "process",
+                base_risk_level: "medium",
+                timeout_ms: process_timeout_ms,
+                approval_policy: ToolApprovalPolicy::ProcessRiskBased,
+                parser: parse_tool_process_args,
+            },
+        );
+        Self { definitions }
+    }
+
+    fn parse_line(&self, line: &str) -> Option<ParsedToolInvocation> {
+        let stripped = line.strip_prefix("tool.")?;
+        let mut parts = stripped.splitn(2, |value: char| value.is_whitespace());
+        let command = parts.next()?.trim();
+        if command.is_empty() {
+            return None;
+        }
+        let raw_args = parts.next().unwrap_or_default().trim_start();
+        let definition = self.definitions.get(command)?;
+        definition.parse(raw_args)
+    }
+}
+
+fn parse_tool_exec_args(raw_args: &str, timeout_ms: Option<u64>) -> Option<ToolRequest> {
+    let command = raw_args.trim();
+    if command.is_empty() {
+        return None;
+    }
+    Some(ToolRequest::Exec(ExecRequest {
+        command: command.to_string(),
+        workdir: None,
+        env: None,
+        timeout_ms,
+    }))
+}
+
+fn parse_tool_web_search_args(raw_args: &str, _timeout_ms: Option<u64>) -> Option<ToolRequest> {
+    let query = raw_args.trim();
+    if query.is_empty() {
+        return None;
+    }
+    Some(ToolRequest::WebSearch(WebSearchRequest {
+        query: query.to_string(),
+        count: Some(5),
+    }))
+}
+
+fn parse_tool_web_fetch_args(raw_args: &str, _timeout_ms: Option<u64>) -> Option<ToolRequest> {
+    let url = raw_args.trim();
+    if url.is_empty() {
+        return None;
+    }
+    Some(ToolRequest::WebFetch(WebFetchRequest {
+        url: url.to_string(),
+    }))
+}
+
+fn parse_tool_fs_read_args(raw_args: &str, _timeout_ms: Option<u64>) -> Option<ToolRequest> {
+    let path = raw_args.trim();
+    if path.is_empty() {
+        return None;
+    }
+    Some(ToolRequest::FsRead(FsReadRequest {
+        path: path.to_string(),
+        max_bytes: None,
+    }))
+}
+
+fn parse_tool_fs_write_args(raw_args: &str, _timeout_ms: Option<u64>) -> Option<ToolRequest> {
+    let (path, content) = raw_args.split_once('|')?;
+    let path = path.trim();
+    if path.is_empty() {
+        return None;
+    }
+    Some(ToolRequest::FsWrite(FsWriteRequest {
+        path: path.to_string(),
+        content: content.to_string(),
+        mode: FsWriteMode::Overwrite,
+    }))
+}
+
+fn parse_tool_process_args(raw_args: &str, _timeout_ms: Option<u64>) -> Option<ToolRequest> {
+    let mut parts = raw_args.split_whitespace();
+    let action = parts.next()?.trim();
+    if action.is_empty() {
+        return None;
+    }
+    let session_id = parts.next().map(|value| value.to_string());
+    Some(ToolRequest::Process(ProcessRequest {
+        action: action.to_string(),
+        session_id,
+    }))
 }
 
 #[derive(Debug, Default)]
@@ -875,6 +1108,7 @@ async fn main() -> AnyResult<()> {
     let skill_overrides = load_skill_state_overrides(&storage)?;
     skill_registry.apply_enabled_overrides(&skill_overrides);
     let skill_count = skill_registry.len();
+    let tool_registry = Arc::new(ToolRegistry::from_env());
     let tool_runner = LocalToolRunner::default();
     let secret_store = SecretStore::from_env();
     let oauth_sessions = Arc::new(RwLock::new(HashMap::new()));
@@ -898,6 +1132,7 @@ async fn main() -> AnyResult<()> {
         hook_count = hook_bus.list_registrations().len(),
         hook_policy_denials = hook_policy_denials.len(),
         skill_count,
+        tool_registry_entries = tool_registry.len(),
         skill_dirs = ?skill_dirs,
         extension_plugin_allowlist_enabled = extension_policy.plugin_allowlist_enabled,
         "extension registries initialized"
@@ -913,6 +1148,7 @@ async fn main() -> AnyResult<()> {
         trusted_proxy_allowlist: Arc::new(trusted_proxy_allowlist),
         operator_allowlist: Arc::new(operator_allowlist),
         providers,
+        tool_registry: tool_registry.clone(),
         tool_runner,
         secret_store: secret_store.clone(),
         oauth_sessions,
@@ -4950,10 +5186,12 @@ async fn execute_run(
         .latest_user_message_text(&run.session_id)?
         .unwrap_or_default();
 
-    let tool_requests = parse_tool_requests_from_input(&input)?;
+    let tool_requests = parse_tool_requests_from_input(&input, state.tool_registry.as_ref())?;
     let mut tool_output_blocks = Vec::new();
-    for request in tool_requests {
-        let tool_name = tool_request_name(&request);
+    for invocation in tool_requests {
+        let tool_metadata = invocation.metadata;
+        let request = invocation.request;
+        let tool_name = tool_metadata.tool_name;
         let args_json = serde_json::to_string(&request).unwrap_or_else(|_| "{}".to_string());
         let tool_call = state
             .storage
@@ -4965,12 +5203,15 @@ async fn execute_run(
             HookPoint::ToolBefore,
             Some(tool_name),
             serde_json::json!({
-                "tool_call_id": &tool_call.tool_call_id
+                "tool_call_id": &tool_call.tool_call_id,
+                "risk_level": tool_metadata.risk_level,
+                "requires_approval": tool_metadata.requires_approval,
+                "timeout_ms": tool_metadata.timeout_ms
             }),
         )
         .await;
 
-        if tool_requires_approval(&request) && !bool_env("CARSINOS_AUTO_APPROVE_TOOLS", false) {
+        if tool_metadata.requires_approval && !bool_env("CARSINOS_AUTO_APPROVE_TOOLS", false) {
             let mut approved_by_existing = false;
             if let Some(existing) = state.storage.find_latest_approval_for_request(
                 &run.run_id,
@@ -5069,7 +5310,8 @@ async fn execute_run(
                     serde_json::json!({
                         "tool_call_id": &tool_call.tool_call_id,
                         "status": "blocked",
-                        "approval_id": &approval.approval_id
+                        "approval_id": &approval.approval_id,
+                        "risk_level": tool_metadata.risk_level
                     }),
                 )
                 .await;
@@ -5101,7 +5343,8 @@ async fn execute_run(
                         Some(tool_name),
                         serde_json::json!({
                             "tool_call_id": &tool_call.tool_call_id,
-                            "status": "failed"
+                            "status": "failed",
+                            "risk_level": tool_metadata.risk_level
                         }),
                     )
                     .await;
@@ -5122,7 +5365,8 @@ async fn execute_run(
                         Some(tool_name),
                         serde_json::json!({
                             "tool_call_id": &tool_call.tool_call_id,
-                            "status": "failed"
+                            "status": "failed",
+                            "risk_level": tool_metadata.risk_level
                         }),
                     )
                     .await;
@@ -5145,7 +5389,8 @@ async fn execute_run(
             serde_json::json!({
                 "tool_call_id": &tool_call.tool_call_id,
                 "status": "succeeded",
-                "output_chars": tool_output_json.len()
+                "output_chars": tool_output_json.len(),
+                "risk_level": tool_metadata.risk_level
             }),
         )
         .await;
@@ -6916,94 +7161,21 @@ fn load_channel_config(state: &AppState) -> AnyResult<carsinos_protocol::Channel
     })
 }
 
-fn parse_tool_requests_from_input(input: &str) -> AnyResult<Vec<ToolRequest>> {
+fn parse_tool_requests_from_input(
+    input: &str,
+    tool_registry: &ToolRegistry,
+) -> AnyResult<Vec<ParsedToolInvocation>> {
     let mut requests = Vec::new();
     for raw_line in input.lines() {
         let line = raw_line.trim();
-        if let Some(command) = line.strip_prefix("tool.exec ") {
-            if !command.trim().is_empty() {
-                requests.push(ToolRequest::Exec(ExecRequest {
-                    command: command.trim().to_string(),
-                    workdir: None,
-                    env: None,
-                    timeout_ms: None,
-                }));
-            }
+        if line.is_empty() {
             continue;
         }
-        if let Some(query) = line.strip_prefix("tool.web_search ") {
-            if !query.trim().is_empty() {
-                requests.push(ToolRequest::WebSearch(WebSearchRequest {
-                    query: query.trim().to_string(),
-                    count: Some(5),
-                }));
-            }
-            continue;
-        }
-        if let Some(url) = line.strip_prefix("tool.web_fetch ") {
-            if !url.trim().is_empty() {
-                requests.push(ToolRequest::WebFetch(WebFetchRequest {
-                    url: url.trim().to_string(),
-                }));
-            }
-            continue;
-        }
-        if let Some(path) = line.strip_prefix("tool.fs_read ") {
-            if !path.trim().is_empty() {
-                requests.push(ToolRequest::FsRead(FsReadRequest {
-                    path: path.trim().to_string(),
-                    max_bytes: None,
-                }));
-            }
-            continue;
-        }
-        if let Some(raw) = line.strip_prefix("tool.fs_write ") {
-            if let Some((path, content)) = raw.split_once('|') {
-                let path = path.trim();
-                if !path.is_empty() {
-                    requests.push(ToolRequest::FsWrite(FsWriteRequest {
-                        path: path.to_string(),
-                        content: content.to_string(),
-                        mode: FsWriteMode::Overwrite,
-                    }));
-                }
-            }
-            continue;
-        }
-        if let Some(raw) = line.strip_prefix("tool.process ") {
-            let mut parts = raw.split_whitespace();
-            if let Some(action) = parts.next() {
-                let session_id = parts.next().map(|value| value.to_string());
-                requests.push(ToolRequest::Process(ProcessRequest {
-                    action: action.to_string(),
-                    session_id,
-                }));
-            }
+        if let Some(parsed) = tool_registry.parse_line(line) {
+            requests.push(parsed);
         }
     }
     Ok(requests)
-}
-
-fn tool_request_name(request: &ToolRequest) -> &'static str {
-    match request {
-        ToolRequest::Exec(_) => "exec",
-        ToolRequest::Process(_) => "process",
-        ToolRequest::FsRead(_) => "fs.read",
-        ToolRequest::FsWrite(_) => "fs.write",
-        ToolRequest::WebSearch(_) => "web.search",
-        ToolRequest::WebFetch(_) => "web.fetch",
-    }
-}
-
-fn tool_requires_approval(request: &ToolRequest) -> bool {
-    match request {
-        ToolRequest::Exec(_) | ToolRequest::FsWrite(_) => true,
-        ToolRequest::Process(args) => {
-            let action = args.action.trim().to_ascii_lowercase();
-            matches!(action.as_str(), "terminate" | "kill")
-        }
-        ToolRequest::FsRead(_) | ToolRequest::WebSearch(_) | ToolRequest::WebFetch(_) => false,
-    }
 }
 
 async fn resolve_run_auth_profiles(
@@ -8888,6 +9060,13 @@ fn i64_env(name: &str, default: i64) -> i64 {
     }
 }
 
+fn optional_u64_env(name: &str) -> Option<u64> {
+    std::env::var(name)
+        .ok()
+        .and_then(|raw| raw.trim().parse::<u64>().ok())
+        .filter(|value| *value > 0)
+}
+
 fn usize_env(name: &str, default: usize) -> usize {
     match std::env::var(name) {
         Ok(raw) => raw.trim().parse::<usize>().unwrap_or(default),
@@ -9113,6 +9292,7 @@ mod tests {
                 .expect("build hook bus from registry");
         let hook_bus = Arc::new(hook_bus);
         let skill_registry = Arc::new(RwLock::new(SkillRegistry::new()));
+        let tool_registry = Arc::new(ToolRegistry::permissive_for_tests());
         let rate_limiter = RequestRateLimiter {
             config: rate_limit_config.unwrap_or(RequestRateLimitConfig {
                 enabled: false,
@@ -9135,6 +9315,7 @@ mod tests {
             trusted_proxy_allowlist: Arc::new(trusted_proxy_allowlist),
             operator_allowlist: Arc::new(allowlist),
             providers: ProviderRegistry::new(),
+            tool_registry,
             tool_runner: LocalToolRunner::default(),
             secret_store: secret_store.clone(),
             oauth_sessions: Arc::new(RwLock::new(HashMap::new())),
@@ -9840,6 +10021,59 @@ mod tests {
         assert_eq!(extract_credentials_expiry_ms(&payload_sec), Some(12000));
         assert_eq!(extract_credentials_expiry_ms(&payload_alt), Some(15000));
         assert_eq!(extract_credentials_expiry_ms(&payload_none), None);
+    }
+
+    #[test]
+    fn tool_registry_parses_legacy_tool_commands_with_policy_metadata() {
+        let registry = ToolRegistry::permissive_for_tests();
+        let invocations = parse_tool_requests_from_input(
+            r#"
+tool.exec echo hello
+tool.web_search carsinos
+tool.fs_write /tmp/file.txt|hello
+tool.process terminate abc123
+tool.process status abc123
+"#,
+            &registry,
+        )
+        .expect("parse tool requests");
+        assert_eq!(invocations.len(), 5);
+
+        assert_eq!(invocations[0].metadata.tool_name, "exec");
+        assert_eq!(invocations[0].metadata.risk_level, "high");
+        assert!(invocations[0].metadata.requires_approval);
+
+        assert_eq!(invocations[1].metadata.tool_name, "web.search");
+        assert_eq!(invocations[1].metadata.risk_level, "low");
+        assert!(!invocations[1].metadata.requires_approval);
+
+        assert_eq!(invocations[2].metadata.tool_name, "fs.write");
+        assert_eq!(invocations[2].metadata.risk_level, "high");
+        assert!(invocations[2].metadata.requires_approval);
+
+        assert_eq!(invocations[3].metadata.tool_name, "process");
+        assert_eq!(invocations[3].metadata.risk_level, "high");
+        assert!(invocations[3].metadata.requires_approval);
+
+        assert_eq!(invocations[4].metadata.tool_name, "process");
+        assert_eq!(invocations[4].metadata.risk_level, "medium");
+        assert!(!invocations[4].metadata.requires_approval);
+    }
+
+    #[test]
+    fn tool_registry_timeout_metadata_is_applied_to_exec_requests() {
+        let registry = ToolRegistry::with_timeouts(Some(2500), Some(4000));
+        let invocations =
+            parse_tool_requests_from_input("tool.exec echo hi\ntool.process status abc", &registry)
+                .expect("parse tool requests");
+        assert_eq!(invocations.len(), 2);
+
+        match &invocations[0].request {
+            ToolRequest::Exec(args) => assert_eq!(args.timeout_ms, Some(2500)),
+            other => panic!("expected exec request, got {other:?}"),
+        }
+        assert_eq!(invocations[0].metadata.timeout_ms, Some(2500));
+        assert_eq!(invocations[1].metadata.timeout_ms, Some(4000));
     }
 
     #[tokio::test]

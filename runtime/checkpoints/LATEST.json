@@ -1,39 +1,48 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T15:05:54.511776+00:00",
+  "captured_at": "2026-02-19T15:12:55.518460+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/chunk-pr16-ext-security-controls",
-  "head_short": "fb5ee08",
-  "head": "fb5ee089bb3869c2c8d1074aceb6c09d686ad691",
-  "step": "chunk-pr16-pr-open",
-  "note": "Opened PR #16 for MC-EXT-004 extension security controls after full validation green.",
-  "next_cmd": "Monitor PR #16 checks and immediately start next chunk branch from main.",
+  "branch": "codex/chunk-pr17-tool-registry-refactor",
+  "head_short": "8c701dc",
+  "head": "8c701dc266d09a03411b5bcaf94ca12a9e6cd055",
+  "step": "chunk-pr17-postgreen",
+  "note": "Implemented MC-TOOL-001 registry-driven tool parsing/execution metadata path with backward-compatible tool.* commands; full security gate green.",
+  "next_cmd": "Commit/push chunk #17 and open PR #17, then continue next chunk workflow.",
   "validations": [
-    "PR opened: https://github.com/ProfessahX/CarsinOS/pull/16",
-    "cargo test -p carsinos-gateway extension_policy_allowlist_blocks_hook_registration_and_audits_denial -- --nocapture",
-    "cargo test -p carsinos-gateway reserved_skill_ids_cannot_be_toggled -- --nocapture",
-    "cargo test -p carsinos-gateway hook_failures_are_isolated_and_audited -- --nocapture",
-    "cargo test -p carsinos-gateway skills_ -- --nocapture",
+    "cargo test -p carsinos-gateway tool_registry_ -- --nocapture",
+    "cargo test -p carsinos-gateway high_risk_tool_requests_are_gated_by_approval -- --nocapture",
+    "cargo test -p carsinos-gateway low_risk_tool_requests_execute_inside_run_loop -- --nocapture",
+    "cargo test -p carsinos-gateway high_risk_tool_run_ -- --nocapture",
     "cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings",
     "REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh"
   ],
   "status": {
     "staged": [],
-    "modified": [],
+    "modified": [
+      "CHECKPOINT.md",
+      "crates/carsinos-gateway/src/main.rs",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "untracked": [],
     "conflicted": [],
-    "dirty": false
+    "dirty": true
   },
   "changed_files": {
-    "working_tree": [],
+    "working_tree": [
+      "CHECKPOINT.md",
+      "crates/carsinos-gateway/src/main.rs",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "staged": []
   },
   "recent_commits": [
+    "8c701dc docs: checkpoint PR #16 open state",
     "fb5ee08 feat(ext): enforce extension security policy controls",
     "62aa873 docs: checkpoint close superseded PR stack",
     "e88a201 test(gateway): stabilize process e2e assertions",
-    "200f343 docs: checkpoint PR #15 open state",
-    "38e0fae feat(ext): add skills discovery and injection"
+    "200f343 docs: checkpoint PR #15 open state"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",

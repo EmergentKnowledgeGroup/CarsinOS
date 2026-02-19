@@ -2608,3 +2608,43 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 137
+
+- checklist refs: `MC-TOOL-001` chunk wave #6
+- past action:
+- Finalized PR #16 checkpoint and opened next implementation lane.
+- present action:
+- Started branch `codex/chunk-pr17-tool-registry-refactor` for registry-driven tool execution refactor.
+- future action:
+- Implement tool registry metadata execution path + tests, run full gate, then open PR #17.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 138
+
+- checklist refs: `MC-TOOL-001` chunk wave #6
+- past action:
+- Implemented registry-driven tool execution refactor and policy metadata propagation in run loop.
+- present action:
+- Completed targeted and full regression/security validation; all green.
+- validation outcomes:
+- `cargo test -p carsinos-gateway tool_registry_ -- --nocapture` passed.
+- `cargo test -p carsinos-gateway high_risk_tool_requests_are_gated_by_approval -- --nocapture` passed.
+- `cargo test -p carsinos-gateway low_risk_tool_requests_execute_inside_run_loop -- --nocapture` passed.
+- `cargo test -p carsinos-gateway high_risk_tool_run_ -- --nocapture` passed.
+- `cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push chunk #17 and open PR #17, then continue into the next chunk.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
