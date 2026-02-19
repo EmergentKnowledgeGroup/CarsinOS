@@ -1,12 +1,13 @@
 {
-  "timestamp_utc": "2026-02-19T11:14:15Z",
-  "step": "pr2-cr-fix-postgreen",
-  "note": "PR #2 CodeRabbit fixes finalized with computed retry-after propagation and dedicated remaining-window regression test.",
+  "timestamp_utc": "2026-02-19T11:14:45Z",
+  "step": "pr2-cr-fix-pushed",
+  "note": "PR #2 remediation commit pushed; waiting for GitHub checks/review update.",
   "branch": "codex/chunk-pr2-rate-limit-contract",
-  "head": "0745464307f1177dbc5b49a95315276500403fe4",
-  "next_cmd": "Commit and push PR #2 fixes, then verify GitHub checks.",
+  "head": "f3632373f08d12c242803e3d5cabe7b69519cd61",
+  "next_cmd": "gh pr checks 2 && gh pr view 2 --json reviews,statusCheckRollup,url",
   "validations": [
     "cargo fmt --all passed.",
-    "cargo test -p carsinos-gateway rate_limit_ passed."
+    "cargo test -p carsinos-gateway rate_limit_ passed.",
+    "git push completed for codex/chunk-pr2-rate-limit-contract."
   ]
 }

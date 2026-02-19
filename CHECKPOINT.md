@@ -1721,3 +1721,19 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 088
+
+- checklist refs: `N10` post-hardening PR remediation
+- past action:
+- Finalized PR #2 CodeRabbit remediation implementation and green local validation.
+- present action:
+- Pushed remediation commit (`f363237`) to `codex/chunk-pr2-rate-limit-contract` and synced post-push checkpoint state.
+- future action:
+- Monitor PR #2 checks/review, then switch to PR #3 branch and close remaining CodeRabbit feedback.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
