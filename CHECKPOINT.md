@@ -1655,3 +1655,21 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 085
+
+- checklist refs: PR chunk #2 open
+- past action:
+- Implemented and validated stable 429 rate-limit response contract changes.
+- present action:
+- Opened PR #2 to `main` for CodeRabbit review:
+- https://github.com/ProfessahX/CarsinOS/pull/2
+- corrected PR body formatting and synced post-PR checkpoint state.
+- future action:
+- start next independent chunk branch while PR #1 and PR #2 review cycles run.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
