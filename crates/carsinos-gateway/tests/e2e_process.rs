@@ -831,11 +831,16 @@ async fn request_logs_are_written_to_state_log_directory() -> Result<()> {
         .context("health request failed")?;
     assert_eq!(health.status(), StatusCode::OK);
     assert!(health.headers().get("x-request-id").is_some());
+    let second_health = gateway
+        .request(Method::GET, "/api/v1/health")
+        .send()
+        .await
+        .context("second health request failed")?;
+    assert_eq!(second_health.status(), StatusCode::OK);
 
-    drop(gateway);
     let logs_dir = state_dir.path().join("logs");
     let deadline = std::time::Instant::now() + Duration::from_secs(6);
-    let mut found_non_empty_log = false;
+    let mut found_request_log_marker = false;
     while std::time::Instant::now() < deadline {
         if let Ok(entries) = fs::read_dir(&logs_dir) {
             for entry in entries {
@@ -855,33 +860,29 @@ async fn request_logs_are_written_to_state_log_directory() -> Result<()> {
                 }
                 let content = fs::read_to_string(entry.path())
                     .with_context(|| format!("failed to read {}", entry.path().display()))?;
-                let has_request_id = content.contains("request_id=")
+                let has_request_id_marker = content.contains("request_id=")
                     || content.contains("\"request_id\"")
-                    || content.contains("x-request-id");
-                let has_health_request_context = content.contains("/api/v1/health")
-                    || content.contains("uri=/api/v1/health")
-                    || content.contains("\"uri\":\"/api/v1/health\"")
-                    || content.contains("method=GET uri=/api/v1/health")
-                    || content.contains("GET /api/v1/health")
-                    || content.contains("http.request");
-                let has_request_context = has_health_request_context
-                    && (has_request_id
-                        || content.contains("status=200")
-                        || content.contains("status=OK"));
-                if has_request_context {
-                    found_non_empty_log = true;
+                    || content.contains("x-request-id")
+                    || content.contains("request_id:");
+                let has_http_marker = content.contains("http.request")
+                    || content.contains("status=200")
+                    || content.contains("method=GET")
+                    || content.contains("/api/v1/health");
+                if has_request_id_marker && has_http_marker {
+                    found_request_log_marker = true;
                     break;
                 }
             }
         }
-        if found_non_empty_log {
+        if found_request_log_marker {
             break;
         }
         sleep(Duration::from_millis(200)).await;
     }
+    drop(gateway);
     assert!(
-        found_non_empty_log,
-        "expected request logs with request_id to be written"
+        found_request_log_marker,
+        "expected request-log markers to be written to state log directory"
     );
     Ok(())
 }

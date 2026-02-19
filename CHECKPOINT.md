@@ -3187,3 +3187,39 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 167
+
+- checklist refs: `QA` stabilization chunk wave #14
+- past action:
+- Finalized and pushed PR #26 open-state checkpoint for MC-FUT-050.
+- present action:
+- Started branch `codex/chunk-pr27-e2e-log-check-stability` to fix intermittent Security PR Gate flake in e2e request log assertion.
+- future action:
+- Patch `e2e_process` request log test for deterministic request-id matching, run stress repeats + full gate, and open PR #27.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 168
+
+- checklist refs: `QA` stabilization chunk wave #14
+- past action:
+- Identified Security PR Gate flake in `request_logs_are_written_to_state_log_directory`.
+- present action:
+- Hardened the e2e request-log assertion and validated stability with aggressive repeat testing + full gate.
+- validation outcomes:
+- 20x repeated `cargo test -p carsinos-gateway --test e2e_process request_logs_are_written_to_state_log_directory` loop passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push chunk #27 and open PR #27, then continue with PR stabilization/merge flow.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/tests/e2e_process.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`

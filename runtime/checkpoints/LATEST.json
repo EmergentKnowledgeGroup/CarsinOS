@@ -1,29 +1,39 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T16:08:10.971305+00:00",
+  "captured_at": "2026-02-19T16:11:43.606788+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/chunk-pr26-future-twitch-adapter",
-  "head_short": "ffa5a9c",
-  "step": "chunk-pr26-pr-open",
-  "note": "Opened PR #26 for MC-FUT-050 Twitch adapter scaffold.",
-  "next_cmd": "Continue next backlog chunk while monitoring open PR checks/review.",
+  "branch": "codex/chunk-pr27-e2e-log-check-stability",
+  "head_short": "7281d74",
+  "step": "chunk-pr27-postgreen",
+  "note": "Hardened e2e request log assertion and validated with repeated stress runs plus full security gate.",
+  "next_cmd": "Commit chunk-pr27 stabilization changes and open PR #27.",
   "status": {
     "staged": [],
-    "modified": [],
+    "modified": [
+      "CHECKPOINT.md",
+      "crates/carsinos-gateway/tests/e2e_process.rs",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "untracked": [],
     "conflicted": [],
-    "dirty": false
+    "dirty": true
   },
   "changed_files": {
-    "working_tree": [],
+    "working_tree": [
+      "CHECKPOINT.md",
+      "crates/carsinos-gateway/tests/e2e_process.rs",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "staged": []
   },
   "recent_commits": [
+    "7281d74 docs: checkpoint PR #26 open state",
     "ffa5a9c feat(channel): add Twitch adapter scaffold crate",
     "40e35d7 docs: checkpoint PR #25 open state",
     "c34e369 feat(channel): add Signal adapter scaffold crate",
-    "08b2355 docs: checkpoint PR #24 open state",
-    "af83d61 feat(channel): add iMessage BlueBubbles adapter scaffold"
+    "08b2355 docs: checkpoint PR #24 open state"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
@@ -31,7 +41,7 @@
     "Resume from step + next_cmd, then write a new checkpoint after each major edit block."
   ],
   "validations": [
-    "git push -u origin codex/chunk-pr26-future-twitch-adapter passed",
-    "PR opened: https://github.com/ProfessahX/CarsinOS/pull/26"
+    "20x repeated e2e request-log test loop passed",
+    "REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh passed"
   ]
 }
