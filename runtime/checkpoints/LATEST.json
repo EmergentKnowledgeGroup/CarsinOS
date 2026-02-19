@@ -1,33 +1,29 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T14:55:04.272852+00:00",
+  "captured_at": "2026-02-19T14:55:59.570577+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
   "branch": "codex/chunk-pr15-ext-skills-system-v1",
-  "head_short": "200f343",
-  "step": "chunk-pr15-postgreen-v2",
-  "note": "Applied CI stabilization for flaky process e2e assertions and reran full security gate green.",
-  "next_cmd": "git add crates/carsinos-gateway/tests/e2e_process.rs CHECKPOINT.md runtime/checkpoints/LATEST.md runtime/checkpoints/LATEST.json && git commit -m \"test(gateway): stabilize process e2e assertions\" && git push",
+  "head_short": "e88a201",
+  "step": "chunk-pr10-14-closed-superseded",
+  "note": "Closed PRs #10-#14 as superseded by #15 to maintain one clean merge path.",
+  "next_cmd": "Monitor PR #15 checks/reviews and merge when green, then continue next chunk.",
   "status": {
     "staged": [],
-    "modified": [
-      "crates/carsinos-gateway/tests/e2e_process.rs"
-    ],
+    "modified": [],
     "untracked": [],
     "conflicted": [],
-    "dirty": true
+    "dirty": false
   },
   "changed_files": {
-    "working_tree": [
-      "crates/carsinos-gateway/tests/e2e_process.rs"
-    ],
+    "working_tree": [],
     "staged": []
   },
   "recent_commits": [
+    "e88a201 test(gateway): stabilize process e2e assertions",
     "200f343 docs: checkpoint PR #15 open state",
     "38e0fae feat(ext): add skills discovery and injection",
     "5f8b78a docs: checkpoint PR #14 open state",
-    "d712aa5 feat(ext): add hook bus lifecycle execution",
-    "20ecf21 docs: checkpoint PR #13 open state"
+    "d712aa5 feat(ext): add hook bus lifecycle execution"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
