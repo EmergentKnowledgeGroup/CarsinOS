@@ -1,10 +1,10 @@
 # LATEST Checkpoint
 
-- step: pr1-rebase-start
-- note: PR #1 branch diverged from main; starting merge/reconcile to restore clean mergeability.
+- step: pr1-rebase-postgreen
+- note: PR #1 reconciled with main; checkpoint conflicts resolved and log-persistence e2e test revalidated.
 - branch: codex/chunk-pr1-ci-review-gates
-- head: 5c97a634b6bb1f888162ef916260812a438cf765
-- next_cmd: git fetch origin main && git merge origin/main
+- head: f41f32d9e9f67b49832b19872c21430ee8cd7779
+- next_cmd: Commit merge resolution and push PR #1 branch.
 - validations:
-  - PR #1 merge state reported DIRTY.
-  - local branch pushed and up to date with origin.
+  - cargo fmt --all --check passed.
+  - cargo test -p carsinos-gateway --test e2e_process request_logs_are_written_to_state_log_directory passed.
