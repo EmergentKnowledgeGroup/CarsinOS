@@ -1,11 +1,13 @@
 # LATEST Checkpoint
 
-- step: workflow-lock-post-merge
-- note: Workflow lock committed to main; chunk loop and security-document goals are now persisted in-repo.
-- branch: main
-- head: b8d1479196a502335feef0cc6fb9d3536fbdf47b
-- next_cmd: Start next chunk wave (3 PRs) from APPDEX_IMPLEMENTATION_TICKET_PACK.md and SECURITY_HARDENING_PROGRAM.md.
+- step: chunk-pr6-postgreen
+- note: PR #6 security-audit filter contract refactor is green and unblocks clippy gate failures seen in open PR checks.
+- branch: codex/chunk-pr6-security-audit-filter-contract
+- head: 61fad51f8b70abfefbf6e4d832f43b67c80c8cc8
+- next_cmd: Commit PR #6 changes, push branch, open PR, then re-run PR #4/#5 checks.
 - validations:
-  - git push to origin/main succeeded for workflow lock commit.
-  - gh pr list --state open returned no open PRs.
-  - local main is aligned with origin/main.
+  - `cargo fmt --all` passed.
+  - `cargo clippy -p carsinos-storage -p carsinos-gateway --all-targets -- -D warnings` passed.
+  - `cargo test -p carsinos-storage security_audit_ -- --nocapture` passed.
+  - `cargo test -p carsinos-gateway security_audit_ -- --nocapture` passed.
+  - `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
