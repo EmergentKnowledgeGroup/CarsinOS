@@ -2783,3 +2783,46 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 146
+
+- checklist refs: `MC-PROV-002` chunk wave #7
+- past action:
+- Completed PR #19 open-state checkpoint on `codex/chunk-pr19-channel-action-tools`.
+- present action:
+- Started branch `codex/chunk-pr20-provider-auth-health` for MC-PROV-002 auth lifecycle hardening gap fill.
+- future action:
+- Implement deterministic auth-profile health scoring + fallback ordering, add tests, run full security gate, and open PR #20.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 147
+
+- checklist refs: `MC-PROV-002` chunk wave #7
+- past action:
+- Implemented auth lifecycle hardening gap fill:
+- fallback auth profiles are now deterministically ordered by persisted health score,
+- provider attempts now update per-profile health state (success/failure counters, streak, score),
+- auth-path selection telemetry now includes profile health score.
+- present action:
+- Post-green validation completed with full security gate passing.
+- validation outcomes:
+- `cargo test -p carsinos-gateway fallback_auth_profiles_are_sorted_by_health_score -- --nocapture` passed.
+- `cargo test -p carsinos-gateway auth_profile_health_state_updates_payload_across_outcomes -- --nocapture` passed.
+- `cargo test -p carsinos-gateway expired_requested_oauth_profile_fails_before_provider_call -- --nocapture` passed.
+- `cargo test -p carsinos-gateway provider_kill_switch_blocks_run_execution -- --nocapture` passed.
+- `cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed.
+- future action:
+- Commit/push chunk #20 and open PR #20, then continue directly into the next chunk.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`

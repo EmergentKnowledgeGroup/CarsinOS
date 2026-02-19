@@ -726,12 +726,134 @@ const LOCAL_MEMORY_DEFAULT_TOP_K: usize = 4;
 const LOCAL_MEMORY_DEFAULT_MAX_CANDIDATES: usize = 128;
 const LOCAL_MEMORY_DEFAULT_MAX_CHARS: usize = 1200;
 const LOCAL_MEMORY_CHUNK_TARGET_CHARS: usize = 420;
+const AUTH_PROFILE_HEALTH_DEFAULT_SCORE: i64 = 50;
+const AUTH_PROFILE_HEALTH_SUCCESS_BONUS: i64 = 12;
+const AUTH_PROFILE_HEALTH_FAILURE_PENALTY_RETRYABLE: i64 = 15;
+const AUTH_PROFILE_HEALTH_FAILURE_PENALTY_TERMINAL: i64 = 25;
+const AUTH_PROFILE_HEALTH_STREAK_PENALTY_STEP: i64 = 5;
+const AUTH_PROFILE_HEALTH_STREAK_PENALTY_CAP: i64 = 4;
 
 const ROLE_OPERATOR_ADMIN: &str = "operator_admin";
 const ROLE_OPERATOR_READONLY: &str = "operator_readonly";
 const ROLE_AUTOMATION_RUNNER: &str = "automation_runner";
 const ROLE_CHANNEL_ADAPTER: &str = "channel_adapter";
 const ROLE_SERVICE_INTERNAL: &str = "service_internal";
+
+#[derive(Debug, Clone, Copy)]
+struct AuthProfileHealthState {
+    score: i64,
+    success_count: i64,
+    failure_count: i64,
+    consecutive_failures: i64,
+    last_success_at: Option<i64>,
+    last_failure_at: Option<i64>,
+}
+
+impl Default for AuthProfileHealthState {
+    fn default() -> Self {
+        Self {
+            score: AUTH_PROFILE_HEALTH_DEFAULT_SCORE,
+            success_count: 0,
+            failure_count: 0,
+            consecutive_failures: 0,
+            last_success_at: None,
+            last_failure_at: None,
+        }
+    }
+}
+
+impl AuthProfileHealthState {
+    fn from_payload(payload: &serde_json::Value) -> Self {
+        fn parse_i64(value: Option<&serde_json::Value>, default: i64) -> i64 {
+            let parsed = value
+                .and_then(|item| item.as_i64().or_else(|| item.as_str()?.trim().parse().ok()))
+                .unwrap_or(default);
+            parsed.max(0)
+        }
+
+        let Some(health) = payload.get("health") else {
+            return Self::default();
+        };
+        let score = parse_i64(health.get("score"), AUTH_PROFILE_HEALTH_DEFAULT_SCORE).clamp(0, 100);
+        Self {
+            score,
+            success_count: parse_i64(health.get("success_count"), 0),
+            failure_count: parse_i64(health.get("failure_count"), 0),
+            consecutive_failures: parse_i64(health.get("consecutive_failures"), 0),
+            last_success_at: health.get("last_success_at").and_then(|item| item.as_i64()),
+            last_failure_at: health.get("last_failure_at").and_then(|item| item.as_i64()),
+        }
+    }
+
+    fn on_success(&mut self, now_unix: i64) {
+        self.score = (self.score + AUTH_PROFILE_HEALTH_SUCCESS_BONUS).clamp(0, 100);
+        self.success_count = self.success_count.saturating_add(1);
+        self.consecutive_failures = 0;
+        self.last_success_at = Some(now_unix);
+    }
+
+    fn on_failure(&mut self, now_unix: i64, retryable: bool) {
+        let base_penalty = if retryable {
+            AUTH_PROFILE_HEALTH_FAILURE_PENALTY_RETRYABLE
+        } else {
+            AUTH_PROFILE_HEALTH_FAILURE_PENALTY_TERMINAL
+        };
+        let streak_penalty = self
+            .consecutive_failures
+            .min(AUTH_PROFILE_HEALTH_STREAK_PENALTY_CAP)
+            .saturating_mul(AUTH_PROFILE_HEALTH_STREAK_PENALTY_STEP);
+        self.score = (self.score - base_penalty - streak_penalty).clamp(0, 100);
+        self.failure_count = self.failure_count.saturating_add(1);
+        self.consecutive_failures = self.consecutive_failures.saturating_add(1);
+        self.last_failure_at = Some(now_unix);
+    }
+
+    fn write_to_payload(
+        self,
+        payload: &mut serde_json::Value,
+        last_error_code: Option<&str>,
+    ) -> AnyResult<()> {
+        let obj = payload
+            .as_object_mut()
+            .context("auth profile credentials payload must be a JSON object")?;
+        let mut health_obj = serde_json::Map::new();
+        health_obj.insert("score".to_string(), serde_json::json!(self.score));
+        health_obj.insert(
+            "success_count".to_string(),
+            serde_json::json!(self.success_count),
+        );
+        health_obj.insert(
+            "failure_count".to_string(),
+            serde_json::json!(self.failure_count),
+        );
+        health_obj.insert(
+            "consecutive_failures".to_string(),
+            serde_json::json!(self.consecutive_failures),
+        );
+        health_obj.insert(
+            "last_success_at".to_string(),
+            self.last_success_at
+                .map(serde_json::Value::from)
+                .unwrap_or(serde_json::Value::Null),
+        );
+        health_obj.insert(
+            "last_failure_at".to_string(),
+            self.last_failure_at
+                .map(serde_json::Value::from)
+                .unwrap_or(serde_json::Value::Null),
+        );
+        if let Some(code) = last_error_code {
+            if !code.trim().is_empty() {
+                health_obj.insert(
+                    "last_error_code".to_string(),
+                    serde_json::Value::String(code.to_string()),
+                );
+            }
+        }
+        obj.insert("health".to_string(), serde_json::Value::Object(health_obj));
+        Ok(())
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NumquamTransport {
@@ -5885,6 +6007,10 @@ async fn execute_run(
             },
             None => None,
         };
+        let selected_health_score = auth_record
+            .as_ref()
+            .map(auth_profile_health_score)
+            .unwrap_or(AUTH_PROFILE_HEALTH_DEFAULT_SCORE);
         if let Some(auth_record) = auth_record.as_ref() {
             let policy = auth_mode_policy(&auth_record.auth_mode).with_context(|| {
                 format!(
@@ -5914,6 +6040,7 @@ async fn execute_run(
                 auth_profile_id = %auth_record.auth_profile_id,
                 auth_mode = %auth_record.auth_mode,
                 risk_level = %auth_record.risk_level,
+                health_score = selected_health_score,
                 "run auth path selected"
             );
         } else {
@@ -5926,6 +6053,7 @@ async fn execute_run(
                 model_id = %run.model_id,
                 auth_mode = "none",
                 risk_level = "none",
+                health_score = selected_health_score,
                 "run auth path selected"
             );
         }
@@ -5954,15 +6082,19 @@ async fn execute_run(
                         .as_ref()
                         .map(|profile| profile.auth_mode.as_str())
                         .unwrap_or("none"),
+                    health_score = selected_health_score,
                     latency_ms = provider_started.elapsed().as_millis() as u64,
                     "provider completion succeeded"
                 );
+                update_auth_profile_health_state(state, auth_record.as_ref(), true, None, None);
                 completion = Some(response);
                 break;
             }
             Err(err) => {
                 let error_text = err.to_string();
                 let error_class = parse_provider_error_class_normalized(&error_text);
+                let error_code = error_class.as_code().to_string();
+                let can_retry = provider_error_retryable_normalized(error_class);
                 warn!(
                     run_id = %run.run_id,
                     session_id = %run.session_id,
@@ -5974,14 +6106,20 @@ async fn execute_run(
                         .as_ref()
                         .map(|profile| profile.auth_mode.as_str())
                         .unwrap_or("none"),
-                    error_class = error_class.as_code(),
+                    error_class = %error_code,
+                    health_score = selected_health_score,
                     latency_ms = provider_started.elapsed().as_millis() as u64,
                     error = %error_text,
                     "provider completion failed"
                 );
                 last_error = Some(err);
-
-                let can_retry = provider_error_retryable_normalized(error_class);
+                update_auth_profile_health_state(
+                    state,
+                    auth_record.as_ref(),
+                    false,
+                    Some(can_retry),
+                    Some(error_code.as_str()),
+                );
                 if !can_retry || attempt_index + 1 >= candidate_count {
                     break;
                 }
@@ -7741,7 +7879,7 @@ async fn resolve_run_auth_profiles(
         anyhow::bail!("AUTH_FORBIDDEN:provider kill-switch active");
     }
 
-    let mut candidates = Vec::new();
+    let mut candidates: Vec<Option<AuthProfileRecord>> = Vec::new();
     let mut seen = HashSet::new();
     let enabled_profiles = state.storage.list_auth_profiles(Some(provider), false)?;
     if enabled_profiles.is_empty() {
@@ -7796,6 +7934,7 @@ async fn resolve_run_auth_profiles(
     let ordered_profile_ids = state
         .storage
         .list_agent_provider_profile_order(agent_id, provider)?;
+    let mut ordered_candidates = Vec::new();
     for profile_id in ordered_profile_ids {
         if seen.contains(&profile_id) {
             continue;
@@ -7872,9 +8011,14 @@ async fn resolve_run_auth_profiles(
             continue;
         }
         seen.insert(profile.auth_profile_id.clone());
+        ordered_candidates.push(profile);
+    }
+
+    for profile in ordered_candidates {
         candidates.push(Some(profile));
     }
 
+    let mut fallback_candidates = Vec::new();
     for profile in enabled_profiles {
         if seen.contains(&profile.auth_profile_id) {
             continue;
@@ -7904,6 +8048,11 @@ async fn resolve_run_auth_profiles(
             continue;
         }
         seen.insert(profile.auth_profile_id.clone());
+        fallback_candidates.push(profile);
+    }
+
+    sort_fallback_auth_profiles_by_health(&mut fallback_candidates);
+    for profile in fallback_candidates {
         candidates.push(Some(profile));
     }
 
@@ -7911,6 +8060,76 @@ async fn resolve_run_auth_profiles(
         anyhow::bail!("AUTH_REQUIRED:no eligible auth profile for provider '{provider}'");
     }
     Ok(candidates)
+}
+
+fn sort_fallback_auth_profiles_by_health(profiles: &mut [AuthProfileRecord]) {
+    profiles.sort_by(|left, right| {
+        let left_score = auth_profile_health_score(left);
+        let right_score = auth_profile_health_score(right);
+        right_score
+            .cmp(&left_score)
+            .then_with(|| right.updated_at.cmp(&left.updated_at))
+            .then_with(|| left.auth_profile_id.cmp(&right.auth_profile_id))
+    });
+}
+
+fn auth_profile_health_score(profile: &AuthProfileRecord) -> i64 {
+    auth_profile_credentials_payload(profile)
+        .map(|payload| AuthProfileHealthState::from_payload(&payload).score)
+        .unwrap_or(AUTH_PROFILE_HEALTH_DEFAULT_SCORE)
+}
+
+fn update_auth_profile_health_state(
+    state: &AppState,
+    profile: Option<&AuthProfileRecord>,
+    success: bool,
+    retryable_error: Option<bool>,
+    error_code: Option<&str>,
+) {
+    let Some(profile) = profile else {
+        return;
+    };
+    let mut payload = match auth_profile_credentials_payload(profile) {
+        Ok(payload) => payload,
+        Err(err) => {
+            warn!(
+                auth_profile_id = %profile.auth_profile_id,
+                error = %err,
+                "failed to parse auth profile credentials for health update"
+            );
+            return;
+        }
+    };
+    if !payload.is_object() {
+        payload = serde_json::json!({});
+    }
+
+    let now_unix = current_time_ms() / 1000;
+    let mut health = AuthProfileHealthState::from_payload(&payload);
+    if success {
+        health.on_success(now_unix);
+    } else {
+        health.on_failure(now_unix, retryable_error.unwrap_or(false));
+    }
+    if let Err(err) = health.write_to_payload(&mut payload, error_code) {
+        warn!(
+            auth_profile_id = %profile.auth_profile_id,
+            error = %err,
+            "failed to prepare auth profile health payload"
+        );
+        return;
+    }
+
+    if let Err(err) = state
+        .storage
+        .update_auth_profile_credentials(&profile.auth_profile_id, payload.to_string())
+    {
+        warn!(
+            auth_profile_id = %profile.auth_profile_id,
+            error = %err,
+            "failed to persist auth profile health update"
+        );
+    }
 }
 
 fn to_provider_auth_profile(
@@ -14528,6 +14747,69 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .as_str()
             .unwrap_or_default()
             .contains("provider kill-switch active"));
+    }
+
+    #[test]
+    fn fallback_auth_profiles_are_sorted_by_health_score() {
+        fn profile(id: &str, score: i64, updated_at: i64) -> AuthProfileRecord {
+            AuthProfileRecord {
+                auth_profile_id: id.to_string(),
+                provider: "openai".to_string(),
+                display_name: id.to_string(),
+                auth_mode: AUTH_MODE_API_KEY.to_string(),
+                risk_level: "low".to_string(),
+                enabled: true,
+                kill_switch_scope: KILL_SWITCH_SCOPE_NONE.to_string(),
+                api_base_url: None,
+                credentials_json: format!(r#"{{"api_key":"k-{id}","health":{{"score":{score}}}}}"#),
+                created_at: 1,
+                updated_at,
+            }
+        }
+
+        let mut profiles = vec![
+            profile("low", 15, 20),
+            profile("high", 90, 10),
+            profile("mid", 55, 30),
+        ];
+        sort_fallback_auth_profiles_by_health(&mut profiles);
+        let ordered: Vec<&str> = profiles
+            .iter()
+            .map(|item| item.auth_profile_id.as_str())
+            .collect();
+        assert_eq!(ordered, vec!["high", "mid", "low"]);
+    }
+
+    #[test]
+    fn auth_profile_health_state_updates_payload_across_outcomes() {
+        let mut payload = serde_json::json!({
+            "api_key": "test",
+            "health": {
+                "score": 70,
+                "success_count": 3,
+                "failure_count": 1,
+                "consecutive_failures": 1
+            }
+        });
+        let mut health = AuthProfileHealthState::from_payload(&payload);
+        health.on_failure(200, false);
+        health
+            .write_to_payload(&mut payload, Some("AUTH_FORBIDDEN"))
+            .expect("write failure payload");
+        assert_eq!(payload["health"]["score"], 40);
+        assert_eq!(payload["health"]["failure_count"], 2);
+        assert_eq!(payload["health"]["consecutive_failures"], 2);
+        assert_eq!(payload["health"]["last_error_code"], "AUTH_FORBIDDEN");
+
+        let mut health = AuthProfileHealthState::from_payload(&payload);
+        health.on_success(210);
+        health
+            .write_to_payload(&mut payload, None)
+            .expect("write success payload");
+        assert_eq!(payload["health"]["score"], 52);
+        assert_eq!(payload["health"]["success_count"], 4);
+        assert_eq!(payload["health"]["consecutive_failures"], 0);
+        assert_eq!(payload["health"]["last_success_at"], 210);
     }
 
     #[tokio::test]

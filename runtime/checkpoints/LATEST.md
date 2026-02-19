@@ -1,17 +1,14 @@
 # LATEST Checkpoint
 
-- step: chunk-pr19-pr-open
-- note: Opened PR #19 for MC-TOOL-003 channel action tooling after full green validation.
-- branch: codex/chunk-pr19-channel-action-tools
-- head: a4d989a336d351fbfd70259a5ad544b6823f420c
-- next_cmd: Monitor PR #16-#19 checks while continuing into the next roadmap chunk.
+- step: chunk-pr20-postgreen
+- note: Completed MC-PROV-002 auth lifecycle hardening gap fill with health-scored fallback ordering and persisted profile health updates.
+- branch: codex/chunk-pr20-provider-auth-health
+- head: be54424a084c2c8e33cfab4d634842e67be36bc2
+- next_cmd: Commit chunk-pr20 changes, push branch, and open PR #20.
 - validations:
-  - PR opened: `https://github.com/ProfessahX/CarsinOS/pull/19`
-  - `cargo test -p carsinos-gateway channel_action_tool_ -- --nocapture` passed
-  - `cargo test -p carsinos-gateway tool_registry_ -- --nocapture` passed
-  - `cargo test -p carsinos-gateway high_risk_tool_requests_are_gated_by_approval -- --nocapture` passed
-  - `cargo test -p carsinos-gateway low_risk_tool_requests_execute_inside_run_loop -- --nocapture` passed
-  - `cargo test -p carsinos-gateway invalid_tool_process_action_fails_run -- --nocapture` passed
-  - `cargo test -p carsinos-tools -- --nocapture` passed
+  - `cargo test -p carsinos-gateway fallback_auth_profiles_are_sorted_by_health_score -- --nocapture` passed
+  - `cargo test -p carsinos-gateway auth_profile_health_state_updates_payload_across_outcomes -- --nocapture` passed
+  - `cargo test -p carsinos-gateway expired_requested_oauth_profile_fails_before_provider_call -- --nocapture` passed
+  - `cargo test -p carsinos-gateway provider_kill_switch_blocks_run_execution -- --nocapture` passed
   - `cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings` passed
   - `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed

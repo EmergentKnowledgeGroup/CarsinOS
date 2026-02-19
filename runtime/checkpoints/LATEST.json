@@ -1,41 +1,48 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T15:32:41.703043+00:00",
+  "captured_at": "2026-02-19T15:41:20+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/chunk-pr19-channel-action-tools",
-  "head_short": "a4d989a",
-  "head": "a4d989a336d351fbfd70259a5ad544b6823f420c",
-  "step": "chunk-pr19-pr-open",
-  "note": "Opened PR #19 for MC-TOOL-003 channel action tooling after full validation green.",
-  "next_cmd": "Monitor PR #16-#19 checks and continue with next roadmap chunk.",
+  "branch": "codex/chunk-pr20-provider-auth-health",
+  "head_short": "be54424",
+  "head": "be54424a084c2c8e33cfab4d634842e67be36bc2",
+  "step": "chunk-pr20-postgreen",
+  "note": "Completed MC-PROV-002 auth lifecycle hardening gap fill with health-scored fallback ordering and persisted profile health updates.",
+  "next_cmd": "Commit chunk-pr20 changes, push branch, and open PR #20.",
   "validations": [
-    "PR opened: https://github.com/ProfessahX/CarsinOS/pull/19",
-    "cargo test -p carsinos-gateway channel_action_tool_ -- --nocapture",
-    "cargo test -p carsinos-gateway tool_registry_ -- --nocapture",
-    "cargo test -p carsinos-gateway high_risk_tool_requests_are_gated_by_approval -- --nocapture",
-    "cargo test -p carsinos-gateway low_risk_tool_requests_execute_inside_run_loop -- --nocapture",
-    "cargo test -p carsinos-gateway invalid_tool_process_action_fails_run -- --nocapture",
-    "cargo test -p carsinos-tools -- --nocapture",
+    "cargo test -p carsinos-gateway fallback_auth_profiles_are_sorted_by_health_score -- --nocapture",
+    "cargo test -p carsinos-gateway auth_profile_health_state_updates_payload_across_outcomes -- --nocapture",
+    "cargo test -p carsinos-gateway expired_requested_oauth_profile_fails_before_provider_call -- --nocapture",
+    "cargo test -p carsinos-gateway provider_kill_switch_blocks_run_execution -- --nocapture",
     "cargo clippy -p carsinos-core -p carsinos-protocol -p carsinos-gateway --all-targets -- -D warnings",
     "REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh"
   ],
   "status": {
     "staged": [],
-    "modified": [],
+    "modified": [
+      "CHECKPOINT.md",
+      "crates/carsinos-gateway/src/main.rs",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "untracked": [],
     "conflicted": [],
-    "dirty": false
+    "dirty": true
   },
   "changed_files": {
-    "working_tree": [],
+    "working_tree": [
+      "CHECKPOINT.md",
+      "crates/carsinos-gateway/src/main.rs",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "staged": []
   },
   "recent_commits": [
+    "be54424 docs: checkpoint PR #19 open state",
     "a4d989a feat(tool): add channel action tooling with policy audits",
     "9f52a46 docs: checkpoint PR #18 open state",
     "4f99dea feat(tool): harden tool execution envelopes and telemetry",
-    "dab776e docs: checkpoint PR #17 open state",
-    "5e39430 feat(tool): add registry-driven tool execution metadata"
+    "dab776e docs: checkpoint PR #17 open state"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
