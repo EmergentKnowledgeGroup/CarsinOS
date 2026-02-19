@@ -1,38 +1,41 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T23:54:25.261225+00:00",
+  "captured_at": "2026-02-19T23:55:21Z",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
   "branch": "codex/chunk-pr30-config-wizard-hardcode-audit",
-  "head_short": "7fb0e05",
+  "head_short": "e44674e",
   "step": "mc-conf-005-post-green",
-  "note": "Implemented hardcoded-value CI guardrail with allowlist and PR-gate integration; security_pr_gate validated green (audit optional).",
-  "next_cmd": "Commit MC-CONF-005 guardrail files and push to PR #30.",
+  "note": "Hardcoded-value CI guardrail and allowlist are implemented; PR gate is green with guard enabled.",
+  "next_cmd": "Commit checkpoint/doc polish updates and push to PR #30.",
+  "validations": [
+    "hardcoded guard script green.",
+    "security_pr_gate.sh green with hardcoded guard stage."
+  ],
   "status": {
     "staged": [],
     "modified": [
-      "CHECKLIST.md",
-      "scripts/security_pr_gate.sh"
+      "docs/CLIDEX_HARDCODE_CONFIG_AUDIT_TASK.md",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
     ],
-    "untracked": [
-      "docs/security/HARDCODED_VALUE_ALLOWLIST.csv",
-      "scripts/security_hardcoded_value_guard.py"
-    ],
+    "untracked": [],
     "conflicted": [],
     "dirty": true
   },
   "changed_files": {
     "working_tree": [
-      "CHECKLIST.md",
-      "scripts/security_pr_gate.sh"
+      "docs/CLIDEX_HARDCODE_CONFIG_AUDIT_TASK.md",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
     ],
     "staged": []
   },
   "recent_commits": [
+    "e44674e feat(security): add hardcoded-value guardrail to PR gate",
     "7fb0e05 feat(config): add runtime rollback and audited mutation metadata",
     "434b9ee feat(config): add runtime config contract and management endpoints",
     "3bbea57 docs(security): add phase O threat/runbook artifacts and gate0 evidence workflow",
-    "8f8c6cb docs: checkpoint PR #30 open state",
-    "9beb0ce docs: add setup wizard config track and hardcoded-value audit gates"
+    "8f8c6cb docs: checkpoint PR #30 open state"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",

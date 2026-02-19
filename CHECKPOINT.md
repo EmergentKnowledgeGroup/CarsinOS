@@ -3638,3 +3638,23 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 190
+
+- checklist refs: checkpoint hygiene + PR feedback
+- past action:
+- Completed and pushed MC-CONF-005 hardcoded-value guardrail implementation.
+- present action:
+- Reconciled checkpoint JSON/MD parity by restoring `validations` in `LATEST.json` and aligned CLIdex handoff doc wording.
+- validation outcomes:
+- `runtime/checkpoints/LATEST.md` and `runtime/checkpoints/LATEST.json` now both include matching validation entries.
+- CodeRabbit wording nit in `docs/CLIDEX_HARDCODE_CONFIG_AUDIT_TASK.md` addressed.
+- future action:
+- Commit checkpoint/doc polish and push follow-up to PR #30.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/CLIDEX_HARDCODE_CONFIG_AUDIT_TASK.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`

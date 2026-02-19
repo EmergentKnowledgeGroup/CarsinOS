@@ -23,7 +23,7 @@ These are allowed if clearly documented:
 
 If in doubt, classify as `needs-review`.
 
-## High-Risk Hardcoded Classes
+## High-risk Hardcoded Classes
 Treat as high priority if found outside test fixtures:
 - JWT issuer/audience defaults tied to a real environment
 - Trusted proxy/header allowlists tied to one deployment
@@ -65,9 +65,9 @@ For each finding, capture:
 ## Deliverables
 1. Create report:
    - `docs/HARDCODED_RUNTIME_VALUES_AUDIT.md`
-2. Include summary counts by risk.
-3. Include top-10 remediation sequence.
-4. Include an explicit "allowlist candidates" section with owner + expiry suggestion.
+2. Summary counts by risk.
+3. Top-10 remediation sequence.
+4. "Allowlist candidates" section with owner + expiry suggestion.
 
 ## Acceptance Criteria
 - All high/critical runtime hardcoded findings are identified.
