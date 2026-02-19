@@ -1868,3 +1868,59 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 095
+
+- checklist refs: `MC-SEC` chunk PR workflow
+- past action:
+- Resumed chunk workflow state from runtime checkpoints and verified branch/head continuity.
+- present action:
+- Started `codex/chunk-pr6-security-audit-filter-contract` from `main` to unblock Security PR Gate clippy failure.
+- future action:
+- Replace storage security-audit list multi-argument API with a filter contract, update gateway/tests, run security validations, and open PR #6.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 096
+
+- checklist refs: `MC-SEC` chunk PR workflow
+- past action:
+- Replaced storage security-audit list API argument fanout with a typed filter contract and updated gateway/test callsites.
+- present action:
+- Completed full local validation sweep to ensure Security PR Gate clippy failure is resolved.
+- validation outcomes:
+- `cargo fmt --all` passed.
+- `cargo clippy -p carsinos-storage -p carsinos-gateway --all-targets -- -D warnings` passed.
+- `cargo test -p carsinos-storage security_audit_ -- --nocapture` passed.
+- `cargo test -p carsinos-gateway security_audit_ -- --nocapture` passed.
+- `REQUIRE_CARGO_AUDIT=0 scripts/security_pr_gate.sh` passed (local `cargo-audit` binary absent).
+- future action:
+- Commit, push, and open PR #6; then rerun checks for open PR #4/#5.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-storage/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 097
+
+- checklist refs: `MC-SEC` chunk PR workflow
+- past action:
+- Completed and validated PR #6 implementation for storage security-audit filter contract refactor.
+- present action:
+- Opened PR #6 to unblock failing clippy checks in the active PR queue.
+- future action:
+- Merge PR #6 when checks are green, then rerun and merge PR #4 and PR #5.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`

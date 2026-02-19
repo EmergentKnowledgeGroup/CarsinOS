@@ -1,11 +1,10 @@
 # LATEST Checkpoint
 
-- step: workflow-lock-post-merge
-- note: Workflow lock committed to main; chunk loop and security-document goals are now persisted in-repo.
-- branch: main
-- head: b8d1479196a502335feef0cc6fb9d3536fbdf47b
-- next_cmd: Start next chunk wave (3 PRs) from APPDEX_IMPLEMENTATION_TICKET_PACK.md and SECURITY_HARDENING_PROGRAM.md.
+- step: chunk-pr6-pr-open
+- note: PR #6 is open to unblock clippy failures by introducing a typed security-audit list filter contract.
+- branch: codex/chunk-pr6-security-audit-filter-contract
+- head: 6cd41bd95715ecaf2754f6d5a5b4cae840f84847
+- next_cmd: Monitor/merge PR #6, then rerun and close PR #4/#5 checks in order.
 - validations:
-  - git push to origin/main succeeded for workflow lock commit.
-  - gh pr list --state open returned no open PRs.
-  - local main is aligned with origin/main.
+  - PR opened: https://github.com/ProfessahX/CarsinOS/pull/6
+  - Local security PR gate passed (with REQUIRE_CARGO_AUDIT=0 fallback).
