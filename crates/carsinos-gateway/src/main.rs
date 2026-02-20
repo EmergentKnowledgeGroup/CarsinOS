@@ -21,25 +21,30 @@ use carsinos_protocol::{
     AuthProfileResponse, CreateApprovalRequest, CreateApprovalResponse, CreateAuthProfileRequest,
     CreateAuthProfileResponse, CreateJobRequest, CreateJobResponse, CreateMessageRequest,
     CreateMessageResponse, CreateNoteRequest, CreateNoteResponse, CreateRunRequest,
-    CreateRunResponse, CreateSessionRequest, CreateSessionResponse, DiscordChannelConfig,
-    GetAgentProviderProfileOrderResponse, GetChannelConfigResponse, GetNoteResponse,
-    HealthResponse, IngestChannelMessageResponse, IngestDiscordMessageRequest,
-    IngestTelegramMessageRequest, JobResponse, JobRunResponse, JobStatusResponse,
-    ListApprovalsQuery, ListApprovalsResponse, ListAuthProfilesQuery, ListAuthProfilesResponse,
-    ListJobHistoryQuery, ListJobHistoryResponse, ListJobsQuery, ListJobsResponse,
-    ListMessagesQuery, ListMessagesResponse, ListNotesQuery, ListNotesResponse, ListPluginsQuery,
-    ListPluginsResponse, ListProviderCapabilitiesQuery, ListProviderCapabilitiesResponse,
-    ListSessionsQuery, ListSessionsResponse, ListSkillsQuery, ListSkillsResponse, MessageResponse,
-    MetricsResponse, NoteResponse, OpenAiOauthFinishRequest, OpenAiOauthFinishResponse,
-    OpenAiOauthStartRequest, OpenAiOauthStartResponse, PluginCapabilityResponse,
-    PluginManifestResponse, ProviderCapabilityResponse, RemoveJobResponse, ResolveApprovalRequest,
-    ResolveApprovalResponse, ResolveChannelApprovalActionRequest, RunJobNowResponse, RunResponse,
+    CreateRunResponse, CreateSessionRequest, CreateSessionResponse, DeleteRuntimeSecretRequest,
+    DeleteRuntimeSecretResponse, DiscordChannelConfig, GetAgentProviderProfileOrderResponse,
+    GetChannelConfigResponse, GetNoteResponse, GetRuntimeConfigResponse, HealthResponse,
+    IngestChannelMessageResponse, IngestDiscordMessageRequest, IngestTelegramMessageRequest,
+    JobResponse, JobRunResponse, JobStatusResponse, ListApprovalsQuery, ListApprovalsResponse,
+    ListAuthProfilesQuery, ListAuthProfilesResponse, ListJobHistoryQuery, ListJobHistoryResponse,
+    ListJobsQuery, ListJobsResponse, ListMessagesQuery, ListMessagesResponse, ListNotesQuery,
+    ListNotesResponse, ListPluginsQuery, ListPluginsResponse, ListProviderCapabilitiesQuery,
+    ListProviderCapabilitiesResponse, ListSessionsQuery, ListSessionsResponse, ListSkillsQuery,
+    ListSkillsResponse, MessageResponse, MetricsResponse, NoteResponse, OpenAiOauthFinishRequest,
+    OpenAiOauthFinishResponse, OpenAiOauthStartRequest, OpenAiOauthStartResponse,
+    PluginCapabilityResponse, PluginManifestResponse, ProviderCapabilityResponse,
+    RemoveJobResponse, ResolveApprovalRequest, ResolveApprovalResponse,
+    ResolveChannelApprovalActionRequest, RollbackRuntimeConfigRequest,
+    RollbackRuntimeConfigResponse, RunJobNowResponse, RunResponse, RuntimeChannelsConfig,
+    RuntimeConfigResponse, RuntimeDiscordDeploymentConfig, RuntimeGlobalConfig,
+    RuntimeProviderPolicyConfig, RuntimeSecurityOpsConfig, RuntimeTelegramDeploymentConfig,
     SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult, SessionDetailResponse,
     SessionSummary, SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse,
     SkillResponse, StatusResponse, TelegramChannelConfig, UpdateAuthProfileStateRequest,
     UpdateAuthProfileStateResponse, UpdateChannelConfigRequest, UpdateChannelConfigResponse,
     UpdateJobRequest, UpdateJobResponse, UpdateNoteRequest, UpdateNoteResponse,
-    UpdateSkillStateRequest, UpdateSkillStateResponse,
+    UpdateRuntimeConfigRequest, UpdateRuntimeConfigResponse, UpdateSkillStateRequest,
+    UpdateSkillStateResponse, UpsertRuntimeSecretRequest, UpsertRuntimeSecretResponse,
 };
 use carsinos_providers::{
     parse_provider_error_class as parse_provider_error_class_normalized,
@@ -699,7 +704,10 @@ const KILL_SWITCH_SCOPE_GLOBAL: &str = "global";
 
 const APP_KV_CHANNELS_DISCORD: &str = "config.channels.discord";
 const APP_KV_CHANNELS_TELEGRAM: &str = "config.channels.telegram";
+const APP_KV_RUNTIME_CONFIG: &str = "config.runtime.v1";
+const APP_KV_RUNTIME_CONFIG_LAST_GOOD: &str = "config.runtime.last_good.v1";
 const APP_KV_SKILLS_STATE: &str = "config.skills.state";
+const RUNTIME_CONFIG_SCHEMA_VERSION: &str = "runtime.config.v1";
 const PLUGIN_REGISTRY_CONTRACT_VERSION: &str = "plugin.registry.v1";
 const SKILL_REGISTRY_CONTRACT_VERSION: &str = "skills.registry.v1";
 const NUMQUAM_SCHEMA_VERSION: &str = "integration.v1";
@@ -2342,6 +2350,22 @@ fn build_app(state: AppState) -> Router {
             get(get_channel_config).post(update_channel_config),
         )
         .route(
+            "/api/v1/config/runtime",
+            get(get_runtime_config).post(update_runtime_config),
+        )
+        .route(
+            "/api/v1/config/runtime/rollback",
+            post(rollback_runtime_config),
+        )
+        .route(
+            "/api/v1/config/runtime/secrets/upsert",
+            post(upsert_runtime_secret),
+        )
+        .route(
+            "/api/v1/config/runtime/secrets/delete",
+            post(delete_runtime_secret),
+        )
+        .route(
             "/api/v1/channels/telegram/inbound",
             post(ingest_telegram_channel_message),
         )
@@ -3916,6 +3940,325 @@ async fn update_channel_config(
         updated_at,
     };
     Ok(Json(UpdateChannelConfigResponse { config }))
+}
+
+async fn get_runtime_config(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
+    let config = load_runtime_config(&state)
+        .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
+    Ok(Json(GetRuntimeConfigResponse { config }))
+}
+
+async fn update_runtime_config(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<UpdateRuntimeConfigRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN],
+        "runtime.config.update",
+        "config.runtime",
+    )?;
+
+    let update_global = request.global.is_some();
+    let update_providers = request.providers.is_some();
+    let update_channels = request.channels.is_some();
+    let update_security = request.security.is_some();
+
+    let existing = load_runtime_config(&state)
+        .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
+    let existing_json = serde_json::to_string(&existing).map_err(|err| {
+        internal_err_with_error("serializing existing runtime config failed", err.into())
+    })?;
+    let existing_hash = sha256_hex(&existing_json);
+
+    let mut config = existing;
+    if let Some(global) = request.global {
+        config.global = global;
+    }
+    if let Some(providers) = request.providers {
+        config.providers = providers;
+    }
+    if let Some(channels) = request.channels {
+        config.channels = channels;
+    }
+    if let Some(security) = request.security {
+        config.security = security;
+    }
+    config.schema_version = RUNTIME_CONFIG_SCHEMA_VERSION.to_string();
+
+    validate_runtime_config(&config)
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+
+    let config_json = serde_json::to_string(&config)
+        .map_err(|err| internal_err_with_error("serializing runtime config failed", err.into()))?;
+    let config_hash = sha256_hex(&config_json);
+    let previous_snapshot_updated_at = state
+        .storage
+        .set_app_kv_json(APP_KV_RUNTIME_CONFIG_LAST_GOOD, existing_json)
+        .map_err(|err| {
+            internal_err_with_error("saving runtime config rollback snapshot failed", err)
+        })?;
+    let updated_at = state
+        .storage
+        .set_app_kv_json(APP_KV_RUNTIME_CONFIG, config_json)
+        .map_err(|err| internal_err_with_error("saving runtime config failed", err))?;
+    config.updated_at = updated_at;
+
+    let mut changed_scopes = Vec::new();
+    if update_global {
+        changed_scopes.push("global");
+    }
+    if update_providers {
+        changed_scopes.push("providers");
+    }
+    if update_channels {
+        changed_scopes.push("channels");
+    }
+    if update_security {
+        changed_scopes.push("security");
+    }
+    record_security_audit(
+        &headers,
+        &state,
+        &auth,
+        "runtime.config.update",
+        "config.runtime",
+        "allow",
+        None,
+        StatusCode::OK,
+        None,
+        None,
+        None,
+        Some(serde_json::json!({
+            "schema_version": RUNTIME_CONFIG_SCHEMA_VERSION,
+            "updated_at": updated_at,
+            "rollback_snapshot_updated_at": previous_snapshot_updated_at,
+            "changed_scopes": changed_scopes,
+            "previous_hash": existing_hash,
+            "new_hash": config_hash
+        })),
+    );
+
+    Ok(Json(UpdateRuntimeConfigResponse { config }))
+}
+
+async fn rollback_runtime_config(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<RollbackRuntimeConfigRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN],
+        "runtime.config.rollback",
+        "config.runtime",
+    )?;
+
+    let current = load_runtime_config(&state)
+        .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
+    let current_json = serde_json::to_string(&current).map_err(|err| {
+        internal_err_with_error("serializing current runtime config failed", err.into())
+    })?;
+    let current_hash = sha256_hex(&current_json);
+
+    let (rollback_json, rollback_source_updated_at) = state
+        .storage
+        .get_app_kv_json(APP_KV_RUNTIME_CONFIG_LAST_GOOD)
+        .map_err(|err| internal_err_with_error("loading runtime rollback snapshot failed", err))?
+        .ok_or_else(|| {
+            api_error(
+                StatusCode::BAD_REQUEST,
+                "runtime rollback snapshot is missing; update config at least once before rollback",
+            )
+        })?;
+
+    let mut rollback_config: RuntimeConfigResponse =
+        serde_json::from_str(&rollback_json).map_err(|err| {
+            internal_err_with_error("deserializing runtime rollback snapshot failed", err.into())
+        })?;
+    rollback_config = normalize_runtime_config(rollback_config);
+    rollback_config.schema_version = RUNTIME_CONFIG_SCHEMA_VERSION.to_string();
+    validate_runtime_config(&rollback_config)
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+    let rollback_hash = sha256_hex(&rollback_json);
+    let persisted_rollback_json = serde_json::to_string(&rollback_config).map_err(|err| {
+        internal_err_with_error("serializing rollback runtime config failed", err.into())
+    })?;
+
+    let rollback_snapshot_updated_at = state
+        .storage
+        .set_app_kv_json(APP_KV_RUNTIME_CONFIG_LAST_GOOD, current_json)
+        .map_err(|err| {
+            internal_err_with_error(
+                "saving current runtime config as rollback snapshot failed",
+                err,
+            )
+        })?;
+    let updated_at = state
+        .storage
+        .set_app_kv_json(APP_KV_RUNTIME_CONFIG, persisted_rollback_json)
+        .map_err(|err| internal_err_with_error("writing runtime rollback config failed", err))?;
+    rollback_config.updated_at = updated_at;
+
+    let reason = request
+        .reason
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let audit_reason = reason.clone();
+    record_security_audit(
+        &headers,
+        &state,
+        &auth,
+        "runtime.config.rollback",
+        "config.runtime",
+        "allow",
+        audit_reason,
+        StatusCode::OK,
+        None,
+        None,
+        None,
+        Some(serde_json::json!({
+            "schema_version": RUNTIME_CONFIG_SCHEMA_VERSION,
+            "restored_from_updated_at": rollback_source_updated_at,
+            "updated_at": updated_at,
+            "rollback_snapshot_updated_at": rollback_snapshot_updated_at,
+            "restored_hash": rollback_hash,
+            "replaced_hash": current_hash,
+            "reason": reason
+        })),
+    );
+
+    Ok(Json(RollbackRuntimeConfigResponse {
+        config: rollback_config,
+        restored_from_updated_at: rollback_source_updated_at,
+    }))
+}
+
+async fn upsert_runtime_secret(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<UpsertRuntimeSecretRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN],
+        "runtime.config.secret.upsert",
+        &format!("config.runtime.secret:{}", request.scope.trim()),
+    )?;
+
+    let secret_key = runtime_secret_key_from_scope(&request.scope)
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+    let secret_value = request.secret_value.trim().to_string();
+    if secret_value.is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "secret_value must not be empty",
+        ));
+    }
+
+    state
+        .secret_store
+        .set_raw(&secret_key, &secret_value)
+        .map_err(|err| internal_err_with_error("storing runtime secret failed", err))?;
+    let secret_ref = runtime_secret_ref_from_key(&secret_key);
+
+    let mut previous_secret_deleted = false;
+    if let Some(previous_ref) = request
+        .previous_secret_ref
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+    {
+        let previous_key = runtime_secret_key_from_ref(previous_ref)
+            .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+        if previous_key != secret_key {
+            state.secret_store.delete(&previous_key).map_err(|err| {
+                internal_err_with_error("deleting previous runtime secret failed", err)
+            })?;
+            previous_secret_deleted = true;
+        }
+    }
+
+    record_security_audit(
+        &headers,
+        &state,
+        &auth,
+        "runtime.config.secret.upsert",
+        "config.runtime.secret",
+        "allow",
+        None,
+        StatusCode::OK,
+        None,
+        None,
+        None,
+        Some(serde_json::json!({
+            "scope": request.scope.trim(),
+            "secret_ref": &secret_ref,
+            "secret_store_mode": state.secret_store.mode_name(),
+            "previous_secret_ref_provided": request.previous_secret_ref.is_some(),
+            "previous_secret_deleted": previous_secret_deleted
+        })),
+    );
+
+    Ok(Json(UpsertRuntimeSecretResponse { secret_ref }))
+}
+
+async fn delete_runtime_secret(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<DeleteRuntimeSecretRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN],
+        "runtime.config.secret.delete",
+        "config.runtime.secret",
+    )?;
+
+    let secret_key = runtime_secret_key_from_ref(&request.secret_ref)
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+    state
+        .secret_store
+        .delete(&secret_key)
+        .map_err(|err| internal_err_with_error("deleting runtime secret failed", err))?;
+
+    record_security_audit(
+        &headers,
+        &state,
+        &auth,
+        "runtime.config.secret.delete",
+        "config.runtime.secret",
+        "allow",
+        None,
+        StatusCode::OK,
+        None,
+        None,
+        None,
+        Some(serde_json::json!({
+            "secret_ref": request.secret_ref.trim(),
+            "secret_store_mode": state.secret_store.mode_name()
+        })),
+    );
+
+    Ok(Json(DeleteRuntimeSecretResponse { deleted: true }))
 }
 
 fn get_or_create_channel_session(
@@ -7862,6 +8205,229 @@ fn default_telegram_channel_config() -> TelegramChannelConfig {
         default_model_provider: "mock".to_string(),
         default_model_id: "mock-echo-v1".to_string(),
     }
+}
+
+fn default_runtime_provider_policies() -> Vec<RuntimeProviderPolicyConfig> {
+    vec![
+        RuntimeProviderPolicyConfig {
+            provider: AUTH_PROVIDER_OPENAI.to_string(),
+            enabled: true,
+            allow_consumer_oauth: false,
+            kill_switch_scope: KILL_SWITCH_SCOPE_NONE.to_string(),
+        },
+        RuntimeProviderPolicyConfig {
+            provider: AUTH_PROVIDER_ANTHROPIC.to_string(),
+            enabled: true,
+            allow_consumer_oauth: false,
+            kill_switch_scope: KILL_SWITCH_SCOPE_NONE.to_string(),
+        },
+    ]
+}
+
+fn default_runtime_config() -> RuntimeConfigResponse {
+    RuntimeConfigResponse {
+        schema_version: RUNTIME_CONFIG_SCHEMA_VERSION.to_string(),
+        global: RuntimeGlobalConfig {
+            jwt_issuer_allowlist: Vec::new(),
+            jwt_audience_allowlist: Vec::new(),
+            trusted_proxy_allowlist: Vec::new(),
+            tls_termination_mode: "edge".to_string(),
+            public_base_url: None,
+        },
+        providers: default_runtime_provider_policies(),
+        channels: RuntimeChannelsConfig {
+            discord: RuntimeDiscordDeploymentConfig {
+                bot_token_secret_ref: None,
+                application_id: None,
+                intents: vec![
+                    "guilds".to_string(),
+                    "guild_messages".to_string(),
+                    "direct_messages".to_string(),
+                ],
+                staging_guild_ids: Vec::new(),
+                staging_channel_ids: Vec::new(),
+            },
+            telegram: RuntimeTelegramDeploymentConfig {
+                bot_token_secret_ref: None,
+                webhook_mode: "long_poll".to_string(),
+                webhook_url: None,
+                staging_chat_ids: Vec::new(),
+            },
+        },
+        security: RuntimeSecurityOpsConfig {
+            threat_model_approver: None,
+            risk_acceptance_owner: None,
+            incident_primary: None,
+            incident_backup: None,
+            audit_archive_target: None,
+            audit_archive_encryption: None,
+            audit_hot_retention_days: 90,
+            audit_archive_retention_days: 365,
+        },
+        updated_at: 0,
+    }
+}
+
+fn normalize_runtime_config(mut config: RuntimeConfigResponse) -> RuntimeConfigResponse {
+    if config.schema_version.trim().is_empty() {
+        config.schema_version = RUNTIME_CONFIG_SCHEMA_VERSION.to_string();
+    }
+    if config.providers.is_empty() {
+        config.providers = default_runtime_provider_policies();
+    }
+    if config.updated_at < 0 {
+        config.updated_at = 0;
+    }
+    config
+}
+
+fn load_runtime_config(state: &AppState) -> AnyResult<RuntimeConfigResponse> {
+    let mut config =
+        if let Some((json, updated_at)) = state.storage.get_app_kv_json(APP_KV_RUNTIME_CONFIG)? {
+            let mut stored: RuntimeConfigResponse = serde_json::from_str(&json)
+                .with_context(|| "failed to deserialize runtime config from storage")?;
+            stored.updated_at = updated_at;
+            stored
+        } else {
+            default_runtime_config()
+        };
+    config = normalize_runtime_config(config);
+    Ok(config)
+}
+
+fn validate_secret_ref(secret_ref: &Option<String>, field_name: &str) -> AnyResult<()> {
+    if let Some(value) = secret_ref {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            anyhow::bail!("{field_name} cannot be empty when provided");
+        }
+        if !trimmed.starts_with("secret://") {
+            anyhow::bail!("{field_name} must use secret:// reference format");
+        }
+    }
+    Ok(())
+}
+
+fn runtime_secret_key_from_scope(scope: &str) -> AnyResult<String> {
+    let trimmed = scope.trim();
+    if trimmed.is_empty() {
+        anyhow::bail!("scope must not be empty");
+    }
+    if trimmed.len() > 120 {
+        anyhow::bail!("scope is too long (max 120 chars)");
+    }
+    let valid_chars = trimmed
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '.' || ch == '_' || ch == '-' || ch == '/');
+    if !valid_chars {
+        anyhow::bail!("scope contains invalid characters (allowed: a-z A-Z 0-9 . _ - /)");
+    }
+    Ok(format!("runtime.{}", trimmed.replace('/', ".")))
+}
+
+fn runtime_secret_ref_from_key(secret_key: &str) -> String {
+    format!("secret://{secret_key}")
+}
+
+fn runtime_secret_key_from_ref(secret_ref: &str) -> AnyResult<String> {
+    let trimmed = secret_ref.trim();
+    if !trimmed.starts_with("secret://runtime.") {
+        anyhow::bail!("secret_ref must start with secret://runtime.");
+    }
+    let secret_key = trimmed.trim_start_matches("secret://").to_string();
+    if secret_key.len() <= "runtime.".len() {
+        anyhow::bail!("secret_ref does not include runtime scope");
+    }
+    Ok(secret_key)
+}
+
+fn validate_runtime_config(config: &RuntimeConfigResponse) -> AnyResult<()> {
+    if config.schema_version != RUNTIME_CONFIG_SCHEMA_VERSION {
+        anyhow::bail!(
+            "unsupported runtime config schema_version: {}",
+            config.schema_version
+        );
+    }
+
+    match config.global.tls_termination_mode.as_str() {
+        "edge" | "gateway" | "passthrough" => {}
+        _ => anyhow::bail!(
+            "invalid tls_termination_mode: {} (expected edge|gateway|passthrough)",
+            config.global.tls_termination_mode
+        ),
+    }
+
+    let mut seen_provider_ids = HashSet::new();
+    for provider in &config.providers {
+        let provider_id = provider.provider.trim().to_ascii_lowercase();
+        if provider_id.is_empty() {
+            anyhow::bail!("provider policy contains empty provider id");
+        }
+        if !seen_provider_ids.insert(provider_id.clone()) {
+            anyhow::bail!("duplicate provider policy for provider: {provider_id}");
+        }
+        if !matches!(
+            provider.kill_switch_scope.as_str(),
+            KILL_SWITCH_SCOPE_NONE
+                | KILL_SWITCH_SCOPE_PROFILE
+                | KILL_SWITCH_SCOPE_PROVIDER
+                | KILL_SWITCH_SCOPE_GLOBAL
+        ) {
+            anyhow::bail!(
+                "invalid provider kill_switch_scope: {} (expected none|profile|provider|global)",
+                provider.kill_switch_scope
+            );
+        }
+    }
+
+    validate_secret_ref(
+        &config.channels.discord.bot_token_secret_ref,
+        "channels.discord.bot_token_secret_ref",
+    )?;
+    validate_secret_ref(
+        &config.channels.telegram.bot_token_secret_ref,
+        "channels.telegram.bot_token_secret_ref",
+    )?;
+
+    match config.channels.telegram.webhook_mode.as_str() {
+        "long_poll" => {}
+        "webhook" => {
+            let has_webhook_url = config
+                .channels
+                .telegram
+                .webhook_url
+                .as_ref()
+                .map(|value| !value.trim().is_empty())
+                .unwrap_or(false);
+            if !has_webhook_url {
+                anyhow::bail!(
+                    "channels.telegram.webhook_url is required when webhook_mode=webhook"
+                );
+            }
+        }
+        _ => {
+            anyhow::bail!(
+                "invalid channels.telegram.webhook_mode: {} (expected long_poll|webhook)",
+                config.channels.telegram.webhook_mode
+            )
+        }
+    }
+
+    if config.security.audit_hot_retention_days < 90 {
+        anyhow::bail!("security.audit_hot_retention_days must be >= 90");
+    }
+    if config.security.audit_archive_retention_days < config.security.audit_hot_retention_days {
+        anyhow::bail!(
+            "security.audit_archive_retention_days must be >= security.audit_hot_retention_days"
+        );
+    }
+
+    Ok(())
+}
+
+fn sha256_hex(value: &str) -> String {
+    let digest = Sha256::digest(value.as_bytes());
+    format!("{digest:x}")
 }
 
 fn load_channel_config(state: &AppState) -> AnyResult<carsinos_protocol::ChannelConfigResponse> {
@@ -14475,6 +15041,317 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             updated_json["config"]["telegram"]["allowlisted_user_ids"][1],
             1002
         );
+    }
+
+    #[tokio::test]
+    async fn runtime_config_endpoints_round_trip_and_validation() {
+        let ctx = test_context();
+        let get_default = ctx
+            .app
+            .clone()
+            .oneshot(auth_request("GET", "/api/v1/config/runtime", Body::empty()))
+            .await
+            .expect("get runtime config");
+        assert_eq!(get_default.status(), StatusCode::OK);
+        let default_json = parse_json(get_default).await;
+        assert_eq!(
+            default_json["config"]["schema_version"],
+            "runtime.config.v1"
+        );
+        assert_eq!(
+            default_json["config"]["channels"]["telegram"]["webhook_mode"],
+            "long_poll"
+        );
+        assert_eq!(
+            default_json["config"]["security"]["audit_hot_retention_days"],
+            90
+        );
+
+        let update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    r#"{
+                        "global": {
+                            "jwt_issuer_allowlist": ["https://issuer.example"],
+                            "jwt_audience_allowlist": ["carsinos-gateway"],
+                            "trusted_proxy_allowlist": ["10.0.0.1"],
+                            "tls_termination_mode": "edge",
+                            "public_base_url": "https://carsinos.example"
+                        },
+                        "providers": [
+                            {
+                                "provider": "openai",
+                                "enabled": true,
+                                "allow_consumer_oauth": false,
+                                "kill_switch_scope": "none"
+                            },
+                            {
+                                "provider": "anthropic",
+                                "enabled": true,
+                                "allow_consumer_oauth": true,
+                                "kill_switch_scope": "profile"
+                            }
+                        ],
+                        "channels": {
+                            "discord": {
+                                "bot_token_secret_ref": "secret://discord/bot_token",
+                                "application_id": "123456",
+                                "intents": ["guilds","guild_messages","direct_messages"],
+                                "staging_guild_ids": ["guild-a"],
+                                "staging_channel_ids": ["channel-a"]
+                            },
+                            "telegram": {
+                                "bot_token_secret_ref": "secret://telegram/bot_token",
+                                "webhook_mode": "webhook",
+                                "webhook_url": "https://carsinos.example/telegram/webhook",
+                                "staging_chat_ids": [1001]
+                            }
+                        },
+                        "security": {
+                            "threat_model_approver": "owner-a",
+                            "risk_acceptance_owner": "owner-b",
+                            "incident_primary": "owner-c",
+                            "incident_backup": "owner-d",
+                            "audit_archive_target": "s3://carsinos-security-archive",
+                            "audit_archive_encryption": "kms",
+                            "audit_hot_retention_days": 90,
+                            "audit_archive_retention_days": 365
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update runtime config");
+        assert_eq!(update.status(), StatusCode::OK);
+        let update_json = parse_json(update).await;
+        assert_eq!(
+            update_json["config"]["global"]["jwt_issuer_allowlist"][0],
+            "https://issuer.example"
+        );
+        assert_eq!(
+            update_json["config"]["providers"][1]["allow_consumer_oauth"],
+            true
+        );
+        assert_eq!(
+            update_json["config"]["channels"]["telegram"]["webhook_mode"],
+            "webhook"
+        );
+        assert_eq!(
+            update_json["config"]["security"]["audit_archive_retention_days"],
+            365
+        );
+
+        let second_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    r#"{
+                        "global": {
+                            "jwt_issuer_allowlist": ["https://issuer.example"],
+                            "jwt_audience_allowlist": ["carsinos-gateway"],
+                            "trusted_proxy_allowlist": ["10.0.0.2"],
+                            "tls_termination_mode": "gateway",
+                            "public_base_url": "https://carsinos.example"
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("second runtime config update");
+        assert_eq!(second_update.status(), StatusCode::OK);
+        let second_update_json = parse_json(second_update).await;
+        assert_eq!(
+            second_update_json["config"]["global"]["tls_termination_mode"],
+            "gateway"
+        );
+
+        let rollback = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime/rollback",
+                Body::from(r#"{"reason":"test rollback"}"#),
+            ))
+            .await
+            .expect("rollback runtime config");
+        assert_eq!(rollback.status(), StatusCode::OK);
+        let rollback_json = parse_json(rollback).await;
+        assert_eq!(
+            rollback_json["config"]["global"]["tls_termination_mode"],
+            "edge"
+        );
+        assert!(
+            rollback_json["restored_from_updated_at"]
+                .as_i64()
+                .expect("restored_from_updated_at")
+                > 0
+        );
+
+        let invalid = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    r#"{
+                        "channels": {
+                            "discord": {
+                                "bot_token_secret_ref": "secret://discord/bot_token",
+                                "application_id": null,
+                                "intents": ["guilds"],
+                                "staging_guild_ids": [],
+                                "staging_channel_ids": []
+                            },
+                            "telegram": {
+                                "bot_token_secret_ref": "secret://telegram/bot_token",
+                                "webhook_mode": "webhook",
+                                "webhook_url": null,
+                                "staging_chat_ids": []
+                            }
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("invalid runtime config update");
+        assert_eq!(invalid.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn runtime_config_rollback_requires_existing_snapshot() {
+        let ctx = test_context();
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime/rollback",
+                Body::from(r#"{"reason":"no snapshot yet"}"#),
+            ))
+            .await
+            .expect("runtime rollback request");
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn runtime_secret_endpoints_upsert_rotate_and_delete() {
+        let ctx = test_context();
+
+        let upsert_a = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime/secrets/upsert",
+                Body::from(
+                    r#"{
+                        "scope":"channels/telegram/bot_token",
+                        "secret_value":"telegram-token-a"
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("upsert runtime secret A");
+        assert_eq!(upsert_a.status(), StatusCode::OK);
+        let upsert_a_json = parse_json(upsert_a).await;
+        let secret_ref_a = upsert_a_json["secret_ref"]
+            .as_str()
+            .expect("secret ref a")
+            .to_string();
+        assert_eq!(secret_ref_a, "secret://runtime.channels.telegram.bot_token");
+        assert_eq!(
+            ctx.secret_store
+                .get_raw("runtime.channels.telegram.bot_token")
+                .expect("get runtime secret A")
+                .as_deref(),
+            Some("telegram-token-a")
+        );
+
+        let upsert_b = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime/secrets/upsert",
+                Body::from(format!(
+                    r#"{{
+                        "scope":"channels/telegram/bot_token_v2",
+                        "secret_value":"telegram-token-b",
+                        "previous_secret_ref":"{secret_ref_a}"
+                    }}"#
+                )),
+            ))
+            .await
+            .expect("upsert runtime secret B");
+        assert_eq!(upsert_b.status(), StatusCode::OK);
+        let upsert_b_json = parse_json(upsert_b).await;
+        let secret_ref_b = upsert_b_json["secret_ref"]
+            .as_str()
+            .expect("secret ref b")
+            .to_string();
+        assert_eq!(
+            secret_ref_b,
+            "secret://runtime.channels.telegram.bot_token_v2"
+        );
+        assert_eq!(
+            ctx.secret_store
+                .get_raw("runtime.channels.telegram.bot_token")
+                .expect("get runtime secret A after rotate"),
+            None
+        );
+        assert_eq!(
+            ctx.secret_store
+                .get_raw("runtime.channels.telegram.bot_token_v2")
+                .expect("get runtime secret B")
+                .as_deref(),
+            Some("telegram-token-b")
+        );
+
+        let delete_b = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime/secrets/delete",
+                Body::from(format!(r#"{{"secret_ref":"{secret_ref_b}"}}"#)),
+            ))
+            .await
+            .expect("delete runtime secret B");
+        assert_eq!(delete_b.status(), StatusCode::OK);
+        let delete_b_json = parse_json(delete_b).await;
+        assert_eq!(delete_b_json["deleted"], true);
+        assert_eq!(
+            ctx.secret_store
+                .get_raw("runtime.channels.telegram.bot_token_v2")
+                .expect("runtime secret removed"),
+            None
+        );
+
+        let bad_scope = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime/secrets/upsert",
+                Body::from(
+                    r#"{
+                        "scope":"channels/telegram/bot token",
+                        "secret_value":"bad"
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("upsert bad scope");
+        assert_eq!(bad_scope.status(), StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]

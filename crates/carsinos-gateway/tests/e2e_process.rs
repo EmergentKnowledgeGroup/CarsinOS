@@ -665,7 +665,8 @@ async fn scheduler_executes_due_job_and_persists_history() -> Result<()> {
         .to_string();
 
     let mut found = None;
-    for _ in 0..60 {
+    let mut reached_terminal_state = false;
+    for _ in 0..80 {
         let history = gateway
             .request(
                 Method::GET,
@@ -683,12 +684,19 @@ async fn scheduler_executes_due_job_and_persists_history() -> Result<()> {
             .and_then(|items| items.first())
         {
             found = Some(first.clone());
-            break;
+            if first["status"] != "running" && first["status"] != "queued" {
+                reached_terminal_state = true;
+                break;
+            }
         }
         sleep(Duration::from_millis(100)).await;
     }
 
     let first = found.context("scheduler did not create job run in time")?;
+    anyhow::ensure!(
+        reached_terminal_state,
+        "scheduler job did not reach terminal state in time"
+    );
     assert_eq!(first["status"], "succeeded");
     assert_eq!(first["trigger_kind"], "scheduler");
     let output_json = first["output_json"]

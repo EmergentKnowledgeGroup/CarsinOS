@@ -10,6 +10,7 @@ Drive carsinOS to Mission Control production parity with strict sequencing, modu
 4. Provider and tool expansion must be modular (adapter/plugin based), not hardcoded growth in `main.rs`.
 5. No major Mission Control UI rewrite before backend contracts are stable.
 6. No phase after `MC-SEC-*` can be marked release-ready until Security Exit Gate passes.
+7. Runtime deployment identities/IDs/tokens/domains/retention targets must be operator-configured, not source-hardcoded.
 
 ## Security Deployment Defaults (Locked)
 1. Deployment target is internet-facing.
@@ -21,12 +22,13 @@ Drive carsinOS to Mission Control production parity with strict sequencing, modu
 
 ## Execution Order (Do Not Reorder)
 1. `MC-SEC-*` Security Foundation + Edge Hardening (P0 release blocker).
-2. `MC-CH-*` Channel platform + Telegram/Discord production operations.
-3. `MC-EXT-*` Extension/plugin runtime and skill system.
-4. `MC-TOOL-*` Tool platform hardening + modular expansion.
-5. `MC-PROV-*` Provider platform expansion + auth lifecycle hardening.
-6. `MC-AUTO-*` Scheduler execution upgrade from stub payloads to real task runs.
-7. `MC-FUT-*` Future channel rollout (WhatsApp, Slack, iMessage/BlueBubbles, Signal, Twitch, others).
+2. `MC-CONF-*` Setup Wizard + Dynamic Configuration Foundation (P0 operator unblocker).
+3. `MC-CH-*` Channel platform + Telegram/Discord production operations.
+4. `MC-EXT-*` Extension/plugin runtime and skill system.
+5. `MC-TOOL-*` Tool platform hardening + modular expansion.
+6. `MC-PROV-*` Provider platform expansion + auth lifecycle hardening.
+7. `MC-AUTO-*` Scheduler execution upgrade from stub payloads to real task runs.
+8. `MC-FUT-*` Future channel rollout (WhatsApp, Slack, iMessage/BlueBubbles, Signal, Twitch, others).
 
 ## Phase 0: Security Foundation + Edge Hardening (P0, Release Blocker)
 
@@ -164,6 +166,69 @@ Drive carsinOS to Mission Control production parity with strict sequencing, modu
 - Incident and kill-switch drills pass.
 - Security test suites are green in per-PR and nightly pipelines.
 
+## Phase 0.5: Setup Wizard + Dynamic Configuration Foundation (P0)
+
+### MC-CONF-001 - Configuration Contract v1 (No Hardcoded Runtime Values)
+- Goal: Centralize all operator/runtime deployment values in a typed configuration contract.
+- Build:
+  - Versioned config schema with scopes: `global`, `provider`, `auth_profile`, `channel`, `security`.
+  - Required-vs-optional field model with safe defaults and validation rules.
+  - Config persistence + migration path for schema changes.
+- Depends on: `MC-SEC-002`, `MC-SEC-003`, `MC-SEC-004`
+- Acceptance:
+  - No source-hardcoded runtime IDs/tokens/domains/issuer/audience values remain in operational paths.
+  - Missing required configuration fails closed with deterministic operator-visible errors.
+
+### MC-CONF-002 - Mission Control Setup Wizard (First-Run + Reconfigure)
+- Goal: Make production setup fill-in-the-blank and editable without code changes.
+- Build:
+  - Guided wizard for `R1..R8` operator inputs and deployment-specific channel/provider/security values.
+  - Step-level validation and completeness checks.
+  - Draft/apply flow with idempotent re-run support.
+- Depends on: `MC-CONF-001`
+- Acceptance:
+  - Fresh installation can become operational via UI/API config flow without editing code.
+  - High-risk features remain disabled until required wizard steps are complete.
+
+### MC-CONF-003 - Secret Reference Wiring for Wizard/Config Paths
+- Goal: Keep secrets out of plaintext config while retaining operator usability.
+- Build:
+  - Secret-reference fields and resolution path for tokens/keys.
+  - Keychain or secret-backend binding for wizard-provided credentials.
+  - Secret redaction and write-path constraints.
+- Depends on: `MC-CONF-001`, `MC-SEC-004`
+- Acceptance:
+  - Wizard/config stores secret references only; no plaintext secret persistence in config records.
+  - Secret rotation/revocation remains functional after wizard onboarding.
+
+### MC-CONF-004 - Config Change Governance + Audit
+- Goal: Make every configuration mutation auditable and reversible.
+- Build:
+  - Audit events for config create/update/disable actions with actor, scope, diff hash, and timestamp.
+  - Last-known-good snapshot rollback for critical config domains.
+  - Kill-switch-aware config mutation guards.
+- Depends on: `MC-CONF-001`, `MC-SEC-008`
+- Acceptance:
+  - All config mutations are queryable in audit history.
+  - Rollback restores valid prior config state without service restart.
+
+### MC-CONF-005 - Hardcoded Value Elimination Audit + CI Guard
+- Goal: Prevent hardcoded runtime values from re-entering the codebase.
+- Build:
+  - Repository-wide hardcoded-value audit (`issuer`, `audience`, IDs, tokens, domains, retention targets, role owner IDs, channel IDs).
+  - Allowlist file for intentional constants with owner + expiry metadata.
+  - CI check to fail PRs that introduce new disallowed hardcoded runtime values.
+- Depends on: `MC-CONF-001`, `MC-SEC-009`
+- Acceptance:
+  - Baseline hardcoded-value audit report exists and is actionable.
+  - CI blocks new disallowed hardcoded runtime-value patterns.
+
+### Phase 0.5 Exit Gate (Configuration Readiness Gate)
+- Setup wizard can fully configure runtime without source edits.
+- Required deployment values are config-driven and validated.
+- Hardcoded-value CI guard is active and green.
+- Config mutation audit and rollback paths are verified.
+
 ## Phase 1: Channels First (P0 Functional)
 
 ### MC-CH-001 - Channel Adapter Contract v1
@@ -172,7 +237,7 @@ Drive carsinOS to Mission Control production parity with strict sequencing, modu
   - Create shared traits/interfaces in `carsinos-core`.
   - Move Telegram/Discord helper logic behind adapter boundary.
   - Add adapter lifecycle (`start`, `stop`, `health`, `reconnect`).
-- Depends on: `MC-SEC-001`
+- Depends on: `MC-CONF-001`, `MC-SEC-003`
 - Acceptance:
   - Gateway can register channel adapters without channel-specific branches in route handlers.
   - Channel adapters are swappable via config/registry.
@@ -183,7 +248,7 @@ Drive carsinOS to Mission Control production parity with strict sequencing, modu
   - Supervisor for adapter startup/restart/backoff.
   - Per-channel status snapshots + health probes.
   - Structured events for connection state changes.
-- Depends on: `MC-CH-001`
+- Depends on: `MC-CH-001`, `MC-CONF-004`
 - Acceptance:
   - Channel runtime manager survives adapter crashes and reconnects automatically.
   - Status endpoint exposes adapter state and last error.
@@ -194,7 +259,7 @@ Drive carsinOS to Mission Control production parity with strict sequencing, modu
   - Bot token auth, long-polling first, webhook second.
   - Mention/allowlist/DM policy enforcement.
   - Thread/topic/session mapping + chunked outbound delivery.
-- Depends on: `MC-CH-002`, `MC-SEC-003`
+- Depends on: `MC-CH-002`, `MC-CONF-002`, `MC-CONF-003`, `MC-SEC-003`
 - Acceptance:
   - Message in Telegram triggers run and returns reply.
   - Recovery after network interruption verified in e2e tests.
@@ -205,7 +270,7 @@ Drive carsinOS to Mission Control production parity with strict sequencing, modu
   - Gateway event intake and outbound send/reply handling.
   - Mention gating, allowlist, thread/channel session mapping.
   - Chunking and delivery retry behavior.
-- Depends on: `MC-CH-002`, `MC-SEC-003`
+- Depends on: `MC-CH-002`, `MC-CONF-002`, `MC-CONF-003`, `MC-SEC-003`
 - Acceptance:
   - Guild and DM roundtrip works with stable session mapping.
   - Long replies are chunked and delivered reliably.
@@ -389,17 +454,21 @@ Drive carsinOS to Mission Control production parity with strict sequencing, modu
 3. Keep migration-safe DB changes with forward/backward compatible migrations.
 4. Maintain run/approval audit trail continuity across all changes.
 5. No direct business logic inside transport handlers; all logic in services/registries.
+6. New runtime identifiers/secrets/integration IDs must enter through config contract/wizard paths, never hardcoded in source.
+7. Hardcoded-value audit gate must pass before release candidate tagging.
 
 ## Sprint Cadence
 1. Sprint S0: `MC-SEC-001`, `MC-SEC-002`, `MC-SEC-003`, `MC-SEC-004`, `MC-SEC-005`
 2. Sprint S1: `MC-SEC-006`, `MC-SEC-007`, `MC-SEC-008`
 3. Sprint S2: `MC-SEC-009`, `MC-SEC-010`, Security Gate 0 validation
-4. Sprint A: `MC-CH-001`, `MC-CH-002`
-5. Sprint B: `MC-CH-010`
-6. Sprint C: `MC-CH-020`, `MC-CH-030`
-7. Sprint D: `MC-EXT-001`, `MC-EXT-002`
-8. Sprint E: `MC-EXT-003`, `MC-EXT-004`
-9. Sprint F: `MC-TOOL-001`, `MC-TOOL-002`, `MC-TOOL-003`
-10. Sprint G: `MC-PROV-001`, `MC-PROV-002`, `MC-PROV-010`
-11. Sprint H: `MC-AUTO-001`, `MC-AUTO-002`
-12. Sprint I+: `MC-FUT-*` channel queue in business-priority order.
+4. Sprint S3: `MC-CONF-001`, `MC-CONF-002`, `MC-CONF-003`
+5. Sprint S4: `MC-CONF-004`, `MC-CONF-005`, Phase 0.5 gate validation
+6. Sprint A: `MC-CH-001`, `MC-CH-002`
+7. Sprint B: `MC-CH-010`
+8. Sprint C: `MC-CH-020`, `MC-CH-030`
+9. Sprint D: `MC-EXT-001`, `MC-EXT-002`
+10. Sprint E: `MC-EXT-003`, `MC-EXT-004`
+11. Sprint F: `MC-TOOL-001`, `MC-TOOL-002`, `MC-TOOL-003`
+12. Sprint G: `MC-PROV-001`, `MC-PROV-002`, `MC-PROV-010`
+13. Sprint H: `MC-AUTO-001`, `MC-AUTO-002`
+14. Sprint I+: `MC-FUT-*` channel queue in business-priority order.

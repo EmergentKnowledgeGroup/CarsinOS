@@ -41,6 +41,7 @@ run_step "fmt" cargo fmt --all --check
 run_step "clippy" cargo clippy -p carsinos-gateway -p carsinos-storage -p carsinos-protocol -p carsinos-gui -p carsinos-cli --all-targets -- -D warnings
 run_step "tests-core" cargo test -p carsinos-tools -p carsinos-storage -p carsinos-gateway
 run_step "tests-workspace" cargo test
+run_step "hardcoded-value-guard" python3 "${SCRIPT_DIR}/security_hardcoded_value_guard.py" --repo-root "${REPO_ROOT}"
 
 if has_cargo_audit; then
   run_step "cargo-audit" cargo audit

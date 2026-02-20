@@ -1,37 +1,33 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T16:41:17.611944+00:00",
+  "captured_at": "2026-02-20T00:05:20Z",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/chunk-pr29-postmerge-checkpoint",
-  "head_short": "3aafbb7",
-  "step": "chunk-pr28-post-merge",
-  "note": "Post-merge state after PR #27 convergence and PR #28 cleanup-checkpoint merge.",
-  "next_cmd": "Push checkpoint sync PR and merge to main.",
+  "branch": "codex/chunk-pr30-config-wizard-hardcode-audit",
+  "head_short": "d8bb962",
+  "step": "pr30-open",
+  "note": "PR #30 includes MC-CONF runtime secret refs + scheduler e2e hardening and is currently clean/open.",
+  "next_cmd": "Commit this PR-open checkpoint update, push to PR #30, then merge and run post-merge checkpoint.",
+  "validations": [
+    "gh pr view 30 --repo ProfessahX/CarsinOS --json state,mergeStateStatus,reviews,statusCheckRollup,url => OPEN and CLEAN.",
+    "Local branch head d8bb962 is pushed to origin."
+  ],
   "status": {
     "staged": [],
-    "modified": [],
+    "modified": [
+      "CHECKPOINT.md",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "untracked": [],
     "conflicted": [],
-    "dirty": false
+    "dirty": true
   },
   "changed_files": {
-    "working_tree": [],
+    "working_tree": [
+      "CHECKPOINT.md",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "staged": []
-  },
-  "recent_commits": [
-    "3aafbb7 docs: record post-merge PR cleanup checkpoints (#28)",
-    "2ffa952 test(gateway): stabilize request-log e2e assertion (#27)",
-    "c167af9 docs: checkpoint PR #9 post-merge state",
-    "06c8bcc feat: add channel approval action resolve endpoint (#9)",
-    "c588189 docs: checkpoint PR #8 post-merge state"
-  ],
-  "checklist": [
-    "Run git status -sb and verify branch/head.",
-    "Open diff for changed files listed in checkpoint.",
-    "Resume from step + next_cmd, then write a new checkpoint after each major edit block."
-  ],
-  "validations": [
-    "PR #27 merged; stacked PRs #15-#26 closed as superseded",
-    "PR #28 merged; open PR count is zero"
-  ]
+  }
 }

@@ -1,0 +1,61 @@
+name: Security Gate 0 Evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      security_findings_critical:
+        description: "Unresolved critical findings count"
+        required: true
+        default: "0"
+      security_findings_high:
+        description: "Unresolved high findings count"
+        required: true
+        default: "0"
+      allow_pending_approvals:
+        description: "Set to 1 for non-release dry-run evidence generation"
+        required: true
+        default: "0"
+
+concurrency:
+  group: security-gate0-evidence
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  security-gate0-evidence:
+    name: Security Gate 0 Evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo and target
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Generate prerequisite security artifacts
+        run: scripts/security_nightly_deep_scan.sh
+
+      - name: Generate Security Gate 0 evidence bundle
+        env:
+          SECURITY_FINDINGS_CRITICAL: ${{ inputs.security_findings_critical }}
+          SECURITY_FINDINGS_HIGH: ${{ inputs.security_findings_high }}
+          ALLOW_PENDING_APPROVALS: ${{ inputs.allow_pending_approvals }}
+        run: scripts/security_gate0_evidence_bundle.sh
+
+      - name: Upload security evidence artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-gate0-evidence-${{ github.run_id }}
+          path: runtime/security/reports/
+          if-no-files-found: warn
