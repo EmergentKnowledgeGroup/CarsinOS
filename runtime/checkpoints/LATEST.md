@@ -1,10 +1,11 @@
 # LATEST Checkpoint
 
-- step: pr31-open
-- note: PR #31 opened for hardcoded runtime audit/triage outputs and ticket-pack upgrades.
-- branch: codex/chunk-pr31-hardcoded-audit-triage
-- head: 7c7da71
-- next_cmd: Commit this PR-open checkpoint update, push branch, then process PR #31 review/merge workflow.
+- step: o7-post-green
+- note: Archive-retention operational proof and 90-day boundary validation are implemented and green.
+- branch: codex/chunk-pr32-archive-retention-proof
+- head: 030fc6b
+- next_cmd: Commit O7 changes, push branch, open PR #32, then run PR workflow.
 - validations:
-- `gh pr view 31 --repo ProfessahX/CarsinOS --json state,mergeStateStatus,url` => `OPEN` and `CLEAN`.
-- PR summary and validation body verified after edit.
+- `cargo test -p carsinos-storage security_audit_retention_respects_ninety_day_hot_window -- --nocapture` passed.
+- `scripts/security_archive_retention_proof.sh` passed.
+- `cargo test --workspace --locked` passed.
