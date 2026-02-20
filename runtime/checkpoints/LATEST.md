@@ -1,10 +1,12 @@
 # LATEST Checkpoint
 
-- step: pr32-post-merge
-- note: PR #32 merged; archive-retention operational proof is now part of main baseline.
-- branch: main
-- head: b3cff94
-- next_cmd: Continue next non-blocked checklist phase or pause for owner-input blockers.
+- step: p2-post-green
+- note: MC-CONF-002 runtime wizard implemented in carsinos-gui with runtime config fetch/parse/save/rollback and validation. fmt/clippy/test/build green.
+- branch: codex/chunk-pr34-mc-runtime-wizard
+- head: 5840360
+- next_cmd: Commit/push P2 changes, open PR chunk, then continue next non-blocked phase.
 - validations:
-- `gh pr view 32 --repo ProfessahX/CarsinOS --json state,mergedAt,mergeCommit` confirms merged.
-- `git pull --ff-only origin main` completed and local main matches origin/main.
+- `cargo fmt --all --check` passed.
+- `cargo clippy -p carsinos-gateway -p carsinos-storage -p carsinos-protocol -p carsinos-gui -p carsinos-cli --all-targets -- -D warnings` passed.
+- `cargo test --workspace --locked` passed.
+- `cargo build --workspace --locked` passed.

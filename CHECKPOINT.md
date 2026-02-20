@@ -3905,3 +3905,49 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 203
+
+- checklist refs: `P2`
+- past action:
+- Merged O7 archive-retention proof work (PR #32) and synced main.
+- present action:
+- Starting `MC-CONF-002` Mission Control first-run/reconfigure wizard implementation in GUI.
+- validation outcomes:
+- Branch created: `codex/chunk-pr34-mc-runtime-wizard`.
+- Loaded frontend-design skill for Mission Control UX changes.
+- future action:
+- Implement runtime-config wizard state + API wiring + Mission tab UX, then run full UI validation (`fmt`, `clippy`, `test`, `build`).
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 204
+
+- checklist refs: `P2`
+- past action:
+- Implemented `MC-CONF-002` Mission Control setup wizard in `carsinos-gui` with:
+- runtime config GET parsing from `/api/v1/config/runtime`,
+- step-based wizard UX (Edge Identity, Provider Risk, Channels, Security Ops, Review/Apply),
+- draft validation/completeness checks and high-risk OAuth lock behavior,
+- config apply (`POST /api/v1/config/runtime`) and rollback (`POST /api/v1/config/runtime/rollback`) actions.
+- present action:
+- Completed full validation gate and checklist reconciliation for `P2`.
+- validation outcomes:
+- `cargo fmt --all --check` passed.
+- `cargo clippy -p carsinos-gateway -p carsinos-storage -p carsinos-protocol -p carsinos-gui -p carsinos-cli --all-targets -- -D warnings` passed.
+- `cargo test --workspace --locked` passed.
+- `cargo build --workspace --locked` passed.
+- future action:
+- Commit and push `P2` chunk branch, open PR, and continue remaining non-blocked phases.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gui/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`

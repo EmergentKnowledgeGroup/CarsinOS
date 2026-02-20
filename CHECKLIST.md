@@ -148,7 +148,7 @@ Execution checklist derived from `PLAN.md`. IDs are stable and must be used by `
 ## Phase P - Setup Wizard + Dynamic Configuration (MC-CONF)
 
 - [x] `P1` `MC-CONF-001` Freeze configuration contract for runtime-scoped values (`global`, `provider`, `auth_profile`, `channel`, `security`) with schema versioning. Implemented via `runtime.config.v1` typed contract + `GET/POST /api/v1/config/runtime`.
-- [ ] `P2` `MC-CONF-002` Implement Mission Control first-run/reconfigure wizard that captures required operator inputs without source edits.
+- [x] `P2` `MC-CONF-002` Implement Mission Control first-run/reconfigure wizard that captures required operator inputs without source edits. Implemented in `carsinos-gui` Mission tab with runtime-config fetch/parse/save/rollback, step-level validation, completeness gate, and high-risk OAuth lock enforcement until required fields are complete.
 - [x] `P3` `MC-CONF-003` Wire wizard-driven secret references to keychain/secret backends (no plaintext secret persistence in config records). Implemented via runtime secret upsert/delete API (`POST /api/v1/config/runtime/secrets/upsert`, `POST /api/v1/config/runtime/secrets/delete`) plus rotation/delete integration test coverage.
 - [x] `P4` `MC-CONF-004` Implement config mutation audit trail + rollback to last-known-good snapshots. Implemented via runtime config hash-audited mutations + `POST /api/v1/config/runtime/rollback`.
 - [x] `P5` `MC-CONF-005` Enforce CI hardcoded-value guardrail with explicit allowlist + owner + expiry metadata. Implemented via `scripts/security_hardcoded_value_guard.py` + `docs/security/HARDCODED_VALUE_ALLOWLIST.csv` + PR gate integration.
