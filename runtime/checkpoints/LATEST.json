@@ -1,30 +1,40 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-20T00:05:20Z",
+  "captured_at": "2026-02-20T00:10:40Z",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/chunk-pr30-config-wizard-hardcode-audit",
-  "head_short": "d8bb962",
-  "step": "pr30-open",
-  "note": "PR #30 includes MC-CONF runtime secret refs + scheduler e2e hardening and is currently clean/open.",
-  "next_cmd": "Commit this PR-open checkpoint update, push to PR #30, then merge and run post-merge checkpoint.",
+  "branch": "codex/chunk-pr31-hardcoded-audit-triage",
+  "head_short": "9eaadf3",
+  "step": "o9-o10-post-green",
+  "note": "O9/O10 hardcoded runtime-value audit and ticket triage are complete and validated.",
+  "next_cmd": "Commit and push this branch, open PR #31, then run PR review/merge workflow.",
   "validations": [
-    "gh pr view 30 --repo ProfessahX/CarsinOS --json state,mergeStateStatus,reviews,statusCheckRollup,url => OPEN and CLEAN.",
-    "Local branch head d8bb962 is pushed to origin."
+    "python3 scripts/security_hardcoded_value_guard.py --repo-root . passed.",
+    "cargo test --workspace --locked passed.",
+    "docs/HARDCODED_RUNTIME_VALUES_AUDIT.md published and APPDEX_IMPLEMENTATION_TICKET_PACK.md updated with MC-CONF-006..009."
   ],
   "status": {
     "staged": [],
     "modified": [
+      "APPDEX_IMPLEMENTATION_TICKET_PACK.md",
+      "CHECKLIST.md",
       "CHECKPOINT.md",
       "runtime/checkpoints/LATEST.json",
       "runtime/checkpoints/LATEST.md"
     ],
-    "untracked": [],
+    "untracked": [
+      "docs/CLIDEX_HARDCODE_REMEDIATION_TASK.md",
+      "docs/HARDCODED_RUNTIME_VALUES_AUDIT.md"
+    ],
     "conflicted": [],
     "dirty": true
   },
   "changed_files": {
     "working_tree": [
+      "APPDEX_IMPLEMENTATION_TICKET_PACK.md",
+      "CHECKLIST.md",
       "CHECKPOINT.md",
+      "docs/CLIDEX_HARDCODE_REMEDIATION_TASK.md",
+      "docs/HARDCODED_RUNTIME_VALUES_AUDIT.md",
       "runtime/checkpoints/LATEST.json",
       "runtime/checkpoints/LATEST.md"
     ],

@@ -142,8 +142,8 @@ Execution checklist derived from `PLAN.md`. IDs are stable and must be used by `
 - [ ] `O6` Execute 7-day Telegram/Discord soak and publish resilience report (reconnect, retry, message integrity, approval round-trip).
 - [ ] `O7` Complete archive-retention operational proof for security audit trail beyond 90-day hot window.
 - [ ] `O8` Decide and schedule `MC-FUT-900` expansion set (if future channels continue in this wave).
-- [ ] `O9` Run mandatory repository-wide hardcoded runtime-value audit and convert every deployment-specific constant to config/wizard-backed fields (`MC-CONF-005`).
-- [ ] `O10` Consume and triage hardcoded-value audit findings into implementation tickets by config scope (`global`, `provider`, `auth_profile`, `channel`, `security`) with owner + target milestone.
+- [x] `O9` Run mandatory repository-wide hardcoded runtime-value audit and convert every deployment-specific constant to config/wizard-backed fields (`MC-CONF-005`). Audit report published: `docs/HARDCODED_RUNTIME_VALUES_AUDIT.md`.
+- [x] `O10` Consume and triage hardcoded-value audit findings into implementation tickets by config scope (`global`, `provider`, `auth_profile`, `channel`, `security`) with owner + target milestone. Ticketization added in `docs/HARDCODED_RUNTIME_VALUES_AUDIT.md` + `APPDEX_IMPLEMENTATION_TICKET_PACK.md` (`MC-CONF-006..009`).
 
 ## Phase P - Setup Wizard + Dynamic Configuration (MC-CONF)
 

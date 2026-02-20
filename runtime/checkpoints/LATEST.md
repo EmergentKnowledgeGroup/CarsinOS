@@ -1,10 +1,11 @@
 # LATEST Checkpoint
 
-- step: pr30-open
-- note: PR #30 includes MC-CONF runtime secret refs + scheduler e2e hardening and is currently clean/open.
-- branch: codex/chunk-pr30-config-wizard-hardcode-audit
-- head: d8bb962
-- next_cmd: Commit this PR-open checkpoint update, push to PR #30, then merge and run post-merge checkpoint.
+- step: o9-o10-post-green
+- note: O9/O10 hardcoded runtime-value audit and ticket triage are complete and validated.
+- branch: codex/chunk-pr31-hardcoded-audit-triage
+- head: 9eaadf3
+- next_cmd: Commit and push this branch, open PR #31, then run PR review/merge workflow.
 - validations:
-- `gh pr view 30 --repo ProfessahX/CarsinOS --json state,mergeStateStatus,reviews,statusCheckRollup,url` => `OPEN` + `CLEAN`.
-- Local branch head `d8bb962` is pushed to origin.
+- `python3 scripts/security_hardcoded_value_guard.py --repo-root .` passed.
+- `cargo test --workspace --locked` passed.
+- `docs/HARDCODED_RUNTIME_VALUES_AUDIT.md` published and `APPDEX_IMPLEMENTATION_TICKET_PACK.md` updated with `MC-CONF-006..009`.
