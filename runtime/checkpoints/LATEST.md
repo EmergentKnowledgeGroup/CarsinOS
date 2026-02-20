@@ -1,10 +1,12 @@
 # LATEST Checkpoint
 
-- step: pr35-open
-- note: PR #35 is open for channel runtime foundation; awaiting CI/CodeRabbit.
-- branch: codex/chunk-pr35-channel-runtime-foundation
-- head: c1e8339
-- next_cmd: Monitor PR #35 checks/reviews, apply fixes if needed, then merge.
+- step: telegram-transport-post-green
+- note: Implemented Telegram transport mode wiring (runtime adapter + outbound dispatch), updated runtime contract, and passed full validation gate.
+- branch: codex/chunk-pr36-telegram-transport
+- head: 070e12a
+- next_cmd: Review diff, update checklist/checkpoint docs, then commit and open PR #36.
 - validations:
-- `gh pr view 35 --repo ProfessahX/CarsinOS --json state,mergeStateStatus,statusCheckRollup,reviewDecision,url,headRefOid,headRefName` confirms `OPEN`.
-- `Security PR Gate` queued at checkpoint capture time.
+- `cargo fmt --all --check` passed.
+- `cargo clippy -p carsinos-gateway -p carsinos-channels-telegram -p carsinos-core -p carsinos-protocol --all-targets -- -D warnings` passed.
+- `cargo test --workspace --locked` passed.
+- `cargo build --workspace --locked` passed.

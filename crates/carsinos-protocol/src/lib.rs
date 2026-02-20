@@ -559,12 +559,26 @@ pub struct RuntimeDiscordDeploymentConfig {
 pub struct RuntimeTelegramDeploymentConfig {
     #[serde(default)]
     pub bot_token_secret_ref: Option<String>,
+    #[serde(default = "default_runtime_telegram_operation_mode")]
+    pub operation_mode: String,
+    #[serde(default)]
+    pub api_base_url: Option<String>,
+    #[serde(default)]
+    pub transport_timeout_ms: Option<u64>,
+    #[serde(default)]
+    pub transport_retry_attempts: Option<usize>,
+    #[serde(default)]
+    pub long_poll_timeout_seconds: Option<u32>,
     #[serde(default = "default_runtime_telegram_webhook_mode")]
     pub webhook_mode: String,
     #[serde(default)]
     pub webhook_url: Option<String>,
     #[serde(default)]
     pub staging_chat_ids: Vec<i64>,
+}
+
+fn default_runtime_telegram_operation_mode() -> String {
+    "shim".to_string()
 }
 
 fn default_runtime_telegram_webhook_mode() -> String {

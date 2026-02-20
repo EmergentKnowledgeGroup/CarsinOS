@@ -1,20 +1,28 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-20T00:54:52Z",
+  "captured_at": "2026-02-20T01:07:37.033268+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/chunk-pr35-channel-runtime-foundation",
-  "head_short": "c1e8339",
-  "step": "pr35-open",
-  "note": "PR #35 is open for channel runtime foundation; awaiting CI/CodeRabbit.",
-  "next_cmd": "Monitor PR #35 checks/reviews, apply fixes if needed, then merge.",
+  "branch": "codex/chunk-pr36-telegram-transport",
+  "head": "070e12a",
+  "head_short": "070e12a",
+  "step": "telegram-transport-post-green",
+  "note": "Implemented Telegram transport mode wiring (runtime adapter + outbound dispatch), updated runtime contract, and passed full validation gate.",
+  "next_cmd": "Review diff, update checklist/checkpoint docs, then commit and open PR #36.",
   "validations": [
-    "gh pr view 35 --repo ProfessahX/CarsinOS --json state,mergeStateStatus,statusCheckRollup,reviewDecision,url,headRefOid,headRefName confirms OPEN.",
-    "Security PR Gate queued at checkpoint capture time."
+    "cargo fmt --all --check passed",
+    "cargo clippy -p carsinos-gateway -p carsinos-channels-telegram -p carsinos-core -p carsinos-protocol --all-targets -- -D warnings passed",
+    "cargo test --workspace --locked passed",
+    "cargo build --workspace --locked passed"
   ],
   "status": {
     "staged": [],
     "modified": [
       "CHECKPOINT.md",
+      "Cargo.lock",
+      "crates/carsinos-channels-telegram/Cargo.toml",
+      "crates/carsinos-channels-telegram/src/lib.rs",
+      "crates/carsinos-gateway/src/main.rs",
+      "crates/carsinos-protocol/src/lib.rs",
       "runtime/checkpoints/LATEST.json",
       "runtime/checkpoints/LATEST.md"
     ],
@@ -25,17 +33,22 @@
   "changed_files": {
     "working_tree": [
       "CHECKPOINT.md",
+      "Cargo.lock",
+      "crates/carsinos-channels-telegram/Cargo.toml",
+      "crates/carsinos-channels-telegram/src/lib.rs",
+      "crates/carsinos-gateway/src/main.rs",
+      "crates/carsinos-protocol/src/lib.rs",
       "runtime/checkpoints/LATEST.json",
       "runtime/checkpoints/LATEST.md"
     ],
     "staged": []
   },
   "recent_commits": [
+    "070e12a Merge pull request #35 from ProfessahX/codex/chunk-pr35-channel-runtime-foundation",
+    "af8baa3 docs: checkpoint PR #35 open state",
     "c1e8339 feat(channels): add runtime manager foundation and lifecycle APIs",
     "931c08e Merge pull request #34 from ProfessahX/codex/chunk-pr34-mc-runtime-wizard",
-    "c7b8333 docs: checkpoint PR #34 status",
-    "0c176d0 docs: checkpoint PR #34 open state",
-    "34bf912 feat(gui): add mission control runtime setup wizard"
+    "c7b8333 docs: checkpoint PR #34 status"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",

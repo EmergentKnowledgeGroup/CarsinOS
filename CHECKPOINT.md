@@ -4077,3 +4077,74 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 211
+
+- checklist refs: PR workflow (`PR #35` post-merge)
+- past action:
+- PR #35 merged to `main` with channel runtime manager foundation (`O11`, `O12`).
+- present action:
+- Synced local `main` and preparing next chunk for Telegram/Discord transport-specific production behavior (`O4`, `O5`).
+- validation outcomes:
+- `gh pr view 35 --repo ProfessahX/CarsinOS --json state,mergedAt,mergeCommit,url` confirms `MERGED` at `2026-02-20T00:53:53Z`, merge commit `070e12a`.
+- `git pull --ff-only origin main` completed; local `main` fast-forwarded to `070e12a`.
+- future action:
+- Start next implementation branch from `main` and continue non-blocked connector work.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 212
+
+- checklist refs: `O4` (Telegram transport progression)
+- past action:
+- Completed PR #35 merge and synchronized local `main`.
+- present action:
+- Started branch `codex/chunk-pr36-telegram-transport` to implement Telegram production transport/retry foundations needed for `MC-CH-010`.
+- validation outcomes:
+- Context checkpoint snapshot recorded with step `telegram-transport-phase-start`.
+- future action:
+- Implement Telegram transport client + retry behavior and runtime adapter integration, then run full validation suite.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 213
+
+- checklist refs: `O4` (`MC-CH-010` transport-mode slice)
+- past action:
+- Started `O4` connector implementation branch and added initial Telegram transport client/retry scaffolding.
+- present action:
+- Implemented Telegram transport runtime mode wiring and completed full post-green validation gates.
+- validation outcomes:
+- Added deterministic retry-attempt transport header + retry tests in `carsinos-channels-telegram`.
+- Added runtime-config Telegram transport controls in `carsinos-protocol` and gateway validation:
+- `channels.telegram.operation_mode` (`shim|transport`)
+- `api_base_url`, `transport_timeout_ms`, `transport_retry_attempts`, `long_poll_timeout_seconds`
+- Integrated transport mode into gateway runtime and dispatch behavior:
+- Telegram runtime adapter now initializes/validates transport client in `transport` mode.
+- Scheduler and channel tool action dispatch paths now execute real Telegram transport sends when `operation_mode=transport`; default remains `shim`.
+- Added parse/validation tests for Telegram chat target handling and runtime operation-mode validation.
+- `cargo fmt --all --check` passed.
+- `cargo clippy -p carsinos-gateway -p carsinos-channels-telegram -p carsinos-core -p carsinos-protocol --all-targets -- -D warnings` passed.
+- `cargo test --workspace --locked` passed.
+- `cargo build --workspace --locked` passed.
+- future action:
+- Review diff scope, update checklist state for partial `O4` progress, then commit/push and open PR #36.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.lock`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-telegram/Cargo.toml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-telegram/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-protocol/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
