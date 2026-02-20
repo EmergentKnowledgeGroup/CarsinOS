@@ -1,18 +1,17 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-20T01:51:13.393357+00:00",
+  "captured_at": "2026-02-20T01:52:31.375398+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/chunk-pr40-channel-soak-workflow",
-  "head": "7bfa7d2db77cf712fa98089ef5589c80b8d4801c",
-  "head_short": "7bfa7d2",
-  "step": "channel-soak-workflow-pr-open",
-  "note": "Opened PR #40 for soak workflow automation; monitoring CI/CodeRabbit.",
-  "next_cmd": "Monitor PR #40 checks/review, apply fixes if needed, merge, then checkpoint post-merge.",
+  "branch": "main",
+  "head": "5bb5247d81bb1c6723614a70b857b7272dcf289d",
+  "head_short": "5bb5247",
+  "step": "channel-soak-workflow-post-merge",
+  "note": "PR #40 merged; local main fast-forwarded to 5bb5247.",
+  "next_cmd": "Assess remaining checklist items for hard blockers and report required owner inputs.",
   "validations": [
-    "PR URL: https://github.com/ProfessahX/CarsinOS/pull/40",
-    "gh pr view reports state OPEN, head 7bfa7d2db77cf712fa98089ef5589c80b8d4801c, mergeState UNSTABLE",
-    "Security PR Gate status is QUEUED",
-    "Context checkpoint snapshot recorded for channel-soak-workflow-pr-open"
+    "PR #40 merged at 2026-02-20T01:52:11Z with merge commit 5bb5247d81bb1c6723614a70b857b7272dcf289d",
+    "git pull --ff-only origin main fast-forwarded local main 9a77ccb -> 5bb5247",
+    "Context checkpoint snapshot recorded for channel-soak-workflow-post-merge"
   ],
   "status": {
     "staged": [],
@@ -34,11 +33,11 @@
     "staged": []
   },
   "recent_commits": [
+    "5bb5247 Merge pull request #40 from ProfessahX/codex/chunk-pr40-channel-soak-workflow",
+    "25e8aec docs: checkpoint PR #40 open status",
     "7bfa7d2 chore(channels): add soak workflow dispatch automation",
     "9a77ccb docs: checkpoint PR #39 post-merge status",
-    "be37299 Merge pull request #39 from ProfessahX/codex/chunk-pr39-channel-soak-harness",
-    "c715153 docs: checkpoint PR #39 open status",
-    "b4b927e feat(channels): add soak runner and resilience runbook"
+    "be37299 Merge pull request #39 from ProfessahX/codex/chunk-pr39-channel-soak-harness"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
