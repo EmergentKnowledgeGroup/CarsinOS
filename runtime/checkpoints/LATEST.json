@@ -1,26 +1,20 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-20T00:51:44.750715+00:00",
+  "captured_at": "2026-02-20T00:54:52Z",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
   "branch": "codex/chunk-pr35-channel-runtime-foundation",
-  "head_short": "931c08e",
-  "step": "ch-foundation-post-green",
-  "note": "Implemented MC-CH-001/002 foundation: channel adapter lifecycle contract, runtime manager, status/reconnect APIs, and tests. fmt/clippy/test/build green.",
-  "next_cmd": "Commit/push O11/O12 changes and open PR chunk.",
+  "head_short": "c1e8339",
+  "step": "pr35-open",
+  "note": "PR #35 is open for channel runtime foundation; awaiting CI/CodeRabbit.",
+  "next_cmd": "Monitor PR #35 checks/reviews, apply fixes if needed, then merge.",
   "validations": [
-    "cargo fmt --all --check passed.",
-    "cargo clippy -p carsinos-gateway -p carsinos-core -p carsinos-protocol --all-targets -- -D warnings passed.",
-    "cargo test --workspace --locked passed.",
-    "cargo build --workspace --locked passed."
+    "gh pr view 35 --repo ProfessahX/CarsinOS --json state,mergeStateStatus,statusCheckRollup,reviewDecision,url,headRefOid,headRefName confirms OPEN.",
+    "Security PR Gate queued at checkpoint capture time."
   ],
   "status": {
     "staged": [],
     "modified": [
-      "CHECKLIST.md",
       "CHECKPOINT.md",
-      "crates/carsinos-core/src/lib.rs",
-      "crates/carsinos-gateway/src/main.rs",
-      "crates/carsinos-protocol/src/lib.rs",
       "runtime/checkpoints/LATEST.json",
       "runtime/checkpoints/LATEST.md"
     ],
@@ -30,22 +24,18 @@
   },
   "changed_files": {
     "working_tree": [
-      "CHECKLIST.md",
       "CHECKPOINT.md",
-      "crates/carsinos-core/src/lib.rs",
-      "crates/carsinos-gateway/src/main.rs",
-      "crates/carsinos-protocol/src/lib.rs",
       "runtime/checkpoints/LATEST.json",
       "runtime/checkpoints/LATEST.md"
     ],
     "staged": []
   },
   "recent_commits": [
+    "c1e8339 feat(channels): add runtime manager foundation and lifecycle APIs",
     "931c08e Merge pull request #34 from ProfessahX/codex/chunk-pr34-mc-runtime-wizard",
     "c7b8333 docs: checkpoint PR #34 status",
     "0c176d0 docs: checkpoint PR #34 open state",
-    "34bf912 feat(gui): add mission control runtime setup wizard",
-    "5840360 Merge pull request #33 from ProfessahX/codex/chunk-pr33-checkpoint-pr32-postmerge"
+    "34bf912 feat(gui): add mission control runtime setup wizard"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",

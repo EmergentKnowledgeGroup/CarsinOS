@@ -1,12 +1,10 @@
 # LATEST Checkpoint
 
-- step: ch-foundation-post-green
-- note: Channel runtime foundation for MC-CH-001/002 is implemented and validated.
+- step: pr35-open
+- note: PR #35 is open for channel runtime foundation; awaiting CI/CodeRabbit.
 - branch: codex/chunk-pr35-channel-runtime-foundation
-- head: 931c08e
-- next_cmd: Commit/push O11/O12 changes and open PR chunk.
+- head: c1e8339
+- next_cmd: Monitor PR #35 checks/reviews, apply fixes if needed, then merge.
 - validations:
-- `cargo fmt --all --check` passed.
-- `cargo clippy -p carsinos-gateway -p carsinos-core -p carsinos-protocol --all-targets -- -D warnings` passed.
-- `cargo test --workspace --locked` passed.
-- `cargo build --workspace --locked` passed.
+- `gh pr view 35 --repo ProfessahX/CarsinOS --json state,mergeStateStatus,statusCheckRollup,reviewDecision,url,headRefOid,headRefName` confirms `OPEN`.
+- `Security PR Gate` queued at checkpoint capture time.
