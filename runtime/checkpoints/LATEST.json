@@ -1,44 +1,32 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-20T00:15:45Z",
+  "captured_at": "2026-02-20T00:16:25Z",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
   "branch": "codex/chunk-pr32-archive-retention-proof",
-  "head_short": "030fc6b",
-  "step": "o7-post-green",
-  "note": "Archive-retention operational proof and 90-day boundary validation are implemented and green.",
-  "next_cmd": "Commit O7 changes, push branch, open PR #32, then run PR workflow.",
+  "head_short": "e70c9f5",
+  "step": "pr32-open",
+  "note": "PR #32 opened for archive-retention operational proof; checks are currently pending.",
+  "next_cmd": "Commit this PR-open checkpoint update, push, then monitor PR checks/reviews to merge.",
   "validations": [
-    "cargo test -p carsinos-storage security_audit_retention_respects_ninety_day_hot_window -- --nocapture passed.",
-    "scripts/security_archive_retention_proof.sh passed.",
-    "cargo test --workspace --locked passed."
+    "gh pr view 32 --repo ProfessahX/CarsinOS --json state,mergeStateStatus,statusCheckRollup shows OPEN with in-progress checks.",
+    "PR #32 includes validation command list and artifact contracts."
   ],
   "status": {
     "staged": [],
     "modified": [
-      "CHECKLIST.md",
       "CHECKPOINT.md",
-      "crates/carsinos-storage/src/lib.rs",
       "runtime/checkpoints/LATEST.json",
       "runtime/checkpoints/LATEST.md"
     ],
-    "untracked": [
-      ".github/workflows/security-archive-retention-proof.yml",
-      "docs/security/ARCHIVE_RETENTION_OPERATIONAL_PROOF.md",
-      "scripts/security_archive_retention_proof.sh"
-    ],
+    "untracked": [],
     "conflicted": [],
     "dirty": true
   },
   "changed_files": {
     "working_tree": [
-      "CHECKLIST.md",
       "CHECKPOINT.md",
-      "crates/carsinos-storage/src/lib.rs",
       "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md",
-      ".github/workflows/security-archive-retention-proof.yml",
-      "docs/security/ARCHIVE_RETENTION_OPERATIONAL_PROOF.md",
-      "scripts/security_archive_retention_proof.sh"
+      "runtime/checkpoints/LATEST.md"
     ],
     "staged": []
   }

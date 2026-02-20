@@ -1,11 +1,10 @@
 # LATEST Checkpoint
 
-- step: o7-post-green
-- note: Archive-retention operational proof and 90-day boundary validation are implemented and green.
+- step: pr32-open
+- note: PR #32 opened for archive-retention operational proof; checks are currently pending.
 - branch: codex/chunk-pr32-archive-retention-proof
-- head: 030fc6b
-- next_cmd: Commit O7 changes, push branch, open PR #32, then run PR workflow.
+- head: e70c9f5
+- next_cmd: Commit this PR-open checkpoint update, push, then monitor PR checks/reviews to merge.
 - validations:
-- `cargo test -p carsinos-storage security_audit_retention_respects_ninety_day_hot_window -- --nocapture` passed.
-- `scripts/security_archive_retention_proof.sh` passed.
-- `cargo test --workspace --locked` passed.
+- `gh pr view 32 --repo ProfessahX/CarsinOS --json state,mergeStateStatus,statusCheckRollup` shows `OPEN` with in-progress checks.
+- PR #32 includes validation command list and artifact contracts.
