@@ -1,12 +1,10 @@
 # LATEST Checkpoint
 
-- step: telegram-transport-post-green
-- note: Implemented Telegram transport mode wiring (runtime adapter + outbound dispatch), updated runtime contract, and passed full validation gate.
+- step: telegram-transport-pr-open
+- note: Opened PR #36 for Telegram transport mode wiring; awaiting CI + CodeRabbit review.
 - branch: codex/chunk-pr36-telegram-transport
-- head: 070e12a
-- next_cmd: Review diff, update checklist/checkpoint docs, then commit and open PR #36.
+- head: 68e18b3
+- next_cmd: Monitor PR #36 checks/reviews, apply any required fixes, then merge and post-merge checkpoint.
 - validations:
-- `cargo fmt --all --check` passed.
-- `cargo clippy -p carsinos-gateway -p carsinos-channels-telegram -p carsinos-core -p carsinos-protocol --all-targets -- -D warnings` passed.
-- `cargo test --workspace --locked` passed.
-- `cargo build --workspace --locked` passed.
+- PR URL: https://github.com/ProfessahX/CarsinOS/pull/36
+- `gh pr view 36 --repo ProfessahX/CarsinOS --json ...` confirms state `OPEN`, head `68e18b3`, checks queued/pending (`Security PR Gate`, `CodeRabbit`).
