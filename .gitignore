@@ -2,6 +2,7 @@
 .state/
 .state*/
 runtime/security/reports/
+runtime/channels/reports/
 runtime/checkpoints/context_checkpoint_*.json
 runtime/checkpoints/context_checkpoint_*.md
 *.db
