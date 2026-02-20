@@ -1,14 +1,12 @@
 # LATEST Checkpoint
 
-- step: channel-roundtrip-post-green
-- note: Added inbound Telegram/Discord transport roundtrip reply tests and completed full fmt/clippy/test/build gates.
+- step: channel-roundtrip-pr-open
+- note: Opened PR #38 for inbound transport roundtrip replies and started CI/review monitoring.
 - branch: codex/chunk-pr38-channel-roundtrip-replies
-- head: 1a28e98
-- next_cmd: Review diff, commit PR #38 chunk, push branch, open PR, and checkpoint PR-open state.
+- head: 41ff666
+- next_cmd: Monitor PR #38 checks/review, apply fixes if needed, merge, then checkpoint post-merge.
 - validations:
-- Added gateway tests `telegram_channel_inbound_run_dispatches_transport_reply_when_enabled` and `discord_channel_inbound_run_dispatches_transport_reply_when_enabled`.
-- `cargo fmt --all --check` passed.
-- `cargo clippy -p carsinos-gateway -p carsinos-channels-discord -p carsinos-channels-telegram -p carsinos-core -p carsinos-protocol --all-targets -- -D warnings` passed.
-- `cargo test --workspace --locked` passed.
-- `cargo build --workspace --locked` passed.
-- Context checkpoint snapshot recorded for step `channel-roundtrip-post-green`.
+- PR URL: `https://github.com/ProfessahX/CarsinOS/pull/38`.
+- `gh pr view 38 --repo ProfessahX/CarsinOS --json state,mergeStateStatus,statusCheckRollup,reviewDecision,url,headRefOid,headRefName,number` reports `state=OPEN`, `head=41ff666`, `mergeState=UNSTABLE`.
+- Check status: `Security PR Gate` currently `QUEUED`.
+- Context checkpoint snapshot recorded for step `channel-roundtrip-pr-open`.
