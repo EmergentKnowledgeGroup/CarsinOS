@@ -1,11 +1,13 @@
 # LATEST Checkpoint
 
-- step: channel-soak-workflow-post-merge
-- note: PR #40 merged successfully; local `main` synchronized to merge commit `5bb5247`.
+- step: hard-blocker-owner-inputs
+- note: Autonomous implementation chunks are complete; remaining checklist items now require owner inputs or live 7-day soak execution context.
 - branch: main
-- head: 5bb5247
-- next_cmd: Assess remaining checklist items for hard blockers and report required owner inputs.
+- head: dada1f5
+- next_cmd: Collect owner inputs `R1-R8`, then execute `O1/O2` approvals, run `O6` live soak signoff, and finalize `O8` scope.
 - validations:
-- `gh pr view 40 --repo ProfessahX/CarsinOS --json state,mergedAt,mergeCommit,url` confirms `MERGED` at `2026-02-20T01:52:11Z`, merge commit `5bb5247d81bb1c6723614a70b857b7272dcf289d`.
-- `git pull --ff-only origin main` completed; local `main` fast-forwarded `9a77ccb -> 5bb5247`.
-- Context checkpoint snapshot recorded for step `channel-soak-workflow-post-merge`.
+- Remaining unchecked checklist items are: `O1`, `O2`, `O6`, `O8`, and owner inputs `R1-R8`.
+- `O1`/`O2` are blocked on named owner assignments and approvals in security docs.
+- `O6` is blocked on live environment credentials/targets and time window for 7-day execution signoff.
+- `O8` is blocked on priority decision for `MC-FUT-900`.
+- Context checkpoint snapshot recorded for step `hard-blocker-owner-inputs`.
