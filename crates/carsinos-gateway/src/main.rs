@@ -5065,6 +5065,10 @@ async fn ingest_telegram_channel_message(
                 .run_immediately
                 .unwrap_or(config.telegram.auto_run_enabled);
             let mut run_id = None;
+            let mut outbound_reply_status = "not_attempted".to_string();
+            let mut outbound_reply_error: Option<String> = None;
+            let mut outbound_delivery_mode: Option<String> = None;
+            let mut outbound_chunk_count: Option<usize> = None;
             if run_immediately {
                 let model_provider = request
                     .model_provider
@@ -5105,6 +5109,74 @@ async fn ingest_telegram_channel_message(
                     internal_err_with_error("executing inbound channel run failed", err)
                 })?;
                 run_id = Some(run.run_id);
+
+                if run.status == "succeeded" {
+                    if let Some(reply_text) =
+                        latest_assistant_reply_text(&state, &session.session_id).map_err(|err| {
+                            internal_err_with_error(
+                                "loading assistant reply for telegram dispatch failed",
+                                err,
+                            )
+                        })?
+                    {
+                        let outbound_target = format!("chat:{}", request.chat_id);
+                        match dispatch_channel_ingest_reply(
+                            &state,
+                            "telegram",
+                            "send",
+                            &outbound_target,
+                            &reply_text,
+                        ) {
+                            Ok((chunk_count, delivery_mode, transport_message_ids)) => {
+                                outbound_reply_status = "sent".to_string();
+                                outbound_delivery_mode = Some(delivery_mode.to_string());
+                                outbound_chunk_count = Some(chunk_count);
+                                emit_event(
+                                    &state,
+                                    "channel.ingest.reply_dispatch",
+                                    serde_json::json!({
+                                        "provider": "telegram",
+                                        "target": outbound_target,
+                                        "action": "send",
+                                        "session_id": &session.session_id,
+                                        "run_id": run_id.as_deref(),
+                                        "status": "sent",
+                                        "delivery_mode": delivery_mode,
+                                        "chunk_count": chunk_count,
+                                        "transport_message_ids": transport_message_ids
+                                    }),
+                                );
+                            }
+                            Err(err) => {
+                                outbound_reply_status = "dispatch_failed".to_string();
+                                outbound_reply_error = Some(err.to_string());
+                                warn!(
+                                    "telegram ingest outbound dispatch failed for session {} run {}: {}",
+                                    session.session_id,
+                                    run_id.as_deref().unwrap_or(""),
+                                    err
+                                );
+                                emit_event(
+                                    &state,
+                                    "channel.ingest.reply_dispatch",
+                                    serde_json::json!({
+                                        "provider": "telegram",
+                                        "target": outbound_target,
+                                        "action": "send",
+                                        "session_id": &session.session_id,
+                                        "run_id": run_id.as_deref(),
+                                        "status": "failed",
+                                        "error": err.to_string()
+                                    }),
+                                );
+                            }
+                        }
+                    } else {
+                        outbound_reply_status = "no_assistant_reply".to_string();
+                    }
+                } else {
+                    outbound_reply_status = "run_not_succeeded".to_string();
+                }
             }
 
             record_security_audit(
@@ -5121,7 +5193,11 @@ async fn ingest_telegram_channel_message(
                 run_id.as_deref(),
                 Some(serde_json::json!({
                     "decision": "accepted",
-                    "run_immediately": run_immediately
+                    "run_immediately": run_immediately,
+                    "outbound_reply_status": outbound_reply_status,
+                    "outbound_delivery_mode": outbound_delivery_mode,
+                    "outbound_chunk_count": outbound_chunk_count,
+                    "outbound_reply_error": outbound_reply_error
                 })),
             );
 
@@ -5250,6 +5326,10 @@ async fn ingest_discord_channel_message(
                 .run_immediately
                 .unwrap_or(config.discord.auto_run_enabled);
             let mut run_id = None;
+            let mut outbound_reply_status = "not_attempted".to_string();
+            let mut outbound_reply_error: Option<String> = None;
+            let mut outbound_delivery_mode: Option<String> = None;
+            let mut outbound_chunk_count: Option<usize> = None;
             if run_immediately {
                 let model_provider = request
                     .model_provider
@@ -5290,6 +5370,102 @@ async fn ingest_discord_channel_message(
                     internal_err_with_error("executing inbound channel run failed", err)
                 })?;
                 run_id = Some(run.run_id);
+
+                if run.status == "succeeded" {
+                    if let Some(reply_text) =
+                        latest_assistant_reply_text(&state, &session.session_id).map_err(|err| {
+                            internal_err_with_error(
+                                "loading assistant reply for discord dispatch failed",
+                                err,
+                            )
+                        })?
+                    {
+                        let outbound_channel_id = request
+                            .thread_id
+                            .as_ref()
+                            .map(|value| value.trim().to_string())
+                            .filter(|value| !value.is_empty())
+                            .unwrap_or_else(|| request.channel_id.clone());
+                        let outbound_action = if request
+                            .source_message_id
+                            .as_ref()
+                            .map(|value| !value.trim().is_empty())
+                            .unwrap_or(false)
+                        {
+                            "reply"
+                        } else {
+                            "send"
+                        };
+                        let outbound_target = if outbound_action == "reply" {
+                            format!(
+                                "channel:{}/{}",
+                                outbound_channel_id,
+                                request
+                                    .source_message_id
+                                    .as_ref()
+                                    .map(|value| value.trim())
+                                    .unwrap_or_default()
+                            )
+                        } else {
+                            format!("channel:{}", outbound_channel_id)
+                        };
+                        match dispatch_channel_ingest_reply(
+                            &state,
+                            "discord",
+                            outbound_action,
+                            &outbound_target,
+                            &reply_text,
+                        ) {
+                            Ok((chunk_count, delivery_mode, transport_message_ids)) => {
+                                outbound_reply_status = "sent".to_string();
+                                outbound_delivery_mode = Some(delivery_mode.to_string());
+                                outbound_chunk_count = Some(chunk_count);
+                                emit_event(
+                                    &state,
+                                    "channel.ingest.reply_dispatch",
+                                    serde_json::json!({
+                                        "provider": "discord",
+                                        "target": outbound_target,
+                                        "action": outbound_action,
+                                        "session_id": &session.session_id,
+                                        "run_id": run_id.as_deref(),
+                                        "status": "sent",
+                                        "delivery_mode": delivery_mode,
+                                        "chunk_count": chunk_count,
+                                        "transport_message_ids": transport_message_ids
+                                    }),
+                                );
+                            }
+                            Err(err) => {
+                                outbound_reply_status = "dispatch_failed".to_string();
+                                outbound_reply_error = Some(err.to_string());
+                                warn!(
+                                    "discord ingest outbound dispatch failed for session {} run {}: {}",
+                                    session.session_id,
+                                    run_id.as_deref().unwrap_or(""),
+                                    err
+                                );
+                                emit_event(
+                                    &state,
+                                    "channel.ingest.reply_dispatch",
+                                    serde_json::json!({
+                                        "provider": "discord",
+                                        "target": outbound_target,
+                                        "action": outbound_action,
+                                        "session_id": &session.session_id,
+                                        "run_id": run_id.as_deref(),
+                                        "status": "failed",
+                                        "error": err.to_string()
+                                    }),
+                                );
+                            }
+                        }
+                    } else {
+                        outbound_reply_status = "no_assistant_reply".to_string();
+                    }
+                } else {
+                    outbound_reply_status = "run_not_succeeded".to_string();
+                }
             }
 
             record_security_audit(
@@ -5306,7 +5482,11 @@ async fn ingest_discord_channel_message(
                 run_id.as_deref(),
                 Some(serde_json::json!({
                     "decision": "accepted",
-                    "run_immediately": run_immediately
+                    "run_immediately": run_immediately,
+                    "outbound_reply_status": outbound_reply_status,
+                    "outbound_delivery_mode": outbound_delivery_mode,
+                    "outbound_chunk_count": outbound_chunk_count,
+                    "outbound_reply_error": outbound_reply_error
                 })),
             );
 
@@ -8251,6 +8431,93 @@ fn scheduler_delivery_text(state: &AppState, session_id: &str, run_id: &str) -> 
         return Ok(message.content_text.clone());
     }
     Ok(format!("Scheduled run {run_id} completed."))
+}
+
+fn latest_assistant_reply_text(state: &AppState, session_id: &str) -> AnyResult<Option<String>> {
+    let messages = state.storage.list_messages(session_id, 64)?;
+    Ok(messages
+        .iter()
+        .rev()
+        .find(|item| item.role == "assistant" && !item.content_text.trim().is_empty())
+        .map(|item| item.content_text.clone()))
+}
+
+fn dispatch_channel_ingest_reply(
+    state: &AppState,
+    provider: &str,
+    action: &str,
+    target: &str,
+    content_text: &str,
+) -> AnyResult<(usize, &'static str, Vec<String>)> {
+    let provider = provider.trim().to_ascii_lowercase();
+    let action = action.trim().to_ascii_lowercase();
+    let target = target.trim();
+    if provider.is_empty() || action.is_empty() || target.is_empty() {
+        anyhow::bail!("ingest reply dispatch requires provider/action/target");
+    }
+    if !matches!(provider.as_str(), "telegram" | "discord") {
+        anyhow::bail!("unsupported ingest reply provider: {}", provider);
+    }
+    if !matches!(action.as_str(), "send" | "reply") {
+        anyhow::bail!("unsupported ingest reply action: {}", action);
+    }
+    if !state
+        .channel_tool_allowed_providers
+        .contains(provider.as_str())
+    {
+        anyhow::bail!("ingest reply provider '{}' is disabled by policy", provider);
+    }
+    if content_text.trim().is_empty() {
+        anyhow::bail!("ingest reply content is empty");
+    }
+
+    let chunks = match provider.as_str() {
+        "telegram" => telegram_channel::split_outbound_chunks(
+            content_text,
+            telegram_channel::TELEGRAM_DEFAULT_CHUNK_LIMIT,
+        ),
+        _ => discord_channel::split_outbound_chunks(
+            content_text,
+            discord_channel::DISCORD_DEFAULT_CHUNK_LIMIT,
+        ),
+    };
+    let mut chunk_count = chunks.len();
+    let mut transport_message_ids: Vec<String> = Vec::new();
+    let mut delivery_mode = DISCORD_OPERATION_MODE_SHIM;
+
+    if provider == "telegram" {
+        let runtime_config = load_runtime_config(state)?;
+        if normalize_telegram_operation_mode(&runtime_config.channels.telegram.operation_mode)
+            == TELEGRAM_OPERATION_MODE_TRANSPORT
+        {
+            transport_message_ids = send_telegram_chunks_via_transport(
+                &runtime_config,
+                &state.secret_store,
+                target,
+                &chunks,
+            )
+            .map(|ids| ids.into_iter().map(|id| id.to_string()).collect::<Vec<_>>())?;
+            chunk_count = transport_message_ids.len();
+            delivery_mode = TELEGRAM_OPERATION_MODE_TRANSPORT;
+        }
+    } else if provider == "discord" {
+        let runtime_config = load_runtime_config(state)?;
+        if normalize_discord_operation_mode(&runtime_config.channels.discord.operation_mode)
+            == DISCORD_OPERATION_MODE_TRANSPORT
+        {
+            transport_message_ids = send_discord_chunks_via_transport(
+                &runtime_config,
+                &state.secret_store,
+                target,
+                &action,
+                &chunks,
+            )?;
+            chunk_count = transport_message_ids.len();
+            delivery_mode = DISCORD_OPERATION_MODE_TRANSPORT;
+        }
+    }
+
+    Ok((chunk_count, delivery_mode, transport_message_ids))
 }
 
 fn dispatch_scheduler_delivery(
@@ -11874,6 +12141,8 @@ mod tests {
     use axum::body::{to_bytes, Body};
     use axum::extract::State as AxumState;
     use axum::http::Request;
+    use httpmock::Method::POST;
+    use httpmock::MockServer;
     use tempfile::TempDir;
     use tokio::net::TcpListener;
     use tower::util::ServiceExt;
@@ -16817,6 +17086,91 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     }
 
     #[tokio::test]
+    async fn telegram_channel_inbound_run_dispatches_transport_reply_when_enabled() {
+        let ctx = test_context();
+        let transport = MockServer::start();
+        let transport_mock = transport.mock(|when, then| {
+            when.method(POST).path("/bottelegram-token/sendMessage");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(r#"{"ok":true,"result":{"message_id":901}}"#);
+        });
+
+        ctx.secret_store
+            .set_raw("runtime.channels.telegram.bot_token", "telegram-token")
+            .expect("set telegram runtime secret");
+
+        let runtime_update_payload = serde_json::json!({
+            "channels": {
+                "discord": {
+                    "bot_token_secret_ref": null,
+                    "operation_mode": "shim",
+                    "application_id": null,
+                    "intents": ["guilds"],
+                    "staging_guild_ids": [],
+                    "staging_channel_ids": []
+                },
+                "telegram": {
+                    "bot_token_secret_ref": "secret://runtime.channels.telegram.bot_token",
+                    "operation_mode": "transport",
+                    "api_base_url": transport.base_url(),
+                    "transport_timeout_ms": 1000,
+                    "transport_retry_attempts": 1,
+                    "long_poll_timeout_seconds": 10,
+                    "webhook_mode": "long_poll",
+                    "webhook_url": null,
+                    "staging_chat_ids": []
+                }
+            }
+        });
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(runtime_update_payload.to_string()),
+            ))
+            .await
+            .expect("update runtime config for telegram transport");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let inbound = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/telegram/inbound",
+                Body::from(
+                    r#"{
+                        "chat_id":444,
+                        "user_id":77,
+                        "text":"run and reply",
+                        "is_group_chat":false,
+                        "mentions_bot":false,
+                        "reply_to_bot":false,
+                        "run_immediately":true,
+                        "model_provider":"mock",
+                        "model_id":"mock-echo-v1"
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("telegram inbound run");
+        assert_eq!(inbound.status(), StatusCode::OK);
+        let inbound_json = parse_json(inbound).await;
+        assert_eq!(inbound_json["decision"], "accepted");
+        let run_id = inbound_json["run_id"].as_str().expect("run id");
+        let run = ctx
+            .storage
+            .get_run(run_id)
+            .expect("get run")
+            .expect("run exists");
+        assert_eq!(run.status, "succeeded");
+        transport_mock.assert_hits(1);
+    }
+
+    #[tokio::test]
     async fn discord_channel_inbound_ignores_guild_message_without_mention() {
         let ctx = test_context();
         let inbound = ctx
@@ -16880,6 +17234,89 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .expect("get run")
             .expect("run exists");
         assert_eq!(run.status, "succeeded");
+    }
+
+    #[tokio::test]
+    async fn discord_channel_inbound_run_dispatches_transport_reply_when_enabled() {
+        let ctx = test_context();
+        let transport = MockServer::start();
+        let transport_mock = transport.mock(|when, then| {
+            when.method(POST).path("/channels/dm-transport/messages");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(r#"{"id":"discord-msg-901","channel_id":"dm-transport"}"#);
+        });
+
+        ctx.secret_store
+            .set_raw("runtime.channels.discord.bot_token", "discord-token")
+            .expect("set discord runtime secret");
+
+        let runtime_update_payload = serde_json::json!({
+            "channels": {
+                "discord": {
+                    "bot_token_secret_ref": "secret://runtime.channels.discord.bot_token",
+                    "operation_mode": "transport",
+                    "api_base_url": transport.base_url(),
+                    "transport_timeout_ms": 1000,
+                    "transport_retry_attempts": 1,
+                    "application_id": "app-1",
+                    "intents": ["guilds","guild_messages","direct_messages"],
+                    "staging_guild_ids": [],
+                    "staging_channel_ids": []
+                },
+                "telegram": {
+                    "bot_token_secret_ref": null,
+                    "operation_mode": "shim",
+                    "webhook_mode": "long_poll",
+                    "webhook_url": null,
+                    "staging_chat_ids": []
+                }
+            }
+        });
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(runtime_update_payload.to_string()),
+            ))
+            .await
+            .expect("update runtime config for discord transport");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let inbound = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/discord/inbound",
+                Body::from(
+                    r#"{
+                        "channel_id":"dm-transport",
+                        "author_id":"u-run-transport",
+                        "text":"run and reply",
+                        "mentions_bot":false,
+                        "is_dm":true,
+                        "run_immediately":true,
+                        "model_provider":"mock",
+                        "model_id":"mock-echo-v1"
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("discord inbound run");
+        assert_eq!(inbound.status(), StatusCode::OK);
+        let inbound_json = parse_json(inbound).await;
+        assert_eq!(inbound_json["decision"], "accepted");
+        let run_id = inbound_json["run_id"].as_str().expect("run id");
+        let run = ctx
+            .storage
+            .get_run(run_id)
+            .expect("get run")
+            .expect("run exists");
+        assert_eq!(run.status, "succeeded");
+        transport_mock.assert_hits(1);
     }
 
     #[tokio::test]

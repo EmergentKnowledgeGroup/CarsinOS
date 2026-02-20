@@ -929,6 +929,7 @@ dependencies = [
  "carsinos-tools",
  "chrono",
  "futures-util",
+ "httpmock",
  "jsonwebtoken",
  "keyring",
  "portpicker",
