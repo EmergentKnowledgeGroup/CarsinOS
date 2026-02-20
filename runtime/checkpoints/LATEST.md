@@ -1,10 +1,10 @@
 # LATEST Checkpoint
 
-- step: pr32-open
-- note: PR #32 opened for archive-retention operational proof; checks are currently pending.
-- branch: codex/chunk-pr32-archive-retention-proof
-- head: e70c9f5
-- next_cmd: Commit this PR-open checkpoint update, push, then monitor PR checks/reviews to merge.
+- step: pr32-post-merge
+- note: PR #32 merged; archive-retention operational proof is now part of main baseline.
+- branch: main
+- head: b3cff94
+- next_cmd: Continue next non-blocked checklist phase or pause for owner-input blockers.
 - validations:
-- `gh pr view 32 --repo ProfessahX/CarsinOS --json state,mergeStateStatus,statusCheckRollup` shows `OPEN` with in-progress checks.
-- PR #32 includes validation command list and artifact contracts.
+- `gh pr view 32 --repo ProfessahX/CarsinOS --json state,mergedAt,mergeCommit` confirms merged.
+- `git pull --ff-only origin main` completed and local main matches origin/main.
