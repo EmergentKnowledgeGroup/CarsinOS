@@ -21,14 +21,14 @@ use carsinos_protocol::{
     AuthProfileResponse, CreateApprovalRequest, CreateApprovalResponse, CreateAuthProfileRequest,
     CreateAuthProfileResponse, CreateJobRequest, CreateJobResponse, CreateMessageRequest,
     CreateMessageResponse, CreateNoteRequest, CreateNoteResponse, CreateRunRequest,
-    CreateRunResponse, CreateSessionRequest, CreateSessionResponse, DiscordChannelConfig,
-    GetAgentProviderProfileOrderResponse, GetChannelConfigResponse, GetNoteResponse,
-    GetRuntimeConfigResponse, HealthResponse, IngestChannelMessageResponse,
-    IngestDiscordMessageRequest, IngestTelegramMessageRequest, JobResponse, JobRunResponse,
-    JobStatusResponse, ListApprovalsQuery, ListApprovalsResponse, ListAuthProfilesQuery,
-    ListAuthProfilesResponse, ListJobHistoryQuery, ListJobHistoryResponse, ListJobsQuery,
-    ListJobsResponse, ListMessagesQuery, ListMessagesResponse, ListNotesQuery, ListNotesResponse,
-    ListPluginsQuery, ListPluginsResponse, ListProviderCapabilitiesQuery,
+    CreateRunResponse, CreateSessionRequest, CreateSessionResponse, DeleteRuntimeSecretRequest,
+    DeleteRuntimeSecretResponse, DiscordChannelConfig, GetAgentProviderProfileOrderResponse,
+    GetChannelConfigResponse, GetNoteResponse, GetRuntimeConfigResponse, HealthResponse,
+    IngestChannelMessageResponse, IngestDiscordMessageRequest, IngestTelegramMessageRequest,
+    JobResponse, JobRunResponse, JobStatusResponse, ListApprovalsQuery, ListApprovalsResponse,
+    ListAuthProfilesQuery, ListAuthProfilesResponse, ListJobHistoryQuery, ListJobHistoryResponse,
+    ListJobsQuery, ListJobsResponse, ListMessagesQuery, ListMessagesResponse, ListNotesQuery,
+    ListNotesResponse, ListPluginsQuery, ListPluginsResponse, ListProviderCapabilitiesQuery,
     ListProviderCapabilitiesResponse, ListSessionsQuery, ListSessionsResponse, ListSkillsQuery,
     ListSkillsResponse, MessageResponse, MetricsResponse, NoteResponse, OpenAiOauthFinishRequest,
     OpenAiOauthFinishResponse, OpenAiOauthStartRequest, OpenAiOauthStartResponse,
@@ -44,7 +44,7 @@ use carsinos_protocol::{
     UpdateAuthProfileStateResponse, UpdateChannelConfigRequest, UpdateChannelConfigResponse,
     UpdateJobRequest, UpdateJobResponse, UpdateNoteRequest, UpdateNoteResponse,
     UpdateRuntimeConfigRequest, UpdateRuntimeConfigResponse, UpdateSkillStateRequest,
-    UpdateSkillStateResponse,
+    UpdateSkillStateResponse, UpsertRuntimeSecretRequest, UpsertRuntimeSecretResponse,
 };
 use carsinos_providers::{
     parse_provider_error_class as parse_provider_error_class_normalized,
@@ -2358,6 +2358,14 @@ fn build_app(state: AppState) -> Router {
             post(rollback_runtime_config),
         )
         .route(
+            "/api/v1/config/runtime/secrets/upsert",
+            post(upsert_runtime_secret),
+        )
+        .route(
+            "/api/v1/config/runtime/secrets/delete",
+            post(delete_runtime_secret),
+        )
+        .route(
             "/api/v1/channels/telegram/inbound",
             post(ingest_telegram_channel_message),
         )
@@ -4136,6 +4144,121 @@ async fn rollback_runtime_config(
         config: rollback_config,
         restored_from_updated_at: rollback_source_updated_at,
     }))
+}
+
+async fn upsert_runtime_secret(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<UpsertRuntimeSecretRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN],
+        "runtime.config.secret.upsert",
+        &format!("config.runtime.secret:{}", request.scope.trim()),
+    )?;
+
+    let secret_key = runtime_secret_key_from_scope(&request.scope)
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+    let secret_value = request.secret_value.trim().to_string();
+    if secret_value.is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "secret_value must not be empty",
+        ));
+    }
+
+    state
+        .secret_store
+        .set_raw(&secret_key, &secret_value)
+        .map_err(|err| internal_err_with_error("storing runtime secret failed", err))?;
+    let secret_ref = runtime_secret_ref_from_key(&secret_key);
+
+    let mut previous_secret_deleted = false;
+    if let Some(previous_ref) = request
+        .previous_secret_ref
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+    {
+        let previous_key = runtime_secret_key_from_ref(previous_ref)
+            .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+        if previous_key != secret_key {
+            state.secret_store.delete(&previous_key).map_err(|err| {
+                internal_err_with_error("deleting previous runtime secret failed", err)
+            })?;
+            previous_secret_deleted = true;
+        }
+    }
+
+    record_security_audit(
+        &headers,
+        &state,
+        &auth,
+        "runtime.config.secret.upsert",
+        "config.runtime.secret",
+        "allow",
+        None,
+        StatusCode::OK,
+        None,
+        None,
+        None,
+        Some(serde_json::json!({
+            "scope": request.scope.trim(),
+            "secret_ref": &secret_ref,
+            "secret_store_mode": state.secret_store.mode_name(),
+            "previous_secret_ref_provided": request.previous_secret_ref.is_some(),
+            "previous_secret_deleted": previous_secret_deleted
+        })),
+    );
+
+    Ok(Json(UpsertRuntimeSecretResponse { secret_ref }))
+}
+
+async fn delete_runtime_secret(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<DeleteRuntimeSecretRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN],
+        "runtime.config.secret.delete",
+        "config.runtime.secret",
+    )?;
+
+    let secret_key = runtime_secret_key_from_ref(&request.secret_ref)
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+    state
+        .secret_store
+        .delete(&secret_key)
+        .map_err(|err| internal_err_with_error("deleting runtime secret failed", err))?;
+
+    record_security_audit(
+        &headers,
+        &state,
+        &auth,
+        "runtime.config.secret.delete",
+        "config.runtime.secret",
+        "allow",
+        None,
+        StatusCode::OK,
+        None,
+        None,
+        None,
+        Some(serde_json::json!({
+            "secret_ref": request.secret_ref.trim(),
+            "secret_store_mode": state.secret_store.mode_name()
+        })),
+    );
+
+    Ok(Json(DeleteRuntimeSecretResponse { deleted: true }))
 }
 
 fn get_or_create_channel_session(
@@ -8183,6 +8306,39 @@ fn validate_secret_ref(secret_ref: &Option<String>, field_name: &str) -> AnyResu
         }
     }
     Ok(())
+}
+
+fn runtime_secret_key_from_scope(scope: &str) -> AnyResult<String> {
+    let trimmed = scope.trim();
+    if trimmed.is_empty() {
+        anyhow::bail!("scope must not be empty");
+    }
+    if trimmed.len() > 120 {
+        anyhow::bail!("scope is too long (max 120 chars)");
+    }
+    let valid_chars = trimmed
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '.' || ch == '_' || ch == '-' || ch == '/');
+    if !valid_chars {
+        anyhow::bail!("scope contains invalid characters (allowed: a-z A-Z 0-9 . _ - /)");
+    }
+    Ok(format!("runtime.{}", trimmed.replace('/', ".")))
+}
+
+fn runtime_secret_ref_from_key(secret_key: &str) -> String {
+    format!("secret://{secret_key}")
+}
+
+fn runtime_secret_key_from_ref(secret_ref: &str) -> AnyResult<String> {
+    let trimmed = secret_ref.trim();
+    if !trimmed.starts_with("secret://runtime.") {
+        anyhow::bail!("secret_ref must start with secret://runtime.");
+    }
+    let secret_key = trimmed.trim_start_matches("secret://").to_string();
+    if secret_key.len() <= "runtime.".len() {
+        anyhow::bail!("secret_ref does not include runtime scope");
+    }
+    Ok(secret_key)
 }
 
 fn validate_runtime_config(config: &RuntimeConfigResponse) -> AnyResult<()> {
@@ -15084,6 +15240,118 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .await
             .expect("runtime rollback request");
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn runtime_secret_endpoints_upsert_rotate_and_delete() {
+        let ctx = test_context();
+
+        let upsert_a = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime/secrets/upsert",
+                Body::from(
+                    r#"{
+                        "scope":"channels/telegram/bot_token",
+                        "secret_value":"telegram-token-a"
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("upsert runtime secret A");
+        assert_eq!(upsert_a.status(), StatusCode::OK);
+        let upsert_a_json = parse_json(upsert_a).await;
+        let secret_ref_a = upsert_a_json["secret_ref"]
+            .as_str()
+            .expect("secret ref a")
+            .to_string();
+        assert_eq!(secret_ref_a, "secret://runtime.channels.telegram.bot_token");
+        assert_eq!(
+            ctx.secret_store
+                .get_raw("runtime.channels.telegram.bot_token")
+                .expect("get runtime secret A")
+                .as_deref(),
+            Some("telegram-token-a")
+        );
+
+        let upsert_b = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime/secrets/upsert",
+                Body::from(format!(
+                    r#"{{
+                        "scope":"channels/telegram/bot_token_v2",
+                        "secret_value":"telegram-token-b",
+                        "previous_secret_ref":"{secret_ref_a}"
+                    }}"#
+                )),
+            ))
+            .await
+            .expect("upsert runtime secret B");
+        assert_eq!(upsert_b.status(), StatusCode::OK);
+        let upsert_b_json = parse_json(upsert_b).await;
+        let secret_ref_b = upsert_b_json["secret_ref"]
+            .as_str()
+            .expect("secret ref b")
+            .to_string();
+        assert_eq!(
+            secret_ref_b,
+            "secret://runtime.channels.telegram.bot_token_v2"
+        );
+        assert_eq!(
+            ctx.secret_store
+                .get_raw("runtime.channels.telegram.bot_token")
+                .expect("get runtime secret A after rotate"),
+            None
+        );
+        assert_eq!(
+            ctx.secret_store
+                .get_raw("runtime.channels.telegram.bot_token_v2")
+                .expect("get runtime secret B")
+                .as_deref(),
+            Some("telegram-token-b")
+        );
+
+        let delete_b = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime/secrets/delete",
+                Body::from(format!(r#"{{"secret_ref":"{secret_ref_b}"}}"#)),
+            ))
+            .await
+            .expect("delete runtime secret B");
+        assert_eq!(delete_b.status(), StatusCode::OK);
+        let delete_b_json = parse_json(delete_b).await;
+        assert_eq!(delete_b_json["deleted"], true);
+        assert_eq!(
+            ctx.secret_store
+                .get_raw("runtime.channels.telegram.bot_token_v2")
+                .expect("runtime secret removed"),
+            None
+        );
+
+        let bad_scope = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime/secrets/upsert",
+                Body::from(
+                    r#"{
+                        "scope":"channels/telegram/bot token",
+                        "secret_value":"bad"
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("upsert bad scope");
+        assert_eq!(bad_scope.status(), StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]

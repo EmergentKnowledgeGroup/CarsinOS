@@ -143,15 +143,16 @@ Execution checklist derived from `PLAN.md`. IDs are stable and must be used by `
 - [ ] `O7` Complete archive-retention operational proof for security audit trail beyond 90-day hot window.
 - [ ] `O8` Decide and schedule `MC-FUT-900` expansion set (if future channels continue in this wave).
 - [ ] `O9` Run mandatory repository-wide hardcoded runtime-value audit and convert every deployment-specific constant to config/wizard-backed fields (`MC-CONF-005`).
+- [ ] `O10` Consume and triage hardcoded-value audit findings into implementation tickets by config scope (`global`, `provider`, `auth_profile`, `channel`, `security`) with owner + target milestone.
 
 ## Phase P - Setup Wizard + Dynamic Configuration (MC-CONF)
 
 - [x] `P1` `MC-CONF-001` Freeze configuration contract for runtime-scoped values (`global`, `provider`, `auth_profile`, `channel`, `security`) with schema versioning. Implemented via `runtime.config.v1` typed contract + `GET/POST /api/v1/config/runtime`.
 - [ ] `P2` `MC-CONF-002` Implement Mission Control first-run/reconfigure wizard that captures required operator inputs without source edits.
-- [ ] `P3` `MC-CONF-003` Wire wizard-driven secret references to keychain/secret backends (no plaintext secret persistence in config records).
+- [x] `P3` `MC-CONF-003` Wire wizard-driven secret references to keychain/secret backends (no plaintext secret persistence in config records). Implemented via runtime secret upsert/delete API (`POST /api/v1/config/runtime/secrets/upsert`, `POST /api/v1/config/runtime/secrets/delete`) plus rotation/delete integration test coverage.
 - [x] `P4` `MC-CONF-004` Implement config mutation audit trail + rollback to last-known-good snapshots. Implemented via runtime config hash-audited mutations + `POST /api/v1/config/runtime/rollback`.
 - [x] `P5` `MC-CONF-005` Enforce CI hardcoded-value guardrail with explicit allowlist + owner + expiry metadata. Implemented via `scripts/security_hardcoded_value_guard.py` + `docs/security/HARDCODED_VALUE_ALLOWLIST.csv` + PR gate integration.
-- [ ] `P6` Run full regression + benchmark + security gate suite after MC-CONF implementation.
+- [x] `P6` Run full regression + benchmark + security gate suite after MC-CONF implementation. Completed via `cargo test --workspace --locked` and `scripts/security_pr_gate.sh` (with `cargo-audit` installed/enabled).
 
 ## Owner Inputs Required (Prevents Hard Blockers)
 

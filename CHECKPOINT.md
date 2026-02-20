@@ -3658,3 +3658,69 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-19 - Entry 191
+
+- checklist refs: `P3`
+- past action:
+- Resumed after compaction and validated checkpoint recovery flow.
+- present action:
+- Starting `MC-CONF-003` completion for runtime secret-reference endpoints and tests.
+- validation outcomes:
+- Read `runtime/checkpoints/LATEST.md` and `runtime/checkpoints/LATEST.json`.
+- Verified branch/head and workspace state via `git status --short --branch` + `git rev-parse --short HEAD`.
+- Reviewed in-flight diffs in `crates/carsinos-gateway/src/main.rs` and `crates/carsinos-protocol/src/lib.rs`.
+- future action:
+- Run formatting/tests, commit `MC-CONF-003` block, push to PR #30, then run PR workflow checks.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 192
+
+- checklist refs: `P3`, `O10`
+- past action:
+- Completed runtime secret reference endpoint implementation and audit wiring in gateway/protocol.
+- present action:
+- Closed post-green validation for `MC-CONF-003` and updated checklist coverage (including explicit hardcoded-audit triage item).
+- validation outcomes:
+- `cargo test -p carsinos-gateway runtime_secret_endpoints_upsert_rotate_and_delete -- --nocapture` passed.
+- `cargo test --workspace --locked` passed end-to-end (unit + process E2E + benchmark suites).
+- future action:
+- Commit/push `MC-CONF-003` changes to PR #30 and run PR status/review checks.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-protocol/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 193
+
+- checklist refs: `P3`, `P6`, `O10`
+- past action:
+- Completed runtime secret-reference APIs and integrated test coverage.
+- present action:
+- Closed MC-CONF post-green validation by hardening flaky scheduler process test and passing full security PR gate with `cargo-audit` enabled.
+- validation outcomes:
+- `cargo test -p carsinos-gateway --test e2e_process scheduler_executes_due_job_and_persists_history -- --nocapture` passed 5/5 stress reruns.
+- `cargo test --workspace --locked` passed.
+- `scripts/security_pr_gate.sh` passed end-to-end (fmt, clippy, tests-core, tests-workspace, hardcoded-value-guard, cargo-audit).
+- future action:
+- Commit/push this block to PR #30 and run PR open/review/status workflow.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-protocol/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/tests/e2e_process.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`

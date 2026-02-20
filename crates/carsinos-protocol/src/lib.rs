@@ -649,6 +649,28 @@ pub struct RollbackRuntimeConfigResponse {
     pub restored_from_updated_at: i64,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpsertRuntimeSecretRequest {
+    pub scope: String,
+    pub secret_value: String,
+    pub previous_secret_ref: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UpsertRuntimeSecretResponse {
+    pub secret_ref: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct DeleteRuntimeSecretRequest {
+    pub secret_ref: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DeleteRuntimeSecretResponse {
+    pub deleted: bool,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ChannelConfigResponse {
     pub discord: DiscordChannelConfig,

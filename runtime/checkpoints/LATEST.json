@@ -1,20 +1,25 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-19T23:55:21Z",
+  "captured_at": "2026-02-20T00:04:30Z",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
   "branch": "codex/chunk-pr30-config-wizard-hardcode-audit",
-  "head_short": "e44674e",
-  "step": "mc-conf-005-post-green",
-  "note": "Hardcoded-value CI guardrail and allowlist are implemented; PR gate is green with guard enabled.",
-  "next_cmd": "Commit checkpoint/doc polish updates and push to PR #30.",
+  "head_short": "6e436fc",
+  "step": "mc-conf-003-006-post-green",
+  "note": "Runtime secret endpoints are complete and the full MC-CONF regression+security gate suite is green after scheduler e2e hardening.",
+  "next_cmd": "Commit changes, push PR #30, then process PR review/status workflow.",
   "validations": [
-    "hardcoded guard script green.",
-    "security_pr_gate.sh green with hardcoded guard stage."
+    "cargo test -p carsinos-gateway --test e2e_process scheduler_executes_due_job_and_persists_history -- --nocapture passed repeatedly.",
+    "cargo test --workspace --locked passed.",
+    "scripts/security_pr_gate.sh passed with cargo-audit enabled."
   ],
   "status": {
     "staged": [],
     "modified": [
-      "docs/CLIDEX_HARDCODE_CONFIG_AUDIT_TASK.md",
+      "CHECKLIST.md",
+      "CHECKPOINT.md",
+      "crates/carsinos-gateway/src/main.rs",
+      "crates/carsinos-gateway/tests/e2e_process.rs",
+      "crates/carsinos-protocol/src/lib.rs",
       "runtime/checkpoints/LATEST.json",
       "runtime/checkpoints/LATEST.md"
     ],
@@ -24,22 +29,14 @@
   },
   "changed_files": {
     "working_tree": [
-      "docs/CLIDEX_HARDCODE_CONFIG_AUDIT_TASK.md",
+      "CHECKLIST.md",
+      "CHECKPOINT.md",
+      "crates/carsinos-gateway/src/main.rs",
+      "crates/carsinos-gateway/tests/e2e_process.rs",
+      "crates/carsinos-protocol/src/lib.rs",
       "runtime/checkpoints/LATEST.json",
       "runtime/checkpoints/LATEST.md"
     ],
     "staged": []
-  },
-  "recent_commits": [
-    "e44674e feat(security): add hardcoded-value guardrail to PR gate",
-    "7fb0e05 feat(config): add runtime rollback and audited mutation metadata",
-    "434b9ee feat(config): add runtime config contract and management endpoints",
-    "3bbea57 docs(security): add phase O threat/runbook artifacts and gate0 evidence workflow",
-    "8f8c6cb docs: checkpoint PR #30 open state"
-  ],
-  "checklist": [
-    "Run git status -sb and verify branch/head.",
-    "Open diff for changed files listed in checkpoint.",
-    "Resume from step + next_cmd, then write a new checkpoint after each major edit block."
-  ]
+  }
 }
