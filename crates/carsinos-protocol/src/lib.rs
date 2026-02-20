@@ -694,6 +694,33 @@ pub struct UpdateChannelConfigResponse {
     pub config: ChannelConfigResponse,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct ChannelRuntimeAdapterStatusResponse {
+    pub provider: String,
+    pub lifecycle_state: String,
+    pub healthy: bool,
+    pub detail: Option<String>,
+    pub last_error: Option<String>,
+    pub reconnect_attempts: u64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GetChannelRuntimeStatusResponse {
+    pub updated_at: i64,
+    pub items: Vec<ChannelRuntimeAdapterStatusResponse>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ReconnectChannelRuntimeRequest {
+    pub provider: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ReconnectChannelRuntimeResponse {
+    pub status: ChannelRuntimeAdapterStatusResponse,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct IngestTelegramMessageRequest {
     pub chat_id: i64,

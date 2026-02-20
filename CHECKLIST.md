@@ -137,6 +137,8 @@ Execution checklist derived from `PLAN.md`. IDs are stable and must be used by `
 - [ ] `O1` `MC-SEC-001` Publish and approve threat-model package (STRIDE register, asset classification, trust-boundary map, risk owners). Draft published: `docs/security/THREAT_MODEL_PACKAGE.md` (pending owner signoff).
 - [ ] `O2` `MC-SEC-010` Publish human-usable incident runbooks (auth compromise, key leak, provider abuse, tool abuse, data exfil) with named ownership. Draft published: `docs/security/INCIDENT_RUNBOOKS.md` (pending owner assignment).
 - [x] `O3` Security Gate 0 evidence bundling/signoff workflow: produce machine-readable release evidence that gates unresolved critical/high findings and drill outcomes. Implemented via `scripts/security_gate0_evidence_bundle.sh` + `docs/security/SECURITY_GATE0_EVIDENCE_WORKFLOW.md` + `.github/workflows/security-gate0-evidence.yml`.
+- [x] `O11` `MC-CH-001` Add shared channel adapter lifecycle contract in `carsinos-core` to formalize `start/stop/reconnect/health` behavior for Telegram/Discord runtime adapters.
+- [x] `O12` `MC-CH-002` Add gateway channel runtime manager foundation with supervisor loop + status/reconnect endpoints (`GET /api/v1/channels/runtime/status`, `POST /api/v1/channels/runtime/reconnect`) and role/audit test coverage.
 - [ ] `O4` `MC-CH-010` Complete Telegram production connector path (real transport operation mode, delivery retry semantics, and production soak evidence).
 - [ ] `O5` `MC-CH-020` Complete Discord production connector path (real gateway event intake, outbound operational behavior, and production soak evidence).
 - [ ] `O6` Execute 7-day Telegram/Discord soak and publish resilience report (reconnect, retry, message integrity, approval round-trip).

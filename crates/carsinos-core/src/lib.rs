@@ -49,6 +49,48 @@ impl GatewayConfig {
     }
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ChannelAdapterLifecycleState {
+    Stopped,
+    Starting,
+    Running,
+    Degraded,
+    Reconnecting,
+}
+
+impl ChannelAdapterLifecycleState {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Stopped => "stopped",
+            Self::Starting => "starting",
+            Self::Running => "running",
+            Self::Degraded => "degraded",
+            Self::Reconnecting => "reconnecting",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ChannelAdapterHealth {
+    pub healthy: bool,
+    #[serde(default)]
+    pub detail: Option<String>,
+}
+
+pub trait ChannelAdapterLifecycle: Send + Sync {
+    fn provider(&self) -> &'static str;
+    fn start(&self) -> Result<()>;
+    fn stop(&self) -> Result<()>;
+    fn health(&self) -> ChannelAdapterHealth;
+
+    fn reconnect(&self) -> Result<()> {
+        self.stop()?;
+        self.start()?;
+        Ok(())
+    }
+}
+
 fn default_state_dir() -> Result<PathBuf> {
     let dirs = ProjectDirs::from("com", "carsinos", "carsinos")
         .context("failed to resolve app data directory")?;

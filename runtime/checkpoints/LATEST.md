@@ -1,10 +1,12 @@
 # LATEST Checkpoint
 
-- step: pr34-open-live
-- note: PR #34 is open for P2 wizard changes; checks and CodeRabbit are in progress.
-- branch: codex/chunk-pr34-mc-runtime-wizard
-- head: 0c176d0
-- next_cmd: Monitor PR #34 checks/reviews, apply required fixes, merge, then run post-merge checkpoint.
+- step: ch-foundation-post-green
+- note: Channel runtime foundation for MC-CH-001/002 is implemented and validated.
+- branch: codex/chunk-pr35-channel-runtime-foundation
+- head: 931c08e
+- next_cmd: Commit/push O11/O12 changes and open PR chunk.
 - validations:
-- `gh pr view 34 --repo ProfessahX/CarsinOS --json state,mergeStateStatus,statusCheckRollup,reviewDecision,url,headRefOid,headRefName` confirms PR `OPEN`.
-- `Security PR Gate` in progress and `CodeRabbit` pending at checkpoint capture time.
+- `cargo fmt --all --check` passed.
+- `cargo clippy -p carsinos-gateway -p carsinos-core -p carsinos-protocol --all-targets -- -D warnings` passed.
+- `cargo test --workspace --locked` passed.
+- `cargo build --workspace --locked` passed.
