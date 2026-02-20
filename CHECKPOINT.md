@@ -3990,3 +3990,90 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 207
+
+- checklist refs: PR workflow (`PR #34` post-merge)
+- past action:
+- PR #34 merged to `main` with `MC-CONF-002` wizard implementation.
+- present action:
+- Synced local `main` to merge commit and preparing the next non-blocked phase chunk.
+- validation outcomes:
+- `gh pr view 34 --repo ProfessahX/CarsinOS --json state,mergedAt,mergeCommit,url` confirms `MERGED` at `2026-02-20T00:40:56Z`, merge commit `931c08e`.
+- `git pull --ff-only origin main` completed; local `main` fast-forwarded to `931c08e`.
+- future action:
+- Start next implementation branch from `main`, continue checklist items that do not require owner inputs.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 208
+
+- checklist refs: `O4`, `O5` (dependency track `MC-CH-001`, `MC-CH-002`)
+- past action:
+- Completed PR #34 merge flow and synchronized local `main`.
+- present action:
+- Started branch `codex/chunk-pr35-channel-runtime-foundation` to implement channel runtime foundations required before Telegram/Discord production connector closure.
+- validation outcomes:
+- Context checkpoint snapshot recorded with step `ch-foundation-phase-start`.
+- Active target: adapter lifecycle contract + runtime manager status surface + tests.
+- future action:
+- Implement runtime manager foundation, run `fmt/clippy/test/build`, then open next PR chunk.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 209
+
+- checklist refs: `O11`, `O12`
+- past action:
+- Implemented channel runtime foundation for `MC-CH-001/002`:
+- shared channel adapter lifecycle contract in `carsinos-core`,
+- runtime manager + supervisor loop in `carsinos-gateway`,
+- runtime status/reconnect APIs with authz/audit enforcement,
+- coverage tests for status/reconnect behavior and role mismatch enforcement.
+- present action:
+- Completed full validation gate and updated checklist progression for channel runtime foundation.
+- validation outcomes:
+- `cargo fmt --all --check` passed.
+- `cargo clippy -p carsinos-gateway -p carsinos-core -p carsinos-protocol --all-targets -- -D warnings` passed.
+- `cargo test --workspace --locked` passed.
+- `cargo build --workspace --locked` passed.
+- future action:
+- Open PR chunk for `O11/O12`, then proceed to `O4/O5` production connector transport implementation.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-core/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-protocol/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 210
+
+- checklist refs: PR workflow (`PR #35` open)
+- past action:
+- Pushed `O11/O12` channel-runtime foundation branch and opened PR #35.
+- present action:
+- Recording PR-open status while CI + CodeRabbit process the new chunk.
+- validation outcomes:
+- `gh pr view 35 --repo ProfessahX/CarsinOS --json state,mergeStateStatus,statusCheckRollup,reviewDecision,url,headRefOid,headRefName`:
+- state `OPEN`, head `c1e8339`, mergeState `UNSTABLE`.
+- check status: `Security PR Gate` queued.
+- future action:
+- Monitor checks/review, address findings if any, merge PR, then continue into `O4/O5` transport implementation details.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`

@@ -12,18 +12,20 @@ use base64::Engine;
 use carsinos_channels_discord as discord_channel;
 use carsinos_channels_telegram as telegram_channel;
 use carsinos_core::{
-    GatewayConfig, HookBus, HookEvent, HookPoint, HookRegistration,
-    PluginCapability as CorePluginCapability, PluginManifest as CorePluginManifest, PluginRegistry,
-    SkillDocument as CoreSkillDocument, SkillRegistry, TokenSource, PLUGIN_API_VERSION_V1,
+    ChannelAdapterHealth, ChannelAdapterLifecycle, ChannelAdapterLifecycleState, GatewayConfig,
+    HookBus, HookEvent, HookPoint, HookRegistration, PluginCapability as CorePluginCapability,
+    PluginManifest as CorePluginManifest, PluginRegistry, SkillDocument as CoreSkillDocument,
+    SkillRegistry, TokenSource, PLUGIN_API_VERSION_V1,
 };
 use carsinos_protocol::{
     AnthropicSetupTokenIngestRequest, AnthropicSetupTokenIngestResponse, ApprovalResponse,
-    AuthProfileResponse, CreateApprovalRequest, CreateApprovalResponse, CreateAuthProfileRequest,
-    CreateAuthProfileResponse, CreateJobRequest, CreateJobResponse, CreateMessageRequest,
-    CreateMessageResponse, CreateNoteRequest, CreateNoteResponse, CreateRunRequest,
-    CreateRunResponse, CreateSessionRequest, CreateSessionResponse, DeleteRuntimeSecretRequest,
-    DeleteRuntimeSecretResponse, DiscordChannelConfig, GetAgentProviderProfileOrderResponse,
-    GetChannelConfigResponse, GetNoteResponse, GetRuntimeConfigResponse, HealthResponse,
+    AuthProfileResponse, ChannelRuntimeAdapterStatusResponse, CreateApprovalRequest,
+    CreateApprovalResponse, CreateAuthProfileRequest, CreateAuthProfileResponse, CreateJobRequest,
+    CreateJobResponse, CreateMessageRequest, CreateMessageResponse, CreateNoteRequest,
+    CreateNoteResponse, CreateRunRequest, CreateRunResponse, CreateSessionRequest,
+    CreateSessionResponse, DeleteRuntimeSecretRequest, DeleteRuntimeSecretResponse,
+    DiscordChannelConfig, GetAgentProviderProfileOrderResponse, GetChannelConfigResponse,
+    GetChannelRuntimeStatusResponse, GetNoteResponse, GetRuntimeConfigResponse, HealthResponse,
     IngestChannelMessageResponse, IngestDiscordMessageRequest, IngestTelegramMessageRequest,
     JobResponse, JobRunResponse, JobStatusResponse, ListApprovalsQuery, ListApprovalsResponse,
     ListAuthProfilesQuery, ListAuthProfilesResponse, ListJobHistoryQuery, ListJobHistoryResponse,
@@ -33,18 +35,19 @@ use carsinos_protocol::{
     ListSkillsResponse, MessageResponse, MetricsResponse, NoteResponse, OpenAiOauthFinishRequest,
     OpenAiOauthFinishResponse, OpenAiOauthStartRequest, OpenAiOauthStartResponse,
     PluginCapabilityResponse, PluginManifestResponse, ProviderCapabilityResponse,
-    RemoveJobResponse, ResolveApprovalRequest, ResolveApprovalResponse,
-    ResolveChannelApprovalActionRequest, RollbackRuntimeConfigRequest,
-    RollbackRuntimeConfigResponse, RunJobNowResponse, RunResponse, RuntimeChannelsConfig,
-    RuntimeConfigResponse, RuntimeDiscordDeploymentConfig, RuntimeGlobalConfig,
-    RuntimeProviderPolicyConfig, RuntimeSecurityOpsConfig, RuntimeTelegramDeploymentConfig,
-    SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult, SessionDetailResponse,
-    SessionSummary, SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse,
-    SkillResponse, StatusResponse, TelegramChannelConfig, UpdateAuthProfileStateRequest,
-    UpdateAuthProfileStateResponse, UpdateChannelConfigRequest, UpdateChannelConfigResponse,
-    UpdateJobRequest, UpdateJobResponse, UpdateNoteRequest, UpdateNoteResponse,
-    UpdateRuntimeConfigRequest, UpdateRuntimeConfigResponse, UpdateSkillStateRequest,
-    UpdateSkillStateResponse, UpsertRuntimeSecretRequest, UpsertRuntimeSecretResponse,
+    ReconnectChannelRuntimeRequest, ReconnectChannelRuntimeResponse, RemoveJobResponse,
+    ResolveApprovalRequest, ResolveApprovalResponse, ResolveChannelApprovalActionRequest,
+    RollbackRuntimeConfigRequest, RollbackRuntimeConfigResponse, RunJobNowResponse, RunResponse,
+    RuntimeChannelsConfig, RuntimeConfigResponse, RuntimeDiscordDeploymentConfig,
+    RuntimeGlobalConfig, RuntimeProviderPolicyConfig, RuntimeSecurityOpsConfig,
+    RuntimeTelegramDeploymentConfig, SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult,
+    SessionDetailResponse, SessionSummary, SetAgentProviderProfileOrderRequest,
+    SetAgentProviderProfileOrderResponse, SkillResponse, StatusResponse, TelegramChannelConfig,
+    UpdateAuthProfileStateRequest, UpdateAuthProfileStateResponse, UpdateChannelConfigRequest,
+    UpdateChannelConfigResponse, UpdateJobRequest, UpdateJobResponse, UpdateNoteRequest,
+    UpdateNoteResponse, UpdateRuntimeConfigRequest, UpdateRuntimeConfigResponse,
+    UpdateSkillStateRequest, UpdateSkillStateResponse, UpsertRuntimeSecretRequest,
+    UpsertRuntimeSecretResponse,
 };
 use carsinos_providers::{
     parse_provider_error_class as parse_provider_error_class_normalized,
@@ -97,6 +100,7 @@ struct AppState {
     tool_registry: Arc<ToolRegistry>,
     tool_concurrency: Arc<Semaphore>,
     channel_tool_allowed_providers: Arc<HashSet<String>>,
+    channel_runtime: Arc<ChannelRuntimeManager>,
     tool_runner: LocalToolRunner,
     secret_store: SecretStore,
     oauth_sessions: Arc<RwLock<HashMap<String, PendingOpenAiOauthSession>>>,
@@ -113,6 +117,528 @@ struct AppState {
     started_instant: Instant,
     db_path: Arc<String>,
     attachments_path: Arc<String>,
+}
+
+#[derive(Debug, Clone)]
+struct ChannelRuntimeStatusRecord {
+    provider: String,
+    lifecycle_state: ChannelAdapterLifecycleState,
+    healthy: bool,
+    detail: Option<String>,
+    last_error: Option<String>,
+    reconnect_attempts: u64,
+    updated_at: i64,
+}
+
+impl ChannelRuntimeStatusRecord {
+    fn to_response(&self) -> ChannelRuntimeAdapterStatusResponse {
+        ChannelRuntimeAdapterStatusResponse {
+            provider: self.provider.clone(),
+            lifecycle_state: self.lifecycle_state.as_str().to_string(),
+            healthy: self.healthy,
+            detail: self.detail.clone(),
+            last_error: self.last_error.clone(),
+            reconnect_attempts: self.reconnect_attempts,
+            updated_at: self.updated_at,
+        }
+    }
+}
+
+#[derive(Clone)]
+struct ChannelRuntimeManager {
+    adapters: Arc<HashMap<String, Arc<dyn ChannelAdapterLifecycle>>>,
+    statuses: Arc<StdRwLock<HashMap<String, ChannelRuntimeStatusRecord>>>,
+}
+
+impl ChannelRuntimeManager {
+    fn default_with_storage(storage: Storage, secret_store: SecretStore) -> Self {
+        let adapters: Vec<Arc<dyn ChannelAdapterLifecycle>> = vec![
+            Arc::new(TelegramRuntimeAdapter::new(
+                storage.clone(),
+                secret_store.clone(),
+            )),
+            Arc::new(DiscordRuntimeAdapter::new(storage, secret_store)),
+        ];
+        Self::with_adapters(adapters)
+    }
+
+    fn with_adapters(adapters: Vec<Arc<dyn ChannelAdapterLifecycle>>) -> Self {
+        let now = Utc::now().timestamp_millis();
+        let mut adapter_map = HashMap::new();
+        let mut status_map = HashMap::new();
+        for adapter in adapters {
+            let provider = adapter.provider().to_string();
+            adapter_map.insert(provider.clone(), adapter);
+            status_map.insert(
+                provider.clone(),
+                ChannelRuntimeStatusRecord {
+                    provider,
+                    lifecycle_state: ChannelAdapterLifecycleState::Stopped,
+                    healthy: false,
+                    detail: Some("adapter not started".to_string()),
+                    last_error: None,
+                    reconnect_attempts: 0,
+                    updated_at: now,
+                },
+            );
+        }
+        Self {
+            adapters: Arc::new(adapter_map),
+            statuses: Arc::new(StdRwLock::new(status_map)),
+        }
+    }
+
+    fn start_all(&self) {
+        for provider in self.adapters.keys() {
+            let _ = self.start_provider(provider);
+        }
+    }
+
+    fn start_provider(&self, provider: &str) -> AnyResult<()> {
+        let provider_id = provider.trim().to_ascii_lowercase();
+        let adapter = self
+            .adapters
+            .get(&provider_id)
+            .ok_or_else(|| anyhow::anyhow!("unknown channel adapter provider: {provider_id}"))?;
+        self.update_status(
+            &provider_id,
+            ChannelAdapterLifecycleState::Starting,
+            ChannelAdapterHealth {
+                healthy: false,
+                detail: Some("starting adapter".to_string()),
+            },
+            None,
+            false,
+        );
+        if let Err(err) = adapter.start() {
+            let message = err.to_string();
+            self.update_status(
+                &provider_id,
+                ChannelAdapterLifecycleState::Degraded,
+                ChannelAdapterHealth {
+                    healthy: false,
+                    detail: Some(message.clone()),
+                },
+                Some(message),
+                false,
+            );
+            return Err(err);
+        }
+        let health = adapter.health();
+        let lifecycle_state = if health.healthy {
+            ChannelAdapterLifecycleState::Running
+        } else {
+            ChannelAdapterLifecycleState::Degraded
+        };
+        let last_error = if health.healthy {
+            None
+        } else {
+            health.detail.clone()
+        };
+        self.update_status(&provider_id, lifecycle_state, health, last_error, false);
+        Ok(())
+    }
+
+    fn reconcile(&self) {
+        for (provider, adapter) in self.adapters.iter() {
+            let health = adapter.health();
+            if health.healthy {
+                self.update_status(
+                    provider,
+                    ChannelAdapterLifecycleState::Running,
+                    health,
+                    None,
+                    false,
+                );
+                continue;
+            }
+
+            self.update_status(
+                provider,
+                ChannelAdapterLifecycleState::Reconnecting,
+                ChannelAdapterHealth {
+                    healthy: false,
+                    detail: Some("health check failed, attempting reconnect".to_string()),
+                },
+                health.detail.clone(),
+                true,
+            );
+
+            match adapter.reconnect() {
+                Ok(()) => {
+                    let post_health = adapter.health();
+                    if post_health.healthy {
+                        self.update_status(
+                            provider,
+                            ChannelAdapterLifecycleState::Running,
+                            post_health,
+                            None,
+                            false,
+                        );
+                    } else {
+                        self.update_status(
+                            provider,
+                            ChannelAdapterLifecycleState::Degraded,
+                            post_health.clone(),
+                            post_health.detail.clone(),
+                            false,
+                        );
+                    }
+                }
+                Err(err) => {
+                    let message = err.to_string();
+                    self.update_status(
+                        provider,
+                        ChannelAdapterLifecycleState::Degraded,
+                        ChannelAdapterHealth {
+                            healthy: false,
+                            detail: Some(message.clone()),
+                        },
+                        Some(message),
+                        false,
+                    );
+                }
+            }
+        }
+    }
+
+    fn reconnect_provider(&self, provider: &str) -> AnyResult<ChannelRuntimeStatusRecord> {
+        let provider_id = provider.trim().to_ascii_lowercase();
+        let adapter = self
+            .adapters
+            .get(&provider_id)
+            .ok_or_else(|| anyhow::anyhow!("unknown channel adapter provider: {provider_id}"))?;
+        self.update_status(
+            &provider_id,
+            ChannelAdapterLifecycleState::Reconnecting,
+            ChannelAdapterHealth {
+                healthy: false,
+                detail: Some("operator-triggered reconnect".to_string()),
+            },
+            None,
+            true,
+        );
+        if let Err(err) = adapter.reconnect() {
+            let message = err.to_string();
+            self.update_status(
+                &provider_id,
+                ChannelAdapterLifecycleState::Degraded,
+                ChannelAdapterHealth {
+                    healthy: false,
+                    detail: Some(message.clone()),
+                },
+                Some(message),
+                false,
+            );
+            return Err(err);
+        }
+        let health = adapter.health();
+        let lifecycle_state = if health.healthy {
+            ChannelAdapterLifecycleState::Running
+        } else {
+            ChannelAdapterLifecycleState::Degraded
+        };
+        let last_error = if health.healthy {
+            None
+        } else {
+            health.detail.clone()
+        };
+        self.update_status(&provider_id, lifecycle_state, health, last_error, false);
+        self.status(provider)
+            .ok_or_else(|| anyhow::anyhow!("channel runtime status missing for provider"))
+    }
+
+    fn status(&self, provider: &str) -> Option<ChannelRuntimeStatusRecord> {
+        let provider_id = provider.trim().to_ascii_lowercase();
+        let guard = self.statuses.read().ok()?;
+        guard.get(&provider_id).cloned()
+    }
+
+    fn statuses(&self) -> Vec<ChannelRuntimeStatusRecord> {
+        let mut values = self
+            .statuses
+            .read()
+            .map(|guard| guard.values().cloned().collect::<Vec<_>>())
+            .unwrap_or_default();
+        values.sort_by(|left, right| left.provider.cmp(&right.provider));
+        values
+    }
+
+    fn updated_at(&self) -> i64 {
+        self.statuses()
+            .iter()
+            .map(|item| item.updated_at)
+            .max()
+            .unwrap_or(0)
+    }
+
+    fn update_status(
+        &self,
+        provider: &str,
+        lifecycle_state: ChannelAdapterLifecycleState,
+        health: ChannelAdapterHealth,
+        last_error: Option<String>,
+        increment_reconnect: bool,
+    ) {
+        let mut guard = match self.statuses.write() {
+            Ok(guard) => guard,
+            Err(_) => return,
+        };
+        let now = Utc::now().timestamp_millis();
+        let entry = guard
+            .entry(provider.to_string())
+            .or_insert(ChannelRuntimeStatusRecord {
+                provider: provider.to_string(),
+                lifecycle_state,
+                healthy: health.healthy,
+                detail: health.detail.clone(),
+                last_error: last_error.clone(),
+                reconnect_attempts: 0,
+                updated_at: now,
+            });
+        if increment_reconnect {
+            entry.reconnect_attempts = entry.reconnect_attempts.saturating_add(1);
+        }
+        entry.lifecycle_state = lifecycle_state;
+        entry.healthy = health.healthy;
+        entry.detail = health.detail;
+        entry.last_error = last_error;
+        entry.updated_at = now;
+    }
+}
+
+#[derive(Clone)]
+struct TelegramRuntimeAdapter {
+    storage: Storage,
+    secret_store: SecretStore,
+    started: Arc<StdRwLock<bool>>,
+}
+
+impl TelegramRuntimeAdapter {
+    fn new(storage: Storage, secret_store: SecretStore) -> Self {
+        Self {
+            storage,
+            secret_store,
+            started: Arc::new(StdRwLock::new(false)),
+        }
+    }
+}
+
+impl ChannelAdapterLifecycle for TelegramRuntimeAdapter {
+    fn provider(&self) -> &'static str {
+        "telegram"
+    }
+
+    fn start(&self) -> anyhow::Result<()> {
+        let mut guard = self
+            .started
+            .write()
+            .map_err(|_| anyhow::anyhow!("telegram adapter lock poisoned"))?;
+        *guard = true;
+        Ok(())
+    }
+
+    fn stop(&self) -> anyhow::Result<()> {
+        let mut guard = self
+            .started
+            .write()
+            .map_err(|_| anyhow::anyhow!("telegram adapter lock poisoned"))?;
+        *guard = false;
+        Ok(())
+    }
+
+    fn health(&self) -> ChannelAdapterHealth {
+        let started = self.started.read().map(|guard| *guard).unwrap_or(false);
+        if !started {
+            return ChannelAdapterHealth {
+                healthy: false,
+                detail: Some("telegram adapter is stopped".to_string()),
+            };
+        }
+
+        let config = match load_runtime_config_from_storage(&self.storage) {
+            Ok(config) => config,
+            Err(err) => {
+                return ChannelAdapterHealth {
+                    healthy: false,
+                    detail: Some(format!("failed loading runtime config: {}", err)),
+                };
+            }
+        };
+        let secret_ref = config
+            .channels
+            .telegram
+            .bot_token_secret_ref
+            .unwrap_or_default();
+        if secret_ref.trim().is_empty() {
+            return ChannelAdapterHealth {
+                healthy: false,
+                detail: Some(
+                    "channels.telegram.bot_token_secret_ref is missing in runtime config"
+                        .to_string(),
+                ),
+            };
+        }
+        let secret_key = secret_ref
+            .trim_start_matches("secret://")
+            .trim()
+            .to_string();
+        if secret_key.is_empty() {
+            return ChannelAdapterHealth {
+                healthy: false,
+                detail: Some("invalid telegram secret_ref".to_string()),
+            };
+        }
+        match self.secret_store.get_raw(&secret_key) {
+            Ok(Some(_)) => {}
+            Ok(None) => {
+                return ChannelAdapterHealth {
+                    healthy: false,
+                    detail: Some(format!(
+                        "telegram secret value not found for configured ref {}",
+                        secret_ref
+                    )),
+                };
+            }
+            Err(err) => {
+                return ChannelAdapterHealth {
+                    healthy: false,
+                    detail: Some(format!("failed reading telegram secret: {}", err)),
+                };
+            }
+        }
+
+        let webhook_mode = config
+            .channels
+            .telegram
+            .webhook_mode
+            .trim()
+            .to_ascii_lowercase();
+        if webhook_mode == "webhook" {
+            let webhook_url = config
+                .channels
+                .telegram
+                .webhook_url
+                .unwrap_or_default()
+                .trim()
+                .to_string();
+            if webhook_url.is_empty() {
+                return ChannelAdapterHealth {
+                    healthy: false,
+                    detail: Some(
+                        "channels.telegram.webhook_url is required when webhook_mode=webhook"
+                            .to_string(),
+                    ),
+                };
+            }
+        }
+        ChannelAdapterHealth {
+            healthy: true,
+            detail: Some(format!("telegram adapter healthy ({})", webhook_mode)),
+        }
+    }
+}
+
+#[derive(Clone)]
+struct DiscordRuntimeAdapter {
+    storage: Storage,
+    secret_store: SecretStore,
+    started: Arc<StdRwLock<bool>>,
+}
+
+impl DiscordRuntimeAdapter {
+    fn new(storage: Storage, secret_store: SecretStore) -> Self {
+        Self {
+            storage,
+            secret_store,
+            started: Arc::new(StdRwLock::new(false)),
+        }
+    }
+}
+
+impl ChannelAdapterLifecycle for DiscordRuntimeAdapter {
+    fn provider(&self) -> &'static str {
+        "discord"
+    }
+
+    fn start(&self) -> anyhow::Result<()> {
+        let mut guard = self
+            .started
+            .write()
+            .map_err(|_| anyhow::anyhow!("discord adapter lock poisoned"))?;
+        *guard = true;
+        Ok(())
+    }
+
+    fn stop(&self) -> anyhow::Result<()> {
+        let mut guard = self
+            .started
+            .write()
+            .map_err(|_| anyhow::anyhow!("discord adapter lock poisoned"))?;
+        *guard = false;
+        Ok(())
+    }
+
+    fn health(&self) -> ChannelAdapterHealth {
+        let started = self.started.read().map(|guard| *guard).unwrap_or(false);
+        if !started {
+            return ChannelAdapterHealth {
+                healthy: false,
+                detail: Some("discord adapter is stopped".to_string()),
+            };
+        }
+
+        let config = match load_runtime_config_from_storage(&self.storage) {
+            Ok(config) => config,
+            Err(err) => {
+                return ChannelAdapterHealth {
+                    healthy: false,
+                    detail: Some(format!("failed loading runtime config: {}", err)),
+                };
+            }
+        };
+        let secret_ref = config
+            .channels
+            .discord
+            .bot_token_secret_ref
+            .unwrap_or_default();
+        if secret_ref.trim().is_empty() {
+            return ChannelAdapterHealth {
+                healthy: false,
+                detail: Some(
+                    "channels.discord.bot_token_secret_ref is missing in runtime config"
+                        .to_string(),
+                ),
+            };
+        }
+        let secret_key = secret_ref
+            .trim_start_matches("secret://")
+            .trim()
+            .to_string();
+        if secret_key.is_empty() {
+            return ChannelAdapterHealth {
+                healthy: false,
+                detail: Some("invalid discord secret_ref".to_string()),
+            };
+        }
+        match self.secret_store.get_raw(&secret_key) {
+            Ok(Some(_)) => ChannelAdapterHealth {
+                healthy: true,
+                detail: Some("discord adapter healthy".to_string()),
+            },
+            Ok(None) => ChannelAdapterHealth {
+                healthy: false,
+                detail: Some(format!(
+                    "discord secret value not found for configured ref {}",
+                    secret_ref
+                )),
+            },
+            Err(err) => ChannelAdapterHealth {
+                healthy: false,
+                detail: Some(format!("failed reading discord secret: {}", err)),
+            },
+        }
+    }
 }
 
 struct LogGuards {
@@ -1368,6 +1894,10 @@ async fn main() -> AnyResult<()> {
     let channel_tool_allowed_providers = Arc::new(load_channel_tool_allowed_providers_from_env());
     let tool_runner = LocalToolRunner::default();
     let secret_store = SecretStore::from_env();
+    let channel_runtime = Arc::new(ChannelRuntimeManager::default_with_storage(
+        storage.clone(),
+        secret_store.clone(),
+    ));
     let oauth_sessions = Arc::new(RwLock::new(HashMap::new()));
     let numquam_client = NumquamClient::from_env()?;
     let (event_tx, _) = broadcast::channel(256);
@@ -1410,6 +1940,7 @@ async fn main() -> AnyResult<()> {
         tool_registry: tool_registry.clone(),
         tool_concurrency: tool_concurrency.clone(),
         channel_tool_allowed_providers: channel_tool_allowed_providers.clone(),
+        channel_runtime: channel_runtime.clone(),
         tool_runner,
         secret_store: secret_store.clone(),
         oauth_sessions,
@@ -1428,10 +1959,15 @@ async fn main() -> AnyResult<()> {
         attachments_path: Arc::new(paths.attachments_dir.display().to_string()),
     };
     record_extension_hook_policy_denials(&state, &hook_policy_denials);
+    state.channel_runtime.start_all();
 
     let scheduler_state = state.clone();
     tokio::spawn(async move {
         scheduler_loop(scheduler_state).await;
+    });
+    let channel_runtime_state = state.channel_runtime.clone();
+    tokio::spawn(async move {
+        channel_runtime_supervisor_loop(channel_runtime_state).await;
     });
 
     let app = build_app(state);
@@ -2372,6 +2908,14 @@ fn build_app(state: AppState) -> Router {
         .route(
             "/api/v1/channels/discord/inbound",
             post(ingest_discord_channel_message),
+        )
+        .route(
+            "/api/v1/channels/runtime/status",
+            get(get_channel_runtime_status),
+        )
+        .route(
+            "/api/v1/channels/runtime/reconnect",
+            post(reconnect_channel_runtime),
         )
         .route(
             "/api/v1/channels/approvals/resolve",
@@ -3942,6 +4486,61 @@ async fn update_channel_config(
     Ok(Json(UpdateChannelConfigResponse { config }))
 }
 
+async fn get_channel_runtime_status(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
+    let items = state
+        .channel_runtime
+        .statuses()
+        .into_iter()
+        .map(|item| item.to_response())
+        .collect::<Vec<_>>();
+    Ok(Json(GetChannelRuntimeStatusResponse {
+        updated_at: state.channel_runtime.updated_at(),
+        items,
+    }))
+}
+
+async fn reconnect_channel_runtime(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<ReconnectChannelRuntimeRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN],
+        "channel.runtime.reconnect",
+        "channels.runtime",
+    )?;
+    let provider = request.provider.trim().to_ascii_lowercase();
+    if provider.is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "provider must not be empty",
+        ));
+    }
+    let status = state
+        .channel_runtime
+        .reconnect_provider(&provider)
+        .map_err(|err| {
+            let message = err.to_string();
+            if message.contains("unknown channel adapter provider") {
+                api_error(StatusCode::BAD_REQUEST, &message)
+            } else {
+                internal_err_with_error("channel runtime reconnect failed", err)
+            }
+        })?;
+    Ok(Json(ReconnectChannelRuntimeResponse {
+        status: status.to_response(),
+    }))
+}
+
 async fn get_runtime_config(
     headers: HeaderMap,
     State(state): State<AppState>,
@@ -4047,6 +4646,7 @@ async fn update_runtime_config(
             "new_hash": config_hash
         })),
     );
+    state.channel_runtime.reconcile();
 
     Ok(Json(UpdateRuntimeConfigResponse { config }))
 }
@@ -4139,6 +4739,7 @@ async fn rollback_runtime_config(
             "reason": reason
         })),
     );
+    state.channel_runtime.reconcile();
 
     Ok(Json(RollbackRuntimeConfigResponse {
         config: rollback_config,
@@ -4214,6 +4815,7 @@ async fn upsert_runtime_secret(
             "previous_secret_deleted": previous_secret_deleted
         })),
     );
+    state.channel_runtime.reconcile();
 
     Ok(Json(UpsertRuntimeSecretResponse { secret_ref }))
 }
@@ -4257,6 +4859,7 @@ async fn delete_runtime_secret(
             "secret_store_mode": state.secret_store.mode_name()
         })),
     );
+    state.channel_runtime.reconcile();
 
     Ok(Json(DeleteRuntimeSecretResponse { deleted: true }))
 }
@@ -7353,6 +7956,14 @@ fn new_numquam_request_id() -> String {
     format!("req_{}", uuid::Uuid::new_v4().simple())
 }
 
+async fn channel_runtime_supervisor_loop(manager: Arc<ChannelRuntimeManager>) {
+    info!("channel runtime supervisor loop started");
+    loop {
+        manager.reconcile();
+        sleep(Duration::from_secs(10)).await;
+    }
+}
+
 async fn scheduler_loop(state: AppState) {
     let worker_id = format!("gateway-worker-{}", std::process::id());
     info!(worker_id = %worker_id, "scheduler loop started");
@@ -8281,9 +8892,9 @@ fn normalize_runtime_config(mut config: RuntimeConfigResponse) -> RuntimeConfigR
     config
 }
 
-fn load_runtime_config(state: &AppState) -> AnyResult<RuntimeConfigResponse> {
+fn load_runtime_config_from_storage(storage: &Storage) -> AnyResult<RuntimeConfigResponse> {
     let mut config =
-        if let Some((json, updated_at)) = state.storage.get_app_kv_json(APP_KV_RUNTIME_CONFIG)? {
+        if let Some((json, updated_at)) = storage.get_app_kv_json(APP_KV_RUNTIME_CONFIG)? {
             let mut stored: RuntimeConfigResponse = serde_json::from_str(&json)
                 .with_context(|| "failed to deserialize runtime config from storage")?;
             stored.updated_at = updated_at;
@@ -8293,6 +8904,10 @@ fn load_runtime_config(state: &AppState) -> AnyResult<RuntimeConfigResponse> {
         };
     config = normalize_runtime_config(config);
     Ok(config)
+}
+
+fn load_runtime_config(state: &AppState) -> AnyResult<RuntimeConfigResponse> {
+    load_runtime_config_from_storage(&state.storage)
 }
 
 fn validate_secret_ref(secret_ref: &Option<String>, field_name: &str) -> AnyResult<()> {
@@ -10945,6 +11560,10 @@ mod tests {
         let mut channel_tool_allowed_providers = HashSet::new();
         channel_tool_allowed_providers.insert("telegram".to_string());
         channel_tool_allowed_providers.insert("discord".to_string());
+        let channel_runtime = Arc::new(ChannelRuntimeManager::default_with_storage(
+            storage.clone(),
+            secret_store.clone(),
+        ));
         let rate_limiter = RequestRateLimiter {
             config: rate_limit_config.unwrap_or(RequestRateLimitConfig {
                 enabled: false,
@@ -10970,6 +11589,7 @@ mod tests {
             tool_registry,
             tool_concurrency,
             channel_tool_allowed_providers: Arc::new(channel_tool_allowed_providers),
+            channel_runtime,
             tool_runner: LocalToolRunner::default(),
             secret_store: secret_store.clone(),
             oauth_sessions: Arc::new(RwLock::new(HashMap::new())),
@@ -10987,6 +11607,7 @@ mod tests {
             db_path: Arc::new(paths.db_path.display().to_string()),
             attachments_path: Arc::new(paths.attachments_dir.display().to_string()),
         };
+        state.channel_runtime.start_all();
         record_extension_hook_policy_denials(&state, &hook_policy_denials);
 
         TestContext {
@@ -12101,6 +12722,24 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             "AUTH_ROLE_MISMATCH"
         );
 
+        let forbidden_runtime_reconnect = ctx
+            .app
+            .clone()
+            .oneshot(auth_request_with_token(
+                "POST",
+                "/api/v1/channels/runtime/reconnect",
+                Body::from(r#"{"provider":"telegram"}"#),
+                &readonly_token,
+            ))
+            .await
+            .expect("readonly runtime reconnect response");
+        assert_eq!(forbidden_runtime_reconnect.status(), StatusCode::FORBIDDEN);
+        let forbidden_runtime_reconnect_json = parse_json(forbidden_runtime_reconnect).await;
+        assert_eq!(
+            forbidden_runtime_reconnect_json["error_code"],
+            "AUTH_ROLE_MISMATCH"
+        );
+
         let audit_list_response = ctx
             .app
             .clone()
@@ -12126,6 +12765,9 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .any(|item| item["action"] == "job.create" && item["decision"] == "deny"));
         assert!(audit_items.iter().any(|item| {
             item["action"] == "channel.config.update" && item["decision"] == "deny"
+        }));
+        assert!(audit_items.iter().any(|item| {
+            item["action"] == "channel.runtime.reconnect" && item["decision"] == "deny"
         }));
 
         let deny_filtered_response = ctx
@@ -15240,6 +15882,97 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .await
             .expect("runtime rollback request");
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn channel_runtime_status_and_reconnect_endpoints_work() {
+        let ctx = test_context();
+        ctx.secret_store
+            .set_raw("runtime.channels.telegram.bot_token", "telegram-token")
+            .expect("set telegram runtime secret");
+        ctx.secret_store
+            .set_raw("runtime.channels.discord.bot_token", "discord-token")
+            .expect("set discord runtime secret");
+
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    r#"{
+                        "channels": {
+                            "discord": {
+                                "bot_token_secret_ref": "secret://runtime.channels.discord.bot_token",
+                                "application_id": "app-1",
+                                "intents": ["guilds","guild_messages","direct_messages"],
+                                "staging_guild_ids": [],
+                                "staging_channel_ids": []
+                            },
+                            "telegram": {
+                                "bot_token_secret_ref": "secret://runtime.channels.telegram.bot_token",
+                                "webhook_mode": "long_poll",
+                                "webhook_url": null,
+                                "staging_chat_ids": []
+                            }
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("runtime update");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let status_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/channels/runtime/status",
+                Body::empty(),
+            ))
+            .await
+            .expect("runtime status response");
+        assert_eq!(status_response.status(), StatusCode::OK);
+        let status_json = parse_json(status_response).await;
+        let items = status_json["items"].as_array().expect("status items");
+        assert!(items.iter().any(|item| item["provider"] == "discord"));
+        assert!(items.iter().any(|item| item["provider"] == "telegram"));
+
+        let reconnect_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/runtime/reconnect",
+                Body::from(r#"{"provider":"telegram"}"#),
+            ))
+            .await
+            .expect("runtime reconnect response");
+        assert_eq!(reconnect_response.status(), StatusCode::OK);
+        let reconnect_json = parse_json(reconnect_response).await;
+        assert_eq!(reconnect_json["status"]["provider"], "telegram");
+        assert_eq!(reconnect_json["status"]["healthy"], true);
+        assert_eq!(reconnect_json["status"]["lifecycle_state"], "running");
+        assert!(
+            reconnect_json["status"]["reconnect_attempts"]
+                .as_u64()
+                .expect("reconnect_attempts")
+                >= 1
+        );
+
+        let unknown_reconnect_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/runtime/reconnect",
+                Body::from(r#"{"provider":"unknown"}"#),
+            ))
+            .await
+            .expect("unknown reconnect response");
+        assert_eq!(unknown_reconnect_response.status(), StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]
