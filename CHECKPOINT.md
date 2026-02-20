@@ -4370,3 +4370,55 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 224
+
+- checklist refs: `O6` soak evidence automation (non-blocked pre-owner-input chunk)
+- past action:
+- Merged PR #38 and synchronized `main` through post-merge checkpoint commit `e4b7e5b`.
+- present action:
+- Started branch `codex/chunk-pr39-channel-soak-harness` to implement soak runner/report automation for Telegram/Discord resilience evidence.
+- validation outcomes:
+- `git checkout -b codex/chunk-pr39-channel-soak-harness` succeeded from synchronized `main`.
+- Context checkpoint snapshot recorded with step `channel-soak-phase-start`.
+- future action:
+- Implement soak runner script + report documentation + validation tests, run full gate, then open PR #39.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 225
+
+- checklist refs: `O4`, `O5`, `O6` (channel production evidence wave)
+- past action:
+- Started branch `codex/chunk-pr39-channel-soak-harness` for non-blocked soak evidence automation work.
+- present action:
+- Completed soak harness implementation, tests, runbook docs, and checklist status updates; validation gates are green.
+- validation outcomes:
+- Added `scripts/channel_soak_runner.py` for Telegram/Discord soak execution and report generation.
+- Added unit tests `scripts/tests/test_channel_soak_runner.py`.
+- Added operator runbook `docs/channels/CHANNEL_SOAK_RUNBOOK.md`.
+- Updated `CHECKLIST.md`: `O4` and `O5` marked complete (functional transport + roundtrip behavior), `O6` kept open with harness-ready note pending live owner-input signoff.
+- `python3 -m unittest scripts/tests/test_channel_soak_runner.py` passed.
+- `python3 scripts/channel_soak_runner.py --dry-run --telegram-chat-id 1 --telegram-user-id 1 --iterations 1 --output-dir /tmp/carsinos-soak-smoke --label cli-smoke` passed.
+- `cargo fmt --all --check` passed.
+- `cargo clippy -p carsinos-gateway -p carsinos-channels-discord -p carsinos-channels-telegram -p carsinos-core -p carsinos-protocol --all-targets -- -D warnings` passed.
+- `cargo test --workspace --locked` passed.
+- `cargo build --workspace --locked` passed.
+- Context checkpoint snapshot recorded with step `channel-soak-post-green`.
+- future action:
+- Commit and push PR #39 chunk, open PR, checkpoint PR-open status, then monitor CI/CodeRabbit and merge.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/.gitignore`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/scripts/channel_soak_runner.py`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/scripts/tests/test_channel_soak_runner.py`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/channels/CHANNEL_SOAK_RUNBOOK.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`

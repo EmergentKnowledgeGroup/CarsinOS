@@ -1,31 +1,46 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-20T01:34:50.118505+00:00",
+  "captured_at": "2026-02-20T01:44:11.112462+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "main",
-  "head": "5a2bfc5e4e62f864215d6c7e3960804e64593325",
-  "head_short": "5a2bfc5",
-  "step": "channel-roundtrip-post-merge",
-  "note": "PR #38 merged; local main fast-forwarded to 5a2bfc5.",
-  "next_cmd": "Start next non-blocked chunk branch and continue implementation workflow.",
+  "branch": "codex/chunk-pr39-channel-soak-harness",
+  "head": "e4b7e5b5d5444f7567b8f3885c55f4f095c2f157",
+  "head_short": "e4b7e5b",
+  "step": "channel-soak-post-green",
+  "note": "Implemented channel soak runner + tests/runbook/checklist updates; full python and Rust validation gates passed.",
+  "next_cmd": "Review diff, commit PR #39 chunk, push branch, open PR, then checkpoint PR-open state.",
   "validations": [
-    "PR #38 merged at 2026-02-20T01:34:23Z with merge commit 5a2bfc5e4e62f864215d6c7e3960804e64593325",
-    "git pull --ff-only origin main fast-forwarded local main 1a28e98 -> 5a2bfc5",
-    "Context checkpoint snapshot recorded for channel-roundtrip-post-merge"
+    "Added scripts/channel_soak_runner.py",
+    "Added scripts/tests/test_channel_soak_runner.py",
+    "Added docs/channels/CHANNEL_SOAK_RUNBOOK.md",
+    "python3 -m unittest scripts/tests/test_channel_soak_runner.py passed",
+    "python3 scripts/channel_soak_runner.py --dry-run ... passed",
+    "cargo fmt --all --check passed",
+    "cargo clippy -p carsinos-gateway -p carsinos-channels-discord -p carsinos-channels-telegram -p carsinos-core -p carsinos-protocol --all-targets -- -D warnings passed",
+    "cargo test --workspace --locked passed",
+    "cargo build --workspace --locked passed",
+    "Context checkpoint snapshot recorded for channel-soak-post-green"
   ],
   "status": {
     "staged": [],
     "modified": [
+      ".gitignore",
+      "CHECKLIST.md",
       "CHECKPOINT.md",
       "runtime/checkpoints/LATEST.json",
       "runtime/checkpoints/LATEST.md"
     ],
-    "untracked": [],
+    "untracked": [
+      "docs/channels/",
+      "scripts/channel_soak_runner.py",
+      "scripts/tests/"
+    ],
     "conflicted": [],
     "dirty": true
   },
   "changed_files": {
     "working_tree": [
+      ".gitignore",
+      "CHECKLIST.md",
       "CHECKPOINT.md",
       "runtime/checkpoints/LATEST.json",
       "runtime/checkpoints/LATEST.md"
@@ -33,11 +48,11 @@
     "staged": []
   },
   "recent_commits": [
+    "e4b7e5b docs: checkpoint PR #38 post-merge status",
     "5a2bfc5 Merge pull request #38 from ProfessahX/codex/chunk-pr38-channel-roundtrip-replies",
     "cef18e1 docs: checkpoint PR #38 open status",
     "41ff666 feat(channels): roundtrip inbound replies via transport mode",
-    "1a28e98 Merge pull request #37 from ProfessahX/codex/chunk-pr37-discord-transport",
-    "09b5628 docs: checkpoint PR #37 open status"
+    "1a28e98 Merge pull request #37 from ProfessahX/codex/chunk-pr37-discord-transport"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
