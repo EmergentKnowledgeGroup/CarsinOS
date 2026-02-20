@@ -1,15 +1,15 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-20T00:16:25Z",
+  "captured_at": "2026-02-20T00:17:20Z",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/chunk-pr32-archive-retention-proof",
-  "head_short": "e70c9f5",
-  "step": "pr32-open",
-  "note": "PR #32 opened for archive-retention operational proof; checks are currently pending.",
-  "next_cmd": "Commit this PR-open checkpoint update, push, then monitor PR checks/reviews to merge.",
+  "branch": "main",
+  "head_short": "b3cff94",
+  "step": "pr32-post-merge",
+  "note": "PR #32 merged; archive-retention operational proof is now part of main baseline.",
+  "next_cmd": "Continue next non-blocked checklist phase or pause for owner-input blockers.",
   "validations": [
-    "gh pr view 32 --repo ProfessahX/CarsinOS --json state,mergeStateStatus,statusCheckRollup shows OPEN with in-progress checks.",
-    "PR #32 includes validation command list and artifact contracts."
+    "gh pr view 32 --repo ProfessahX/CarsinOS --json state,mergedAt,mergeCommit confirms merged.",
+    "git pull --ff-only origin main completed and local main matches origin/main."
   ],
   "status": {
     "staged": [],
