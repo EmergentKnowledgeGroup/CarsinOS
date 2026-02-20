@@ -223,11 +223,53 @@ Drive carsinOS to Mission Control production parity with strict sequencing, modu
   - Baseline hardcoded-value audit report exists and is actionable.
   - CI blocks new disallowed hardcoded runtime-value patterns.
 
+### MC-CONF-006 - Global Runtime Value Externalization (Audit Remediation Batch A)
+- Goal: Remove global runtime/deployment fallbacks from source defaults.
+- Build:
+  - Move Numquam base URL and integration principal identity defaults to runtime config/wizard fields.
+  - Move gateway bind and GUI gateway base URL defaults to config contract-backed values.
+  - Move OpenAI OAuth redirect URI fallback to runtime config-backed value.
+- Depends on: `MC-CONF-001`, `MC-CONF-002`, `MC-CONF-005`
+- Acceptance:
+  - No global deployment URL/identity/bind value is source-hardcoded in operational paths.
+  - Wizard/config can fully define these values without env-only dependency.
+
+### MC-CONF-007 - Provider Endpoint Externalization (Audit Remediation Batch B)
+- Goal: Eliminate provider local-endpoint hardcoded defaults from runtime execution paths.
+- Build:
+  - Move vLLM and Ollama fallback API base URLs to provider/runtime config fields.
+  - Ensure provider auth profile precedence remains deterministic after migration.
+- Depends on: `MC-CONF-001`, `MC-CONF-005`
+- Acceptance:
+  - Provider endpoint defaults are config-driven.
+  - Regression tests verify provider selection still works without source edits.
+
+### MC-CONF-008 - Security Policy Externalization (Audit Remediation Batch C)
+- Goal: Move high-impact security/runtime policy defaults to operator-controlled config.
+- Build:
+  - Move tool network allowlist defaults from source literals to runtime security config.
+  - Move integration principal identifiers used for audit provenance into security config.
+- Depends on: `MC-CONF-001`, `MC-CONF-002`, `MC-CONF-005`, `MC-SEC-003`
+- Acceptance:
+  - Security egress and identity policy values are operator-configurable and audited.
+  - Internet-facing mode rejects missing required values for these fields.
+
+### MC-CONF-009 - Channel Runtime Default Externalization (Audit Remediation Batch D)
+- Goal: Remove implicit source defaults for channel runtime behavior.
+- Build:
+  - Move channel default run model provider/model to config wizard-required fields for production mode.
+  - Replace static channel tool-provider fallback with runtime-derived allowlist from enabled channels.
+- Depends on: `MC-CONF-001`, `MC-CONF-002`, `MC-CONF-005`, `MC-CH-001`
+- Acceptance:
+  - Channel behavior defaults are explicit in config and operator-visible.
+  - No hardcoded channel runtime provider/model fallback remains for release-ready mode.
+
 ### Phase 0.5 Exit Gate (Configuration Readiness Gate)
 - Setup wizard can fully configure runtime without source edits.
 - Required deployment values are config-driven and validated.
 - Hardcoded-value CI guard is active and green.
 - Config mutation audit and rollback paths are verified.
+- Audit remediation tickets (`MC-CONF-006..009`) are complete or explicitly deferred with owner + target milestone.
 
 ## Phase 1: Channels First (P0 Functional)
 
@@ -463,12 +505,13 @@ Drive carsinOS to Mission Control production parity with strict sequencing, modu
 3. Sprint S2: `MC-SEC-009`, `MC-SEC-010`, Security Gate 0 validation
 4. Sprint S3: `MC-CONF-001`, `MC-CONF-002`, `MC-CONF-003`
 5. Sprint S4: `MC-CONF-004`, `MC-CONF-005`, Phase 0.5 gate validation
-6. Sprint A: `MC-CH-001`, `MC-CH-002`
-7. Sprint B: `MC-CH-010`
-8. Sprint C: `MC-CH-020`, `MC-CH-030`
-9. Sprint D: `MC-EXT-001`, `MC-EXT-002`
-10. Sprint E: `MC-EXT-003`, `MC-EXT-004`
-11. Sprint F: `MC-TOOL-001`, `MC-TOOL-002`, `MC-TOOL-003`
-12. Sprint G: `MC-PROV-001`, `MC-PROV-002`, `MC-PROV-010`
-13. Sprint H: `MC-AUTO-001`, `MC-AUTO-002`
-14. Sprint I+: `MC-FUT-*` channel queue in business-priority order.
+6. Sprint S5: `MC-CONF-006`, `MC-CONF-007`, `MC-CONF-008`, `MC-CONF-009`
+7. Sprint A: `MC-CH-001`, `MC-CH-002`
+8. Sprint B: `MC-CH-010`
+9. Sprint C: `MC-CH-020`, `MC-CH-030`
+10. Sprint D: `MC-EXT-001`, `MC-EXT-002`
+11. Sprint E: `MC-EXT-003`, `MC-EXT-004`
+12. Sprint F: `MC-TOOL-001`, `MC-TOOL-002`, `MC-TOOL-003`
+13. Sprint G: `MC-PROV-001`, `MC-PROV-002`, `MC-PROV-010`
+14. Sprint H: `MC-AUTO-001`, `MC-AUTO-002`
+15. Sprint I+: `MC-FUT-*` channel queue in business-priority order.

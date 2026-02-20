@@ -3743,3 +3743,83 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 195
+
+- checklist refs: PR workflow (`PR #30` post-merge)
+- past action:
+- Merged PR #30 to `main` (merge commit `9eaadf3`).
+- present action:
+- Recording required post-merge checkpoint and preparing next implementation chunk.
+- validation outcomes:
+- `gh pr view 30 --repo ProfessahX/CarsinOS --json state,mergedAt,mergeCommit` => `state=MERGED` at `2026-02-20T00:05:42Z`.
+- Local `main` fast-forwarded to `origin/main` at `9eaadf3`.
+- future action:
+- Create next `codex/*` branch for remaining checklist items (`O9`/`O10` hardcoded-value audit and triage).
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 196
+
+- checklist refs: `O9`, `O10`
+- past action:
+- Completed PR #30 merge and synced local `main`; started new branch for next chunk.
+- present action:
+- Beginning repository-wide hardcoded runtime-value audit and triage mapping.
+- validation outcomes:
+- Scanned runtime defaults in `carsinos-core`, `carsinos-gateway`, `carsinos-gui`, `carsinos-providers`, and `carsinos-tools`.
+- Ran guard baseline: `python3 scripts/security_hardcoded_value_guard.py --repo-root .` (green).
+- future action:
+- Author `docs/HARDCODED_RUNTIME_VALUES_AUDIT.md`, update checklist states for `O9/O10`, run regression, and push PR #31.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 197
+
+- checklist refs: `O9`, `O10`
+- past action:
+- Completed repository-wide hardcoded runtime-value audit with scoped findings and remediation mapping.
+- present action:
+- Closed O9/O10 with report + ticket pack updates and post-green regression checks.
+- validation outcomes:
+- `python3 scripts/security_hardcoded_value_guard.py --repo-root .` passed (green).
+- `cargo test --workspace --locked` passed end-to-end.
+- future action:
+- Commit/push this chunk, open PR #31, then process CodeRabbit/merge workflow.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/HARDCODED_RUNTIME_VALUES_AUDIT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/CLIDEX_HARDCODE_REMEDIATION_TASK.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/APPDEX_IMPLEMENTATION_TICKET_PACK.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 198
+
+- checklist refs: PR workflow (`PR #31`)
+- past action:
+- Pushed branch `codex/chunk-pr31-hardcoded-audit-triage` and opened PR #31.
+- present action:
+- Recording PR-open checkpoint and preparing to process review/merge workflow.
+- validation outcomes:
+- `gh pr view 31 --repo ProfessahX/CarsinOS --json state,mergeStateStatus,url` => `OPEN`, `CLEAN`.
+- PR body corrected to include full summary and validation commands.
+- future action:
+- Commit/push checkpoint update, then check CodeRabbit/status and merge if clean.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
