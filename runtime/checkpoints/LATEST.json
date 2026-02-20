@@ -1,43 +1,56 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-20T01:46:34.589684+00:00",
+  "captured_at": "2026-02-20T01:50:03.029046+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "main",
-  "head": "be372994effd38c9e782450a93c9221de19c1398",
-  "head_short": "be37299",
-  "step": "channel-soak-post-merge",
-  "note": "PR #39 merged; local main fast-forwarded to be37299.",
-  "next_cmd": "Identify next non-blocked checklist chunk and continue implementation workflow.",
+  "branch": "codex/chunk-pr40-channel-soak-workflow",
+  "head": "9a77ccb4d33b32d326ef2273474a8cc95a2748c0",
+  "head_short": "9a77ccb",
+  "step": "channel-soak-workflow-post-green",
+  "note": "Added channel-soak GitHub workflow and runbook/checklist updates; full validation gates passed.",
+  "next_cmd": "Review diff, commit PR #40 chunk, push branch, open PR, then checkpoint PR-open state.",
   "validations": [
-    "PR #39 merged at 2026-02-20T01:46:17Z with merge commit be372994effd38c9e782450a93c9221de19c1398",
-    "git pull --ff-only origin main fast-forwarded local main e4b7e5b -> be37299",
-    "Context checkpoint snapshot recorded for channel-soak-post-merge"
+    "Added .github/workflows/channel-soak.yml",
+    "Updated docs/channels/CHANNEL_SOAK_RUNBOOK.md with workflow usage and secrets",
+    "Updated CHECKLIST.md O6 note to include workflow path",
+    "python3 -m unittest scripts/tests/test_channel_soak_runner.py passed",
+    "python3 scripts/channel_soak_runner.py --dry-run ... passed",
+    "cargo fmt --all --check passed",
+    "cargo clippy -p carsinos-gateway -p carsinos-channels-discord -p carsinos-channels-telegram -p carsinos-core -p carsinos-protocol --all-targets -- -D warnings passed",
+    "cargo test --workspace --locked passed",
+    "cargo build --workspace --locked passed",
+    "Context checkpoint snapshot recorded for channel-soak-workflow-post-green"
   ],
   "status": {
     "staged": [],
     "modified": [
+      "CHECKLIST.md",
       "CHECKPOINT.md",
+      "docs/channels/CHANNEL_SOAK_RUNBOOK.md",
       "runtime/checkpoints/LATEST.json",
       "runtime/checkpoints/LATEST.md"
     ],
-    "untracked": [],
+    "untracked": [
+      ".github/workflows/channel-soak.yml"
+    ],
     "conflicted": [],
     "dirty": true
   },
   "changed_files": {
     "working_tree": [
+      "CHECKLIST.md",
       "CHECKPOINT.md",
+      "docs/channels/CHANNEL_SOAK_RUNBOOK.md",
       "runtime/checkpoints/LATEST.json",
       "runtime/checkpoints/LATEST.md"
     ],
     "staged": []
   },
   "recent_commits": [
+    "9a77ccb docs: checkpoint PR #39 post-merge status",
     "be37299 Merge pull request #39 from ProfessahX/codex/chunk-pr39-channel-soak-harness",
     "c715153 docs: checkpoint PR #39 open status",
     "b4b927e feat(channels): add soak runner and resilience runbook",
-    "e4b7e5b docs: checkpoint PR #38 post-merge status",
-    "5a2bfc5 Merge pull request #38 from ProfessahX/codex/chunk-pr38-channel-roundtrip-replies"
+    "e4b7e5b docs: checkpoint PR #38 post-merge status"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",

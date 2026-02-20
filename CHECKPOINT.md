@@ -4464,3 +4464,52 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 228
+
+- checklist refs: `O6` soak operationalization follow-up (workflow automation)
+- past action:
+- Merged PR #39 and synchronized local `main` through post-merge checkpoint commit `9a77ccb`.
+- present action:
+- Started branch `codex/chunk-pr40-channel-soak-workflow` to add repeatable GitHub workflow execution for soak evidence artifacts.
+- validation outcomes:
+- `git checkout -b codex/chunk-pr40-channel-soak-workflow` succeeded from synchronized `main`.
+- Context checkpoint snapshot recorded with step `channel-soak-workflow-phase-start`.
+- future action:
+- Implement workflow + runbook updates, run full validations, open PR #40, and continue merge loop.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 229
+
+- checklist refs: `O6` soak execution operationalization (workflow slice automation)
+- past action:
+- Started branch `codex/chunk-pr40-channel-soak-workflow` from synchronized `main`.
+- present action:
+- Completed workflow operationalization for soak evidence execution and artifact upload, with green validation gates.
+- validation outcomes:
+- Added workflow `.github/workflows/channel-soak.yml` (workflow_dispatch-driven soak slice run + artifact upload).
+- Updated `docs/channels/CHANNEL_SOAK_RUNBOOK.md` with workflow usage/limits and required secrets.
+- Updated `CHECKLIST.md` `O6` note to include workflow path.
+- `python3 -m unittest scripts/tests/test_channel_soak_runner.py` passed.
+- `python3 scripts/channel_soak_runner.py --dry-run --telegram-chat-id 1 --telegram-user-id 1 --iterations 1 --output-dir /tmp/carsinos-soak-smoke --label workflow-smoke` passed.
+- `cargo fmt --all --check` passed.
+- `cargo clippy -p carsinos-gateway -p carsinos-channels-discord -p carsinos-channels-telegram -p carsinos-core -p carsinos-protocol --all-targets -- -D warnings` passed.
+- `cargo test --workspace --locked` passed.
+- `cargo build --workspace --locked` passed.
+- Context checkpoint snapshot recorded with step `channel-soak-workflow-post-green`.
+- future action:
+- Commit and push PR #40 chunk, open PR, checkpoint PR-open state, and proceed through merge workflow.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/.github/workflows/channel-soak.yml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/channels/CHANNEL_SOAK_RUNBOOK.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
