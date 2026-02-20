@@ -412,6 +412,7 @@ struct TelegramRuntimeAdapter {
     storage: Storage,
     secret_store: SecretStore,
     started: Arc<StdRwLock<bool>>,
+    transport_client: Arc<StdRwLock<Option<telegram_channel::TelegramTransportClient>>>,
 }
 
 impl TelegramRuntimeAdapter {
@@ -420,7 +421,68 @@ impl TelegramRuntimeAdapter {
             storage,
             secret_store,
             started: Arc::new(StdRwLock::new(false)),
+            transport_client: Arc::new(StdRwLock::new(None)),
         }
+    }
+
+    fn resolve_runtime_state(
+        &self,
+    ) -> AnyResult<(
+        String,
+        &'static str,
+        Option<telegram_channel::TelegramTransportClient>,
+    )> {
+        let config = load_runtime_config_from_storage(&self.storage)?;
+        let secret_ref = config
+            .channels
+            .telegram
+            .bot_token_secret_ref
+            .clone()
+            .unwrap_or_default();
+        if secret_ref.trim().is_empty() {
+            anyhow::bail!("channels.telegram.bot_token_secret_ref is missing in runtime config");
+        }
+        let secret_key =
+            secret_key_from_secret_ref(&secret_ref).context("invalid telegram secret_ref")?;
+        match self.secret_store.get_raw(&secret_key) {
+            Ok(Some(_)) => {}
+            Ok(None) => {
+                anyhow::bail!(
+                    "telegram secret value not found for configured ref {}",
+                    secret_ref
+                );
+            }
+            Err(err) => {
+                anyhow::bail!("failed reading telegram secret: {}", err);
+            }
+        }
+
+        let webhook_mode = config
+            .channels
+            .telegram
+            .webhook_mode
+            .trim()
+            .to_ascii_lowercase();
+        if webhook_mode == "webhook" {
+            let webhook_url = config
+                .channels
+                .telegram
+                .webhook_url
+                .clone()
+                .unwrap_or_default()
+                .trim()
+                .to_string();
+            if webhook_url.is_empty() {
+                anyhow::bail!(
+                    "channels.telegram.webhook_url is required when webhook_mode=webhook"
+                );
+            }
+        }
+        let operation_mode =
+            normalize_telegram_operation_mode(&config.channels.telegram.operation_mode);
+        let transport_client = build_telegram_transport_client(&config, &self.secret_store)
+            .with_context(|| "telegram transport initialization failed")?;
+        Ok((webhook_mode, operation_mode, transport_client))
     }
 }
 
@@ -430,6 +492,13 @@ impl ChannelAdapterLifecycle for TelegramRuntimeAdapter {
     }
 
     fn start(&self) -> anyhow::Result<()> {
+        let (_, _, transport_client) = self.resolve_runtime_state()?;
+        let mut transport_guard = self
+            .transport_client
+            .write()
+            .map_err(|_| anyhow::anyhow!("telegram transport lock poisoned"))?;
+        *transport_guard = transport_client;
+
         let mut guard = self
             .started
             .write()
@@ -439,6 +508,12 @@ impl ChannelAdapterLifecycle for TelegramRuntimeAdapter {
     }
 
     fn stop(&self) -> anyhow::Result<()> {
+        let mut transport_guard = self
+            .transport_client
+            .write()
+            .map_err(|_| anyhow::anyhow!("telegram transport lock poisoned"))?;
+        *transport_guard = None;
+
         let mut guard = self
             .started
             .write()
@@ -456,85 +531,23 @@ impl ChannelAdapterLifecycle for TelegramRuntimeAdapter {
             };
         }
 
-        let config = match load_runtime_config_from_storage(&self.storage) {
-            Ok(config) => config,
-            Err(err) => {
-                return ChannelAdapterHealth {
-                    healthy: false,
-                    detail: Some(format!("failed loading runtime config: {}", err)),
-                };
-            }
-        };
-        let secret_ref = config
-            .channels
-            .telegram
-            .bot_token_secret_ref
-            .unwrap_or_default();
-        if secret_ref.trim().is_empty() {
-            return ChannelAdapterHealth {
-                healthy: false,
-                detail: Some(
-                    "channels.telegram.bot_token_secret_ref is missing in runtime config"
-                        .to_string(),
-                ),
-            };
-        }
-        let secret_key = secret_ref
-            .trim_start_matches("secret://")
-            .trim()
-            .to_string();
-        if secret_key.is_empty() {
-            return ChannelAdapterHealth {
-                healthy: false,
-                detail: Some("invalid telegram secret_ref".to_string()),
-            };
-        }
-        match self.secret_store.get_raw(&secret_key) {
-            Ok(Some(_)) => {}
-            Ok(None) => {
-                return ChannelAdapterHealth {
-                    healthy: false,
+        match self.resolve_runtime_state() {
+            Ok((webhook_mode, operation_mode, transport_client)) => {
+                if let Ok(mut transport_guard) = self.transport_client.write() {
+                    *transport_guard = transport_client;
+                }
+                ChannelAdapterHealth {
+                    healthy: true,
                     detail: Some(format!(
-                        "telegram secret value not found for configured ref {}",
-                        secret_ref
+                        "telegram adapter healthy ({}, mode={})",
+                        webhook_mode, operation_mode
                     )),
-                };
+                }
             }
-            Err(err) => {
-                return ChannelAdapterHealth {
-                    healthy: false,
-                    detail: Some(format!("failed reading telegram secret: {}", err)),
-                };
-            }
-        }
-
-        let webhook_mode = config
-            .channels
-            .telegram
-            .webhook_mode
-            .trim()
-            .to_ascii_lowercase();
-        if webhook_mode == "webhook" {
-            let webhook_url = config
-                .channels
-                .telegram
-                .webhook_url
-                .unwrap_or_default()
-                .trim()
-                .to_string();
-            if webhook_url.is_empty() {
-                return ChannelAdapterHealth {
-                    healthy: false,
-                    detail: Some(
-                        "channels.telegram.webhook_url is required when webhook_mode=webhook"
-                            .to_string(),
-                    ),
-                };
-            }
-        }
-        ChannelAdapterHealth {
-            healthy: true,
-            detail: Some(format!("telegram adapter healthy ({})", webhook_mode)),
+            Err(err) => ChannelAdapterHealth {
+                healthy: false,
+                detail: Some(err.to_string()),
+            },
         }
     }
 }
@@ -1234,6 +1247,8 @@ const APP_KV_RUNTIME_CONFIG: &str = "config.runtime.v1";
 const APP_KV_RUNTIME_CONFIG_LAST_GOOD: &str = "config.runtime.last_good.v1";
 const APP_KV_SKILLS_STATE: &str = "config.skills.state";
 const RUNTIME_CONFIG_SCHEMA_VERSION: &str = "runtime.config.v1";
+const TELEGRAM_OPERATION_MODE_SHIM: &str = "shim";
+const TELEGRAM_OPERATION_MODE_TRANSPORT: &str = "transport";
 const PLUGIN_REGISTRY_CONTRACT_VERSION: &str = "plugin.registry.v1";
 const SKILL_REGISTRY_CONTRACT_VERSION: &str = "skills.registry.v1";
 const NUMQUAM_SCHEMA_VERSION: &str = "integration.v1";
@@ -8298,7 +8313,33 @@ fn dispatch_scheduler_delivery(
             discord_channel::DISCORD_DEFAULT_CHUNK_LIMIT,
         ),
     };
-    let chunk_count = chunks.len();
+    let mut chunk_count = chunks.len();
+    let mut transport_message_ids: Vec<i64> = Vec::new();
+    let delivery_mode = if provider == "telegram" {
+        let runtime_config = load_runtime_config(state)?;
+        if normalize_telegram_operation_mode(&runtime_config.channels.telegram.operation_mode)
+            == TELEGRAM_OPERATION_MODE_TRANSPORT
+        {
+            transport_message_ids = send_telegram_chunks_via_transport(
+                &runtime_config,
+                &state.secret_store,
+                target_id,
+                &chunks,
+            )
+            .with_context(|| {
+                format!(
+                    "telegram transport delivery failed for target {}",
+                    target_id
+                )
+            })?;
+            chunk_count = transport_message_ids.len();
+            TELEGRAM_OPERATION_MODE_TRANSPORT
+        } else {
+            TELEGRAM_OPERATION_MODE_SHIM
+        }
+    } else {
+        TELEGRAM_OPERATION_MODE_SHIM
+    };
 
     emit_event(
         state,
@@ -8310,6 +8351,8 @@ fn dispatch_scheduler_delivery(
             "action": action,
             "target": target_id,
             "chunk_count": chunk_count,
+            "delivery_mode": delivery_mode,
+            "transport_message_ids": transport_message_ids,
             "source": "scheduler",
             "job_id": &job.job_id
         }),
@@ -8330,7 +8373,8 @@ fn dispatch_scheduler_delivery(
             "target": target_id,
             "action": action,
             "attempt": attempt,
-            "chunk_count": chunk_count
+            "chunk_count": chunk_count,
+            "delivery_mode": delivery_mode
         })),
     );
     Ok(chunk_count)
@@ -8860,6 +8904,11 @@ fn default_runtime_config() -> RuntimeConfigResponse {
             },
             telegram: RuntimeTelegramDeploymentConfig {
                 bot_token_secret_ref: None,
+                operation_mode: "shim".to_string(),
+                api_base_url: None,
+                transport_timeout_ms: None,
+                transport_retry_attempts: None,
+                long_poll_timeout_seconds: None,
                 webhook_mode: "long_poll".to_string(),
                 webhook_url: None,
                 staging_chat_ids: Vec::new(),
@@ -9004,6 +9053,53 @@ fn validate_runtime_config(config: &RuntimeConfigResponse) -> AnyResult<()> {
         "channels.telegram.bot_token_secret_ref",
     )?;
 
+    match config
+        .channels
+        .telegram
+        .operation_mode
+        .trim()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "shim" | "transport" => {}
+        _ => {
+            anyhow::bail!(
+                "invalid channels.telegram.operation_mode: {} (expected shim|transport)",
+                config.channels.telegram.operation_mode
+            );
+        }
+    }
+
+    if let Some(base_url) = &config.channels.telegram.api_base_url {
+        let trimmed = base_url.trim();
+        if trimmed.is_empty() {
+            anyhow::bail!("channels.telegram.api_base_url cannot be empty when provided");
+        }
+        if !(trimmed.starts_with("http://") || trimmed.starts_with("https://")) {
+            anyhow::bail!(
+                "channels.telegram.api_base_url must start with http:// or https:// when provided"
+            );
+        }
+    }
+    if let Some(timeout_ms) = config.channels.telegram.transport_timeout_ms {
+        if timeout_ms < 250 {
+            anyhow::bail!("channels.telegram.transport_timeout_ms must be >= 250");
+        }
+        if timeout_ms > 120_000 {
+            anyhow::bail!("channels.telegram.transport_timeout_ms must be <= 120000");
+        }
+    }
+    if let Some(retries) = config.channels.telegram.transport_retry_attempts {
+        if retries == 0 || retries > 10 {
+            anyhow::bail!("channels.telegram.transport_retry_attempts must be between 1 and 10");
+        }
+    }
+    if let Some(timeout_seconds) = config.channels.telegram.long_poll_timeout_seconds {
+        if timeout_seconds == 0 || timeout_seconds > 120 {
+            anyhow::bail!("channels.telegram.long_poll_timeout_seconds must be between 1 and 120");
+        }
+    }
+
     match config.channels.telegram.webhook_mode.as_str() {
         "long_poll" => {}
         "webhook" => {
@@ -9038,6 +9134,137 @@ fn validate_runtime_config(config: &RuntimeConfigResponse) -> AnyResult<()> {
     }
 
     Ok(())
+}
+
+fn normalize_telegram_operation_mode(mode: &str) -> &'static str {
+    if mode
+        .trim()
+        .eq_ignore_ascii_case(TELEGRAM_OPERATION_MODE_TRANSPORT)
+    {
+        TELEGRAM_OPERATION_MODE_TRANSPORT
+    } else {
+        TELEGRAM_OPERATION_MODE_SHIM
+    }
+}
+
+fn secret_key_from_secret_ref(secret_ref: &str) -> AnyResult<String> {
+    let trimmed = secret_ref.trim();
+    if !trimmed.starts_with("secret://") {
+        anyhow::bail!("secret_ref must use secret:// format");
+    }
+    let secret_key = trimmed.trim_start_matches("secret://").trim().to_string();
+    if secret_key.is_empty() {
+        anyhow::bail!("secret_ref does not include a key path");
+    }
+    Ok(secret_key)
+}
+
+fn build_telegram_transport_client(
+    runtime_config: &RuntimeConfigResponse,
+    secret_store: &SecretStore,
+) -> AnyResult<Option<telegram_channel::TelegramTransportClient>> {
+    if normalize_telegram_operation_mode(&runtime_config.channels.telegram.operation_mode)
+        != TELEGRAM_OPERATION_MODE_TRANSPORT
+    {
+        return Ok(None);
+    }
+
+    let secret_ref = runtime_config
+        .channels
+        .telegram
+        .bot_token_secret_ref
+        .clone()
+        .unwrap_or_default();
+    if secret_ref.trim().is_empty() {
+        anyhow::bail!(
+            "channels.telegram.bot_token_secret_ref is required when channels.telegram.operation_mode=transport"
+        );
+    }
+    let secret_key = secret_key_from_secret_ref(&secret_ref)?;
+    let bot_token = secret_store
+        .get_raw(&secret_key)?
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "telegram secret value not found for configured ref {}",
+                secret_ref
+            )
+        })?;
+
+    let timeout_ms = runtime_config
+        .channels
+        .telegram
+        .transport_timeout_ms
+        .unwrap_or(5_000)
+        .clamp(250, 120_000);
+    let retry_attempts = runtime_config
+        .channels
+        .telegram
+        .transport_retry_attempts
+        .unwrap_or(3)
+        .clamp(1, 10);
+    let long_poll_timeout_seconds = runtime_config
+        .channels
+        .telegram
+        .long_poll_timeout_seconds
+        .unwrap_or(25)
+        .clamp(1, 120);
+    let api_base_url = runtime_config
+        .channels
+        .telegram
+        .api_base_url
+        .clone()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| telegram_channel::TELEGRAM_DEFAULT_API_BASE_URL.to_string());
+
+    let transport_config = telegram_channel::TelegramTransportConfig {
+        api_base_url,
+        bot_token,
+        timeout_ms,
+        retry_attempts,
+        long_poll_timeout_seconds,
+    };
+    let client = telegram_channel::TelegramTransportClient::new(transport_config)
+        .context("failed to initialize telegram transport client")?;
+    Ok(Some(client))
+}
+
+fn parse_telegram_chat_target(target: &str) -> AnyResult<i64> {
+    let trimmed = target.trim();
+    if trimmed.is_empty() {
+        anyhow::bail!("telegram target must not be empty");
+    }
+    let normalized = trimmed.strip_prefix("chat:").unwrap_or(trimmed).trim();
+    if normalized.is_empty() {
+        anyhow::bail!("telegram target does not include a chat id");
+    }
+    normalized
+        .parse::<i64>()
+        .with_context(|| format!("invalid telegram chat target '{}'", target))
+}
+
+fn send_telegram_chunks_via_transport(
+    runtime_config: &RuntimeConfigResponse,
+    secret_store: &SecretStore,
+    target: &str,
+    chunks: &[String],
+) -> AnyResult<Vec<i64>> {
+    let chat_id = parse_telegram_chat_target(target)?;
+    let transport_client = build_telegram_transport_client(runtime_config, secret_store)?
+        .ok_or_else(|| anyhow::anyhow!("telegram transport mode is not enabled"))?;
+    let mut message_ids = Vec::with_capacity(chunks.len());
+    for chunk in chunks {
+        let response = transport_client.send_message_with_retry(
+            &telegram_channel::TelegramTransportOutboundRequest {
+                chat_id,
+                text: chunk.clone(),
+                reply_to_message_id: None,
+            },
+        )?;
+        message_ids.push(response.message_id);
+    }
+    Ok(message_ids)
 }
 
 fn sha256_hex(value: &str) -> String {
@@ -9280,7 +9507,50 @@ async fn execute_channel_action_tool(
             discord_channel::DISCORD_DEFAULT_CHUNK_LIMIT,
         ),
     });
-    let chunk_count = text_chunks.as_ref().map(|value| value.len()).unwrap_or(0);
+    let mut chunk_count = text_chunks.as_ref().map(|value| value.len()).unwrap_or(0);
+    let mut delivery_mode = TELEGRAM_OPERATION_MODE_SHIM;
+    let mut transport_message_ids: Vec<i64> = Vec::new();
+
+    if provider == "telegram" && matches!(action.as_str(), "send" | "reply") {
+        if let Some(chunks) = text_chunks.as_ref() {
+            let runtime_config = load_runtime_config(state).map_err(|err| {
+                ToolError::Failed(format!("failed loading runtime config: {err}"))
+            })?;
+            if normalize_telegram_operation_mode(&runtime_config.channels.telegram.operation_mode)
+                == TELEGRAM_OPERATION_MODE_TRANSPORT
+            {
+                transport_message_ids = send_telegram_chunks_via_transport(
+                    &runtime_config,
+                    &state.secret_store,
+                    &target,
+                    chunks,
+                )
+                .map_err(|err| {
+                    let reason = format!("telegram transport dispatch failed: {err}");
+                    record_security_audit_internal(
+                        state,
+                        "channel.tool_action.execute",
+                        &resource,
+                        "deny",
+                        Some(reason.clone()),
+                        StatusCode::FAILED_DEPENDENCY,
+                        Some("DEPENDENCY_UNAVAILABLE"),
+                        Some(&run.session_id),
+                        Some(&run.run_id),
+                        Some(serde_json::json!({
+                            "provider": provider.clone(),
+                            "action": action.clone(),
+                            "target": target.clone(),
+                            "delivery_mode": TELEGRAM_OPERATION_MODE_TRANSPORT
+                        })),
+                    );
+                    ToolError::Failed(reason)
+                })?;
+                chunk_count = transport_message_ids.len();
+                delivery_mode = TELEGRAM_OPERATION_MODE_TRANSPORT;
+            }
+        }
+    }
 
     emit_event(
         state,
@@ -9291,7 +9561,9 @@ async fn execute_channel_action_tool(
             "provider": provider,
             "action": action,
             "target": target,
-            "chunk_count": chunk_count
+            "chunk_count": chunk_count,
+            "delivery_mode": delivery_mode,
+            "transport_message_ids": transport_message_ids.clone()
         }),
     );
     record_security_audit_internal(
@@ -9308,7 +9580,8 @@ async fn execute_channel_action_tool(
             "provider": provider,
             "action": action,
             "target": target,
-            "chunk_count": chunk_count
+            "chunk_count": chunk_count,
+            "delivery_mode": delivery_mode
         })),
     );
 
@@ -9320,9 +9593,10 @@ async fn execute_channel_action_tool(
             "target": target,
             "text": text,
             "reaction": reaction,
-            "delivery_mode": "shim",
+            "delivery_mode": delivery_mode,
             "dispatched": true,
             "chunk_count": chunk_count,
+            "transport_message_ids": transport_message_ids,
             "chunks": text_chunks.unwrap_or_default()
         }),
         truncated: false,
@@ -12382,6 +12656,21 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             }
             other => panic!("expected channel action request, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn parse_telegram_chat_target_accepts_numeric_and_prefixed_values() {
+        assert_eq!(parse_telegram_chat_target("1001").expect("chat id"), 1001);
+        assert_eq!(
+            parse_telegram_chat_target("chat:-100123").expect("prefixed chat id"),
+            -100123
+        );
+    }
+
+    #[test]
+    fn parse_telegram_chat_target_rejects_non_numeric_values() {
+        let err = parse_telegram_chat_target("chat:not-a-number").expect_err("invalid target");
+        assert!(err.to_string().contains("invalid telegram chat target"));
     }
 
     #[tokio::test]
@@ -15866,6 +16155,37 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .await
             .expect("invalid runtime config update");
         assert_eq!(invalid.status(), StatusCode::BAD_REQUEST);
+
+        let invalid_operation_mode = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    r#"{
+                        "channels": {
+                            "discord": {
+                                "bot_token_secret_ref": null,
+                                "application_id": null,
+                                "intents": ["guilds"],
+                                "staging_guild_ids": [],
+                                "staging_channel_ids": []
+                            },
+                            "telegram": {
+                                "bot_token_secret_ref": null,
+                                "operation_mode": "invalid_mode",
+                                "webhook_mode": "long_poll",
+                                "webhook_url": null,
+                                "staging_chat_ids": []
+                            }
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("invalid operation_mode runtime config update");
+        assert_eq!(invalid_operation_mode.status(), StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]

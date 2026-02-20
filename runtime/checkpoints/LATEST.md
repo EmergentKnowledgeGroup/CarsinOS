@@ -1,10 +1,10 @@
 # LATEST Checkpoint
 
-- step: pr35-open
-- note: PR #35 is open for channel runtime foundation; awaiting CI/CodeRabbit.
-- branch: codex/chunk-pr35-channel-runtime-foundation
-- head: c1e8339
-- next_cmd: Monitor PR #35 checks/reviews, apply fixes if needed, then merge.
+- step: telegram-transport-pr-open
+- note: Opened PR #36 for Telegram transport mode wiring; awaiting CI + CodeRabbit review.
+- branch: codex/chunk-pr36-telegram-transport
+- head: 68e18b3
+- next_cmd: Monitor PR #36 checks/reviews, apply any required fixes, then merge and post-merge checkpoint.
 - validations:
-- `gh pr view 35 --repo ProfessahX/CarsinOS --json state,mergeStateStatus,statusCheckRollup,reviewDecision,url,headRefOid,headRefName` confirms `OPEN`.
-- `Security PR Gate` queued at checkpoint capture time.
+- PR URL: https://github.com/ProfessahX/CarsinOS/pull/36
+- `gh pr view 36 --repo ProfessahX/CarsinOS --json ...` confirms state `OPEN`, head `68e18b3`, checks queued/pending (`Security PR Gate`, `CodeRabbit`).

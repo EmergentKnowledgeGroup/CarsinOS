@@ -1,41 +1,36 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-20T00:54:52Z",
+  "captured_at": "2026-02-20T01:08:57.344962+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/chunk-pr35-channel-runtime-foundation",
-  "head_short": "c1e8339",
-  "step": "pr35-open",
-  "note": "PR #35 is open for channel runtime foundation; awaiting CI/CodeRabbit.",
-  "next_cmd": "Monitor PR #35 checks/reviews, apply fixes if needed, then merge.",
+  "branch": "codex/chunk-pr36-telegram-transport",
+  "head": "68e18b3",
+  "head_short": "68e18b3",
+  "step": "telegram-transport-pr-open",
+  "note": "Opened PR #36 for Telegram transport mode wiring; awaiting CI + CodeRabbit review.",
+  "next_cmd": "Monitor PR #36 checks/reviews, apply any required fixes, then merge and post-merge checkpoint.",
   "validations": [
-    "gh pr view 35 --repo ProfessahX/CarsinOS --json state,mergeStateStatus,statusCheckRollup,reviewDecision,url,headRefOid,headRefName confirms OPEN.",
-    "Security PR Gate queued at checkpoint capture time."
+    "PR opened: https://github.com/ProfessahX/CarsinOS/pull/36",
+    "PR state OPEN with mergeState UNSTABLE (checks pending)",
+    "Security PR Gate queued",
+    "CodeRabbit pending"
   ],
   "status": {
     "staged": [],
-    "modified": [
-      "CHECKPOINT.md",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
+    "modified": [],
     "untracked": [],
     "conflicted": [],
-    "dirty": true
+    "dirty": false
   },
   "changed_files": {
-    "working_tree": [
-      "CHECKPOINT.md",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
+    "working_tree": [],
     "staged": []
   },
   "recent_commits": [
+    "68e18b3 feat(channels): add telegram transport runtime mode wiring",
+    "070e12a Merge pull request #35 from ProfessahX/codex/chunk-pr35-channel-runtime-foundation",
+    "af8baa3 docs: checkpoint PR #35 open state",
     "c1e8339 feat(channels): add runtime manager foundation and lifecycle APIs",
-    "931c08e Merge pull request #34 from ProfessahX/codex/chunk-pr34-mc-runtime-wizard",
-    "c7b8333 docs: checkpoint PR #34 status",
-    "0c176d0 docs: checkpoint PR #34 open state",
-    "34bf912 feat(gui): add mission control runtime setup wizard"
+    "931c08e Merge pull request #34 from ProfessahX/codex/chunk-pr34-mc-runtime-wizard"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
