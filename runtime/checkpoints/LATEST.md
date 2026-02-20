@@ -1,12 +1,10 @@
 # LATEST Checkpoint
 
-- step: discord-transport-post-green
-- note: Implemented Discord transport mode wiring (channel crate + runtime config + gateway dispatch/runtime adapter) and passed full validation gate.
+- step: discord-transport-pr-open
+- note: Opened PR #37 for Discord transport mode wiring; awaiting CI + CodeRabbit review.
 - branch: codex/chunk-pr37-discord-transport
-- head: 85166a1
-- next_cmd: Review diff, finalize checkpoint/checklist docs, commit, and open PR for O5 chunk.
+- head: ab937a4
+- next_cmd: Monitor PR #37 checks/reviews, apply fixes if needed, then merge and continue next chunk.
 - validations:
-- `cargo fmt --all --check` passed.
-- `cargo clippy -p carsinos-gateway -p carsinos-channels-discord -p carsinos-core -p carsinos-protocol --all-targets -- -D warnings` passed.
-- `cargo test --workspace --locked` passed.
-- `cargo build --workspace --locked` passed.
+- PR URL: https://github.com/ProfessahX/CarsinOS/pull/37
+- `gh pr view 37 --repo ProfessahX/CarsinOS --json ...` confirms state `OPEN`, head `ab937a4`, `Security PR Gate` queued.
