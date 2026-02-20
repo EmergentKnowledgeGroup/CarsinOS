@@ -56,6 +56,8 @@ Reports are written to `runtime/channels/reports/`:
 - `channel-soak-<timestamp>.json`
 - `channel-soak-latest.json` (latest summary pointer)
 
+When executed in GitHub Actions (`.github/workflows/channel-soak.yml`), reports are uploaded as run artifacts.
+
 ## Report Fields to Validate
 - `status` must be `green`.
 - Per-provider `success_rate` and `failure_rate` must satisfy thresholds.
@@ -73,3 +75,18 @@ If `status=red`:
 ## Ownership Note
 Checklist items `R2`, `R3`, `R5`, and `R6` still require operator-owned production values and signoff.  
 This runbook and harness remove implementation blockers, but live 7-day signoff still requires those owner inputs.
+
+## GitHub Workflow Slice
+Use `.github/workflows/channel-soak.yml` for bounded execution slices with artifact retention.
+
+Notes:
+- GitHub-hosted jobs have runtime limits, so the workflow is intended for short soak slices.
+- A full 7-day signoff should run via external orchestration (screen/tmux/systemd/runner host) using the 7-day command above.
+- Required repository secrets for non-dry-run workflow execution:
+  - `CARSINOS_BASE_URL`
+  - `CARSINOS_AUTH_TOKEN`
+  - `CARSINOS_TELEGRAM_CHAT_ID`
+  - `CARSINOS_TELEGRAM_USER_ID`
+  - `CARSINOS_DISCORD_CHANNEL_ID`
+  - `CARSINOS_DISCORD_AUTHOR_ID`
+  - `CARSINOS_OPERATOR_PEER_ID` (optional; defaults in script if unset)
