@@ -3069,6 +3069,95 @@ mod tests {
     }
 
     #[test]
+    fn security_audit_retention_respects_ninety_day_hot_window() {
+        let (_temp_dir, storage) = test_storage();
+        let old = storage
+            .append_security_audit_event(NewSecurityAuditEvent {
+                request_id: "req-old-90d".to_string(),
+                correlation_id: "corr-old-90d".to_string(),
+                principal: "operator_admin:test".to_string(),
+                action: "security.test.old.90d".to_string(),
+                resource: "test:old:90d".to_string(),
+                decision: "allow".to_string(),
+                reason: None,
+                transport: "http".to_string(),
+                status: "200".to_string(),
+                error_code: None,
+                session_id: None,
+                run_id: None,
+                metadata_json: None,
+            })
+            .expect("append old 90d audit event");
+        let recent = storage
+            .append_security_audit_event(NewSecurityAuditEvent {
+                request_id: "req-recent-90d".to_string(),
+                correlation_id: "corr-recent-90d".to_string(),
+                principal: "operator_admin:test".to_string(),
+                action: "security.test.recent.90d".to_string(),
+                resource: "test:recent:90d".to_string(),
+                decision: "allow".to_string(),
+                reason: None,
+                transport: "http".to_string(),
+                status: "200".to_string(),
+                error_code: None,
+                session_id: None,
+                run_id: None,
+                metadata_json: None,
+            })
+            .expect("append recent 90d audit event");
+
+        let now = now_ms();
+        let day_ms = 86_400_000_i64;
+        let cutoff_ms = now.saturating_sub(90 * day_ms);
+        let old_created_at = now.saturating_sub(91 * day_ms);
+        let recent_created_at = now.saturating_sub(89 * day_ms);
+
+        let conn = storage.connect().expect("connect for 90d retention update");
+        conn.execute(
+            "UPDATE security_audit_events SET created_at = ?1 WHERE event_id = ?2",
+            params![old_created_at, old.event_id],
+        )
+        .expect("set old 90d created_at");
+        conn.execute(
+            "UPDATE security_audit_events SET created_at = ?1 WHERE event_id = ?2",
+            params![recent_created_at, recent.event_id],
+        )
+        .expect("set recent 90d created_at");
+
+        let candidate_count = storage
+            .count_security_audit_events_before(cutoff_ms)
+            .expect("count 90d retention candidates");
+        assert_eq!(candidate_count, 1);
+
+        let archived_count = storage
+            .archive_security_audit_events_before(cutoff_ms)
+            .expect("archive 90d retention candidates");
+        assert_eq!(archived_count, 1);
+
+        let deleted_count = storage
+            .delete_security_audit_events_before(cutoff_ms)
+            .expect("delete 90d retention candidates");
+        assert_eq!(deleted_count, 1);
+
+        assert!(storage
+            .get_security_audit_event(&old.event_id)
+            .expect("load old 90d after delete")
+            .is_none());
+        assert!(storage
+            .get_archived_security_audit_event(&old.event_id)
+            .expect("load old 90d in archive")
+            .is_some());
+        assert!(storage
+            .get_security_audit_event(&recent.event_id)
+            .expect("load recent 90d after retention")
+            .is_some());
+        assert!(storage
+            .get_archived_security_audit_event(&recent.event_id)
+            .expect("load recent 90d in archive")
+            .is_none());
+    }
+
+    #[test]
     fn init_upgrades_legacy_db_to_current_schema() {
         let temp_dir = TempDir::new().expect("tempdir");
         let paths = AppPaths::from_root(temp_dir.path().to_path_buf());

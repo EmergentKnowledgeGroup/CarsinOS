@@ -140,7 +140,7 @@ Execution checklist derived from `PLAN.md`. IDs are stable and must be used by `
 - [ ] `O4` `MC-CH-010` Complete Telegram production connector path (real transport operation mode, delivery retry semantics, and production soak evidence).
 - [ ] `O5` `MC-CH-020` Complete Discord production connector path (real gateway event intake, outbound operational behavior, and production soak evidence).
 - [ ] `O6` Execute 7-day Telegram/Discord soak and publish resilience report (reconnect, retry, message integrity, approval round-trip).
-- [ ] `O7` Complete archive-retention operational proof for security audit trail beyond 90-day hot window.
+- [x] `O7` Complete archive-retention operational proof for security audit trail beyond 90-day hot window. Implemented via `scripts/security_archive_retention_proof.sh`, `.github/workflows/security-archive-retention-proof.yml`, and `docs/security/ARCHIVE_RETENTION_OPERATIONAL_PROOF.md`.
 - [ ] `O8` Decide and schedule `MC-FUT-900` expansion set (if future channels continue in this wave).
 - [x] `O9` Run mandatory repository-wide hardcoded runtime-value audit and convert every deployment-specific constant to config/wizard-backed fields (`MC-CONF-005`). Audit report published: `docs/HARDCODED_RUNTIME_VALUES_AUDIT.md`.
 - [x] `O10` Consume and triage hardcoded-value audit findings into implementation tickets by config scope (`global`, `provider`, `auth_profile`, `channel`, `security`) with owner + target milestone. Ticketization added in `docs/HARDCODED_RUNTIME_VALUES_AUDIT.md` + `APPDEX_IMPLEMENTATION_TICKET_PACK.md` (`MC-CONF-006..009`).

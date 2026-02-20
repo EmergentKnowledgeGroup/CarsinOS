@@ -1,15 +1,15 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-20T00:11:25Z",
+  "captured_at": "2026-02-20T00:16:25Z",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/chunk-pr31-hardcoded-audit-triage",
-  "head_short": "7c7da71",
-  "step": "pr31-open",
-  "note": "PR #31 opened for hardcoded runtime audit/triage outputs and ticket-pack upgrades.",
-  "next_cmd": "Commit this PR-open checkpoint update, push branch, then process PR #31 review/merge workflow.",
+  "branch": "codex/chunk-pr32-archive-retention-proof",
+  "head_short": "e70c9f5",
+  "step": "pr32-open",
+  "note": "PR #32 opened for archive-retention operational proof; checks are currently pending.",
+  "next_cmd": "Commit this PR-open checkpoint update, push, then monitor PR checks/reviews to merge.",
   "validations": [
-    "gh pr view 31 --repo ProfessahX/CarsinOS --json state,mergeStateStatus,url => OPEN and CLEAN.",
-    "PR summary and validation body verified after edit."
+    "gh pr view 32 --repo ProfessahX/CarsinOS --json state,mergeStateStatus,statusCheckRollup shows OPEN with in-progress checks.",
+    "PR #32 includes validation command list and artifact contracts."
   ],
   "status": {
     "staged": [],

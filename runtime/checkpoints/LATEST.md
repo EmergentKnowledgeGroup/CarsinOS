@@ -1,10 +1,10 @@
 # LATEST Checkpoint
 
-- step: pr31-open
-- note: PR #31 opened for hardcoded runtime audit/triage outputs and ticket-pack upgrades.
-- branch: codex/chunk-pr31-hardcoded-audit-triage
-- head: 7c7da71
-- next_cmd: Commit this PR-open checkpoint update, push branch, then process PR #31 review/merge workflow.
+- step: pr32-open
+- note: PR #32 opened for archive-retention operational proof; checks are currently pending.
+- branch: codex/chunk-pr32-archive-retention-proof
+- head: e70c9f5
+- next_cmd: Commit this PR-open checkpoint update, push, then monitor PR checks/reviews to merge.
 - validations:
-- `gh pr view 31 --repo ProfessahX/CarsinOS --json state,mergeStateStatus,url` => `OPEN` and `CLEAN`.
-- PR summary and validation body verified after edit.
+- `gh pr view 32 --repo ProfessahX/CarsinOS --json state,mergeStateStatus,statusCheckRollup` shows `OPEN` with in-progress checks.
+- PR #32 includes validation command list and artifact contracts.
