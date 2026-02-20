@@ -3905,3 +3905,88 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 203
+
+- checklist refs: `P2`
+- past action:
+- Merged O7 archive-retention proof work (PR #32) and synced main.
+- present action:
+- Starting `MC-CONF-002` Mission Control first-run/reconfigure wizard implementation in GUI.
+- validation outcomes:
+- Branch created: `codex/chunk-pr34-mc-runtime-wizard`.
+- Loaded frontend-design skill for Mission Control UX changes.
+- future action:
+- Implement runtime-config wizard state + API wiring + Mission tab UX, then run full UI validation (`fmt`, `clippy`, `test`, `build`).
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 204
+
+- checklist refs: `P2`
+- past action:
+- Implemented `MC-CONF-002` Mission Control setup wizard in `carsinos-gui` with:
+- runtime config GET parsing from `/api/v1/config/runtime`,
+- step-based wizard UX (Edge Identity, Provider Risk, Channels, Security Ops, Review/Apply),
+- draft validation/completeness checks and high-risk OAuth lock behavior,
+- config apply (`POST /api/v1/config/runtime`) and rollback (`POST /api/v1/config/runtime/rollback`) actions.
+- present action:
+- Completed full validation gate and checklist reconciliation for `P2`.
+- validation outcomes:
+- `cargo fmt --all --check` passed.
+- `cargo clippy -p carsinos-gateway -p carsinos-storage -p carsinos-protocol -p carsinos-gui -p carsinos-cli --all-targets -- -D warnings` passed.
+- `cargo test --workspace --locked` passed.
+- `cargo build --workspace --locked` passed.
+- future action:
+- Commit and push `P2` chunk branch, open PR, and continue remaining non-blocked phases.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gui/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 205
+
+- checklist refs: PR workflow (`PR #34`)
+- past action:
+- Committed `P2` wizard implementation and checklist updates on `codex/chunk-pr34-mc-runtime-wizard`.
+- present action:
+- Opening PR chunk for CodeRabbit review and CI.
+- validation outcomes:
+- Commit `34bf912` includes Mission Control wizard runtime-config integration + tests + checklist state update.
+- Branch state is clean after commit.
+- future action:
+- Push branch, open PR, record PR-open checkpoint, then continue next non-blocked implementation chunk.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 206
+
+- checklist refs: PR workflow (`PR #34` open)
+- past action:
+- Pushed branch and opened PR #34 for `P2` Mission Control runtime wizard.
+- present action:
+- Recording PR-open status and checks, then monitoring CodeRabbit + CI before merge.
+- validation outcomes:
+- `gh pr view 34 --repo ProfessahX/CarsinOS --json state,mergeStateStatus,statusCheckRollup,reviewDecision,url,headRefOid,headRefName`:
+- state `OPEN`, head `0c176d0`, mergeState `UNSTABLE` (checks in progress).
+- check status: `Security PR Gate` in progress, `CodeRabbit` pending.
+- future action:
+- Wait for checks/review, address any findings, then merge and run post-merge checkpoint flow.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`

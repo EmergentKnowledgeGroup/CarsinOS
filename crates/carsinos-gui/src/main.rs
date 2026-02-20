@@ -1,6 +1,7 @@
 use eframe::egui;
 use eframe::egui::{Color32, RichText};
 use serde_json::{json, Value};
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::Duration;
@@ -80,6 +81,144 @@ impl Default for ChannelConfigSnapshot {
             telegram_require_mention_in_groups: true,
             telegram_allowlisted_user_ids_csv: String::new(),
             updated_at: 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct RuntimeProviderPolicyDraft {
+    provider: String,
+    enabled: bool,
+    allow_consumer_oauth: bool,
+    kill_switch_scope: String,
+}
+
+#[derive(Debug, Clone)]
+struct RuntimeConfigWizardSnapshot {
+    schema_version: String,
+    updated_at: i64,
+    jwt_issuer_allowlist_csv: String,
+    jwt_audience_allowlist_csv: String,
+    trusted_proxy_allowlist_csv: String,
+    tls_termination_mode: String,
+    public_base_url: String,
+    provider_policies: Vec<RuntimeProviderPolicyDraft>,
+    discord_bot_token_secret_ref: String,
+    discord_application_id: String,
+    discord_intents_csv: String,
+    discord_staging_guild_ids_csv: String,
+    discord_staging_channel_ids_csv: String,
+    telegram_bot_token_secret_ref: String,
+    telegram_webhook_mode: String,
+    telegram_webhook_url: String,
+    telegram_staging_chat_ids_csv: String,
+    threat_model_approver: String,
+    risk_acceptance_owner: String,
+    incident_primary: String,
+    incident_backup: String,
+    audit_archive_target: String,
+    audit_archive_encryption: String,
+    audit_hot_retention_days: String,
+    audit_archive_retention_days: String,
+}
+
+impl Default for RuntimeConfigWizardSnapshot {
+    fn default() -> Self {
+        Self {
+            schema_version: "runtime.config.v1".to_string(),
+            updated_at: 0,
+            jwt_issuer_allowlist_csv: String::new(),
+            jwt_audience_allowlist_csv: String::new(),
+            trusted_proxy_allowlist_csv: String::new(),
+            tls_termination_mode: "edge".to_string(),
+            public_base_url: String::new(),
+            provider_policies: vec![
+                RuntimeProviderPolicyDraft {
+                    provider: "openai".to_string(),
+                    enabled: true,
+                    allow_consumer_oauth: false,
+                    kill_switch_scope: "none".to_string(),
+                },
+                RuntimeProviderPolicyDraft {
+                    provider: "anthropic".to_string(),
+                    enabled: true,
+                    allow_consumer_oauth: false,
+                    kill_switch_scope: "none".to_string(),
+                },
+            ],
+            discord_bot_token_secret_ref: String::new(),
+            discord_application_id: String::new(),
+            discord_intents_csv: "guilds,guild_messages,direct_messages".to_string(),
+            discord_staging_guild_ids_csv: String::new(),
+            discord_staging_channel_ids_csv: String::new(),
+            telegram_bot_token_secret_ref: String::new(),
+            telegram_webhook_mode: "long_poll".to_string(),
+            telegram_webhook_url: String::new(),
+            telegram_staging_chat_ids_csv: String::new(),
+            threat_model_approver: String::new(),
+            risk_acceptance_owner: String::new(),
+            incident_primary: String::new(),
+            incident_backup: String::new(),
+            audit_archive_target: String::new(),
+            audit_archive_encryption: String::new(),
+            audit_hot_retention_days: "90".to_string(),
+            audit_archive_retention_days: "365".to_string(),
+        }
+    }
+}
+
+const RUNTIME_SCHEMA_VERSION_V1: &str = "runtime.config.v1";
+const TLS_TERMINATION_MODES: [&str; 3] = ["edge", "gateway", "passthrough"];
+const TELEGRAM_WEBHOOK_MODES: [&str; 2] = ["long_poll", "webhook"];
+const KILL_SWITCH_SCOPES: [&str; 4] = ["none", "profile", "provider", "global"];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RuntimeWizardStep {
+    EdgeIdentity,
+    ProviderRisk,
+    Channels,
+    SecurityOps,
+    ReviewApply,
+}
+
+impl RuntimeWizardStep {
+    fn all() -> [Self; 5] {
+        [
+            Self::EdgeIdentity,
+            Self::ProviderRisk,
+            Self::Channels,
+            Self::SecurityOps,
+            Self::ReviewApply,
+        ]
+    }
+
+    fn label(self) -> &'static str {
+        match self {
+            Self::EdgeIdentity => "1. Edge Identity",
+            Self::ProviderRisk => "2. Provider Risk",
+            Self::Channels => "3. Channels",
+            Self::SecurityOps => "4. Security Ops",
+            Self::ReviewApply => "5. Review + Apply",
+        }
+    }
+
+    fn guidance(self) -> &'static str {
+        match self {
+            Self::EdgeIdentity => {
+                "Configure gateway trust boundaries and edge identity values (R1)."
+            }
+            Self::ProviderRisk => {
+                "Define per-provider enablement, kill-switch scope, and high-risk OAuth posture (R7)."
+            }
+            Self::Channels => {
+                "Set production channel runtime values for Discord + Telegram (R2, R3)."
+            }
+            Self::SecurityOps => {
+                "Set operational ownership and security retention/archive targets (R4, R5, R6)."
+            }
+            Self::ReviewApply => {
+                "Validate readiness, enforce high-risk locks, then apply or rollback safely."
+            }
         }
     }
 }
@@ -202,6 +341,9 @@ struct GuiApp {
     approvals: Vec<ApprovalListItem>,
     auth_profiles: Vec<AuthProfileListItem>,
     channel_config: ChannelConfigSnapshot,
+    runtime_config: RuntimeConfigWizardSnapshot,
+    runtime_wizard_step: RuntimeWizardStep,
+    runtime_wizard_rollback_reason: String,
 
     selected_session_id: Option<String>,
     timeline: Vec<TimelineMessage>,
@@ -231,6 +373,7 @@ type GatewaySnapshots = (
     Vec<ApprovalListItem>,
     Vec<AuthProfileListItem>,
     ChannelConfigSnapshot,
+    RuntimeConfigWizardSnapshot,
 );
 
 impl Default for GuiApp {
@@ -249,6 +392,9 @@ impl Default for GuiApp {
             approvals: Vec::new(),
             auth_profiles: Vec::new(),
             channel_config: ChannelConfigSnapshot::default(),
+            runtime_config: RuntimeConfigWizardSnapshot::default(),
+            runtime_wizard_step: RuntimeWizardStep::EdgeIdentity,
+            runtime_wizard_rollback_reason: String::new(),
             selected_session_id: None,
             timeline: Vec::new(),
             new_session_title: String::new(),
@@ -429,7 +575,15 @@ impl GuiApp {
 
     fn apply_snapshots(
         &mut self,
-        (health, status, sessions, approvals, auth_profiles, channel_config): GatewaySnapshots,
+        (
+            health,
+            status,
+            sessions,
+            approvals,
+            auth_profiles,
+            channel_config,
+            runtime_config,
+        ): GatewaySnapshots,
     ) {
         self.health = Some(health);
         self.status = Some(status);
@@ -437,6 +591,7 @@ impl GuiApp {
         self.approvals = approvals;
         self.auth_profiles = auth_profiles;
         self.channel_config = channel_config;
+        self.runtime_config = runtime_config;
         if self.selected_session_id.is_none() {
             self.selected_session_id = self.sessions.first().map(|s| s.session_id.clone());
         } else if let Some(selected) = &self.selected_session_id {
@@ -473,6 +628,255 @@ impl GuiApp {
         self.timeline =
             fetch_session_timeline(&self.gateway_base_url, &self.gateway_token, &session_id)?;
         Ok(())
+    }
+
+    fn save_runtime_config(&mut self) {
+        if let Err(err) = validate_runtime_config_draft(&self.runtime_config) {
+            self.set_error(err);
+            return;
+        }
+        let completeness_issues = runtime_wizard_completeness_issues(&self.runtime_config);
+        let mut to_apply = self.runtime_config.clone();
+        if !completeness_issues.is_empty() {
+            for provider in &mut to_apply.provider_policies {
+                provider.allow_consumer_oauth = false;
+            }
+        }
+
+        let payload = match runtime_config_update_payload(&to_apply) {
+            Ok(value) => value,
+            Err(err) => {
+                self.set_error(err);
+                return;
+            }
+        };
+        match send_json(
+            &self.gateway_base_url,
+            "/api/v1/config/runtime",
+            "POST",
+            &self.gateway_token,
+            Some(&payload),
+        ) {
+            Ok(value) => match parse_runtime_config(&value) {
+                Ok(config) => {
+                    self.runtime_config = config;
+                    if completeness_issues.is_empty() {
+                        self.set_info("Runtime wizard configuration applied");
+                    } else {
+                        self.set_info("Runtime config saved with high-risk OAuth forced OFF until wizard completeness is green");
+                    }
+                }
+                Err(err) => self.set_error(err),
+            },
+            Err(err) => self.set_error(err),
+        }
+    }
+
+    fn rollback_runtime_config(&mut self) {
+        let reason = self.runtime_wizard_rollback_reason.trim().to_string();
+        let payload = if reason.is_empty() {
+            json!({})
+        } else {
+            json!({ "reason": reason })
+        };
+        match send_json(
+            &self.gateway_base_url,
+            "/api/v1/config/runtime/rollback",
+            "POST",
+            &self.gateway_token,
+            Some(&payload),
+        ) {
+            Ok(value) => match parse_runtime_config(&value) {
+                Ok(config) => {
+                    self.runtime_config = config;
+                    self.runtime_wizard_rollback_reason.clear();
+                    self.set_info("Runtime configuration rolled back to last-known-good snapshot");
+                }
+                Err(err) => self.set_error(err),
+            },
+            Err(err) => self.set_error(err),
+        }
+    }
+
+    fn runtime_step_issues(&self, step: RuntimeWizardStep) -> Vec<String> {
+        let mut issues = Vec::new();
+        match step {
+            RuntimeWizardStep::EdgeIdentity => {
+                if parse_string_csv(&self.runtime_config.jwt_issuer_allowlist_csv).is_empty() {
+                    issues.push(
+                        "global.jwt_issuer_allowlist must contain at least one issuer".to_string(),
+                    );
+                }
+                if parse_string_csv(&self.runtime_config.jwt_audience_allowlist_csv).is_empty() {
+                    issues.push(
+                        "global.jwt_audience_allowlist must contain at least one audience"
+                            .to_string(),
+                    );
+                }
+                if parse_string_csv(&self.runtime_config.trusted_proxy_allowlist_csv).is_empty() {
+                    issues.push("global.trusted_proxy_allowlist must contain at least one trusted proxy/CIDR".to_string());
+                }
+                let tls_mode = self
+                    .runtime_config
+                    .tls_termination_mode
+                    .trim()
+                    .to_ascii_lowercase();
+                if !TLS_TERMINATION_MODES.contains(&tls_mode.as_str()) {
+                    issues.push(
+                        "global.tls_termination_mode must be edge|gateway|passthrough".to_string(),
+                    );
+                }
+                if self.runtime_config.public_base_url.trim().is_empty() {
+                    issues.push(
+                        "global.public_base_url should be set for internet-facing deployment"
+                            .to_string(),
+                    );
+                }
+            }
+            RuntimeWizardStep::ProviderRisk => {
+                if self.runtime_config.provider_policies.is_empty() {
+                    issues.push("providers must include at least one provider policy".to_string());
+                }
+                let mut seen = HashSet::new();
+                for provider in &self.runtime_config.provider_policies {
+                    let provider_id = provider.provider.trim().to_ascii_lowercase();
+                    if provider_id.is_empty() {
+                        issues.push("provider policy contains empty provider id".to_string());
+                        continue;
+                    }
+                    if !seen.insert(provider_id.clone()) {
+                        issues.push(format!("provider policy duplicated for {}", provider_id));
+                    }
+                    let scope = provider.kill_switch_scope.trim().to_ascii_lowercase();
+                    if !KILL_SWITCH_SCOPES.contains(&scope.as_str()) {
+                        issues.push(format!(
+                            "provider {} kill_switch_scope must be none|profile|provider|global",
+                            provider_id
+                        ));
+                    }
+                }
+            }
+            RuntimeWizardStep::Channels => {
+                if self
+                    .runtime_config
+                    .discord_bot_token_secret_ref
+                    .trim()
+                    .is_empty()
+                {
+                    issues.push("channels.discord.bot_token_secret_ref is required for production operations".to_string());
+                }
+                if self
+                    .runtime_config
+                    .telegram_bot_token_secret_ref
+                    .trim()
+                    .is_empty()
+                {
+                    issues.push("channels.telegram.bot_token_secret_ref is required for production operations".to_string());
+                }
+                if let Err(err) = validate_secret_ref_format(
+                    "channels.discord.bot_token_secret_ref",
+                    &self.runtime_config.discord_bot_token_secret_ref,
+                ) {
+                    issues.push(err);
+                }
+                if let Err(err) = validate_secret_ref_format(
+                    "channels.telegram.bot_token_secret_ref",
+                    &self.runtime_config.telegram_bot_token_secret_ref,
+                ) {
+                    issues.push(err);
+                }
+                let mode = self
+                    .runtime_config
+                    .telegram_webhook_mode
+                    .trim()
+                    .to_ascii_lowercase();
+                if !TELEGRAM_WEBHOOK_MODES.contains(&mode.as_str()) {
+                    issues.push(
+                        "channels.telegram.webhook_mode must be long_poll|webhook".to_string(),
+                    );
+                } else if mode == "webhook"
+                    && self.runtime_config.telegram_webhook_url.trim().is_empty()
+                {
+                    issues.push(
+                        "channels.telegram.webhook_url is required when webhook_mode=webhook"
+                            .to_string(),
+                    );
+                }
+                if let Err(err) = parse_i64_csv(&self.runtime_config.telegram_staging_chat_ids_csv)
+                {
+                    issues.push(err);
+                }
+            }
+            RuntimeWizardStep::SecurityOps => {
+                for (field_name, value) in [
+                    (
+                        "security.threat_model_approver",
+                        &self.runtime_config.threat_model_approver,
+                    ),
+                    (
+                        "security.risk_acceptance_owner",
+                        &self.runtime_config.risk_acceptance_owner,
+                    ),
+                    (
+                        "security.incident_primary",
+                        &self.runtime_config.incident_primary,
+                    ),
+                    (
+                        "security.incident_backup",
+                        &self.runtime_config.incident_backup,
+                    ),
+                    (
+                        "security.audit_archive_target",
+                        &self.runtime_config.audit_archive_target,
+                    ),
+                    (
+                        "security.audit_archive_encryption",
+                        &self.runtime_config.audit_archive_encryption,
+                    ),
+                ] {
+                    if value.trim().is_empty() {
+                        issues.push(format!("{field_name} is required for production signoff"));
+                    }
+                }
+
+                let hot_retention = match parse_i64_field(
+                    "security.audit_hot_retention_days",
+                    &self.runtime_config.audit_hot_retention_days,
+                ) {
+                    Ok(value) => value,
+                    Err(err) => {
+                        issues.push(err);
+                        0
+                    }
+                };
+                let archive_retention = match parse_i64_field(
+                    "security.audit_archive_retention_days",
+                    &self.runtime_config.audit_archive_retention_days,
+                ) {
+                    Ok(value) => value,
+                    Err(err) => {
+                        issues.push(err);
+                        0
+                    }
+                };
+                if hot_retention > 0 && hot_retention < 90 {
+                    issues.push("security.audit_hot_retention_days must be >= 90".to_string());
+                }
+                if archive_retention > 0 && hot_retention > 0 && archive_retention < hot_retention {
+                    issues.push("security.audit_archive_retention_days must be >= security.audit_hot_retention_days".to_string());
+                }
+            }
+            RuntimeWizardStep::ReviewApply => {
+                if let Err(err) = validate_runtime_config_draft(&self.runtime_config) {
+                    issues.push(err);
+                }
+            }
+        }
+        issues
+    }
+
+    fn runtime_completeness_issues(&self) -> Vec<String> {
+        runtime_wizard_completeness_issues(&self.runtime_config)
     }
 
     fn create_session(&mut self) {
@@ -939,6 +1343,342 @@ impl GuiApp {
                 ui.label(format!("auth profiles: {}", self.auth_profiles.len()));
                 ui.separator();
                 ui.label(format!("timeline msgs: {}", self.timeline.len()));
+            });
+            ui.label(format!(
+                "runtime schema: {} | updated_at_ms: {}",
+                self.runtime_config.schema_version, self.runtime_config.updated_at
+            ));
+        });
+
+        card(ui, "Mission Control Setup Wizard", |ui| {
+            let steps = RuntimeWizardStep::all();
+            let mut selected_step = self.runtime_wizard_step;
+            let current_index = steps
+                .iter()
+                .position(|item| *item == self.runtime_wizard_step)
+                .unwrap_or(0);
+            let step_issues = self.runtime_step_issues(self.runtime_wizard_step);
+            let completeness_issues = self.runtime_completeness_issues();
+            let high_risk_ready = completeness_issues.is_empty();
+
+            ui.horizontal_wrapped(|ui| {
+                for step in steps {
+                    let selected = selected_step == step;
+                    if ui.selectable_label(selected, step.label()).clicked() {
+                        selected_step = step;
+                    }
+                }
+            });
+            self.runtime_wizard_step = selected_step;
+            ui.separator();
+            ui.label(self.runtime_wizard_step.guidance());
+
+            if high_risk_ready {
+                ui.colored_label(
+                    Color32::from_rgb(118, 255, 168),
+                    "Wizard completeness: GREEN (high-risk provider OAuth can remain enabled if selected)",
+                );
+            } else {
+                ui.colored_label(
+                    Color32::from_rgb(255, 188, 104),
+                    "Wizard completeness: INCOMPLETE (high-risk provider OAuth will be forced OFF on apply)",
+                );
+            }
+
+            ui.separator();
+            egui::ScrollArea::vertical()
+                .max_height(430.0)
+                .show(ui, |ui| match self.runtime_wizard_step {
+                    RuntimeWizardStep::EdgeIdentity => {
+                        ui.horizontal(|ui| {
+                            ui.label("tls_termination_mode");
+                            egui::ComboBox::from_id_salt("runtime-tls-termination-mode")
+                                .selected_text(self.runtime_config.tls_termination_mode.clone())
+                                .show_ui(ui, |ui| {
+                                    for mode in TLS_TERMINATION_MODES {
+                                        ui.selectable_value(
+                                            &mut self.runtime_config.tls_termination_mode,
+                                            mode.to_string(),
+                                            mode,
+                                        );
+                                    }
+                                });
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("public_base_url");
+                            ui.text_edit_singleline(&mut self.runtime_config.public_base_url);
+                        });
+                        ui.label("jwt_issuer_allowlist (csv)");
+                        ui.text_edit_singleline(&mut self.runtime_config.jwt_issuer_allowlist_csv);
+                        ui.label("jwt_audience_allowlist (csv)");
+                        ui.text_edit_singleline(
+                            &mut self.runtime_config.jwt_audience_allowlist_csv,
+                        );
+                        ui.label("trusted_proxy_allowlist (csv)");
+                        ui.text_edit_singleline(
+                            &mut self.runtime_config.trusted_proxy_allowlist_csv,
+                        );
+                    }
+                    RuntimeWizardStep::ProviderRisk => {
+                        let mut remove_index: Option<usize> = None;
+                        for (index, policy) in self
+                            .runtime_config
+                            .provider_policies
+                            .iter_mut()
+                            .enumerate()
+                        {
+                            egui::Frame::group(ui.style())
+                                .fill(Color32::from_rgb(21, 24, 34))
+                                .stroke(egui::Stroke::new(
+                                    1.0,
+                                    if policy.enabled {
+                                        Color32::from_rgb(118, 255, 168)
+                                    } else {
+                                        Color32::from_rgb(255, 107, 107)
+                                    },
+                                ))
+                                .show(ui, |ui| {
+                                    ui.horizontal(|ui| {
+                                        ui.label("provider");
+                                        ui.text_edit_singleline(&mut policy.provider);
+                                        ui.checkbox(&mut policy.enabled, "enabled");
+                                    });
+                                    ui.horizontal(|ui| {
+                                        ui.label("kill_switch_scope");
+                                        egui::ComboBox::from_id_salt(format!(
+                                            "runtime-provider-scope-{}",
+                                            index
+                                        ))
+                                        .selected_text(policy.kill_switch_scope.clone())
+                                        .show_ui(ui, |ui| {
+                                            for scope in KILL_SWITCH_SCOPES {
+                                                ui.selectable_value(
+                                                    &mut policy.kill_switch_scope,
+                                                    scope.to_string(),
+                                                    scope,
+                                                );
+                                            }
+                                        });
+                                    });
+                                    ui.add_enabled_ui(high_risk_ready, |ui| {
+                                        ui.checkbox(
+                                            &mut policy.allow_consumer_oauth,
+                                            "allow_consumer_oauth",
+                                        );
+                                    });
+                                    if !high_risk_ready {
+                                        ui.colored_label(
+                                            Color32::from_rgb(255, 188, 104),
+                                            "High-risk OAuth toggle locked until wizard completeness is green",
+                                        );
+                                    }
+                                    if ui.button("Remove Provider Policy").clicked() {
+                                        remove_index = Some(index);
+                                    }
+                                });
+                            ui.add_space(8.0);
+                        }
+                        if let Some(index) = remove_index {
+                            self.runtime_config.provider_policies.remove(index);
+                        }
+                        ui.horizontal(|ui| {
+                            if ui.button("Add Provider Policy").clicked() {
+                                self.runtime_config.provider_policies.push(
+                                    RuntimeProviderPolicyDraft {
+                                        provider: "new-provider".to_string(),
+                                        enabled: false,
+                                        allow_consumer_oauth: false,
+                                        kill_switch_scope: "none".to_string(),
+                                    },
+                                );
+                            }
+                            if ui.button("Normalize Provider Policy Set").clicked() {
+                                normalize_provider_policies(
+                                    &mut self.runtime_config.provider_policies,
+                                );
+                            }
+                        });
+                    }
+                    RuntimeWizardStep::Channels => {
+                        ui.heading("Discord Deployment");
+                        ui.horizontal(|ui| {
+                            ui.label("bot_token_secret_ref");
+                            ui.text_edit_singleline(
+                                &mut self.runtime_config.discord_bot_token_secret_ref,
+                            );
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("application_id");
+                            ui.text_edit_singleline(
+                                &mut self.runtime_config.discord_application_id,
+                            );
+                        });
+                        ui.label("intents (csv)");
+                        ui.text_edit_singleline(&mut self.runtime_config.discord_intents_csv);
+                        ui.label("staging_guild_ids (csv)");
+                        ui.text_edit_singleline(
+                            &mut self.runtime_config.discord_staging_guild_ids_csv,
+                        );
+                        ui.label("staging_channel_ids (csv)");
+                        ui.text_edit_singleline(
+                            &mut self.runtime_config.discord_staging_channel_ids_csv,
+                        );
+
+                        ui.separator();
+                        ui.heading("Telegram Deployment");
+                        ui.horizontal(|ui| {
+                            ui.label("bot_token_secret_ref");
+                            ui.text_edit_singleline(
+                                &mut self.runtime_config.telegram_bot_token_secret_ref,
+                            );
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("webhook_mode");
+                            egui::ComboBox::from_id_salt("runtime-telegram-webhook-mode")
+                                .selected_text(self.runtime_config.telegram_webhook_mode.clone())
+                                .show_ui(ui, |ui| {
+                                    for mode in TELEGRAM_WEBHOOK_MODES {
+                                        ui.selectable_value(
+                                            &mut self.runtime_config.telegram_webhook_mode,
+                                            mode.to_string(),
+                                            mode,
+                                        );
+                                    }
+                                });
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("webhook_url");
+                            ui.text_edit_singleline(&mut self.runtime_config.telegram_webhook_url);
+                        });
+                        ui.label("staging_chat_ids (csv i64)");
+                        ui.text_edit_singleline(
+                            &mut self.runtime_config.telegram_staging_chat_ids_csv,
+                        );
+                    }
+                    RuntimeWizardStep::SecurityOps => {
+                        ui.horizontal(|ui| {
+                            ui.label("threat_model_approver");
+                            ui.text_edit_singleline(&mut self.runtime_config.threat_model_approver);
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("risk_acceptance_owner");
+                            ui.text_edit_singleline(
+                                &mut self.runtime_config.risk_acceptance_owner,
+                            );
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("incident_primary");
+                            ui.text_edit_singleline(&mut self.runtime_config.incident_primary);
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("incident_backup");
+                            ui.text_edit_singleline(&mut self.runtime_config.incident_backup);
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("audit_archive_target");
+                            ui.text_edit_singleline(&mut self.runtime_config.audit_archive_target);
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("audit_archive_encryption");
+                            ui.text_edit_singleline(
+                                &mut self.runtime_config.audit_archive_encryption,
+                            );
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("audit_hot_retention_days");
+                            ui.text_edit_singleline(
+                                &mut self.runtime_config.audit_hot_retention_days,
+                            );
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("audit_archive_retention_days");
+                            ui.text_edit_singleline(
+                                &mut self.runtime_config.audit_archive_retention_days,
+                            );
+                        });
+                    }
+                    RuntimeWizardStep::ReviewApply => {
+                        ui.label(format!(
+                            "schema_version={} updated_at_ms={}",
+                            self.runtime_config.schema_version, self.runtime_config.updated_at
+                        ));
+                        ui.label(format!(
+                            "providers configured: {}",
+                            self.runtime_config.provider_policies.len()
+                        ));
+                        ui.label(format!(
+                            "discord secret ref set: {}",
+                            !self.runtime_config.discord_bot_token_secret_ref.trim().is_empty()
+                        ));
+                        ui.label(format!(
+                            "telegram secret ref set: {}",
+                            !self.runtime_config.telegram_bot_token_secret_ref.trim().is_empty()
+                        ));
+                        ui.separator();
+                        if completeness_issues.is_empty() {
+                            ui.colored_label(
+                                Color32::from_rgb(118, 255, 168),
+                                "No completeness blockers. Runtime config is production-ready.",
+                            );
+                        } else {
+                            ui.colored_label(
+                                Color32::from_rgb(255, 188, 104),
+                                format!(
+                                    "{} completeness blockers remain. Resolve them for production signoff.",
+                                    completeness_issues.len()
+                                ),
+                            );
+                            for issue in &completeness_issues {
+                                ui.colored_label(
+                                    Color32::from_rgb(255, 188, 104),
+                                    format!("• {}", issue),
+                                );
+                            }
+                        }
+                    }
+                });
+
+            if !step_issues.is_empty() {
+                ui.separator();
+                ui.colored_label(
+                    Color32::from_rgb(255, 107, 107),
+                    format!(
+                        "Current step has {} validation issue(s):",
+                        step_issues.len()
+                    ),
+                );
+                for issue in &step_issues {
+                    ui.colored_label(Color32::from_rgb(255, 107, 107), format!("• {}", issue));
+                }
+            }
+
+            ui.separator();
+            ui.horizontal(|ui| {
+                if ui
+                    .add_enabled(current_index > 0, egui::Button::new("Back"))
+                    .clicked()
+                {
+                    self.runtime_wizard_step = steps[current_index - 1];
+                }
+                if ui
+                    .add_enabled(current_index + 1 < steps.len(), egui::Button::new("Next"))
+                    .clicked()
+                {
+                    self.runtime_wizard_step = steps[current_index + 1];
+                }
+                if ui.button("Reload Runtime Config").clicked() {
+                    self.refresh_gateway_state();
+                }
+                if ui.button("Save Wizard Config").clicked() {
+                    self.save_runtime_config();
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.label("rollback reason (optional)");
+                ui.text_edit_singleline(&mut self.runtime_wizard_rollback_reason);
+                if ui.button("Rollback Runtime Config").clicked() {
+                    self.rollback_runtime_config();
+                }
             });
         });
     }
@@ -1536,6 +2276,7 @@ fn fetch_gateway_snapshots(base_url: &str, token: &str) -> Result<GatewaySnapsho
         token,
     )?;
     let channel_config_json = fetch_json(base_url, "/api/v1/config/channels", token)?;
+    let runtime_config_json = fetch_json(base_url, "/api/v1/config/runtime", token)?;
 
     Ok((
         parse_health_snapshot(&health_json)?,
@@ -1544,6 +2285,7 @@ fn fetch_gateway_snapshots(base_url: &str, token: &str) -> Result<GatewaySnapsho
         parse_approvals(&approvals_json)?,
         parse_auth_profiles(&auth_profiles_json)?,
         parse_channel_config(&channel_config_json)?,
+        parse_runtime_config(&runtime_config_json)?,
     ))
 }
 
@@ -1851,6 +2593,434 @@ fn parse_channel_config(value: &Value) -> Result<ChannelConfigSnapshot, String> 
     })
 }
 
+fn parse_runtime_config(value: &Value) -> Result<RuntimeConfigWizardSnapshot, String> {
+    let config = value
+        .get("config")
+        .ok_or_else(|| "runtime.config missing".to_string())?;
+    let global = config
+        .get("global")
+        .ok_or_else(|| "runtime.config.global missing".to_string())?;
+    let channels = config
+        .get("channels")
+        .ok_or_else(|| "runtime.config.channels missing".to_string())?;
+    let discord = channels
+        .get("discord")
+        .ok_or_else(|| "runtime.config.channels.discord missing".to_string())?;
+    let telegram = channels
+        .get("telegram")
+        .ok_or_else(|| "runtime.config.channels.telegram missing".to_string())?;
+    let security = config
+        .get("security")
+        .ok_or_else(|| "runtime.config.security missing".to_string())?;
+
+    let mut provider_policies = config
+        .get("providers")
+        .and_then(|value| value.as_array())
+        .map(|rows| {
+            rows.iter()
+                .map(|row| RuntimeProviderPolicyDraft {
+                    provider: row
+                        .get("provider")
+                        .and_then(|value| value.as_str())
+                        .unwrap_or_default()
+                        .to_string(),
+                    enabled: row
+                        .get("enabled")
+                        .and_then(|value| value.as_bool())
+                        .unwrap_or(true),
+                    allow_consumer_oauth: row
+                        .get("allow_consumer_oauth")
+                        .and_then(|value| value.as_bool())
+                        .unwrap_or(false),
+                    kill_switch_scope: row
+                        .get("kill_switch_scope")
+                        .and_then(|value| value.as_str())
+                        .unwrap_or("none")
+                        .to_string(),
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    if provider_policies.is_empty() {
+        provider_policies = RuntimeConfigWizardSnapshot::default().provider_policies;
+    } else {
+        normalize_provider_policies(&mut provider_policies);
+    }
+
+    Ok(RuntimeConfigWizardSnapshot {
+        schema_version: config
+            .get("schema_version")
+            .and_then(|value| value.as_str())
+            .unwrap_or(RUNTIME_SCHEMA_VERSION_V1)
+            .to_string(),
+        updated_at: config
+            .get("updated_at")
+            .and_then(|value| value.as_i64())
+            .unwrap_or(0),
+        jwt_issuer_allowlist_csv: join_string_csv(&parse_string_array(
+            global.get("jwt_issuer_allowlist"),
+        )),
+        jwt_audience_allowlist_csv: join_string_csv(&parse_string_array(
+            global.get("jwt_audience_allowlist"),
+        )),
+        trusted_proxy_allowlist_csv: join_string_csv(&parse_string_array(
+            global.get("trusted_proxy_allowlist"),
+        )),
+        tls_termination_mode: global
+            .get("tls_termination_mode")
+            .and_then(|value| value.as_str())
+            .unwrap_or("edge")
+            .to_string(),
+        public_base_url: parse_optional_string_from_json(global.get("public_base_url")),
+        provider_policies,
+        discord_bot_token_secret_ref: parse_optional_string_from_json(
+            discord.get("bot_token_secret_ref"),
+        ),
+        discord_application_id: parse_optional_string_from_json(discord.get("application_id")),
+        discord_intents_csv: join_string_csv(&parse_string_array(discord.get("intents"))),
+        discord_staging_guild_ids_csv: join_string_csv(&parse_string_array(
+            discord.get("staging_guild_ids"),
+        )),
+        discord_staging_channel_ids_csv: join_string_csv(&parse_string_array(
+            discord.get("staging_channel_ids"),
+        )),
+        telegram_bot_token_secret_ref: parse_optional_string_from_json(
+            telegram.get("bot_token_secret_ref"),
+        ),
+        telegram_webhook_mode: telegram
+            .get("webhook_mode")
+            .and_then(|value| value.as_str())
+            .unwrap_or("long_poll")
+            .to_string(),
+        telegram_webhook_url: parse_optional_string_from_json(telegram.get("webhook_url")),
+        telegram_staging_chat_ids_csv: join_i64_csv(&parse_i64_array(
+            telegram.get("staging_chat_ids"),
+        )),
+        threat_model_approver: parse_optional_string_from_json(
+            security.get("threat_model_approver"),
+        ),
+        risk_acceptance_owner: parse_optional_string_from_json(
+            security.get("risk_acceptance_owner"),
+        ),
+        incident_primary: parse_optional_string_from_json(security.get("incident_primary")),
+        incident_backup: parse_optional_string_from_json(security.get("incident_backup")),
+        audit_archive_target: parse_optional_string_from_json(security.get("audit_archive_target")),
+        audit_archive_encryption: parse_optional_string_from_json(
+            security.get("audit_archive_encryption"),
+        ),
+        audit_hot_retention_days: security
+            .get("audit_hot_retention_days")
+            .and_then(|value| value.as_i64())
+            .unwrap_or(90)
+            .to_string(),
+        audit_archive_retention_days: security
+            .get("audit_archive_retention_days")
+            .and_then(|value| value.as_i64())
+            .unwrap_or(365)
+            .to_string(),
+    })
+}
+
+fn parse_optional_string_from_json(value: Option<&Value>) -> String {
+    value
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string())
+        .unwrap_or_default()
+}
+
+fn parse_string_array(value: Option<&Value>) -> Vec<String> {
+    value
+        .and_then(|value| value.as_array())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.as_str())
+                .map(|item| item.to_string())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn parse_i64_array(value: Option<&Value>) -> Vec<i64> {
+    value
+        .and_then(|value| value.as_array())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.as_i64())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn optional_string_value(raw: &str) -> Value {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        Value::Null
+    } else {
+        Value::String(trimmed.to_string())
+    }
+}
+
+fn parse_i64_field(field_name: &str, raw: &str) -> Result<i64, String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err(format!("{field_name} must not be empty"));
+    }
+    trimmed
+        .parse::<i64>()
+        .map_err(|_| format!("{field_name} must be an i64 integer"))
+}
+
+fn validate_secret_ref_format(field_name: &str, value: &str) -> Result<(), String> {
+    let trimmed = value.trim();
+    if !trimmed.is_empty() && !trimmed.starts_with("secret://") {
+        return Err(format!(
+            "{field_name} must use secret:// reference format when set"
+        ));
+    }
+    Ok(())
+}
+
+fn normalize_provider_policies(policies: &mut Vec<RuntimeProviderPolicyDraft>) {
+    let mut normalized = Vec::new();
+    let mut seen = HashSet::new();
+    for policy in policies.iter() {
+        let provider = policy.provider.trim().to_ascii_lowercase();
+        if provider.is_empty() {
+            continue;
+        }
+        if !seen.insert(provider.clone()) {
+            continue;
+        }
+        let mut kill_switch_scope = policy.kill_switch_scope.trim().to_ascii_lowercase();
+        if !KILL_SWITCH_SCOPES.contains(&kill_switch_scope.as_str()) {
+            kill_switch_scope = "none".to_string();
+        }
+        normalized.push(RuntimeProviderPolicyDraft {
+            provider,
+            enabled: policy.enabled,
+            allow_consumer_oauth: policy.allow_consumer_oauth,
+            kill_switch_scope,
+        });
+    }
+
+    for fallback in ["openai", "anthropic"] {
+        if seen.insert(fallback.to_string()) {
+            normalized.push(RuntimeProviderPolicyDraft {
+                provider: fallback.to_string(),
+                enabled: true,
+                allow_consumer_oauth: false,
+                kill_switch_scope: "none".to_string(),
+            });
+        }
+    }
+
+    normalized.sort_by(|left, right| left.provider.cmp(&right.provider));
+    *policies = normalized;
+}
+
+fn validate_runtime_config_draft(config: &RuntimeConfigWizardSnapshot) -> Result<(), String> {
+    if config.schema_version.trim() != RUNTIME_SCHEMA_VERSION_V1 {
+        return Err(format!(
+            "unsupported schema_version {} (expected {})",
+            config.schema_version, RUNTIME_SCHEMA_VERSION_V1
+        ));
+    }
+    let tls_mode = config.tls_termination_mode.trim().to_ascii_lowercase();
+    if !TLS_TERMINATION_MODES.contains(&tls_mode.as_str()) {
+        return Err("global.tls_termination_mode must be edge|gateway|passthrough".to_string());
+    }
+
+    if config.provider_policies.is_empty() {
+        return Err("providers must include at least one provider policy".to_string());
+    }
+    let mut seen_provider_ids = HashSet::new();
+    for provider in &config.provider_policies {
+        let provider_id = provider.provider.trim().to_ascii_lowercase();
+        if provider_id.is_empty() {
+            return Err("provider policy contains empty provider id".to_string());
+        }
+        if !seen_provider_ids.insert(provider_id.clone()) {
+            return Err(format!("provider policy duplicated for {}", provider_id));
+        }
+        let scope = provider.kill_switch_scope.trim().to_ascii_lowercase();
+        if !KILL_SWITCH_SCOPES.contains(&scope.as_str()) {
+            return Err(
+                "provider kill_switch_scope must be none|profile|provider|global".to_string(),
+            );
+        }
+    }
+
+    validate_secret_ref_format(
+        "channels.discord.bot_token_secret_ref",
+        &config.discord_bot_token_secret_ref,
+    )?;
+    validate_secret_ref_format(
+        "channels.telegram.bot_token_secret_ref",
+        &config.telegram_bot_token_secret_ref,
+    )?;
+
+    let webhook_mode = config.telegram_webhook_mode.trim().to_ascii_lowercase();
+    if !TELEGRAM_WEBHOOK_MODES.contains(&webhook_mode.as_str()) {
+        return Err("channels.telegram.webhook_mode must be long_poll|webhook".to_string());
+    }
+    if webhook_mode == "webhook" && config.telegram_webhook_url.trim().is_empty() {
+        return Err(
+            "channels.telegram.webhook_url is required when webhook_mode=webhook".to_string(),
+        );
+    }
+    parse_i64_csv(&config.telegram_staging_chat_ids_csv)?;
+
+    let hot_retention = parse_i64_field(
+        "security.audit_hot_retention_days",
+        &config.audit_hot_retention_days,
+    )?;
+    let archive_retention = parse_i64_field(
+        "security.audit_archive_retention_days",
+        &config.audit_archive_retention_days,
+    )?;
+    if hot_retention < 90 {
+        return Err("security.audit_hot_retention_days must be >= 90".to_string());
+    }
+    if archive_retention < hot_retention {
+        return Err(
+            "security.audit_archive_retention_days must be >= security.audit_hot_retention_days"
+                .to_string(),
+        );
+    }
+
+    Ok(())
+}
+
+fn runtime_wizard_completeness_issues(config: &RuntimeConfigWizardSnapshot) -> Vec<String> {
+    let mut issues = Vec::new();
+
+    if parse_string_csv(&config.jwt_issuer_allowlist_csv).is_empty() {
+        issues.push("global.jwt_issuer_allowlist is empty".to_string());
+    }
+    if parse_string_csv(&config.jwt_audience_allowlist_csv).is_empty() {
+        issues.push("global.jwt_audience_allowlist is empty".to_string());
+    }
+    if parse_string_csv(&config.trusted_proxy_allowlist_csv).is_empty() {
+        issues.push("global.trusted_proxy_allowlist is empty".to_string());
+    }
+    if config.public_base_url.trim().is_empty() {
+        issues.push("global.public_base_url is empty".to_string());
+    }
+    if config.discord_bot_token_secret_ref.trim().is_empty() {
+        issues.push("channels.discord.bot_token_secret_ref is empty".to_string());
+    }
+    if config.telegram_bot_token_secret_ref.trim().is_empty() {
+        issues.push("channels.telegram.bot_token_secret_ref is empty".to_string());
+    }
+
+    for (field_name, value) in [
+        (
+            "security.threat_model_approver",
+            &config.threat_model_approver,
+        ),
+        (
+            "security.risk_acceptance_owner",
+            &config.risk_acceptance_owner,
+        ),
+        ("security.incident_primary", &config.incident_primary),
+        ("security.incident_backup", &config.incident_backup),
+        (
+            "security.audit_archive_target",
+            &config.audit_archive_target,
+        ),
+        (
+            "security.audit_archive_encryption",
+            &config.audit_archive_encryption,
+        ),
+    ] {
+        if value.trim().is_empty() {
+            issues.push(format!("{field_name} is empty"));
+        }
+    }
+
+    if !config
+        .provider_policies
+        .iter()
+        .any(|provider| provider.enabled)
+    {
+        issues.push("no provider policy is enabled".to_string());
+    }
+
+    if let Err(err) = parse_i64_field(
+        "security.audit_hot_retention_days",
+        &config.audit_hot_retention_days,
+    ) {
+        issues.push(err);
+    }
+    if let Err(err) = parse_i64_field(
+        "security.audit_archive_retention_days",
+        &config.audit_archive_retention_days,
+    ) {
+        issues.push(err);
+    }
+
+    issues
+}
+
+fn runtime_config_update_payload(config: &RuntimeConfigWizardSnapshot) -> Result<Value, String> {
+    let mut providers = config.provider_policies.clone();
+    normalize_provider_policies(&mut providers);
+    let staging_chat_ids = parse_i64_csv(&config.telegram_staging_chat_ids_csv)?;
+    let hot_retention = parse_i64_field(
+        "security.audit_hot_retention_days",
+        &config.audit_hot_retention_days,
+    )?;
+    let archive_retention = parse_i64_field(
+        "security.audit_archive_retention_days",
+        &config.audit_archive_retention_days,
+    )?;
+
+    Ok(json!({
+        "global": {
+            "jwt_issuer_allowlist": parse_string_csv(&config.jwt_issuer_allowlist_csv),
+            "jwt_audience_allowlist": parse_string_csv(&config.jwt_audience_allowlist_csv),
+            "trusted_proxy_allowlist": parse_string_csv(&config.trusted_proxy_allowlist_csv),
+            "tls_termination_mode": config.tls_termination_mode.trim().to_ascii_lowercase(),
+            "public_base_url": optional_string_value(&config.public_base_url),
+        },
+        "providers": providers.iter().map(|provider| {
+            json!({
+                "provider": provider.provider.trim().to_ascii_lowercase(),
+                "enabled": provider.enabled,
+                "allow_consumer_oauth": provider.allow_consumer_oauth,
+                "kill_switch_scope": provider.kill_switch_scope.trim().to_ascii_lowercase(),
+            })
+        }).collect::<Vec<_>>(),
+        "channels": {
+            "discord": {
+                "bot_token_secret_ref": optional_string_value(&config.discord_bot_token_secret_ref),
+                "application_id": optional_string_value(&config.discord_application_id),
+                "intents": parse_string_csv(&config.discord_intents_csv),
+                "staging_guild_ids": parse_string_csv(&config.discord_staging_guild_ids_csv),
+                "staging_channel_ids": parse_string_csv(&config.discord_staging_channel_ids_csv),
+            },
+            "telegram": {
+                "bot_token_secret_ref": optional_string_value(&config.telegram_bot_token_secret_ref),
+                "webhook_mode": config.telegram_webhook_mode.trim().to_ascii_lowercase(),
+                "webhook_url": optional_string_value(&config.telegram_webhook_url),
+                "staging_chat_ids": staging_chat_ids,
+            },
+        },
+        "security": {
+            "threat_model_approver": optional_string_value(&config.threat_model_approver),
+            "risk_acceptance_owner": optional_string_value(&config.risk_acceptance_owner),
+            "incident_primary": optional_string_value(&config.incident_primary),
+            "incident_backup": optional_string_value(&config.incident_backup),
+            "audit_archive_target": optional_string_value(&config.audit_archive_target),
+            "audit_archive_encryption": optional_string_value(&config.audit_archive_encryption),
+            "audit_hot_retention_days": hot_retention,
+            "audit_archive_retention_days": archive_retention,
+        }
+    }))
+}
+
 fn fetch_session_timeline(
     base_url: &str,
     token: &str,
@@ -2028,6 +3198,89 @@ mod tests {
         assert_eq!(parsed.discord_allowlisted_user_ids_csv, "u1,u2");
         assert_eq!(parsed.telegram_allowlisted_user_ids_csv, "1001,1002");
         assert_eq!(parsed.updated_at, 9);
+    }
+
+    #[test]
+    fn parse_runtime_config_success() {
+        let value = serde_json::json!({
+            "config": {
+                "schema_version": "runtime.config.v1",
+                "updated_at": 33,
+                "global": {
+                    "jwt_issuer_allowlist": ["issuer-a"],
+                    "jwt_audience_allowlist": ["aud-a", "aud-b"],
+                    "trusted_proxy_allowlist": ["10.0.0.0/8"],
+                    "tls_termination_mode": "edge",
+                    "public_base_url": "https://ops.example.com"
+                },
+                "providers": [
+                    {
+                        "provider": "openai",
+                        "enabled": true,
+                        "allow_consumer_oauth": false,
+                        "kill_switch_scope": "none"
+                    }
+                ],
+                "channels": {
+                    "discord": {
+                        "bot_token_secret_ref": "secret://runtime.discord.bot_token",
+                        "application_id": "123",
+                        "intents": ["guilds", "direct_messages"],
+                        "staging_guild_ids": ["g1"],
+                        "staging_channel_ids": ["c1"]
+                    },
+                    "telegram": {
+                        "bot_token_secret_ref": "secret://runtime.telegram.bot_token",
+                        "webhook_mode": "long_poll",
+                        "webhook_url": null,
+                        "staging_chat_ids": [1001, 1002]
+                    }
+                },
+                "security": {
+                    "threat_model_approver": "owner-a",
+                    "risk_acceptance_owner": "owner-b",
+                    "incident_primary": "p1",
+                    "incident_backup": "p2",
+                    "audit_archive_target": "s3://archive",
+                    "audit_archive_encryption": "kms://key",
+                    "audit_hot_retention_days": 90,
+                    "audit_archive_retention_days": 365
+                }
+            }
+        });
+
+        let parsed = parse_runtime_config(&value).expect("runtime config parse");
+        assert_eq!(parsed.schema_version, "runtime.config.v1");
+        assert_eq!(parsed.updated_at, 33);
+        assert_eq!(parsed.jwt_audience_allowlist_csv, "aud-a,aud-b");
+        assert_eq!(parsed.discord_intents_csv, "guilds,direct_messages");
+        assert_eq!(parsed.telegram_staging_chat_ids_csv, "1001,1002");
+        assert_eq!(parsed.provider_policies.len(), 2);
+    }
+
+    #[test]
+    fn validate_runtime_config_draft_rejects_invalid_webhook_mode() {
+        let config = RuntimeConfigWizardSnapshot {
+            telegram_webhook_mode: "invalid-mode".to_string(),
+            ..RuntimeConfigWizardSnapshot::default()
+        };
+        let error = validate_runtime_config_draft(&config).expect_err("expected mode failure");
+        assert!(error.contains("channels.telegram.webhook_mode"));
+    }
+
+    #[test]
+    fn runtime_wizard_completeness_reports_missing_production_inputs() {
+        let config = RuntimeConfigWizardSnapshot::default();
+        let issues = runtime_wizard_completeness_issues(&config);
+        assert!(issues
+            .iter()
+            .any(|entry| entry.contains("jwt_issuer_allowlist")));
+        assert!(issues
+            .iter()
+            .any(|entry| entry.contains("threat_model_approver")));
+        assert!(issues
+            .iter()
+            .any(|entry| entry.contains("bot_token_secret_ref")));
     }
 
     #[test]

@@ -1,10 +1,10 @@
 # LATEST Checkpoint
 
-- step: pr32-post-merge
-- note: PR #32 merged; archive-retention operational proof is now part of main baseline.
-- branch: main
-- head: b3cff94
-- next_cmd: Continue next non-blocked checklist phase or pause for owner-input blockers.
+- step: pr34-open-live
+- note: PR #34 is open for P2 wizard changes; checks and CodeRabbit are in progress.
+- branch: codex/chunk-pr34-mc-runtime-wizard
+- head: 0c176d0
+- next_cmd: Monitor PR #34 checks/reviews, apply required fixes, merge, then run post-merge checkpoint.
 - validations:
-- `gh pr view 32 --repo ProfessahX/CarsinOS --json state,mergedAt,mergeCommit` confirms merged.
-- `git pull --ff-only origin main` completed and local main matches origin/main.
+- `gh pr view 34 --repo ProfessahX/CarsinOS --json state,mergeStateStatus,statusCheckRollup,reviewDecision,url,headRefOid,headRefName` confirms PR `OPEN`.
+- `Security PR Gate` in progress and `CodeRabbit` pending at checkpoint capture time.
