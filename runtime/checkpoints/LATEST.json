@@ -1,24 +1,24 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-20T00:30:39Z",
+  "captured_at": "2026-02-20T00:34:18Z",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
   "branch": "codex/chunk-pr34-mc-runtime-wizard",
-  "head_short": "5840360",
-  "step": "p2-post-green",
-  "note": "MC-CONF-002 runtime wizard implemented in carsinos-gui with runtime config fetch/parse/save/rollback and validation. fmt/clippy/test/build green.",
-  "next_cmd": "Commit/push P2 changes, open PR chunk, then continue next non-blocked phase.",
+  "head_short": "34bf912",
+  "step": "pr34-open",
+  "note": "P2 wizard implementation committed; opening PR chunk for CI and CodeRabbit review.",
+  "next_cmd": "Push branch, create PR #34, then checkpoint with PR URL + check statuses.",
   "validations": [
-    "cargo fmt --all --check passed.",
-    "cargo clippy -p carsinos-gateway -p carsinos-storage -p carsinos-protocol -p carsinos-gui -p carsinos-cli --all-targets -- -D warnings passed.",
-    "cargo test --workspace --locked passed.",
-    "cargo build --workspace --locked passed."
+    "Commit 34bf912 created successfully.",
+    "Branch clean before PR-open checkpoint update commit."
   ],
   "status": {
-    "staged": [],
+    "staged": [
+      "CHECKPOINT.md",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "modified": [
       "CHECKPOINT.md",
-      "CHECKLIST.md",
-      "crates/carsinos-gui/src/main.rs",
       "runtime/checkpoints/LATEST.json",
       "runtime/checkpoints/LATEST.md"
     ],
@@ -29,19 +29,21 @@
   "changed_files": {
     "working_tree": [
       "CHECKPOINT.md",
-      "CHECKLIST.md",
-      "crates/carsinos-gui/src/main.rs",
       "runtime/checkpoints/LATEST.json",
       "runtime/checkpoints/LATEST.md"
     ],
-    "staged": []
+    "staged": [
+      "CHECKPOINT.md",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ]
   },
   "recent_commits": [
+    "34bf912 feat(gui): add mission control runtime setup wizard",
     "5840360 Merge pull request #33 from ProfessahX/codex/chunk-pr33-checkpoint-pr32-postmerge",
     "7d01d23 docs: checkpoint PR #32 post-merge state",
     "b3cff94 Merge pull request #32 from ProfessahX/codex/chunk-pr32-archive-retention-proof",
-    "7da7a50 docs: checkpoint PR #32 open state",
-    "e70c9f5 feat(security): add archive retention operational proof flow"
+    "7da7a50 docs: checkpoint PR #32 open state"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",

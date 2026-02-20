@@ -1,12 +1,10 @@
 # LATEST Checkpoint
 
-- step: p2-post-green
-- note: MC-CONF-002 runtime wizard implemented in carsinos-gui with runtime config fetch/parse/save/rollback and validation. fmt/clippy/test/build green.
+- step: pr34-open
+- note: P2 wizard implementation committed; opening PR chunk for CI and CodeRabbit review.
 - branch: codex/chunk-pr34-mc-runtime-wizard
-- head: 5840360
-- next_cmd: Commit/push P2 changes, open PR chunk, then continue next non-blocked phase.
+- head: 34bf912
+- next_cmd: Push branch, create PR #34, then checkpoint with PR URL + check statuses.
 - validations:
-- `cargo fmt --all --check` passed.
-- `cargo clippy -p carsinos-gateway -p carsinos-storage -p carsinos-protocol -p carsinos-gui -p carsinos-cli --all-targets -- -D warnings` passed.
-- `cargo test --workspace --locked` passed.
-- `cargo build --workspace --locked` passed.
+- Commit `34bf912` created successfully.
+- Branch clean before PR-open checkpoint update commit.
