@@ -1,36 +1,54 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-20T01:08:57.344962+00:00",
+  "captured_at": "2026-02-20T01:20:38.724415+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/chunk-pr36-telegram-transport",
-  "head": "68e18b3",
-  "head_short": "68e18b3",
-  "step": "telegram-transport-pr-open",
-  "note": "Opened PR #36 for Telegram transport mode wiring; awaiting CI + CodeRabbit review.",
-  "next_cmd": "Monitor PR #36 checks/reviews, apply any required fixes, then merge and post-merge checkpoint.",
+  "branch": "codex/chunk-pr37-discord-transport",
+  "head": "85166a1",
+  "head_short": "85166a1",
+  "step": "discord-transport-post-green",
+  "note": "Implemented Discord transport mode wiring (channel crate + runtime config + gateway dispatch/runtime adapter) and passed full validation gate.",
+  "next_cmd": "Review diff, finalize checkpoint/checklist docs, commit, and open PR for O5 chunk.",
   "validations": [
-    "PR opened: https://github.com/ProfessahX/CarsinOS/pull/36",
-    "PR state OPEN with mergeState UNSTABLE (checks pending)",
-    "Security PR Gate queued",
-    "CodeRabbit pending"
+    "cargo fmt --all --check passed",
+    "cargo clippy -p carsinos-gateway -p carsinos-channels-discord -p carsinos-core -p carsinos-protocol --all-targets -- -D warnings passed",
+    "cargo test --workspace --locked passed",
+    "cargo build --workspace --locked passed"
   ],
   "status": {
     "staged": [],
-    "modified": [],
+    "modified": [
+      "CHECKPOINT.md",
+      "Cargo.lock",
+      "crates/carsinos-channels-discord/Cargo.toml",
+      "crates/carsinos-channels-discord/src/lib.rs",
+      "crates/carsinos-gateway/src/main.rs",
+      "crates/carsinos-protocol/src/lib.rs",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "untracked": [],
     "conflicted": [],
-    "dirty": false
+    "dirty": true
   },
   "changed_files": {
-    "working_tree": [],
+    "working_tree": [
+      "CHECKPOINT.md",
+      "Cargo.lock",
+      "crates/carsinos-channels-discord/Cargo.toml",
+      "crates/carsinos-channels-discord/src/lib.rs",
+      "crates/carsinos-gateway/src/main.rs",
+      "crates/carsinos-protocol/src/lib.rs",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "staged": []
   },
   "recent_commits": [
+    "85166a1 Merge pull request #36 from ProfessahX/codex/chunk-pr36-telegram-transport",
+    "ec4ebeb docs: checkpoint PR #36 open status",
     "68e18b3 feat(channels): add telegram transport runtime mode wiring",
     "070e12a Merge pull request #35 from ProfessahX/codex/chunk-pr35-channel-runtime-foundation",
-    "af8baa3 docs: checkpoint PR #35 open state",
-    "c1e8339 feat(channels): add runtime manager foundation and lifecycle APIs",
-    "931c08e Merge pull request #34 from ProfessahX/codex/chunk-pr34-mc-runtime-wizard"
+    "af8baa3 docs: checkpoint PR #35 open state"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",

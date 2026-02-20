@@ -545,6 +545,14 @@ fn default_runtime_provider_kill_switch_scope() -> String {
 pub struct RuntimeDiscordDeploymentConfig {
     #[serde(default)]
     pub bot_token_secret_ref: Option<String>,
+    #[serde(default = "default_runtime_discord_operation_mode")]
+    pub operation_mode: String,
+    #[serde(default)]
+    pub api_base_url: Option<String>,
+    #[serde(default)]
+    pub transport_timeout_ms: Option<u64>,
+    #[serde(default)]
+    pub transport_retry_attempts: Option<usize>,
     #[serde(default)]
     pub application_id: Option<String>,
     #[serde(default)]
@@ -553,6 +561,10 @@ pub struct RuntimeDiscordDeploymentConfig {
     pub staging_guild_ids: Vec<String>,
     #[serde(default)]
     pub staging_channel_ids: Vec<String>,
+}
+
+fn default_runtime_discord_operation_mode() -> String {
+    "shim".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

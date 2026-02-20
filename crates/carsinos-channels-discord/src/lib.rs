@@ -1,6 +1,197 @@
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use std::time::Duration;
 
 pub const DISCORD_DEFAULT_CHUNK_LIMIT: usize = 1900;
+pub const DISCORD_DEFAULT_API_BASE_URL: &str = "https://discord.com/api/v10";
+const DISCORD_RETRY_ATTEMPT_HEADER: &str = "X-CarsinOS-Retry-Attempt";
+
+#[derive(Debug, Clone)]
+pub struct DiscordTransportConfig {
+    pub api_base_url: String,
+    pub bot_token: String,
+    pub timeout_ms: u64,
+    pub retry_attempts: usize,
+}
+
+impl Default for DiscordTransportConfig {
+    fn default() -> Self {
+        Self {
+            api_base_url: DISCORD_DEFAULT_API_BASE_URL.to_string(),
+            bot_token: String::new(),
+            timeout_ms: 5_000,
+            retry_attempts: 3,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DiscordTransportOutboundRequest {
+    pub channel_id: String,
+    pub content: String,
+    #[serde(default)]
+    pub reply_to_message_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DiscordSendMessageResult {
+    pub message_id: String,
+    pub channel_id: String,
+}
+
+#[derive(Debug, Clone)]
+struct DiscordTransportError {
+    message: String,
+    retryable: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct DiscordTransportClient {
+    config: DiscordTransportConfig,
+    agent: ureq::Agent,
+}
+
+impl DiscordTransportClient {
+    pub fn new(config: DiscordTransportConfig) -> Result<Self> {
+        let base_url = config.api_base_url.trim();
+        if config.bot_token.trim().is_empty() {
+            return Err(anyhow!("discord bot_token must not be empty"));
+        }
+        if !(base_url.starts_with("http://") || base_url.starts_with("https://")) {
+            return Err(anyhow!(
+                "discord api_base_url must start with http:// or https://"
+            ));
+        }
+        let agent = ureq::AgentBuilder::new()
+            .timeout(Duration::from_millis(config.timeout_ms.max(250)))
+            .build();
+        Ok(Self { config, agent })
+    }
+
+    pub fn config(&self) -> &DiscordTransportConfig {
+        &self.config
+    }
+
+    pub fn send_message_with_retry(
+        &self,
+        request: &DiscordTransportOutboundRequest,
+    ) -> Result<DiscordSendMessageResult> {
+        let channel_id = request.channel_id.trim();
+        if channel_id.is_empty() {
+            return Err(anyhow!("discord outbound channel_id must not be empty"));
+        }
+        if request.content.trim().is_empty() {
+            return Err(anyhow!("discord outbound content must not be empty"));
+        }
+
+        let payload = if let Some(reply_to_message_id) = request
+            .reply_to_message_id
+            .as_ref()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+        {
+            json!({
+                "content": request.content,
+                "message_reference": {
+                    "message_id": reply_to_message_id,
+                    "channel_id": channel_id,
+                    "fail_if_not_exists": false
+                }
+            })
+        } else {
+            json!({ "content": request.content })
+        };
+        let response = self.call_with_retry(channel_id, &payload)?;
+        let message_id = response
+            .get("id")
+            .and_then(|value| value.as_str())
+            .map(|value| value.to_string())
+            .ok_or_else(|| anyhow!("discord create-message response missing id"))?;
+        let response_channel_id = response
+            .get("channel_id")
+            .and_then(|value| value.as_str())
+            .map(|value| value.to_string())
+            .unwrap_or_else(|| channel_id.to_string());
+        Ok(DiscordSendMessageResult {
+            message_id,
+            channel_id: response_channel_id,
+        })
+    }
+
+    fn call_with_retry(&self, channel_id: &str, payload: &Value) -> Result<Value> {
+        let max_attempts = self.config.retry_attempts.max(1);
+        let mut last_error: Option<DiscordTransportError> = None;
+        for attempt in 1..=max_attempts {
+            match self.call_once(channel_id, payload, attempt) {
+                Ok(response) => return Ok(response),
+                Err(err) => {
+                    let should_retry = err.retryable && attempt < max_attempts;
+                    last_error = Some(err);
+                    if should_retry {
+                        std::thread::sleep(Duration::from_millis(100 * attempt as u64));
+                        continue;
+                    }
+                    break;
+                }
+            }
+        }
+
+        let final_error = last_error.unwrap_or(DiscordTransportError {
+            message: "unknown discord transport failure".to_string(),
+            retryable: false,
+        });
+        Err(anyhow!(
+            "discord create-message failed: {}",
+            final_error.message
+        ))
+    }
+
+    fn call_once(
+        &self,
+        channel_id: &str,
+        payload: &Value,
+        attempt: usize,
+    ) -> std::result::Result<Value, DiscordTransportError> {
+        let url = format!(
+            "{}/channels/{}/messages",
+            self.config.api_base_url.trim_end_matches('/'),
+            channel_id
+        );
+        let response = self
+            .agent
+            .post(&url)
+            .set("Accept", "application/json")
+            .set(
+                "Authorization",
+                &format!("Bot {}", self.config.bot_token.trim()),
+            )
+            .set(DISCORD_RETRY_ATTEMPT_HEADER, &attempt.to_string())
+            .send_json(payload.clone());
+        match response {
+            Ok(response) => response
+                .into_json::<Value>()
+                .map_err(|err| DiscordTransportError {
+                    message: format!("invalid discord JSON response: {}", err),
+                    retryable: false,
+                }),
+            Err(ureq::Error::Status(status, response)) => {
+                let body = response
+                    .into_string()
+                    .unwrap_or_else(|_| "<unreadable body>".to_string());
+                let retryable = status == 429 || status >= 500;
+                Err(DiscordTransportError {
+                    message: format!("HTTP {}: {}", status, body),
+                    retryable,
+                })
+            }
+            Err(ureq::Error::Transport(err)) => Err(DiscordTransportError {
+                message: format!("transport error: {}", err),
+                retryable: true,
+            }),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiscordAdapterConfig {
@@ -110,6 +301,8 @@ pub fn parse_approval_custom_id(custom_id: &str) -> Option<(String, String)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use httpmock::Method::POST;
+    use httpmock::MockServer;
 
     #[test]
     fn guild_message_without_mention_is_ignored() {
@@ -158,5 +351,105 @@ mod tests {
         let parsed = parse_approval_custom_id(&custom_id).expect("parsed");
         assert_eq!(parsed.0, "abc123");
         assert_eq!(parsed.1, "deny");
+    }
+
+    #[test]
+    fn send_message_retries_on_retryable_http_failure() {
+        let server = MockServer::start();
+        let retry_mock = server.mock(|when, then| {
+            when.method(POST)
+                .path("/channels/channel-1/messages")
+                .header(DISCORD_RETRY_ATTEMPT_HEADER, "1");
+            then.status(429)
+                .header("content-type", "application/json")
+                .body(r#"{"message":"rate limited"}"#);
+        });
+        let success_mock = server.mock(|when, then| {
+            when.method(POST)
+                .path("/channels/channel-1/messages")
+                .header(DISCORD_RETRY_ATTEMPT_HEADER, "2");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(r#"{"id":"msg-42","channel_id":"channel-1"}"#);
+        });
+
+        let client = DiscordTransportClient::new(DiscordTransportConfig {
+            api_base_url: server.base_url(),
+            bot_token: "discord-token".to_string(),
+            timeout_ms: 1_000,
+            retry_attempts: 2,
+        })
+        .expect("create transport client");
+        let response = client
+            .send_message_with_retry(&DiscordTransportOutboundRequest {
+                channel_id: "channel-1".to_string(),
+                content: "hello".to_string(),
+                reply_to_message_id: None,
+            })
+            .expect("send message");
+        assert_eq!(response.message_id, "msg-42");
+        retry_mock.assert_hits(1);
+        success_mock.assert_hits(1);
+    }
+
+    #[test]
+    fn send_message_does_not_retry_non_retryable_failure() {
+        let server = MockServer::start();
+        let bad_request_mock = server.mock(|when, then| {
+            when.method(POST)
+                .path("/channels/channel-1/messages")
+                .header(DISCORD_RETRY_ATTEMPT_HEADER, "1");
+            then.status(400)
+                .header("content-type", "application/json")
+                .body(r#"{"message":"bad request"}"#);
+        });
+
+        let client = DiscordTransportClient::new(DiscordTransportConfig {
+            api_base_url: server.base_url(),
+            bot_token: "discord-token".to_string(),
+            timeout_ms: 1_000,
+            retry_attempts: 3,
+        })
+        .expect("create transport client");
+        let err = client
+            .send_message_with_retry(&DiscordTransportOutboundRequest {
+                channel_id: "channel-1".to_string(),
+                content: "hello".to_string(),
+                reply_to_message_id: None,
+            })
+            .expect_err("expected failure");
+        assert!(err.to_string().contains("HTTP 400"));
+        bad_request_mock.assert_hits(1);
+    }
+
+    #[test]
+    fn send_message_supports_reply_reference_payload() {
+        let server = MockServer::start();
+        let reply_mock = server.mock(|when, then| {
+            when.method(POST)
+                .path("/channels/channel-1/messages")
+                .header(DISCORD_RETRY_ATTEMPT_HEADER, "1")
+                .body_contains("\"message_reference\"");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(r#"{"id":"msg-reply","channel_id":"channel-1"}"#);
+        });
+
+        let client = DiscordTransportClient::new(DiscordTransportConfig {
+            api_base_url: server.base_url(),
+            bot_token: "discord-token".to_string(),
+            timeout_ms: 1_000,
+            retry_attempts: 1,
+        })
+        .expect("create transport client");
+        let response = client
+            .send_message_with_retry(&DiscordTransportOutboundRequest {
+                channel_id: "channel-1".to_string(),
+                content: "reply".to_string(),
+                reply_to_message_id: Some("origin-1".to_string()),
+            })
+            .expect("send reply");
+        assert_eq!(response.message_id, "msg-reply");
+        reply_mock.assert_hits(1);
     }
 }

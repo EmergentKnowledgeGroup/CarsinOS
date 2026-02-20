@@ -4169,3 +4169,77 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 215
+
+- checklist refs: PR workflow (`PR #36` post-merge)
+- past action:
+- Opened and monitored PR #36 for Telegram transport runtime mode integration.
+- present action:
+- Synced local `main` after merge and preparing next implementation chunk for `O5`.
+- validation outcomes:
+- `gh pr view 36 --repo ProfessahX/CarsinOS --json state,mergedAt,mergeCommit,url` confirms `MERGED` at `2026-02-20T01:13:37Z`, merge commit `85166a1`.
+- `git pull --ff-only origin main` completed; local `main` fast-forwarded `070e12a -> 85166a1`.
+- future action:
+- Create and start `O5` Discord production connector chunk branch and continue non-blocked implementation flow.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 216
+
+- checklist refs: `O5` (`MC-CH-020` phase start)
+- past action:
+- Completed PR #36 merge workflow and synchronized local `main` to merge commit `85166a1`.
+- present action:
+- Started branch `codex/chunk-pr37-discord-transport` to implement Discord production connector transport/runtime behavior for `O5`.
+- validation outcomes:
+- Context checkpoint snapshot recorded with step `discord-transport-phase-start`.
+- Active target: Discord transport client/retry foundation + gateway runtime dispatch wiring.
+- future action:
+- Implement Discord transport path, run full validation gate (`fmt/clippy/test/build`), then open next PR chunk.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 217
+
+- checklist refs: `O5` (`MC-CH-020` Discord transport slice)
+- past action:
+- Started `codex/chunk-pr37-discord-transport` from merged `main` (`85166a1`) and captured phase-start checkpoints.
+- present action:
+- Implemented Discord production connector transport-mode wiring and completed post-green validation gates.
+- validation outcomes:
+- Added Discord transport client + retry semantics in `carsinos-channels-discord`:
+- REST create-message transport, retry behavior, reply-reference support, and deterministic retry-attempt header tests.
+- Extended runtime config contract for Discord transport controls:
+- `channels.discord.operation_mode` (`shim|transport`)
+- `api_base_url`, `transport_timeout_ms`, `transport_retry_attempts`
+- Integrated Discord transport mode into gateway:
+- runtime adapter start/health now validates transport mode and initializes transport client when enabled,
+- scheduler + channel action dispatch paths execute real Discord outbound sends when `operation_mode=transport` (default remains `shim`),
+- target parsing supports `channel:<id>` and `<channel>/<message>` reply references.
+- Added gateway tests for Discord target parsing and runtime config operation-mode validation.
+- `cargo fmt --all --check` passed.
+- `cargo clippy -p carsinos-gateway -p carsinos-channels-discord -p carsinos-core -p carsinos-protocol --all-targets -- -D warnings` passed.
+- `cargo test --workspace --locked` passed.
+- `cargo build --workspace --locked` passed.
+- future action:
+- Commit and open PR chunk for `O5`, then monitor CI + CodeRabbit and merge/continue workflow.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.lock`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-discord/Cargo.toml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-discord/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-protocol/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`

@@ -557,6 +557,7 @@ struct DiscordRuntimeAdapter {
     storage: Storage,
     secret_store: SecretStore,
     started: Arc<StdRwLock<bool>>,
+    transport_client: Arc<StdRwLock<Option<discord_channel::DiscordTransportClient>>>,
 }
 
 impl DiscordRuntimeAdapter {
@@ -565,7 +566,46 @@ impl DiscordRuntimeAdapter {
             storage,
             secret_store,
             started: Arc::new(StdRwLock::new(false)),
+            transport_client: Arc::new(StdRwLock::new(None)),
         }
+    }
+
+    fn resolve_runtime_state(
+        &self,
+    ) -> AnyResult<(
+        &'static str,
+        Option<discord_channel::DiscordTransportClient>,
+    )> {
+        let config = load_runtime_config_from_storage(&self.storage)?;
+        let secret_ref = config
+            .channels
+            .discord
+            .bot_token_secret_ref
+            .clone()
+            .unwrap_or_default();
+        if secret_ref.trim().is_empty() {
+            anyhow::bail!("channels.discord.bot_token_secret_ref is missing in runtime config");
+        }
+        let secret_key =
+            secret_key_from_secret_ref(&secret_ref).context("invalid discord secret_ref")?;
+        match self.secret_store.get_raw(&secret_key) {
+            Ok(Some(_)) => {}
+            Ok(None) => {
+                anyhow::bail!(
+                    "discord secret value not found for configured ref {}",
+                    secret_ref
+                );
+            }
+            Err(err) => {
+                anyhow::bail!("failed reading discord secret: {}", err);
+            }
+        }
+
+        let operation_mode =
+            normalize_discord_operation_mode(&config.channels.discord.operation_mode);
+        let transport_client = build_discord_transport_client(&config, &self.secret_store)
+            .with_context(|| "discord transport initialization failed")?;
+        Ok((operation_mode, transport_client))
     }
 }
 
@@ -575,6 +615,13 @@ impl ChannelAdapterLifecycle for DiscordRuntimeAdapter {
     }
 
     fn start(&self) -> anyhow::Result<()> {
+        let (_, transport_client) = self.resolve_runtime_state()?;
+        let mut transport_guard = self
+            .transport_client
+            .write()
+            .map_err(|_| anyhow::anyhow!("discord transport lock poisoned"))?;
+        *transport_guard = transport_client;
+
         let mut guard = self
             .started
             .write()
@@ -584,6 +631,12 @@ impl ChannelAdapterLifecycle for DiscordRuntimeAdapter {
     }
 
     fn stop(&self) -> anyhow::Result<()> {
+        let mut transport_guard = self
+            .transport_client
+            .write()
+            .map_err(|_| anyhow::anyhow!("discord transport lock poisoned"))?;
+        *transport_guard = None;
+
         let mut guard = self
             .started
             .write()
@@ -601,54 +654,19 @@ impl ChannelAdapterLifecycle for DiscordRuntimeAdapter {
             };
         }
 
-        let config = match load_runtime_config_from_storage(&self.storage) {
-            Ok(config) => config,
-            Err(err) => {
-                return ChannelAdapterHealth {
-                    healthy: false,
-                    detail: Some(format!("failed loading runtime config: {}", err)),
-                };
+        match self.resolve_runtime_state() {
+            Ok((operation_mode, transport_client)) => {
+                if let Ok(mut transport_guard) = self.transport_client.write() {
+                    *transport_guard = transport_client;
+                }
+                ChannelAdapterHealth {
+                    healthy: true,
+                    detail: Some(format!("discord adapter healthy (mode={})", operation_mode)),
+                }
             }
-        };
-        let secret_ref = config
-            .channels
-            .discord
-            .bot_token_secret_ref
-            .unwrap_or_default();
-        if secret_ref.trim().is_empty() {
-            return ChannelAdapterHealth {
-                healthy: false,
-                detail: Some(
-                    "channels.discord.bot_token_secret_ref is missing in runtime config"
-                        .to_string(),
-                ),
-            };
-        }
-        let secret_key = secret_ref
-            .trim_start_matches("secret://")
-            .trim()
-            .to_string();
-        if secret_key.is_empty() {
-            return ChannelAdapterHealth {
-                healthy: false,
-                detail: Some("invalid discord secret_ref".to_string()),
-            };
-        }
-        match self.secret_store.get_raw(&secret_key) {
-            Ok(Some(_)) => ChannelAdapterHealth {
-                healthy: true,
-                detail: Some("discord adapter healthy".to_string()),
-            },
-            Ok(None) => ChannelAdapterHealth {
-                healthy: false,
-                detail: Some(format!(
-                    "discord secret value not found for configured ref {}",
-                    secret_ref
-                )),
-            },
             Err(err) => ChannelAdapterHealth {
                 healthy: false,
-                detail: Some(format!("failed reading discord secret: {}", err)),
+                detail: Some(err.to_string()),
             },
         }
     }
@@ -1247,6 +1265,8 @@ const APP_KV_RUNTIME_CONFIG: &str = "config.runtime.v1";
 const APP_KV_RUNTIME_CONFIG_LAST_GOOD: &str = "config.runtime.last_good.v1";
 const APP_KV_SKILLS_STATE: &str = "config.skills.state";
 const RUNTIME_CONFIG_SCHEMA_VERSION: &str = "runtime.config.v1";
+const DISCORD_OPERATION_MODE_SHIM: &str = "shim";
+const DISCORD_OPERATION_MODE_TRANSPORT: &str = "transport";
 const TELEGRAM_OPERATION_MODE_SHIM: &str = "shim";
 const TELEGRAM_OPERATION_MODE_TRANSPORT: &str = "transport";
 const PLUGIN_REGISTRY_CONTRACT_VERSION: &str = "plugin.registry.v1";
@@ -8314,8 +8334,9 @@ fn dispatch_scheduler_delivery(
         ),
     };
     let mut chunk_count = chunks.len();
-    let mut transport_message_ids: Vec<i64> = Vec::new();
-    let delivery_mode = if provider == "telegram" {
+    let mut transport_message_ids: Vec<String> = Vec::new();
+    let mut delivery_mode = DISCORD_OPERATION_MODE_SHIM;
+    if provider == "telegram" {
         let runtime_config = load_runtime_config(state)?;
         if normalize_telegram_operation_mode(&runtime_config.channels.telegram.operation_mode)
             == TELEGRAM_OPERATION_MODE_TRANSPORT
@@ -8326,6 +8347,7 @@ fn dispatch_scheduler_delivery(
                 target_id,
                 &chunks,
             )
+            .map(|ids| ids.into_iter().map(|id| id.to_string()).collect::<Vec<_>>())
             .with_context(|| {
                 format!(
                     "telegram transport delivery failed for target {}",
@@ -8333,13 +8355,27 @@ fn dispatch_scheduler_delivery(
                 )
             })?;
             chunk_count = transport_message_ids.len();
-            TELEGRAM_OPERATION_MODE_TRANSPORT
-        } else {
-            TELEGRAM_OPERATION_MODE_SHIM
+            delivery_mode = TELEGRAM_OPERATION_MODE_TRANSPORT;
         }
-    } else {
-        TELEGRAM_OPERATION_MODE_SHIM
-    };
+    } else if provider == "discord" {
+        let runtime_config = load_runtime_config(state)?;
+        if normalize_discord_operation_mode(&runtime_config.channels.discord.operation_mode)
+            == DISCORD_OPERATION_MODE_TRANSPORT
+        {
+            transport_message_ids = send_discord_chunks_via_transport(
+                &runtime_config,
+                &state.secret_store,
+                target_id,
+                &action,
+                &chunks,
+            )
+            .with_context(|| {
+                format!("discord transport delivery failed for target {}", target_id)
+            })?;
+            chunk_count = transport_message_ids.len();
+            delivery_mode = DISCORD_OPERATION_MODE_TRANSPORT;
+        }
+    }
 
     emit_event(
         state,
@@ -8893,6 +8929,10 @@ fn default_runtime_config() -> RuntimeConfigResponse {
         channels: RuntimeChannelsConfig {
             discord: RuntimeDiscordDeploymentConfig {
                 bot_token_secret_ref: None,
+                operation_mode: DISCORD_OPERATION_MODE_SHIM.to_string(),
+                api_base_url: None,
+                transport_timeout_ms: None,
+                transport_retry_attempts: None,
                 application_id: None,
                 intents: vec![
                     "guilds".to_string(),
@@ -9048,6 +9088,47 @@ fn validate_runtime_config(config: &RuntimeConfigResponse) -> AnyResult<()> {
         &config.channels.discord.bot_token_secret_ref,
         "channels.discord.bot_token_secret_ref",
     )?;
+    match config
+        .channels
+        .discord
+        .operation_mode
+        .trim()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        DISCORD_OPERATION_MODE_SHIM | DISCORD_OPERATION_MODE_TRANSPORT => {}
+        _ => {
+            anyhow::bail!(
+                "invalid channels.discord.operation_mode: {} (expected shim|transport)",
+                config.channels.discord.operation_mode
+            );
+        }
+    }
+    if let Some(base_url) = &config.channels.discord.api_base_url {
+        let trimmed = base_url.trim();
+        if trimmed.is_empty() {
+            anyhow::bail!("channels.discord.api_base_url cannot be empty when provided");
+        }
+        if !(trimmed.starts_with("http://") || trimmed.starts_with("https://")) {
+            anyhow::bail!(
+                "channels.discord.api_base_url must start with http:// or https:// when provided"
+            );
+        }
+    }
+    if let Some(timeout_ms) = config.channels.discord.transport_timeout_ms {
+        if timeout_ms < 250 {
+            anyhow::bail!("channels.discord.transport_timeout_ms must be >= 250");
+        }
+        if timeout_ms > 120_000 {
+            anyhow::bail!("channels.discord.transport_timeout_ms must be <= 120000");
+        }
+    }
+    if let Some(retries) = config.channels.discord.transport_retry_attempts {
+        if retries == 0 || retries > 10 {
+            anyhow::bail!("channels.discord.transport_retry_attempts must be between 1 and 10");
+        }
+    }
+
     validate_secret_ref(
         &config.channels.telegram.bot_token_secret_ref,
         "channels.telegram.bot_token_secret_ref",
@@ -9157,6 +9238,132 @@ fn secret_key_from_secret_ref(secret_ref: &str) -> AnyResult<String> {
         anyhow::bail!("secret_ref does not include a key path");
     }
     Ok(secret_key)
+}
+
+fn normalize_discord_operation_mode(mode: &str) -> &'static str {
+    if mode
+        .trim()
+        .eq_ignore_ascii_case(DISCORD_OPERATION_MODE_TRANSPORT)
+    {
+        DISCORD_OPERATION_MODE_TRANSPORT
+    } else {
+        DISCORD_OPERATION_MODE_SHIM
+    }
+}
+
+fn build_discord_transport_client(
+    runtime_config: &RuntimeConfigResponse,
+    secret_store: &SecretStore,
+) -> AnyResult<Option<discord_channel::DiscordTransportClient>> {
+    if normalize_discord_operation_mode(&runtime_config.channels.discord.operation_mode)
+        != DISCORD_OPERATION_MODE_TRANSPORT
+    {
+        return Ok(None);
+    }
+
+    let secret_ref = runtime_config
+        .channels
+        .discord
+        .bot_token_secret_ref
+        .clone()
+        .unwrap_or_default();
+    if secret_ref.trim().is_empty() {
+        anyhow::bail!(
+            "channels.discord.bot_token_secret_ref is required when channels.discord.operation_mode=transport"
+        );
+    }
+    let secret_key = secret_key_from_secret_ref(&secret_ref)?;
+    let bot_token = secret_store
+        .get_raw(&secret_key)?
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "discord secret value not found for configured ref {}",
+                secret_ref
+            )
+        })?;
+
+    let timeout_ms = runtime_config
+        .channels
+        .discord
+        .transport_timeout_ms
+        .unwrap_or(5_000)
+        .clamp(250, 120_000);
+    let retry_attempts = runtime_config
+        .channels
+        .discord
+        .transport_retry_attempts
+        .unwrap_or(3)
+        .clamp(1, 10);
+    let api_base_url = runtime_config
+        .channels
+        .discord
+        .api_base_url
+        .clone()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| discord_channel::DISCORD_DEFAULT_API_BASE_URL.to_string());
+    let transport_config = discord_channel::DiscordTransportConfig {
+        api_base_url,
+        bot_token,
+        timeout_ms,
+        retry_attempts,
+    };
+    let client = discord_channel::DiscordTransportClient::new(transport_config)
+        .context("failed to initialize discord transport client")?;
+    Ok(Some(client))
+}
+
+fn parse_discord_target(target: &str) -> AnyResult<(String, Option<String>)> {
+    let trimmed = target.trim();
+    if trimmed.is_empty() {
+        anyhow::bail!("discord target must not be empty");
+    }
+    let normalized = trimmed.strip_prefix("channel:").unwrap_or(trimmed).trim();
+    if normalized.is_empty() {
+        anyhow::bail!("discord target does not include a channel id");
+    }
+    let (channel_id, reply_message_id) = match normalized.split_once('/') {
+        Some((channel_id, reply_message_id)) => (
+            channel_id.trim().to_string(),
+            Some(reply_message_id.trim().to_string()),
+        ),
+        None => (normalized.to_string(), None),
+    };
+    if channel_id.is_empty() {
+        anyhow::bail!("discord target channel id must not be empty");
+    }
+    let reply_message_id = reply_message_id.filter(|value| !value.is_empty());
+    Ok((channel_id, reply_message_id))
+}
+
+fn send_discord_chunks_via_transport(
+    runtime_config: &RuntimeConfigResponse,
+    secret_store: &SecretStore,
+    target: &str,
+    action: &str,
+    chunks: &[String],
+) -> AnyResult<Vec<String>> {
+    let (channel_id, target_reply_message_id) = parse_discord_target(target)?;
+    let transport_client = build_discord_transport_client(runtime_config, secret_store)?
+        .ok_or_else(|| anyhow::anyhow!("discord transport mode is not enabled"))?;
+    let reply_to_message_id = if action == "reply" {
+        target_reply_message_id
+    } else {
+        None
+    };
+    let mut message_ids = Vec::with_capacity(chunks.len());
+    for chunk in chunks {
+        let response = transport_client.send_message_with_retry(
+            &discord_channel::DiscordTransportOutboundRequest {
+                channel_id: channel_id.clone(),
+                content: chunk.clone(),
+                reply_to_message_id: reply_to_message_id.clone(),
+            },
+        )?;
+        message_ids.push(response.message_id);
+    }
+    Ok(message_ids)
 }
 
 fn build_telegram_transport_client(
@@ -9508,8 +9715,8 @@ async fn execute_channel_action_tool(
         ),
     });
     let mut chunk_count = text_chunks.as_ref().map(|value| value.len()).unwrap_or(0);
-    let mut delivery_mode = TELEGRAM_OPERATION_MODE_SHIM;
-    let mut transport_message_ids: Vec<i64> = Vec::new();
+    let mut delivery_mode = DISCORD_OPERATION_MODE_SHIM;
+    let mut transport_message_ids: Vec<String> = Vec::new();
 
     if provider == "telegram" && matches!(action.as_str(), "send" | "reply") {
         if let Some(chunks) = text_chunks.as_ref() {
@@ -9525,6 +9732,7 @@ async fn execute_channel_action_tool(
                     &target,
                     chunks,
                 )
+                .map(|ids| ids.into_iter().map(|id| id.to_string()).collect::<Vec<_>>())
                 .map_err(|err| {
                     let reason = format!("telegram transport dispatch failed: {err}");
                     record_security_audit_internal(
@@ -9548,6 +9756,46 @@ async fn execute_channel_action_tool(
                 })?;
                 chunk_count = transport_message_ids.len();
                 delivery_mode = TELEGRAM_OPERATION_MODE_TRANSPORT;
+            }
+        }
+    } else if provider == "discord" && matches!(action.as_str(), "send" | "reply") {
+        if let Some(chunks) = text_chunks.as_ref() {
+            let runtime_config = load_runtime_config(state).map_err(|err| {
+                ToolError::Failed(format!("failed loading runtime config: {err}"))
+            })?;
+            if normalize_discord_operation_mode(&runtime_config.channels.discord.operation_mode)
+                == DISCORD_OPERATION_MODE_TRANSPORT
+            {
+                transport_message_ids = send_discord_chunks_via_transport(
+                    &runtime_config,
+                    &state.secret_store,
+                    &target,
+                    &action,
+                    chunks,
+                )
+                .map_err(|err| {
+                    let reason = format!("discord transport dispatch failed: {err}");
+                    record_security_audit_internal(
+                        state,
+                        "channel.tool_action.execute",
+                        &resource,
+                        "deny",
+                        Some(reason.clone()),
+                        StatusCode::FAILED_DEPENDENCY,
+                        Some("DEPENDENCY_UNAVAILABLE"),
+                        Some(&run.session_id),
+                        Some(&run.run_id),
+                        Some(serde_json::json!({
+                            "provider": provider.clone(),
+                            "action": action.clone(),
+                            "target": target.clone(),
+                            "delivery_mode": DISCORD_OPERATION_MODE_TRANSPORT
+                        })),
+                    );
+                    ToolError::Failed(reason)
+                })?;
+                chunk_count = transport_message_ids.len();
+                delivery_mode = DISCORD_OPERATION_MODE_TRANSPORT;
             }
         }
     }
@@ -12671,6 +12919,21 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     fn parse_telegram_chat_target_rejects_non_numeric_values() {
         let err = parse_telegram_chat_target("chat:not-a-number").expect_err("invalid target");
         assert!(err.to_string().contains("invalid telegram chat target"));
+    }
+
+    #[test]
+    fn parse_discord_target_accepts_channel_prefix_and_reply_target() {
+        let parsed = parse_discord_target("channel:abc123/msg42").expect("discord target");
+        assert_eq!(parsed.0, "abc123");
+        assert_eq!(parsed.1.as_deref(), Some("msg42"));
+    }
+
+    #[test]
+    fn parse_discord_target_rejects_empty_channel_id() {
+        let err = parse_discord_target("channel:").expect_err("invalid discord target");
+        assert!(err
+            .to_string()
+            .contains("discord target does not include a channel id"));
     }
 
     #[tokio::test]
@@ -16186,6 +16449,40 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .await
             .expect("invalid operation_mode runtime config update");
         assert_eq!(invalid_operation_mode.status(), StatusCode::BAD_REQUEST);
+
+        let invalid_discord_operation_mode = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    r#"{
+                        "channels": {
+                            "discord": {
+                                "bot_token_secret_ref": null,
+                                "operation_mode": "invalid_mode",
+                                "application_id": null,
+                                "intents": ["guilds"],
+                                "staging_guild_ids": [],
+                                "staging_channel_ids": []
+                            },
+                            "telegram": {
+                                "bot_token_secret_ref": null,
+                                "webhook_mode": "long_poll",
+                                "webhook_url": null,
+                                "staging_chat_ids": []
+                            }
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("invalid discord operation_mode runtime config update");
+        assert_eq!(
+            invalid_discord_operation_mode.status(),
+            StatusCode::BAD_REQUEST
+        );
     }
 
     #[tokio::test]
