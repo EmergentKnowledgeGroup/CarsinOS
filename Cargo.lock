@@ -846,7 +846,11 @@ dependencies = [
 name = "carsinos-channels-discord"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "httpmock",
  "serde",
+ "serde_json",
+ "ureq",
 ]
 
 [[package]]
