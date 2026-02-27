@@ -148,7 +148,6 @@ struct AppState {
     scheduler_instance: Arc<SchedulerInstanceState>,
     trust_contract_lock: Arc<RwLock<RuntimeTrustContractLockRecord>>,
     trust_contract_lock_path: Arc<String>,
-    plugin_manifest_dirs: Arc<Vec<PathBuf>>,
     state_dir: Arc<PathBuf>,
 }
 
@@ -1900,10 +1899,6 @@ struct NumquamClient {
 struct NumquamHealthData {
     #[serde(default)]
     status: String,
-    #[serde(default)]
-    uptime_ms: Option<i64>,
-    #[serde(default)]
-    dependencies: Vec<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -2532,7 +2527,6 @@ async fn main() -> AnyResult<()> {
         scheduler_instance: scheduler_instance.clone(),
         trust_contract_lock: Arc::new(RwLock::new(trust_contract_lock_record)),
         trust_contract_lock_path: Arc::new(trust_contract_lock_path.display().to_string()),
-        plugin_manifest_dirs: Arc::new(plugin_manifest_dirs.clone()),
         state_dir: Arc::new(config.state_dir.clone()),
     };
     record_extension_hook_policy_denials(&state, &hook_policy_denials);
@@ -19260,7 +19254,6 @@ mod tests {
             scheduler_instance: Arc::new(SchedulerInstanceState::enabled_for_tests()),
             trust_contract_lock: Arc::new(RwLock::new(trust_lock)),
             trust_contract_lock_path: Arc::new(trust_lock_path.display().to_string()),
-            plugin_manifest_dirs: Arc::new(vec![temp_dir.path().join("plugins").join("active")]),
             state_dir: Arc::new(temp_dir.path().to_path_buf()),
         };
         state.channel_runtime.start_all();

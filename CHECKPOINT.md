@@ -5693,3 +5693,29 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-27 - Entry 270
+
+- checklist refs: `Q4` `Q7`
+- past action:
+- Synced local source-of-truth to remote via PR #41 and merged cleanly.
+- present action:
+- Started follow-up PR workflow to enforce CodeRabbit-on-open-PR review loop after merge-only limitation.
+- Implemented focused gateway cleanup patch:
+- removed unused `AppState.plugin_manifest_dirs` field (dead state member)
+- removed unused `NumquamHealthData` fields (`uptime_ms`, `dependencies`) to eliminate compile warnings
+- validation outcomes:
+- `cargo check -p carsinos-gateway --bin carsinos-gateway` passed.
+- `cargo test -p carsinos-gateway --test e2e_process` passed (`17/17`).
+- `cargo test -p carsinos-gateway --test benchmark_process -- --nocapture` passed (`2/2`).
+- Checkpoint SOP:
+- phase-start and post-green snapshots recorded and mirrored to top-level runtime checkpoint path.
+- future action:
+- open PR #42, wait for CodeRabbit completion at 5-minute intervals, apply any review fixes, rerun gates, and merge.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
