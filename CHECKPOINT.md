@@ -5843,3 +5843,88 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/CHECKPOINT.md`
+
+### 2026-02-27 - Entry 276
+
+- checklist refs: `Q4` `Q7`
+- past action:
+- Resolved PR #44 merge-from-main conflicts after PR #43 landed overlapping gateway/core/checkpoint changes.
+- present action:
+- Restored branch-specific PR44 remediation on top of `origin/main`:
+- kept mainline protocol/storage/migration updates from merged PR43
+- kept PR44 GUI behavior improvements (MC3 refresh error surfacing + card-run model resolution)
+- kept PR44 CI fix (`cargo-audit` pin `0.22.1`) and clippy parity fixes
+- validation outcomes:
+- prior local `scripts/security_pr_gate.sh` run remained green before merge-from-main; rerun scheduled after conflict finalize.
+- Checkpoint SOP:
+- conflict resolution recorded before staging merge commit.
+- future action:
+- run full security gate again post-conflict, push branch, and complete PR #44 review/merge loop.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/crates/carsinos-core/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/crates/carsinos-gui/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/runtime/checkpoints/LATEST.json`
+
+### 2026-02-27 - Entry 277
+
+- checklist refs: `Q4` `Q7`
+- past action:
+- Resumed PR #44 post-compaction and verified open review state, branch HEAD, and pending local changes.
+- present action:
+- Applied remaining CodeRabbit follow-ups in GUI branch (refresh result propagation + script draft persistence) and synchronized checkpoint artifacts:
+- refreshed `runtime/checkpoints/LATEST.md` to match current `step/note/head/next_cmd`
+- normalized `runtime/checkpoints/LATEST.json` with required `head` and `validations` fields plus relative `repo_root` (`.`)
+- validation outcomes:
+- Existing local gate run remains green: `scripts/security_pr_gate.sh`.
+- Checkpoint SOP:
+- phase-start checkpoint state now aligned in both `LATEST.md` and `LATEST.json` before commit/push.
+- future action:
+- Commit/push this batch, poll PR #44 checks/reviews in 5-minute intervals, apply any remaining review deltas, and merge once green.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/crates/carsinos-gui/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/CHECKPOINT.md`
+
+### 2026-02-27 - Entry 278
+
+- checklist refs: `Q4` `Q7`
+- past action:
+- Finalized PR #44 GUI fix batch and synchronized checkpoint metadata required by resume SOP.
+- present action:
+- Re-ran full regression gate via `scripts/security_pr_gate.sh` and confirmed green outcomes for:
+- fmt, clippy, targeted core suites, full workspace tests, hardcoded-value guard, cargo-audit.
+- Updated `LATEST.md` and `LATEST.json` to `pr44-post-green` with commit/push as next command.
+- validation outcomes:
+- `scripts/security_pr_gate.sh` passed end-to-end at `2026-02-27T11:19:51Z`.
+- Checkpoint SOP:
+- post-green checkpoint recorded before staging/commit.
+- future action:
+- commit/push PR #44 final changes, poll checks/reviews, merge PR #44, then continue to PR #45.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/runtime/checkpoints/LATEST.json`
+
+### 2026-02-27 - Entry 279
+
+- checklist refs: `Q4` `Q7`
+- past action:
+- Committed and pushed PR #44 review-fix batch (`3053dd5`) to remote branch.
+- present action:
+- Recorded PR-open/review-loop checkpoint state for active poll cycle:
+- `runtime/checkpoints/LATEST.md` now points to `gh pr view 44 ...` status command
+- `runtime/checkpoints/LATEST.json` updated with `step`, `branch`, full `head`, `next_cmd`, and validation list.
+- validation outcomes:
+- prior gate remains green from Entry 278.
+- Checkpoint SOP:
+- PR-open checkpoint artifacts refreshed before entering review/merge loop.
+- future action:
+- poll PR #44 every 5 minutes, apply any new CodeRabbit-required changes, and merge once checks are green.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/runtime/checkpoints/LATEST.json`

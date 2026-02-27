@@ -1,9 +1,11 @@
+#![allow(dead_code)]
+
 use eframe::egui;
 use eframe::egui::{Color32, RichText};
 use rand::rngs::OsRng;
 use rand::RngCore;
 use serde_json::{json, Value};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::Duration;
@@ -64,6 +66,96 @@ struct AuthProfileListItem {
     kill_switch_scope: String,
     api_base_url: Option<String>,
     updated_at: i64,
+}
+
+#[derive(Debug, Clone)]
+struct TeamAgentItem {
+    agent_id: String,
+    name: String,
+    model_provider: String,
+    model_id: String,
+    tool_profile: String,
+}
+
+#[derive(Debug, Clone)]
+struct BoardSummaryItem {
+    board_id: String,
+    board_key: String,
+    name: String,
+}
+
+#[derive(Debug, Clone)]
+struct BoardColumnItem {
+    column_id: String,
+    column_key: String,
+    name: String,
+    position: i64,
+}
+
+#[derive(Debug, Clone)]
+struct BoardAssetItem {
+    card_asset_id: String,
+    filename: String,
+    mime: String,
+    bytes: i64,
+}
+
+#[derive(Debug, Clone)]
+struct BoardCardItem {
+    card_id: String,
+    column_id: String,
+    title: String,
+    description: Option<String>,
+    owner_kind: String,
+    owner_agent_id: Option<String>,
+    script_markdown: Option<String>,
+    linked_session_id: Option<String>,
+    latest_run_id: Option<String>,
+    position: i64,
+    assets: Vec<BoardAssetItem>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct BoardDetailItem {
+    board_id: String,
+    board_key: String,
+    board_name: String,
+    columns: Vec<BoardColumnItem>,
+    cards: Vec<BoardCardItem>,
+}
+
+#[derive(Debug, Clone)]
+struct CalendarJobItem {
+    job_id: String,
+    name: String,
+    agent_id: String,
+    enabled: bool,
+    next_run_at: Option<i64>,
+    schedule_kind: String,
+}
+
+#[derive(Debug, Clone)]
+struct MemoryNoteItem {
+    note_id: String,
+    title: Option<String>,
+    updated_at: i64,
+    body_preview: String,
+}
+
+#[derive(Debug, Clone)]
+struct BoardAutomationRuleItem {
+    rule_id: String,
+    job_id: String,
+    board_id: String,
+    column_id: String,
+    target_column_id: String,
+    name: String,
+    enabled: bool,
+    next_run_at: Option<i64>,
+    max_cards_per_run: i64,
+    max_runs_per_day: i64,
+    max_attempts_per_card_per_day: i64,
+    last_error: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -232,21 +324,25 @@ impl RuntimeWizardStep {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum MainTab {
-    Mission,
-    Sessions,
+    Tasks,
+    Content,
+    Calendar,
+    Memory,
+    Team,
     Approvals,
-    Auth,
-    Channels,
+    Settings,
 }
 
 impl MainTab {
     fn label(self) -> &'static str {
         match self {
-            MainTab::Mission => "Mission",
-            MainTab::Sessions => "Sessions",
+            MainTab::Tasks => "Tasks",
+            MainTab::Content => "Content",
+            MainTab::Calendar => "Calendar",
+            MainTab::Memory => "Memory",
+            MainTab::Team => "Team",
             MainTab::Approvals => "Approvals",
-            MainTab::Auth => "Auth",
-            MainTab::Channels => "Channels",
+            MainTab::Settings => "Settings",
         }
     }
 }
@@ -347,6 +443,13 @@ struct GuiApp {
     sessions: Vec<SessionListItem>,
     approvals: Vec<ApprovalListItem>,
     auth_profiles: Vec<AuthProfileListItem>,
+    team_agents: Vec<TeamAgentItem>,
+    boards: Vec<BoardSummaryItem>,
+    tasks_board: BoardDetailItem,
+    content_board: BoardDetailItem,
+    content_automation_rules: Vec<BoardAutomationRuleItem>,
+    calendar_jobs: Vec<CalendarJobItem>,
+    memory_notes: Vec<MemoryNoteItem>,
     channel_config: ChannelConfigSnapshot,
     runtime_config: RuntimeConfigWizardSnapshot,
     runtime_wizard_step: RuntimeWizardStep,
@@ -363,6 +466,17 @@ struct GuiApp {
     run_model_provider: String,
     run_model_id: String,
     run_auth_profile_id: String,
+    new_task_title: String,
+    new_task_owner_agent_id: String,
+    new_content_title: String,
+    new_content_owner_agent_id: String,
+    new_content_script: String,
+    content_auto_interval_seconds: String,
+    content_auto_max_cards_per_run: String,
+    content_auto_max_runs_per_day: String,
+    content_auto_max_attempts_per_card_per_day: String,
+    memory_search_query: String,
+    script_drafts: HashMap<String, String>,
 
     auth_profile_draft: AuthProfileDraft,
     openai_oauth_draft: OpenAiOauthDraft,
@@ -391,7 +505,7 @@ impl Default for GuiApp {
             theme_applied: false,
             initial_load_done: false,
             auto_launch_attempted: false,
-            active_tab: MainTab::Mission,
+            active_tab: MainTab::Tasks,
             gateway_base_url: std::env::var("CARSINOS_GATEWAY_URL")
                 .unwrap_or_else(|_| "http://127.0.0.1:18789".to_string()),
             gateway_token: std::env::var("CARSINOS_GATEWAY_TOKEN").unwrap_or_default(),
@@ -400,6 +514,13 @@ impl Default for GuiApp {
             sessions: Vec::new(),
             approvals: Vec::new(),
             auth_profiles: Vec::new(),
+            team_agents: Vec::new(),
+            boards: Vec::new(),
+            tasks_board: BoardDetailItem::default(),
+            content_board: BoardDetailItem::default(),
+            content_automation_rules: Vec::new(),
+            calendar_jobs: Vec::new(),
+            memory_notes: Vec::new(),
             channel_config: ChannelConfigSnapshot::default(),
             runtime_config: RuntimeConfigWizardSnapshot::default(),
             runtime_wizard_step: RuntimeWizardStep::EdgeIdentity,
@@ -414,6 +535,17 @@ impl Default for GuiApp {
             run_model_provider: "mock".to_string(),
             run_model_id: "mock-echo-v1".to_string(),
             run_auth_profile_id: String::new(),
+            new_task_title: String::new(),
+            new_task_owner_agent_id: "lyra".to_string(),
+            new_content_title: String::new(),
+            new_content_owner_agent_id: "claude".to_string(),
+            new_content_script: String::new(),
+            content_auto_interval_seconds: "3600".to_string(),
+            content_auto_max_cards_per_run: "2".to_string(),
+            content_auto_max_runs_per_day: "24".to_string(),
+            content_auto_max_attempts_per_card_per_day: "2".to_string(),
+            memory_search_query: String::new(),
+            script_drafts: HashMap::new(),
             auth_profile_draft: AuthProfileDraft::default(),
             openai_oauth_draft: OpenAiOauthDraft::default(),
             anthropic_setup_draft: AnthropicSetupTokenDraft::default(),
@@ -494,11 +626,13 @@ impl eframe::App for GuiApp {
 
                 card(ui, "Navigation", |ui| {
                     for tab in [
-                        MainTab::Mission,
-                        MainTab::Sessions,
+                        MainTab::Tasks,
+                        MainTab::Content,
+                        MainTab::Calendar,
+                        MainTab::Memory,
+                        MainTab::Team,
                         MainTab::Approvals,
-                        MainTab::Auth,
-                        MainTab::Channels,
+                        MainTab::Settings,
                     ] {
                         let selected = self.active_tab == tab;
                         if ui
@@ -534,11 +668,13 @@ impl eframe::App for GuiApp {
             });
 
         egui::CentralPanel::default().show(ctx, |ui| match self.active_tab {
-            MainTab::Mission => self.render_mission(ui),
-            MainTab::Sessions => self.render_sessions(ui),
+            MainTab::Tasks => self.render_tasks_board(ui),
+            MainTab::Content => self.render_content_board(ui),
+            MainTab::Calendar => self.render_calendar(ui),
+            MainTab::Memory => self.render_memory(ui),
+            MainTab::Team => self.render_team(ui),
             MainTab::Approvals => self.render_approvals(ui),
-            MainTab::Auth => self.render_auth(ui),
-            MainTab::Channels => self.render_channels(ui),
+            MainTab::Settings => self.render_settings(ui),
         });
     }
 }
@@ -559,7 +695,7 @@ impl GuiApp {
         match fetch_gateway_snapshots(&self.gateway_base_url, &self.gateway_token) {
             Ok(snapshots) => {
                 self.apply_snapshots(snapshots);
-                self.set_info("Gateway state refreshed");
+                self.set_mc3_refresh_status("Gateway state refreshed");
             }
             Err(err) => {
                 if !self.auto_launch_attempted && auto_launch_gateway_enabled() {
@@ -575,7 +711,7 @@ impl GuiApp {
                     match fetch_gateway_snapshots(&self.gateway_base_url, &self.gateway_token) {
                         Ok(snapshots) => {
                             self.apply_snapshots(snapshots);
-                            self.set_info("Gateway auto-launched and connected");
+                            self.set_mc3_refresh_status("Gateway auto-launched and connected");
                         }
                         Err(retry_err) => self.set_error(format!(
                             "{}; gateway auto-launch retry failed: {}",
@@ -586,6 +722,14 @@ impl GuiApp {
                     self.set_error(err);
                 }
             }
+        }
+    }
+
+    fn set_mc3_refresh_status(&mut self, success_message: &str) {
+        if let Err(mc3_err) = self.refresh_mc3_state() {
+            self.set_info(format!("{success_message}; MC3 sync failed: {mc3_err}"));
+        } else {
+            self.set_info(success_message);
         }
     }
 
@@ -1359,6 +1503,887 @@ impl GuiApp {
             },
             Err(err) => self.set_error(err),
         }
+    }
+
+    fn board_id_by_key(&self, board_key: &str) -> Option<String> {
+        self.boards
+            .iter()
+            .find(|board| board.board_key == board_key)
+            .map(|board| board.board_id.clone())
+    }
+
+    fn refresh_mc3_state(&mut self) -> Result<(), String> {
+        let next_team_agents = parse_team_agents(&fetch_json(
+            &self.gateway_base_url,
+            "/api/v1/agents",
+            &self.gateway_token,
+        )?)?;
+        let next_boards = parse_board_summaries(&fetch_json(
+            &self.gateway_base_url,
+            "/api/v1/boards",
+            &self.gateway_token,
+        )?)?;
+        let next_calendar_jobs = parse_calendar_jobs(&fetch_json(
+            &self.gateway_base_url,
+            "/api/v1/jobs?limit=200",
+            &self.gateway_token,
+        )?)?;
+        let next_memory_notes = parse_memory_notes(&fetch_json(
+            &self.gateway_base_url,
+            "/api/v1/memory/notes?limit=200",
+            &self.gateway_token,
+        )?)?;
+
+        let mut next_tasks_board = BoardDetailItem::default();
+        if let Some(tasks_board_id) = next_boards
+            .iter()
+            .find(|board| board.board_key == "tasks")
+            .map(|board| board.board_id.clone())
+        {
+            let path = format!("/api/v1/boards/{tasks_board_id}");
+            next_tasks_board = parse_board_detail(&fetch_json(
+                &self.gateway_base_url,
+                &path,
+                &self.gateway_token,
+            )?)?;
+        }
+
+        let mut next_content_board = BoardDetailItem::default();
+        let mut next_content_automation_rules = Vec::new();
+        if let Some(content_board_id) = next_boards
+            .iter()
+            .find(|board| board.board_key == "content")
+            .map(|board| board.board_id.clone())
+        {
+            let path = format!("/api/v1/boards/{content_board_id}");
+            next_content_board = parse_board_detail(&fetch_json(
+                &self.gateway_base_url,
+                &path,
+                &self.gateway_token,
+            )?)?;
+            let automation_path = format!("/api/v1/boards/{content_board_id}/automation");
+            next_content_automation_rules = parse_board_automation_rules(&fetch_json(
+                &self.gateway_base_url,
+                &automation_path,
+                &self.gateway_token,
+            )?)?;
+        }
+
+        self.team_agents = next_team_agents;
+        self.boards = next_boards;
+        self.calendar_jobs = next_calendar_jobs;
+        self.memory_notes = next_memory_notes;
+        self.tasks_board = next_tasks_board;
+        self.content_board = next_content_board;
+        self.content_automation_rules = next_content_automation_rules;
+        Ok(())
+    }
+
+    fn create_card_for_board(
+        &mut self,
+        board_key: &str,
+        title: String,
+        owner_agent_id: String,
+        script_markdown: Option<String>,
+    ) {
+        let board_id = match self.board_id_by_key(board_key) {
+            Some(value) => value,
+            None => {
+                self.set_error(format!("board '{}' not found", board_key));
+                return;
+            }
+        };
+        let board = if board_key == "tasks" {
+            self.tasks_board.clone()
+        } else {
+            self.content_board.clone()
+        };
+        let first_column = board
+            .columns
+            .iter()
+            .min_by_key(|column| column.position)
+            .map(|column| column.column_id.clone());
+        let column_id = match first_column {
+            Some(value) => value,
+            None => {
+                self.set_error("board has no columns configured");
+                return;
+            }
+        };
+        let mut payload = json!({
+            "column_id": column_id,
+            "title": title,
+            "owner_kind": "agent",
+            "owner_agent_id": owner_agent_id,
+        });
+        if let Some(script) = script_markdown.map(|value| value.trim().to_string()) {
+            if !script.is_empty() {
+                payload["script_markdown"] = Value::String(script);
+            }
+        }
+        match send_json(
+            &self.gateway_base_url,
+            &format!("/api/v1/boards/{board_id}/cards/create"),
+            "POST",
+            &self.gateway_token,
+            Some(&payload),
+        ) {
+            Ok(_) => {
+                self.set_mc3_refresh_status("Card created");
+            }
+            Err(err) => self.set_error(err),
+        }
+    }
+
+    fn move_card(
+        &mut self,
+        board_key: &str,
+        card_id: &str,
+        target_column_id: &str,
+    ) -> Result<(), String> {
+        let board_id = self
+            .board_id_by_key(board_key)
+            .ok_or_else(|| format!("board '{}' not found", board_key))?;
+        let payload = json!({ "column_id": target_column_id });
+        send_json(
+            &self.gateway_base_url,
+            &format!("/api/v1/boards/{board_id}/cards/{card_id}/move"),
+            "POST",
+            &self.gateway_token,
+            Some(&payload),
+        )?;
+        self.refresh_mc3_state()?;
+        Ok(())
+    }
+
+    fn run_card(&mut self, board_key: &str, card_id: &str) -> Result<(), String> {
+        let board_id = self
+            .board_id_by_key(board_key)
+            .ok_or_else(|| format!("board '{}' not found", board_key))?;
+        let (model_provider, model_id) = self.resolve_card_run_model(board_key, card_id)?;
+        let mut payload = json!({
+            "model_provider": model_provider,
+            "model_id": model_id
+        });
+        let auth_profile_id = self.run_auth_profile_id.trim();
+        if !auth_profile_id.is_empty() {
+            payload["auth_profile_id"] = Value::String(auth_profile_id.to_string());
+        }
+        send_json(
+            &self.gateway_base_url,
+            &format!("/api/v1/boards/{board_id}/cards/{card_id}/run"),
+            "POST",
+            &self.gateway_token,
+            Some(&payload),
+        )?;
+        self.refresh_mc3_state()?;
+        Ok(())
+    }
+
+    fn resolve_card_run_model(
+        &self,
+        board_key: &str,
+        card_id: &str,
+    ) -> Result<(String, String), String> {
+        let board = match board_key {
+            "tasks" => &self.tasks_board,
+            "content" => &self.content_board,
+            _ => return Err(format!("board '{}' not supported for card runs", board_key)),
+        };
+        let owner_agent_id = board
+            .cards
+            .iter()
+            .find(|card| card.card_id == card_id)
+            .and_then(|card| card.owner_agent_id.as_deref());
+        if let Some(owner_agent_id) = owner_agent_id {
+            if let Some(agent) = self
+                .team_agents
+                .iter()
+                .find(|candidate| candidate.agent_id == owner_agent_id)
+            {
+                let model_provider = agent.model_provider.trim();
+                let model_id = agent.model_id.trim();
+                if !model_provider.is_empty() && !model_id.is_empty() {
+                    return Ok((model_provider.to_string(), model_id.to_string()));
+                }
+            }
+        }
+
+        let fallback_provider = self.run_model_provider.trim();
+        let fallback_model_id = self.run_model_id.trim();
+        if fallback_provider.is_empty() || fallback_model_id.is_empty() {
+            return Err(
+                "card run model is not configured (set session run provider/model or assign an owner agent with model settings)"
+                    .to_string(),
+            );
+        }
+        Ok((fallback_provider.to_string(), fallback_model_id.to_string()))
+    }
+
+    fn update_card_script(
+        &mut self,
+        board_key: &str,
+        card_id: &str,
+        script_markdown: &str,
+    ) -> Result<(), String> {
+        let board_id = self
+            .board_id_by_key(board_key)
+            .ok_or_else(|| format!("board '{}' not found", board_key))?;
+        let payload = json!({
+            "script_markdown": script_markdown
+        });
+        send_json(
+            &self.gateway_base_url,
+            &format!("/api/v1/boards/{board_id}/cards/{card_id}/update"),
+            "POST",
+            &self.gateway_token,
+            Some(&payload),
+        )?;
+        self.refresh_mc3_state()?;
+        Ok(())
+    }
+
+    fn upsert_content_script_to_thumbnail_rule(&mut self, enabled: bool) {
+        let board_id = match self.board_id_by_key("content") {
+            Some(value) => value,
+            None => {
+                self.set_error("content board not found");
+                return;
+            }
+        };
+        let source_column_id = self
+            .content_board
+            .columns
+            .iter()
+            .find(|column| column.column_key == "scripting")
+            .map(|column| column.column_id.clone());
+        let target_column_id = self
+            .content_board
+            .columns
+            .iter()
+            .find(|column| column.column_key == "thumbnail")
+            .map(|column| column.column_id.clone());
+        let source_column_id = match source_column_id {
+            Some(value) => value,
+            None => {
+                self.set_error("content board missing 'scripting' column");
+                return;
+            }
+        };
+        let target_column_id = match target_column_id {
+            Some(value) => value,
+            None => {
+                self.set_error("content board missing 'thumbnail' column");
+                return;
+            }
+        };
+        let interval_seconds = match parse_i64_field(
+            "content_auto_interval_seconds",
+            &self.content_auto_interval_seconds,
+        ) {
+            Ok(value) => value.clamp(60, 86_400),
+            Err(err) => {
+                self.set_error(err);
+                return;
+            }
+        };
+        let max_cards_per_run = match parse_i64_field(
+            "content_auto_max_cards_per_run",
+            &self.content_auto_max_cards_per_run,
+        ) {
+            Ok(value) => value.clamp(1, 32),
+            Err(err) => {
+                self.set_error(err);
+                return;
+            }
+        };
+        let max_runs_per_day = match parse_i64_field(
+            "content_auto_max_runs_per_day",
+            &self.content_auto_max_runs_per_day,
+        ) {
+            Ok(value) => value.clamp(1, 5000),
+            Err(err) => {
+                self.set_error(err);
+                return;
+            }
+        };
+        let max_attempts_per_card_per_day = match parse_i64_field(
+            "content_auto_max_attempts_per_card_per_day",
+            &self.content_auto_max_attempts_per_card_per_day,
+        ) {
+            Ok(value) => value.clamp(1, 50),
+            Err(err) => {
+                self.set_error(err);
+                return;
+            }
+        };
+
+        let payload = json!({
+            "name": "Script -> Thumbnail Automation",
+            "enabled": enabled,
+            "agent_id": self.new_content_owner_agent_id.trim(),
+            "schedule_kind": "interval",
+            "interval_seconds": interval_seconds,
+            "target_column_id": target_column_id,
+            "max_cards_per_run": max_cards_per_run,
+            "max_runs_per_day": max_runs_per_day,
+            "max_attempts_per_card_per_day": max_attempts_per_card_per_day,
+            "breaker_failure_threshold": 3,
+            "breaker_cooldown_ms": 900000,
+            "generate_thumbnail_draft": true,
+            "model_provider": "mock",
+            "model_id": "mock-echo-v1",
+            "max_retries": 0
+        });
+
+        match send_json(
+            &self.gateway_base_url,
+            &format!(
+                "/api/v1/boards/{}/columns/{}/automation/upsert",
+                board_id, source_column_id
+            ),
+            "POST",
+            &self.gateway_token,
+            Some(&payload),
+        ) {
+            Ok(_) => {
+                if enabled {
+                    self.set_mc3_refresh_status("Content automation enabled");
+                } else {
+                    self.set_mc3_refresh_status("Content automation rule updated");
+                }
+            }
+            Err(err) => self.set_error(err),
+        }
+    }
+
+    fn set_content_rule_enabled(&mut self, job_id: &str, enabled: bool) -> Result<(), String> {
+        let board_id = self
+            .board_id_by_key("content")
+            .ok_or_else(|| "content board not found".to_string())?;
+        send_json(
+            &self.gateway_base_url,
+            &format!("/api/v1/boards/{board_id}/automation/{job_id}/state"),
+            "POST",
+            &self.gateway_token,
+            Some(&json!({ "enabled": enabled })),
+        )?;
+        self.refresh_mc3_state()?;
+        Ok(())
+    }
+
+    fn run_content_rule_now(&mut self, job_id: &str) -> Result<(), String> {
+        let board_id = self
+            .board_id_by_key("content")
+            .ok_or_else(|| "content board not found".to_string())?;
+        send_json(
+            &self.gateway_base_url,
+            &format!("/api/v1/boards/{board_id}/automation/{job_id}/run"),
+            "POST",
+            &self.gateway_token,
+            Some(&json!({})),
+        )?;
+        self.refresh_mc3_state()?;
+        Ok(())
+    }
+
+    fn run_job_now(&mut self, job_id: &str) -> Result<(), String> {
+        send_json(
+            &self.gateway_base_url,
+            &format!("/api/v1/jobs/{job_id}/run"),
+            "POST",
+            &self.gateway_token,
+            Some(&json!({})),
+        )?;
+        self.refresh_gateway_state_checked()
+    }
+
+    fn set_job_enabled(&mut self, job_id: &str, enabled: bool) -> Result<(), String> {
+        send_json(
+            &self.gateway_base_url,
+            &format!("/api/v1/jobs/{job_id}/update"),
+            "POST",
+            &self.gateway_token,
+            Some(&json!({ "enabled": enabled })),
+        )?;
+        self.refresh_gateway_state_checked()
+    }
+
+    fn refresh_gateway_state_checked(&mut self) -> Result<(), String> {
+        self.refresh_gateway_state();
+        if let Some(error) = self.last_error.clone() {
+            Err(error)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn render_tasks_board(&mut self, ui: &mut egui::Ui) {
+        card(ui, "Tasks Pipeline", |ui| {
+            ui.horizontal(|ui| {
+                ui.label("New task");
+                ui.text_edit_singleline(&mut self.new_task_title);
+                ui.label("Agent");
+                ui.text_edit_singleline(&mut self.new_task_owner_agent_id);
+                if ui.button("Create").clicked() {
+                    let title = self.new_task_title.trim().to_string();
+                    if title.is_empty() {
+                        self.set_error("task title cannot be empty");
+                    } else {
+                        self.create_card_for_board(
+                            "tasks",
+                            title,
+                            self.new_task_owner_agent_id.trim().to_string(),
+                            None,
+                        );
+                        self.new_task_title.clear();
+                    }
+                }
+                if ui.button("Refresh").clicked() {
+                    let _ = self.refresh_mc3_state();
+                }
+            });
+        });
+
+        let board = self.tasks_board.clone();
+        if board.columns.is_empty() {
+            ui.label("Tasks board unavailable yet. Run Refresh.");
+            return;
+        }
+
+        let mut pending_move: Option<(String, String)> = None;
+        let mut pending_run: Option<String> = None;
+
+        ui.columns(board.columns.len(), |columns_ui| {
+            for (index, column) in board.columns.iter().enumerate() {
+                card(&mut columns_ui[index], &column.name, |ui| {
+                    let mut cards = board
+                        .cards
+                        .iter()
+                        .filter(|card| card.column_id == column.column_id)
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    cards.sort_by_key(|card| card.position);
+                    for card_item in cards {
+                        egui::Frame::group(ui.style())
+                            .fill(Color32::from_rgb(26, 31, 46))
+                            .stroke(egui::Stroke::new(1.0, Color32::from_rgb(112, 188, 255)))
+                            .show(ui, |ui| {
+                                ui.label(RichText::new(&card_item.title).strong());
+                                if let Some(description) = card_item.description.as_ref() {
+                                    if !description.trim().is_empty() {
+                                        ui.small(description.trim());
+                                    }
+                                }
+                                ui.small(format!(
+                                    "owner: {}",
+                                    card_item
+                                        .owner_agent_id
+                                        .unwrap_or_else(|| "unassigned".to_string())
+                                ));
+                                ui.horizontal(|ui| {
+                                    if ui.button("Run").clicked() {
+                                        pending_run = Some(card_item.card_id.clone());
+                                    }
+                                    let next_column = board
+                                        .columns
+                                        .iter()
+                                        .filter(|candidate| candidate.position > column.position)
+                                        .min_by_key(|candidate| candidate.position)
+                                        .cloned();
+                                    if let Some(next_column) = next_column {
+                                        if ui
+                                            .button(format!("Move -> {}", next_column.name))
+                                            .clicked()
+                                        {
+                                            pending_move = Some((
+                                                card_item.card_id.clone(),
+                                                next_column.column_id,
+                                            ));
+                                        }
+                                    }
+                                });
+                            });
+                        ui.add_space(6.0);
+                    }
+                });
+            }
+        });
+
+        if let Some((card_id, column_id)) = pending_move {
+            if let Err(err) = self.move_card("tasks", &card_id, &column_id) {
+                self.set_error(err);
+            } else {
+                self.set_info("Task card moved");
+            }
+        }
+        if let Some(card_id) = pending_run {
+            if let Err(err) = self.run_card("tasks", &card_id) {
+                self.set_error(err);
+            } else {
+                self.set_info("Task card run executed");
+            }
+        }
+    }
+
+    fn render_content_board(&mut self, ui: &mut egui::Ui) {
+        card(ui, "Content Pipeline", |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Title");
+                ui.text_edit_singleline(&mut self.new_content_title);
+                ui.label("Agent");
+                ui.text_edit_singleline(&mut self.new_content_owner_agent_id);
+            });
+            ui.label("Script draft");
+            ui.add(egui::TextEdit::multiline(&mut self.new_content_script).desired_rows(4));
+            ui.horizontal(|ui| {
+                if ui.button("Create Content Card").clicked() {
+                    let title = self.new_content_title.trim().to_string();
+                    if title.is_empty() {
+                        self.set_error("content title cannot be empty");
+                    } else {
+                        self.create_card_for_board(
+                            "content",
+                            title,
+                            self.new_content_owner_agent_id.trim().to_string(),
+                            Some(self.new_content_script.clone()),
+                        );
+                        self.new_content_title.clear();
+                        self.new_content_script.clear();
+                    }
+                }
+                if ui.button("Refresh").clicked() {
+                    let _ = self.refresh_mc3_state();
+                }
+            });
+        });
+
+        let board = self.content_board.clone();
+        if board.columns.is_empty() {
+            ui.label("Content board unavailable yet. Run Refresh.");
+            return;
+        }
+
+        let automation_rules = self.content_automation_rules.clone();
+        let mut pending_rule_upsert: Option<bool> = None;
+        let mut pending_rule_state: Option<(String, bool)> = None;
+        let mut pending_rule_run: Option<String> = None;
+
+        card(ui, "Content Automation", |ui| {
+            ui.label("Script -> Thumbnail rule (config-first defaults, no hardcoded IDs)");
+            ui.horizontal(|ui| {
+                ui.label("interval_s");
+                ui.text_edit_singleline(&mut self.content_auto_interval_seconds);
+                ui.label("cards/run");
+                ui.text_edit_singleline(&mut self.content_auto_max_cards_per_run);
+                ui.label("runs/day");
+                ui.text_edit_singleline(&mut self.content_auto_max_runs_per_day);
+                ui.label("attempts/card/day");
+                ui.text_edit_singleline(&mut self.content_auto_max_attempts_per_card_per_day);
+            });
+            ui.horizontal(|ui| {
+                if ui.button("Save Rule (Disabled)").clicked() {
+                    pending_rule_upsert = Some(false);
+                }
+                if ui.button("Save + Enable").clicked() {
+                    pending_rule_upsert = Some(true);
+                }
+            });
+            if automation_rules.is_empty() {
+                ui.small("No automation rules configured for content board.");
+            } else {
+                for rule in &automation_rules {
+                    egui::Frame::group(ui.style())
+                        .fill(Color32::from_rgb(19, 25, 40))
+                        .stroke(egui::Stroke::new(1.0, Color32::from_rgb(112, 188, 255)))
+                        .show(ui, |ui| {
+                            ui.label(RichText::new(&rule.name).strong());
+                            ui.small(format!("job_id: {}", rule.job_id));
+                            ui.small(format!(
+                                "enabled={} next_run_at={} cards/run={} runs/day={} attempts/card/day={}",
+                                rule.enabled,
+                                rule.next_run_at
+                                    .map(|value| value.to_string())
+                                    .unwrap_or_else(|| "none".to_string()),
+                                rule.max_cards_per_run,
+                                rule.max_runs_per_day,
+                                rule.max_attempts_per_card_per_day
+                            ));
+                            if let Some(error) = rule.last_error.as_ref() {
+                                ui.colored_label(
+                                    Color32::from_rgb(255, 188, 104),
+                                    format!("last_error: {error}"),
+                                );
+                            }
+                            ui.horizontal(|ui| {
+                                if ui.button("Run Now").clicked() {
+                                    pending_rule_run = Some(rule.job_id.clone());
+                                }
+                                if ui
+                                    .button(if rule.enabled { "Pause" } else { "Resume" })
+                                    .clicked()
+                                {
+                                    pending_rule_state =
+                                        Some((rule.job_id.clone(), !rule.enabled));
+                                }
+                            });
+                        });
+                    ui.add_space(6.0);
+                }
+            }
+        });
+
+        let mut pending_move: Option<(String, String)> = None;
+        let mut pending_run: Option<String> = None;
+        let mut pending_script_update: Option<(String, String)> = None;
+        let script_drafts = &mut self.script_drafts;
+
+        ui.columns(board.columns.len(), |columns_ui| {
+            for (index, column) in board.columns.iter().enumerate() {
+                card(&mut columns_ui[index], &column.name, |ui| {
+                    let mut cards = board
+                        .cards
+                        .iter()
+                        .filter(|card| card.column_id == column.column_id)
+                        .cloned()
+                        .collect::<Vec<_>>();
+                    cards.sort_by_key(|card| card.position);
+                    for card_item in cards {
+                        egui::Frame::group(ui.style())
+                            .fill(Color32::from_rgb(28, 24, 42))
+                            .stroke(egui::Stroke::new(1.0, Color32::from_rgb(255, 214, 109)))
+                            .show(ui, |ui| {
+                                ui.label(RichText::new(&card_item.title).strong());
+                                ui.small(format!(
+                                    "owner: {}",
+                                    card_item
+                                        .owner_agent_id
+                                        .clone()
+                                        .unwrap_or_else(|| "unassigned".to_string())
+                                ));
+                                let script_draft = script_drafts
+                                    .entry(card_item.card_id.clone())
+                                    .or_insert_with(|| {
+                                        card_item.script_markdown.clone().unwrap_or_default()
+                                    });
+                                ui.add(egui::TextEdit::multiline(script_draft).desired_rows(3));
+                                ui.horizontal(|ui| {
+                                    if ui.button("Save Script").clicked() {
+                                        pending_script_update =
+                                            Some((card_item.card_id.clone(), script_draft.clone()));
+                                    }
+                                    if ui.button("Run").clicked() {
+                                        pending_run = Some(card_item.card_id.clone());
+                                    }
+                                });
+                                if !card_item.assets.is_empty() {
+                                    ui.small("Assets");
+                                    for asset in &card_item.assets {
+                                        ui.small(format!(
+                                            "- {} ({} bytes, {})",
+                                            asset.filename, asset.bytes, asset.mime
+                                        ));
+                                    }
+                                }
+                                let next_column = board
+                                    .columns
+                                    .iter()
+                                    .filter(|candidate| candidate.position > column.position)
+                                    .min_by_key(|candidate| candidate.position)
+                                    .cloned();
+                                if let Some(next_column) = next_column {
+                                    if ui
+                                        .button(format!("Advance -> {}", next_column.name))
+                                        .clicked()
+                                    {
+                                        pending_move = Some((
+                                            card_item.card_id.clone(),
+                                            next_column.column_id,
+                                        ));
+                                    }
+                                }
+                            });
+                        ui.add_space(6.0);
+                    }
+                });
+            }
+        });
+
+        if let Some((card_id, script)) = pending_script_update {
+            if let Err(err) = self.update_card_script("content", &card_id, &script) {
+                self.set_error(err);
+            } else {
+                self.set_info("Content card script updated");
+            }
+        }
+        if let Some((card_id, column_id)) = pending_move {
+            if let Err(err) = self.move_card("content", &card_id, &column_id) {
+                self.set_error(err);
+            } else {
+                self.set_info("Content card advanced");
+            }
+        }
+        if let Some(card_id) = pending_run {
+            if let Err(err) = self.run_card("content", &card_id) {
+                self.set_error(err);
+            } else {
+                self.set_info("Content card run executed");
+            }
+        }
+        if let Some(enabled) = pending_rule_upsert {
+            self.upsert_content_script_to_thumbnail_rule(enabled);
+        }
+        if let Some((job_id, enabled)) = pending_rule_state {
+            if let Err(err) = self.set_content_rule_enabled(&job_id, enabled) {
+                self.set_error(err);
+            } else if enabled {
+                self.set_info("Content automation resumed");
+            } else {
+                self.set_info("Content automation paused");
+            }
+        }
+        if let Some(job_id) = pending_rule_run {
+            if let Err(err) = self.run_content_rule_now(&job_id) {
+                self.set_error(err);
+            } else {
+                self.set_info("Content automation run submitted");
+            }
+        }
+    }
+
+    fn render_calendar(&mut self, ui: &mut egui::Ui) {
+        card(ui, "Calendar + Scheduler", |ui| {
+            ui.horizontal(|ui| {
+                if ui.button("Refresh Jobs").clicked() {
+                    let _ = self.refresh_mc3_state();
+                }
+                ui.label(format!("jobs: {}", self.calendar_jobs.len()));
+            });
+        });
+
+        let jobs = self.calendar_jobs.clone();
+        let mut pending_run: Option<String> = None;
+        let mut pending_toggle: Option<(String, bool)> = None;
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            for job in jobs {
+                card(ui, &job.name, |ui| {
+                    ui.label(format!("job_id: {}", job.job_id));
+                    ui.label(format!("agent: {}", job.agent_id));
+                    ui.label(format!("schedule: {}", job.schedule_kind));
+                    ui.label(format!(
+                        "next_run_at_ms: {}",
+                        job.next_run_at
+                            .map(|value| value.to_string())
+                            .unwrap_or_else(|| "none".to_string())
+                    ));
+                    ui.horizontal(|ui| {
+                        if ui.button("Run now").clicked() {
+                            pending_run = Some(job.job_id.clone());
+                        }
+                        if ui
+                            .button(if job.enabled { "Pause" } else { "Resume" })
+                            .clicked()
+                        {
+                            pending_toggle = Some((job.job_id.clone(), !job.enabled));
+                        }
+                    });
+                });
+            }
+        });
+
+        if let Some(job_id) = pending_run {
+            if let Err(err) = self.run_job_now(&job_id) {
+                self.set_error(err);
+            } else {
+                self.set_info("Job triggered");
+            }
+        }
+        if let Some((job_id, enabled)) = pending_toggle {
+            if let Err(err) = self.set_job_enabled(&job_id, enabled) {
+                self.set_error(err);
+            } else {
+                self.set_info("Job state updated");
+            }
+        }
+    }
+
+    fn render_memory(&mut self, ui: &mut egui::Ui) {
+        card(ui, "Memory Search + Notes", |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Filter");
+                ui.text_edit_singleline(&mut self.memory_search_query);
+                if ui.button("Refresh Notes").clicked() {
+                    let _ = self.refresh_mc3_state();
+                }
+            });
+        });
+
+        let query = self.memory_search_query.trim().to_ascii_lowercase();
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            for note in self.memory_notes.iter().filter(|note| {
+                if query.is_empty() {
+                    return true;
+                }
+                note.title
+                    .as_ref()
+                    .map(|title| title.to_ascii_lowercase().contains(&query))
+                    .unwrap_or(false)
+                    || note.body_preview.to_ascii_lowercase().contains(&query)
+            }) {
+                card(ui, note.title.as_deref().unwrap_or("Untitled note"), |ui| {
+                    ui.label(format!("note_id: {}", note.note_id));
+                    ui.label(format!("updated_at_ms: {}", note.updated_at));
+                    ui.small(&note.body_preview);
+                });
+            }
+        });
+    }
+
+    fn render_team(&mut self, ui: &mut egui::Ui) {
+        card(ui, "Dual Agent Team Control", |ui| {
+            ui.horizontal(|ui| {
+                if ui.button("Refresh Agents").clicked() {
+                    let _ = self.refresh_mc3_state();
+                }
+                ui.label("Lyra + Claude are first-class active operators.");
+            });
+        });
+        let agents = self.team_agents.clone();
+        ui.columns(2, |columns_ui| {
+            for (index, agent) in agents
+                .iter()
+                .filter(|agent| agent.agent_id == "lyra" || agent.agent_id == "claude")
+                .enumerate()
+            {
+                let target_index = index.min(columns_ui.len().saturating_sub(1));
+                card(
+                    &mut columns_ui[target_index],
+                    &format!("{} ({})", agent.name, agent.agent_id),
+                    |ui| {
+                        ui.label(format!("model_provider: {}", agent.model_provider));
+                        ui.label(format!("model_id: {}", agent.model_id));
+                        ui.label(format!("tool_profile: {}", agent.tool_profile));
+                        ui.label("status: active");
+                    },
+                );
+            }
+        });
+        for agent in agents
+            .iter()
+            .filter(|agent| agent.agent_id != "lyra" && agent.agent_id != "claude")
+        {
+            card(ui, &format!("{} ({})", agent.name, agent.agent_id), |ui| {
+                ui.label(format!("model_provider: {}", agent.model_provider));
+                ui.label(format!("model_id: {}", agent.model_id));
+                ui.label(format!("tool_profile: {}", agent.tool_profile));
+            });
+        }
+    }
+
+    fn render_settings(&mut self, ui: &mut egui::Ui) {
+        self.render_mission(ui);
+        self.render_auth(ui);
+        self.render_channels(ui);
     }
 
     fn render_mission(&mut self, ui: &mut egui::Ui) {
@@ -2747,6 +3772,362 @@ fn parse_auth_profiles(value: &Value) -> Result<Vec<AuthProfileListItem>, String
     Ok(out)
 }
 
+fn parse_team_agents(value: &Value) -> Result<Vec<TeamAgentItem>, String> {
+    let items = value
+        .get("items")
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| "agents.items missing".to_string())?;
+
+    let mut out = Vec::new();
+    for item in items {
+        out.push(TeamAgentItem {
+            agent_id: item
+                .get("agent_id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "agent.agent_id missing".to_string())?
+                .to_string(),
+            name: item
+                .get("name")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "agent.name missing".to_string())?
+                .to_string(),
+            model_provider: item
+                .get("model_provider")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "agent.model_provider missing".to_string())?
+                .to_string(),
+            model_id: item
+                .get("model_id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "agent.model_id missing".to_string())?
+                .to_string(),
+            tool_profile: item
+                .get("tool_profile")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "agent.tool_profile missing".to_string())?
+                .to_string(),
+        });
+    }
+    Ok(out)
+}
+
+fn parse_board_summaries(value: &Value) -> Result<Vec<BoardSummaryItem>, String> {
+    let items = value
+        .get("items")
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| "boards.items missing".to_string())?;
+
+    let mut out = Vec::new();
+    for item in items {
+        out.push(BoardSummaryItem {
+            board_id: item
+                .get("board_id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "board.board_id missing".to_string())?
+                .to_string(),
+            board_key: item
+                .get("board_key")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "board.board_key missing".to_string())?
+                .to_string(),
+            name: item
+                .get("name")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "board.name missing".to_string())?
+                .to_string(),
+        });
+    }
+    Ok(out)
+}
+
+fn parse_board_detail(value: &Value) -> Result<BoardDetailItem, String> {
+    let board = value
+        .get("board")
+        .ok_or_else(|| "board_detail.board missing".to_string())?;
+    let columns = value
+        .get("columns")
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| "board_detail.columns missing".to_string())?;
+    let cards = value
+        .get("cards")
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| "board_detail.cards missing".to_string())?;
+
+    let mut parsed_columns = Vec::new();
+    for column in columns {
+        parsed_columns.push(BoardColumnItem {
+            column_id: column
+                .get("column_id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "board_column.column_id missing".to_string())?
+                .to_string(),
+            column_key: column
+                .get("column_key")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "board_column.column_key missing".to_string())?
+                .to_string(),
+            name: column
+                .get("name")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "board_column.name missing".to_string())?
+                .to_string(),
+            position: column
+                .get("position")
+                .and_then(|v| v.as_i64())
+                .ok_or_else(|| "board_column.position missing".to_string())?,
+        });
+    }
+
+    let mut parsed_cards = Vec::new();
+    for card in cards {
+        let assets = card
+            .get("assets")
+            .and_then(|v| v.as_array())
+            .map(|entries| {
+                entries
+                    .iter()
+                    .map(|asset| {
+                        Ok(BoardAssetItem {
+                            card_asset_id: asset
+                                .get("card_asset_id")
+                                .and_then(|v| v.as_str())
+                                .ok_or_else(|| "board_asset.card_asset_id missing".to_string())?
+                                .to_string(),
+                            filename: asset
+                                .get("filename")
+                                .and_then(|v| v.as_str())
+                                .ok_or_else(|| "board_asset.filename missing".to_string())?
+                                .to_string(),
+                            mime: asset
+                                .get("mime")
+                                .and_then(|v| v.as_str())
+                                .ok_or_else(|| "board_asset.mime missing".to_string())?
+                                .to_string(),
+                            bytes: asset
+                                .get("bytes")
+                                .and_then(|v| v.as_i64())
+                                .ok_or_else(|| "board_asset.bytes missing".to_string())?,
+                        })
+                    })
+                    .collect::<Result<Vec<BoardAssetItem>, String>>()
+            })
+            .transpose()?
+            .unwrap_or_default();
+
+        parsed_cards.push(BoardCardItem {
+            card_id: card
+                .get("card_id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "board_card.card_id missing".to_string())?
+                .to_string(),
+            column_id: card
+                .get("column_id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "board_card.column_id missing".to_string())?
+                .to_string(),
+            title: card
+                .get("title")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "board_card.title missing".to_string())?
+                .to_string(),
+            description: card
+                .get("description")
+                .and_then(|v| v.as_str())
+                .map(|v| v.to_string()),
+            owner_kind: card
+                .get("owner_kind")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "board_card.owner_kind missing".to_string())?
+                .to_string(),
+            owner_agent_id: card
+                .get("owner_agent_id")
+                .and_then(|v| v.as_str())
+                .map(|v| v.to_string()),
+            script_markdown: card
+                .get("script_markdown")
+                .and_then(|v| v.as_str())
+                .map(|v| v.to_string()),
+            linked_session_id: card
+                .get("linked_session_id")
+                .and_then(|v| v.as_str())
+                .map(|v| v.to_string()),
+            latest_run_id: card
+                .get("latest_run_id")
+                .and_then(|v| v.as_str())
+                .map(|v| v.to_string()),
+            position: card
+                .get("position")
+                .and_then(|v| v.as_i64())
+                .ok_or_else(|| "board_card.position missing".to_string())?,
+            assets,
+        });
+    }
+
+    Ok(BoardDetailItem {
+        board_id: board
+            .get("board_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| "board_detail.board.board_id missing".to_string())?
+            .to_string(),
+        board_key: board
+            .get("board_key")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| "board_detail.board.board_key missing".to_string())?
+            .to_string(),
+        board_name: board
+            .get("name")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| "board_detail.board.name missing".to_string())?
+            .to_string(),
+        columns: parsed_columns,
+        cards: parsed_cards,
+    })
+}
+
+fn parse_board_automation_rules(value: &Value) -> Result<Vec<BoardAutomationRuleItem>, String> {
+    let items = value
+        .get("items")
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| "automation.items missing".to_string())?;
+
+    let mut out = Vec::new();
+    for item in items {
+        out.push(BoardAutomationRuleItem {
+            rule_id: item
+                .get("rule_id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "automation.rule_id missing".to_string())?
+                .to_string(),
+            job_id: item
+                .get("job_id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "automation.job_id missing".to_string())?
+                .to_string(),
+            board_id: item
+                .get("board_id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "automation.board_id missing".to_string())?
+                .to_string(),
+            column_id: item
+                .get("column_id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "automation.column_id missing".to_string())?
+                .to_string(),
+            target_column_id: item
+                .get("target_column_id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "automation.target_column_id missing".to_string())?
+                .to_string(),
+            name: item
+                .get("name")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "automation.name missing".to_string())?
+                .to_string(),
+            enabled: item
+                .get("enabled")
+                .and_then(|v| v.as_bool())
+                .ok_or_else(|| "automation.enabled missing".to_string())?,
+            next_run_at: item.get("next_run_at").and_then(|v| v.as_i64()),
+            max_cards_per_run: item
+                .get("max_cards_per_run")
+                .and_then(|v| v.as_i64())
+                .ok_or_else(|| "automation.max_cards_per_run missing".to_string())?,
+            max_runs_per_day: item
+                .get("max_runs_per_day")
+                .and_then(|v| v.as_i64())
+                .ok_or_else(|| "automation.max_runs_per_day missing".to_string())?,
+            max_attempts_per_card_per_day: item
+                .get("max_attempts_per_card_per_day")
+                .and_then(|v| v.as_i64())
+                .ok_or_else(|| "automation.max_attempts_per_card_per_day missing".to_string())?,
+            last_error: item
+                .get("last_error")
+                .and_then(|v| v.as_str())
+                .map(|v| v.to_string()),
+        });
+    }
+    Ok(out)
+}
+
+fn parse_calendar_jobs(value: &Value) -> Result<Vec<CalendarJobItem>, String> {
+    let items = value
+        .get("items")
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| "jobs.items missing".to_string())?;
+
+    let mut out = Vec::new();
+    for item in items {
+        out.push(CalendarJobItem {
+            job_id: item
+                .get("job_id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "job.job_id missing".to_string())?
+                .to_string(),
+            name: item
+                .get("name")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "job.name missing".to_string())?
+                .to_string(),
+            agent_id: item
+                .get("agent_id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "job.agent_id missing".to_string())?
+                .to_string(),
+            enabled: item
+                .get("enabled")
+                .and_then(|v| v.as_bool())
+                .ok_or_else(|| "job.enabled missing".to_string())?,
+            next_run_at: item.get("next_run_at").and_then(|v| v.as_i64()),
+            schedule_kind: item
+                .get("schedule_kind")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "job.schedule_kind missing".to_string())?
+                .to_string(),
+        });
+    }
+    Ok(out)
+}
+
+fn parse_memory_notes(value: &Value) -> Result<Vec<MemoryNoteItem>, String> {
+    let items = value
+        .get("items")
+        .and_then(|v| v.as_array())
+        .ok_or_else(|| "notes.items missing".to_string())?;
+
+    let mut out = Vec::new();
+    for item in items {
+        let body = item
+            .get("body")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| "note.body missing".to_string())?;
+        let body_preview = body
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .chars()
+            .take(220)
+            .collect::<String>();
+
+        out.push(MemoryNoteItem {
+            note_id: item
+                .get("note_id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "note.note_id missing".to_string())?
+                .to_string(),
+            title: item
+                .get("title")
+                .and_then(|v| v.as_str())
+                .map(|v| v.to_string()),
+            updated_at: item
+                .get("updated_at")
+                .and_then(|v| v.as_i64())
+                .ok_or_else(|| "note.updated_at missing".to_string())?,
+            body_preview,
+        });
+    }
+    Ok(out)
+}
+
 fn parse_channel_config(value: &Value) -> Result<ChannelConfigSnapshot, String> {
     let config = value
         .get("config")
@@ -3442,6 +4823,156 @@ mod tests {
         assert_eq!(profiles.len(), 1);
         assert_eq!(profiles[0].auth_profile_id, "p1");
         assert!(profiles[0].enabled);
+    }
+
+    #[test]
+    fn parse_team_agents_success() {
+        let value = serde_json::json!({
+            "items": [
+                {
+                    "agent_id": "lyra",
+                    "name": "Lyra",
+                    "model_provider": "openai",
+                    "model_id": "gpt-4.1",
+                    "tool_profile": "default"
+                },
+                {
+                    "agent_id": "claude",
+                    "name": "Claude",
+                    "model_provider": "anthropic",
+                    "model_id": "claude-3-7-sonnet",
+                    "tool_profile": "default"
+                }
+            ]
+        });
+        let agents = parse_team_agents(&value).expect("team agents parse");
+        assert_eq!(agents.len(), 2);
+        assert_eq!(agents[0].agent_id, "lyra");
+        assert_eq!(agents[1].agent_id, "claude");
+    }
+
+    #[test]
+    fn parse_board_summaries_and_detail_success() {
+        let summaries = serde_json::json!({
+            "items": [
+                {
+                    "board_id": "b1",
+                    "board_key": "tasks",
+                    "name": "Tasks"
+                }
+            ]
+        });
+        let parsed_summaries = parse_board_summaries(&summaries).expect("board summaries parse");
+        assert_eq!(parsed_summaries.len(), 1);
+        assert_eq!(parsed_summaries[0].board_key, "tasks");
+
+        let detail = serde_json::json!({
+            "board": {
+                "board_id": "b1",
+                "board_key": "tasks",
+                "name": "Tasks"
+            },
+            "columns": [
+                {
+                    "column_id": "c1",
+                    "column_key": "backlog",
+                    "name": "Backlog",
+                    "position": 10
+                }
+            ],
+            "cards": [
+                {
+                    "card_id": "card1",
+                    "column_id": "c1",
+                    "title": "Implement gate",
+                    "description": "Details",
+                    "owner_kind": "agent",
+                    "owner_agent_id": "lyra",
+                    "script_markdown": "Run tests",
+                    "linked_session_id": "s1",
+                    "latest_run_id": "r1",
+                    "position": 10,
+                    "assets": [
+                        {
+                            "card_asset_id": "a1",
+                            "filename": "brief.md",
+                            "mime": "text/markdown",
+                            "bytes": 64
+                        }
+                    ]
+                }
+            ]
+        });
+        let parsed_detail = parse_board_detail(&detail).expect("board detail parse");
+        assert_eq!(parsed_detail.columns.len(), 1);
+        assert_eq!(parsed_detail.cards.len(), 1);
+        assert_eq!(parsed_detail.cards[0].assets.len(), 1);
+        assert_eq!(parsed_detail.cards[0].title, "Implement gate");
+    }
+
+    #[test]
+    fn parse_board_automation_rules_success() {
+        let value = serde_json::json!({
+            "items": [
+                {
+                    "rule_id": "r1",
+                    "job_id": "j1",
+                    "board_id": "b1",
+                    "column_id": "c1",
+                    "target_column_id": "c2",
+                    "name": "Script -> Thumbnail",
+                    "enabled": true,
+                    "next_run_at": 1000,
+                    "max_cards_per_run": 2,
+                    "max_runs_per_day": 24,
+                    "max_attempts_per_card_per_day": 2,
+                    "last_error": null
+                }
+            ]
+        });
+        let rules = parse_board_automation_rules(&value).expect("automation rules parse");
+        assert_eq!(rules.len(), 1);
+        assert_eq!(rules[0].job_id, "j1");
+        assert!(rules[0].enabled);
+    }
+
+    #[test]
+    fn parse_calendar_jobs_success() {
+        let value = serde_json::json!({
+            "items": [
+                {
+                    "job_id": "job-1",
+                    "name": "nightly",
+                    "agent_id": "lyra",
+                    "enabled": true,
+                    "next_run_at": 1000,
+                    "schedule_kind": "interval"
+                }
+            ]
+        });
+        let jobs = parse_calendar_jobs(&value).expect("calendar jobs parse");
+        assert_eq!(jobs.len(), 1);
+        assert_eq!(jobs[0].job_id, "job-1");
+        assert!(jobs[0].enabled);
+    }
+
+    #[test]
+    fn parse_memory_notes_success() {
+        let value = serde_json::json!({
+            "items": [
+                {
+                    "note_id": "n1",
+                    "title": "Roadmap",
+                    "body": "line one\nline two",
+                    "updated_at": 44
+                }
+            ]
+        });
+        let notes = parse_memory_notes(&value).expect("memory notes parse");
+        assert_eq!(notes.len(), 1);
+        assert_eq!(notes[0].note_id, "n1");
+        assert_eq!(notes[0].updated_at, 44);
+        assert_eq!(notes[0].body_preview, "line one line two");
     }
 
     #[test]
