@@ -2,12 +2,20 @@ import { getGatewayToken } from "./runtime";
 import type {
   BoardDetail,
   BoardDetailResponse,
+  GetChannelRuntimeStatusResponse,
   HealthResponse,
+  ListApprovalsResponse,
+  ListJobsResponse,
   ListAgentsResponse,
   ListBoardsResponse,
+  MissionControlCalendarWeekResponse,
+  MissionControlFocusResponse,
   MoveBoardCardResponse,
+  ResolveApprovalResponse,
   RuntimeConnectionSettings,
+  RunJobNowResponse,
   RunBoardCardResponse,
+  UpdateJobResponse,
   UpdateBoardCardResponse,
   UploadBoardCardAssetResponse,
 } from "../types";
@@ -118,6 +126,119 @@ export async function listAgents(
   settings: RuntimeConnectionSettings
 ): Promise<ListAgentsResponse> {
   return requestJson<ListAgentsResponse>(settings, "/api/v1/agents");
+}
+
+export async function getMissionControlCalendarWeek(
+  settings: RuntimeConnectionSettings
+): Promise<MissionControlCalendarWeekResponse> {
+  return requestJson<MissionControlCalendarWeekResponse>(
+    settings,
+    "/api/v1/mission-control/calendar/week"
+  );
+}
+
+export async function getMissionControlFocus(
+  settings: RuntimeConnectionSettings,
+  limit = 50
+): Promise<MissionControlFocusResponse> {
+  return requestJson<MissionControlFocusResponse>(
+    settings,
+    `/api/v1/mission-control/focus?limit=${encodeURIComponent(String(limit))}`
+  );
+}
+
+export async function listJobs(
+  settings: RuntimeConnectionSettings,
+  limit = 100
+): Promise<ListJobsResponse> {
+  return requestJson<ListJobsResponse>(
+    settings,
+    `/api/v1/jobs?limit=${encodeURIComponent(String(limit))}&include_disabled=true`
+  );
+}
+
+export async function runJobNow(
+  settings: RuntimeConnectionSettings,
+  jobId: string
+): Promise<RunJobNowResponse> {
+  return requestJson<RunJobNowResponse>(
+    settings,
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/run`,
+    {
+      method: "POST",
+      body: {},
+    }
+  );
+}
+
+export async function setJobEnabledState(
+  settings: RuntimeConnectionSettings,
+  jobId: string,
+  enabled: boolean
+): Promise<UpdateJobResponse> {
+  return requestJson<UpdateJobResponse>(
+    settings,
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/update`,
+    {
+      method: "POST",
+      body: { enabled },
+    }
+  );
+}
+
+export async function listApprovals(
+  settings: RuntimeConnectionSettings,
+  status = "requested",
+  limit = 100
+): Promise<ListApprovalsResponse> {
+  return requestJson<ListApprovalsResponse>(
+    settings,
+    `/api/v1/approvals?status=${encodeURIComponent(status)}&limit=${encodeURIComponent(String(limit))}`
+  );
+}
+
+export async function resolveApproval(
+  settings: RuntimeConnectionSettings,
+  approvalId: string,
+  decision: "approve" | "deny"
+): Promise<ResolveApprovalResponse> {
+  return requestJson<ResolveApprovalResponse>(
+    settings,
+    `/api/v1/approvals/${encodeURIComponent(approvalId)}/resolve`,
+    {
+      method: "POST",
+      body: {
+        decision,
+      },
+    }
+  );
+}
+
+export async function getChannelRuntimeStatus(
+  settings: RuntimeConnectionSettings
+): Promise<GetChannelRuntimeStatusResponse> {
+  return requestJson<GetChannelRuntimeStatusResponse>(
+    settings,
+    "/api/v1/channels/runtime/status"
+  );
+}
+
+export async function reconnectChannelRuntime(
+  settings: RuntimeConnectionSettings,
+  provider: string
+): Promise<{
+  status: {
+    provider: string;
+    healthy: boolean;
+    lifecycle_state: string;
+  };
+}> {
+  return requestJson(settings, "/api/v1/channels/runtime/reconnect", {
+    method: "POST",
+    body: {
+      provider,
+    },
+  });
 }
 
 export async function createBoardCard(

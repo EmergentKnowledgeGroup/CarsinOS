@@ -42,7 +42,9 @@ use carsinos_protocol::{
     ListPluginsQuery, ListPluginsResponse, ListProviderCapabilitiesQuery,
     ListProviderCapabilitiesResponse, ListSessionsQuery, ListSessionsResponse, ListSkillsQuery,
     ListSkillsResponse, ListToolCapabilitiesQuery, ListToolCapabilitiesResponse, MessageResponse,
-    MetricsResponse, MoveBoardCardRequest, MoveBoardCardResponse, NoteResponse,
+    MetricsResponse, MissionControlCalendarWeekJobResponse, MissionControlCalendarWeekQuery,
+    MissionControlCalendarWeekResponse, MissionControlFocusItemResponse, MissionControlFocusQuery,
+    MissionControlFocusResponse, MoveBoardCardRequest, MoveBoardCardResponse, NoteResponse,
     NumquamIntegrationStatusResponse, OpenAiOauthFinishRequest, OpenAiOauthFinishResponse,
     OpenAiOauthStartRequest, OpenAiOauthStartResponse, PluginArtifactResponse,
     PluginCapabilityResponse, PluginCompatibilityResponse, PluginLimitsResponse,
@@ -92,7 +94,7 @@ use carsinos_tools::{
     ProcessRequest, ToolError, ToolRequest, ToolResult, ToolRunner, WebFetchRequest,
     WebSearchRequest,
 };
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -5618,6 +5620,11 @@ fn build_app(state: AppState) -> Router {
         .route("/api/v1/jobs/{job_id}/remove", post(remove_job))
         .route("/api/v1/jobs/{job_id}/run", post(run_job_now))
         .route("/api/v1/jobs/{job_id}/history", get(job_history))
+        .route(
+            "/api/v1/mission-control/calendar/week",
+            get(mission_control_calendar_week),
+        )
+        .route("/api/v1/mission-control/focus", get(mission_control_focus))
         .route("/api/v1/approvals", get(list_approvals))
         .route("/api/v1/approvals/request", post(create_approval_request))
         .route(
@@ -10411,6 +10418,259 @@ async fn job_history(
         .map(to_job_run_response)
         .collect();
     Ok(Json(ListJobHistoryResponse { items }))
+}
+
+fn mission_control_week_start_ms(
+    now_ms: i64,
+    requested_week_start_ms: Option<i64>,
+    tz_offset_minutes: Option<i32>,
+) -> i64 {
+    if let Some(explicit) = requested_week_start_ms {
+        return explicit;
+    }
+    let tz_offset_seconds = i64::from(tz_offset_minutes.unwrap_or(0)).saturating_mul(60);
+    let local_seconds = now_ms
+        .saturating_div(1000)
+        .saturating_add(tz_offset_seconds);
+    let local_dt = DateTime::<Utc>::from_timestamp(local_seconds, 0).unwrap_or_else(Utc::now);
+    let local_date = local_dt.date_naive();
+    let weekday_offset = i64::from(local_date.weekday().num_days_from_monday());
+    let week_start_local_date = local_date - chrono::Duration::days(weekday_offset);
+    let week_start_local_ms = week_start_local_date
+        .and_hms_opt(0, 0, 0)
+        .map(|value| value.and_utc().timestamp_millis())
+        .unwrap_or(now_ms);
+    week_start_local_ms.saturating_sub(tz_offset_seconds.saturating_mul(1000))
+}
+
+fn mission_control_calendar_job_from_record(
+    job: &JobRecord,
+) -> MissionControlCalendarWeekJobResponse {
+    let lane = if job.enabled
+        && job.schedule_kind == "interval"
+        && job.interval_seconds.unwrap_or(0) > 0
+        && job.interval_seconds.unwrap_or(0) <= 300
+    {
+        "always_running"
+    } else {
+        "scheduled"
+    };
+    let primary_action = if job.enabled { "pause" } else { "resume" };
+    MissionControlCalendarWeekJobResponse {
+        job_id: job.job_id.clone(),
+        name: job.name.clone(),
+        agent_id: job.agent_id.clone(),
+        enabled: job.enabled,
+        schedule_kind: job.schedule_kind.clone(),
+        interval_seconds: job.interval_seconds,
+        cron_expr: job_cron_expr_from_payload_json(&job.payload_json),
+        next_run_at: job.next_run_at,
+        last_run_at: job.last_run_at,
+        last_error: job.last_error.clone(),
+        lane: lane.to_string(),
+        primary_action: primary_action.to_string(),
+    }
+}
+
+async fn mission_control_calendar_week(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Query(query): Query<MissionControlCalendarWeekQuery>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_OPERATOR_READONLY,
+            ROLE_AUTOMATION_RUNNER,
+        ],
+        "mission_control.calendar_week",
+        "mission_control.calendar",
+    )?;
+    let now_ms = current_time_ms();
+    let week_start_ms =
+        mission_control_week_start_ms(now_ms, query.week_start_ms, query.tz_offset_minutes);
+    let week_end_ms = week_start_ms.saturating_add(
+        7_i64
+            .saturating_mul(24)
+            .saturating_mul(60)
+            .saturating_mul(60_000),
+    );
+    let jobs = state
+        .storage
+        .list_jobs(500, true)
+        .map_err(|err| internal_err_with_error("listing mission control jobs failed", err))?;
+
+    let mut jobs_payload = jobs
+        .iter()
+        .map(mission_control_calendar_job_from_record)
+        .collect::<Vec<_>>();
+
+    jobs_payload.sort_by(|left, right| {
+        left.next_run_at
+            .unwrap_or(i64::MAX)
+            .cmp(&right.next_run_at.unwrap_or(i64::MAX))
+            .then_with(|| left.name.cmp(&right.name))
+    });
+
+    let always_running = jobs_payload
+        .iter()
+        .filter(|job| job.lane == "always_running")
+        .cloned()
+        .collect::<Vec<_>>();
+    let next_up = jobs_payload
+        .iter()
+        .filter(|job| job.enabled)
+        .take(20)
+        .cloned()
+        .collect::<Vec<_>>();
+
+    Ok(Json(MissionControlCalendarWeekResponse {
+        week_start_ms,
+        week_end_ms,
+        generated_at_ms: now_ms,
+        always_running,
+        next_up,
+        jobs: jobs_payload,
+    }))
+}
+
+async fn mission_control_focus(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Query(query): Query<MissionControlFocusQuery>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_OPERATOR_READONLY,
+            ROLE_AUTOMATION_RUNNER,
+        ],
+        "mission_control.focus",
+        "mission_control.focus",
+    )?;
+    let limit = query.limit.unwrap_or(50).clamp(1, 200) as usize;
+    let now_ms = current_time_ms();
+    let mut items: Vec<MissionControlFocusItemResponse> = Vec::new();
+
+    let approvals = state
+        .storage
+        .list_approvals(Some("requested"), limit as u32)
+        .map_err(|err| internal_err_with_error("listing approvals for focus queue failed", err))?;
+    for approval in approvals {
+        let approval_id = approval.approval_id.clone();
+        items.push(MissionControlFocusItemResponse {
+            item_id: format!("approval:{approval_id}"),
+            category: "approval".to_string(),
+            severity: "high".to_string(),
+            title: format!("Approval requested: {}", approval.kind),
+            detail: approval.request_summary,
+            primary_action: "approve_or_deny".to_string(),
+            action_payload: serde_json::json!({
+                "approval_id": approval_id,
+                "resolve_endpoint": format!("/api/v1/approvals/{}/resolve", approval.approval_id),
+                "allow_decisions": ["approve", "deny"]
+            }),
+            created_at: approval.requested_at,
+        });
+    }
+
+    let jobs = state
+        .storage
+        .list_jobs(500, true)
+        .map_err(|err| internal_err_with_error("listing jobs for focus queue failed", err))?;
+    for job in jobs.into_iter().filter(|item| item.last_error.is_some()) {
+        if let Some(error_text) = job.last_error.clone() {
+            let job_id = job.job_id.clone();
+            items.push(MissionControlFocusItemResponse {
+                item_id: format!("job_failure:{job_id}"),
+                category: "run_failure".to_string(),
+                severity: "medium".to_string(),
+                title: format!("Job failure: {}", job.name),
+                detail: error_text,
+                primary_action: "run_now".to_string(),
+                action_payload: serde_json::json!({
+                    "job_id": job_id,
+                    "run_now_endpoint": format!("/api/v1/jobs/{}/run", job.job_id)
+                }),
+                created_at: job.updated_at,
+            });
+        }
+    }
+
+    for status in state.channel_runtime.statuses() {
+        let provider = status.provider.clone();
+        if status.healthy
+            && matches!(
+                status.lifecycle_state,
+                ChannelAdapterLifecycleState::Running
+            )
+        {
+            continue;
+        }
+        items.push(MissionControlFocusItemResponse {
+            item_id: format!("channel:{provider}"),
+            category: "channel_health".to_string(),
+            severity: "medium".to_string(),
+            title: format!("Channel issue: {provider}"),
+            detail: status
+                .last_error
+                .unwrap_or_else(|| "channel runtime is degraded".to_string()),
+            primary_action: "reconnect".to_string(),
+            action_payload: serde_json::json!({
+                "provider": provider,
+                "reconnect_endpoint": "/api/v1/channels/runtime/reconnect"
+            }),
+            created_at: status.updated_at,
+        });
+    }
+
+    let (breakers, _) = collect_breaker_summary(&state, 64, None).map_err(|err| {
+        internal_err_with_error("loading breaker summary for focus queue failed", err)
+    })?;
+    for breaker in breakers
+        .into_iter()
+        .filter(|item| item.state == CIRCUIT_BREAKER_STATE_OPEN)
+    {
+        let scope = breaker.scope.clone();
+        let target_id = breaker.target_id.clone();
+        items.push(MissionControlFocusItemResponse {
+            item_id: format!("breaker:{scope}:{target_id}"),
+            category: "breaker_open".to_string(),
+            severity: "high".to_string(),
+            title: format!("Circuit breaker open: {scope} {target_id}"),
+            detail: breaker
+                .last_error_code
+                .unwrap_or_else(|| "breaker is open".to_string()),
+            primary_action: "inspect".to_string(),
+            action_payload: serde_json::json!({
+                "scope": scope,
+                "target_id": target_id,
+                "cooldown_until": breaker.cooldown_until
+            }),
+            created_at: breaker.updated_at,
+        });
+    }
+
+    items.sort_by(|left, right| {
+        right
+            .created_at
+            .cmp(&left.created_at)
+            .then_with(|| left.item_id.cmp(&right.item_id))
+    });
+    items.truncate(limit);
+
+    Ok(Json(MissionControlFocusResponse {
+        generated_at_ms: now_ms,
+        items,
+    }))
 }
 
 async fn create_run(
@@ -28582,6 +28842,172 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         assert_eq!(remove_response.status(), StatusCode::OK);
         let remove_json = parse_json(remove_response).await;
         assert_eq!(remove_json["removed"], true);
+    }
+
+    #[tokio::test]
+    async fn mission_control_calendar_week_read_model_returns_lanes_and_queue() {
+        let ctx = test_context();
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(
+                    r#"{
+                        "agent_id":"default",
+                        "name":"calendar-interval",
+                        "enabled":true,
+                        "schedule_kind":"interval",
+                        "interval_seconds":120,
+                        "payload_json":{"mode":"noop","message":"calendar"}
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create calendar job");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_json = parse_json(create_response).await;
+        let job_id = create_json["job"]["job_id"]
+            .as_str()
+            .expect("job id")
+            .to_string();
+
+        let week_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/mission-control/calendar/week",
+                Body::empty(),
+            ))
+            .await
+            .expect("calendar week response");
+        assert_eq!(week_response.status(), StatusCode::OK);
+        let week_json = parse_json(week_response).await;
+        assert!(week_json["week_start_ms"].is_number());
+        assert!(week_json["week_end_ms"].is_number());
+        let always_running = week_json["always_running"]
+            .as_array()
+            .expect("always running list");
+        assert!(always_running.iter().any(|item| item["job_id"] == job_id));
+        let next_up = week_json["next_up"].as_array().expect("next up list");
+        assert!(next_up.iter().any(|item| item["job_id"] == job_id));
+    }
+
+    #[tokio::test]
+    async fn mission_control_focus_read_model_includes_approvals_and_failures() {
+        let ctx = test_context();
+        let create_job = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(
+                    r#"{
+                        "agent_id":"default",
+                        "name":"focus-failure-job",
+                        "enabled":true,
+                        "schedule_kind":"interval",
+                        "interval_seconds":300,
+                        "payload_json":{"mode":"fail"},
+                        "max_retries":0,
+                        "retry_backoff_ms":10,
+                        "timeout_ms":500
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create focus failure job");
+        assert_eq!(create_job.status(), StatusCode::CREATED);
+        let create_job_json = parse_json(create_job).await;
+        let job_id = create_job_json["job"]["job_id"]
+            .as_str()
+            .expect("job id")
+            .to_string();
+
+        let run_job = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/jobs/{job_id}/run"),
+                Body::empty(),
+            ))
+            .await
+            .expect("run focus failure job");
+        assert_eq!(run_job.status(), StatusCode::OK);
+
+        let session_id =
+            create_session_with_user_message(&ctx, "focus-approval-session", "needs approval")
+                .await;
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from(r#"{"model_provider":"mock","model_id":"mock-echo-v1"}"#),
+            ))
+            .await
+            .expect("create run for focus approval");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+        let run_json = parse_json(run_response).await;
+        let run_id = run_json["run"]["run_id"]
+            .as_str()
+            .expect("run id")
+            .to_string();
+
+        let approval_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/approvals/request",
+                Body::from(format!(
+                    r#"{{
+                        "run_id":"{run_id}",
+                        "tool_name":"exec",
+                        "request_summary":"focus queue approval",
+                        "request_json":{{"cmd":"echo hi"}}
+                    }}"#
+                )),
+            ))
+            .await
+            .expect("create approval");
+        assert_eq!(approval_response.status(), StatusCode::CREATED);
+        let approval_json = parse_json(approval_response).await;
+        let approval_id = approval_json["approval"]["approval_id"]
+            .as_str()
+            .expect("approval id")
+            .to_string();
+
+        let focus_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/mission-control/focus?limit=100",
+                Body::empty(),
+            ))
+            .await
+            .expect("focus response");
+        assert_eq!(focus_response.status(), StatusCode::OK);
+        let focus_json = parse_json(focus_response).await;
+        let items = focus_json["items"].as_array().expect("focus items");
+        assert!(items.iter().any(|item| {
+            item["item_id"]
+                .as_str()
+                .map(|value| value == format!("approval:{approval_id}"))
+                .unwrap_or(false)
+        }));
+        assert!(items.iter().any(|item| {
+            item["item_id"]
+                .as_str()
+                .map(|value| value == format!("job_failure:{job_id}"))
+                .unwrap_or(false)
+        }));
     }
 
     #[tokio::test]

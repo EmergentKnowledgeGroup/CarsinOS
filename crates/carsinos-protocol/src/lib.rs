@@ -1737,6 +1737,61 @@ pub struct JobRunResponse {
     pub created_at: i64,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct MissionControlCalendarWeekQuery {
+    pub week_start_ms: Option<i64>,
+    pub tz_offset_minutes: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MissionControlCalendarWeekJobResponse {
+    pub job_id: String,
+    pub name: String,
+    pub agent_id: String,
+    pub enabled: bool,
+    pub schedule_kind: String,
+    pub interval_seconds: Option<i64>,
+    pub cron_expr: Option<String>,
+    pub next_run_at: Option<i64>,
+    pub last_run_at: Option<i64>,
+    pub last_error: Option<String>,
+    pub lane: String,
+    pub primary_action: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MissionControlCalendarWeekResponse {
+    pub week_start_ms: i64,
+    pub week_end_ms: i64,
+    pub generated_at_ms: i64,
+    pub always_running: Vec<MissionControlCalendarWeekJobResponse>,
+    pub next_up: Vec<MissionControlCalendarWeekJobResponse>,
+    pub jobs: Vec<MissionControlCalendarWeekJobResponse>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MissionControlFocusQuery {
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MissionControlFocusItemResponse {
+    pub item_id: String,
+    pub category: String,
+    pub severity: String,
+    pub title: String,
+    pub detail: String,
+    pub primary_action: String,
+    pub action_payload: serde_json::Value,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MissionControlFocusResponse {
+    pub generated_at_ms: i64,
+    pub items: Vec<MissionControlFocusItemResponse>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::{ws_event_entity_from_type, WsEventFrame, WS_EVENT_SCHEMA_VERSION_V1};

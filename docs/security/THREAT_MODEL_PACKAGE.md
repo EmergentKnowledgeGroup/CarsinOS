@@ -44,6 +44,16 @@ It defines trust boundaries, asset classes, attack paths, risk ratings, and miti
 | `/api/v1/extensions/plugins` | GET | Medium | Plugin footprint exposure |
 | `/api/v1/extensions/skills` | GET | Medium | Skill index exposure |
 | `/api/v1/extensions/skills/{skill_id}/state` | POST | High | Mutation of skill execution state |
+| `/api/v1/agents` | GET/POST | High | Agent identity/model routing inventory and mutation |
+| `/api/v1/agents/{agent_id}` | GET/POST | High | Agent metadata read/write mutation path |
+| `/api/v1/boards` | GET | Medium | Board inventory exposure |
+| `/api/v1/boards/{board_id}` | GET | High | Board card/script/asset metadata visibility |
+| `/api/v1/boards/{board_id}/cards/create` | POST | High | Card mutation and execution planning pathway |
+| `/api/v1/boards/{board_id}/cards/{card_id}/update` | POST | High | Card/script/owner mutation pathway |
+| `/api/v1/boards/{board_id}/cards/{card_id}/move` | POST | Medium | Workflow ordering mutation |
+| `/api/v1/boards/{board_id}/cards/{card_id}/assets/upload` | POST | High | Binary ingest, size/MIME abuse risk |
+| `/api/v1/boards/{board_id}/cards/{card_id}/assets/{card_asset_id}` | GET | High | Asset access-control and data-exfiltration risk |
+| `/api/v1/boards/{board_id}/cards/{card_id}/run` | POST | Critical | Direct run execution trigger from board workflow |
 | `/api/v1/ws` | GET | High | Streaming channel with event leakage risk |
 | `/api/v1/sessions` | GET/POST | High | Session lifecycle and model execution root |
 | `/api/v1/sessions/{session_id}` | GET | High | Session content retrieval |
@@ -70,6 +80,8 @@ It defines trust boundaries, asset classes, attack paths, risk ratings, and miti
 | `/api/v1/jobs/{job_id}/remove` | POST | High | Job lifecycle mutation |
 | `/api/v1/jobs/{job_id}/run` | POST | Critical | Immediate run execution trigger |
 | `/api/v1/jobs/{job_id}/history` | GET | Medium | Execution history exposure |
+| `/api/v1/mission-control/calendar/week` | GET | Medium | Aggregated schedule and run metadata exposure |
+| `/api/v1/mission-control/focus` | GET | High | Aggregated approvals/failures/channel posture exposure |
 | `/api/v1/approvals` | GET | High | Approval queue visibility |
 | `/api/v1/approvals/request` | POST | Critical | Approval workflow mutation |
 | `/api/v1/approvals/{approval_id}/resolve` | POST | Critical | Authorization decision endpoint |
