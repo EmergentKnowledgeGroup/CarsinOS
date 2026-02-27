@@ -1,11 +1,9 @@
 # LATEST Checkpoint
 
-- step: pr42-cr-fixes-post-green
-- note: Applied CodeRabbit suggestions for checkpoint consistency and reran validation gates
-- branch: codex/pr42-coderabbit-followup
-- head: 0215a5c
-- next_cmd: git status --short --branch
+- step: `mc3-pr43-cargo-audit-pin-post-green`
+- note: `Updated PR gate cargo-audit pin for CVSS4 compatibility and validated cargo audit`
+- branch: `codex/mc3-pr1-backend`
+- head: `dfedfb8`
+- next_cmd: `git add .github/workflows/pr-gate.yml CHECKPOINT.md runtime/checkpoints/LATEST.md runtime/checkpoints/LATEST.json && git commit -m "ci(pr-gate): pin cargo-audit to CVSS4-capable version" && git push origin codex/mc3-pr1-backend`
 - validations:
-  - `cargo check -p carsinos-gateway --bin carsinos-gateway`
-  - `cargo test -p carsinos-gateway --test e2e_process`
-  - `cargo test -p carsinos-gateway --test benchmark_process -- --nocapture`
+  - `cargo audit`

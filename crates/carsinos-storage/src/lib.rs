@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -26,7 +26,7 @@ impl AppPaths {
 pub fn init(paths: &AppPaths) -> Result<()> {
     ensure_dirs(paths)?;
     migrate(&paths.db_path)?;
-    seed_default_agent(&paths.db_path)?;
+    seed_default_entities(&paths.db_path)?;
     harden_permissions(paths)?;
     Ok(())
 }
@@ -47,35 +47,172 @@ fn migrate(db_path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn seed_default_agent(db_path: &Path) -> Result<()> {
-    let conn = Connection::open(db_path)
+fn seed_default_entities(db_path: &Path) -> Result<()> {
+    let mut conn = Connection::open(db_path)
         .with_context(|| format!("failed to open sqlite db at {}", db_path.display()))?;
+    let tx = conn
+        .transaction()
+        .context("failed to start default-entity seed transaction")?;
     let now = now_ms();
     let workspace_root = std::env::current_dir()
         .map(|path| path.display().to_string())
         .unwrap_or_else(|_| ".".to_string());
 
-    conn.execute(
-        r#"
+    for (agent_id, name) in [
+        ("default", "Default Agent"),
+        ("lyra", "Lyra"),
+        ("claude", "Claude"),
+    ] {
+        tx.execute(
+            r#"
         INSERT OR IGNORE INTO agents
           (agent_id, name, workspace_root, model_provider, model_id, tool_profile, created_at, updated_at)
         VALUES
           (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
         "#,
-        params![
-            "default",
-            "Default Agent",
-            workspace_root,
-            "unconfigured",
-            "unconfigured",
-            "default",
+            params![
+                agent_id,
+                name,
+                workspace_root,
+                "unconfigured",
+                "unconfigured",
+                "default",
+                now,
+                now
+            ],
+        )
+        .with_context(|| format!("failed to seed {agent_id} agent"))?;
+    }
+
+    seed_default_boards(&tx, now)?;
+    tx.commit()
+        .context("failed to commit default-entity seed transaction")?;
+    Ok(())
+}
+
+fn seed_default_boards(conn: &Transaction<'_>, now: i64) -> Result<()> {
+    let tasks_board_id = upsert_board(conn, "tasks", "Tasks", "tasks", now)?;
+    let content_board_id = upsert_board(conn, "content", "Content Pipeline", "content", now)?;
+
+    for (position, (column_key, name)) in [
+        ("backlog", "Backlog"),
+        ("in_progress", "In Progress"),
+        ("review", "Review"),
+        ("done", "Done"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        upsert_board_column(
+            conn,
+            &tasks_board_id,
+            column_key,
+            name,
+            position as i64,
             now,
-            now
-        ],
-    )
-    .context("failed to seed default agent")?;
+        )?;
+    }
+
+    for (position, (column_key, name)) in [
+        ("ideas", "Ideas"),
+        ("scripting", "Scripting"),
+        ("thumbnail", "Thumbnail"),
+        ("filming", "Filming"),
+        ("editing", "Editing"),
+        ("published", "Published"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        upsert_board_column(
+            conn,
+            &content_board_id,
+            column_key,
+            name,
+            position as i64,
+            now,
+        )?;
+    }
 
     Ok(())
+}
+
+fn upsert_board(
+    conn: &Transaction<'_>,
+    board_key: &str,
+    name: &str,
+    board_type: &str,
+    now: i64,
+) -> Result<String> {
+    let board_id: Option<String> = conn
+        .query_row(
+            "SELECT board_id FROM boards WHERE board_key = ?1",
+            params![board_key],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if let Some(board_id) = board_id {
+        conn.execute(
+            r#"
+            UPDATE boards
+            SET name = ?1, board_type = ?2, updated_at = ?3, archived_at = NULL
+            WHERE board_id = ?4
+            "#,
+            params![name, board_type, now, board_id],
+        )?;
+        Ok(board_id)
+    } else {
+        let board_id = uuid::Uuid::new_v4().to_string();
+        conn.execute(
+            r#"
+            INSERT INTO boards (
+              board_id, board_key, name, board_type, created_at, updated_at, archived_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL)
+            "#,
+            params![board_id, board_key, name, board_type, now, now],
+        )?;
+        Ok(board_id)
+    }
+}
+
+fn upsert_board_column(
+    conn: &Transaction<'_>,
+    board_id: &str,
+    column_key: &str,
+    name: &str,
+    position: i64,
+    now: i64,
+) -> Result<String> {
+    let column_id: Option<String> = conn
+        .query_row(
+            "SELECT column_id FROM board_columns WHERE board_id = ?1 AND column_key = ?2",
+            params![board_id, column_key],
+            |row| row.get(0),
+        )
+        .optional()?;
+
+    if let Some(column_id) = column_id {
+        conn.execute(
+            r#"
+            UPDATE board_columns
+            SET name = ?1, position = ?2, updated_at = ?3, archived_at = NULL
+            WHERE column_id = ?4
+            "#,
+            params![name, position, now, column_id],
+        )?;
+        Ok(column_id)
+    } else {
+        let column_id = uuid::Uuid::new_v4().to_string();
+        conn.execute(
+            r#"
+            INSERT INTO board_columns (
+              column_id, board_id, column_key, name, position, created_at, updated_at, archived_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, NULL)
+            "#,
+            params![column_id, board_id, column_key, name, position, now, now],
+        )?;
+        Ok(column_id)
+    }
 }
 
 #[cfg(unix)]
@@ -301,6 +438,129 @@ pub struct AuthProfileRecord {
 }
 
 #[derive(Debug, Clone)]
+pub struct AgentRecord {
+    pub agent_id: String,
+    pub name: String,
+    pub workspace_root: String,
+    pub model_provider: String,
+    pub model_id: String,
+    pub tool_profile: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewAgent {
+    pub agent_id: String,
+    pub name: String,
+    pub workspace_root: String,
+    pub model_provider: String,
+    pub model_id: String,
+    pub tool_profile: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct AgentUpdatePatch {
+    pub name: Option<String>,
+    pub workspace_root: Option<String>,
+    pub model_provider: Option<String>,
+    pub model_id: Option<String>,
+    pub tool_profile: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct BoardRecord {
+    pub board_id: String,
+    pub board_key: String,
+    pub name: String,
+    pub board_type: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub archived_at: Option<i64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct BoardColumnRecord {
+    pub column_id: String,
+    pub board_id: String,
+    pub column_key: String,
+    pub name: String,
+    pub position: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub archived_at: Option<i64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct BoardCardRecord {
+    pub card_id: String,
+    pub board_id: String,
+    pub column_id: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub owner_kind: String,
+    pub owner_agent_id: Option<String>,
+    pub owner_human_id: Option<String>,
+    pub due_at: Option<i64>,
+    pub tags_json: Option<String>,
+    pub script_markdown: Option<String>,
+    pub linked_session_id: Option<String>,
+    pub latest_run_id: Option<String>,
+    pub position: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub archived_at: Option<i64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct BoardCardAssetRecord {
+    pub card_asset_id: String,
+    pub card_id: String,
+    pub filename: String,
+    pub mime: String,
+    pub sha256: String,
+    pub bytes: i64,
+    pub local_path: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewBoardCard {
+    pub board_id: String,
+    pub column_id: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub owner_kind: String,
+    pub owner_agent_id: Option<String>,
+    pub owner_human_id: Option<String>,
+    pub due_at: Option<i64>,
+    pub tags_json: Option<String>,
+    pub script_markdown: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct BoardCardUpdatePatch {
+    pub title: Option<String>,
+    pub description: Option<Option<String>>,
+    pub owner_kind: Option<String>,
+    pub owner_agent_id: Option<Option<String>>,
+    pub owner_human_id: Option<Option<String>>,
+    pub due_at: Option<Option<i64>>,
+    pub tags_json: Option<Option<String>>,
+    pub script_markdown: Option<Option<String>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewBoardCardAsset {
+    pub card_id: String,
+    pub filename: String,
+    pub mime: String,
+    pub sha256: String,
+    pub bytes: i64,
+    pub local_path: String,
+}
+
+#[derive(Debug, Clone)]
 pub struct NewAuthProfile {
     pub provider: String,
     pub display_name: String,
@@ -448,6 +708,564 @@ impl Storage {
         conn.query_row("SELECT 1", [], |_| Ok(()))
             .context("failed health-check ping query")?;
         Ok(())
+    }
+
+    pub fn list_agents(&self) -> Result<Vec<AgentRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              agent_id, name, workspace_root, model_provider, model_id, tool_profile, created_at, updated_at
+            FROM agents
+            ORDER BY updated_at DESC, agent_id ASC
+            "#,
+        )?;
+        let rows = stmt.query_map([], map_agent_row)?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn get_agent(&self, agent_id: &str) -> Result<Option<AgentRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              agent_id, name, workspace_root, model_provider, model_id, tool_profile, created_at, updated_at
+            FROM agents
+            WHERE agent_id = ?1
+            "#,
+        )?;
+        Ok(stmt
+            .query_row(params![agent_id], map_agent_row)
+            .optional()?)
+    }
+
+    pub fn create_agent(&self, new_agent: NewAgent) -> Result<AgentRecord> {
+        let conn = self.connect()?;
+        let now = now_ms();
+        conn.execute(
+            r#"
+            INSERT INTO agents (
+              agent_id, name, workspace_root, model_provider, model_id, tool_profile, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+            "#,
+            params![
+                new_agent.agent_id,
+                new_agent.name,
+                new_agent.workspace_root,
+                new_agent.model_provider,
+                new_agent.model_id,
+                new_agent.tool_profile,
+                now,
+                now
+            ],
+        )
+        .context("failed to create agent")?;
+        self.get_agent(&new_agent.agent_id)?
+            .context("created agent could not be reloaded")
+    }
+
+    pub fn update_agent(
+        &self,
+        agent_id: &str,
+        patch: AgentUpdatePatch,
+    ) -> Result<Option<AgentRecord>> {
+        if patch.name.is_none()
+            && patch.workspace_root.is_none()
+            && patch.model_provider.is_none()
+            && patch.model_id.is_none()
+            && patch.tool_profile.is_none()
+        {
+            return self.get_agent(agent_id);
+        }
+
+        let conn = self.connect()?;
+        let now = now_ms();
+        let updated_rows = conn
+            .execute(
+                r#"
+            UPDATE agents
+            SET name = COALESCE(?1, name),
+                workspace_root = COALESCE(?2, workspace_root),
+                model_provider = COALESCE(?3, model_provider),
+                model_id = COALESCE(?4, model_id),
+                tool_profile = COALESCE(?5, tool_profile),
+                updated_at = ?6
+            WHERE agent_id = ?7
+            "#,
+                params![
+                    patch.name,
+                    patch.workspace_root,
+                    patch.model_provider,
+                    patch.model_id,
+                    patch.tool_profile,
+                    now,
+                    agent_id
+                ],
+            )
+            .context("failed to update agent")?;
+        if updated_rows == 0 {
+            return Ok(None);
+        }
+        self.get_agent(agent_id)
+    }
+
+    pub fn list_boards(&self) -> Result<Vec<BoardRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              board_id, board_key, name, board_type, created_at, updated_at, archived_at
+            FROM boards
+            WHERE archived_at IS NULL
+            ORDER BY board_type ASC, updated_at DESC, name ASC
+            "#,
+        )?;
+        let rows = stmt.query_map([], map_board_row)?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn get_board(&self, board_id: &str) -> Result<Option<BoardRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              board_id, board_key, name, board_type, created_at, updated_at, archived_at
+            FROM boards
+            WHERE board_id = ?1
+              AND archived_at IS NULL
+            "#,
+        )?;
+        Ok(stmt
+            .query_row(params![board_id], map_board_row)
+            .optional()?)
+    }
+
+    pub fn list_board_columns(&self, board_id: &str) -> Result<Vec<BoardColumnRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              column_id, board_id, column_key, name, position, created_at, updated_at, archived_at
+            FROM board_columns
+            WHERE board_id = ?1
+              AND archived_at IS NULL
+            ORDER BY position ASC, updated_at DESC
+            "#,
+        )?;
+        let rows = stmt.query_map(params![board_id], map_board_column_row)?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn list_board_cards(&self, board_id: &str) -> Result<Vec<BoardCardRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              c.card_id, c.board_id, c.column_id, c.title, c.description, c.owner_kind, c.owner_agent_id, c.owner_human_id,
+              c.due_at, c.tags_json, c.script_markdown, c.linked_session_id, c.latest_run_id, c.position, c.created_at, c.updated_at, c.archived_at
+            FROM board_cards c
+            JOIN board_columns bc
+              ON bc.column_id = c.column_id
+             AND bc.board_id = c.board_id
+             AND bc.archived_at IS NULL
+            WHERE c.board_id = ?1
+              AND c.archived_at IS NULL
+            ORDER BY bc.position ASC, c.position ASC, c.updated_at DESC
+            "#,
+        )?;
+        let rows = stmt.query_map(params![board_id], map_board_card_row)?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn get_board_card(&self, card_id: &str) -> Result<Option<BoardCardRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              card_id, board_id, column_id, title, description, owner_kind, owner_agent_id, owner_human_id,
+              due_at, tags_json, script_markdown, linked_session_id, latest_run_id, position, created_at, updated_at, archived_at
+            FROM board_cards
+            WHERE card_id = ?1
+              AND archived_at IS NULL
+            "#,
+        )?;
+        Ok(stmt
+            .query_row(params![card_id], map_board_card_row)
+            .optional()?)
+    }
+
+    pub fn get_board_card_in_board(
+        &self,
+        board_id: &str,
+        card_id: &str,
+    ) -> Result<Option<BoardCardRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              card_id, board_id, column_id, title, description, owner_kind, owner_agent_id, owner_human_id,
+              due_at, tags_json, script_markdown, linked_session_id, latest_run_id, position, created_at, updated_at, archived_at
+            FROM board_cards
+            WHERE card_id = ?1
+              AND board_id = ?2
+              AND archived_at IS NULL
+            "#,
+        )?;
+        Ok(stmt
+            .query_row(params![card_id, board_id], map_board_card_row)
+            .optional()?)
+    }
+
+    fn get_board_card_tx(tx: &Transaction<'_>, card_id: &str) -> Result<Option<BoardCardRecord>> {
+        let mut stmt = tx.prepare(
+            r#"
+            SELECT
+              card_id, board_id, column_id, title, description, owner_kind, owner_agent_id, owner_human_id,
+              due_at, tags_json, script_markdown, linked_session_id, latest_run_id, position, created_at, updated_at, archived_at
+            FROM board_cards
+            WHERE card_id = ?1
+              AND archived_at IS NULL
+            "#,
+        )?;
+        Ok(stmt
+            .query_row(params![card_id], map_board_card_row)
+            .optional()?)
+    }
+
+    pub fn create_board_card(&self, new_card: NewBoardCard) -> Result<BoardCardRecord> {
+        let mut conn = self.connect()?;
+        let tx = conn.transaction()?;
+        self.ensure_board_exists(&tx, &new_card.board_id)?;
+        self.ensure_column_in_board(&tx, &new_card.board_id, &new_card.column_id)?;
+        if new_card.owner_kind == "agent" {
+            if let Some(agent_id) = new_card.owner_agent_id.as_ref() {
+                self.ensure_agent_exists(&tx, agent_id)?;
+            } else {
+                anyhow::bail!("owner_agent_id is required when owner_kind=agent");
+            }
+        }
+        let max_position: i64 = tx.query_row(
+            r#"
+                SELECT COALESCE(MAX(position), -1)
+                FROM board_cards
+                WHERE board_id = ?1
+                  AND column_id = ?2
+                  AND archived_at IS NULL
+                "#,
+            params![new_card.board_id, new_card.column_id],
+            |row| row.get(0),
+        )?;
+        let position = max_position.saturating_add(1);
+        let now = now_ms();
+        let card_id = uuid::Uuid::new_v4().to_string();
+        tx.execute(
+            r#"
+            INSERT INTO board_cards (
+              card_id, board_id, column_id, title, description, owner_kind, owner_agent_id, owner_human_id,
+              due_at, tags_json, script_markdown, linked_session_id, latest_run_id, position, created_at, updated_at, archived_at
+            ) VALUES (
+              ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
+              ?9, ?10, ?11, NULL, NULL, ?12, ?13, ?14, NULL
+            )
+            "#,
+            params![
+                card_id,
+                new_card.board_id,
+                new_card.column_id,
+                new_card.title,
+                new_card.description,
+                new_card.owner_kind,
+                new_card.owner_agent_id,
+                new_card.owner_human_id,
+                new_card.due_at,
+                new_card.tags_json,
+                new_card.script_markdown,
+                position,
+                now,
+                now
+            ],
+        )
+        .context("failed to create board card")?;
+        tx.execute(
+            "UPDATE boards SET updated_at = ?1 WHERE board_id = ?2",
+            params![now, new_card.board_id],
+        )?;
+        tx.commit()?;
+        self.get_board_card(&card_id)?
+            .context("created board card could not be reloaded")
+    }
+
+    pub fn update_board_card(
+        &self,
+        board_id: &str,
+        card_id: &str,
+        patch: BoardCardUpdatePatch,
+    ) -> Result<Option<BoardCardRecord>> {
+        let mut conn = self.connect()?;
+        let tx = conn.transaction()?;
+        let current = match Self::get_board_card_tx(&tx, card_id)? {
+            Some(card) => card,
+            None => return Ok(None),
+        };
+        if current.board_id != board_id {
+            anyhow::bail!("card does not belong to board");
+        }
+        let next_title = patch.title.unwrap_or(current.title);
+        let next_description = patch.description.unwrap_or(current.description);
+        let next_owner_kind = patch.owner_kind.unwrap_or(current.owner_kind);
+        let next_owner_agent_id = patch.owner_agent_id.unwrap_or(current.owner_agent_id);
+        let next_owner_human_id = patch.owner_human_id.unwrap_or(current.owner_human_id);
+        let next_due_at = patch.due_at.unwrap_or(current.due_at);
+        let next_tags_json = patch.tags_json.unwrap_or(current.tags_json);
+        let next_script_markdown = patch.script_markdown.unwrap_or(current.script_markdown);
+        if next_owner_kind == "agent" {
+            if let Some(agent_id) = next_owner_agent_id.as_ref() {
+                self.ensure_agent_exists(&tx, agent_id)?;
+            } else {
+                anyhow::bail!("owner_agent_id is required when owner_kind=agent");
+            }
+        }
+        let now = now_ms();
+        let updated_rows = tx.execute(
+            r#"
+            UPDATE board_cards
+            SET title = ?1, description = ?2, owner_kind = ?3, owner_agent_id = ?4, owner_human_id = ?5,
+                due_at = ?6, tags_json = ?7, script_markdown = ?8, updated_at = ?9
+            WHERE card_id = ?10
+              AND board_id = ?11
+              AND archived_at IS NULL
+            "#,
+            params![
+                next_title,
+                next_description,
+                next_owner_kind,
+                next_owner_agent_id,
+                next_owner_human_id,
+                next_due_at,
+                next_tags_json,
+                next_script_markdown,
+                now,
+                card_id,
+                board_id
+            ],
+        )?;
+        if updated_rows == 0 {
+            return Ok(None);
+        }
+        tx.execute(
+            "UPDATE boards SET updated_at = ?1 WHERE board_id = ?2",
+            params![now, board_id],
+        )?;
+        tx.commit()?;
+        self.get_board_card_in_board(board_id, card_id)
+    }
+
+    pub fn move_board_card(
+        &self,
+        board_id: &str,
+        card_id: &str,
+        target_column_id: &str,
+        before_card_id: Option<&str>,
+    ) -> Result<Option<BoardCardRecord>> {
+        let mut conn = self.connect()?;
+        let tx = conn.transaction()?;
+        let current = match Self::get_board_card_tx(&tx, card_id)? {
+            Some(card) => card,
+            None => return Ok(None),
+        };
+        if current.board_id != board_id {
+            anyhow::bail!("card does not belong to board");
+        }
+        if before_card_id == Some(card_id) {
+            tx.commit()?;
+            return Ok(Some(current));
+        }
+        self.ensure_column_in_board(&tx, board_id, target_column_id)?;
+        let now = now_ms();
+        let target_position = if let Some(before_card_id) = before_card_id {
+            let maybe_position = tx
+                .query_row(
+                    r#"
+                    SELECT position
+                    FROM board_cards
+                    WHERE card_id = ?1
+                      AND board_id = ?2
+                      AND column_id = ?3
+                      AND archived_at IS NULL
+                    "#,
+                    params![before_card_id, board_id, target_column_id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .optional()?;
+            let position = maybe_position.with_context(|| {
+                format!("before_card_id not found in target column: {before_card_id}")
+            })?;
+            tx.execute(
+                r#"
+                UPDATE board_cards
+                SET position = position + 1, updated_at = ?1
+                WHERE board_id = ?2
+                  AND column_id = ?3
+                  AND archived_at IS NULL
+                  AND card_id != ?4
+                  AND position >= ?5
+                "#,
+                params![now, board_id, target_column_id, card_id, position],
+            )?;
+            position
+        } else {
+            let max_position: i64 = tx.query_row(
+                r#"
+                    SELECT COALESCE(MAX(position), -1)
+                    FROM board_cards
+                    WHERE board_id = ?1
+                      AND column_id = ?2
+                      AND archived_at IS NULL
+                      AND card_id != ?3
+                    "#,
+                params![board_id, target_column_id, card_id],
+                |row| row.get(0),
+            )?;
+            max_position.saturating_add(1)
+        };
+
+        let updated_rows = tx.execute(
+            r#"
+            UPDATE board_cards
+            SET column_id = ?1, position = ?2, updated_at = ?3
+            WHERE card_id = ?4
+              AND board_id = ?5
+              AND archived_at IS NULL
+            "#,
+            params![target_column_id, target_position, now, card_id, board_id],
+        )?;
+        if updated_rows == 0 {
+            return Ok(None);
+        }
+        tx.execute(
+            "UPDATE boards SET updated_at = ?1 WHERE board_id = ?2",
+            params![now, board_id],
+        )?;
+        tx.commit()?;
+        self.get_board_card_in_board(board_id, card_id)
+    }
+
+    pub fn update_board_card_run_link(
+        &self,
+        board_id: &str,
+        card_id: &str,
+        linked_session_id: Option<&str>,
+        latest_run_id: Option<&str>,
+    ) -> Result<Option<BoardCardRecord>> {
+        let conn = self.connect()?;
+        let now = now_ms();
+        let updated_rows = conn.execute(
+            r#"
+            UPDATE board_cards
+            SET linked_session_id = ?1, latest_run_id = ?2, updated_at = ?3
+            WHERE card_id = ?4
+              AND board_id = ?5
+              AND archived_at IS NULL
+            "#,
+            params![linked_session_id, latest_run_id, now, card_id, board_id],
+        )?;
+        if updated_rows == 0 {
+            return Ok(None);
+        }
+        conn.execute(
+            "UPDATE boards SET updated_at = ?1 WHERE board_id = ?2",
+            params![now, board_id],
+        )?;
+        self.get_board_card_in_board(board_id, card_id)
+    }
+
+    pub fn create_board_card_asset(
+        &self,
+        new_asset: NewBoardCardAsset,
+    ) -> Result<Option<BoardCardAssetRecord>> {
+        let conn = self.connect()?;
+        let card_asset_id = uuid::Uuid::new_v4().to_string();
+        let now = now_ms();
+        let inserted_rows = conn.execute(
+            r#"
+            INSERT INTO board_card_assets (
+              card_asset_id, card_id, filename, mime, sha256, bytes, local_path, created_at
+            )
+            SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8
+            FROM board_cards
+            WHERE card_id = ?9
+              AND archived_at IS NULL
+            LIMIT 1
+            "#,
+            params![
+                card_asset_id,
+                new_asset.card_id,
+                new_asset.filename,
+                new_asset.mime,
+                new_asset.sha256,
+                new_asset.bytes,
+                new_asset.local_path,
+                now,
+                new_asset.card_id
+            ],
+        )?;
+        if inserted_rows == 0 {
+            return Ok(None);
+        }
+        self.get_board_card_asset(&card_asset_id)
+    }
+
+    pub fn get_board_card_asset(
+        &self,
+        card_asset_id: &str,
+    ) -> Result<Option<BoardCardAssetRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              card_asset_id, card_id, filename, mime, sha256, bytes, local_path, created_at
+            FROM board_card_assets
+            WHERE card_asset_id = ?1
+            "#,
+        )?;
+        Ok(stmt
+            .query_row(params![card_asset_id], map_board_card_asset_row)
+            .optional()?)
+    }
+
+    pub fn list_board_card_assets(&self, card_id: &str) -> Result<Vec<BoardCardAssetRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              card_asset_id, card_id, filename, mime, sha256, bytes, local_path, created_at
+            FROM board_card_assets
+            WHERE card_id = ?1
+            ORDER BY created_at DESC
+            "#,
+        )?;
+        let rows = stmt.query_map(params![card_id], map_board_card_asset_row)?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
     }
 
     pub fn list_sessions(&self, limit: u32) -> Result<Vec<SessionRecord>> {
@@ -2488,6 +3306,50 @@ impl Storage {
         }
     }
 
+    fn ensure_board_exists(&self, conn: &Connection, board_id: &str) -> Result<()> {
+        let exists = conn
+            .query_row(
+                "SELECT 1 FROM boards WHERE board_id = ?1 AND archived_at IS NULL LIMIT 1",
+                params![board_id],
+                |_| Ok(()),
+            )
+            .optional()?
+            .is_some();
+        if exists {
+            Ok(())
+        } else {
+            anyhow::bail!("board does not exist: {board_id}");
+        }
+    }
+
+    fn ensure_column_in_board(
+        &self,
+        conn: &Connection,
+        board_id: &str,
+        column_id: &str,
+    ) -> Result<()> {
+        let exists = conn
+            .query_row(
+                r#"
+                SELECT 1
+                FROM board_columns
+                WHERE board_id = ?1
+                  AND column_id = ?2
+                  AND archived_at IS NULL
+                LIMIT 1
+                "#,
+                params![board_id, column_id],
+                |_| Ok(()),
+            )
+            .optional()?
+            .is_some();
+        if exists {
+            Ok(())
+        } else {
+            anyhow::bail!("column does not belong to board");
+        }
+    }
+
     fn run_exists(&self, conn: &Connection, run_id: &str) -> Result<bool> {
         let exists = conn
             .query_row(
@@ -2499,6 +3361,79 @@ impl Storage {
             .is_some();
         Ok(exists)
     }
+}
+
+fn map_agent_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<AgentRecord> {
+    Ok(AgentRecord {
+        agent_id: row.get(0)?,
+        name: row.get(1)?,
+        workspace_root: row.get(2)?,
+        model_provider: row.get(3)?,
+        model_id: row.get(4)?,
+        tool_profile: row.get(5)?,
+        created_at: row.get(6)?,
+        updated_at: row.get(7)?,
+    })
+}
+
+fn map_board_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<BoardRecord> {
+    Ok(BoardRecord {
+        board_id: row.get(0)?,
+        board_key: row.get(1)?,
+        name: row.get(2)?,
+        board_type: row.get(3)?,
+        created_at: row.get(4)?,
+        updated_at: row.get(5)?,
+        archived_at: row.get(6)?,
+    })
+}
+
+fn map_board_column_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<BoardColumnRecord> {
+    Ok(BoardColumnRecord {
+        column_id: row.get(0)?,
+        board_id: row.get(1)?,
+        column_key: row.get(2)?,
+        name: row.get(3)?,
+        position: row.get(4)?,
+        created_at: row.get(5)?,
+        updated_at: row.get(6)?,
+        archived_at: row.get(7)?,
+    })
+}
+
+fn map_board_card_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<BoardCardRecord> {
+    Ok(BoardCardRecord {
+        card_id: row.get(0)?,
+        board_id: row.get(1)?,
+        column_id: row.get(2)?,
+        title: row.get(3)?,
+        description: row.get(4)?,
+        owner_kind: row.get(5)?,
+        owner_agent_id: row.get(6)?,
+        owner_human_id: row.get(7)?,
+        due_at: row.get(8)?,
+        tags_json: row.get(9)?,
+        script_markdown: row.get(10)?,
+        linked_session_id: row.get(11)?,
+        latest_run_id: row.get(12)?,
+        position: row.get(13)?,
+        created_at: row.get(14)?,
+        updated_at: row.get(15)?,
+        archived_at: row.get(16)?,
+    })
+}
+
+fn map_board_card_asset_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<BoardCardAssetRecord> {
+    Ok(BoardCardAssetRecord {
+        card_asset_id: row.get(0)?,
+        card_id: row.get(1)?,
+        filename: row.get(2)?,
+        mime: row.get(3)?,
+        sha256: row.get(4)?,
+        bytes: row.get(5)?,
+        local_path: row.get(6)?,
+        created_at: row.get(7)?,
+    })
 }
 
 fn map_run_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<RunRecord> {

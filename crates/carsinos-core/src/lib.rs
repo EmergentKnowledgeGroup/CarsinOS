@@ -126,17 +126,12 @@ pub struct PluginManifest {
     pub metadata: BTreeMap<String, String>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum PluginExecKind {
+    #[default]
     Subprocess,
     Daemon,
-}
-
-impl Default for PluginExecKind {
-    fn default() -> Self {
-        Self::Subprocess
-    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
