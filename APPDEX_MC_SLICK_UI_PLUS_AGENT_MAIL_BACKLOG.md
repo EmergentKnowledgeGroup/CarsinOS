@@ -39,7 +39,7 @@ All operator and deployment-specific values must come from config/UI settings:
 5. Migration toggles and rollout mode (`legacy_mc_fallback`, `readonly_shadow_mode`).
 
 ### 3) Security Baseline for P0/P1/P3
-1. Attachment controls: MIME allowlist, size cap, filename/path sanitization, checksum-at-ingest.
+1. Attachment controls: MIME allowlist, size cap, filename/path sanitization, checksum-at-ingest (P0: integrity/corruption detection + audit hash logging; P3: same controls plus optional dedup/content-addressing).
 2. Asset and mail downloads must enforce authz and ownership checks.
 3. Anti-abuse: per-principal and per-thread quotas for Agent Mail and chatrooms.
 4. Audit events required for mutation endpoints and policy denials.
@@ -264,7 +264,7 @@ Deliver:
 2. Search (SQLite FTS) on subject/body.
 3. Attachment policy tables/config wiring (MIME allowlist, size caps, retention metadata).
 Acceptance:
-1. “Search thread history” is fast on 50k messages.
+1. “Search thread history” returns in <= 1s (p95 local) on 50k messages.
 
 ### AM-BE-002 Agent Mail APIs
 Priority: P3  

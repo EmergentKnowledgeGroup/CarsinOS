@@ -6390,6 +6390,13 @@ async fn download_board_card_asset(
     response
         .headers_mut()
         .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    if asset.bytes >= 0 {
+        if let Ok(content_length) = HeaderValue::from_str(&asset.bytes.to_string()) {
+            response
+                .headers_mut()
+                .insert(header::CONTENT_LENGTH, content_length);
+        }
+    }
     let safe_filename = sanitize_filename(&asset.filename);
     if let Ok(disposition) = HeaderValue::from_str(&format!("inline; filename=\"{safe_filename}\""))
     {
