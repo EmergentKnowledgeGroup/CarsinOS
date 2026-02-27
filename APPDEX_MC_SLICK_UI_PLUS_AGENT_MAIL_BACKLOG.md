@@ -24,7 +24,7 @@ Mission Control becomes a daily-driver “command center”:
 Freeze and version these interfaces before UI implementation:
 1. Board HTTP contracts used by P0 (`board list/detail/card create/update/move/run`, `asset upload/download`).
 2. WS event contract for UI patches:
-   - envelope: `event_id`, `type`, `ts`, `request_id?`, `entity`, `payload`, `schema_version`.
+   - envelope: `event_id`, `event_type`, `ts_unix_ms`, `request_id?`, `entity`, `payload`, `schema_version`.
    - required types at minimum: `board.card.created|updated|moved|deleted`, `run.updated`, `approval.requested|resolved`, `job.updated`, `channel.status.changed`.
 3. P1 read models: calendar week payload + operator-focus queue payload.
 4. P3 Agent Mail APIs + WS events (`agent_mail.thread.*`, `agent_mail.message.created`, `agent_mail.message.ack`).
@@ -141,7 +141,7 @@ Acceptance:
 Priority: P0  
 Deliver:
 1. Connect to `/api/v1/ws`.
-2. Parse event envelope and route by `type` (`board.*`, `run.*`, `approval.*`, `job.*`, etc).
+2. Parse event envelope and route by `event_type` (`board.*`, `run.*`, `approval.*`, `job.*`, etc).
 3. UI state updates are incremental (no full reload per event).
 Acceptance:
 1. Card move from Client A appears on Client B without refresh.
@@ -177,7 +177,7 @@ Acceptance:
 Priority: P0  
 Goal: UI must not rely on server filesystem paths.  
 Deliver:
-1. Add `GET /api/v1/boards/{board_id}/cards/{card_id}/assets/{asset_id}` returning bytes + correct `Content-Type`.
+1. Add `GET /api/v1/boards/{board_id}/cards/{card_id}/assets/{card_asset_id}` returning bytes + correct `Content-Type`.
 2. Ensure auth + board/card/asset ownership validation.
 3. Enforce filename/path sanitization and content-type/size guardrails.
 Acceptance:

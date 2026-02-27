@@ -6352,15 +6352,30 @@ async fn download_board_card_asset(
         ));
     }
 
-    let attachments_root = std::fs::canonicalize(state.attachments_path.as_str())
-        .unwrap_or_else(|_| PathBuf::from(state.attachments_path.as_str()));
-    let resolved_path = std::fs::canonicalize(PathBuf::from(&asset.local_path)).map_err(|err| {
-        if err.kind() == ErrorKind::NotFound {
-            api_error(StatusCode::NOT_FOUND, "board card asset file not found")
-        } else {
-            internal_err_with_error("resolving board card asset path failed", err.into())
-        }
-    })?;
+    let attachments_path = PathBuf::from(state.attachments_path.as_str());
+    let attachments_root =
+        tokio::task::spawn_blocking(move || std::fs::canonicalize(attachments_path))
+            .await
+            .map_err(|err| {
+                internal_err_with_error("canonicalizing attachments root task failed", err.into())
+            })?
+            .map_err(|err| {
+                internal_err_with_error("canonicalizing attachments root failed", err.into())
+            })?;
+    let local_path = asset.local_path.clone();
+    let resolved_path =
+        tokio::task::spawn_blocking(move || std::fs::canonicalize(PathBuf::from(local_path)))
+            .await
+            .map_err(|err| {
+                internal_err_with_error("resolving board card asset path task failed", err.into())
+            })?
+            .map_err(|err| {
+                if err.kind() == ErrorKind::NotFound {
+                    api_error(StatusCode::NOT_FOUND, "board card asset file not found")
+                } else {
+                    internal_err_with_error("resolving board card asset path failed", err.into())
+                }
+            })?;
     if !resolved_path.starts_with(&attachments_root) {
         return Err(api_error(
             StatusCode::FORBIDDEN,
@@ -6368,13 +6383,19 @@ async fn download_board_card_asset(
         ));
     }
 
-    let bytes = std::fs::read(&resolved_path).map_err(|err| {
-        if err.kind() == ErrorKind::NotFound {
-            api_error(StatusCode::NOT_FOUND, "board card asset file not found")
-        } else {
-            internal_err_with_error("reading board card asset file failed", err.into())
-        }
-    })?;
+    let read_path = resolved_path.clone();
+    let bytes = tokio::task::spawn_blocking(move || std::fs::read(&read_path))
+        .await
+        .map_err(|err| {
+            internal_err_with_error("reading board card asset file task failed", err.into())
+        })?
+        .map_err(|err| {
+            if err.kind() == ErrorKind::NotFound {
+                api_error(StatusCode::NOT_FOUND, "board card asset file not found")
+            } else {
+                internal_err_with_error("reading board card asset file failed", err.into())
+            }
+        })?;
 
     let mut response = Response::new(Body::from(bytes));
     *response.status_mut() = StatusCode::OK;
