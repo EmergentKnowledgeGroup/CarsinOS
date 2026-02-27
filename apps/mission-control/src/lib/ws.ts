@@ -131,7 +131,7 @@ export function connectGatewayEvents(options: ConnectOptions): WsSubscription {
     }
     const nextDelay = reconnectDelayMs;
     reconnectDelayMs = Math.min(reconnectDelayMs * 2, 5000);
-    window.setTimeout(() => {
+    globalThis.setTimeout(() => {
       if (!closed) {
         void connect();
       }
