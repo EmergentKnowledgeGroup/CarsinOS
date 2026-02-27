@@ -1,13 +1,13 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-27T11:01:00Z",
+  "captured_at": "2026-02-27T11:02:00Z",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui",
   "branch": "codex/mc3-pr2-gui",
-  "head": "49d5b3969023877f65a0d5f239d9681c32f9e94f",
-  "head_short": "49d5b39",
-  "step": "mc3-pr44-post-green",
-  "note": "Applied PR44 remediation (UI run model resolution + MC3 refresh errors + clippy/CI fixes) and passed full security gate locally",
-  "next_cmd": "git add .github/workflows/pr-gate.yml crates/carsinos-core/src/lib.rs crates/carsinos-gateway/src/main.rs crates/carsinos-gui/src/main.rs CHECKPOINT.md runtime/checkpoints/LATEST.md runtime/checkpoints/LATEST.json && git commit -m \"fix(gui): harden MC3 refresh and run-card model resolution\" && git push origin codex/mc3-pr2-gui",
+  "head": "529029b0876f4f59f59808f2b8f71d516a2f5fc4",
+  "head_short": "529029b",
+  "step": "mc3-pr44-main-merge-resolved",
+  "note": "Resolved merge-from-main conflicts for PR44 and prepared post-merge validation rerun",
+  "next_cmd": "scripts/security_pr_gate.sh",
   "validations": [
     "scripts/security_pr_gate.sh"
   ]

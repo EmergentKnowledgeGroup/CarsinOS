@@ -5775,25 +5775,95 @@ Tracks execution continuity across context compactions.
 
 - checklist refs: `Q4` `Q7`
 - past action:
-- Resumed PR #44 (`codex/mc3-pr2-gui`) with failed Security PR Gate and one CodeRabbit review set.
+- Resumed PR #43 (`codex/mc3-pr1-backend`) from Security PR Gate clippy failures after CodeRabbit remediation commits.
 - present action:
-- Implemented PR44 remediation batch:
-- surfaced MC3 refresh failures in gateway-connect status messaging (`set_mc3_refresh_status`)
-- removed hardcoded card-run model payload; now resolves model from card owner agent and falls back to operator-configured run model fields
-- added optional `auth_profile_id` forwarding for card-run payload when configured
-- updated PR gate cargo-audit pin to `0.22.1` for CVSS4 advisory compatibility
-- applied strict clippy parity fixes already validated in backend PR branch (`carsinos-core` default derive + gateway lint cleanups)
+- Cleared all remaining strict clippy findings in gateway runtime and tests:
+- added explicit `.truncate(false)` on scheduler lockfile open path
+- removed redundant `Err(err.into())` conversions
+- replaced manual clamp pattern with `.clamp(1, hard_cap)`
+- replaced manual reason-code loop with iterator `.find(...).copied()`
+- replaced default-then-reassign patterns with struct-init `..Default::default()`
+- replaced manual lowercase comparisons with `eq_ignore_ascii_case`
+- replaced `len() >= 1` assertion with `!is_empty()` in gateway tests
+- retained and staged existing GUI clippy-safe struct-init adjustment in runtime wizard test setup
 - validation outcomes:
-- `scripts/security_pr_gate.sh` passed end-to-end (fmt, clippy, tests-core, tests-workspace, hardcoded guard, cargo-audit).
+- `cargo clippy -p carsinos-gateway -p carsinos-storage -p carsinos-protocol -p carsinos-gui -p carsinos-cli --all-targets -- -D warnings` passed.
+- `cargo test -p carsinos-storage` passed.
+- `cargo test -p carsinos-protocol` passed.
+- `cargo test -p carsinos-gateway` passed (`130` unit + `17` process e2e + `2` benchmarks).
 - Checkpoint SOP:
-- phase-start snapshot recorded and post-green `runtime/checkpoints/LATEST.md` + `LATEST.json` updated with required fields.
+- phase-start and post-green snapshots recorded in `runtime/checkpoints/`.
+- updated `runtime/checkpoints/LATEST.md` and `runtime/checkpoints/LATEST.json` with required fields (`step`, `note`, `branch`, `head`, `next_cmd`, `validations`).
 - future action:
-- commit/push PR44 remediation batch, poll checks + CodeRabbit status, and merge once green.
+- commit and push PR #43 clippy-fix batch, poll CodeRabbit/check status, then merge when all required checks are green.
 - changed files:
-- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/.github/workflows/pr-gate.yml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/crates/carsinos-gui/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/CHECKPOINT.md`
+
+### 2026-02-27 - Entry 274
+
+- checklist refs: `Q4` `Q7`
+- past action:
+- Committed and pushed `7a5592b` to PR #43 with strict clippy fixes for gateway/gui paths and checkpoint alignment.
+- present action:
+- Recorded PR-open checkpoint state for the active review loop:
+- `runtime/checkpoints/LATEST.md` now points to PR status poll command for #43
+- `runtime/checkpoints/LATEST.json` now includes updated `step`, `note`, `branch`, `head`, `next_cmd`, and `validations`
+- validation outcomes:
+- Prior gate validations remain green from Entry 273 (clippy + storage/protocol/gateway test suites).
+- Checkpoint SOP:
+- checkpoint updated at PR-open stage per workflow lock sequence.
+- future action:
+- poll PR #43 checks/reviews; if CodeRabbit comments appear, implement and repush; merge when required checks are green.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/CHECKPOINT.md`
+
+### 2026-02-27 - Entry 275
+
+- checklist refs: `Q4` `Q7`
+- past action:
+- Monitored PR #43 check cycle and captured failed `Security PR Gate` logs from Actions run `22482361974`.
+- present action:
+- Diagnosed root cause: CI pinned `cargo-audit` `0.21.0`, which fails parsing CVSS 4.0 advisories (`unsupported CVSS version: 4.0`).
+- Updated `.github/workflows/pr-gate.yml` to pin `cargo-audit` to `0.22.1` (CVSS4-capable).
+- Revalidated `cargo audit` locally (pass with allowed warning policy).
+- validation outcomes:
+- `cargo audit` passed (no blocking vulnerabilities; allowed warnings only).
+- Checkpoint SOP:
+- post-green snapshot recorded for this remediation batch and checkpoint artifacts refreshed with required fields.
+- future action:
+- commit/push CI pin fix, re-run PR #43 checks, monitor CodeRabbit/check state, and merge when green.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/.github/workflows/pr-gate.yml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/CHECKPOINT.md`
+
+### 2026-02-27 - Entry 276
+
+- checklist refs: `Q4` `Q7`
+- past action:
+- Resolved PR #44 merge-from-main conflicts after PR #43 landed overlapping gateway/core/checkpoint changes.
+- present action:
+- Restored branch-specific PR44 remediation on top of `origin/main`:
+- kept mainline protocol/storage/migration updates from merged PR43
+- kept PR44 GUI behavior improvements (MC3 refresh error surfacing + card-run model resolution)
+- kept PR44 CI fix (`cargo-audit` pin `0.22.1`) and clippy parity fixes
+- validation outcomes:
+- prior local `scripts/security_pr_gate.sh` run remained green before merge-from-main; rerun scheduled after conflict finalize.
+- Checkpoint SOP:
+- conflict resolution recorded before staging merge commit.
+- future action:
+- run full security gate again post-conflict, push branch, and complete PR #44 review/merge loop.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/CHECKPOINT.md`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/crates/carsinos-core/src/lib.rs`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/crates/carsinos-gateway/src/main.rs`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/crates/carsinos-gui/src/main.rs`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/runtime/checkpoints/LATEST.json`
-- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/CHECKPOINT.md`

@@ -19,48 +19,57 @@ use carsinos_core::{
     PLUGIN_MANIFEST_SCHEMA_VERSION_V2,
 };
 use carsinos_protocol::{
-    AnthropicSetupTokenIngestRequest, AnthropicSetupTokenIngestResponse, ApprovalResponse,
-    AuthProfileResponse, ChannelRuntimeAdapterStatusResponse, CircuitBreakerStateResponse,
-    CreateApprovalRequest, CreateApprovalResponse, CreateAuthProfileRequest,
-    CreateAuthProfileResponse, CreateJobRequest, CreateJobResponse, CreateMessageRequest,
-    CreateMessageResponse, CreateNoteRequest, CreateNoteResponse, CreateRunRequest,
-    CreateRunResponse, CreateSessionRequest, CreateSessionResponse, DeleteRuntimeSecretRequest,
-    DeleteRuntimeSecretResponse, DiscordChannelConfig, FailureReasonCountResponse,
-    GetAgentProviderProfileOrderResponse, GetChannelConfigResponse,
+    AgentResponse, AnthropicSetupTokenIngestRequest, AnthropicSetupTokenIngestResponse,
+    ApprovalResponse, AuthProfileResponse, BoardAutomationRuleResponse, BoardCardAssetResponse,
+    BoardCardResponse, BoardColumnResponse, BoardDetailResponse, BoardSummaryResponse,
+    ChannelRuntimeAdapterStatusResponse, CircuitBreakerStateResponse, CreateAgentRequest,
+    CreateAgentResponse, CreateApprovalRequest, CreateApprovalResponse, CreateAuthProfileRequest,
+    CreateAuthProfileResponse, CreateBoardCardRequest, CreateBoardCardResponse, CreateJobRequest,
+    CreateJobResponse, CreateMessageRequest, CreateMessageResponse, CreateNoteRequest,
+    CreateNoteResponse, CreateRunRequest, CreateRunResponse, CreateSessionRequest,
+    CreateSessionResponse, DeleteRuntimeSecretRequest, DeleteRuntimeSecretResponse,
+    DiscordChannelConfig, FailureReasonCountResponse, GetAgentProviderProfileOrderResponse,
+    GetAgentResponse, GetBoardAutomationRuleResponse, GetChannelConfigResponse,
     GetChannelRuntimeStatusResponse, GetNoteResponse, GetRuntimeConfigResponse,
     GetRuntimeTrustContractLockResponse, HealthResponse, IngestChannelMessageResponse,
     IngestDiscordMessageRequest, IngestTelegramMessageRequest, InstallPluginRequest,
-    InstallPluginResponse, JobResponse, JobRunResponse, JobStatusResponse, ListApprovalsQuery,
-    ListApprovalsResponse, ListAuthProfilesQuery, ListAuthProfilesResponse, ListJobHistoryQuery,
+    InstallPluginResponse, JobResponse, JobRunResponse, JobStatusResponse, ListAgentsResponse,
+    ListApprovalsQuery, ListApprovalsResponse, ListAuthProfilesQuery, ListAuthProfilesResponse,
+    ListBoardAutomationRulesResponse, ListBoardsResponse, ListJobHistoryQuery,
     ListJobHistoryResponse, ListJobsQuery, ListJobsResponse, ListMessagesQuery,
     ListMessagesResponse, ListNotesQuery, ListNotesResponse, ListPluginRuntimeStatusResponse,
     ListPluginsQuery, ListPluginsResponse, ListProviderCapabilitiesQuery,
     ListProviderCapabilitiesResponse, ListSessionsQuery, ListSessionsResponse, ListSkillsQuery,
     ListSkillsResponse, ListToolCapabilitiesQuery, ListToolCapabilitiesResponse, MessageResponse,
-    MetricsResponse, NoteResponse, NumquamIntegrationStatusResponse, OpenAiOauthFinishRequest,
-    OpenAiOauthFinishResponse, OpenAiOauthStartRequest, OpenAiOauthStartResponse,
-    PluginArtifactResponse, PluginCapabilityResponse, PluginCompatibilityResponse,
-    PluginLimitsResponse, PluginManifestResponse, PluginPermissionsResponse,
-    PluginRuntimeStatusResponse, ProviderCapabilityResponse, ReconnectChannelRuntimeRequest,
-    ReconnectChannelRuntimeResponse, RefreshRuntimeTrustContractLockRequest,
-    RefreshRuntimeTrustContractLockResponse, RemoveJobResponse, ResolveApprovalRequest,
-    ResolveApprovalResponse, ResolveChannelApprovalActionRequest, RollbackPluginRequest,
-    RollbackPluginResponse, RollbackRuntimeConfigRequest, RollbackRuntimeConfigResponse,
-    RunJobNowResponse, RunMemoryWhyRequest, RunMemoryWhyResponse, RunResponse,
-    RuntimeAutonomyGuardrailsConfig, RuntimeChannelsConfig, RuntimeConfigResponse,
-    RuntimeDiscordDeploymentConfig, RuntimeExtensionsConfig, RuntimeGlobalConfig,
-    RuntimeMemoryConfig, RuntimeNumquamConfig, RuntimeProviderPolicyConfig,
+    MetricsResponse, MoveBoardCardRequest, MoveBoardCardResponse, NoteResponse,
+    NumquamIntegrationStatusResponse, OpenAiOauthFinishRequest, OpenAiOauthFinishResponse,
+    OpenAiOauthStartRequest, OpenAiOauthStartResponse, PluginArtifactResponse,
+    PluginCapabilityResponse, PluginCompatibilityResponse, PluginLimitsResponse,
+    PluginManifestResponse, PluginPermissionsResponse, PluginRuntimeStatusResponse,
+    ProviderCapabilityResponse, ReconnectChannelRuntimeRequest, ReconnectChannelRuntimeResponse,
+    RefreshRuntimeTrustContractLockRequest, RefreshRuntimeTrustContractLockResponse,
+    RemoveJobResponse, ResolveApprovalRequest, ResolveApprovalResponse,
+    ResolveChannelApprovalActionRequest, RollbackPluginRequest, RollbackPluginResponse,
+    RollbackRuntimeConfigRequest, RollbackRuntimeConfigResponse, RunBoardAutomationRuleResponse,
+    RunBoardCardRequest, RunBoardCardResponse, RunJobNowResponse, RunMemoryWhyRequest,
+    RunMemoryWhyResponse, RunResponse, RuntimeAutonomyGuardrailsConfig, RuntimeChannelsConfig,
+    RuntimeConfigResponse, RuntimeDiscordDeploymentConfig, RuntimeExtensionsConfig,
+    RuntimeGlobalConfig, RuntimeMemoryConfig, RuntimeNumquamConfig, RuntimeProviderPolicyConfig,
     RuntimeSecurityOpsConfig, RuntimeTelegramDeploymentConfig, RuntimeTrustContractLockResponse,
-    RuntimeTrustContractLockSummaryResponse, SchedulerLockStateResponse, SearchMemoryRequest,
-    SearchMemoryResponse, SearchMemoryResult, SessionDetailResponse, SessionSummary,
-    SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse, SkillResponse,
+    RuntimeTrustContractLockSummaryResponse, SanitizedPath, SchedulerLockStateResponse,
+    SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult, SessionDetailResponse,
+    SessionSummary, SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse,
+    SetBoardAutomationRuleStateRequest, SetBoardAutomationRuleStateResponse, SkillResponse,
     StatusResponse, SyncMemorySourceItemResponse, SyncMemorySourcesRequest,
     SyncMemorySourcesResponse, TelegramChannelConfig, ToolCapabilityResponse,
-    ToolCapabilitySandboxResponse, UpdateAuthProfileStateRequest, UpdateAuthProfileStateResponse,
-    UpdateChannelConfigRequest, UpdateChannelConfigResponse, UpdateJobRequest, UpdateJobResponse,
-    UpdateNoteRequest, UpdateNoteResponse, UpdatePluginRequest, UpdatePluginResponse,
-    UpdateRuntimeConfigRequest, UpdateRuntimeConfigResponse, UpdateSkillStateRequest,
-    UpdateSkillStateResponse, UpsertRuntimeSecretRequest, UpsertRuntimeSecretResponse,
+    ToolCapabilitySandboxResponse, UpdateAgentRequest, UpdateAgentResponse,
+    UpdateAuthProfileStateRequest, UpdateAuthProfileStateResponse, UpdateBoardCardRequest,
+    UpdateBoardCardResponse, UpdateChannelConfigRequest, UpdateChannelConfigResponse,
+    UpdateJobRequest, UpdateJobResponse, UpdateNoteRequest, UpdateNoteResponse,
+    UpdatePluginRequest, UpdatePluginResponse, UpdateRuntimeConfigRequest,
+    UpdateRuntimeConfigResponse, UpdateSkillStateRequest, UpdateSkillStateResponse,
+    UploadBoardCardAssetRequest, UploadBoardCardAssetResponse, UpsertBoardAutomationRuleRequest,
+    UpsertBoardAutomationRuleResponse, UpsertRuntimeSecretRequest, UpsertRuntimeSecretResponse,
     HEARTBEAT_OUTPUT_ALERT_PREFIX, HEARTBEAT_OUTPUT_OK, JOB_MODE_HEARTBEAT_RUN,
 };
 use carsinos_providers::{
@@ -69,11 +78,13 @@ use carsinos_providers::{
     CompletionUsageMetrics, ProviderAuthProfile, ProviderRegistry,
 };
 use carsinos_storage::{
-    AppPaths, ApprovalRecord, ApprovalResolveResult, AuthProfileRecord, CircuitBreakerStateRecord,
-    CircuitBreakerStateUpsert, DailyAuthProfileUsageIncrement, JobRecord, JobRunRecord,
-    JobUpdatePatch, MessageRecord, NewApproval, NewAuthProfile, NewJob, NewMessage, NewNote,
-    NewRun, NewSecurityAuditEvent, NewSession, NoteRecord, RunRecord, SecurityAuditEventListFilter,
-    SecurityAuditEventRecord, SessionRecord, Storage,
+    AgentRecord, AgentUpdatePatch, AppPaths, ApprovalRecord, ApprovalResolveResult,
+    AuthProfileRecord, BoardCardAssetRecord, BoardCardRecord, BoardCardUpdatePatch,
+    BoardColumnRecord, BoardRecord, CircuitBreakerStateRecord, CircuitBreakerStateUpsert,
+    DailyAuthProfileUsageIncrement, JobRecord, JobRunRecord, JobUpdatePatch, MessageRecord,
+    NewAgent, NewApproval, NewAuthProfile, NewBoardCard, NewBoardCardAsset, NewJob, NewMessage,
+    NewNote, NewRun, NewSecurityAuditEvent, NewSession, NoteRecord, RunRecord,
+    SecurityAuditEventListFilter, SecurityAuditEventRecord, SessionRecord, Storage,
 };
 use carsinos_tools::{
     ChannelActionRequest, ExecRequest, FsReadRequest, FsWriteMode, FsWriteRequest, LocalToolRunner,
@@ -1658,10 +1669,14 @@ const REASON_BREAKER_REPEATED_TOOL_ERROR: &str = "BREAKER_REPEATED_TOOL_ERROR";
 const REASON_BREAKER_PROVIDER_OPEN: &str = "BREAKER_PROVIDER_OPEN";
 const REASON_BREAKER_JOB_OPEN: &str = "BREAKER_JOB_OPEN";
 const REASON_BREAKER_NUMQUAM_OPEN: &str = "BREAKER_NUMQUAM_OPEN";
+const REASON_AUTOMATION_DAILY_RUN_LIMIT: &str = "AUTOMATION_DAILY_RUN_LIMIT";
+const REASON_AUTOMATION_CARD_ATTEMPT_LIMIT: &str = "AUTOMATION_CARD_ATTEMPT_LIMIT";
+const REASON_AUTOMATION_EXECUTION_FAILED: &str = "AUTOMATION_EXECUTION_FAILED";
 const REASON_HEARTBEAT_TOOLS_FORBIDDEN: &str = "HEARTBEAT_TOOLS_FORBIDDEN";
 const REASON_HEARTBEAT_TIMEOUT: &str = "HEARTBEAT_TIMEOUT";
 const REASON_HEARTBEAT_OUTPUT_INVALID: &str = "HEARTBEAT_OUTPUT_INVALID";
 const REASON_HEARTBEAT_RUN_FAILED: &str = "HEARTBEAT_RUN_FAILED";
+const JOB_MODE_MC3_COLUMN_AUTOMATION: &str = "mc3.column_automation";
 const CIRCUIT_BREAKER_SCOPE_PROVIDER: &str = "provider";
 const CIRCUIT_BREAKER_SCOPE_JOB: &str = "job";
 const CIRCUIT_BREAKER_SCOPE_NUMQUAM: &str = "numquam";
@@ -5419,6 +5434,53 @@ fn build_app(state: AppState) -> Router {
             "/api/v1/extensions/skills/{skill_id}/state",
             post(update_skill_state),
         )
+        .route("/api/v1/agents", get(list_agents).post(create_agent))
+        .route(
+            "/api/v1/agents/{agent_id}",
+            get(get_agent).post(update_agent),
+        )
+        .route("/api/v1/boards", get(list_boards))
+        .route("/api/v1/boards/{board_id}", get(get_board))
+        .route(
+            "/api/v1/boards/{board_id}/cards/create",
+            post(create_board_card),
+        )
+        .route(
+            "/api/v1/boards/{board_id}/cards/{card_id}/update",
+            post(update_board_card),
+        )
+        .route(
+            "/api/v1/boards/{board_id}/cards/{card_id}/move",
+            post(move_board_card),
+        )
+        .route(
+            "/api/v1/boards/{board_id}/cards/{card_id}/assets/upload",
+            post(upload_board_card_asset),
+        )
+        .route(
+            "/api/v1/boards/{board_id}/cards/{card_id}/run",
+            post(run_board_card),
+        )
+        .route(
+            "/api/v1/boards/{board_id}/automation",
+            get(list_board_automation_rules),
+        )
+        .route(
+            "/api/v1/boards/{board_id}/automation/{job_id}",
+            get(get_board_automation_rule),
+        )
+        .route(
+            "/api/v1/boards/{board_id}/columns/{column_id}/automation/upsert",
+            post(upsert_board_automation_rule),
+        )
+        .route(
+            "/api/v1/boards/{board_id}/automation/{job_id}/state",
+            post(set_board_automation_rule_state),
+        )
+        .route(
+            "/api/v1/boards/{board_id}/automation/{job_id}/run",
+            post(run_board_automation_rule),
+        )
         .route("/api/v1/ws", get(ws_handler))
         .route("/api/v1/sessions", get(list_sessions).post(create_session))
         .route("/api/v1/sessions/{session_id}", get(get_session))
@@ -5553,6 +5615,1355 @@ fn build_app(state: AppState) -> Router {
                 .on_response(DefaultOnResponse::new().level(Level::INFO))
                 .on_failure(DefaultOnFailure::new().level(Level::ERROR)),
         )
+}
+
+const BOARD_CARD_UPLOAD_MAX_BYTES: usize = 10 * 1024 * 1024;
+const BOARD_CARD_TOTAL_UPLOAD_MAX_BYTES: i64 = 100 * 1024 * 1024;
+
+fn board_asset_mime_allowed(mime: &str) -> bool {
+    matches!(
+        mime.trim().to_ascii_lowercase().as_str(),
+        "image/png"
+            | "image/jpeg"
+            | "image/jpg"
+            | "image/webp"
+            | "image/gif"
+            | "application/pdf"
+            | "text/markdown"
+            | "text/plain"
+    )
+}
+
+fn sanitize_filename(raw: &str) -> String {
+    let mut out = raw
+        .trim()
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '.' | '_' | '-') {
+                ch
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    if out.is_empty() {
+        out = "asset.bin".to_string();
+    }
+    if out.len() > 120 {
+        out.truncate(120);
+    }
+    out
+}
+
+fn tags_from_json(raw: Option<&String>) -> Vec<String> {
+    raw.and_then(|value| serde_json::from_str::<Vec<String>>(value).ok())
+        .unwrap_or_default()
+}
+
+fn tags_to_json(tags: Option<Vec<String>>) -> Option<String> {
+    tags.map(|items| {
+        serde_json::json!(items
+            .into_iter()
+            .map(|item| item.trim().to_string())
+            .filter(|item| !item.is_empty())
+            .collect::<Vec<_>>())
+        .to_string()
+    })
+}
+
+fn to_agent_response(record: AgentRecord) -> AgentResponse {
+    AgentResponse {
+        agent_id: record.agent_id,
+        name: record.name,
+        workspace_root: SanitizedPath::from(record.workspace_root),
+        model_provider: record.model_provider,
+        model_id: record.model_id,
+        tool_profile: record.tool_profile,
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+    }
+}
+
+fn to_board_summary_response(
+    record: BoardRecord,
+    column_count: usize,
+    card_count: usize,
+) -> BoardSummaryResponse {
+    BoardSummaryResponse {
+        board_id: record.board_id,
+        board_key: record.board_key,
+        name: record.name,
+        board_type: record.board_type,
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+        column_count,
+        card_count,
+    }
+}
+
+fn to_board_column_response(record: BoardColumnRecord) -> BoardColumnResponse {
+    BoardColumnResponse {
+        column_id: record.column_id,
+        board_id: record.board_id,
+        column_key: record.column_key,
+        name: record.name,
+        position: record.position,
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+    }
+}
+
+fn to_board_card_asset_response(record: BoardCardAssetRecord) -> BoardCardAssetResponse {
+    BoardCardAssetResponse {
+        card_asset_id: record.card_asset_id,
+        card_id: record.card_id,
+        filename: record.filename,
+        mime: record.mime,
+        sha256: record.sha256,
+        bytes: record.bytes,
+        local_path: SanitizedPath::from(record.local_path),
+        created_at: record.created_at,
+    }
+}
+
+fn to_board_card_response(
+    record: BoardCardRecord,
+    assets: Vec<BoardCardAssetRecord>,
+) -> BoardCardResponse {
+    BoardCardResponse {
+        card_id: record.card_id,
+        board_id: record.board_id,
+        column_id: record.column_id,
+        title: record.title,
+        description: record.description,
+        owner_kind: record.owner_kind,
+        owner_agent_id: record.owner_agent_id,
+        owner_human_id: record.owner_human_id,
+        due_at: record.due_at,
+        tags: tags_from_json(record.tags_json.as_ref()),
+        script_markdown: record.script_markdown,
+        linked_session_id: record.linked_session_id,
+        latest_run_id: record.latest_run_id,
+        position: record.position,
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+        assets: assets
+            .into_iter()
+            .map(to_board_card_asset_response)
+            .collect(),
+    }
+}
+
+fn load_board_detail_response(
+    state: &AppState,
+    board: BoardRecord,
+) -> std::result::Result<BoardDetailResponse, (StatusCode, Json<ApiError>)> {
+    let columns = state
+        .storage
+        .list_board_columns(&board.board_id)
+        .map_err(|err| internal_err_with_error("listing board columns failed", err))?;
+    let cards = state
+        .storage
+        .list_board_cards(&board.board_id)
+        .map_err(|err| internal_err_with_error("listing board cards failed", err))?;
+
+    let mut cards_out = Vec::new();
+    for card in cards {
+        let assets = state
+            .storage
+            .list_board_card_assets(&card.card_id)
+            .map_err(|err| internal_err_with_error("listing board card assets failed", err))?;
+        cards_out.push(to_board_card_response(card, assets));
+    }
+
+    let board_summary = to_board_summary_response(board, columns.len(), cards_out.len());
+    Ok(BoardDetailResponse {
+        board: board_summary,
+        columns: columns.into_iter().map(to_board_column_response).collect(),
+        cards: cards_out,
+    })
+}
+
+async fn list_agents(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
+    let items = state
+        .storage
+        .list_agents()
+        .map_err(|err| internal_err_with_error("listing agents failed", err))?
+        .into_iter()
+        .map(to_agent_response)
+        .collect();
+    Ok(Json(ListAgentsResponse { items }))
+}
+
+async fn get_agent(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(agent_id): Path<String>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
+    let agent = state
+        .storage
+        .get_agent(agent_id.trim())
+        .map_err(|err| internal_err_with_error("loading agent failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "agent not found"))?;
+    Ok(Json(GetAgentResponse {
+        agent: to_agent_response(agent),
+    }))
+}
+
+async fn create_agent(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<CreateAgentRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let agent_id = request.agent_id.trim().to_ascii_lowercase();
+    if agent_id.is_empty()
+        || agent_id.len() > 64
+        || !agent_id
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
+    {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "agent_id must be 1..64 chars and contain only a-z, 0-9, '_' or '-'",
+        ));
+    }
+    let name = request.name.trim().to_string();
+    if name.is_empty() {
+        return Err(api_error(StatusCode::BAD_REQUEST, "name cannot be empty"));
+    }
+    let workspace_root = request
+        .workspace_root
+        .unwrap_or_else(|| ".".to_string())
+        .trim()
+        .to_string();
+    let model_provider = request
+        .model_provider
+        .unwrap_or_else(|| "unconfigured".to_string())
+        .trim()
+        .to_string();
+    let model_id = request
+        .model_id
+        .unwrap_or_else(|| "unconfigured".to_string())
+        .trim()
+        .to_string();
+    let tool_profile = request
+        .tool_profile
+        .unwrap_or_else(|| "default".to_string())
+        .trim()
+        .to_string();
+    let record = state
+        .storage
+        .create_agent(NewAgent {
+            agent_id,
+            name,
+            workspace_root,
+            model_provider,
+            model_id,
+            tool_profile,
+        })
+        .map_err(|err| {
+            if err.to_string().to_ascii_lowercase().contains("unique") {
+                api_error(StatusCode::CONFLICT, "agent_id already exists")
+            } else {
+                internal_err_with_error("creating agent failed", err)
+            }
+        })?;
+    record_security_audit(
+        &headers,
+        &state,
+        &auth,
+        "agent.create",
+        &format!("agent:{}", record.agent_id),
+        "allow",
+        Some("agent created".to_string()),
+        StatusCode::CREATED,
+        None,
+        None,
+        None,
+        None,
+    );
+    Ok((
+        StatusCode::CREATED,
+        Json(CreateAgentResponse {
+            agent: to_agent_response(record),
+        }),
+    ))
+}
+
+async fn update_agent(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(agent_id): Path<String>,
+    Json(request): Json<UpdateAgentRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let agent_id = agent_id.trim().to_ascii_lowercase();
+    if agent_id.is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "agent_id cannot be empty",
+        ));
+    }
+    let patch = AgentUpdatePatch {
+        name: request.name.map(|value| value.trim().to_string()),
+        workspace_root: request.workspace_root.map(|value| value.trim().to_string()),
+        model_provider: request.model_provider.map(|value| value.trim().to_string()),
+        model_id: request.model_id.map(|value| value.trim().to_string()),
+        tool_profile: request.tool_profile.map(|value| value.trim().to_string()),
+    };
+    let record = state
+        .storage
+        .update_agent(&agent_id, patch)
+        .map_err(|err| internal_err_with_error("updating agent failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "agent not found"))?;
+    record_security_audit(
+        &headers,
+        &state,
+        &auth,
+        "agent.update",
+        &format!("agent:{}", record.agent_id),
+        "allow",
+        Some("agent updated".to_string()),
+        StatusCode::OK,
+        None,
+        None,
+        None,
+        None,
+    );
+    Ok(Json(UpdateAgentResponse {
+        agent: to_agent_response(record),
+    }))
+}
+
+async fn list_boards(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
+    let boards = state
+        .storage
+        .list_boards()
+        .map_err(|err| internal_err_with_error("listing boards failed", err))?;
+    let mut items = Vec::new();
+    for board in boards {
+        let columns = state
+            .storage
+            .list_board_columns(&board.board_id)
+            .map_err(|err| internal_err_with_error("listing board columns failed", err))?;
+        let cards = state
+            .storage
+            .list_board_cards(&board.board_id)
+            .map_err(|err| internal_err_with_error("listing board cards failed", err))?;
+        items.push(to_board_summary_response(board, columns.len(), cards.len()));
+    }
+    Ok(Json(ListBoardsResponse { items }))
+}
+
+async fn get_board(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(board_id): Path<String>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
+    let board = state
+        .storage
+        .get_board(board_id.trim())
+        .map_err(|err| internal_err_with_error("loading board failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "board not found"))?;
+    let payload = load_board_detail_response(&state, board)?;
+    Ok(Json(payload))
+}
+
+async fn create_board_card(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(board_id): Path<String>,
+    Json(request): Json<CreateBoardCardRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_AUTOMATION_RUNNER])?;
+    let board_id = board_id.trim().to_string();
+    if request.title.trim().is_empty() {
+        return Err(api_error(StatusCode::BAD_REQUEST, "title cannot be empty"));
+    }
+    let owner_kind = request
+        .owner_kind
+        .unwrap_or_else(|| {
+            if request.owner_agent_id.is_some() {
+                "agent".to_string()
+            } else {
+                "human".to_string()
+            }
+        })
+        .trim()
+        .to_ascii_lowercase();
+    if !matches!(owner_kind.as_str(), "agent" | "human" | "unassigned") {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "owner_kind must be one of: agent|human|unassigned",
+        ));
+    }
+    let created = state
+        .storage
+        .create_board_card(NewBoardCard {
+            board_id: board_id.clone(),
+            column_id: request.column_id.trim().to_string(),
+            title: request.title.trim().to_string(),
+            description: request.description.map(|value| value.trim().to_string()),
+            owner_kind,
+            owner_agent_id: request.owner_agent_id.map(|value| value.trim().to_string()),
+            owner_human_id: request.owner_human_id.map(|value| value.trim().to_string()),
+            due_at: request.due_at,
+            tags_json: tags_to_json(request.tags),
+            script_markdown: request
+                .script_markdown
+                .map(|value| value.trim().to_string()),
+        })
+        .map_err(|err| {
+            if err.to_string().contains("does not belong to board")
+                || err.to_string().contains("does not exist")
+                || err.to_string().contains("owner_agent_id is required")
+            {
+                api_error(StatusCode::BAD_REQUEST, &err.to_string())
+            } else {
+                internal_err_with_error("creating board card failed", err)
+            }
+        })?;
+    let assets = state
+        .storage
+        .list_board_card_assets(&created.card_id)
+        .map_err(|err| internal_err_with_error("listing card assets failed", err))?;
+    let card = to_board_card_response(created, assets);
+    emit_event(
+        &state,
+        "board.card.created",
+        serde_json::json!({
+            "board_id": board_id,
+            "card_id": card.card_id,
+            "column_id": card.column_id,
+            "owner_kind": card.owner_kind
+        }),
+    );
+    Ok((StatusCode::CREATED, Json(CreateBoardCardResponse { card })))
+}
+
+async fn update_board_card(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path((board_id, card_id)): Path<(String, String)>,
+    Json(request): Json<UpdateBoardCardRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_AUTOMATION_RUNNER])?;
+    let board_id = board_id.trim().to_string();
+    let card_id = card_id.trim().to_string();
+    let patch = carsinos_storage::BoardCardUpdatePatch {
+        title: request.title.map(|value| value.trim().to_string()),
+        description: request
+            .description
+            .map(|value| value.map(|v| v.trim().to_string())),
+        owner_kind: request
+            .owner_kind
+            .map(|value| value.trim().to_ascii_lowercase()),
+        owner_agent_id: request
+            .owner_agent_id
+            .map(|value| value.map(|v| v.trim().to_string())),
+        owner_human_id: request
+            .owner_human_id
+            .map(|value| value.map(|v| v.trim().to_string())),
+        due_at: request.due_at,
+        tags_json: request
+            .tags
+            .map(|value| value.map(|tags| serde_json::json!(tags).to_string())),
+        script_markdown: request
+            .script_markdown
+            .map(|value| value.map(|v| v.trim().to_string())),
+    };
+    let updated = state
+        .storage
+        .update_board_card(&board_id, &card_id, patch)
+        .map_err(|err| {
+            if err.to_string().contains("does not belong to board")
+                || err.to_string().contains("owner_agent_id is required")
+            {
+                api_error(StatusCode::BAD_REQUEST, &err.to_string())
+            } else {
+                internal_err_with_error("updating board card failed", err)
+            }
+        })?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "board card not found"))?;
+    let assets = state
+        .storage
+        .list_board_card_assets(&updated.card_id)
+        .map_err(|err| internal_err_with_error("listing card assets failed", err))?;
+    let card = to_board_card_response(updated, assets);
+    emit_event(
+        &state,
+        "board.card.updated",
+        serde_json::json!({
+            "board_id": board_id,
+            "card_id": card.card_id,
+            "column_id": card.column_id,
+            "updated_at": card.updated_at
+        }),
+    );
+    Ok(Json(UpdateBoardCardResponse { card }))
+}
+
+async fn move_board_card(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path((board_id, card_id)): Path<(String, String)>,
+    Json(request): Json<MoveBoardCardRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_AUTOMATION_RUNNER])?;
+    let updated = state
+        .storage
+        .move_board_card(
+            board_id.trim(),
+            card_id.trim(),
+            request.column_id.trim(),
+            request.before_card_id.as_deref().map(str::trim),
+        )
+        .map_err(|err| {
+            if err.to_string().contains("does not belong to board")
+                || err.to_string().contains("column does not belong")
+                || err.to_string().contains("before_card_id")
+            {
+                api_error(StatusCode::BAD_REQUEST, &err.to_string())
+            } else {
+                internal_err_with_error("moving board card failed", err)
+            }
+        })?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "board card not found"))?;
+    let assets = state
+        .storage
+        .list_board_card_assets(&updated.card_id)
+        .map_err(|err| internal_err_with_error("listing card assets failed", err))?;
+    let card = to_board_card_response(updated, assets);
+    emit_event(
+        &state,
+        "board.card.moved",
+        serde_json::json!({
+            "board_id": board_id.trim(),
+            "card_id": card.card_id,
+            "column_id": card.column_id,
+            "position": card.position
+        }),
+    );
+    Ok(Json(MoveBoardCardResponse { card }))
+}
+
+async fn upload_board_card_asset(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path((board_id, card_id)): Path<(String, String)>,
+    Json(request): Json<UploadBoardCardAssetRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_AUTOMATION_RUNNER])?;
+    let board_id = board_id.trim().to_string();
+    let card_id = card_id.trim().to_string();
+    let card = state
+        .storage
+        .get_board_card(&card_id)
+        .map_err(|err| internal_err_with_error("loading board card failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "board card not found"))?;
+    if card.board_id != board_id {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "board card does not belong to board",
+        ));
+    }
+    let mime = request.mime.trim().to_ascii_lowercase();
+    if !board_asset_mime_allowed(&mime) {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "mime type is not allowed for board card assets",
+        ));
+    }
+    let filename = sanitize_filename(&request.filename);
+    let content = base64::engine::general_purpose::STANDARD
+        .decode(request.content_base64.trim().as_bytes())
+        .map_err(|_| api_error(StatusCode::BAD_REQUEST, "content_base64 decode failed"))?;
+    if content.is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "asset content cannot be empty",
+        ));
+    }
+    if content.len() > BOARD_CARD_UPLOAD_MAX_BYTES {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "asset exceeds per-file size cap",
+        ));
+    }
+    let existing_bytes: i64 = state
+        .storage
+        .list_board_card_assets(&card_id)
+        .map_err(|err| internal_err_with_error("listing board card assets failed", err))?
+        .iter()
+        .map(|item| item.bytes)
+        .sum();
+    let total_after = existing_bytes.saturating_add(content.len() as i64);
+    if total_after > BOARD_CARD_TOTAL_UPLOAD_MAX_BYTES {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "asset exceeds per-card total size cap",
+        ));
+    }
+
+    let digest = Sha256::digest(&content);
+    let digest_hex = format!("{digest:x}");
+    let upload_id = uuid::Uuid::new_v4().to_string();
+    let assets_dir = state
+        .state_dir
+        .join("attachments")
+        .join("board_cards")
+        .join(&card_id);
+    std::fs::create_dir_all(&assets_dir).map_err(|err| {
+        internal_err_with_error("creating board card assets directory failed", err.into())
+    })?;
+    let local_filename = format!("{}_{}", upload_id, filename);
+    let local_path = assets_dir.join(local_filename);
+    let mut file = std::fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&local_path)
+        .map_err(|err| {
+            internal_err_with_error("opening board card asset file failed", err.into())
+        })?;
+    file.write_all(&content).map_err(|err| {
+        internal_err_with_error("writing board card asset file failed", err.into())
+    })?;
+
+    let created_asset = state
+        .storage
+        .create_board_card_asset(NewBoardCardAsset {
+            card_id: card_id.clone(),
+            filename: filename.clone(),
+            mime: mime.clone(),
+            sha256: digest_hex,
+            bytes: content.len() as i64,
+            local_path: local_path.display().to_string(),
+        })
+        .map_err(|err| internal_err_with_error("saving board card asset metadata failed", err))?;
+    let created_asset = match created_asset {
+        Some(asset) => asset,
+        None => {
+            let _ = std::fs::remove_file(local_path);
+            return Err(api_error(StatusCode::NOT_FOUND, "board card not found"));
+        }
+    };
+    let updated_card = state
+        .storage
+        .get_board_card(&card_id)
+        .map_err(|err| internal_err_with_error("reloading board card failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "board card not found"))?;
+    let assets = state
+        .storage
+        .list_board_card_assets(&updated_card.card_id)
+        .map_err(|err| internal_err_with_error("listing board card assets failed", err))?;
+    let card_response = to_board_card_response(updated_card, assets);
+    let asset_response = to_board_card_asset_response(created_asset);
+    emit_event(
+        &state,
+        "board.asset.uploaded",
+        serde_json::json!({
+            "board_id": board_id,
+            "card_id": card_id,
+            "card_asset_id": asset_response.card_asset_id,
+            "mime": asset_response.mime
+        }),
+    );
+    Ok((
+        StatusCode::CREATED,
+        Json(UploadBoardCardAssetResponse {
+            card: card_response,
+            asset: asset_response,
+        }),
+    ))
+}
+
+async fn run_board_card(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path((board_id, card_id)): Path<(String, String)>,
+    Json(request): Json<RunBoardCardRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_AUTOMATION_RUNNER])?;
+    require_endpoint_rate_limit_with_error(&state, &auth, "run")?;
+    let board_id = board_id.trim().to_string();
+    let card_id = card_id.trim().to_string();
+    let card = state
+        .storage
+        .get_board_card(&card_id)
+        .map_err(|err| internal_err_with_error("loading board card failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "board card not found"))?;
+    if card.board_id != board_id {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "board card does not belong to board",
+        ));
+    }
+    let agent_id = card
+        .owner_agent_id
+        .clone()
+        .unwrap_or_else(|| "lyra".to_string());
+    let session_key = format!("board:{board_id}:card:{card_id}:agent:{agent_id}");
+    let session = match state
+        .storage
+        .get_session_by_key(&session_key)
+        .map_err(|err| internal_err_with_error("loading card session failed", err))?
+    {
+        Some(existing) => existing,
+        None => state
+            .storage
+            .create_session(NewSession {
+                session_key: Some(session_key),
+                agent_id: agent_id.clone(),
+                title: Some(format!("Board card {}", card.title)),
+            })
+            .map_err(|err| internal_err_with_error("creating card session failed", err))?,
+    };
+    let prompt = request.prompt.unwrap_or_else(|| {
+        let mut prompt = format!("Work card: {}", card.title);
+        if let Some(description) = card.description.as_ref() {
+            if !description.trim().is_empty() {
+                prompt.push_str("\n\nDescription:\n");
+                prompt.push_str(description.trim());
+            }
+        }
+        if let Some(script) = card.script_markdown.as_ref() {
+            if !script.trim().is_empty() {
+                prompt.push_str("\n\nScript draft:\n");
+                prompt.push_str(script.trim());
+            }
+        }
+        prompt
+    });
+    let _ = state.storage.create_message(NewMessage {
+        session_id: session.session_id.clone(),
+        source_channel: "mission_control_v3".to_string(),
+        source_peer_id: Some(format!("board:{board_id}:card:{card_id}")),
+        source_message_id: None,
+        role: "user".to_string(),
+        content_text: prompt,
+        content_format: "markdown".to_string(),
+    });
+
+    let model_provider = request
+        .model_provider
+        .unwrap_or_else(|| "mock".to_string())
+        .trim()
+        .to_string();
+    let model_id = request
+        .model_id
+        .unwrap_or_else(|| "mock-echo-v1".to_string())
+        .trim()
+        .to_string();
+    let created_run = state
+        .storage
+        .create_run(NewRun {
+            session_id: session.session_id.clone(),
+            model_provider,
+            model_id,
+        })
+        .map_err(|err| internal_err_with_error("creating board card run failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "session not found"))?;
+
+    let requested_auth_profile_id = request
+        .auth_profile_id
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let run = match execute_run_with_lane_control(
+        &state,
+        &created_run,
+        &session.agent_id,
+        requested_auth_profile_id.as_deref(),
+        RunLaneConflictPolicy::RejectIfBusy,
+    )
+    .await
+    {
+        Ok(run) => run,
+        Err(RunLaneExecutionError::Busy) => {
+            return Err(api_error(
+                StatusCode::CONFLICT,
+                "an active run is already in progress for this session",
+            ))
+        }
+        Err(RunLaneExecutionError::Execute(err)) => {
+            return Err(internal_err_with_error(
+                "executing board card run failed",
+                err,
+            ))
+        }
+    };
+    let updated_card = state
+        .storage
+        .update_board_card_run_link(
+            &board_id,
+            &card_id,
+            Some(&session.session_id),
+            Some(&run.run_id),
+        )
+        .map_err(|err| internal_err_with_error("updating board card run link failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "board card not found"))?;
+    let assets = state
+        .storage
+        .list_board_card_assets(&updated_card.card_id)
+        .map_err(|err| internal_err_with_error("listing board card assets failed", err))?;
+    let card_response = to_board_card_response(updated_card, assets);
+    emit_event(
+        &state,
+        "board.card.run",
+        serde_json::json!({
+            "board_id": board_id,
+            "card_id": card_id,
+            "session_id": session.session_id,
+            "run_id": run.run_id,
+            "status": run.status
+        }),
+    );
+    Ok(Json(RunBoardCardResponse {
+        card: card_response,
+        run: to_run_response(run),
+    }))
+}
+
+async fn list_board_automation_rules(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(board_id): Path<String>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_OPERATOR_READONLY,
+            ROLE_AUTOMATION_RUNNER,
+        ],
+        "board.automation.list",
+        &format!("board:{}", board_id.trim()),
+    )?;
+    let board_id = board_id.trim().to_string();
+    state
+        .storage
+        .get_board(&board_id)
+        .map_err(|err| internal_err_with_error("loading board failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "board not found"))?;
+    let jobs = state
+        .storage
+        .list_jobs(500, true)
+        .map_err(|err| internal_err_with_error("listing jobs failed", err))?;
+    let items = jobs
+        .into_iter()
+        .filter_map(|job| board_automation_rule_response_from_job(&job))
+        .filter(|rule| rule.board_id == board_id)
+        .collect::<Vec<_>>();
+    Ok(Json(ListBoardAutomationRulesResponse { items }))
+}
+
+async fn get_board_automation_rule(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path((board_id, job_id)): Path<(String, String)>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_OPERATOR_READONLY,
+            ROLE_AUTOMATION_RUNNER,
+        ],
+        "board.automation.get",
+        &format!("board:{}:job:{}", board_id.trim(), job_id.trim()),
+    )?;
+    let board_id = board_id.trim().to_string();
+    let job = state
+        .storage
+        .get_job(job_id.trim())
+        .map_err(|err| internal_err_with_error("loading automation job failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "automation rule not found"))?;
+    let rule = board_automation_rule_response_from_job(&job)
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "automation rule not found"))?;
+    if rule.board_id != board_id {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "automation rule does not belong to board",
+        ));
+    }
+    Ok(Json(GetBoardAutomationRuleResponse { rule }))
+}
+
+async fn upsert_board_automation_rule(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path((board_id, column_id)): Path<(String, String)>,
+    Json(request): Json<UpsertBoardAutomationRuleRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_AUTOMATION_RUNNER],
+        "board.automation.upsert",
+        &format!("board:{}:column:{}", board_id.trim(), column_id.trim()),
+    )?;
+
+    let board_id = board_id.trim().to_string();
+    let column_id = column_id.trim().to_string();
+    let board = state
+        .storage
+        .get_board(&board_id)
+        .map_err(|err| internal_err_with_error("loading board failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "board not found"))?;
+    let board_columns = state
+        .storage
+        .list_board_columns(&board_id)
+        .map_err(|err| internal_err_with_error("listing board columns failed", err))?;
+    let source_column = board_columns
+        .iter()
+        .find(|column| column.column_id == column_id)
+        .cloned()
+        .ok_or_else(|| api_error(StatusCode::BAD_REQUEST, "source column not found in board"))?;
+
+    let explicit_rule_id = request
+        .rule_id
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let mut existing_job: Option<JobRecord> = None;
+    if let Some(rule_id) = explicit_rule_id.as_ref() {
+        existing_job = state
+            .storage
+            .get_job(rule_id)
+            .map_err(|err| internal_err_with_error("loading automation job failed", err))?;
+    }
+    if existing_job.is_none() {
+        let jobs = state
+            .storage
+            .list_jobs(500, true)
+            .map_err(|err| internal_err_with_error("listing jobs failed", err))?;
+        existing_job = jobs.into_iter().find(|job| {
+            board_automation_rule_response_from_job(job)
+                .map(|rule| rule.board_id == board_id && rule.column_id == column_id)
+                .unwrap_or(false)
+        });
+    }
+
+    let existing_rule = existing_job
+        .as_ref()
+        .and_then(board_automation_rule_response_from_job);
+    let target_column_id = request
+        .target_column_id
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .or_else(|| {
+            existing_rule
+                .as_ref()
+                .map(|rule| rule.target_column_id.clone())
+        })
+        .ok_or_else(|| {
+            api_error(
+                StatusCode::BAD_REQUEST,
+                "target_column_id is required for automation rules",
+            )
+        })?;
+    let target_column = board_columns
+        .iter()
+        .find(|column| column.column_id == target_column_id)
+        .cloned()
+        .ok_or_else(|| api_error(StatusCode::BAD_REQUEST, "target column not found in board"))?;
+
+    let mut schedule_kind = request
+        .schedule_kind
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .or_else(|| {
+            existing_rule
+                .as_ref()
+                .map(|rule| rule.schedule_kind.clone())
+        })
+        .unwrap_or_else(|| "interval".to_string());
+    schedule_kind = normalize_job_schedule_kind(&schedule_kind)?;
+    let mut interval_seconds = request
+        .interval_seconds
+        .map(|value| value as i64)
+        .or_else(|| {
+            existing_rule
+                .as_ref()
+                .and_then(|rule| rule.interval_seconds)
+        });
+    let run_at_ms = request
+        .run_at_ms
+        .or_else(|| existing_rule.as_ref().and_then(|rule| rule.run_at_ms));
+    let cron_expr = request
+        .cron_expr
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .or_else(|| {
+            existing_rule
+                .as_ref()
+                .and_then(|rule| rule.cron_expr.clone())
+        });
+    if matches!(schedule_kind.as_str(), "interval" | "every") && interval_seconds.is_none() {
+        interval_seconds = Some(3600);
+    }
+    let now_ms = current_time_ms();
+
+    let name = request
+        .name
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .or_else(|| existing_job.as_ref().map(|job| job.name.clone()))
+        .unwrap_or_else(|| {
+            format!(
+                "Automation {}:{} -> {}",
+                board.name, source_column.name, target_column.name
+            )
+        });
+    let enabled = request
+        .enabled
+        .or_else(|| existing_rule.as_ref().map(|rule| rule.enabled))
+        .unwrap_or(false);
+    let agent_id = request
+        .agent_id
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .or_else(|| existing_rule.as_ref().map(|rule| rule.agent_id.clone()))
+        .unwrap_or_else(|| "lyra".to_string());
+    let max_cards_per_run = request
+        .max_cards_per_run
+        .map(|value| value as i64)
+        .or_else(|| existing_rule.as_ref().map(|rule| rule.max_cards_per_run))
+        .unwrap_or(3)
+        .clamp(1, 32);
+    let max_runs_per_day = request
+        .max_runs_per_day
+        .map(|value| value as i64)
+        .or_else(|| existing_rule.as_ref().map(|rule| rule.max_runs_per_day))
+        .unwrap_or(24)
+        .clamp(1, 5000);
+    let max_attempts_per_card_per_day = request
+        .max_attempts_per_card_per_day
+        .map(|value| value as i64)
+        .or_else(|| {
+            existing_rule
+                .as_ref()
+                .map(|rule| rule.max_attempts_per_card_per_day)
+        })
+        .unwrap_or(2)
+        .clamp(1, 50);
+    let breaker_failure_threshold = request
+        .breaker_failure_threshold
+        .map(|value| value as i64)
+        .or_else(|| {
+            existing_rule
+                .as_ref()
+                .map(|rule| rule.breaker_failure_threshold)
+        })
+        .unwrap_or(3)
+        .clamp(1, 50);
+    let breaker_cooldown_ms = request
+        .breaker_cooldown_ms
+        .map(|value| value as i64)
+        .or_else(|| existing_rule.as_ref().map(|rule| rule.breaker_cooldown_ms))
+        .unwrap_or(CIRCUIT_BREAKER_RESET_COOLDOWN_MS)
+        .clamp(10_000, 86_400_000);
+    let generate_thumbnail_draft = request
+        .generate_thumbnail_draft
+        .or_else(|| {
+            existing_rule
+                .as_ref()
+                .map(|rule| rule.generate_thumbnail_draft)
+        })
+        .unwrap_or(true);
+    let model_provider = request
+        .model_provider
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .or_else(|| {
+            existing_rule
+                .as_ref()
+                .and_then(|rule| rule.model_provider.clone())
+        });
+    let model_id = request
+        .model_id
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .or_else(|| {
+            existing_rule
+                .as_ref()
+                .and_then(|rule| rule.model_id.clone())
+        });
+    let auth_profile_id = request
+        .auth_profile_id
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .or_else(|| {
+            existing_rule
+                .as_ref()
+                .and_then(|rule| rule.auth_profile_id.clone())
+        });
+
+    let job_id = existing_job
+        .as_ref()
+        .map(|job| job.job_id.clone())
+        .or(explicit_rule_id.clone())
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let payload_value = serde_json::json!({
+        "mode": JOB_MODE_MC3_COLUMN_AUTOMATION,
+        "rule_id": job_id,
+        "board_id": board_id,
+        "column_id": column_id,
+        "target_column_id": target_column_id,
+        "max_cards_per_run": max_cards_per_run,
+        "max_runs_per_day": max_runs_per_day,
+        "max_attempts_per_card_per_day": max_attempts_per_card_per_day,
+        "breaker_failure_threshold": breaker_failure_threshold,
+        "breaker_cooldown_ms": breaker_cooldown_ms,
+        "generate_thumbnail_draft": generate_thumbnail_draft,
+        "model_provider": model_provider,
+        "model_id": model_id,
+        "auth_profile_id": auth_profile_id
+    });
+    let payload_json = materialize_job_payload_with_schedule_metadata(
+        payload_value,
+        schedule_kind.as_str(),
+        cron_expr.as_deref(),
+    )?;
+    let max_retries = request
+        .max_retries
+        .map(|value| value as i64)
+        .or_else(|| existing_job.as_ref().map(|job| job.max_retries))
+        .unwrap_or(0)
+        .clamp(0, 10);
+    let retry_backoff_ms = request
+        .retry_backoff_ms
+        .map(|value| value as i64)
+        .or_else(|| existing_job.as_ref().map(|job| job.retry_backoff_ms))
+        .unwrap_or(1000)
+        .clamp(10, 300_000);
+    let timeout_ms = request
+        .timeout_ms
+        .map(|value| value as i64)
+        .or_else(|| existing_job.as_ref().map(|job| job.timeout_ms))
+        .unwrap_or(60_000)
+        .clamp(50, 600_000);
+
+    let persisted_job = if let Some(current) = existing_job.as_ref() {
+        let next_run_at = compute_updated_next_run_at(
+            current,
+            schedule_kind.as_str(),
+            interval_seconds,
+            run_at_ms,
+            cron_expr.as_deref(),
+            now_ms,
+        )?;
+        state
+            .storage
+            .update_job(
+                &current.job_id,
+                JobUpdatePatch {
+                    name: Some(name),
+                    enabled: Some(enabled),
+                    schedule_kind: Some(schedule_kind),
+                    interval_seconds,
+                    run_at_ms,
+                    next_run_at,
+                    payload_json: Some(payload_json),
+                    max_retries: Some(max_retries),
+                    retry_backoff_ms: Some(retry_backoff_ms),
+                    timeout_ms: Some(timeout_ms),
+                },
+            )
+            .map_err(|err| internal_err_with_error("updating automation job failed", err))?
+            .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "automation rule not found"))?
+    } else {
+        let next_run_at = compute_initial_next_run_at(
+            schedule_kind.as_str(),
+            interval_seconds,
+            run_at_ms,
+            cron_expr.as_deref(),
+            now_ms,
+        )?;
+        state
+            .storage
+            .create_job(NewJob {
+                agent_id,
+                name,
+                enabled,
+                schedule_kind,
+                interval_seconds,
+                run_at_ms,
+                next_run_at,
+                payload_json,
+                max_retries,
+                retry_backoff_ms,
+                timeout_ms,
+            })
+            .map_err(|err| {
+                if err.to_string().contains("agent does not exist") {
+                    api_error(StatusCode::BAD_REQUEST, &err.to_string())
+                } else {
+                    internal_err_with_error("creating automation job failed", err)
+                }
+            })?
+    };
+    emit_event(
+        &state,
+        "board.automation.rule",
+        serde_json::json!({
+            "board_id": board_id,
+            "column_id": source_column.column_id,
+            "job_id": &persisted_job.job_id,
+            "enabled": persisted_job.enabled,
+            "next_run_at": persisted_job.next_run_at
+        }),
+    );
+    let rule = board_automation_rule_response_from_job(&persisted_job).ok_or_else(|| {
+        internal_err_with_error(
+            "failed to parse automation rule response",
+            anyhow::anyhow!("invalid payload mode"),
+        )
+    })?;
+    Ok(Json(UpsertBoardAutomationRuleResponse { rule }))
+}
+
+async fn set_board_automation_rule_state(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path((board_id, job_id)): Path<(String, String)>,
+    Json(request): Json<SetBoardAutomationRuleStateRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_AUTOMATION_RUNNER],
+        "board.automation.state",
+        &format!("board:{}:job:{}", board_id.trim(), job_id.trim()),
+    )?;
+    let board_id = board_id.trim().to_string();
+    let current = state
+        .storage
+        .get_job(job_id.trim())
+        .map_err(|err| internal_err_with_error("loading automation job failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "automation rule not found"))?;
+    let current_rule = board_automation_rule_response_from_job(&current)
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "automation rule not found"))?;
+    if current_rule.board_id != board_id {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "automation rule does not belong to board",
+        ));
+    }
+    let updated = state
+        .storage
+        .update_job(
+            &current.job_id,
+            JobUpdatePatch {
+                name: None,
+                enabled: Some(request.enabled),
+                schedule_kind: None,
+                interval_seconds: None,
+                run_at_ms: None,
+                next_run_at: None,
+                payload_json: None,
+                max_retries: None,
+                retry_backoff_ms: None,
+                timeout_ms: None,
+            },
+        )
+        .map_err(|err| internal_err_with_error("updating automation state failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "automation rule not found"))?;
+    let rule = board_automation_rule_response_from_job(&updated)
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "automation rule not found"))?;
+    emit_event(
+        &state,
+        "board.automation.state",
+        serde_json::json!({
+            "board_id": board_id,
+            "job_id": &updated.job_id,
+            "enabled": updated.enabled
+        }),
+    );
+    Ok(Json(SetBoardAutomationRuleStateResponse { rule }))
+}
+
+async fn run_board_automation_rule(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path((board_id, job_id)): Path<(String, String)>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_AUTOMATION_RUNNER],
+        "board.automation.run",
+        &format!("board:{}:job:{}", board_id.trim(), job_id.trim()),
+    )?;
+    let board_id = board_id.trim().to_string();
+    let job = state
+        .storage
+        .get_job(job_id.trim())
+        .map_err(|err| internal_err_with_error("loading automation job failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "automation rule not found"))?;
+    let rule = board_automation_rule_response_from_job(&job)
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "automation rule not found"))?;
+    if rule.board_id != board_id {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "automation rule does not belong to board",
+        ));
+    }
+    let job_run = execute_job_once(&state, &job, "manual_automation")
+        .await
+        .map_err(|err| internal_err_with_error("running automation rule failed", err))?;
+    let refreshed_job = state
+        .storage
+        .get_job(&job.job_id)
+        .map_err(|err| internal_err_with_error("reloading automation rule failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "automation rule not found"))?;
+    let refreshed_rule = board_automation_rule_response_from_job(&refreshed_job)
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "automation rule not found"))?;
+    Ok(Json(RunBoardAutomationRuleResponse {
+        rule: refreshed_rule,
+        job_run: to_job_run_response(job_run),
+    }))
 }
 
 async fn list_sessions(
@@ -9811,6 +11222,24 @@ fn record_circuit_breaker_failure(
     error_code: Option<&str>,
     failure_limit: u64,
 ) -> AnyResult<CircuitBreakerStateRecord> {
+    record_circuit_breaker_failure_with_cooldown(
+        state,
+        scope,
+        target_id,
+        error_code,
+        failure_limit,
+        CIRCUIT_BREAKER_RESET_COOLDOWN_MS,
+    )
+}
+
+fn record_circuit_breaker_failure_with_cooldown(
+    state: &AppState,
+    scope: &str,
+    target_id: &str,
+    error_code: Option<&str>,
+    failure_limit: u64,
+    cooldown_ms: i64,
+) -> AnyResult<CircuitBreakerStateRecord> {
     let now = current_time_ms();
     let existing = state.storage.get_circuit_breaker_state(scope, target_id)?;
     if let Some(record) = existing.as_ref() {
@@ -9845,7 +11274,7 @@ fn record_circuit_breaker_failure(
             consecutive_failures: next_failures,
             opened_at: if should_open { Some(now) } else { None },
             cooldown_until: if should_open {
-                Some(now.saturating_add(CIRCUIT_BREAKER_RESET_COOLDOWN_MS))
+                Some(now.saturating_add(cooldown_ms.max(10_000)))
             } else {
                 None
             },
@@ -13468,8 +14897,18 @@ async fn execute_job_once(
         .with_context(|| format!("failed creating job run for {}", job.job_id))?;
     let mut attempt: i64 = 0;
     let guardrails = load_runtime_autonomy_guardrails(state)?;
-    let breaker_failure_limit = guardrails.max_consecutive_failures_before_breaker.max(1);
+    let mut breaker_failure_limit = guardrails.max_consecutive_failures_before_breaker.max(1);
+    let mut breaker_cooldown_ms = CIRCUIT_BREAKER_RESET_COOLDOWN_MS;
     let payload_mode = job_payload_mode(&job.payload_json);
+    let payload_value = serde_json::from_str::<serde_json::Value>(&job.payload_json)
+        .unwrap_or_else(|_| serde_json::json!({"mode":"noop"}));
+    if payload_mode == JOB_MODE_MC3_COLUMN_AUTOMATION {
+        if let Ok(rule_payload) = parse_board_automation_payload(&payload_value, Some(&job.job_id))
+        {
+            breaker_failure_limit = rule_payload.breaker_failure_threshold.max(1) as u64;
+            breaker_cooldown_ms = rule_payload.breaker_cooldown_ms;
+        }
+    }
     let mut timeout_ms = job.timeout_ms.max(1) as u64;
     let mut retry_budget = job.max_retries.max(0);
     if payload_mode == JOB_MODE_HEARTBEAT_RUN {
@@ -13597,12 +15036,13 @@ async fn execute_job_once(
                     )?
                     .with_context(|| format!("missing failed run {}", job_run.job_run_id))?;
                 disable_once_scheduled_job_if_needed(state, job);
-                let breaker_state = record_circuit_breaker_failure(
+                let breaker_state = record_circuit_breaker_failure_with_cooldown(
                     state,
                     CIRCUIT_BREAKER_SCOPE_JOB,
                     &job.job_id,
                     error_code.as_deref(),
                     breaker_failure_limit,
+                    breaker_cooldown_ms,
                 )?;
                 emit_event(
                     state,
@@ -13691,6 +15131,153 @@ fn job_payload_mode(payload_json: &str) -> String {
         })
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "noop".to_string())
+}
+
+#[derive(Debug, Clone)]
+struct BoardAutomationPayload {
+    rule_id: String,
+    board_id: String,
+    column_id: String,
+    target_column_id: String,
+    max_cards_per_run: i64,
+    max_runs_per_day: i64,
+    max_attempts_per_card_per_day: i64,
+    breaker_failure_threshold: i64,
+    breaker_cooldown_ms: i64,
+    generate_thumbnail_draft: bool,
+    model_provider: Option<String>,
+    model_id: Option<String>,
+    auth_profile_id: Option<String>,
+}
+
+fn parse_board_automation_payload(
+    payload: &serde_json::Value,
+    fallback_rule_id: Option<&str>,
+) -> AnyResult<BoardAutomationPayload> {
+    let rule_id = optional_job_payload_string(payload, "rule_id")
+        .or_else(|| fallback_rule_id.map(|value| value.trim().to_string()))
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| anyhow::anyhow!("job payload missing required 'rule_id' string"))?;
+    let board_id = required_job_payload_string(payload, "board_id")?;
+    let column_id = required_job_payload_string(payload, "column_id")?;
+    let target_column_id = required_job_payload_string(payload, "target_column_id")?;
+    let max_cards_per_run = payload
+        .get("max_cards_per_run")
+        .and_then(|value| value.as_i64())
+        .unwrap_or(3)
+        .clamp(1, 32);
+    let max_runs_per_day = payload
+        .get("max_runs_per_day")
+        .and_then(|value| value.as_i64())
+        .unwrap_or(24)
+        .clamp(1, 5000);
+    let max_attempts_per_card_per_day = payload
+        .get("max_attempts_per_card_per_day")
+        .and_then(|value| value.as_i64())
+        .unwrap_or(2)
+        .clamp(1, 50);
+    let breaker_failure_threshold = payload
+        .get("breaker_failure_threshold")
+        .and_then(|value| value.as_i64())
+        .unwrap_or(3)
+        .clamp(1, 50);
+    let breaker_cooldown_ms = payload
+        .get("breaker_cooldown_ms")
+        .and_then(|value| value.as_i64())
+        .unwrap_or(CIRCUIT_BREAKER_RESET_COOLDOWN_MS)
+        .clamp(10_000, 86_400_000);
+    let generate_thumbnail_draft = payload
+        .get("generate_thumbnail_draft")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(true);
+
+    Ok(BoardAutomationPayload {
+        rule_id,
+        board_id,
+        column_id,
+        target_column_id,
+        max_cards_per_run,
+        max_runs_per_day,
+        max_attempts_per_card_per_day,
+        breaker_failure_threshold,
+        breaker_cooldown_ms,
+        generate_thumbnail_draft,
+        model_provider: optional_job_payload_string(payload, "model_provider"),
+        model_id: optional_job_payload_string(payload, "model_id"),
+        auth_profile_id: optional_job_payload_string(payload, "auth_profile_id"),
+    })
+}
+
+fn board_automation_rule_response_from_job(job: &JobRecord) -> Option<BoardAutomationRuleResponse> {
+    let payload_value = serde_json::from_str::<serde_json::Value>(&job.payload_json).ok()?;
+    if payload_value
+        .get("mode")
+        .and_then(|value| value.as_str())
+        .map(|value| value.trim().to_ascii_lowercase())
+        .as_deref()
+        != Some(JOB_MODE_MC3_COLUMN_AUTOMATION)
+    {
+        return None;
+    }
+    let payload = parse_board_automation_payload(&payload_value, Some(&job.job_id)).ok()?;
+    Some(BoardAutomationRuleResponse {
+        rule_id: payload.rule_id,
+        job_id: job.job_id.clone(),
+        board_id: payload.board_id,
+        column_id: payload.column_id,
+        target_column_id: payload.target_column_id,
+        name: job.name.clone(),
+        agent_id: job.agent_id.clone(),
+        enabled: job.enabled,
+        schedule_kind: job.schedule_kind.clone(),
+        interval_seconds: job.interval_seconds,
+        run_at_ms: job.run_at_ms,
+        cron_expr: job_cron_expr_from_payload_json(&job.payload_json),
+        next_run_at: job.next_run_at,
+        max_cards_per_run: payload.max_cards_per_run,
+        max_runs_per_day: payload.max_runs_per_day,
+        max_attempts_per_card_per_day: payload.max_attempts_per_card_per_day,
+        breaker_failure_threshold: payload.breaker_failure_threshold,
+        breaker_cooldown_ms: payload.breaker_cooldown_ms,
+        generate_thumbnail_draft: payload.generate_thumbnail_draft,
+        model_provider: payload.model_provider,
+        model_id: payload.model_id,
+        auth_profile_id: payload.auth_profile_id,
+        last_run_at: job.last_run_at,
+        last_error: job.last_error.clone(),
+        created_at: job.created_at,
+        updated_at: job.updated_at,
+    })
+}
+
+fn utc_day_key(now_ms: i64) -> String {
+    chrono::DateTime::<Utc>::from_timestamp_millis(now_ms)
+        .unwrap_or_else(Utc::now)
+        .format("%Y-%m-%d")
+        .to_string()
+}
+
+fn app_kv_counter_get(storage: &Storage, key: &str) -> AnyResult<i64> {
+    let maybe_value = storage.get_app_kv_json(key)?;
+    let count = maybe_value
+        .as_ref()
+        .and_then(|(json, _)| serde_json::from_str::<serde_json::Value>(json).ok())
+        .and_then(|value| {
+            if let Some(raw) = value.as_i64() {
+                Some(raw)
+            } else {
+                value.get("count").and_then(|raw| raw.as_i64())
+            }
+        })
+        .unwrap_or(0);
+    Ok(count.max(0))
+}
+
+fn app_kv_counter_increment(storage: &Storage, key: &str, delta: i64) -> AnyResult<i64> {
+    let current = app_kv_counter_get(storage, key)?;
+    let next = current.saturating_add(delta).max(0);
+    storage.set_app_kv_json(key, serde_json::json!(next).to_string())?;
+    Ok(next)
 }
 
 fn heartbeat_input_contains_tool_directive(
@@ -14800,6 +16387,374 @@ async fn execute_session_run_job(
     .to_string())
 }
 
+fn generate_automation_script(card: &BoardCardRecord) -> String {
+    let title = card.title.trim();
+    let description = card
+        .description
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("No description provided.");
+    format!(
+        "# {}\n\n## Objective\n{}\n\n## Outline\n- Hook\n- Core points\n- Call to action\n",
+        title, description
+    )
+}
+
+fn escape_svg_text(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+}
+
+fn generate_thumbnail_draft_svg(card: &BoardCardRecord) -> String {
+    let title = escape_svg_text(card.title.trim());
+    let script_line = card
+        .script_markdown
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .and_then(|value| value.lines().find(|line| !line.trim().is_empty()))
+        .unwrap_or("Draft thumbnail")
+        .trim();
+    let subtitle = escape_svg_text(script_line);
+    format!(
+        r##"<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#13203a"/>
+      <stop offset="100%" stop-color="#2b172f"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#bg)"/>
+  <rect x="40" y="40" width="1200" height="640" rx="20" fill="rgba(0,0,0,0.24)" stroke="#70bcff" stroke-width="2"/>
+  <text x="80" y="170" fill="#f6f7ff" font-size="62" font-family="Arial, sans-serif" font-weight="700">{}</text>
+  <text x="80" y="250" fill="#ffd66d" font-size="34" font-family="Arial, sans-serif">{}</text>
+  <text x="80" y="650" fill="#a9d8ff" font-size="24" font-family="Arial, sans-serif">carsinOS automation thumbnail draft</text>
+</svg>"##,
+        title, subtitle
+    )
+}
+
+fn persist_generated_board_card_asset(
+    state: &AppState,
+    card: &BoardCardRecord,
+    filename: &str,
+    mime: &str,
+    content: &[u8],
+) -> AnyResult<BoardCardAssetRecord> {
+    let cleaned_filename = sanitize_filename(filename);
+    let asset_dir = std::path::Path::new(state.attachments_path.as_str())
+        .join("board_cards")
+        .join(&card.card_id);
+    std::fs::create_dir_all(&asset_dir).with_context(|| {
+        format!(
+            "failed creating board card automation asset directory {}",
+            asset_dir.display()
+        )
+    })?;
+    let asset_path = asset_dir.join(format!("{}-{}", current_time_ms(), cleaned_filename));
+    std::fs::write(&asset_path, content)
+        .with_context(|| format!("failed writing automation asset {}", asset_path.display()))?;
+    let sha256 = sha256_hex(std::str::from_utf8(content).unwrap_or_default());
+    state
+        .storage
+        .create_board_card_asset(NewBoardCardAsset {
+            card_id: card.card_id.clone(),
+            filename: cleaned_filename,
+            mime: mime.to_string(),
+            sha256,
+            bytes: content.len() as i64,
+            local_path: asset_path.to_string_lossy().to_string(),
+        })?
+        .ok_or_else(|| anyhow::anyhow!("automation asset metadata insert returned no row"))
+}
+
+async fn execute_board_automation_job(
+    state: &AppState,
+    job: &JobRecord,
+    payload: &serde_json::Value,
+    attempt: i64,
+) -> AnyResult<String> {
+    let rule = parse_board_automation_payload(payload, Some(&job.job_id))?;
+    let now_ms = current_time_ms();
+    let day_key = utc_day_key(now_ms);
+    let daily_run_counter_key = format!("mc3.auto.runs.{}.{}", rule.rule_id, day_key);
+    let current_runs = app_kv_counter_get(&state.storage, &daily_run_counter_key)?;
+    if current_runs >= rule.max_runs_per_day {
+        anyhow::bail!(
+            "{REASON_AUTOMATION_DAILY_RUN_LIMIT}: automation '{}' reached max_runs_per_day={}",
+            rule.rule_id,
+            rule.max_runs_per_day
+        );
+    }
+    let _ = app_kv_counter_increment(&state.storage, &daily_run_counter_key, 1)?;
+
+    let board = state
+        .storage
+        .get_board(&rule.board_id)?
+        .with_context(|| format!("automation board not found: {}", rule.board_id))?;
+    let columns = state.storage.list_board_columns(&rule.board_id)?;
+    if !columns
+        .iter()
+        .any(|column| column.column_id == rule.column_id)
+    {
+        anyhow::bail!("automation source column not found in board");
+    }
+    if !columns
+        .iter()
+        .any(|column| column.column_id == rule.target_column_id)
+    {
+        anyhow::bail!("automation target column not found in board");
+    }
+
+    let mut source_cards = state
+        .storage
+        .list_board_cards(&rule.board_id)?
+        .into_iter()
+        .filter(|card| card.column_id == rule.column_id)
+        .collect::<Vec<_>>();
+    source_cards.sort_by_key(|card| card.position);
+    source_cards.truncate(rule.max_cards_per_run as usize);
+
+    let model_provider = rule
+        .model_provider
+        .as_deref()
+        .unwrap_or("mock")
+        .trim()
+        .to_string();
+    let model_id = rule
+        .model_id
+        .as_deref()
+        .unwrap_or("mock-echo-v1")
+        .trim()
+        .to_string();
+    if !provider_supported(&model_provider) {
+        anyhow::bail!(
+            "{REASON_AUTOMATION_EXECUTION_FAILED}: unsupported model_provider '{}'",
+            model_provider
+        );
+    }
+
+    let mut processed_cards = 0usize;
+    let mut succeeded_cards = 0usize;
+    let mut skipped_cards = Vec::new();
+    let mut failed_cards = Vec::new();
+    let mut created_assets = Vec::new();
+
+    for card in source_cards {
+        let card_attempt_key = format!(
+            "mc3.auto.card_attempts.{}.{}.{}",
+            rule.rule_id, day_key, card.card_id
+        );
+        let card_attempts = app_kv_counter_get(&state.storage, &card_attempt_key)?;
+        if card_attempts >= rule.max_attempts_per_card_per_day {
+            skipped_cards.push(serde_json::json!({
+                "card_id": card.card_id,
+                "reason_code": REASON_AUTOMATION_CARD_ATTEMPT_LIMIT,
+                "attempts_today": card_attempts
+            }));
+            continue;
+        }
+        let _ = app_kv_counter_increment(&state.storage, &card_attempt_key, 1)?;
+        processed_cards = processed_cards.saturating_add(1);
+
+        let mut current_card = card.clone();
+        if current_card
+            .script_markdown
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or("")
+            .is_empty()
+        {
+            let generated_script = generate_automation_script(&current_card);
+            if let Some(updated) = state.storage.update_board_card(
+                &rule.board_id,
+                &current_card.card_id,
+                BoardCardUpdatePatch {
+                    title: None,
+                    description: None,
+                    owner_kind: None,
+                    owner_agent_id: None,
+                    owner_human_id: None,
+                    due_at: None,
+                    tags_json: None,
+                    script_markdown: Some(Some(generated_script)),
+                },
+            )? {
+                current_card = updated;
+            }
+        }
+
+        let agent_id = current_card
+            .owner_agent_id
+            .clone()
+            .unwrap_or_else(|| job.agent_id.clone());
+        let session_key = format!(
+            "board:{}:card:{}:agent:{}",
+            rule.board_id, current_card.card_id, agent_id
+        );
+        let session = match state.storage.get_session_by_key(&session_key)? {
+            Some(existing) => existing,
+            None => state.storage.create_session(NewSession {
+                session_key: Some(session_key),
+                agent_id: agent_id.clone(),
+                title: Some(format!("Board card {}", current_card.title)),
+            })?,
+        };
+        let prompt = format!(
+            "Automation run (attempt {}): progress content pipeline card '{}'.",
+            attempt, current_card.title
+        );
+        let _ = state.storage.create_message(NewMessage {
+            session_id: session.session_id.clone(),
+            source_channel: "scheduler".to_string(),
+            source_peer_id: Some(format!(
+                "board:{}:card:{}",
+                rule.board_id, current_card.card_id
+            )),
+            source_message_id: None,
+            role: "user".to_string(),
+            content_text: prompt,
+            content_format: "markdown".to_string(),
+        });
+        let created_run = state
+            .storage
+            .create_run(NewRun {
+                session_id: session.session_id.clone(),
+                model_provider: model_provider.clone(),
+                model_id: model_id.clone(),
+            })?
+            .with_context(|| {
+                format!(
+                    "failed creating automation run for card {}",
+                    current_card.card_id
+                )
+            })?;
+        let run = match execute_run_with_lane_control(
+            state,
+            &created_run,
+            &agent_id,
+            rule.auth_profile_id.as_deref(),
+            RunLaneConflictPolicy::Wait,
+        )
+        .await
+        {
+            Ok(run) => run,
+            Err(RunLaneExecutionError::Busy) => {
+                failed_cards.push(serde_json::json!({
+                    "card_id": current_card.card_id,
+                    "error": "session lane unexpectedly busy"
+                }));
+                continue;
+            }
+            Err(RunLaneExecutionError::Execute(err)) => {
+                failed_cards.push(serde_json::json!({
+                    "card_id": current_card.card_id,
+                    "error": err.to_string()
+                }));
+                continue;
+            }
+        };
+        let Some(updated_with_run) = state.storage.update_board_card_run_link(
+            &rule.board_id,
+            &current_card.card_id,
+            Some(&session.session_id),
+            Some(&run.run_id),
+        )?
+        else {
+            failed_cards.push(serde_json::json!({
+                "card_id": current_card.card_id,
+                "error": "card disappeared before run link update"
+            }));
+            continue;
+        };
+        current_card = updated_with_run;
+
+        if rule.generate_thumbnail_draft {
+            let svg = generate_thumbnail_draft_svg(&current_card);
+            match persist_generated_board_card_asset(
+                state,
+                &current_card,
+                "thumbnail-draft.svg",
+                "image/svg+xml",
+                svg.as_bytes(),
+            ) {
+                Ok(asset) => {
+                    created_assets.push(serde_json::json!({
+                        "card_id": current_card.card_id,
+                        "card_asset_id": asset.card_asset_id,
+                        "filename": asset.filename
+                    }));
+                }
+                Err(err) => {
+                    warn!(
+                        job_id = %job.job_id,
+                        card_id = %current_card.card_id,
+                        error = %err,
+                        "failed to create thumbnail draft asset"
+                    );
+                }
+            }
+        }
+
+        let moved = state.storage.move_board_card(
+            &rule.board_id,
+            &current_card.card_id,
+            &rule.target_column_id,
+            None,
+        )?;
+        if moved.is_none() {
+            failed_cards.push(serde_json::json!({
+                "card_id": current_card.card_id,
+                "error": "failed moving card to target column"
+            }));
+            continue;
+        }
+        succeeded_cards = succeeded_cards.saturating_add(1);
+        emit_event(
+            state,
+            "board.automation.card",
+            serde_json::json!({
+                "job_id": &job.job_id,
+                "rule_id": &rule.rule_id,
+                "board_id": &board.board_id,
+                "card_id": &current_card.card_id,
+                "target_column_id": &rule.target_column_id,
+                "run_id": &run.run_id,
+                "status": &run.status
+            }),
+        );
+    }
+
+    if processed_cards > 0 && succeeded_cards == 0 {
+        anyhow::bail!(
+            "{REASON_AUTOMATION_EXECUTION_FAILED}: no cards advanced successfully in this run"
+        );
+    }
+
+    Ok(serde_json::json!({
+        "mode": JOB_MODE_MC3_COLUMN_AUTOMATION,
+        "job_id": &job.job_id,
+        "rule_id": &rule.rule_id,
+        "board_id": &rule.board_id,
+        "column_id": &rule.column_id,
+        "target_column_id": &rule.target_column_id,
+        "processed_cards": processed_cards,
+        "succeeded_cards": succeeded_cards,
+        "skipped_cards": skipped_cards,
+        "failed_cards": failed_cards,
+        "created_assets": created_assets,
+        "max_cards_per_run": rule.max_cards_per_run,
+        "max_runs_per_day": rule.max_runs_per_day,
+        "max_attempts_per_card_per_day": rule.max_attempts_per_card_per_day,
+        "attempt": attempt,
+        "now_ms": current_time_ms()
+    })
+    .to_string())
+}
+
 async fn execute_job_payload(state: &AppState, job: &JobRecord, attempt: i64) -> AnyResult<String> {
     let payload: serde_json::Value = serde_json::from_str(&job.payload_json).unwrap_or_else(|_| {
         serde_json::json!({
@@ -14865,6 +16820,9 @@ async fn execute_job_payload(state: &AppState, job: &JobRecord, attempt: i64) ->
     }
     if mode == "session.run" {
         return execute_session_run_job(state, job, &payload).await;
+    }
+    if mode == JOB_MODE_MC3_COLUMN_AUTOMATION {
+        return execute_board_automation_job(state, job, &payload, attempt).await;
     }
 
     let output = serde_json::json!({
@@ -29349,5 +31307,535 @@ sys.stdout.write(json.dumps(response))
                 && item["decision"] == "deny"
                 && item["error_code"] == "POLICY_DENY"
         }));
+    }
+
+    #[tokio::test]
+    async fn agents_api_lists_seeded_lyra_and_claude() {
+        let ctx = test_context();
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request("GET", "/api/v1/agents", Body::empty()))
+            .await
+            .expect("agents response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let json = parse_json(response).await;
+        let items = json["items"].as_array().expect("agents items");
+        assert!(items.iter().any(|item| item["agent_id"] == "lyra"));
+        assert!(items.iter().any(|item| item["agent_id"] == "claude"));
+    }
+
+    #[tokio::test]
+    async fn board_card_create_move_and_asset_upload_round_trip() {
+        let ctx = test_context();
+
+        let boards_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request("GET", "/api/v1/boards", Body::empty()))
+            .await
+            .expect("boards response");
+        assert_eq!(boards_response.status(), StatusCode::OK);
+        let boards_json = parse_json(boards_response).await;
+        let tasks_board_id = boards_json["items"]
+            .as_array()
+            .expect("boards items")
+            .iter()
+            .find(|item| item["board_key"] == "tasks")
+            .and_then(|item| item["board_id"].as_str())
+            .expect("tasks board_id")
+            .to_string();
+
+        let board_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/boards/{tasks_board_id}"),
+                Body::empty(),
+            ))
+            .await
+            .expect("board detail response");
+        assert_eq!(board_response.status(), StatusCode::OK);
+        let board_json = parse_json(board_response).await;
+        let backlog_column_id = board_json["columns"]
+            .as_array()
+            .expect("columns")
+            .iter()
+            .find(|item| item["column_key"] == "backlog")
+            .and_then(|item| item["column_id"].as_str())
+            .expect("backlog column_id")
+            .to_string();
+        let review_column_id = board_json["columns"]
+            .as_array()
+            .expect("columns")
+            .iter()
+            .find(|item| item["column_key"] == "review")
+            .and_then(|item| item["column_id"].as_str())
+            .expect("review column_id")
+            .to_string();
+
+        let create_card_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/boards/{tasks_board_id}/cards/create"),
+                Body::from(format!(
+                    r#"{{
+                    "column_id":"{}",
+                    "title":"Ship MC3 tasks board",
+                    "owner_kind":"agent",
+                    "owner_agent_id":"lyra",
+                    "tags":["mc3","pipeline"]
+                }}"#,
+                    backlog_column_id
+                )),
+            ))
+            .await
+            .expect("create board card response");
+        assert_eq!(create_card_response.status(), StatusCode::CREATED);
+        let create_card_json = parse_json(create_card_response).await;
+        let card_id = create_card_json["card"]["card_id"]
+            .as_str()
+            .expect("card_id")
+            .to_string();
+
+        let move_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/boards/{tasks_board_id}/cards/{card_id}/move"),
+                Body::from(format!(r#"{{"column_id":"{}"}}"#, review_column_id)),
+            ))
+            .await
+            .expect("move board card response");
+        assert_eq!(move_response.status(), StatusCode::OK);
+        let move_json = parse_json(move_response).await;
+        assert_eq!(move_json["card"]["column_id"], review_column_id);
+
+        let upload_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/boards/{tasks_board_id}/cards/{card_id}/assets/upload"),
+                Body::from(
+                    r#"{
+                    "filename":"notes.txt",
+                    "mime":"text/plain",
+                    "content_base64":"aGVsbG8gd29ybGQ="
+                }"#,
+                ),
+            ))
+            .await
+            .expect("asset upload response");
+        assert_eq!(upload_response.status(), StatusCode::CREATED);
+        let upload_json = parse_json(upload_response).await;
+        assert_eq!(upload_json["asset"]["mime"], "text/plain");
+        assert_eq!(
+            upload_json["card"]["assets"]
+                .as_array()
+                .expect("card assets")
+                .len(),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn run_board_card_links_session_and_latest_run() {
+        let ctx = test_context();
+        let boards_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request("GET", "/api/v1/boards", Body::empty()))
+            .await
+            .expect("boards response");
+        let boards_json = parse_json(boards_response).await;
+        let content_board_id = boards_json["items"]
+            .as_array()
+            .expect("boards items")
+            .iter()
+            .find(|item| item["board_key"] == "content")
+            .and_then(|item| item["board_id"].as_str())
+            .expect("content board_id")
+            .to_string();
+
+        let board_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/boards/{content_board_id}"),
+                Body::empty(),
+            ))
+            .await
+            .expect("board response");
+        let board_json = parse_json(board_response).await;
+        let scripting_column_id = board_json["columns"]
+            .as_array()
+            .expect("columns")
+            .iter()
+            .find(|item| item["column_key"] == "scripting")
+            .and_then(|item| item["column_id"].as_str())
+            .expect("scripting column_id")
+            .to_string();
+
+        let create_card_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/boards/{content_board_id}/cards/create"),
+                Body::from(format!(
+                    r#"{{
+                    "column_id":"{}",
+                    "title":"Draft intro script",
+                    "owner_kind":"agent",
+                    "owner_agent_id":"claude",
+                    "script_markdown":"- intro beat"
+                }}"#,
+                    scripting_column_id
+                )),
+            ))
+            .await
+            .expect("create card response");
+        let create_card_json = parse_json(create_card_response).await;
+        let card_id = create_card_json["card"]["card_id"]
+            .as_str()
+            .expect("card id")
+            .to_string();
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/boards/{content_board_id}/cards/{card_id}/run"),
+                Body::from(r#"{"model_provider":"mock","model_id":"mock-echo-v1"}"#),
+            ))
+            .await
+            .expect("run card response");
+        assert_eq!(run_response.status(), StatusCode::OK);
+        let run_json = parse_json(run_response).await;
+        assert_eq!(run_json["run"]["status"], "succeeded");
+        assert!(run_json["card"]["linked_session_id"].is_string());
+        assert!(run_json["card"]["latest_run_id"].is_string());
+    }
+
+    #[tokio::test]
+    async fn board_automation_rule_upsert_state_run_and_move_flow() {
+        let ctx = test_context();
+        let boards_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request("GET", "/api/v1/boards", Body::empty()))
+            .await
+            .expect("boards response");
+        let boards_json = parse_json(boards_response).await;
+        let content_board_id = boards_json["items"]
+            .as_array()
+            .expect("boards items")
+            .iter()
+            .find(|item| item["board_key"] == "content")
+            .and_then(|item| item["board_id"].as_str())
+            .expect("content board_id")
+            .to_string();
+
+        let board_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/boards/{content_board_id}"),
+                Body::empty(),
+            ))
+            .await
+            .expect("board detail response");
+        let board_json = parse_json(board_response).await;
+        let scripting_column_id = board_json["columns"]
+            .as_array()
+            .expect("columns")
+            .iter()
+            .find(|item| item["column_key"] == "scripting")
+            .and_then(|item| item["column_id"].as_str())
+            .expect("scripting column")
+            .to_string();
+        let thumbnail_column_id = board_json["columns"]
+            .as_array()
+            .expect("columns")
+            .iter()
+            .find(|item| item["column_key"] == "thumbnail")
+            .and_then(|item| item["column_id"].as_str())
+            .expect("thumbnail column")
+            .to_string();
+
+        let upsert_rule_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!(
+                    "/api/v1/boards/{content_board_id}/columns/{scripting_column_id}/automation/upsert"
+                ),
+                Body::from(format!(
+                    r#"{{
+                    "name":"Script to Thumbnail",
+                    "enabled":false,
+                    "agent_id":"lyra",
+                    "schedule_kind":"interval",
+                    "interval_seconds":3600,
+                    "target_column_id":"{}",
+                    "max_cards_per_run":2,
+                    "max_runs_per_day":5,
+                    "max_attempts_per_card_per_day":2,
+                    "breaker_failure_threshold":3,
+                    "breaker_cooldown_ms":900000,
+                    "generate_thumbnail_draft":true,
+                    "model_provider":"mock",
+                    "model_id":"mock-echo-v1",
+                    "max_retries":0
+                }}"#,
+                    thumbnail_column_id
+                )),
+            ))
+            .await
+            .expect("upsert rule response");
+        assert_eq!(upsert_rule_response.status(), StatusCode::OK);
+        let upsert_rule_json = parse_json(upsert_rule_response).await;
+        let job_id = upsert_rule_json["rule"]["job_id"]
+            .as_str()
+            .expect("job_id")
+            .to_string();
+        assert_eq!(upsert_rule_json["rule"]["enabled"], false);
+
+        let list_rules_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/boards/{content_board_id}/automation"),
+                Body::empty(),
+            ))
+            .await
+            .expect("list rules response");
+        assert_eq!(list_rules_response.status(), StatusCode::OK);
+        let list_rules_json = parse_json(list_rules_response).await;
+        assert!(list_rules_json["items"]
+            .as_array()
+            .expect("rule items")
+            .iter()
+            .any(|rule| rule["job_id"] == job_id));
+
+        let set_state_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/boards/{content_board_id}/automation/{job_id}/state"),
+                Body::from(r#"{"enabled":true}"#),
+            ))
+            .await
+            .expect("set rule state response");
+        assert_eq!(set_state_response.status(), StatusCode::OK);
+        let set_state_json = parse_json(set_state_response).await;
+        assert_eq!(set_state_json["rule"]["enabled"], true);
+
+        let create_card_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/boards/{content_board_id}/cards/create"),
+                Body::from(format!(
+                    r#"{{
+                    "column_id":"{}",
+                    "title":"Automation Script Item",
+                    "owner_kind":"agent",
+                    "owner_agent_id":"lyra"
+                }}"#,
+                    scripting_column_id
+                )),
+            ))
+            .await
+            .expect("create automation card response");
+        let create_card_json = parse_json(create_card_response).await;
+        let card_id = create_card_json["card"]["card_id"]
+            .as_str()
+            .expect("card id")
+            .to_string();
+
+        let run_rule_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/boards/{content_board_id}/automation/{job_id}/run"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("run automation rule response");
+        assert_eq!(run_rule_response.status(), StatusCode::OK);
+        let run_rule_json = parse_json(run_rule_response).await;
+        assert_eq!(run_rule_json["job_run"]["status"], "succeeded");
+
+        let refreshed_board_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/boards/{content_board_id}"),
+                Body::empty(),
+            ))
+            .await
+            .expect("refreshed board response");
+        let refreshed_board_json = parse_json(refreshed_board_response).await;
+        let card = refreshed_board_json["cards"]
+            .as_array()
+            .expect("cards")
+            .iter()
+            .find(|item| item["card_id"] == card_id)
+            .expect("automation card");
+        assert_eq!(card["column_id"], thumbnail_column_id);
+        assert!(card["latest_run_id"].is_string());
+        assert!(
+            !card["assets"].as_array().expect("assets").is_empty(),
+            "expected generated thumbnail draft asset",
+        );
+    }
+
+    #[tokio::test]
+    async fn board_automation_daily_run_limit_is_enforced() {
+        let ctx = test_context();
+        let boards_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request("GET", "/api/v1/boards", Body::empty()))
+            .await
+            .expect("boards response");
+        let boards_json = parse_json(boards_response).await;
+        let content_board_id = boards_json["items"]
+            .as_array()
+            .expect("boards items")
+            .iter()
+            .find(|item| item["board_key"] == "content")
+            .and_then(|item| item["board_id"].as_str())
+            .expect("content board_id")
+            .to_string();
+
+        let board_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/boards/{content_board_id}"),
+                Body::empty(),
+            ))
+            .await
+            .expect("board detail response");
+        let board_json = parse_json(board_response).await;
+        let scripting_column_id = board_json["columns"]
+            .as_array()
+            .expect("columns")
+            .iter()
+            .find(|item| item["column_key"] == "scripting")
+            .and_then(|item| item["column_id"].as_str())
+            .expect("scripting column")
+            .to_string();
+        let thumbnail_column_id = board_json["columns"]
+            .as_array()
+            .expect("columns")
+            .iter()
+            .find(|item| item["column_key"] == "thumbnail")
+            .and_then(|item| item["column_id"].as_str())
+            .expect("thumbnail column")
+            .to_string();
+
+        let upsert_rule_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!(
+                    "/api/v1/boards/{content_board_id}/columns/{scripting_column_id}/automation/upsert"
+                ),
+                Body::from(format!(
+                    r#"{{
+                    "name":"Daily Limit Rule",
+                    "enabled":false,
+                    "agent_id":"lyra",
+                    "schedule_kind":"interval",
+                    "interval_seconds":3600,
+                    "target_column_id":"{}",
+                    "max_cards_per_run":1,
+                    "max_runs_per_day":1,
+                    "max_attempts_per_card_per_day":1,
+                    "breaker_failure_threshold":3,
+                    "breaker_cooldown_ms":900000,
+                    "generate_thumbnail_draft":false,
+                    "model_provider":"mock",
+                    "model_id":"mock-echo-v1",
+                    "max_retries":0
+                }}"#,
+                    thumbnail_column_id
+                )),
+            ))
+            .await
+            .expect("upsert rule response");
+        let upsert_rule_json = parse_json(upsert_rule_response).await;
+        let job_id = upsert_rule_json["rule"]["job_id"]
+            .as_str()
+            .expect("job_id")
+            .to_string();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/boards/{content_board_id}/cards/create"),
+                Body::from(format!(
+                    r#"{{
+                    "column_id":"{}",
+                    "title":"Daily Limit Card",
+                    "owner_kind":"agent",
+                    "owner_agent_id":"lyra"
+                }}"#,
+                    scripting_column_id
+                )),
+            ))
+            .await
+            .expect("create first card");
+
+        let first_run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/boards/{content_board_id}/automation/{job_id}/run"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("first automation run");
+        let first_run_json = parse_json(first_run_response).await;
+        assert_eq!(first_run_json["job_run"]["status"], "succeeded");
+
+        let second_run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/boards/{content_board_id}/automation/{job_id}/run"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("second automation run");
+        let second_run_json = parse_json(second_run_response).await;
+        assert_eq!(second_run_json["job_run"]["status"], "failed");
+        assert!(second_run_json["job_run"]["error_text"]
+            .as_str()
+            .unwrap_or_default()
+            .contains(REASON_AUTOMATION_DAILY_RUN_LIMIT));
     }
 }

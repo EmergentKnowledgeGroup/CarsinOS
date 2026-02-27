@@ -5054,7 +5054,7 @@ mod tests {
         let config = RuntimeConfigWizardSnapshot {
             discord_operation_mode: "transport".to_string(),
             telegram_operation_mode: "transport".to_string(),
-            ..RuntimeConfigWizardSnapshot::default()
+            ..Default::default()
         };
         let issues = runtime_wizard_completeness_issues(&config);
         assert!(issues.iter().any(|entry| {
