@@ -5,7 +5,7 @@ use eframe::egui::{Color32, RichText};
 use rand::rngs::OsRng;
 use rand::RngCore;
 use serde_json::{json, Value};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::time::Duration;
@@ -476,6 +476,7 @@ struct GuiApp {
     content_auto_max_runs_per_day: String,
     content_auto_max_attempts_per_card_per_day: String,
     memory_search_query: String,
+    script_drafts: HashMap<String, String>,
 
     auth_profile_draft: AuthProfileDraft,
     openai_oauth_draft: OpenAiOauthDraft,
@@ -544,6 +545,7 @@ impl Default for GuiApp {
             content_auto_max_runs_per_day: "24".to_string(),
             content_auto_max_attempts_per_card_per_day: "2".to_string(),
             memory_search_query: String::new(),
+            script_drafts: HashMap::new(),
             auth_profile_draft: AuthProfileDraft::default(),
             openai_oauth_draft: OpenAiOauthDraft::default(),
             anthropic_setup_draft: AnthropicSetupTokenDraft::default(),
@@ -1511,50 +1513,69 @@ impl GuiApp {
     }
 
     fn refresh_mc3_state(&mut self) -> Result<(), String> {
-        self.team_agents = parse_team_agents(&fetch_json(
+        let next_team_agents = parse_team_agents(&fetch_json(
             &self.gateway_base_url,
             "/api/v1/agents",
             &self.gateway_token,
         )?)?;
-        self.boards = parse_board_summaries(&fetch_json(
+        let next_boards = parse_board_summaries(&fetch_json(
             &self.gateway_base_url,
             "/api/v1/boards",
             &self.gateway_token,
         )?)?;
-        self.calendar_jobs = parse_calendar_jobs(&fetch_json(
+        let next_calendar_jobs = parse_calendar_jobs(&fetch_json(
             &self.gateway_base_url,
             "/api/v1/jobs?limit=200",
             &self.gateway_token,
         )?)?;
-        self.memory_notes = parse_memory_notes(&fetch_json(
+        let next_memory_notes = parse_memory_notes(&fetch_json(
             &self.gateway_base_url,
             "/api/v1/memory/notes?limit=200",
             &self.gateway_token,
         )?)?;
 
-        if let Some(tasks_board_id) = self.board_id_by_key("tasks") {
+        let mut next_tasks_board = BoardDetailItem::default();
+        if let Some(tasks_board_id) = next_boards
+            .iter()
+            .find(|board| board.board_key == "tasks")
+            .map(|board| board.board_id.clone())
+        {
             let path = format!("/api/v1/boards/{tasks_board_id}");
-            self.tasks_board = parse_board_detail(&fetch_json(
+            next_tasks_board = parse_board_detail(&fetch_json(
                 &self.gateway_base_url,
                 &path,
                 &self.gateway_token,
             )?)?;
         }
-        self.content_automation_rules = Vec::new();
-        if let Some(content_board_id) = self.board_id_by_key("content") {
+
+        let mut next_content_board = BoardDetailItem::default();
+        let mut next_content_automation_rules = Vec::new();
+        if let Some(content_board_id) = next_boards
+            .iter()
+            .find(|board| board.board_key == "content")
+            .map(|board| board.board_id.clone())
+        {
             let path = format!("/api/v1/boards/{content_board_id}");
-            self.content_board = parse_board_detail(&fetch_json(
+            next_content_board = parse_board_detail(&fetch_json(
                 &self.gateway_base_url,
                 &path,
                 &self.gateway_token,
             )?)?;
             let automation_path = format!("/api/v1/boards/{content_board_id}/automation");
-            self.content_automation_rules = parse_board_automation_rules(&fetch_json(
+            next_content_automation_rules = parse_board_automation_rules(&fetch_json(
                 &self.gateway_base_url,
                 &automation_path,
                 &self.gateway_token,
             )?)?;
         }
+
+        self.team_agents = next_team_agents;
+        self.boards = next_boards;
+        self.calendar_jobs = next_calendar_jobs;
+        self.memory_notes = next_memory_notes;
+        self.tasks_board = next_tasks_board;
+        self.content_board = next_content_board;
+        self.content_automation_rules = next_content_automation_rules;
         Ok(())
     }
 
@@ -1608,8 +1629,7 @@ impl GuiApp {
             Some(&payload),
         ) {
             Ok(_) => {
-                let _ = self.refresh_mc3_state();
-                self.set_info("Card created");
+                self.set_mc3_refresh_status("Card created");
             }
             Err(err) => self.set_error(err),
         }
@@ -1827,11 +1847,10 @@ impl GuiApp {
             Some(&payload),
         ) {
             Ok(_) => {
-                let _ = self.refresh_mc3_state();
                 if enabled {
-                    self.set_info("Content automation enabled");
+                    self.set_mc3_refresh_status("Content automation enabled");
                 } else {
-                    self.set_info("Content automation rule updated");
+                    self.set_mc3_refresh_status("Content automation rule updated");
                 }
             }
             Err(err) => self.set_error(err),
@@ -1876,8 +1895,7 @@ impl GuiApp {
             &self.gateway_token,
             Some(&json!({})),
         )?;
-        self.refresh_gateway_state();
-        Ok(())
+        self.refresh_gateway_state_checked()
     }
 
     fn set_job_enabled(&mut self, job_id: &str, enabled: bool) -> Result<(), String> {
@@ -1888,8 +1906,16 @@ impl GuiApp {
             &self.gateway_token,
             Some(&json!({ "enabled": enabled })),
         )?;
+        self.refresh_gateway_state_checked()
+    }
+
+    fn refresh_gateway_state_checked(&mut self) -> Result<(), String> {
         self.refresh_gateway_state();
-        Ok(())
+        if let Some(error) = self.last_error.clone() {
+            Err(error)
+        } else {
+            Ok(())
+        }
     }
 
     fn render_tasks_board(&mut self, ui: &mut egui::Ui) {
@@ -2110,6 +2136,7 @@ impl GuiApp {
         let mut pending_move: Option<(String, String)> = None;
         let mut pending_run: Option<String> = None;
         let mut pending_script_update: Option<(String, String)> = None;
+        let script_drafts = &mut self.script_drafts;
 
         ui.columns(board.columns.len(), |columns_ui| {
             for (index, column) in board.columns.iter().enumerate() {
@@ -2134,13 +2161,16 @@ impl GuiApp {
                                         .clone()
                                         .unwrap_or_else(|| "unassigned".to_string())
                                 ));
-                                let mut script =
-                                    card_item.script_markdown.clone().unwrap_or_default();
-                                ui.add(egui::TextEdit::multiline(&mut script).desired_rows(3));
+                                let script_draft = script_drafts
+                                    .entry(card_item.card_id.clone())
+                                    .or_insert_with(|| {
+                                        card_item.script_markdown.clone().unwrap_or_default()
+                                    });
+                                ui.add(egui::TextEdit::multiline(script_draft).desired_rows(3));
                                 ui.horizontal(|ui| {
                                     if ui.button("Save Script").clicked() {
                                         pending_script_update =
-                                            Some((card_item.card_id.clone(), script.clone()));
+                                            Some((card_item.card_id.clone(), script_draft.clone()));
                                     }
                                     if ui.button("Run").clicked() {
                                         pending_run = Some(card_item.card_id.clone());

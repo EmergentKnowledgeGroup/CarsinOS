@@ -1,14 +1,47 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-27T11:02:00Z",
-  "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui",
+  "captured_at": "2026-02-27T11:19:57.369237+00:00",
+  "repo_root": ".",
   "branch": "codex/mc3-pr2-gui",
-  "head": "529029b0876f4f59f59808f2b8f71d516a2f5fc4",
-  "head_short": "529029b",
-  "step": "mc3-pr44-main-merge-resolved",
-  "note": "Resolved merge-from-main conflicts for PR44 and prepared post-merge validation rerun",
-  "next_cmd": "scripts/security_pr_gate.sh",
+  "head": "61572b496a93d3df0fdae644285ac7d5057aba95",
+  "head_short": "61572b4",
+  "step": "pr44-post-green",
+  "note": "Security PR gate green after GUI refresh follow-ups and checkpoint sync; ready to commit and push.",
+  "next_cmd": "git add CHECKPOINT.md crates/carsinos-gui/src/main.rs runtime/checkpoints/LATEST.json runtime/checkpoints/LATEST.md && git commit -m 'fix(gui): finalize PR44 review follow-ups' && git push",
   "validations": [
     "scripts/security_pr_gate.sh"
+  ],
+  "status": {
+    "staged": [],
+    "modified": [
+      "CHECKPOINT.md",
+      "crates/carsinos-gui/src/main.rs",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
+    "untracked": [],
+    "conflicted": [],
+    "dirty": true
+  },
+  "changed_files": {
+    "working_tree": [
+      "CHECKPOINT.md",
+      "crates/carsinos-gui/src/main.rs",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
+    "staged": []
+  },
+  "recent_commits": [
+    "61572b4 Merge remote-tracking branch 'origin/main' into codex/mc3-pr2-gui",
+    "529029b fix(gui): harden MC3 refresh and run-card model resolution",
+    "ec31214 Merge pull request #43 from ProfessahX/codex/mc3-pr1-backend",
+    "5b86a47 ci(pr-gate): pin cargo-audit to CVSS4-capable version",
+    "dfedfb8 docs(checkpoint): record pr43 clippy-fix push state"
+  ],
+  "checklist": [
+    "Run git status -sb and verify branch/head.",
+    "Open diff for changed files listed in checkpoint.",
+    "Resume from step + next_cmd, then write a new checkpoint after each major edit block."
   ]
 }
