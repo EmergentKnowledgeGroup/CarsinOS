@@ -5770,3 +5770,160 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+
+### 2026-02-27 - Entry 273
+
+- checklist refs: `U1` `U2` `U3` `U4` `U5` `U6` `U7` `U8` `U9` `U10`
+- past action:
+- Completed PR #42 CodeRabbit remediation and merged with clean main sync.
+- present action:
+- Started Mission Control v3 (pipeline-first) P0 execution with defaults locked:
+- UI track: Rust desktop (`carsinos-gui`)
+- scope: complete P0 backend-first, then UI surfaces
+- card session policy: reuse session per `(card_id, agent_id)`
+- asset policy: allowed types (`png/jpg/webp/gif/pdf/md/txt`), `10MB/file`, `100MB/card`
+- realtime: WS primary + polling fallback
+- agent seeds: `lyra`, `claude`
+- Added Phase U MC3 P0 execution block to `CHECKLIST.md`.
+- Checkpoint SOP:
+- phase-start snapshot recorded (`mc3-p0-phase-start`) and mirrored to top-level runtime checkpoints.
+- future action:
+- implement schema/protocol/storage for agents + boards/cards/assets and then wire gateway APIs.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-27 - Entry 274
+
+- checklist refs: `U1` `U2` `U3` `U4` `U5`
+- past action:
+- Started MC3 P0 implementation with defaults locked and Phase U checklist scaffolded.
+- present action:
+- Completed MC3 backend-first execution block:
+- migration/schema: added `boards`, `board_columns`, `board_cards`, `board_card_assets`
+- storage: seeded agents (`default`, `lyra`, `claude`) and built-in boards (Tasks + Content pipeline stages), added agent CRUD + board/card/asset CRUD/move/link methods
+- protocol: added Mission Control v3 API contracts for agents, boards, cards, assets, and card-run hook
+- gateway: added routes/endpoints for agents + boards + card CRUD/move + asset upload + card run hook + WS board events
+- tests: added gateway unit tests for seeded agents, board card create/move/upload flow, and card-run linkage flow
+- validation outcomes:
+- `cargo check -p carsinos-storage` passed.
+- `cargo check -p carsinos-gateway --bin carsinos-gateway` passed.
+- `cargo test -p carsinos-gateway agents_api_lists_seeded_lyra_and_claude -- --nocapture` passed.
+- `cargo test -p carsinos-gateway board_card_create_move_and_asset_upload_round_trip -- --nocapture` passed.
+- `cargo test -p carsinos-gateway run_board_card_links_session_and_latest_run -- --nocapture` passed.
+- Checkpoint SOP:
+- post-green checkpoint snapshot recorded (`mc3-p0-backend-post-green`) and mirrored to top-level runtime checkpoints.
+- future action:
+- start MC3 v3 UI shell/pages (`U6..U9`) in `carsinos-gui` using frontend-design skill constraints.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/migrations/0001_init.sql`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-storage/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-protocol/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-27 - Entry 275
+
+- checklist refs: `U6` `U7` `U8` `U9` `U10`
+- past action:
+- Completed MC3 P0 backend APIs, storage, schema, and targeted tests (`U1..U5`).
+- present action:
+- Completed MC3 P0 UI execution and validation closure:
+- finished GUI integration for new Mission Control v3 tabs (`Tasks`, `Content`, `Calendar`, `Memory`, `Team`, `Approvals`, `Settings`)
+- added missing GUI parsers for agents/boards/board details/jobs/notes payloads and parser coverage tests
+- resolved compile blockers in `carsinos-gui` and completed full regression + benchmark gate run
+- updated checkpoint artifacts and checklist completion state for `U6..U10`
+- validation outcomes:
+- `cargo check -p carsinos-gui` passed.
+- `cargo test -p carsinos-gui` passed.
+- `cargo test -p carsinos-gateway` passed.
+- `cargo test -p carsinos-storage` passed.
+- `cargo test -p carsinos-protocol` passed.
+- `cargo test -p carsinos-tools` passed.
+- `cargo test -p carsinos-gateway --test e2e_process` passed.
+- `cargo test -p carsinos-gateway --test benchmark_process -- --nocapture` passed.
+- Checkpoint SOP:
+- post-green snapshot recorded (`mc3-p0-ui-post-green`) and latest checkpoint files mirrored to top-level runtime checkpoint path.
+- future action:
+- begin PR chunking workflow for Mission Control v3 P0 changes and run CodeRabbit review cycle before merge.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gui/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-27 - Entry 276
+
+- checklist refs: `V1` `V2` `V3` `V4` `V5`
+- past action:
+- Closed Mission Control v3 P0 (`U1..U10`) with full test/benchmark evidence.
+- present action:
+- Started Mission Control v3 P1 safe automation track:
+- created Phase V checklist block for `MC3-AUTO-001/002`
+- recorded fresh phase-start checkpoint snapshot for automation workstream
+- synchronized latest checkpoint artifacts (carsinos + top-level runtime path)
+- validation outcomes:
+- checkpoint snapshot recorded: `mc3-p1-auto-phase-start`.
+- Checkpoint SOP:
+- phase-start updates completed for `runtime/checkpoints/LATEST.md` and `runtime/checkpoints/LATEST.json`.
+- future action:
+- implement automation rule contract (config-first), scheduler execution path, breaker/cap enforcement, and operator controls with regression gates.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-27 - Entry 277
+
+- checklist refs: `V1` `V2` `V3` `V4` `V5`
+- past action:
+- Initialized Mission Control v3 P1 automation phase with checklist/checkpoint scaffolding.
+- present action:
+- Completed Mission Control v3 safe automation track end-to-end:
+- gateway API: added board automation endpoints for list/get/upsert/state/run under `/api/v1/boards/{board_id}/automation*`
+- scheduler: added `mc3.column_automation` execution mode with per-rule caps (`max_cards_per_run`, `max_runs_per_day`, `max_attempts_per_card_per_day`)
+- pipeline behavior: automation now generates script baseline when missing, executes run, writes thumbnail draft asset, and advances cards to target column
+- breaker behavior: added per-rule breaker threshold + cooldown override support in job payload handling
+- GUI: added “Content Automation” operator panel with config inputs, save/enable, pause/resume, run-now, and live status/error display
+- tests: added gateway tests for automation lifecycle + daily run limit; added GUI parser test coverage for automation list payload
+- validation outcomes:
+- `cargo check -p carsinos-protocol` passed.
+- `cargo check -p carsinos-gateway --bin carsinos-gateway` passed.
+- `cargo check -p carsinos-gui` passed.
+- `cargo test -p carsinos-gui` passed.
+- `cargo test -p carsinos-gateway board_automation_ -- --nocapture` passed.
+- `cargo test -p carsinos-gateway` passed.
+- `cargo test -p carsinos-storage` passed.
+- `cargo test -p carsinos-protocol` passed.
+- `cargo test -p carsinos-tools` passed.
+- `cargo test -p carsinos-gateway --test e2e_process` passed.
+- `cargo test -p carsinos-gateway --test benchmark_process -- --nocapture` passed.
+- Checkpoint SOP:
+- post-green checkpoint snapshot recorded (`mc3-p1-auto-post-green`) and latest artifacts mirrored to top-level runtime checkpoint path.
+- future action:
+- proceed to Mission Control v3 P2 mobile/polish backlog or begin PR chunking/review workflow for the completed P1 change set.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-protocol/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gui/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`

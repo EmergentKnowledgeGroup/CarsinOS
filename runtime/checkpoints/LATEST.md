@@ -1,11 +1,9 @@
 # LATEST Checkpoint
 
-- step: pr42-cr-fixes-post-green
-- note: Applied CodeRabbit suggestions for checkpoint consistency and reran validation gates
-- branch: codex/pr42-coderabbit-followup
-- head: 0215a5c
-- next_cmd: git status --short --branch
+- step: `mc3-pr2-open`
+- note: Opened GUI chunk PR #44 (`codex/mc3-pr2-gui`) targeting `main`.
+- branch: `codex/mc3-pr2-gui`
+- head: `49d5b39`
+- next_cmd: `cd '/Users/domusanimae/Documents/openclaw replacement/carsinos' && gh pr view 44 --json url,state,reviewDecision`
 - validations:
-  - `cargo check -p carsinos-gateway --bin carsinos-gateway`
-  - `cargo test -p carsinos-gateway --test e2e_process`
-  - `cargo test -p carsinos-gateway --test benchmark_process -- --nocapture`
+  - `cargo test -p carsinos-gui`

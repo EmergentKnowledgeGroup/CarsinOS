@@ -1,30 +1,32 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-27T05:22:57.562878+00:00",
+  "captured_at": "2026-02-27T09:26:04.134769+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/pr42-coderabbit-followup",
-  "head_short": "0215a5c",
-  "step": "pr42-cr-fixes-post-green",
-  "note": "Applied CodeRabbit suggestions for checkpoint consistency and reran validation gates",
-  "next_cmd": "git status --short --branch",
-  "validations": [
-    "cargo check -p carsinos-gateway --bin carsinos-gateway",
-    "cargo test -p carsinos-gateway --test e2e_process",
-    "cargo test -p carsinos-gateway --test benchmark_process -- --nocapture"
-  ],
+  "branch": "codex/mc3-pr2-gui",
+  "head_short": "49d5b39",
+  "step": "mc3-pr2-open",
+  "note": "Opened PR #44 for GUI chunk.",
+  "next_cmd": "cd '/Users/domusanimae/Documents/openclaw replacement/carsinos' && gh pr view 44 --json url,state,reviewDecision",
   "status": {
     "staged": [],
     "modified": [
+      "CHECKLIST.md",
       "CHECKPOINT.md",
       "runtime/checkpoints/LATEST.json",
       "runtime/checkpoints/LATEST.md"
     ],
-    "untracked": [],
+    "untracked": [
+      "APPDEX_CONNECTOR_HUB_EXECUTABLE_TICKET_BACKLOG.md",
+      "APPDEX_MISSION_CONTROL_V3_EXECUTABLE_TICKET_BACKLOG.md",
+      "APPDEX_MISSION_CONTROL_V3_PIPELINE_FIRST_SPEC.md",
+      "APPDEX_RMP_CONNECTORS_SPEC.md"
+    ],
     "conflicted": [],
     "dirty": true
   },
   "changed_files": {
     "working_tree": [
+      "CHECKLIST.md",
       "CHECKPOINT.md",
       "runtime/checkpoints/LATEST.json",
       "runtime/checkpoints/LATEST.md"
@@ -32,11 +34,11 @@
     "staged": []
   },
   "recent_commits": [
-    "0215a5c docs: checkpoint PR #42 open state",
-    "452b977 chore(gateway): remove dead numquam/plugin fields and checkpoint state",
-    "031a0c2 Merge pull request #41 from ProfessahX/codex/sync-local-sot-20260226-230214",
-    "4d14144 docs: checkpoint repo sync PR #41 open state",
-    "bd431bd sync: publish local source-of-truth runtime and ticket-pack updates"
+    "49d5b39 feat(mc3): add mission control v3 gui boards and automation controls",
+    "e9a2ce9 Merge pull request #42 from ProfessahX/codex/pr42-coderabbit-followup",
+    "a0eebbf docs: make checkpoint next_cmd portable and restore validations",
+    "e27c58a docs: apply coderabbit checkpoint consistency feedback",
+    "0215a5c docs: checkpoint PR #42 open state"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
