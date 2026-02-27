@@ -114,6 +114,28 @@ impl GatewayProcess {
         Ok(stream)
     }
 
+    #[allow(dead_code)]
+    pub async fn connect_ws_with_query_token(&self) -> Result<WsStream> {
+        let url = format!(
+            "ws://{}/api/v1/ws?token={}",
+            self.bind,
+            urlencoding::encode(&self.token)
+        );
+        let request = url
+            .into_client_request()
+            .context("failed to build websocket request")?;
+        let (stream, response) = connect_async(request)
+            .await
+            .context("websocket connect failed")?;
+        if response.status() != StatusCode::SWITCHING_PROTOCOLS {
+            return Err(anyhow!(
+                "unexpected websocket status code: {}",
+                response.status()
+            ));
+        }
+        Ok(stream)
+    }
+
     pub fn http_base(&self) -> String {
         format!("http://{}", self.bind)
     }
