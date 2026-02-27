@@ -5746,3 +5746,27 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+
+### 2026-02-27 - Entry 272
+
+- checklist refs: `Q4` `Q7`
+- past action:
+- Applied initial CodeRabbit checkpoint-formatting fixes and pushed commit `e27c58a`.
+- present action:
+- Applied follow-up CodeRabbit portability/parity fixes for checkpoint artifacts:
+- changed `runtime/checkpoints/LATEST.json` `next_cmd` to portable `git status --short --branch`
+- restored top-level `validations` array in `runtime/checkpoints/LATEST.json`
+- updated `runtime/checkpoints/LATEST.md` `next_cmd` to portable value for parity
+- mirrored both checkpoint files to top-level runtime checkpoint path
+- validation outcomes:
+- checkpoint files now include `step`, `note`, `branch`, `head`, `next_cmd`, and `validations` in both md/json forms.
+- Checkpoint SOP:
+- checkpoint artifacts updated as part of active PR remediation cycle.
+- future action:
+- push fixes to PR #42, rerun validation gates, wait for CodeRabbit completion, and merge once clean.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`

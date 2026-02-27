@@ -6,7 +6,12 @@
   "head_short": "0215a5c",
   "step": "pr42-cr-fixes-post-green",
   "note": "Applied CodeRabbit suggestions for checkpoint consistency and reran validation gates",
-  "next_cmd": "git -C '/Users/domusanimae/Documents/openclaw replacement/carsinos' status --short --branch",
+  "next_cmd": "git status --short --branch",
+  "validations": [
+    "cargo check -p carsinos-gateway --bin carsinos-gateway",
+    "cargo test -p carsinos-gateway --test e2e_process",
+    "cargo test -p carsinos-gateway --test benchmark_process -- --nocapture"
+  ],
   "status": {
     "staged": [],
     "modified": [
