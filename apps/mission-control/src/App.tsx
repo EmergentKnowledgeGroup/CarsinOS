@@ -2,8 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import clsx from "clsx";
 import {
+  ackAgentMailMessage,
+  createAgentMailFileLease,
+  createAgentMailThread,
   createBoardCard,
+  createMemoryNote,
+  fetchAgentMailAttachmentBlob,
   fetchBoardCardAssetBlob,
+  getAgentMailThread,
   getAgentProviderProfileOrder,
   getChannelRuntimeStatus,
   getBoard,
@@ -21,15 +27,21 @@ import {
   listSkills,
   listApprovals,
   moveBoardCard,
+  listAgentMailFileLeases,
+  listAgentMailMessages,
+  listAgentMailThreads,
   reconnectChannelRuntime,
+  releaseAgentMailFileLease,
   resolveApproval,
   runJobNow,
   runBoardCard,
+  sendAgentMailMessage,
   setJobEnabledState,
   setPluginEnabled,
   setSkillEnabled,
   setAgentProviderProfileOrder,
   updateBoardCard,
+  uploadAgentMailAttachment,
   uploadBoardCardAsset,
 } from "./lib/api";
 import {
@@ -42,6 +54,10 @@ import {
 import { connectGatewayEvents, type WsLifecycleState } from "./lib/ws";
 import type {
   Agent,
+  AgentMailFileLeaseResponse,
+  AgentMailMessageResponse,
+  AgentMailThreadDetailResponse,
+  AgentMailThreadSummaryResponse,
   AuthProfileResponse,
   BoardCard,
   BoardColumn,
@@ -66,7 +82,14 @@ interface Notice {
   message: string;
 }
 
-type MissionControlTab = "boards" | "calendar" | "focus" | "events" | "cockpit";
+type MissionControlTab =
+  | "boards"
+  | "calendar"
+  | "focus"
+  | "events"
+  | "mail"
+  | "chatrooms"
+  | "cockpit";
 
 interface EventStreamItem {
   event_id: string;
@@ -468,6 +491,40 @@ function formatDateTime(unixMs: number | null | undefined): string {
   return new Date(unixMs).toLocaleString();
 }
 
+function parsePrincipalCsv(raw: string): string[] {
+  return [...new Set(raw.split(",").map((value) => value.trim()).filter(Boolean))];
+}
+
+function truncateText(value: string, maxChars: number): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= maxChars) {
+    return trimmed;
+  }
+  return `${trimmed.slice(0, maxChars - 1)}…`;
+}
+
+function buildThreadSummaryNote(
+  detail: AgentMailThreadDetailResponse,
+  messages: AgentMailMessageResponse[]
+): string {
+  const head = [
+    `Thread: ${detail.thread.subject}`,
+    `Kind: ${detail.thread.kind}`,
+    `Participants: ${detail.participants.map((item) => item.principal_id).join(", ")}`,
+    `Message count: ${messages.length}`,
+    `Generated at: ${new Date().toISOString()}`,
+  ];
+  const timeline = messages
+    .slice(-12)
+    .map((message, index) => {
+      const recipients = message.recipients
+        .map((recipient) => recipient.recipient_principal)
+        .join(", ");
+      return `${index + 1}. [${formatDateTime(message.created_at)}] ${message.sender_principal} -> ${recipients || "thread"}\n${truncateText(message.body_text, 280)}`;
+    });
+  return `${head.join("\n")}\n\nRecent Timeline\n${timeline.join("\n\n")}`;
+}
+
 function BoardLane(props: {
   column: BoardColumn;
   cards: BoardCard[];
@@ -634,6 +691,39 @@ export default function App() {
   const [selectedProviderControlProvider, setSelectedProviderControlProvider] = useState("");
   const [providerProfileOrder, setProviderProfileOrder] = useState<string[]>([]);
   const [providerProfileOrderDirty, setProviderProfileOrderDirty] = useState(false);
+  const [mailboxFilter, setMailboxFilter] = useState<"all" | "inbox" | "outbox">("inbox");
+  const [mailSearch, setMailSearch] = useState("");
+  const [mailPrincipalOverride, setMailPrincipalOverride] = useState("");
+  const [mailThreads, setMailThreads] = useState<AgentMailThreadSummaryResponse[]>([]);
+  const [roomThreads, setRoomThreads] = useState<AgentMailThreadSummaryResponse[]>([]);
+  const [selectedMailThreadId, setSelectedMailThreadId] = useState<string | null>(null);
+  const [selectedRoomThreadId, setSelectedRoomThreadId] = useState<string | null>(null);
+  const [mailThreadDetail, setMailThreadDetail] = useState<AgentMailThreadDetailResponse | null>(
+    null
+  );
+  const [roomThreadDetail, setRoomThreadDetail] = useState<AgentMailThreadDetailResponse | null>(
+    null
+  );
+  const [mailMessages, setMailMessages] = useState<AgentMailMessageResponse[]>([]);
+  const [roomMessages, setRoomMessages] = useState<AgentMailMessageResponse[]>([]);
+  const [newMailThreadSubject, setNewMailThreadSubject] = useState("");
+  const [newMailThreadParticipants, setNewMailThreadParticipants] = useState("");
+  const [newRoomName, setNewRoomName] = useState("");
+  const [newRoomParticipants, setNewRoomParticipants] = useState("");
+  const [mailComposeBody, setMailComposeBody] = useState("");
+  const [mailComposeRecipients, setMailComposeRecipients] = useState("");
+  const [mailComposeSender, setMailComposeSender] = useState("");
+  const [chatComposeBody, setChatComposeBody] = useState("");
+  const [chatComposeRecipients, setChatComposeRecipients] = useState("");
+  const [chatComposeSender, setChatComposeSender] = useState("");
+  const [mailAttachmentFiles, setMailAttachmentFiles] = useState<File[]>([]);
+  const [chatAttachmentFiles, setChatAttachmentFiles] = useState<File[]>([]);
+  const [leases, setLeases] = useState<AgentMailFileLeaseResponse[]>([]);
+  const [leaseHolderPrincipal, setLeaseHolderPrincipal] = useState("");
+  const [leaseGlobPattern, setLeaseGlobPattern] = useState("**/*");
+  const [leaseTtlMs, setLeaseTtlMs] = useState("900000");
+  const [leaseExclusive, setLeaseExclusive] = useState(false);
+  const [leaseNote, setLeaseNote] = useState("");
 
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [cardEditor, setCardEditor] = useState<CardEditorDraft>(emptyEditorDraft());
@@ -642,6 +732,9 @@ export default function App() {
 
   const boardRefreshTimer = useRef<number | null>(null);
   const missionControlRefreshTimer = useRef<number | null>(null);
+  const agentMailRefreshTimer = useRef<number | null>(null);
+  const mailThreadLoadSeq = useRef(0);
+  const roomThreadLoadSeq = useRef(0);
 
   const cardsByColumn = useMemo(() => toCardsByColumn(board), [board]);
 
@@ -830,6 +923,74 @@ export default function App() {
     [loadMissionControlReadModels, settings]
   );
 
+  const loadMailThreadById = useCallback(
+    async (
+      threadId: string,
+      runtimeSettings: RuntimeConnectionSettings = settings
+    ): Promise<{
+      detail: AgentMailThreadDetailResponse;
+      messages: AgentMailMessageResponse[];
+    }> => {
+      const [detail, messages] = await Promise.all([
+        getAgentMailThread(runtimeSettings, threadId),
+        listAgentMailMessages(runtimeSettings, threadId, 500),
+      ]);
+      return {
+        detail,
+        messages: messages.items,
+      };
+    },
+    [settings]
+  );
+
+  const loadAgentMailReadModels = useCallback(
+    async (runtimeSettings: RuntimeConnectionSettings = settings) => {
+      const principalId = mailPrincipalOverride.trim() || undefined;
+      const search = mailSearch.trim() || undefined;
+      const [directThreads, roomThreadItems, activeLeases] = await Promise.all([
+        listAgentMailThreads(runtimeSettings, {
+          kind: "direct",
+          mailbox: mailboxFilter,
+          principalId,
+          search,
+          limit: 300,
+        }),
+        listAgentMailThreads(runtimeSettings, {
+          kind: "room",
+          mailbox: "all",
+          principalId,
+          search,
+          limit: 300,
+        }),
+        listAgentMailFileLeases(runtimeSettings, {
+          holderPrincipal: principalId,
+          includeReleased: false,
+        }),
+      ]);
+      setMailThreads(directThreads.items);
+      setRoomThreads(roomThreadItems.items);
+      setLeases(activeLeases);
+    },
+    [mailPrincipalOverride, mailSearch, mailboxFilter, settings]
+  );
+
+  const queueAgentMailRefresh = useCallback(
+    (runtimeSettings: RuntimeConnectionSettings = settings) => {
+      if (agentMailRefreshTimer.current) {
+        globalThis.clearTimeout(agentMailRefreshTimer.current);
+      }
+      agentMailRefreshTimer.current = globalThis.setTimeout(() => {
+        void loadAgentMailReadModels(runtimeSettings).catch((error: unknown) => {
+          setNotice({
+            tone: "error",
+            message: `Agent Mail refresh failed: ${String(error)}`,
+          });
+        });
+      }, 280);
+    },
+    [loadAgentMailReadModels, settings]
+  );
+
   const loadBaseline = useCallback(
     async (
       runtimeSettings: RuntimeConnectionSettings = settings,
@@ -858,9 +1019,18 @@ export default function App() {
       } else {
         setBoard(null);
       }
-      await loadMissionControlReadModels(runtimeSettings);
+      await Promise.all([
+        loadMissionControlReadModels(runtimeSettings),
+        loadAgentMailReadModels(runtimeSettings),
+      ]);
     },
-    [activeBoardId, loadMissionControlReadModels, refreshBoard, settings]
+    [
+      activeBoardId,
+      loadAgentMailReadModels,
+      loadMissionControlReadModels,
+      refreshBoard,
+      settings,
+    ]
   );
 
   useEffect(() => {
@@ -925,6 +1095,98 @@ export default function App() {
   ]);
 
   useEffect(() => {
+    if (mailThreads.length === 0) {
+      setSelectedMailThreadId(null);
+      setMailThreadDetail(null);
+      setMailMessages([]);
+      return;
+    }
+    if (!selectedMailThreadId || !mailThreads.some((item) => item.thread_id === selectedMailThreadId)) {
+      setSelectedMailThreadId(mailThreads[0].thread_id);
+    }
+  }, [mailThreads, selectedMailThreadId]);
+
+  useEffect(() => {
+    if (roomThreads.length === 0) {
+      setSelectedRoomThreadId(null);
+      setRoomThreadDetail(null);
+      setRoomMessages([]);
+      return;
+    }
+    if (!selectedRoomThreadId || !roomThreads.some((item) => item.thread_id === selectedRoomThreadId)) {
+      setSelectedRoomThreadId(roomThreads[0].thread_id);
+    }
+  }, [roomThreads, selectedRoomThreadId]);
+
+  useEffect(() => {
+    if (!settings.gateway_url.trim() || !tokenConfigured) {
+      return;
+    }
+    queueAgentMailRefresh(settings);
+  }, [
+    mailboxFilter,
+    mailPrincipalOverride,
+    mailSearch,
+    queueAgentMailRefresh,
+    settings,
+    tokenConfigured,
+  ]);
+
+  useEffect(() => {
+    if (!selectedMailThreadId || !settings.gateway_url.trim() || !tokenConfigured) {
+      return;
+    }
+    const requestSeq = ++mailThreadLoadSeq.current;
+    void loadMailThreadById(selectedMailThreadId, settings)
+      .then(({ detail, messages }) => {
+        if (requestSeq !== mailThreadLoadSeq.current) {
+          return;
+        }
+        setMailThreadDetail(detail);
+        setMailMessages(messages);
+      })
+      .catch((error: unknown) => {
+        if (requestSeq !== mailThreadLoadSeq.current) {
+          return;
+        }
+        setNotice({
+          tone: "error",
+          message: `Mail thread load failed: ${String(error)}`,
+        });
+      });
+    return () => {
+      mailThreadLoadSeq.current += 1;
+    };
+  }, [loadMailThreadById, selectedMailThreadId, settings, tokenConfigured]);
+
+  useEffect(() => {
+    if (!selectedRoomThreadId || !settings.gateway_url.trim() || !tokenConfigured) {
+      return;
+    }
+    const requestSeq = ++roomThreadLoadSeq.current;
+    void loadMailThreadById(selectedRoomThreadId, settings)
+      .then(({ detail, messages }) => {
+        if (requestSeq !== roomThreadLoadSeq.current) {
+          return;
+        }
+        setRoomThreadDetail(detail);
+        setRoomMessages(messages);
+      })
+      .catch((error: unknown) => {
+        if (requestSeq !== roomThreadLoadSeq.current) {
+          return;
+        }
+        setNotice({
+          tone: "error",
+          message: `Room thread load failed: ${String(error)}`,
+        });
+      });
+    return () => {
+      roomThreadLoadSeq.current += 1;
+    };
+  }, [loadMailThreadById, selectedRoomThreadId, settings, tokenConfigured]);
+
+  useEffect(() => {
     void isGatewayTokenConfigured().then(setTokenConfigured);
   }, []);
 
@@ -950,14 +1212,17 @@ export default function App() {
           return [next, ...previous].slice(0, 400);
         });
 
+        const isAgentMailEvent = frame.event_type.startsWith("agent_mail.");
         if (
           frame.event_type.startsWith("job.") ||
           frame.event_type.startsWith("approval.") ||
           frame.event_type.startsWith("channel.") ||
-          frame.event_type.startsWith("extension.") ||
-          frame.event_type.startsWith("agent_mail.")
+          frame.event_type.startsWith("extension.")
         ) {
           queueMissionControlRefresh(settings);
+        }
+        if (isAgentMailEvent) {
+          queueAgentMailRefresh(settings);
         }
 
         if (!activeBoardId) {
@@ -1052,6 +1317,7 @@ export default function App() {
     };
   }, [
     activeBoardId,
+    queueAgentMailRefresh,
     queueBoardRefresh,
     queueMissionControlRefresh,
     settings,
@@ -1556,6 +1822,317 @@ export default function App() {
     }
   };
 
+  const createMailThread = async (kind: "direct" | "room") => {
+    const subject = (kind === "room" ? newRoomName : newMailThreadSubject).trim();
+    const participants = parsePrincipalCsv(
+      kind === "room" ? newRoomParticipants : newMailThreadParticipants
+    );
+    if (!subject) {
+      setNotice({
+        tone: "error",
+        message: kind === "room" ? "Room name is required." : "Thread subject is required.",
+      });
+      return;
+    }
+    try {
+      const created = await createAgentMailThread(settings, {
+        kind,
+        subject,
+        participants,
+      });
+      if (kind === "room") {
+        setNewRoomName("");
+        setNewRoomParticipants("");
+        setSelectedRoomThreadId(created.thread.thread_id);
+      } else {
+        setNewMailThreadSubject("");
+        setNewMailThreadParticipants("");
+        setSelectedMailThreadId(created.thread.thread_id);
+      }
+      setNotice({
+        tone: "info",
+        message: `${kind === "room" ? "Room" : "Thread"} created: ${created.thread.subject}`,
+      });
+      queueAgentMailRefresh(settings);
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message: `${kind === "room" ? "Room" : "Thread"} create failed: ${String(error)}`,
+      });
+    }
+  };
+
+  const sendThreadMessage = async (
+    threadId: string,
+    options: {
+      body: string;
+      recipientsCsv: string;
+      senderPrincipal: string;
+      files: File[];
+      context: "mail" | "chat";
+    }
+  ) => {
+    const body = options.body.trim();
+    if (!body) {
+      setNotice({ tone: "error", message: "Message body cannot be empty." });
+      return;
+    }
+    try {
+      const sent = await sendAgentMailMessage(settings, threadId, {
+        body_text: body,
+        sender_principal: options.senderPrincipal.trim() || undefined,
+        sender_kind: "agent",
+        recipients: parsePrincipalCsv(options.recipientsCsv),
+      });
+      const uploadResults = await Promise.allSettled(
+        options.files.map(async (file) => {
+          const contentBase64 = await fileToBase64(file);
+          await uploadAgentMailAttachment(settings, sent.message.message_id, {
+            filename: file.name,
+            mime: file.type || "application/octet-stream",
+            content_base64: contentBase64,
+          });
+        })
+      );
+      const failedUploads = uploadResults.filter((result) => result.status === "rejected").length;
+      if (options.context === "mail") {
+        setMailComposeBody("");
+        setMailComposeRecipients("");
+        setMailAttachmentFiles([]);
+      } else {
+        setChatComposeBody("");
+        setChatComposeRecipients("");
+        setChatAttachmentFiles([]);
+      }
+      setNotice({
+        tone: failedUploads > 0 ? "error" : "info",
+        message:
+          failedUploads > 0
+            ? `Message sent, but ${failedUploads} attachment(s) failed to upload.`
+            : options.files.length > 0
+              ? "Message + attachments sent."
+              : "Message sent.",
+      });
+      queueAgentMailRefresh(settings);
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message: `Send failed: ${String(error)}`,
+      });
+    }
+  };
+
+  const acknowledgeMessage = async (messageId: string, recipientPrincipal?: string) => {
+    try {
+      await ackAgentMailMessage(settings, messageId, recipientPrincipal?.trim() || undefined);
+      setNotice({
+        tone: "info",
+        message: "Message acknowledged.",
+      });
+      queueAgentMailRefresh(settings);
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message: `Acknowledge failed: ${String(error)}`,
+      });
+    }
+  };
+
+  const acknowledgeRoomUnread = async () => {
+    const principal = mailPrincipalOverride.trim();
+    if (!principal) {
+      setNotice({
+        tone: "error",
+        message: "Principal override is required to bulk-ack a room.",
+      });
+      return;
+    }
+    const pending = roomMessages.filter((message) =>
+      message.recipients.some(
+        (recipient) =>
+          recipient.recipient_principal === principal && recipient.acked_at === null
+      )
+    );
+    if (pending.length === 0) {
+      setNotice({
+        tone: "info",
+        message: "No unread room messages for that principal.",
+      });
+      return;
+    }
+    try {
+      const results = await Promise.allSettled(
+        pending.map((message) =>
+          ackAgentMailMessage(settings, message.message_id, principal)
+        )
+      );
+      const failedCount = results.filter((result) => result.status === "rejected").length;
+      const successCount = pending.length - failedCount;
+      setNotice({
+        tone: failedCount > 0 ? "error" : "info",
+        message:
+          failedCount > 0
+            ? `Acknowledged ${successCount}/${pending.length} room message(s).`
+            : `Acknowledged ${pending.length} room message(s).`,
+      });
+      if (successCount > 0) {
+        queueAgentMailRefresh(settings);
+      }
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message: `Bulk acknowledge failed: ${String(error)}`,
+      });
+    }
+  };
+
+  const postRoomReaction = async (emoji: string) => {
+    if (!selectedRoomThreadId) {
+      return;
+    }
+    await sendThreadMessage(selectedRoomThreadId, {
+      body: `reaction ${emoji}`,
+      recipientsCsv: "",
+      senderPrincipal: chatComposeSender,
+      files: [],
+      context: "chat",
+    });
+  };
+
+  const summarizeSelectedMailThread = async () => {
+    if (!mailThreadDetail || mailMessages.length === 0) {
+      setNotice({
+        tone: "error",
+        message: "Select a populated thread before summarizing.",
+      });
+      return;
+    }
+    try {
+      const summaryBody = buildThreadSummaryNote(mailThreadDetail, mailMessages);
+      const created = await createMemoryNote(settings, {
+        title: `Agent Mail Summary: ${truncateText(mailThreadDetail.thread.subject, 80)}`,
+        body: summaryBody,
+        tags: ["agent_mail", "mission_control", "thread_summary"],
+      });
+      setNotice({
+        tone: "info",
+        message: `Thread summary stored as note ${created.note.note_id}.`,
+      });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message: `Summarize failed: ${String(error)}`,
+      });
+    }
+  };
+
+  const downloadMailAttachment = async (
+    messageId: string,
+    attachmentId: string,
+    filename: string
+  ) => {
+    try {
+      const blob = await fetchAgentMailAttachmentBlob(settings, messageId, attachmentId);
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message: `Attachment download failed: ${String(error)}`,
+      });
+    }
+  };
+
+  const createFileLease = async () => {
+    const ttl = Number(leaseTtlMs);
+    if (!Number.isFinite(ttl) || ttl <= 0 || !Number.isInteger(ttl)) {
+      setNotice({
+        tone: "error",
+        message: "Lease TTL must be a positive integer number of milliseconds.",
+      });
+      return;
+    }
+    const globPattern = leaseGlobPattern.trim();
+    if (!globPattern) {
+      setNotice({
+        tone: "error",
+        message: "Lease glob pattern is required.",
+      });
+      return;
+    }
+    try {
+      const created = await createAgentMailFileLease(settings, {
+        holder_principal: leaseHolderPrincipal.trim() || undefined,
+        glob_pattern: globPattern,
+        exclusive: leaseExclusive,
+        ttl_ms: ttl,
+        note: leaseNote.trim() || undefined,
+      });
+      setNotice({
+        tone: "info",
+        message: `Lease created: ${created.lease.glob_pattern}`,
+      });
+      setLeaseNote("");
+      queueAgentMailRefresh(settings);
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message: `Lease create failed: ${String(error)}`,
+      });
+    }
+  };
+
+  const releaseFileLease = async (leaseId: string) => {
+    try {
+      await releaseAgentMailFileLease(
+        settings,
+        leaseId,
+        leaseHolderPrincipal.trim() || undefined
+      );
+      setNotice({
+        tone: "info",
+        message: "Lease released.",
+      });
+      queueAgentMailRefresh(settings);
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message: `Lease release failed: ${String(error)}`,
+      });
+    }
+  };
+
+  const reserveSelectedRoomWorkspace = async () => {
+    if (!selectedRoomThreadId) {
+      return;
+    }
+    try {
+      await createAgentMailFileLease(settings, {
+        holder_principal: leaseHolderPrincipal.trim() || undefined,
+        glob_pattern: `chatrooms/${selectedRoomThreadId}/**`,
+        exclusive: true,
+        ttl_ms: 900_000,
+        note: "room moderation reserve",
+      });
+      setNotice({
+        tone: "info",
+        message: "Room workspace lease reserved for 15m.",
+      });
+      queueAgentMailRefresh(settings);
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message: `Room lease reserve failed: ${String(error)}`,
+      });
+    }
+  };
+
   const visibleEvents = useMemo(() => {
     if (showRawEvents) {
       return eventStream;
@@ -1607,6 +2184,9 @@ export default function App() {
       }
       if (missionControlRefreshTimer.current) {
         globalThis.clearTimeout(missionControlRefreshTimer.current);
+      }
+      if (agentMailRefreshTimer.current) {
+        globalThis.clearTimeout(agentMailRefreshTimer.current);
       }
       if (selectedPreviewUrl) {
         URL.revokeObjectURL(selectedPreviewUrl);
@@ -2019,6 +2599,20 @@ export default function App() {
           onClick={() => setActiveTab("events")}
         >
           Event Stream
+        </button>
+        <button
+          type="button"
+          className={clsx("mc-tab", activeTab === "mail" && "mc-tab-active")}
+          onClick={() => setActiveTab("mail")}
+        >
+          Agent Mail
+        </button>
+        <button
+          type="button"
+          className={clsx("mc-tab", activeTab === "chatrooms" && "mc-tab-active")}
+          onClick={() => setActiveTab("chatrooms")}
+        >
+          Chatrooms
         </button>
         <button
           type="button"
@@ -2526,6 +3120,491 @@ export default function App() {
               {visibleEvents.length === 0 ? (
                 <p className="mc-empty-events">No events captured yet.</p>
               ) : null}
+            </div>
+          </article>
+        </section>
+      ) : null}
+
+      {activeTab === "mail" ? (
+        <section className="mc-mail-grid">
+          <article className="mc-surface mc-mail-sidebar">
+            <header className="mc-surface-header">
+              <h2>Mail Threads</h2>
+              <button type="button" onClick={() => queueAgentMailRefresh(settings)}>
+                Refresh
+              </button>
+            </header>
+            <div className="mc-mail-filters">
+              <label>
+                Mailbox
+                <select
+                  value={mailboxFilter}
+                  onChange={(event) =>
+                    setMailboxFilter(event.target.value as "all" | "inbox" | "outbox")
+                  }
+                >
+                  <option value="inbox">inbox</option>
+                  <option value="outbox">outbox</option>
+                  <option value="all">all</option>
+                </select>
+              </label>
+              <label>
+                Principal Override
+                <input
+                  value={mailPrincipalOverride}
+                  onChange={(event) => setMailPrincipalOverride(event.target.value)}
+                  placeholder="optional principal id"
+                />
+              </label>
+              <label>
+                Search
+                <input
+                  value={mailSearch}
+                  onChange={(event) => setMailSearch(event.target.value)}
+                  placeholder="subject/body contains..."
+                />
+              </label>
+            </div>
+            <div className="mc-mail-create-thread">
+              <h3>New Direct Thread</h3>
+              <input
+                value={newMailThreadSubject}
+                onChange={(event) => setNewMailThreadSubject(event.target.value)}
+                placeholder="Thread subject"
+              />
+              <input
+                value={newMailThreadParticipants}
+                onChange={(event) => setNewMailThreadParticipants(event.target.value)}
+                placeholder="participants csv (lyra, claude)"
+              />
+              <button type="button" onClick={() => void createMailThread("direct")}>
+                Create Thread
+              </button>
+            </div>
+            <div className="mc-mail-thread-list">
+              {mailThreads.map((thread) => (
+                <button
+                  type="button"
+                  key={thread.thread_id}
+                  className={clsx(
+                    "mc-mail-thread-item",
+                    selectedMailThreadId === thread.thread_id && "active"
+                  )}
+                  onClick={() => setSelectedMailThreadId(thread.thread_id)}
+                >
+                  <div className="mc-mail-thread-head">
+                    <strong>{thread.subject}</strong>
+                    {thread.unread_count > 0 ? (
+                      <span className="chip chip-error">{thread.unread_count} unread</span>
+                    ) : null}
+                  </div>
+                  <p>{thread.latest_message_preview ?? "No messages yet."}</p>
+                  <small>
+                    {thread.latest_sender_principal ?? "n/a"} •{" "}
+                    {formatDateTime(thread.latest_message_at)}
+                  </small>
+                </button>
+              ))}
+              {mailThreads.length === 0 ? (
+                <div className="mc-empty-drawer">No direct threads for current filters.</div>
+              ) : null}
+            </div>
+          </article>
+
+          <article className="mc-surface mc-mail-thread-view">
+            <header className="mc-surface-header">
+              <h2>{mailThreadDetail?.thread.subject ?? "Select a thread"}</h2>
+              <p>{mailMessages.length} message(s)</p>
+            </header>
+            <div className="mc-mail-message-stream">
+              {mailMessages.map((message) => (
+                <article key={message.message_id} className="mc-mail-message">
+                  <div className="mc-mail-message-head">
+                    <div>
+                      <strong>{message.sender_principal}</strong>
+                      <span>{formatDateTime(message.created_at)}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void acknowledgeMessage(
+                          message.message_id,
+                          mailPrincipalOverride || undefined
+                        )
+                      }
+                    >
+                      Ack
+                    </button>
+                  </div>
+                  <pre>{message.body_text}</pre>
+                  <div className="mc-mail-message-meta">
+                    <span>
+                      to {message.recipients.map((recipient) => recipient.recipient_principal).join(", ")}
+                    </span>
+                    <span>
+                      {message.recipients.filter((recipient) => recipient.acked_at !== null).length}/
+                      {message.recipients.length} acked
+                    </span>
+                  </div>
+                  {message.attachments.length > 0 ? (
+                    <div className="mc-mail-attachment-row">
+                      {message.attachments.map((attachment) => (
+                        <button
+                          type="button"
+                          key={attachment.attachment_id}
+                          onClick={() =>
+                            void downloadMailAttachment(
+                              message.message_id,
+                              attachment.attachment_id,
+                              attachment.filename
+                            )
+                          }
+                        >
+                          {attachment.filename} ({formatBytes(attachment.bytes)})
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </article>
+              ))}
+              {mailMessages.length === 0 ? (
+                <div className="mc-empty-drawer">No messages in this thread yet.</div>
+              ) : null}
+            </div>
+          </article>
+
+          <article className="mc-surface mc-mail-compose-panel">
+            <header className="mc-surface-header">
+              <h2>Compose + Leases</h2>
+              <p>Dispatch, summarize, and coordinate safely</p>
+            </header>
+            <div className="mc-mail-compose">
+              <label>
+                Sender Principal
+                <input
+                  value={mailComposeSender}
+                  onChange={(event) => setMailComposeSender(event.target.value)}
+                  placeholder="optional sender override"
+                />
+              </label>
+              <label>
+                Recipients (CSV)
+                <input
+                  value={mailComposeRecipients}
+                  onChange={(event) => setMailComposeRecipients(event.target.value)}
+                  placeholder="blank = thread participants"
+                />
+              </label>
+              <label>
+                Body
+                <textarea
+                  value={mailComposeBody}
+                  onChange={(event) => setMailComposeBody(event.target.value)}
+                  placeholder="Write a clear handoff message..."
+                />
+              </label>
+              <label className="upload-pill">
+                <input
+                  type="file"
+                  multiple
+                  onChange={(event) =>
+                    setMailAttachmentFiles(Array.from(event.target.files ?? []))
+                  }
+                />
+                Attach files ({mailAttachmentFiles.length})
+              </label>
+              <div className="mc-inline-actions">
+                <button
+                  type="button"
+                  onClick={() =>
+                    selectedMailThreadId
+                      ? void sendThreadMessage(selectedMailThreadId, {
+                          body: mailComposeBody,
+                          recipientsCsv: mailComposeRecipients,
+                          senderPrincipal: mailComposeSender,
+                          files: mailAttachmentFiles,
+                          context: "mail",
+                        })
+                      : undefined
+                  }
+                  disabled={!selectedMailThreadId}
+                >
+                  Send
+                </button>
+                <button type="button" onClick={() => void summarizeSelectedMailThread()}>
+                  Summarize to Note
+                </button>
+              </div>
+            </div>
+            <section className="mc-mail-lease-panel">
+              <h3>Advisory File Leases</h3>
+              <div className="mc-mail-lease-form">
+                <input
+                  value={leaseHolderPrincipal}
+                  onChange={(event) => setLeaseHolderPrincipal(event.target.value)}
+                  placeholder="holder principal (optional)"
+                />
+                <input
+                  value={leaseGlobPattern}
+                  onChange={(event) => setLeaseGlobPattern(event.target.value)}
+                  placeholder="glob pattern"
+                />
+                <input
+                  value={leaseTtlMs}
+                  onChange={(event) => setLeaseTtlMs(event.target.value)}
+                  placeholder="ttl ms"
+                />
+                <input
+                  value={leaseNote}
+                  onChange={(event) => setLeaseNote(event.target.value)}
+                  placeholder="note (optional)"
+                />
+                <label className="mc-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={leaseExclusive}
+                    onChange={(event) => setLeaseExclusive(event.target.checked)}
+                  />
+                  Exclusive lock
+                </label>
+                <button type="button" onClick={() => void createFileLease()}>
+                  Reserve
+                </button>
+              </div>
+              <ul className="mc-mail-lease-list">
+                {leases.map((lease) => (
+                  <li key={lease.lease_id}>
+                    <div>
+                      <strong>{lease.glob_pattern}</strong>
+                      <p>
+                        {lease.holder_principal} • expires {formatDateTime(lease.expires_at)}
+                      </p>
+                    </div>
+                    <button type="button" onClick={() => void releaseFileLease(lease.lease_id)}>
+                      Release
+                    </button>
+                  </li>
+                ))}
+                {leases.length === 0 ? <li>No active leases.</li> : null}
+              </ul>
+            </section>
+          </article>
+        </section>
+      ) : null}
+
+      {activeTab === "chatrooms" ? (
+        <section className="mc-mail-grid">
+          <article className="mc-surface mc-mail-sidebar">
+            <header className="mc-surface-header">
+              <h2>Rooms</h2>
+              <button type="button" onClick={() => queueAgentMailRefresh(settings)}>
+                Refresh
+              </button>
+            </header>
+            <div className="mc-mail-create-thread">
+              <h3>Create Room</h3>
+              <input
+                value={newRoomName}
+                onChange={(event) => setNewRoomName(event.target.value)}
+                placeholder="room name"
+              />
+              <input
+                value={newRoomParticipants}
+                onChange={(event) => setNewRoomParticipants(event.target.value)}
+                placeholder="participants csv (lyra, claude)"
+              />
+              <button type="button" onClick={() => void createMailThread("room")}>
+                Create Room
+              </button>
+            </div>
+            <div className="mc-mail-thread-list">
+              {roomThreads.map((thread) => (
+                <button
+                  type="button"
+                  key={thread.thread_id}
+                  className={clsx(
+                    "mc-mail-thread-item",
+                    selectedRoomThreadId === thread.thread_id && "active"
+                  )}
+                  onClick={() => setSelectedRoomThreadId(thread.thread_id)}
+                >
+                  <div className="mc-mail-thread-head">
+                    <strong>{thread.subject}</strong>
+                    <span className="chip">{thread.participant_count} members</span>
+                  </div>
+                  <p>{thread.latest_message_preview ?? "No room messages yet."}</p>
+                  <small>{formatDateTime(thread.latest_message_at)}</small>
+                </button>
+              ))}
+              {roomThreads.length === 0 ? (
+                <div className="mc-empty-drawer">No rooms found.</div>
+              ) : null}
+            </div>
+          </article>
+
+          <article className="mc-surface mc-mail-thread-view">
+            <header className="mc-surface-header">
+              <h2>{roomThreadDetail?.thread.subject ?? "Select a room"}</h2>
+              <div className="mc-inline-actions">
+                <button type="button" onClick={() => void postRoomReaction(":+1:")}>
+                  +1
+                </button>
+                <button type="button" onClick={() => void postRoomReaction(":eyes:")}>
+                  eyes
+                </button>
+                <button type="button" onClick={() => void postRoomReaction(":white_check_mark:")}>
+                  done
+                </button>
+              </div>
+            </header>
+            <div className="mc-mail-message-stream">
+              {roomMessages.map((message) => (
+                <article key={message.message_id} className="mc-mail-message">
+                  <div className="mc-mail-message-head">
+                    <div>
+                      <strong>{message.sender_principal}</strong>
+                      <span>{formatDateTime(message.created_at)}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void acknowledgeMessage(
+                          message.message_id,
+                          mailPrincipalOverride || undefined
+                        )
+                      }
+                    >
+                      Ack
+                    </button>
+                  </div>
+                  <pre>{message.body_text}</pre>
+                  {message.attachments.length > 0 ? (
+                    <div className="mc-mail-attachment-row">
+                      {message.attachments.map((attachment) => (
+                        <button
+                          type="button"
+                          key={attachment.attachment_id}
+                          onClick={() =>
+                            void downloadMailAttachment(
+                              message.message_id,
+                              attachment.attachment_id,
+                              attachment.filename
+                            )
+                          }
+                        >
+                          {attachment.filename}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </article>
+              ))}
+              {roomMessages.length === 0 ? (
+                <div className="mc-empty-drawer">No messages in this room yet.</div>
+              ) : null}
+            </div>
+            <div className="mc-mail-compose">
+              <label>
+                Sender Principal
+                <input
+                  value={chatComposeSender}
+                  onChange={(event) => setChatComposeSender(event.target.value)}
+                  placeholder="optional sender override"
+                />
+              </label>
+              <label>
+                Mention recipients (CSV)
+                <input
+                  value={chatComposeRecipients}
+                  onChange={(event) => setChatComposeRecipients(event.target.value)}
+                  placeholder="optional explicit recipients"
+                />
+              </label>
+              <label>
+                Message
+                <textarea
+                  value={chatComposeBody}
+                  onChange={(event) => setChatComposeBody(event.target.value)}
+                  placeholder="Type to room..."
+                />
+              </label>
+              <label className="upload-pill">
+                <input
+                  type="file"
+                  multiple
+                  onChange={(event) =>
+                    setChatAttachmentFiles(Array.from(event.target.files ?? []))
+                  }
+                />
+                Attach files ({chatAttachmentFiles.length})
+              </label>
+              <button
+                type="button"
+                onClick={() =>
+                  selectedRoomThreadId
+                    ? void sendThreadMessage(selectedRoomThreadId, {
+                        body: chatComposeBody,
+                        recipientsCsv: chatComposeRecipients,
+                        senderPrincipal: chatComposeSender,
+                        files: chatAttachmentFiles,
+                        context: "chat",
+                      })
+                    : undefined
+                }
+                disabled={!selectedRoomThreadId}
+              >
+                Send to Room
+              </button>
+            </div>
+          </article>
+
+          <article className="mc-surface mc-mail-compose-panel">
+            <header className="mc-surface-header">
+              <h2>Room Moderation</h2>
+              <p>Guardrails and audit-friendly controls</p>
+            </header>
+            <div className="mc-chatroom-side">
+              <section>
+                <h3>Participants</h3>
+                <div className="mc-chip-cloud">
+                  {(roomThreadDetail?.participants ?? []).map((participant) => (
+                    <span key={participant.principal_id} className="chip">
+                      {participant.principal_id}
+                    </span>
+                  ))}
+                  {(roomThreadDetail?.participants ?? []).length === 0 ? (
+                    <span className="chip">no participants loaded</span>
+                  ) : null}
+                </div>
+              </section>
+              <section>
+                <h3>Moderation Actions</h3>
+                <div className="mc-inline-actions">
+                  <button type="button" onClick={() => void acknowledgeRoomUnread()}>
+                    Ack All Unread (principal)
+                  </button>
+                  <button type="button" onClick={() => void reserveSelectedRoomWorkspace()}>
+                    Reserve Room Workspace
+                  </button>
+                </div>
+              </section>
+              <section>
+                <h3>Active Leases</h3>
+                <ul className="mc-mail-lease-list">
+                  {leases.map((lease) => (
+                    <li key={lease.lease_id}>
+                      <div>
+                        <strong>{lease.glob_pattern}</strong>
+                        <p>{lease.exclusive ? "exclusive" : "shared"}</p>
+                      </div>
+                      <button type="button" onClick={() => void releaseFileLease(lease.lease_id)}>
+                        Release
+                      </button>
+                    </li>
+                  ))}
+                  {leases.length === 0 ? <li>No active leases.</li> : null}
+                </ul>
+              </section>
             </div>
           </article>
         </section>

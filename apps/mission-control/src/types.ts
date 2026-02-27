@@ -212,6 +212,23 @@ export interface ResolveApprovalResponse {
   approval: ApprovalResponse;
 }
 
+export interface MemoryNoteResponse {
+  note_id: string;
+  title: string | null;
+  body: string;
+  tags: string[];
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ListMemoryNotesResponse {
+  items: MemoryNoteResponse[];
+}
+
+export interface CreateMemoryNoteResponse {
+  note: MemoryNoteResponse;
+}
+
 export interface ChannelRuntimeAdapterStatusResponse {
   provider: string;
   lifecycle_state: string;
@@ -398,4 +415,110 @@ export interface UpdatePluginResponse {
   plugin: PluginManifestResponse;
   rollback_available: boolean;
   hook_policy_denials: number;
+}
+
+export interface AgentMailThreadSummaryResponse {
+  thread_id: string;
+  kind: string;
+  subject: string;
+  created_by_principal: string;
+  participant_count: number;
+  message_count: number;
+  latest_message_at: number | null;
+  latest_message_preview: string | null;
+  latest_sender_principal: string | null;
+  unread_count: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface AgentMailThreadParticipantResponse {
+  principal_id: string;
+  role: string;
+  joined_at: number;
+  last_read_at: number | null;
+  muted: boolean;
+}
+
+export interface AgentMailMessageRecipientResponse {
+  recipient_principal: string;
+  delivered_at: number;
+  acked_at: number | null;
+}
+
+export interface AgentMailAttachmentResponse {
+  attachment_id: string;
+  message_id: string;
+  filename: string;
+  mime: string;
+  sha256: string;
+  bytes: number;
+  created_at: number;
+}
+
+export interface AgentMailMessageResponse {
+  message_id: string;
+  thread_id: string;
+  sender_principal: string;
+  sender_kind: string;
+  body_text: string;
+  metadata_json: string | null;
+  created_at: number;
+  recipients: AgentMailMessageRecipientResponse[];
+  attachments: AgentMailAttachmentResponse[];
+}
+
+export interface AgentMailThreadDetailResponse {
+  thread: AgentMailThreadSummaryResponse;
+  participants: AgentMailThreadParticipantResponse[];
+}
+
+export interface ListAgentMailThreadsResponse {
+  items: AgentMailThreadSummaryResponse[];
+}
+
+export interface ListAgentMailMessagesResponse {
+  items: AgentMailMessageResponse[];
+}
+
+export interface CreateAgentMailThreadResponse {
+  thread: AgentMailThreadSummaryResponse;
+}
+
+export interface SendAgentMailMessageResponse {
+  message: AgentMailMessageResponse;
+}
+
+export interface AckAgentMailMessageResponse {
+  message_id: string;
+  recipient_principal: string;
+  acked_at: number | null;
+}
+
+export interface UploadAgentMailAttachmentResponse {
+  attachment: AgentMailAttachmentResponse;
+}
+
+export interface AgentMailFileLeaseResponse {
+  lease_id: string;
+  holder_principal: string;
+  glob_pattern: string;
+  exclusive: boolean;
+  ttl_ms: number;
+  note: string | null;
+  created_at: number;
+  expires_at: number;
+  released_at: number | null;
+}
+
+export interface ListAgentMailFileLeasesResponse {
+  items: AgentMailFileLeaseResponse[];
+}
+
+export interface CreateAgentMailFileLeaseResponse {
+  lease: AgentMailFileLeaseResponse;
+}
+
+export interface ReleaseAgentMailFileLeaseResponse {
+  lease: AgentMailFileLeaseResponse;
 }

@@ -279,11 +279,11 @@ Execution checklist derived from `PLAN.md`. IDs are stable and must be used by `
 
 ## Phase Z - Agent Mail P3 (PR-E)
 
-- [ ] `Z1` `AM-BE-001` Add agent-mail persistence/search schema + storage APIs with attachment policy controls.
-- [ ] `Z2` `AM-BE-002..004` Add agent-mail HTTP/WS APIs (threads/messages/ack/chatrooms) with guardrails/rate limits/audit trails.
-- [ ] `Z3` `AM-APP-001` Implement Mission Control Mail page (inbox/outbox/thread/compose/search/summarize).
-- [ ] `Z4` `AM-APP-002` Implement Mission Control Chatrooms page with realtime stream + moderation controls.
-- [ ] `Z5` `AM-OPT-001` Implement optional advisory file leases (TTL/exclusive/conflict visibility).
+- [x] `Z1` `AM-BE-001` Add agent-mail persistence/search schema + storage APIs with attachment policy controls.
+- [x] `Z2` `AM-BE-002..004` Add agent-mail HTTP/WS APIs (threads/messages/ack/chatrooms) with guardrails/rate limits/audit trails.
+- [x] `Z3` `AM-APP-001` Implement Mission Control Mail page (inbox/outbox/thread/compose/search/summarize).
+- [x] `Z4` `AM-APP-002` Implement Mission Control Chatrooms page with realtime stream + moderation controls.
+- [x] `Z5` `AM-OPT-001` Implement optional advisory file leases (TTL/exclusive/conflict visibility).
 - [ ] `Z6` Run PR-E regression + benchmark + security gates and complete PR workflow (open, CR loop, merge, post-merge checkpoint).
 
 ## Phase AA - Agent Mail MCP Facade (PR-F Optional)
