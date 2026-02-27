@@ -231,3 +231,24 @@ Execution checklist derived from `PLAN.md`. IDs are stable and must be used by `
 - [x] `T13` `MC-MNO-013` Add explicit MNO pipeline hook mode (`memory.pipeline.hook`) and operator runbook docs.
 - [x] `T14` `MC-MNO-014` Publish soak-readiness checklist and rollback plan docs for multi-day MNO validation.
 - [x] `T15` Full regression + benchmark gates for MC-MNO track.
+
+## Phase U - Mission Control v3 Pipeline-First (MC3 P0)
+
+- [x] `U1` `MC3-BE-001` Add Agents API surfaces + bootstrap seed for `lyra` and `claude`.
+- [x] `U2` `MC3-BE-002` Add boards/columns/cards schema + CRUD/move/order APIs with built-in Tasks and Content boards.
+- [x] `U3` `MC3-BE-003` Add card asset upload/attachment contract with safe path handling and size/type caps.
+- [x] `U4` `MC3-BE-004` Emit realtime board/card change events over websocket.
+- [x] `U5` `MC3-BE-005` Add card run hook (`card -> session -> run`) with persisted linkage metadata.
+- [x] `U6` `MC3-UI-001` Implement new Mission Control v3 shell/navigation (pipeline-first layout, dual-agent indicators).
+- [x] `U7` `MC3-UI-002` Implement Tasks board UI (create/edit/move/assign/realtime refresh).
+- [x] `U8` `MC3-UI-003` Implement Content board UI (pipeline stages + script/asset handling).
+- [x] `U9` `MC3-UI-004..007` Implement Calendar, Memory, Team, and Approvals pages for v3 shell.
+- [x] `U10` Run full regression + benchmark gates for MC3 P0 and capture checkpoint evidence.
+
+## Phase V - Mission Control v3 Safe Automation (MC3 P1)
+
+- [x] `V1` `MC3-AUTO-001` Add per-column automation rules (disabled by default) with schedule, assigned agent, run caps, retry caps, and breaker window.
+- [x] `V2` `MC3-AUTO-001` Add operator controls (`run now`, pause/resume, quick disable) through API + GUI surfaces.
+- [x] `V3` `MC3-AUTO-002` Implement scripting->thumbnail automation job flow with card updates and attachment writeback.
+- [x] `V4` `MC3-AUTO-002` Enforce no-runaway guardrails (max attempts/day, breaker, audit trail, explicit stop reasons).
+- [x] `V5` Extend regression/e2e/benchmark coverage for automation flows and verify existing suites remain green.
