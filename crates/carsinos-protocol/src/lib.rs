@@ -1,6 +1,10 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+pub const JOB_MODE_HEARTBEAT_RUN: &str = "heartbeat.run";
+pub const HEARTBEAT_OUTPUT_OK: &str = "HEARTBEAT_OK";
+pub const HEARTBEAT_OUTPUT_ALERT_PREFIX: &str = "ALERT:";
+
 #[derive(Debug, Clone, Serialize)]
 pub struct HealthResponse {
     pub ok: bool,
@@ -18,6 +22,66 @@ pub struct StatusResponse {
     pub uptime_ms: u64,
     pub db_path: String,
     pub attachments_path: String,
+    pub trust_contract_lock: RuntimeTrustContractLockSummaryResponse,
+    pub scheduler_lock: SchedulerLockStateResponse,
+    pub autonomy_guardrails: RuntimeAutonomyGuardrailsConfig,
+    pub numquam: NumquamIntegrationStatusResponse,
+    pub open_circuit_breakers: u64,
+    pub circuit_breakers: Vec<CircuitBreakerStateResponse>,
+    pub open_plugin_breakers: u64,
+    pub plugin_breakers: Vec<PluginRuntimeStatusResponse>,
+    pub top_stop_reasons: Vec<FailureReasonCountResponse>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RuntimeTrustContractLockSummaryResponse {
+    pub enforced: bool,
+    pub lock_path: String,
+    pub trust_hash: String,
+    pub locked_at: i64,
+    pub drift_detected: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SchedulerLockStateResponse {
+    pub enabled: bool,
+    pub lock_path: String,
+    pub owner: String,
+    pub detail: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CircuitBreakerStateResponse {
+    pub scope: String,
+    pub target_id: String,
+    pub state: String,
+    pub consecutive_failures: i64,
+    pub cooldown_until: Option<i64>,
+    pub last_error_code: Option<String>,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FailureReasonCountResponse {
+    pub code: String,
+    pub count: u64,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct NumquamIntegrationStatusResponse {
+    pub enabled: bool,
+    pub transport: String,
+    pub health_status: String,
+    pub contract_version: Option<String>,
+    pub supported_schema_versions: Vec<String>,
+    pub degrade_mode: bool,
+    pub breaker_open: bool,
+    pub breaker_cooldown_until: Option<i64>,
+    pub breaker_consecutive_failures: i64,
+    pub required_operations_missing: Vec<String>,
+    pub last_check_at: Option<i64>,
+    pub last_error_code: Option<String>,
+    pub last_error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -37,6 +101,36 @@ pub struct MetricsResponse {
 #[derive(Debug, Clone, Deserialize)]
 pub struct ListProviderCapabilitiesQuery {
     pub provider: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListToolCapabilitiesQuery {
+    pub include_disabled: Option<bool>,
+    pub origin: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ToolCapabilitySandboxResponse {
+    pub allowed_roots: Vec<String>,
+    pub network_policy: String,
+    pub network_allowlist_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ToolCapabilityResponse {
+    pub tool_name: String,
+    pub origin: String,
+    pub risk_level: String,
+    pub requires_approval: bool,
+    pub timeout_ms: Option<u64>,
+    pub enabled: bool,
+    pub sandbox: ToolCapabilitySandboxResponse,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListToolCapabilitiesResponse {
+    pub contract_version: String,
+    pub items: Vec<ToolCapabilityResponse>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -69,12 +163,44 @@ pub struct PluginCapabilityResponse {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct PluginArtifactResponse {
+    pub exec_kind: String,
+    pub local_path: String,
+    pub command: String,
+    pub args: Vec<String>,
+    pub sha256: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PluginCompatibilityResponse {
+    pub min_gateway_version: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PluginPermissionsResponse {
+    pub allowed_roots: Vec<String>,
+    pub network_policy: String,
+    pub network_allowlist: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PluginLimitsResponse {
+    pub timeout_ms: Option<u64>,
+    pub max_output_chars: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct PluginManifestResponse {
+    pub schema_version: String,
     pub plugin_id: String,
     pub display_name: String,
     pub plugin_version: String,
     pub api_version: String,
     pub enabled: bool,
+    pub artifact: PluginArtifactResponse,
+    pub compatibility: PluginCompatibilityResponse,
+    pub permissions: PluginPermissionsResponse,
+    pub limits: PluginLimitsResponse,
     pub tools: Vec<PluginCapabilityResponse>,
     pub hooks: Vec<PluginCapabilityResponse>,
     pub providers: Vec<PluginCapabilityResponse>,
@@ -82,10 +208,67 @@ pub struct PluginManifestResponse {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct PluginRuntimeStatusResponse {
+    pub plugin_id: String,
+    pub enabled: bool,
+    pub faulted: bool,
+    pub disabled_until_ms: Option<i64>,
+    pub consecutive_failures: u64,
+    pub last_error_code: Option<String>,
+    pub last_error: Option<String>,
+    pub last_success_ms: Option<i64>,
+    pub last_invoked_ms: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListPluginRuntimeStatusResponse {
+    pub contract_version: String,
+    pub items: Vec<PluginRuntimeStatusResponse>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct ListPluginsResponse {
     pub contract_version: String,
     pub plugin_api_version: String,
     pub items: Vec<PluginManifestResponse>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct InstallPluginRequest {
+    pub manifest: serde_json::Value,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct InstallPluginResponse {
+    pub plugin: PluginManifestResponse,
+    pub rollback_available: bool,
+    pub hook_policy_denials: usize,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdatePluginRequest {
+    pub manifest: serde_json::Value,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UpdatePluginResponse {
+    pub plugin: PluginManifestResponse,
+    pub rollback_available: bool,
+    pub hook_policy_denials: usize,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RollbackPluginRequest {
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RollbackPluginResponse {
+    pub plugin: PluginManifestResponse,
+    pub rollback_available: bool,
+    pub hook_policy_denials: usize,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -293,6 +476,49 @@ pub struct SearchMemoryResult {
     pub title: Option<String>,
     pub snippet: String,
     pub score: f64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RunMemoryWhyRequest {
+    #[serde(default)]
+    pub evidence_ids: Vec<String>,
+    #[serde(default)]
+    pub expand_citations: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RunMemoryWhyResponse {
+    pub run_id: String,
+    pub session_id: String,
+    pub transport: Option<String>,
+    pub request_id: Option<String>,
+    pub request_id_source: Option<String>,
+    pub degrade_mode: bool,
+    pub warning_codes: Vec<String>,
+    pub reasons: Vec<serde_json::Value>,
+    pub evidence: Vec<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SyncMemorySourcesRequest {
+    #[serde(default)]
+    pub sources: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SyncMemorySourceItemResponse {
+    pub source_path: String,
+    pub note_id: Option<String>,
+    pub status: String,
+    pub detail: Option<String>,
+    pub synced_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SyncMemorySourcesResponse {
+    pub items: Vec<SyncMemorySourceItemResponse>,
+    pub synced: u64,
+    pub failed: u64,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -531,6 +757,12 @@ pub struct RuntimeProviderPolicyConfig {
     pub allow_consumer_oauth: bool,
     #[serde(default = "default_runtime_provider_kill_switch_scope")]
     pub kill_switch_scope: String,
+    #[serde(default)]
+    pub daily_token_budget: Option<u64>,
+    #[serde(default)]
+    pub daily_cost_usd_budget: Option<f64>,
+    #[serde(default)]
+    pub usd_per_1k_tokens: Option<f64>,
 }
 
 fn default_runtime_provider_enabled() -> bool {
@@ -597,6 +829,106 @@ fn default_runtime_telegram_webhook_mode() -> String {
     "long_poll".to_string()
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RuntimeExtensionsConfig {
+    #[serde(default)]
+    pub plugin_daemon_allowlist: Vec<String>,
+    #[serde(default)]
+    pub plugin_bundle_root: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeNumquamConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub integration_base_url: Option<String>,
+    #[serde(default = "default_runtime_numquam_transport")]
+    pub transport: String,
+    #[serde(default = "default_runtime_numquam_context_build_timeout_ms")]
+    pub context_build_timeout_ms: u64,
+    #[serde(default = "default_runtime_numquam_writeback_propose_timeout_ms")]
+    pub writeback_propose_timeout_ms: u64,
+    #[serde(default = "default_runtime_numquam_writeback_resolve_timeout_ms")]
+    pub writeback_resolve_timeout_ms: u64,
+    #[serde(default = "default_runtime_numquam_handshake_timeout_ms")]
+    pub handshake_timeout_ms: u64,
+    #[serde(default = "default_runtime_numquam_handshake_interval_ms")]
+    pub handshake_interval_ms: u64,
+    #[serde(default)]
+    pub token_secret_ref: Option<String>,
+    #[serde(default)]
+    pub principal_id: Option<String>,
+    #[serde(default)]
+    pub principal_display_name: Option<String>,
+}
+
+fn default_runtime_numquam_transport() -> String {
+    "dual".to_string()
+}
+
+fn default_runtime_numquam_context_build_timeout_ms() -> u64 {
+    4_000
+}
+
+fn default_runtime_numquam_writeback_propose_timeout_ms() -> u64 {
+    4_000
+}
+
+fn default_runtime_numquam_writeback_resolve_timeout_ms() -> u64 {
+    4_000
+}
+
+fn default_runtime_numquam_handshake_timeout_ms() -> u64 {
+    3_000
+}
+
+fn default_runtime_numquam_handshake_interval_ms() -> u64 {
+    30_000
+}
+
+impl Default for RuntimeNumquamConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            integration_base_url: None,
+            transport: default_runtime_numquam_transport(),
+            context_build_timeout_ms: default_runtime_numquam_context_build_timeout_ms(),
+            writeback_propose_timeout_ms: default_runtime_numquam_writeback_propose_timeout_ms(),
+            writeback_resolve_timeout_ms: default_runtime_numquam_writeback_resolve_timeout_ms(),
+            handshake_timeout_ms: default_runtime_numquam_handshake_timeout_ms(),
+            handshake_interval_ms: default_runtime_numquam_handshake_interval_ms(),
+            token_secret_ref: None,
+            principal_id: None,
+            principal_display_name: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeMemoryConfig {
+    #[serde(default = "default_runtime_memory_blend_mode")]
+    pub blend_mode: String,
+    #[serde(default)]
+    pub memory_md_sources: Vec<String>,
+    #[serde(default)]
+    pub numquam: RuntimeNumquamConfig,
+}
+
+fn default_runtime_memory_blend_mode() -> String {
+    "mno_primary".to_string()
+}
+
+impl Default for RuntimeMemoryConfig {
+    fn default() -> Self {
+        Self {
+            blend_mode: default_runtime_memory_blend_mode(),
+            memory_md_sources: Vec::new(),
+            numquam: RuntimeNumquamConfig::default(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeChannelsConfig {
     pub discord: RuntimeDiscordDeploymentConfig,
@@ -631,6 +963,67 @@ fn default_runtime_archive_retention_days() -> i64 {
     365
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeAutonomyGuardrailsConfig {
+    #[serde(default = "default_autonomy_max_run_ms")]
+    pub max_run_ms: u64,
+    #[serde(default = "default_autonomy_max_tool_calls_per_run")]
+    pub max_tool_calls_per_run: u64,
+    #[serde(default = "default_autonomy_max_provider_input_chars")]
+    pub max_provider_input_chars: u64,
+    #[serde(default = "default_autonomy_max_tool_output_chars_total")]
+    pub max_tool_output_chars_total: u64,
+    #[serde(default = "default_autonomy_max_provider_attempts")]
+    pub max_provider_attempts: u64,
+    #[serde(default = "default_autonomy_max_consecutive_failures_before_breaker")]
+    pub max_consecutive_failures_before_breaker: u64,
+    #[serde(default = "default_autonomy_heartbeat_max_run_ms")]
+    pub heartbeat_max_run_ms: u64,
+}
+
+impl Default for RuntimeAutonomyGuardrailsConfig {
+    fn default() -> Self {
+        Self {
+            max_run_ms: default_autonomy_max_run_ms(),
+            max_tool_calls_per_run: default_autonomy_max_tool_calls_per_run(),
+            max_provider_input_chars: default_autonomy_max_provider_input_chars(),
+            max_tool_output_chars_total: default_autonomy_max_tool_output_chars_total(),
+            max_provider_attempts: default_autonomy_max_provider_attempts(),
+            max_consecutive_failures_before_breaker:
+                default_autonomy_max_consecutive_failures_before_breaker(),
+            heartbeat_max_run_ms: default_autonomy_heartbeat_max_run_ms(),
+        }
+    }
+}
+
+fn default_autonomy_max_run_ms() -> u64 {
+    120_000
+}
+
+fn default_autonomy_max_tool_calls_per_run() -> u64 {
+    16
+}
+
+fn default_autonomy_max_provider_input_chars() -> u64 {
+    32_000
+}
+
+fn default_autonomy_max_tool_output_chars_total() -> u64 {
+    64_000
+}
+
+fn default_autonomy_max_provider_attempts() -> u64 {
+    3
+}
+
+fn default_autonomy_max_consecutive_failures_before_breaker() -> u64 {
+    3
+}
+
+fn default_autonomy_heartbeat_max_run_ms() -> u64 {
+    5_000
+}
+
 fn default_runtime_config_schema_version() -> String {
     "runtime.config.v1".to_string()
 }
@@ -642,7 +1035,13 @@ pub struct RuntimeConfigResponse {
     pub global: RuntimeGlobalConfig,
     pub providers: Vec<RuntimeProviderPolicyConfig>,
     pub channels: RuntimeChannelsConfig,
+    #[serde(default)]
+    pub memory: RuntimeMemoryConfig,
+    #[serde(default)]
+    pub extensions: RuntimeExtensionsConfig,
     pub security: RuntimeSecurityOpsConfig,
+    #[serde(default)]
+    pub autonomy_guardrails: RuntimeAutonomyGuardrailsConfig,
     pub updated_at: i64,
 }
 
@@ -656,7 +1055,10 @@ pub struct UpdateRuntimeConfigRequest {
     pub global: Option<RuntimeGlobalConfig>,
     pub providers: Option<Vec<RuntimeProviderPolicyConfig>>,
     pub channels: Option<RuntimeChannelsConfig>,
+    pub memory: Option<RuntimeMemoryConfig>,
+    pub extensions: Option<RuntimeExtensionsConfig>,
     pub security: Option<RuntimeSecurityOpsConfig>,
+    pub autonomy_guardrails: Option<RuntimeAutonomyGuardrailsConfig>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -673,6 +1075,31 @@ pub struct RollbackRuntimeConfigRequest {
 pub struct RollbackRuntimeConfigResponse {
     pub config: RuntimeConfigResponse,
     pub restored_from_updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RuntimeTrustContractLockResponse {
+    pub schema_version: String,
+    pub lock_path: String,
+    pub trust_hash: String,
+    pub locked_at: i64,
+    pub locked_by: String,
+    pub global: RuntimeGlobalConfig,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GetRuntimeTrustContractLockResponse {
+    pub lock: RuntimeTrustContractLockResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RefreshRuntimeTrustContractLockRequest {
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RefreshRuntimeTrustContractLockResponse {
+    pub lock: RuntimeTrustContractLockResponse,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -813,6 +1240,7 @@ pub struct CreateJobRequest {
     pub schedule_kind: String,
     pub interval_seconds: Option<u64>,
     pub run_at_ms: Option<i64>,
+    pub cron_expr: Option<String>,
     pub payload_json: Option<serde_json::Value>,
     pub max_retries: Option<u32>,
     pub retry_backoff_ms: Option<u64>,
@@ -828,8 +1256,10 @@ pub struct CreateJobResponse {
 pub struct UpdateJobRequest {
     pub name: Option<String>,
     pub enabled: Option<bool>,
+    pub schedule_kind: Option<String>,
     pub interval_seconds: Option<u64>,
     pub run_at_ms: Option<i64>,
+    pub cron_expr: Option<String>,
     pub payload_json: Option<serde_json::Value>,
     pub max_retries: Option<u32>,
     pub retry_backoff_ms: Option<u64>,
@@ -865,9 +1295,14 @@ pub struct ListJobHistoryResponse {
 #[derive(Debug, Clone, Serialize)]
 pub struct JobStatusResponse {
     pub scheduler_running: bool,
+    pub scheduler_lock: SchedulerLockStateResponse,
     pub jobs_total: u64,
     pub jobs_enabled: u64,
     pub jobs_due: u64,
+    pub numquam: NumquamIntegrationStatusResponse,
+    pub open_circuit_breakers: u64,
+    pub circuit_breakers: Vec<CircuitBreakerStateResponse>,
+    pub top_stop_reasons: Vec<FailureReasonCountResponse>,
     pub now_utc: DateTime<Utc>,
 }
 
@@ -880,6 +1315,7 @@ pub struct JobResponse {
     pub schedule_kind: String,
     pub interval_seconds: Option<i64>,
     pub run_at_ms: Option<i64>,
+    pub cron_expr: Option<String>,
     pub next_run_at: Option<i64>,
     pub payload_json: String,
     pub max_retries: i64,

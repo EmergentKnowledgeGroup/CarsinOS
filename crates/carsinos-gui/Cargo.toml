@@ -8,5 +8,6 @@ authors.workspace = true
 [dependencies]
 eframe = "0.31"
 egui = "0.31"
+rand = "0.8"
 serde_json.workspace = true
 ureq = { version = "2", features = ["json"] }

@@ -2,10 +2,10 @@
 
 - Document ID: `IR-PACKAGE-v1`
 - Scope: `MC-SEC-010`
-- Last updated (UTC): `2026-02-19`
-- Ownership status: `pending owner assignment`
-- Primary owner (`R5`): `TBD`
-- Backup owner (`R5`): `TBD`
+- Last updated (UTC): `2026-02-20`
+- Ownership status: `assigned`
+- Primary owner (`R5`): `ProfessahX`
+- Backup owner (`R5`): `ProfessahX`
 
 ## 1. Severity Model
 - `SEV-1`: active compromise/exfiltration or broad unauthorized execution risk.
@@ -151,8 +151,8 @@ Rule: escalate from narrowest to broadest only if containment fails.
   - No missing audit chain fields.
 
 ## 11. Ownership Assignment Block (Required)
-- Threat model approver (`R4`): `TBD`
-- Risk acceptance owner (`R4`): `TBD`
-- Incident primary (`R5`): `TBD`
-- Incident backup (`R5`): `TBD`
-- Effective date: `TBD`
+- Threat model approver (`R4`): `ProfessahX`
+- Risk acceptance owner (`R4`): `ProfessahX`
+- Incident primary (`R5`): `ProfessahX`
+- Incident backup (`R5`): `ProfessahX`
+- Effective date: `2026-02-20`

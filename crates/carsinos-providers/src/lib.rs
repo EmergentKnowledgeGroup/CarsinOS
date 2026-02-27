@@ -41,6 +41,17 @@ pub struct CompletionRequest {
 pub struct CompletionResponse {
     pub output_text: String,
     pub deltas: Vec<String>,
+    pub usage: CompletionUsageMetrics,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompletionUsageMetrics {
+    pub input_chars: u64,
+    pub output_chars: u64,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    pub total_tokens: u64,
+    pub estimated_cost_usd: Option<f64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -179,10 +190,12 @@ impl ProviderClient for EchoProvider {
                 request.model_provider, request.model_id, trimmed
             )
         };
+        let usage = usage_from_token_counts(&request.input, &output_text, None, None, None, None);
 
         Ok(CompletionResponse {
             deltas: split_word_deltas(&output_text),
             output_text,
+            usage,
         })
     }
 }
@@ -237,10 +250,12 @@ async fn complete_openai(
         .context("failed to parse openai completion response JSON")?;
     let output_text = extract_openai_content(&payload)
         .ok_or_else(|| anyhow!("PROVIDER_ERROR:openai:INTERNAL_ERROR:missing_output_content"))?;
+    let usage = usage_from_openai_payload(&payload, &request.input, &output_text);
 
     Ok(CompletionResponse {
         deltas: split_word_deltas(&output_text),
         output_text,
+        usage,
     })
 }
 
@@ -295,10 +310,12 @@ async fn complete_anthropic(
         .context("failed to parse anthropic completion response JSON")?;
     let output_text = extract_anthropic_content(&payload)
         .ok_or_else(|| anyhow!("PROVIDER_ERROR:anthropic:INTERNAL_ERROR:missing_output_content"))?;
+    let usage = usage_from_anthropic_payload(&payload, &request.input, &output_text);
 
     Ok(CompletionResponse {
         deltas: split_word_deltas(&output_text),
         output_text,
+        usage,
     })
 }
 
@@ -413,10 +430,12 @@ async fn complete_ollama(
         .context("failed to parse ollama completion response JSON")?;
     let output_text = extract_ollama_content(&payload)
         .ok_or_else(|| anyhow!("PROVIDER_ERROR:ollama:INTERNAL_ERROR:missing_output_content"))?;
+    let usage = usage_from_ollama_payload(&payload, &request.input, &output_text);
 
     Ok(CompletionResponse {
         deltas: split_word_deltas(&output_text),
         output_text,
+        usage,
     })
 }
 
@@ -460,10 +479,12 @@ async fn complete_openai_compatible(
     let output_text = extract_openai_content(&payload).ok_or_else(|| {
         anyhow!("PROVIDER_ERROR:{provider}:INTERNAL_ERROR:missing_output_content")
     })?;
+    let usage = usage_from_openai_payload(&payload, input, &output_text);
 
     Ok(CompletionResponse {
         deltas: split_word_deltas(&output_text),
         output_text,
+        usage,
     })
 }
 
@@ -605,6 +626,106 @@ fn split_word_deltas(output_text: &str) -> Vec<String> {
         }
     }
     deltas
+}
+
+fn parse_u64_value(value: Option<&serde_json::Value>) -> Option<u64> {
+    value.and_then(|item| {
+        item.as_u64()
+            .or_else(|| item.as_i64().and_then(|raw| u64::try_from(raw).ok()))
+            .or_else(|| item.as_str().and_then(|raw| raw.trim().parse::<u64>().ok()))
+    })
+}
+
+fn estimate_tokens_from_chars(chars: u64) -> u64 {
+    ((chars.saturating_add(3)) / 4).max(1)
+}
+
+fn usage_from_token_counts(
+    input: &str,
+    output: &str,
+    input_tokens: Option<u64>,
+    output_tokens: Option<u64>,
+    total_tokens: Option<u64>,
+    estimated_cost_usd: Option<f64>,
+) -> CompletionUsageMetrics {
+    let input_chars = input.chars().count() as u64;
+    let output_chars = output.chars().count() as u64;
+    let resolved_input_tokens =
+        input_tokens.unwrap_or_else(|| estimate_tokens_from_chars(input_chars));
+    let resolved_output_tokens =
+        output_tokens.unwrap_or_else(|| estimate_tokens_from_chars(output_chars));
+    let resolved_total_tokens = total_tokens
+        .unwrap_or_else(|| resolved_input_tokens.saturating_add(resolved_output_tokens));
+    CompletionUsageMetrics {
+        input_chars,
+        output_chars,
+        input_tokens: resolved_input_tokens,
+        output_tokens: resolved_output_tokens,
+        total_tokens: resolved_total_tokens,
+        estimated_cost_usd,
+    }
+}
+
+fn usage_from_openai_payload(
+    payload: &serde_json::Value,
+    input: &str,
+    output: &str,
+) -> CompletionUsageMetrics {
+    let usage = payload.get("usage");
+    let prompt_tokens = parse_u64_value(usage.and_then(|row| row.get("prompt_tokens")));
+    let completion_tokens = parse_u64_value(usage.and_then(|row| row.get("completion_tokens")));
+    let total_tokens = parse_u64_value(usage.and_then(|row| row.get("total_tokens")));
+    usage_from_token_counts(
+        input,
+        output,
+        prompt_tokens,
+        completion_tokens,
+        total_tokens,
+        None,
+    )
+}
+
+fn usage_from_anthropic_payload(
+    payload: &serde_json::Value,
+    input: &str,
+    output: &str,
+) -> CompletionUsageMetrics {
+    let usage = payload.get("usage");
+    let input_tokens = parse_u64_value(usage.and_then(|row| row.get("input_tokens")));
+    let output_tokens = parse_u64_value(usage.and_then(|row| row.get("output_tokens")));
+    let total_tokens = match (input_tokens, output_tokens) {
+        (Some(left), Some(right)) => Some(left.saturating_add(right)),
+        _ => None,
+    };
+    usage_from_token_counts(
+        input,
+        output,
+        input_tokens,
+        output_tokens,
+        total_tokens,
+        None,
+    )
+}
+
+fn usage_from_ollama_payload(
+    payload: &serde_json::Value,
+    input: &str,
+    output: &str,
+) -> CompletionUsageMetrics {
+    let input_tokens = parse_u64_value(payload.get("prompt_eval_count"));
+    let output_tokens = parse_u64_value(payload.get("eval_count"));
+    let total_tokens = match (input_tokens, output_tokens) {
+        (Some(left), Some(right)) => Some(left.saturating_add(right)),
+        _ => None,
+    };
+    usage_from_token_counts(
+        input,
+        output,
+        input_tokens,
+        output_tokens,
+        total_tokens,
+        None,
+    )
 }
 
 fn extract_openai_content(payload: &serde_json::Value) -> Option<String> {

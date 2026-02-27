@@ -2,9 +2,9 @@
 
 - Document ID: `TM-PACKAGE-v1`
 - Scope: internet-facing gateway and adapter runtime
-- Last updated (UTC): `2026-02-19`
-- Approval status: `pending`
-- Required approver (`R4`): `TBD`
+- Last updated (UTC): `2026-02-20`
+- Approval status: `approved`
+- Required approver (`R4`): `ProfessahX`
 
 ## 1. Purpose
 This document is the Phase O threat model package for `MC-SEC-001`.
@@ -119,7 +119,7 @@ It defines trust boundaries, asset classes, attack paths, risk ratings, and miti
 - Residual risk RR-003: operator misconfiguration risk until setup wizard completeness gating is active.
 
 Approval block:
-- Threat model approver (`R4`): `TBD`
-- Risk acceptance owner (`R4`): `TBD`
-- Approved at (UTC): `TBD`
-- Decision: `pending`
+- Threat model approver (`R4`): `ProfessahX`
+- Risk acceptance owner (`R4`): `ProfessahX`
+- Approved at (UTC): `2026-02-20T06:00:00Z`
+- Decision: `approved-with-residual-risk`

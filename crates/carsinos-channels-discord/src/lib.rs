@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::time::Duration;
+use url::form_urlencoded;
 
 pub const DISCORD_DEFAULT_CHUNK_LIMIT: usize = 1900;
 pub const DISCORD_DEFAULT_API_BASE_URL: &str = "https://discord.com/api/v10";
@@ -35,9 +36,47 @@ pub struct DiscordTransportOutboundRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DiscordPinMessageRequest {
+    pub channel_id: String,
+    pub message_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DiscordReactionRequest {
+    pub channel_id: String,
+    pub message_id: String,
+    pub emoji: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DiscordSendMessageResult {
     pub message_id: String,
     pub channel_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DiscordTransportInboundAuthor {
+    pub id: String,
+    #[serde(default)]
+    pub bot: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DiscordTransportInboundMention {
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DiscordTransportInboundMessage {
+    pub id: String,
+    pub channel_id: String,
+    #[serde(default)]
+    pub guild_id: Option<String>,
+    #[serde(default)]
+    pub content: String,
+    pub author: DiscordTransportInboundAuthor,
+    #[serde(default)]
+    pub mentions: Vec<DiscordTransportInboundMention>,
 }
 
 #[derive(Debug, Clone)]
@@ -119,6 +158,117 @@ impl DiscordTransportClient {
         })
     }
 
+    pub fn get_channel_messages_with_retry(
+        &self,
+        channel_id: &str,
+        limit: usize,
+    ) -> Result<Vec<DiscordTransportInboundMessage>> {
+        let channel_id = channel_id.trim();
+        if channel_id.is_empty() {
+            return Err(anyhow!("discord inbound channel_id must not be empty"));
+        }
+        let limit = limit.clamp(1, 100);
+        let max_attempts = self.config.retry_attempts.max(1);
+        let mut last_error: Option<DiscordTransportError> = None;
+        for attempt in 1..=max_attempts {
+            match self.get_channel_messages_once(channel_id, limit, attempt) {
+                Ok(messages) => return Ok(messages),
+                Err(err) => {
+                    let should_retry = err.retryable && attempt < max_attempts;
+                    last_error = Some(err);
+                    if should_retry {
+                        std::thread::sleep(Duration::from_millis(100 * attempt as u64));
+                        continue;
+                    }
+                    break;
+                }
+            }
+        }
+
+        let final_error = last_error.unwrap_or(DiscordTransportError {
+            message: "unknown discord transport failure".to_string(),
+            retryable: false,
+        });
+        Err(anyhow!(
+            "discord list-messages failed: {}",
+            final_error.message
+        ))
+    }
+
+    pub fn pin_message_with_retry(&self, request: &DiscordPinMessageRequest) -> Result<()> {
+        let channel_id = request.channel_id.trim();
+        let message_id = request.message_id.trim();
+        if channel_id.is_empty() {
+            return Err(anyhow!("discord pin channel_id must not be empty"));
+        }
+        if message_id.is_empty() {
+            return Err(anyhow!("discord pin message_id must not be empty"));
+        }
+        let max_attempts = self.config.retry_attempts.max(1);
+        let mut last_error: Option<DiscordTransportError> = None;
+        for attempt in 1..=max_attempts {
+            match self.pin_message_once(channel_id, message_id, attempt) {
+                Ok(()) => return Ok(()),
+                Err(err) => {
+                    let should_retry = err.retryable && attempt < max_attempts;
+                    last_error = Some(err);
+                    if should_retry {
+                        std::thread::sleep(Duration::from_millis(100 * attempt as u64));
+                        continue;
+                    }
+                    break;
+                }
+            }
+        }
+        let final_error = last_error.unwrap_or(DiscordTransportError {
+            message: "unknown discord transport failure".to_string(),
+            retryable: false,
+        });
+        Err(anyhow!(
+            "discord pin-message failed: {}",
+            final_error.message
+        ))
+    }
+
+    pub fn add_reaction_with_retry(&self, request: &DiscordReactionRequest) -> Result<()> {
+        let channel_id = request.channel_id.trim();
+        let message_id = request.message_id.trim();
+        let emoji = request.emoji.trim();
+        if channel_id.is_empty() {
+            return Err(anyhow!("discord reaction channel_id must not be empty"));
+        }
+        if message_id.is_empty() {
+            return Err(anyhow!("discord reaction message_id must not be empty"));
+        }
+        if emoji.is_empty() {
+            return Err(anyhow!("discord reaction emoji must not be empty"));
+        }
+        let max_attempts = self.config.retry_attempts.max(1);
+        let mut last_error: Option<DiscordTransportError> = None;
+        for attempt in 1..=max_attempts {
+            match self.add_reaction_once(channel_id, message_id, emoji, attempt) {
+                Ok(()) => return Ok(()),
+                Err(err) => {
+                    let should_retry = err.retryable && attempt < max_attempts;
+                    last_error = Some(err);
+                    if should_retry {
+                        std::thread::sleep(Duration::from_millis(100 * attempt as u64));
+                        continue;
+                    }
+                    break;
+                }
+            }
+        }
+        let final_error = last_error.unwrap_or(DiscordTransportError {
+            message: "unknown discord transport failure".to_string(),
+            retryable: false,
+        });
+        Err(anyhow!(
+            "discord add-reaction failed: {}",
+            final_error.message
+        ))
+    }
+
     fn call_with_retry(&self, channel_id: &str, payload: &Value) -> Result<Value> {
         let max_attempts = self.config.retry_attempts.max(1);
         let mut last_error: Option<DiscordTransportError> = None;
@@ -175,6 +325,137 @@ impl DiscordTransportClient {
                     message: format!("invalid discord JSON response: {}", err),
                     retryable: false,
                 }),
+            Err(ureq::Error::Status(status, response)) => {
+                let body = response
+                    .into_string()
+                    .unwrap_or_else(|_| "<unreadable body>".to_string());
+                let retryable = status == 429 || status >= 500;
+                Err(DiscordTransportError {
+                    message: format!("HTTP {}: {}", status, body),
+                    retryable,
+                })
+            }
+            Err(ureq::Error::Transport(err)) => Err(DiscordTransportError {
+                message: format!("transport error: {}", err),
+                retryable: true,
+            }),
+        }
+    }
+
+    fn get_channel_messages_once(
+        &self,
+        channel_id: &str,
+        limit: usize,
+        attempt: usize,
+    ) -> std::result::Result<Vec<DiscordTransportInboundMessage>, DiscordTransportError> {
+        let url = format!(
+            "{}/channels/{}/messages?limit={}",
+            self.config.api_base_url.trim_end_matches('/'),
+            channel_id,
+            limit
+        );
+        let response = self
+            .agent
+            .get(&url)
+            .set("Accept", "application/json")
+            .set(
+                "Authorization",
+                &format!("Bot {}", self.config.bot_token.trim()),
+            )
+            .set(DISCORD_RETRY_ATTEMPT_HEADER, &attempt.to_string())
+            .call();
+        match response {
+            Ok(response) => response
+                .into_json::<Vec<DiscordTransportInboundMessage>>()
+                .map_err(|err| DiscordTransportError {
+                    message: format!("invalid discord JSON response: {}", err),
+                    retryable: false,
+                }),
+            Err(ureq::Error::Status(status, response)) => {
+                let body = response
+                    .into_string()
+                    .unwrap_or_else(|_| "<unreadable body>".to_string());
+                let retryable = status == 429 || status >= 500;
+                Err(DiscordTransportError {
+                    message: format!("HTTP {}: {}", status, body),
+                    retryable,
+                })
+            }
+            Err(ureq::Error::Transport(err)) => Err(DiscordTransportError {
+                message: format!("transport error: {}", err),
+                retryable: true,
+            }),
+        }
+    }
+
+    fn pin_message_once(
+        &self,
+        channel_id: &str,
+        message_id: &str,
+        attempt: usize,
+    ) -> std::result::Result<(), DiscordTransportError> {
+        let url = format!(
+            "{}/channels/{}/pins/{}",
+            self.config.api_base_url.trim_end_matches('/'),
+            channel_id,
+            message_id
+        );
+        let response = self
+            .agent
+            .put(&url)
+            .set("Accept", "application/json")
+            .set(
+                "Authorization",
+                &format!("Bot {}", self.config.bot_token.trim()),
+            )
+            .set(DISCORD_RETRY_ATTEMPT_HEADER, &attempt.to_string())
+            .call();
+        match response {
+            Ok(_) => Ok(()),
+            Err(ureq::Error::Status(status, response)) => {
+                let body = response
+                    .into_string()
+                    .unwrap_or_else(|_| "<unreadable body>".to_string());
+                let retryable = status == 429 || status >= 500;
+                Err(DiscordTransportError {
+                    message: format!("HTTP {}: {}", status, body),
+                    retryable,
+                })
+            }
+            Err(ureq::Error::Transport(err)) => Err(DiscordTransportError {
+                message: format!("transport error: {}", err),
+                retryable: true,
+            }),
+        }
+    }
+
+    fn add_reaction_once(
+        &self,
+        channel_id: &str,
+        message_id: &str,
+        emoji: &str,
+        attempt: usize,
+    ) -> std::result::Result<(), DiscordTransportError> {
+        let emoji_encoded = form_urlencoded::byte_serialize(emoji.as_bytes()).collect::<String>();
+        let url = format!(
+            "{}/channels/{}/messages/{}/reactions/{}/@me",
+            self.config.api_base_url.trim_end_matches('/'),
+            channel_id,
+            message_id,
+            emoji_encoded
+        );
+        let response = self
+            .agent
+            .put(&url)
+            .set("Accept", "application/json")
+            .set(
+                "Authorization",
+                &format!("Bot {}", self.config.bot_token.trim()),
+            )
+            .set(DISCORD_RETRY_ATTEMPT_HEADER, &attempt.to_string())
+            .call();
+        match response {
+            Ok(_) => Ok(()),
             Err(ureq::Error::Status(status, response)) => {
                 let body = response
                     .into_string()
@@ -301,7 +582,7 @@ pub fn parse_approval_custom_id(custom_id: &str) -> Option<(String, String)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use httpmock::Method::POST;
+    use httpmock::Method::{GET, POST, PUT};
     use httpmock::MockServer;
 
     #[test]
@@ -451,5 +732,105 @@ mod tests {
             .expect("send reply");
         assert_eq!(response.message_id, "msg-reply");
         reply_mock.assert_hits(1);
+    }
+
+    #[test]
+    fn pin_message_retries_on_retryable_failure() {
+        let server = MockServer::start();
+        let retry_mock = server.mock(|when, then| {
+            when.method(PUT)
+                .path("/channels/channel-1/pins/message-1")
+                .header(DISCORD_RETRY_ATTEMPT_HEADER, "1");
+            then.status(500)
+                .header("content-type", "application/json")
+                .body(r#"{"message":"upstream error"}"#);
+        });
+        let success_mock = server.mock(|when, then| {
+            when.method(PUT)
+                .path("/channels/channel-1/pins/message-1")
+                .header(DISCORD_RETRY_ATTEMPT_HEADER, "2");
+            then.status(204);
+        });
+        let client = DiscordTransportClient::new(DiscordTransportConfig {
+            api_base_url: server.base_url(),
+            bot_token: "discord-token".to_string(),
+            timeout_ms: 1_000,
+            retry_attempts: 2,
+        })
+        .expect("create transport client");
+        client
+            .pin_message_with_retry(&DiscordPinMessageRequest {
+                channel_id: "channel-1".to_string(),
+                message_id: "message-1".to_string(),
+            })
+            .expect("pin message");
+        retry_mock.assert_hits(1);
+        success_mock.assert_hits(1);
+    }
+
+    #[test]
+    fn add_reaction_encodes_emoji_path_and_succeeds() {
+        let server = MockServer::start();
+        let reaction_mock = server.mock(|when, then| {
+            when.method(PUT)
+                .path("/channels/channel-1/messages/message-1/reactions/%F0%9F%91%8D/@me")
+                .header(DISCORD_RETRY_ATTEMPT_HEADER, "1");
+            then.status(204);
+        });
+        let client = DiscordTransportClient::new(DiscordTransportConfig {
+            api_base_url: server.base_url(),
+            bot_token: "discord-token".to_string(),
+            timeout_ms: 1_000,
+            retry_attempts: 1,
+        })
+        .expect("create transport client");
+        client
+            .add_reaction_with_retry(&DiscordReactionRequest {
+                channel_id: "channel-1".to_string(),
+                message_id: "message-1".to_string(),
+                emoji: "👍".to_string(),
+            })
+            .expect("add reaction");
+        reaction_mock.assert_hits(1);
+    }
+
+    #[test]
+    fn get_channel_messages_retries_and_parses_payload() {
+        let server = MockServer::start();
+        let retry_mock = server.mock(|when, then| {
+            when.method(GET)
+                .path("/channels/channel-2/messages")
+                .query_param("limit", "5")
+                .header(DISCORD_RETRY_ATTEMPT_HEADER, "1");
+            then.status(500)
+                .header("content-type", "application/json")
+                .body(r#"{"message":"upstream error"}"#);
+        });
+        let success_mock = server.mock(|when, then| {
+            when.method(GET)
+                .path("/channels/channel-2/messages")
+                .query_param("limit", "5")
+                .header(DISCORD_RETRY_ATTEMPT_HEADER, "2");
+            then.status(200).header("content-type", "application/json").body(
+                r#"[{"id":"m-1","channel_id":"channel-2","guild_id":"g-1","content":"hello","author":{"id":"u-1","bot":false},"mentions":[{"id":"b-1"}]}]"#,
+            );
+        });
+
+        let client = DiscordTransportClient::new(DiscordTransportConfig {
+            api_base_url: server.base_url(),
+            bot_token: "discord-token".to_string(),
+            timeout_ms: 1_000,
+            retry_attempts: 2,
+        })
+        .expect("create transport client");
+        let messages = client
+            .get_channel_messages_with_retry("channel-2", 5)
+            .expect("list channel messages");
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].id, "m-1");
+        assert_eq!(messages[0].author.id, "u-1");
+        assert_eq!(messages[0].mentions[0].id, "b-1");
+        retry_mock.assert_hits(1);
+        success_mock.assert_hits(1);
     }
 }

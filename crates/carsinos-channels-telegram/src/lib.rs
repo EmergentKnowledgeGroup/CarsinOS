@@ -42,6 +42,19 @@ pub struct TelegramTransportOutboundRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TelegramPinMessageRequest {
+    pub chat_id: i64,
+    pub message_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TelegramReactionRequest {
+    pub chat_id: i64,
+    pub message_id: i64,
+    pub reaction: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TelegramTransportUpdate {
     pub update_id: i64,
     #[serde(default)]
@@ -68,6 +81,8 @@ pub struct TelegramTransportChat {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TelegramTransportUser {
     pub id: i64,
+    #[serde(default)]
+    pub is_bot: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -248,6 +263,44 @@ impl TelegramTransportClient {
                     .context("failed to parse telegram update envelope")
             })
             .collect::<Result<Vec<_>>>()
+    }
+
+    pub fn pin_message_with_retry(&self, request: &TelegramPinMessageRequest) -> Result<()> {
+        if request.chat_id == 0 {
+            return Err(anyhow!("telegram pin chat_id must not be 0"));
+        }
+        if request.message_id <= 0 {
+            return Err(anyhow!("telegram pin message_id must be > 0"));
+        }
+        let payload = json!({
+            "chat_id": request.chat_id,
+            "message_id": request.message_id
+        });
+        self.call_with_retry("pinChatMessage", &payload)?;
+        Ok(())
+    }
+
+    pub fn set_message_reaction_with_retry(&self, request: &TelegramReactionRequest) -> Result<()> {
+        let reaction = request.reaction.trim();
+        if request.chat_id == 0 {
+            return Err(anyhow!("telegram reaction chat_id must not be 0"));
+        }
+        if request.message_id <= 0 {
+            return Err(anyhow!("telegram reaction message_id must be > 0"));
+        }
+        if reaction.is_empty() {
+            return Err(anyhow!("telegram reaction emoji must not be empty"));
+        }
+        let payload = json!({
+            "chat_id": request.chat_id,
+            "message_id": request.message_id,
+            "reaction": [{
+                "type": "emoji",
+                "emoji": reaction
+            }]
+        });
+        self.call_with_retry("setMessageReaction", &payload)?;
+        Ok(())
     }
 
     fn call_with_retry(&self, method: &str, payload: &Value) -> Result<Value> {
@@ -450,6 +503,73 @@ mod tests {
             })
             .expect_err("expected non-retryable failure");
         assert!(error.to_string().contains("HTTP 400"));
+        bad_request_mock.assert_hits(1);
+    }
+
+    #[test]
+    fn pin_message_retries_on_retryable_failure() {
+        let server = MockServer::start();
+        let retry_mock = server.mock(|when, then| {
+            when.method(POST)
+                .path("/bottest-token/pinChatMessage")
+                .header(TELEGRAM_RETRY_ATTEMPT_HEADER, "1");
+            then.status(500)
+                .header("content-type", "application/json")
+                .body(r#"{"ok":false}"#);
+        });
+        let success_mock = server.mock(|when, then| {
+            when.method(POST)
+                .path("/bottest-token/pinChatMessage")
+                .header(TELEGRAM_RETRY_ATTEMPT_HEADER, "2");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(r#"{"ok":true,"result":true}"#);
+        });
+        let client = TelegramTransportClient::new(TelegramTransportConfig {
+            api_base_url: server.base_url(),
+            bot_token: "test-token".to_string(),
+            timeout_ms: 1_000,
+            retry_attempts: 2,
+            long_poll_timeout_seconds: 1,
+        })
+        .expect("client");
+        client
+            .pin_message_with_retry(&TelegramPinMessageRequest {
+                chat_id: 1001,
+                message_id: 42,
+            })
+            .expect("pin");
+        retry_mock.assert_hits(1);
+        success_mock.assert_hits(1);
+    }
+
+    #[test]
+    fn set_reaction_fails_fast_on_non_retryable_error() {
+        let server = MockServer::start();
+        let bad_request_mock = server.mock(|when, then| {
+            when.method(POST)
+                .path("/bottest-token/setMessageReaction")
+                .header(TELEGRAM_RETRY_ATTEMPT_HEADER, "1");
+            then.status(400)
+                .header("content-type", "application/json")
+                .body(r#"{"ok":false,"description":"bad reaction"}"#);
+        });
+        let client = TelegramTransportClient::new(TelegramTransportConfig {
+            api_base_url: server.base_url(),
+            bot_token: "test-token".to_string(),
+            timeout_ms: 1_000,
+            retry_attempts: 3,
+            long_poll_timeout_seconds: 1,
+        })
+        .expect("client");
+        let err = client
+            .set_message_reaction_with_retry(&TelegramReactionRequest {
+                chat_id: 1001,
+                message_id: 52,
+                reaction: "👍".to_string(),
+            })
+            .expect_err("expected failure");
+        assert!(err.to_string().contains("HTTP 400"));
         bad_request_mock.assert_hits(1);
     }
 

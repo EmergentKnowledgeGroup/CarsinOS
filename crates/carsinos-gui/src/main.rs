@@ -1,5 +1,7 @@
 use eframe::egui;
 use eframe::egui::{Color32, RichText};
+use rand::rngs::OsRng;
+use rand::RngCore;
 use serde_json::{json, Value};
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -103,11 +105,13 @@ struct RuntimeConfigWizardSnapshot {
     tls_termination_mode: String,
     public_base_url: String,
     provider_policies: Vec<RuntimeProviderPolicyDraft>,
+    discord_operation_mode: String,
     discord_bot_token_secret_ref: String,
     discord_application_id: String,
     discord_intents_csv: String,
     discord_staging_guild_ids_csv: String,
     discord_staging_channel_ids_csv: String,
+    telegram_operation_mode: String,
     telegram_bot_token_secret_ref: String,
     telegram_webhook_mode: String,
     telegram_webhook_url: String,
@@ -146,11 +150,13 @@ impl Default for RuntimeConfigWizardSnapshot {
                     kill_switch_scope: "none".to_string(),
                 },
             ],
+            discord_operation_mode: "shim".to_string(),
             discord_bot_token_secret_ref: String::new(),
             discord_application_id: String::new(),
             discord_intents_csv: "guilds,guild_messages,direct_messages".to_string(),
             discord_staging_guild_ids_csv: String::new(),
             discord_staging_channel_ids_csv: String::new(),
+            telegram_operation_mode: "shim".to_string(),
             telegram_bot_token_secret_ref: String::new(),
             telegram_webhook_mode: "long_poll".to_string(),
             telegram_webhook_url: String::new(),
@@ -170,6 +176,7 @@ impl Default for RuntimeConfigWizardSnapshot {
 const RUNTIME_SCHEMA_VERSION_V1: &str = "runtime.config.v1";
 const TLS_TERMINATION_MODES: [&str; 3] = ["edge", "gateway", "passthrough"];
 const TELEGRAM_WEBHOOK_MODES: [&str; 2] = ["long_poll", "webhook"];
+const CHANNEL_OPERATION_MODES: [&str; 2] = ["shim", "transport"];
 const KILL_SWITCH_SCOPES: [&str; 4] = ["none", "profile", "provider", "global"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -344,6 +351,8 @@ struct GuiApp {
     runtime_config: RuntimeConfigWizardSnapshot,
     runtime_wizard_step: RuntimeWizardStep,
     runtime_wizard_rollback_reason: String,
+    discord_bot_token_plaintext: String,
+    telegram_bot_token_plaintext: String,
 
     selected_session_id: Option<String>,
     timeline: Vec<TimelineMessage>,
@@ -395,6 +404,8 @@ impl Default for GuiApp {
             runtime_config: RuntimeConfigWizardSnapshot::default(),
             runtime_wizard_step: RuntimeWizardStep::EdgeIdentity,
             runtime_wizard_rollback_reason: String::new(),
+            discord_bot_token_plaintext: String::new(),
+            telegram_bot_token_plaintext: String::new(),
             selected_session_id: None,
             timeline: Vec::new(),
             new_session_title: String::new(),
@@ -471,6 +482,11 @@ impl eframe::App for GuiApp {
                     ui.text_edit_singleline(&mut self.gateway_base_url);
                     ui.label("Bearer Token");
                     ui.add(egui::TextEdit::singleline(&mut self.gateway_token).password(true));
+                    if ui.button("Generate Local Token").clicked() {
+                        self.gateway_token = generate_local_gateway_token();
+                        self.set_info("Generated a new local gateway token");
+                    }
+                    ui.small("For local runs, keep URL as http://127.0.0.1:18789.");
                     if ui.button("Reconnect + Refresh").clicked() {
                         self.refresh_gateway_state();
                     }
@@ -604,7 +620,7 @@ impl GuiApp {
 
     fn launch_gateway_process(&mut self) -> Result<(), String> {
         if self.gateway_token.trim().is_empty() {
-            self.gateway_token = "carsinos-local-token".to_string();
+            self.gateway_token = generate_local_gateway_token();
         }
         let mut command = resolve_gateway_binary_path()
             .map(Command::new)
@@ -698,6 +714,36 @@ impl GuiApp {
         }
     }
 
+    fn upsert_runtime_secret_ref(
+        &self,
+        scope: &str,
+        secret_value: &str,
+        previous_secret_ref: Option<&str>,
+    ) -> Result<String, String> {
+        let mut payload = json!({
+            "scope": scope,
+            "secret_value": secret_value,
+        });
+        if let Some(previous) = previous_secret_ref
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            payload["previous_secret_ref"] = Value::String(previous.to_string());
+        }
+        let value = send_json(
+            &self.gateway_base_url,
+            "/api/v1/config/runtime/secrets/upsert",
+            "POST",
+            &self.gateway_token,
+            Some(&payload),
+        )?;
+        value
+            .get("secret_ref")
+            .and_then(|entry| entry.as_str())
+            .map(|entry| entry.to_string())
+            .ok_or_else(|| "runtime secret upsert response missing secret_ref".to_string())
+    }
+
     fn runtime_step_issues(&self, step: RuntimeWizardStep) -> Vec<String> {
         let mut issues = Vec::new();
         match step {
@@ -757,21 +803,43 @@ impl GuiApp {
                 }
             }
             RuntimeWizardStep::Channels => {
-                if self
+                let discord_mode = self
                     .runtime_config
-                    .discord_bot_token_secret_ref
+                    .discord_operation_mode
                     .trim()
-                    .is_empty()
-                {
-                    issues.push("channels.discord.bot_token_secret_ref is required for production operations".to_string());
+                    .to_ascii_lowercase();
+                if !CHANNEL_OPERATION_MODES.contains(&discord_mode.as_str()) {
+                    issues
+                        .push("channels.discord.operation_mode must be shim|transport".to_string());
                 }
-                if self
-                    .runtime_config
-                    .telegram_bot_token_secret_ref
-                    .trim()
-                    .is_empty()
+                if discord_mode == "transport"
+                    && self
+                        .runtime_config
+                        .discord_bot_token_secret_ref
+                        .trim()
+                        .is_empty()
                 {
-                    issues.push("channels.telegram.bot_token_secret_ref is required for production operations".to_string());
+                    issues.push("channels.discord.bot_token_secret_ref is required when discord operation_mode=transport".to_string());
+                }
+
+                let telegram_mode = self
+                    .runtime_config
+                    .telegram_operation_mode
+                    .trim()
+                    .to_ascii_lowercase();
+                if !CHANNEL_OPERATION_MODES.contains(&telegram_mode.as_str()) {
+                    issues.push(
+                        "channels.telegram.operation_mode must be shim|transport".to_string(),
+                    );
+                }
+                if telegram_mode == "transport"
+                    && self
+                        .runtime_config
+                        .telegram_bot_token_secret_ref
+                        .trim()
+                        .is_empty()
+                {
+                    issues.push("channels.telegram.bot_token_secret_ref is required when telegram operation_mode=transport".to_string());
                 }
                 if let Err(err) = validate_secret_ref_format(
                     "channels.discord.bot_token_secret_ref",
@@ -1501,6 +1569,57 @@ impl GuiApp {
                     }
                     RuntimeWizardStep::Channels => {
                         ui.heading("Discord Deployment");
+                        if ui.button("Apply Channel Defaults (Local)").clicked() {
+                            self.runtime_config.discord_operation_mode = "shim".to_string();
+                            self.runtime_config.telegram_operation_mode = "shim".to_string();
+                            if self.runtime_config.discord_intents_csv.trim().is_empty() {
+                                self.runtime_config.discord_intents_csv =
+                                    "guilds,guild_messages,direct_messages".to_string();
+                            }
+                            if self.runtime_config.telegram_webhook_mode.trim().is_empty() {
+                                self.runtime_config.telegram_webhook_mode =
+                                    "long_poll".to_string();
+                            }
+                            if self.runtime_config.telegram_staging_chat_ids_csv.trim().is_empty()
+                                && !self
+                                    .channel_config
+                                    .telegram_allowlisted_user_ids_csv
+                                    .trim()
+                                    .is_empty()
+                            {
+                                self.runtime_config.telegram_staging_chat_ids_csv = self
+                                    .channel_config
+                                    .telegram_allowlisted_user_ids_csv
+                                    .clone();
+                            }
+                            self.set_info(
+                                "Applied local channel defaults (Discord intents + Telegram long_poll).",
+                            );
+                        }
+                        ui.small(
+                            "Use secret refs (not raw tokens), e.g. secret://runtime.channels.discord.bot_token",
+                        );
+                        ui.horizontal(|ui| {
+                            ui.label("discord_bot_token (store to secret backend)");
+                            ui.add(
+                                egui::TextEdit::singleline(&mut self.discord_bot_token_plaintext)
+                                    .password(true),
+                            );
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("operation_mode");
+                            egui::ComboBox::from_id_salt("runtime-discord-operation-mode")
+                                .selected_text(self.runtime_config.discord_operation_mode.clone())
+                                .show_ui(ui, |ui| {
+                                    for mode in CHANNEL_OPERATION_MODES {
+                                        ui.selectable_value(
+                                            &mut self.runtime_config.discord_operation_mode,
+                                            mode.to_string(),
+                                            mode,
+                                        );
+                                    }
+                                });
+                        });
                         ui.horizontal(|ui| {
                             ui.label("bot_token_secret_ref");
                             ui.text_edit_singleline(
@@ -1523,9 +1642,33 @@ impl GuiApp {
                         ui.text_edit_singleline(
                             &mut self.runtime_config.discord_staging_channel_ids_csv,
                         );
+                        ui.small(
+                            "Discord local soak defaults: intents can stay guilds,guild_messages,direct_messages.",
+                        );
 
                         ui.separator();
                         ui.heading("Telegram Deployment");
+                        ui.horizontal(|ui| {
+                            ui.label("telegram_bot_token (store to secret backend)");
+                            ui.add(
+                                egui::TextEdit::singleline(&mut self.telegram_bot_token_plaintext)
+                                    .password(true),
+                            );
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("operation_mode");
+                            egui::ComboBox::from_id_salt("runtime-telegram-operation-mode")
+                                .selected_text(self.runtime_config.telegram_operation_mode.clone())
+                                .show_ui(ui, |ui| {
+                                    for mode in CHANNEL_OPERATION_MODES {
+                                        ui.selectable_value(
+                                            &mut self.runtime_config.telegram_operation_mode,
+                                            mode.to_string(),
+                                            mode,
+                                        );
+                                    }
+                                });
+                        });
                         ui.horizontal(|ui| {
                             ui.label("bot_token_secret_ref");
                             ui.text_edit_singleline(
@@ -1553,6 +1696,64 @@ impl GuiApp {
                         ui.label("staging_chat_ids (csv i64)");
                         ui.text_edit_singleline(
                             &mut self.runtime_config.telegram_staging_chat_ids_csv,
+                        );
+                        if ui.button("Store Channel Tokens In Secret Backend").clicked() {
+                            let mut updates = Vec::new();
+
+                            if !self.discord_bot_token_plaintext.trim().is_empty() {
+                                match self.upsert_runtime_secret_ref(
+                                    "channels/discord/bot_token",
+                                    self.discord_bot_token_plaintext.trim(),
+                                    Some(&self.runtime_config.discord_bot_token_secret_ref),
+                                ) {
+                                    Ok(secret_ref) => {
+                                        self.runtime_config.discord_bot_token_secret_ref =
+                                            secret_ref.clone();
+                                        self.discord_bot_token_plaintext.clear();
+                                        updates.push(format!("discord={secret_ref}"));
+                                    }
+                                    Err(err) => {
+                                        self.set_error(err);
+                                        return;
+                                    }
+                                }
+                            }
+
+                            if !self.telegram_bot_token_plaintext.trim().is_empty() {
+                                match self.upsert_runtime_secret_ref(
+                                    "channels/telegram/bot_token",
+                                    self.telegram_bot_token_plaintext.trim(),
+                                    Some(&self.runtime_config.telegram_bot_token_secret_ref),
+                                ) {
+                                    Ok(secret_ref) => {
+                                        self.runtime_config.telegram_bot_token_secret_ref =
+                                            secret_ref.clone();
+                                        self.telegram_bot_token_plaintext.clear();
+                                        updates.push(format!("telegram={secret_ref}"));
+                                    }
+                                    Err(err) => {
+                                        self.set_error(err);
+                                        return;
+                                    }
+                                }
+                            }
+
+                            if updates.is_empty() {
+                                self.set_info(
+                                    "No token values entered. Paste at least one token before storing.",
+                                );
+                            } else {
+                                self.set_info(format!(
+                                    "Stored channel token secret refs: {}",
+                                    updates.join(", ")
+                                ));
+                            }
+                        }
+                        ui.small(
+                            "staging_chat_ids = destination chat ID(s). For direct bot testing, this is usually your own Telegram user ID.",
+                        );
+                        ui.small(
+                            "Use operation_mode=shim for local/no-token simulation; set transport only when bot tokens are provisioned.",
                         );
                     }
                     RuntimeWizardStep::SecurityOps => {
@@ -2261,6 +2462,17 @@ fn resolve_gateway_binary_path() -> Option<PathBuf> {
     candidates.into_iter().find(|candidate| candidate.exists())
 }
 
+fn generate_local_gateway_token() -> String {
+    let mut bytes = [0_u8; 24];
+    let mut rng = OsRng;
+    rng.fill_bytes(&mut bytes);
+    let mut token = String::from("carsinos-local-");
+    for byte in bytes {
+        token.push_str(&format!("{:02x}", byte));
+    }
+    token
+}
+
 fn fetch_gateway_snapshots(base_url: &str, token: &str) -> Result<GatewaySnapshots, String> {
     let health_json = fetch_json(base_url, "/api/v1/health", token)?;
     let status_json = fetch_json(base_url, "/api/v1/status", token)?;
@@ -2673,6 +2885,11 @@ fn parse_runtime_config(value: &Value) -> Result<RuntimeConfigWizardSnapshot, St
             .to_string(),
         public_base_url: parse_optional_string_from_json(global.get("public_base_url")),
         provider_policies,
+        discord_operation_mode: discord
+            .get("operation_mode")
+            .and_then(|value| value.as_str())
+            .unwrap_or("shim")
+            .to_string(),
         discord_bot_token_secret_ref: parse_optional_string_from_json(
             discord.get("bot_token_secret_ref"),
         ),
@@ -2687,6 +2904,11 @@ fn parse_runtime_config(value: &Value) -> Result<RuntimeConfigWizardSnapshot, St
         telegram_bot_token_secret_ref: parse_optional_string_from_json(
             telegram.get("bot_token_secret_ref"),
         ),
+        telegram_operation_mode: telegram
+            .get("operation_mode")
+            .and_then(|value| value.as_str())
+            .unwrap_or("shim")
+            .to_string(),
         telegram_webhook_mode: telegram
             .get("webhook_mode")
             .and_then(|value| value.as_str())
@@ -2856,10 +3078,34 @@ fn validate_runtime_config_draft(config: &RuntimeConfigWizardSnapshot) -> Result
         "channels.discord.bot_token_secret_ref",
         &config.discord_bot_token_secret_ref,
     )?;
+    let discord_operation_mode = config.discord_operation_mode.trim().to_ascii_lowercase();
+    if !CHANNEL_OPERATION_MODES.contains(&discord_operation_mode.as_str()) {
+        return Err("channels.discord.operation_mode must be shim|transport".to_string());
+    }
+    if discord_operation_mode == "transport"
+        && config.discord_bot_token_secret_ref.trim().is_empty()
+    {
+        return Err(
+            "channels.discord.bot_token_secret_ref is required when operation_mode=transport"
+                .to_string(),
+        );
+    }
     validate_secret_ref_format(
         "channels.telegram.bot_token_secret_ref",
         &config.telegram_bot_token_secret_ref,
     )?;
+    let telegram_operation_mode = config.telegram_operation_mode.trim().to_ascii_lowercase();
+    if !CHANNEL_OPERATION_MODES.contains(&telegram_operation_mode.as_str()) {
+        return Err("channels.telegram.operation_mode must be shim|transport".to_string());
+    }
+    if telegram_operation_mode == "transport"
+        && config.telegram_bot_token_secret_ref.trim().is_empty()
+    {
+        return Err(
+            "channels.telegram.bot_token_secret_ref is required when operation_mode=transport"
+                .to_string(),
+        );
+    }
 
     let webhook_mode = config.telegram_webhook_mode.trim().to_ascii_lowercase();
     if !TELEGRAM_WEBHOOK_MODES.contains(&webhook_mode.as_str()) {
@@ -2908,11 +3154,29 @@ fn runtime_wizard_completeness_issues(config: &RuntimeConfigWizardSnapshot) -> V
     if config.public_base_url.trim().is_empty() {
         issues.push("global.public_base_url is empty".to_string());
     }
-    if config.discord_bot_token_secret_ref.trim().is_empty() {
-        issues.push("channels.discord.bot_token_secret_ref is empty".to_string());
+    let discord_mode = config.discord_operation_mode.trim().to_ascii_lowercase();
+    if !CHANNEL_OPERATION_MODES.contains(&discord_mode.as_str()) {
+        issues.push("channels.discord.operation_mode is invalid".to_string());
     }
-    if config.telegram_bot_token_secret_ref.trim().is_empty() {
-        issues.push("channels.telegram.bot_token_secret_ref is empty".to_string());
+    let telegram_mode = config.telegram_operation_mode.trim().to_ascii_lowercase();
+    if !CHANNEL_OPERATION_MODES.contains(&telegram_mode.as_str()) {
+        issues.push("channels.telegram.operation_mode is invalid".to_string());
+    }
+    if config
+        .discord_operation_mode
+        .trim()
+        .eq_ignore_ascii_case("transport")
+        && config.discord_bot_token_secret_ref.trim().is_empty()
+    {
+        issues.push("channels.discord.bot_token_secret_ref is empty (transport mode)".to_string());
+    }
+    if config
+        .telegram_operation_mode
+        .trim()
+        .eq_ignore_ascii_case("transport")
+        && config.telegram_bot_token_secret_ref.trim().is_empty()
+    {
+        issues.push("channels.telegram.bot_token_secret_ref is empty (transport mode)".to_string());
     }
 
     for (field_name, value) in [
@@ -2995,6 +3259,7 @@ fn runtime_config_update_payload(config: &RuntimeConfigWizardSnapshot) -> Result
         }).collect::<Vec<_>>(),
         "channels": {
             "discord": {
+                "operation_mode": config.discord_operation_mode.trim().to_ascii_lowercase(),
                 "bot_token_secret_ref": optional_string_value(&config.discord_bot_token_secret_ref),
                 "application_id": optional_string_value(&config.discord_application_id),
                 "intents": parse_string_csv(&config.discord_intents_csv),
@@ -3002,6 +3267,7 @@ fn runtime_config_update_payload(config: &RuntimeConfigWizardSnapshot) -> Result
                 "staging_channel_ids": parse_string_csv(&config.discord_staging_channel_ids_csv),
             },
             "telegram": {
+                "operation_mode": config.telegram_operation_mode.trim().to_ascii_lowercase(),
                 "bot_token_secret_ref": optional_string_value(&config.telegram_bot_token_secret_ref),
                 "webhook_mode": config.telegram_webhook_mode.trim().to_ascii_lowercase(),
                 "webhook_url": optional_string_value(&config.telegram_webhook_url),
@@ -3253,6 +3519,8 @@ mod tests {
         assert_eq!(parsed.schema_version, "runtime.config.v1");
         assert_eq!(parsed.updated_at, 33);
         assert_eq!(parsed.jwt_audience_allowlist_csv, "aud-a,aud-b");
+        assert_eq!(parsed.discord_operation_mode, "shim");
+        assert_eq!(parsed.telegram_operation_mode, "shim");
         assert_eq!(parsed.discord_intents_csv, "guilds,direct_messages");
         assert_eq!(parsed.telegram_staging_chat_ids_csv, "1001,1002");
         assert_eq!(parsed.provider_policies.len(), 2);
@@ -3278,9 +3546,20 @@ mod tests {
         assert!(issues
             .iter()
             .any(|entry| entry.contains("threat_model_approver")));
-        assert!(issues
-            .iter()
-            .any(|entry| entry.contains("bot_token_secret_ref")));
+    }
+
+    #[test]
+    fn runtime_wizard_completeness_requires_bot_secret_refs_in_transport_mode() {
+        let mut config = RuntimeConfigWizardSnapshot::default();
+        config.discord_operation_mode = "transport".to_string();
+        config.telegram_operation_mode = "transport".to_string();
+        let issues = runtime_wizard_completeness_issues(&config);
+        assert!(issues.iter().any(|entry| {
+            entry.contains("channels.discord.bot_token_secret_ref is empty (transport mode)")
+        }));
+        assert!(issues.iter().any(|entry| {
+            entry.contains("channels.telegram.bot_token_secret_ref is empty (transport mode)")
+        }));
     }
 
     #[test]
@@ -3296,6 +3575,17 @@ mod tests {
         assert_eq!(parse_boolish("0"), Some(false));
         assert_eq!(parse_boolish("No"), Some(false));
         assert_eq!(parse_boolish("maybe"), None);
+    }
+
+    #[test]
+    fn generate_local_gateway_token_uses_expected_format() {
+        let token_a = generate_local_gateway_token();
+        let token_b = generate_local_gateway_token();
+        assert!(token_a.starts_with("carsinos-local-"));
+        assert!(token_b.starts_with("carsinos-local-"));
+        assert!(token_a.len() > "carsinos-local-".len());
+        assert!(token_b.len() > "carsinos-local-".len());
+        assert_ne!(token_a, token_b);
     }
 
     #[test]
