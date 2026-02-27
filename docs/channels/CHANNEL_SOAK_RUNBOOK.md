@@ -19,6 +19,14 @@ The soak harness is implemented by `scripts/channel_soak_runner.py`.
   - `CARSINOS_DISCORD_CHANNEL_ID`
   - `CARSINOS_DISCORD_AUTHOR_ID`
 
+Identifier note:
+- `CARSINOS_TELEGRAM_CHAT_ID` is the destination conversation/chat, not the bot ID.
+- For direct-message bot testing, the chat ID is commonly your own Telegram user ID.
+
+Local-runtime note:
+- If `127.0.0.1:18789` is occupied (for example by another local service), start gateway on another bind and set matching `CARSINOS_BASE_URL` (example: `http://127.0.0.1:7344`).
+- For local no-token simulation, set channel `operation_mode=shim` in Mission wizard before running soak slices.
+
 ## Quick Smoke (No Sleep)
 ```bash
 python3 scripts/channel_soak_runner.py \

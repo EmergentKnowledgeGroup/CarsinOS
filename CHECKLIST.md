@@ -134,16 +134,16 @@ Execution checklist derived from `PLAN.md`. IDs are stable and must be used by `
 
 ## Phase O - Remaining Work (Verified Blockers Only)
 
-- [ ] `O1` `MC-SEC-001` Publish and approve threat-model package (STRIDE register, asset classification, trust-boundary map, risk owners). Draft published: `docs/security/THREAT_MODEL_PACKAGE.md` (pending owner signoff).
-- [ ] `O2` `MC-SEC-010` Publish human-usable incident runbooks (auth compromise, key leak, provider abuse, tool abuse, data exfil) with named ownership. Draft published: `docs/security/INCIDENT_RUNBOOKS.md` (pending owner assignment).
+- [x] `O1` `MC-SEC-001` Publish and approve threat-model package (STRIDE register, asset classification, trust-boundary map, risk owners). Owner signoff captured in `docs/security/THREAT_MODEL_PACKAGE.md` (approver/owner: `ProfessahX`).
+- [x] `O2` `MC-SEC-010` Publish human-usable incident runbooks (auth compromise, key leak, provider abuse, tool abuse, data exfil) with named ownership. Ownership captured in `docs/security/INCIDENT_RUNBOOKS.md` (primary/backup: `ProfessahX`).
 - [x] `O3` Security Gate 0 evidence bundling/signoff workflow: produce machine-readable release evidence that gates unresolved critical/high findings and drill outcomes. Implemented via `scripts/security_gate0_evidence_bundle.sh` + `docs/security/SECURITY_GATE0_EVIDENCE_WORKFLOW.md` + `.github/workflows/security-gate0-evidence.yml`.
 - [x] `O11` `MC-CH-001` Add shared channel adapter lifecycle contract in `carsinos-core` to formalize `start/stop/reconnect/health` behavior for Telegram/Discord runtime adapters.
 - [x] `O12` `MC-CH-002` Add gateway channel runtime manager foundation with supervisor loop + status/reconnect endpoints (`GET /api/v1/channels/runtime/status`, `POST /api/v1/channels/runtime/reconnect`) and role/audit test coverage.
 - [x] `O4` `MC-CH-010` Complete Telegram production connector path (real transport operation mode + delivery retry semantics + inbound/outbound run roundtrip behavior). Soak signoff evidence is tracked under `O6`.
 - [x] `O5` `MC-CH-020` Complete Discord production connector path (real gateway event intake + outbound operational behavior + inbound/outbound run roundtrip behavior). Soak signoff evidence is tracked under `O6`.
-- [ ] `O6` Execute 7-day Telegram/Discord soak and publish resilience report (reconnect, retry, message integrity, approval round-trip). Harness/runbook/workflow published: `scripts/channel_soak_runner.py`, `docs/channels/CHANNEL_SOAK_RUNBOOK.md`, `.github/workflows/channel-soak.yml`; pending live owner-input execution/signoff.
+- [ ] `O6` Execute 7-day Telegram/Discord soak and publish resilience report (reconnect, retry, message integrity, approval round-trip). Harness/runbook/workflow published: `scripts/channel_soak_runner.py`, `docs/channels/CHANNEL_SOAK_RUNBOOK.md`, `.github/workflows/channel-soak.yml`; local smoke validation is green in shim mode (`runtime/channels/reports/channel-soak-20260220T061839Z.json`), pending full 7-day live signoff window.
 - [x] `O7` Complete archive-retention operational proof for security audit trail beyond 90-day hot window. Implemented via `scripts/security_archive_retention_proof.sh`, `.github/workflows/security-archive-retention-proof.yml`, and `docs/security/ARCHIVE_RETENTION_OPERATIONAL_PROOF.md`.
-- [ ] `O8` Decide and schedule `MC-FUT-900` expansion set (if future channels continue in this wave).
+- [x] `O8` Decide and schedule `MC-FUT-900` expansion set (if future channels continue in this wave). Owner decision: deferred out of current wave; revisit in next planning cycle.
 - [x] `O9` Run mandatory repository-wide hardcoded runtime-value audit and convert every deployment-specific constant to config/wizard-backed fields (`MC-CONF-005`). Audit report published: `docs/HARDCODED_RUNTIME_VALUES_AUDIT.md`.
 - [x] `O10` Consume and triage hardcoded-value audit findings into implementation tickets by config scope (`global`, `provider`, `auth_profile`, `channel`, `security`) with owner + target milestone. Ticketization added in `docs/HARDCODED_RUNTIME_VALUES_AUDIT.md` + `APPDEX_IMPLEMENTATION_TICKET_PACK.md` (`MC-CONF-006..009`).
 
@@ -156,16 +156,39 @@ Execution checklist derived from `PLAN.md`. IDs are stable and must be used by `
 - [x] `P5` `MC-CONF-005` Enforce CI hardcoded-value guardrail with explicit allowlist + owner + expiry metadata. Implemented via `scripts/security_hardcoded_value_guard.py` + `docs/security/HARDCODED_VALUE_ALLOWLIST.csv` + PR gate integration.
 - [x] `P6` Run full regression + benchmark + security gate suite after MC-CONF implementation. Completed via `cargo test --workspace --locked` and `scripts/security_pr_gate.sh` (with `cargo-audit` installed/enabled).
 
+## Phase Q - Autonomy Guardrails (AG)
+
+- [x] `AG-001` Guardrail config contract: add `RuntimeAutonomyGuardrailsConfig` defaults/validation and runtime config API round-trip coverage.
+- [x] `AG-002` Per-session run lane lock: enforce one active run per session for create/resume/channel/scheduler entrypoints; interactive conflicts return `409`.
+- [x] `AG-003` Run budget governor: enforce max wall time/tool calls/provider input chars/tool output chars/provider attempts with stable terminal reason codes.
+- [x] `AG-004` Scheduler timeout enforcement: enforce `job.timeout_ms` via `tokio::time::timeout` around `execute_job_payload`.
+- [x] `AG-005` Single scheduler instance guard: add lock ownership guard so only one scheduler loop runs per state dir.
+- [x] `AG-011-P0` Regression subset: add P0 E2E runaway prevention coverage (lane lock conflict, scheduler timeout, duplicate scheduler guard, core budget stop).
+- [x] `AG-006` Tool fanout cap + repeated tool error loop breaker.
+- [x] `AG-007` Token/cost accounting + daily per-profile budget kill switch.
+- [x] `AG-008` Heartbeat mode (`heartbeat.run`) with runtime-enforced no-tools policy and output contract.
+- [x] `AG-009` Provider/job circuit breakers with open/skip/reset behavior.
+- [x] `AG-010` Observability and operator UX: expose guardrail/breaker/scheduler lock state and stop reasons in status/job status/events.
+- [x] `AG-011` Full runaway-prevention E2E regression suite + benchmark confirmation.
+
+## Phase R - Core Loop Adds (Scratchpad)
+
+- [x] `RCORE-001` Always-on listener ingestion loops for Telegram/Discord in gateway runtime with internal auth isolation and cursor tracking.
+- [x] `RCORE-002` Scheduler depth upgrade with richer schedule modes (`at`, `every`, `cron`) and clear routine controls.
+- [x] `RCORE-003` Production trust contract finalization for internet-facing edge (`issuer`, `audience`, proxy/TLS model) and deployment lock file.
+- [x] `RCORE-004` Channel action depth completion (`pin`, `reaction`) with transport-aware capability fallback and explicit operator visibility.
+- [x] `RCORE-005` Extension runtime phase-2 hardening (`install/update/rollback` lifecycle + safety controls) with strict regression gates.
+
 ## Owner Inputs Required (Prevents Hard Blockers)
 
-- [ ] `R1` JWT/API gateway production contract values: issuer allowlist, audience values, trusted proxy/header policy, TLS termination model.
-- [ ] `R2` Telegram production integration details: bot token strategy, webhook domain vs long-poll decision, allowlist seed policy, staging chat IDs.
-- [ ] `R3` Discord production integration details: bot token/app IDs, required intents, staging guild/channel IDs, role/permission model.
-- [ ] `R4` Security ownership and signoff authority: threat-model approver, risk acceptance owner, release-block exception owner.
-- [ ] `R5` Incident operations ownership: on-call escalation map and authority boundaries for profile/provider/global kill-switch actions.
-- [ ] `R6` Audit retention/archive target: backend destination, encryption/KMS requirement, retrieval SLA, immutable retention policy.
-- [ ] `R7` Consumer OAuth production stance: enabled/disabled modes, approved operator warning text, explicit risk acceptance decision.
-- [ ] `R8` Priority order for `MC-FUT-900` channels (only needed if expansion continues now).
+- [x] `R1` JWT/API gateway production contract values: issuer allowlist, audience values, trusted proxy/header policy, TLS termination model. Resolved via runtime trust-lock contract (`state_dir/deployment/trust_contract.lock.json`) with wizard/API-driven updates and lock-sync enforcement.
+- [x] `R2` Telegram production integration details: bot token strategy, webhook domain vs long-poll decision, allowlist seed policy, staging chat IDs. Owner decision: `long_poll` local-first; allowlist seed set; direct-chat local soak may use operator user ID as staging chat ID.
+- [x] `R3` Discord production integration details: bot token/app IDs, required intents, staging guild/channel IDs, role/permission model. Owner decision: use wizard defaults for intents and local-first staging; channel + allowlisted author IDs provided.
+- [x] `R4` Security ownership and signoff authority: threat-model approver, risk acceptance owner, release-block exception owner. Assigned owner alias: `ProfessahX`.
+- [x] `R5` Incident operations ownership: on-call escalation map and authority boundaries for profile/provider/global kill-switch actions. Owner decision: `ProfessahX` (single-owner model for current phase).
+- [x] `R6` Audit retention/archive target: backend destination, encryption/KMS requirement, retrieval SLA, immutable retention policy. Owner decision: local archive target accepted (`90-day hot + local archive` policy retained).
+- [x] `R7` Consumer OAuth production stance: enabled/disabled modes, approved operator warning text, explicit risk acceptance decision. Owner decision: `enabled` (high-risk mode with warning/audit/kill-switch controls).
+- [x] `R8` Priority order for `MC-FUT-900` channels (only needed if expansion continues now). Owner decision: defer channel expansion prioritization until next planning cycle.
 
 ## Verification Snapshot (2026-02-19)
 
@@ -173,4 +196,38 @@ Execution checklist derived from `PLAN.md`. IDs are stable and must be used by `
 - [x] `V2` Confirmed security automation scripts/workflows exist: `scripts/security_pr_gate.sh`, `scripts/security_nightly_deep_scan.sh`, `scripts/security_killswitch_drill.sh`, `scripts/security_secret_lifecycle_drill.sh`, plus GitHub workflows.
 - [x] `V3` Confirmed channel adapter scaffolds for `MC-FUT-010..050` exist (WhatsApp, Slack, iMessage/BlueBubbles, Signal, Twitch).
 - [x] `V4` Confirmed no open PR backlog remains after convergence/cleanup merge wave.
-- [x] `V5` Confirmed threat-model artifact set and formal incident runbook docs are not yet published in-repo and remain blocker items.
+- [x] `V5` Confirmed threat-model artifact set and formal incident runbook docs are published, owner-assigned, and reflected in checklist closure state (`O1`, `O2`).
+
+## Phase S - Next Buildout Execution (MC-EXT-NEXT)
+
+- [x] `S1` `MC-EXT-NEXT-001` Implement plugin manifest v2 schema + validation (local artifact path, sha256 verification, daemon allowlist enforcement, tool-name collision rejection).
+- [x] `S2` `MC-EXT-NEXT-002` Implement plugin storage layout (`bundles/`, `active/`, `pointers/`) with atomic install/update and single-depth rollback pointer semantics.
+- [x] `S3` `MC-EXT-NEXT-003` Implement plugin runner contract v1 request/response envelopes and strict stdout parsing contract.
+- [x] `S4` `MC-EXT-NEXT-004` Implement subprocess invoke path with timeout/output limits and sanitized execution envelope.
+- [x] `S5` `MC-EXT-NEXT-005` Wire hook execution (`run.start`, `run.end`, `tool.before`, `tool.after`) through runner contract with failure isolation.
+- [x] `S6` `MC-EXT-NEXT-006` Implement per-plugin health/breaker state (3 failures, 15-minute cooldown) and status surfaces.
+- [x] `S7` `MC-EXT-NEXT-007` Implement daemon runner mode with runtime allowlist and restart/timeout supervision semantics.
+- [x] `S8` `MC-EXT-NEXT-008` Implement plugin-defined tool registration/execution with high-risk + approval-required defaults.
+- [x] `S9` `MC-TOOLS-NEXT-001` Add global tool capability endpoint for core + plugin tools.
+- [x] `S10` `MC-TOOLS-NEXT-002` Add tool conformance harness for timeout/truncation/sandbox/approval deny paths.
+- [x] `S11` `MC-PROV-NEXT-001..003` Freeze provider contract, add provider conformance harness, and enforce run-loop modular boundaries.
+- [x] `S12` `MC-CH-FUT-001` Publish future channel adapter template + shim E2E harness (no concrete target channel).
+- [x] `S13` Execute full regression + benchmark gates after each PR chunk and at Phase S final ship gate.
+
+## Phase T - Numquam Integration Hardening (MC-MNO)
+
+- [x] `T1` `MC-MNO-001` Add runtime `memory.numquam` config contract + secret-ref wiring with runtime-first resolution and env compatibility fallback.
+- [x] `T2` `MC-MNO-002` Add startup/runtime handshake checks (`health.get`, `capabilities.get`) with contract validation + degrade-state surfaces in `/api/v1/status` and `/api/v1/jobs/status`.
+- [x] `T3` `MC-MNO-003` Add deterministic context policy engine for `context.build` (`top_k`, `risk_signal`, `message_window`, preference/query hints) and per-run policy metadata logging.
+- [x] `T4` `MC-MNO-004` Add provider-input safety cap for Numquam context with deterministic truncation metadata and warning flags.
+- [x] `T5` `MC-MNO-005` Add Numquam failure breaker (`numquam:integration`) with cooldown/reset behavior and run-level fallback guardrail events.
+- [x] `T6` `MC-MNO-006` Add writeback payload quality enforcement + stable idempotency behavior in propose path.
+- [x] `T7` `MC-MNO-007` Add MNO observability/audit coverage for handshake, fallback, breaker transitions, and explainability operations.
+- [x] `T8` `MC-MNO-008` Extend Numquam regression suite (breaker open, context truncation, explainability endpoint) and keep process-level integration tests green.
+- [x] `T9` `MC-MNO-009` Add operator explainability API surface (`POST /api/v1/runs/{run_id}/memory/why`) backed by `context.why`.
+- [x] `T10` `MC-MNO-010` Add `memory.md` sync pipeline (`POST /api/v1/memory/sync` + scheduler mode `memory.sync`) with source-path + last-sync metadata tracking.
+- [x] `T11` `MC-MNO-011` Add runtime-configurable blend policy (`mno_primary`, `local_fallback_only`, `local_augment`) with effective mode persisted in run usage metadata.
+- [x] `T12` `MC-MNO-012` Add scheduled MNO ops modes (`memory.preflight`, `memory.parity_probe`) with fail-safe behavior and event/audit evidence.
+- [x] `T13` `MC-MNO-013` Add explicit MNO pipeline hook mode (`memory.pipeline.hook`) and operator runbook docs.
+- [x] `T14` `MC-MNO-014` Publish soak-readiness checklist and rollback plan docs for multi-day MNO validation.
+- [x] `T15` Full regression + benchmark gates for MC-MNO track.

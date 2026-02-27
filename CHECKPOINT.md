@@ -4,9 +4,9 @@ Tracks execution continuity across context compactions.
 
 ## Current Position
 
-- checklist section: `AppDex Security Hardening Docs Complete`
-- active block: `MC-SEC` planning packet + security program spec finalized
-- active objective: Security documentation wave is complete; both AppDex packet and security program doc are synchronized and validated.
+- checklist section: `AppDex Next Buildout Planning (Docs)`
+- active block: Next buildout (plugins/providers/tools/channels template) execution brief + executable ticket pack
+- active objective: Convert the next-buildout implementation plan into canonical local docs, then hand off to execution via PR-chunked tickets.
 
 ## Entry Log
 
@@ -4571,6 +4571,1122 @@ Tracks execution continuity across context compactions.
 - Context checkpoint snapshot recorded with step `hard-blocker-owner-inputs`.
 - future action:
 - Wait for owner inputs (`R1-R8`) and live-execution window details, then resume by executing `O1/O2` signoff updates, running `O6` soak, and finalizing `O8`.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 233
+
+- checklist refs: owner-input ingest (`R2`, `R3`, `R4`, `R6`, `R7`)
+- past action:
+- Completed blocker assessment and paused on owner-input dependency set.
+- present action:
+- Ingesting owner-provided decisions into checklist/security docs without persisting plaintext credentials in tracked files.
+- validation outcomes:
+- Owner confirmed final authority alias for security signoff as `ProfessahX`.
+- Consumer OAuth production stance confirmed `enabled` with high-risk control requirement.
+- Audit archive target confirmed local-first (`90-day hot + archive` policy preserved).
+- Telegram/Discord owner inputs partially supplied; remaining run blockers narrowed to gateway target/auth and unresolved channel metadata fields.
+- future action:
+- Reconcile remaining owner-input gaps in plain-language terms and collect only minimal values needed to launch soak smoke + 7-day run.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/security/THREAT_MODEL_PACKAGE.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/security/INCIDENT_RUNBOOKS.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 234
+
+- checklist refs: owner-input checkpoint reconciliation (`R4`, `R6`, `R7`, checkpoint SOP)
+- past action:
+- Applied owner-input updates across checklist and security ownership docs.
+- present action:
+- Reconciling `LATEST.md` + `LATEST.json` in both repo checkpoint locations and validating JSON/checkpoint consistency.
+- validation outcomes:
+- `runtime/checkpoints/LATEST.json` (carsinos + root mirror) parsed successfully via `python3 -m json.tool`.
+- Checkpoint SOP required fields are now present in `LATEST.md` + `LATEST.json`: `step`, `note`, `branch`, `head`, `next_cmd`, and `validations`.
+- Current unresolved owner-input set is narrowed to `R1`, `R2` (partial), `R3` (partial), `R5`, `R8`, plus `O6` live gateway/token context.
+- future action:
+- Collect the remaining minimal nontechnical values and trigger channel soak smoke immediately after values are set.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 235
+
+- checklist refs: owner decision ingest + GUI hardening (`R2`, `R3`, `R5`, `R8`, `O1`, `O2`, `O8`)
+- past action:
+- Completed prior owner-input reconciliation for `R4`, `R6`, `R7`.
+- present action:
+- Applying remaining owner decisions and reducing hardcoded local auth assumptions by improving GUI token/setup flows.
+- validation outcomes:
+- Decision updates queued: `R5=ProfessahX`, `R8=defer`, local-first channel/default posture, threat-model/runbook ownership finalization.
+- GUI scope queued: random local gateway token generation + channel wizard setup hints/defaults.
+- Context checkpoint snapshot recorded with step `owner-input-decisions-and-gui-hardening-start`.
+- future action:
+- Run `cargo fmt` + targeted `carsinos-gui` tests, then checkpoint post-green and proceed to soak-smoke execution path.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gui/Cargo.toml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gui/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/channels/CHANNEL_SOAK_RUNBOOK.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/security/INCIDENT_RUNBOOKS.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/security/THREAT_MODEL_PACKAGE.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 236
+
+- checklist refs: GUI hardening post-green validation (`Phase F` UX maintenance + owner input closure path)
+- past action:
+- Applied checklist/security document decisions and GUI updates for local token generation plus channel wizard setup guidance.
+- present action:
+- Verified formatting and GUI unit tests after dependency update.
+- validation outcomes:
+- `cargo fmt --all --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `cargo test -p carsinos-gui --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`13 passed, 0 failed`).
+- `Cargo.lock` updated to capture new GUI dependency graph (`rand`).
+- future action:
+- Sync checkpoint files for post-green state, then collect remaining minimal live soak inputs and run local soak smoke (`O6`) path.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.lock`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gui/Cargo.toml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gui/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/channels/CHANNEL_SOAK_RUNBOOK.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/security/INCIDENT_RUNBOOKS.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/security/THREAT_MODEL_PACKAGE.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 237
+
+- checklist refs: `O6` local smoke unblock + channel runtime parity hardening
+- past action:
+- Completed GUI hardening and owner-input doc updates with green gui tests.
+- present action:
+- Investigated local soak red result and isolated root cause: port collision on `127.0.0.1:18789` plus channel runtime adapters requiring bot secret refs even in `shim` mode.
+- validation outcomes:
+- Port collision confirmed: `lsof -iTCP:18789` showed non-carsinOS listener (node/openclaw UI), causing misleading `405` responses.
+- Runtime health issue confirmed from soak report: `runtime_unhealthy_final_state` with detail `bot_token_secret_ref is missing in runtime config` despite `operation_mode=shim`.
+- future action:
+- Patch gateway adapter runtime-state resolution to honor `shim` mode without secret-ref requirements; expose channel operation-mode controls in GUI wizard; re-run tests and local soak smoke.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gui/src/main.rs`
+
+### 2026-02-20 - Entry 238
+
+- checklist refs: `O6` smoke verification, `R2/R3` local config UX
+- past action:
+- Isolated red-soak failure root causes (port collision + shim/transport adapter requirement bug).
+- present action:
+- Completed gateway + GUI hardening and verified local smoke run in shim mode.
+- validation outcomes:
+- Gateway fix: Telegram/Discord runtime adapters now skip secret-ref requirements when `operation_mode=shim` and only require transport secrets in `transport` mode.
+- GUI fix: Mission wizard now exposes channel `operation_mode` (`shim|transport`), provides local defaults button, supports channel-token secret upsert, and generates random local gateway token on demand.
+- Validation gates:
+- `cargo fmt --all --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `cargo test -p carsinos-gui -p carsinos-gateway --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- Local soak smoke command (bind `127.0.0.1:7344`) produced green report:
+- `runtime/channels/reports/channel-soak-20260220T061839Z.json` (`status=green`, approval roundtrip passed, telegram/discord runtime health final = true).
+- future action:
+- Prepare PR chunk for owner-input closure + channel runtime hardening, then execute full-duration 7-day soak when owner schedules live window.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.lock`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gui/Cargo.toml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gui/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/channels/CHANNEL_SOAK_RUNBOOK.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/security/INCIDENT_RUNBOOKS.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/security/THREAT_MODEL_PACKAGE.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+
+### 2026-02-20 - Entry 239
+
+- checklist refs: verification consistency cleanup (`V5`) + checkpoint fidelity
+- past action:
+- Completed local green smoke rerun and synchronized O6 evidence path.
+- present action:
+- Reconciled stale verification wording in checklist to match current `O1/O2` completion state.
+- validation outcomes:
+- `CHECKLIST.md` `V5` now reflects published/owned threat-model and incident runbook docs.
+- No behavior/runtime changes introduced in this cleanup slice.
+- future action:
+- Continue PR chunk preparation for this wave and maintain O6 full-duration soak as remaining operational signoff item.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+
+### 2026-02-20 - Entry 240
+
+- checklist refs: `AG-001` kickoff + checkpoint protocol alignment
+- past action:
+- Completed prior channel-soak and owner-input reconciliation wave through `Entry 239`.
+- present action:
+- Started autonomy guardrails execution (`AG-001..AG-011`) and aligned phase-start checkpoints before code changes.
+- validation outcomes:
+- `git rev-parse --short HEAD` verified `fc01dfb` on branch `main`.
+- Root and repo-local `runtime/checkpoints/LATEST.md` + `LATEST.json` updated with AG phase start metadata (`step`, `note`, `branch`, `head`, `next_cmd`, validations).
+- `CHECKLIST.md` now includes explicit Phase Q autonomy guardrails items (`AG-001` through `AG-011`).
+- future action:
+- Implement AG-001 protocol/gateway runtime guardrail config contract and run per-ticket green tests (`carsinos-gateway`, `carsinos-tools`, `carsinos-storage`).
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+
+### 2026-02-20 - Entry 241
+
+- checklist refs: `AG-001`
+- past action:
+- Established AG phase-start checkpoints and checklist anchoring.
+- present action:
+- Implemented AG-001 runtime autonomy guardrail config contract wiring across protocol and gateway surfaces.
+- validation outcomes:
+- Protocol changes: added `RuntimeAutonomyGuardrailsConfig` with locked defaults and runtime config request/response wiring.
+- Gateway changes: merged `autonomy_guardrails` in runtime update flow, added config validation bounds, and defaulted runtime config to guardrail defaults.
+- Test changes: extended runtime config round-trip test coverage for default fallback, valid round-trip, and invalid-bound rejection (`max_provider_attempts=0`).
+- future action:
+- Run AG-001 per-ticket green gate: `cargo test -p carsinos-gateway`, `cargo test -p carsinos-tools`, `cargo test -p carsinos-storage`; then write post-green checkpoint.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-protocol/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+
+### 2026-02-20 - Entry 242
+
+- checklist refs: `AG-001` post-green
+- past action:
+- Implemented AG-001 protocol/gateway/runtime-config validation changes.
+- present action:
+- Completed mandatory AG-001 green gate validation and synchronized post-green checkpoints.
+- validation outcomes:
+- `cargo test -p carsinos-gateway --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `cargo test -p carsinos-tools --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `cargo test -p carsinos-storage --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `CHECKLIST.md` updated: `AG-001` marked complete.
+- future action:
+- Implement AG-002 per-session run lane lock manager (create/run/resume/channel/scheduler entrypoints), then re-run per-ticket green gate.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+
+### 2026-02-20 - Entry 243
+
+- checklist refs: `AG-002`
+- past action:
+- Closed AG-001 with full green gate.
+- present action:
+- Implemented per-session lane locking for run execution and added concurrency conflict tests.
+- validation outcomes:
+- Added `SessionRunLaneManager` to `AppState` and run-lane orchestration helper with `Wait` and `RejectIfBusy` policies.
+- Enforced lane lock usage for:
+- interactive `POST /sessions/{session_id}/runs` (409 on busy),
+- interactive `POST /runs/{run_id}/resume` (409 on busy),
+- channel auto-run execution path (wait/serialize),
+- scheduler `session.run` path (wait/serialize).
+- Added unit test: locked session lane returns `409` on create-run.
+- Added process test: parallel run requests for same session result in `{201,409}` split.
+- future action:
+- Run AG-002 per-ticket green gate (`gateway/tools/storage`), checkpoint post-green, then proceed to AG-003 run budget governor.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/tests/e2e_process.rs`
+
+### 2026-02-20 - Entry 244
+
+- checklist refs: `AG-002` post-green
+- past action:
+- Implemented AG-002 lane lock manager and concurrency tests.
+- present action:
+- Completed AG-002 mandatory green gates and synchronized post-green checkpoints.
+- validation outcomes:
+- `cargo test -p carsinos-gateway --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`91` unit + `11` process E2E + `2` benchmark).
+- `cargo test -p carsinos-tools --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `cargo test -p carsinos-storage --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `CHECKLIST.md` updated: `AG-002` marked complete.
+- future action:
+- Implement AG-003 run budget governor in `execute_run` with stable terminal reason codes and threshold-breach tests.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+
+### 2026-02-20 - Entry 245
+
+- checklist refs: `AG-003`
+- past action:
+- Closed AG-002 with green lane-lock behavior and concurrency tests.
+- present action:
+- Implemented AG-003 run budget governor and terminal reason-code surfacing.
+- validation outcomes:
+- Added budget constants/reason-code helper and wall-time budget helper.
+- `execute_run` now enforces:
+- max run wall time,
+- max tool calls per run,
+- max provider input chars,
+- max tool output chars total,
+- max provider attempts.
+- Added guardrail reason code propagation to failed `run.status` events (`error_code`).
+- Added threshold coverage tests for:
+- wall-time helper path,
+- max tool calls,
+- max provider input chars,
+- max tool output chars total,
+- max provider attempts.
+- future action:
+- Run AG-003 per-ticket green gate (`gateway/tools/storage`), checkpoint post-green, then move to AG-004 scheduler timeout enforcement.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+
+### 2026-02-20 - Entry 246
+
+- checklist refs: `AG-003` post-green
+- past action:
+- Implemented AG-003 budget governor enforcement and reason-code tests.
+- present action:
+- Completed AG-003 mandatory green gates and synchronized post-green checkpoints.
+- validation outcomes:
+- `cargo test -p carsinos-gateway --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`96` unit + `11` process E2E + `2` benchmark).
+- `cargo test -p carsinos-tools --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `cargo test -p carsinos-storage --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `CHECKLIST.md` updated: `AG-003` marked complete.
+- future action:
+- Implement AG-004 scheduler timeout enforcement (`job.timeout_ms`) with explicit timeout failure code and scheduler-loop safety.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+
+### 2026-02-20 - Entry 247
+
+- checklist refs: `AG-004` post-green
+- past action:
+- Closed AG-003 with full green test gates and checkpoint sync.
+- present action:
+- Completed AG-004 scheduler timeout enforcement verification with deterministic timeout regression coverage.
+- validation outcomes:
+- Scheduler execution path enforces `job.timeout_ms` via `tokio::time::timeout` around `execute_job_payload`.
+- Timeout failure persistence now verified by test `run_now_marks_timeout_when_payload_exceeds_timeout` (`status=failed`, `error_text` starts with `TIMEOUT:` in both run-now and history views).
+- `cargo test -p carsinos-gateway --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`97` unit + `11` process E2E + `2` benchmark).
+- `cargo test -p carsinos-tools --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `cargo test -p carsinos-storage --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `CHECKLIST.md` updated: `AG-004` marked complete.
+- future action:
+- Implement AG-005 single scheduler-instance lock so duplicate gateway processes keep API up while secondary scheduler loop remains disabled.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+
+### 2026-02-20 - Entry 248
+
+- checklist refs: `AG-005` post-green
+- past action:
+- Closed AG-004 with deterministic timeout regression coverage and full per-ticket green gates.
+- present action:
+- Implemented AG-005 single scheduler-instance lock with lock metadata and process-level duplicate-instance validation.
+- validation outcomes:
+- Added filesystem lock ownership guard at `<state_dir>/locks/scheduler.instance.lock`; primary process acquires lock and runs scheduler loop, secondary process starts API but keeps scheduler disabled.
+- `/api/v1/jobs/status` now reflects runtime scheduler lock state (`scheduler_running=true|false`).
+- Added process regression: `second_process_disables_scheduler_when_instance_lock_is_held` confirms secondary scheduler disable while primary executes scheduled jobs.
+- `cargo fmt --all --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `cargo test -p carsinos-gateway --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`97` unit + `12` process E2E + `2` benchmark).
+- `cargo test -p carsinos-tools --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `cargo test -p carsinos-storage --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `CHECKLIST.md` updated: `AG-005` marked complete.
+- future action:
+- Implement AG-011 P0 runaway-prevention subset tests (lane serialization/conflict, scheduler timeout terminal path, duplicate scheduler prevention, core budget-stop).
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/Cargo.toml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/tests/e2e_process.rs`
+
+### 2026-02-20 - Entry 249
+
+- checklist refs: `AG-011-P0` post-green
+- past action:
+- Completed AG-005 scheduler-instance lock hardening with duplicate-process protection.
+- present action:
+- Completed AG-011 P0 runaway-prevention process regression expansion.
+- validation outcomes:
+- Added process test `scheduler_marks_run_failed_when_payload_exceeds_timeout` (scheduled payload timeout path).
+- Added process test `run_is_stopped_by_wall_time_budget_guardrail` (runtime guardrail budget stop path, `BUDGET_MAX_RUN_MS`).
+- Existing process tests now collectively cover all P0 subset items:
+- lane serialization/conflict (`parallel_runs_for_same_session_return_conflict`),
+- duplicate scheduler prevention (`second_process_disables_scheduler_when_instance_lock_is_held`),
+- scheduler timeout terminal failure (`scheduler_marks_run_failed_when_payload_exceeds_timeout`),
+- budget guardrail stop (`run_is_stopped_by_wall_time_budget_guardrail`).
+- `cargo test -p carsinos-gateway --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml --test e2e_process` passed (`14` tests).
+- `cargo test -p carsinos-gateway --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`97` unit + `14` process E2E + `2` benchmark).
+- `cargo test -p carsinos-tools --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `cargo test -p carsinos-storage --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `CHECKLIST.md` updated: `AG-011-P0` marked complete.
+- future action:
+- Implement AG-006 tool fanout cap and repeated tool-error fingerprint breaker behavior.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/tests/e2e_process.rs`
+
+### 2026-02-26 - Entry 257
+
+- checklist refs: `RCORE-002` post-green
+- past action:
+- Completed `RCORE-001` always-on channel listener ingestion loop with transport polling coverage.
+- present action:
+- Completed `RCORE-002` scheduler depth upgrade by adding `at`, `every`, and `cron` scheduling contract support across protocol, storage, gateway scheduling logic, and job response surfaces.
+- validation outcomes:
+- Contract/storage/runtime updates:
+- Added `cron_expr` support in job create/update/response payloads.
+- Added schedule kind update support in storage patch path with safe field normalization for `interval_seconds` and `run_at_ms`.
+- Added cron parser/execution helpers with deterministic next-run computation and validation.
+- Updated job execution disable rules so `at` behaves as one-shot.
+- Added gateway tests:
+- `jobs_support_every_at_and_cron_schedule_kinds`
+- `jobs_reject_invalid_cron_expression`
+- Regression gates passed:
+- `cargo test -p carsinos-gateway --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` (`114` unit + `17` process E2E + `2` benchmark).
+- `cargo test -p carsinos-storage --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`19` tests).
+- `cargo test -p carsinos-tools --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`11` tests).
+- `cargo test -p carsinos-protocol --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `CHECKLIST.md` updated: `RCORE-002` marked complete.
+- future action:
+- Start `RCORE-003` production trust contract finalization and deployment lock file enforcement.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-protocol/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-storage/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/Cargo.toml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+
+### 2026-02-26 - Entry 256
+
+- checklist refs: `RCORE-001` post-green
+- past action:
+- Completed AG track through `AG-011` and stabilized autonomy guardrail runtime/test coverage.
+- present action:
+- Implemented always-on channel listener ingestion loop foundation from `APPDEX_SCRATCHPAD_CORE_LOOP_ADDS.md` with end-to-end validation for Telegram long-poll and Discord staging-channel polling.
+- validation outcomes:
+- Added Telegram + Discord listener runtime loops:
+- `channel_ingest_listener_loop` now runs alongside scheduler/runtime supervisor and executes autonomous provider polling ticks.
+- `poll_telegram_channel_listener_once` ingests Telegram `getUpdates` results and forwards into existing ingest pipeline.
+- `poll_discord_channel_listener_once` polls configured Discord staging channels, applies cursor-based dedupe, and forwards into existing ingest pipeline.
+- Added secure internal-ingest auth isolation:
+- New in-memory per-process token (`internal_channel_ingest_token`) and header gate (`x-carsinos-internal-ingest-token`) for listener-originated ingest calls.
+- Internal listener auth grants only `channel_adapter` + `service_internal` roles and remains rate-limited.
+- Extended channel transport contracts:
+- Discord transport now supports inbound channel message polling (`get_channel_messages_with_retry`).
+- Telegram transport user model now supports `is_bot` so listener path can suppress bot-origin loops.
+- Added new E2E-style tests (gateway test module):
+- `telegram_listener_long_poll_ingests_updates_end_to_end`
+- `discord_listener_polls_staging_channels_and_uses_cursor_end_to_end`
+- Regression/benchmark commands passed:
+- `cargo fmt --all --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml`
+- `cargo test -p carsinos-channels-discord --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml`
+- `cargo test -p carsinos-channels-telegram --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml`
+- `cargo test -p carsinos-gateway --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` (`112` unit + `17` process E2E + `2` benchmark)
+- `cargo test -p carsinos-gateway --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml --test e2e_process` (`17` tests)
+- `cargo test -p carsinos-gateway --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml --test benchmark_process -- --nocapture` passed.
+- `cargo test -p carsinos-storage --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `cargo test -p carsinos-tools --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- Benchmark (nocapture) snapshot:
+- `health-burst throughput_rps=1301.23`, `p95_ms=30.17`, `p99_ms=30.81`
+- `flow p95_ms=18.66`, `p99_ms=20.06`
+- `numquam-flow p95_ms=23.92`, `p99_ms=24.47`
+- `CHECKLIST.md` updated: added `Phase R - Core Loop Adds` and marked `RCORE-001` complete.
+- future action:
+- Implement `RCORE-002` scheduler depth upgrade (`at`/`every`/`cron`) with deterministic scheduling semantics and full regression coverage.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-discord/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-telegram/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+
+### 2026-02-20 - Entry 250
+
+- checklist refs: `AG-006` post-green
+- past action:
+- Closed AG-011 P0 subset with full process-level runaway-prevention coverage.
+- present action:
+- Implemented AG-006 breaker controls: tool fanout cap and repeated tool-error fingerprint breaker.
+- validation outcomes:
+- Added `BREAKER_TOOL_FANOUT_CAP` and `BREAKER_REPEATED_TOOL_ERROR` guardrail reason codes with run failure propagation.
+- Added deterministic fanout cap behavior (`effective_tool_fanout_cap`) independent from max tool-call budget.
+- Added fingerprint-based failure streak accounting (`ToolErrorFingerprintBreaker`) and breaker trip behavior when streak reaches `max_consecutive_failures_before_breaker`.
+- Added test coverage:
+- `run_breaker_tool_fanout_cap_fails_with_reason_code`
+- `repeated_tool_error_fingerprint_trips_breaker_reason_code`
+- `cargo fmt --all --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `cargo test -p carsinos-gateway --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`99` unit + `14` process E2E + `2` benchmark).
+- `cargo test -p carsinos-tools --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `cargo test -p carsinos-storage --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `CHECKLIST.md` updated: `AG-006` marked complete.
+- future action:
+- Implement AG-007 token/cost accounting and per-profile daily budget kill-switch across protocol/provider/storage/gateway/migrations.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+
+### 2026-02-20 - Entry 251
+
+- checklist refs: `AG-007` post-green
+- past action:
+- Completed AG-006 tool fanout and repeated tool-error breaker controls with full green gates.
+- present action:
+- Implemented AG-007 token/cost accounting, daily usage persistence, and budget kill-switch enforcement across provider/storage/gateway layers.
+- validation outcomes:
+- Provider contract upgraded: `CompletionResponse` now includes usage metrics (`input/output chars`, `input/output/total tokens`, optional `estimated_cost_usd`).
+- Runtime provider policy contract extended with budget controls (`daily_token_budget`, `daily_cost_usd_budget`, `usd_per_1k_tokens`).
+- Storage/migration implemented:
+- `daily_auth_profile_usage` table + increment/get APIs.
+- `circuit_breaker_states` table scaffold (for AG-009 state persistence).
+- Gateway enforcement added:
+- daily auth-profile usage accounting on successful provider completion,
+- fail-closed USD-budget behavior when cost cannot be computed,
+- profile kill-switch disable on token/cost budget breach.
+- Gateway tests added:
+- `daily_token_budget_breach_disables_auth_profile_and_fails_run`
+- `daily_cost_budget_without_cost_model_fails_closed`
+- Storage test added:
+- `daily_auth_profile_usage_upsert_increments_totals`.
+- `cargo fmt --all --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `cargo test -p carsinos-gateway --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`101` unit + `14` process E2E + `2` benchmark).
+- `cargo test -p carsinos-providers --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `cargo test -p carsinos-storage --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`18` tests).
+- `cargo test -p carsinos-tools --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `CHECKLIST.md` updated: `AG-007` marked complete.
+- future action:
+- Implement AG-008 `heartbeat.run` scheduler mode with strict no-tools execution contract and timeout enforcement.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-protocol/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-providers/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-storage/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/migrations/0001_init.sql`
+
+### 2026-02-20 - Entry 252
+
+- checklist refs: `AG-008` post-green
+- past action:
+- Completed AG-007 token/cost accounting and per-profile daily budget kill-switch controls.
+- present action:
+- Implemented AG-008 `heartbeat.run` scheduler mode with runtime no-tools enforcement, contract output validation, heartbeat timeout cap, and no-followup-retry behavior.
+- validation outcomes:
+- Protocol contract constants added for heartbeat mode/output contract: `JOB_MODE_HEARTBEAT_RUN`, `HEARTBEAT_OUTPUT_OK`, `HEARTBEAT_OUTPUT_ALERT_PREFIX`.
+- Gateway scheduler path updated:
+- `execute_job_once` now enforces heartbeat-specific effective timeout (`min(job.timeout_ms, heartbeat_max_run_ms)`) and hard disables retries for heartbeat mode.
+- `execute_job_payload` now dispatches `heartbeat.run` and normalizes payload `mode` handling.
+- Added heartbeat handlers:
+- input tool-directive rejection (`TOOL:*` and parsed tool invocations),
+- output contract enforcement (`HEARTBEAT_OK` or `ALERT: <message>`),
+- heartbeat event emission (`job.heartbeat`) with `tools_disabled` metadata.
+- Added test coverage:
+- `run_now_heartbeat_mode_emits_contract_output`
+- `run_now_heartbeat_rejects_tool_lines_without_retry`
+- `run_now_heartbeat_enforces_result_contract`
+- `run_now_heartbeat_uses_guardrail_timeout_and_no_retry`
+- `cargo fmt --all --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `cargo test -p carsinos-gateway --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`105` unit + `14` process E2E + `2` benchmark).
+- `cargo test -p carsinos-tools --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `cargo test -p carsinos-storage --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `CHECKLIST.md` updated: `AG-008` marked complete.
+- future action:
+- Implement AG-009 provider/job circuit breakers with timed reset and structured scheduler skip events.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-protocol/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+
+### 2026-02-20 - Entry 253
+
+- checklist refs: `AG-009` post-green
+- past action:
+- Completed AG-008 heartbeat scheduler mode guardrails and contract validation path.
+- present action:
+- Implemented AG-009 provider/job circuit breakers with persistent state, timed reset, and skip/open event emission.
+- validation outcomes:
+- Added persistent circuit-breaker storage APIs in `carsinos-storage`:
+- `get_circuit_breaker_state`
+- `upsert_circuit_breaker_state`
+- `clear_circuit_breaker_state`
+- Added storage contract structs:
+- `CircuitBreakerStateRecord`
+- `CircuitBreakerStateUpsert`
+- Added storage test:
+- `circuit_breaker_state_upsert_round_trip_and_clear`
+- Gateway breaker enforcement added:
+- Provider-scope breaker pre-check before provider calls, open-on-failure threshold enforcement, cooldown-based reset, and success reset.
+- Job-scope breaker pre-check in scheduler/manual job execution, open-on-terminal-failure threshold enforcement, cooldown-based reset, and success reset.
+- Added structured events:
+- `run.guardrail` for provider breaker open conditions
+- `job.skip` for job breaker skip-on-open
+- `job.breaker` when job breaker transitions open
+- Added AG-009 gateway tests:
+- `provider_circuit_breaker_opens_and_blocks_followup_runs`
+- `provider_circuit_breaker_resets_after_cooldown_expiry`
+- `job_circuit_breaker_opens_and_skips_subsequent_runs`
+- `job_circuit_breaker_resets_after_cooldown_expiry`
+- Heartbeat reason-code assertions reconciled with AG-009 reason-coded error output.
+- `cargo fmt --all --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `cargo test -p carsinos-gateway --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`109` unit + `14` process E2E + `2` benchmark).
+- `cargo test -p carsinos-tools --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `cargo test -p carsinos-storage --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`19` tests).
+- `CHECKLIST.md` updated: `AG-009` marked complete.
+- future action:
+- Implement AG-010 observability/status payload exposure for guardrail/breaker/scheduler lock state and terminal stop reasons.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-storage/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+
+### 2026-02-20 - Entry 254
+
+- checklist refs: `AG-010` post-green
+- past action:
+- Completed AG-009 circuit-breaker runtime controls for provider/job scopes.
+- present action:
+- Implemented AG-010 observability payload expansion for scheduler lock, guardrail state, breaker summaries, and operator stop-reason visibility.
+- validation outcomes:
+- Protocol contract expanded:
+- `StatusResponse` now includes `scheduler_lock`, `autonomy_guardrails`, `open_circuit_breakers`, `circuit_breakers[]`, and `top_stop_reasons[]`.
+- `JobStatusResponse` now includes `scheduler_lock`, `open_circuit_breakers`, `circuit_breakers[]`, and `top_stop_reasons[]`.
+- Added protocol response types:
+- `SchedulerLockStateResponse`
+- `CircuitBreakerStateResponse`
+- `FailureReasonCountResponse`
+- Storage observability API added:
+- `list_circuit_breaker_states(limit, scope)` for summary/reporting paths.
+- Gateway observability wiring added:
+- `/api/v1/status` now emits lock state + active autonomy guardrails + breaker summaries + aggregated top stop reasons.
+- `/api/v1/jobs/status` now emits lock state + breaker summaries + aggregated top stop reasons.
+- New gateway helper aggregation paths:
+- breaker summary projection from storage records.
+- stop-reason rollup from job `last_error` reason-code prefixes.
+- Added gateway test coverage:
+- `status_endpoint_exposes_guardrail_and_breaker_observability`
+- Updated jobs status lifecycle test assertions for new payload fields.
+- Added storage test coverage expansion for scoped/unscoped breaker listing in `circuit_breaker_state_upsert_round_trip_and_clear`.
+- Added AG-010 operator doc:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/AUTONOMY_GUARDRAILS_OBSERVABILITY.md`
+- `cargo fmt --all --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `cargo test -p carsinos-gateway --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`110` unit + `14` process E2E + `2` benchmark).
+- `cargo test -p carsinos-tools --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `cargo test -p carsinos-storage --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`19` tests).
+- `CHECKLIST.md` updated: `AG-010` marked complete.
+- future action:
+- Implement AG-011 full runaway-prevention regression suite expansion (including heartbeat no-tools contract in process-level coverage) and final benchmark gate rerun.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-protocol/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-storage/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/AUTONOMY_GUARDRAILS_OBSERVABILITY.md`
+
+### 2026-02-20 - Entry 255
+
+- checklist refs: `AG-011` post-green
+- past action:
+- Completed AG-010 observability payload and status/jobs status contract expansion.
+- present action:
+- Completed AG-011 full runaway-prevention regression expansion with additional process-level coverage and final benchmark gate.
+- validation outcomes:
+- Expanded process-level E2E suite in `crates/carsinos-gateway/tests/e2e_process.rs`:
+- `heartbeat_run_mode_rejects_tool_lines_process_level`
+- `tool_fanout_cap_and_repeated_tool_error_breaker_are_enforced_process_level`
+- `daily_budget_kill_switch_is_enforced_process_level`
+- Existing P0/P1 process coverage retained and verified:
+- scheduler timeout terminal path
+- scheduler single-instance lock behavior
+- per-session lane conflict behavior
+- wall-time budget stop behavior
+- Gateway process E2E count increased from `14` to `17` tests.
+- Added process-level budget kill-switch proof with live provider stub and profile-disable verification.
+- Final AG gate commands passed:
+- `cargo test -p carsinos-gateway --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` (`110` unit + `17` process E2E + `2` benchmark).
+- `cargo test -p carsinos-gateway --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml --test e2e_process` (`17` tests).
+- `cargo test -p carsinos-tools --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `cargo test -p carsinos-storage --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`19` tests).
+- `cargo test -p carsinos-gateway --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml --test benchmark_process -- --nocapture` passed.
+- Benchmark (nocapture) snapshot:
+- `health-burst throughput_rps=1437.95`, `p95_ms=27.67`, `p99_ms=28.04`.
+- `flow p95_ms=12.16`, `p99_ms=19.26`.
+- `numquam-flow p95_ms=13.98`, `p99_ms=21.59`.
+- `CHECKLIST.md` updated: `AG-011` marked complete.
+- future action:
+- Autonomy Guardrails track (`AG-001..AG-011`) is complete in current workspace state; next step is PR chunking/review flow for this batch unless redirected.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/tests/e2e_process.rs`
+
+### 2026-02-26 - Entry 258
+
+- checklist refs: `RCORE-003` post-green
+- past action:
+- Completed `RCORE-002` scheduler depth expansion (`at`/`every`/`cron`) with green regression gates.
+- present action:
+- Finalized `RCORE-003` production trust contract handling with a deployment lock file, startup validation, runtime lock refresh endpoint, and lock-aware status observability.
+- validation outcomes:
+- Added runtime trust-lock contract + persistence:
+- Bootstraps lock file at `state_dir/deployment/trust_contract.lock.json` when missing.
+- Validates lock schema/hash and enforces trust-contract consistency at startup.
+- Added runtime trust-lock APIs:
+- `GET /api/v1/config/runtime/trust-lock`
+- `POST /api/v1/config/runtime/trust-lock/refresh`
+- Added lock-aware runtime config behavior:
+- Runtime config updates/rollbacks verify trust lock consistency and sync lock hash metadata when global trust fields change.
+- `/api/v1/status` now includes trust-lock summary (`enforced`, `lock_path`, `trust_hash`, `locked_at`, `drift_detected`).
+- Regression gates passed:
+- `cargo test -p carsinos-gateway --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` (`114` unit + `17` process E2E + `2` benchmark).
+- `CHECKLIST.md` updated: `RCORE-003` marked complete.
+- future action:
+- Start `RCORE-004` channel action transport-depth completion (`pin`/`reaction`) with capability-aware fallback behavior.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-protocol/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+
+### 2026-02-26 - Entry 259
+
+- checklist refs: `RCORE-004` post-green
+- past action:
+- Completed `RCORE-003` trust contract lock finalization and runtime lock management endpoints.
+- present action:
+- Completed `RCORE-004` channel action depth by implementing transport-backed `pin`/`reaction` operations for Telegram and Discord plus explicit shim fallback visibility.
+- validation outcomes:
+- Telegram transport expanded:
+- Added `pinChatMessage` and `setMessageReaction` retry-capable client paths with request validation.
+- Discord transport expanded:
+- Added `pin` and `reaction` retry-capable client paths (`PUT` routes with emoji URL encoding).
+- Gateway channel action execution expanded:
+- `channel.pin`/`channel.reaction` now attempt real upstream transport mutation when transport mode is enabled.
+- Added target parsing support for optional message IDs (`chat:<id>/<message_id>`, `channel:<id>/<message_id>`).
+- Added transport failure classification (`INVALID_INPUT` vs `DEPENDENCY_UNAVAILABLE`) and richer event/audit payload fields (`transport_dispatched`, `fallback_reason`).
+- Added/updated tests:
+- `carsinos-channels-telegram`: pin/reaction transport tests added.
+- `carsinos-channels-discord`: pin/reaction transport tests added.
+- gateway parser tests expanded for telegram target message-id parsing.
+- Regression gates passed:
+- `cargo test -p carsinos-channels-telegram --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`9` tests).
+- `cargo test -p carsinos-channels-discord --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`10` tests).
+- `cargo test -p carsinos-gateway --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`116` unit + `17` process E2E + `2` benchmark).
+- `cargo test -p carsinos-storage --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`19` tests).
+- `cargo test -p carsinos-tools --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`11` tests).
+- `cargo test -p carsinos-protocol --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `CHECKLIST.md` updated: `RCORE-004` marked complete.
+- future action:
+- Start `RCORE-005` extension runtime phase-2 hardening (`install`/`update`/`rollback` lifecycle + safety controls).
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-telegram/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-discord/Cargo.toml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-discord/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+
+### 2026-02-26 - Entry 260
+
+- checklist refs: `RCORE-005` post-green
+- past action:
+- Completed `RCORE-004` channel action transport-depth completion for pin/reaction with fallback visibility.
+- present action:
+- Completed `RCORE-005` extension runtime phase-2 hardening by adding install/update/rollback lifecycle APIs, rollback snapshots, manifest persistence, and live hook-runtime refresh controls.
+- validation outcomes:
+- Protocol contract additions:
+- Added extension lifecycle request/response contracts for plugin install/update/rollback.
+- Core runtime hardening additions:
+- `PluginRegistry`: added `get_manifest` and safe `replace_manifest` rebuild path.
+- `HookBus`: added `replace_with` to hot-swap hook registrations after registry mutation.
+- Gateway lifecycle APIs added:
+- `POST /api/v1/extensions/plugins/install`
+- `POST /api/v1/extensions/plugins/{plugin_id}/update`
+- `POST /api/v1/extensions/plugins/{plugin_id}/rollback`
+- Gateway safety controls implemented:
+- plugin-id normalization/validation
+- extension allowlist enforcement (`POLICY_DENY` on blocked plugin IDs)
+- rollback snapshot persistence (`extensions.plugins.rollback.<plugin_id>`)
+- on-disk manifest persistence under configured plugin manifest root
+- hook-bus rebuild + policy-denial audit replay after each lifecycle mutation
+- structured security audit records for install/update/rollback actions
+- Added lifecycle integration test:
+- `extension_plugin_install_update_and_rollback_lifecycle`
+- Regression gates passed:
+- `cargo test -p carsinos-core --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`7` tests).
+- `cargo test -p carsinos-channels-telegram --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`9` tests).
+- `cargo test -p carsinos-channels-discord --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`10` tests).
+- `cargo test -p carsinos-gateway --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`117` unit + `17` process E2E + `2` benchmark).
+- `cargo test -p carsinos-gateway --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml --test e2e_process` passed (`17` tests).
+- `cargo test -p carsinos-gateway --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml --test benchmark_process -- --nocapture` passed.
+- `cargo test -p carsinos-storage --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`19` tests).
+- `cargo test -p carsinos-tools --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed (`11` tests).
+- `cargo test -p carsinos-protocol --manifest-path /Users/domusanimae/Documents/openclaw replacement/carsinos/Cargo.toml` passed.
+- `CHECKLIST.md` updated: `RCORE-005` marked complete; owner input `R1` resolved via trust-lock contract workflow.
+- future action:
+- Phase R (`RCORE-001..RCORE-005`) is fully complete and regressed; next action is PR chunking/review workflow for this batch.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-core/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-protocol/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-telegram/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-discord/Cargo.toml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-channels-discord/src/lib.rs`
+
+### 2026-02-26 - Entry 261
+
+- checklist refs: `RCORE-005` follow-up docs
+- past action:
+- Shipped Phase R core-loop adds (listeners, scheduler depth, trust lock, channel action depth, extension lifecycle APIs) and created an initial AppDex quick brief.
+- present action:
+- Reviewed `APPDEX_QUICK_BRIEF_NEXT_BUILDOUT_AND_MC_CONVERGENCE.md` for under-specified areas and rewrote it into an execution-ready brief:
+- explicitly calls out prior gaps (plugin execution model, provider/tool modularity contract, channel template/harness, MC convergence sequencing)
+- defines concrete deliverables and acceptance criteria for Track A (CarsinOS runtime extensibility)
+- keeps Track B (Mission Control convergence) explicitly deferred and non-blocking
+- validation outcomes:
+- Docs-only change; no runtime behavior modified.
+- future action:
+- AppDex should convert the “Ticket Seed List” into real implementation tickets/branches and execute Track A first (plugins/providers/tools), keeping MC convergence as a separate planning stream.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/APPDEX_QUICK_BRIEF_NEXT_BUILDOUT_AND_MC_CONVERGENCE.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+
+### 2026-02-26 - Entry 262
+
+- checklist refs: `RCORE-005` follow-up docs
+- past action:
+- Captured operator-locked decisions for the next buildout (hybrid runner, local artifacts + sha256, single rollback depth, 3-failure breaker with 15m cooldown, plugin tool approval defaults).
+- present action:
+- Updated `APPDEX_QUICK_BRIEF_NEXT_BUILDOUT_AND_MC_CONVERGENCE.md` to reconcile the plan with locked decisions and to explicitly include PR chunking + workflow gates.
+- Created a decision-complete executable ticket pack for the next buildout (IDs, dependencies, contracts, tests, and gates).
+- validation outcomes:
+- Docs-only change; no runtime behavior modified.
+- future action:
+- Run doc QA pass (consistency + contradiction scan) and refresh checkpoints (`LATEST.md` + `LATEST.json`) for the doc wave.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/APPDEX_QUICK_BRIEF_NEXT_BUILDOUT_AND_MC_CONVERGENCE.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/APPDEX_EXECUTABLE_TICKET_PACK_NEXT_BUILDOUT_AND_MC_CONVERGENCE.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+
+### 2026-02-26 - Entry 263
+
+- checklist refs: `S1` `S2` `S3` `S4` `S5` `S6` (`S13` chunk gate)
+- past action:
+- Started Phase S PR-A implementation and recovered compile drift from in-flight v2 plugin lifecycle edits.
+- present action:
+- Completed `MC-EXT-NEXT-001..006` implementation wave:
+- finalized plugin manifest v2 validation + bundle/active/pointer lifecycle handlers and rollback semantics
+- added plugin runner contract v1 envelopes and strict stdout JSON parsing
+- added subprocess invoke path with timeout/output limits and sanitized env
+- wired plugin hook invocation through runner for `run.start|run.end|tool.before|tool.after|compaction.before|compaction.after` with failure isolation
+- implemented per-plugin breaker state (consecutive failures, disabled-until cooldown) and status surfaces
+- exposed `GET /api/v1/extensions/plugins/status` and extended `/api/v1/status` with plugin breaker summary
+- validation outcomes:
+- Compile gates:
+- `cargo check -p carsinos-gateway` passed after tokio `process` + `io-util` feature enable and fixture updates.
+- Regression gates:
+- `cargo test -p carsinos-gateway` passed (`119` unit + `17` process E2E + `2` benchmarks).
+- `cargo test --workspace --locked` passed (all crates/tests/doc-tests green).
+- `cargo test -p carsinos-gateway --test e2e_process` passed (`17` tests).
+- `cargo test -p carsinos-gateway --test benchmark_process -- --nocapture` passed (health burst and flow benchmark output printed; tests green).
+- New tests added and green:
+- `plugin_hook_runner_invocation_updates_runtime_status`
+- `plugin_hook_runner_failure_trips_breaker_after_three_invocations`
+- Checkpoint SOP:
+- context checkpoint snapshots written at `runtime/checkpoints/` (`mc-ext-next-pr-a-post-green`, `mc-ext-next-s1-s6-post-green`).
+- mirrored `carsinos/runtime/checkpoints/LATEST.*` to top-level `runtime/checkpoints/LATEST.*`.
+- future action:
+- Continue Phase S with `S7` daemon-mode runner/supervisor semantics, then `S8..S10` plugin tools + tool capability/conformance surfaces.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-core/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-protocol/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/Cargo.toml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+
+### 2026-02-26 - Entry 264
+
+- checklist refs: `S7` (`S13` chunk gate)
+- past action:
+- Completed Phase S `S1..S6` and opened Phase S7 daemon-runner implementation start checkpoint.
+- present action:
+- Implemented daemon plugin runner semantics (`MC-EXT-NEXT-007`) in gateway runtime:
+- added per-plugin daemon supervisor registry (lazy start, one in-flight request, NDJSON request/response)
+- enforced allowlist + daemon reset on plugin lifecycle mutations
+- added restart-after-exit behavior and timeout-triggered kill/reset behavior
+- wired hook execution path to dispatch by `exec_kind` (`subprocess` or `daemon`)
+- added daemon regression test covering allowlist denial + restart on subsequent invocation after daemon exit
+- validation outcomes:
+- `cargo check -p carsinos-gateway` passed.
+- `cargo test -p carsinos-gateway` passed (`120` unit + `17` process E2E + `2` benchmarks).
+- `cargo test --workspace --locked` passed (all crates/tests/doc-tests green).
+- `cargo test -p carsinos-gateway --test e2e_process` passed (`17` tests).
+- `cargo test -p carsinos-gateway --test benchmark_process -- --nocapture` passed.
+- `CHECKLIST.md` updated: `S7` marked complete.
+- Checkpoint SOP:
+- snapshot recorded (`mc-ext-next-s7-post-green`) and `LATEST.md/.json` mirrored into top-level `runtime/checkpoints/`.
+- future action:
+- Continue Phase S with `S8` plugin-defined tools + `S9/S10` tool capability/conformance surfaces.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+
+### 2026-02-26 - Entry 265
+
+- checklist refs: `S8` `S9` (`S13` chunk gate)
+- past action:
+- Finished S7 daemon-mode runner support and regression gates.
+- present action:
+- Implemented plugin-defined tool execution and tool capability surface:
+- parser now supports plugin tool commands from enabled plugin manifests (high-risk + approval-required by default)
+- run loop now routes plugin tool invocations through plugin runner contract (`kind=tool`) after approval gate
+- added `GET /api/v1/tools/capabilities` with core + plugin union and filter support (`origin`, `include_disabled`)
+- added regression tests:
+- `plugin_defined_tool_requires_approval_and_executes_after_resume`
+- `tool_capabilities_endpoint_includes_core_and_plugin_tools`
+- validation outcomes:
+- `cargo check -p carsinos-gateway` passed.
+- `cargo test -p carsinos-gateway` passed (`122` unit + `17` process E2E + `2` benchmarks).
+- `cargo test --workspace --locked` passed.
+- `cargo test -p carsinos-gateway --test e2e_process` passed (`17` tests).
+- `cargo test -p carsinos-gateway --test benchmark_process -- --nocapture` passed (printed latency/throughput metrics, all green).
+- `CHECKLIST.md` updated: `S8` and `S9` marked complete.
+- Checkpoint SOP:
+- snapshot recorded (`mc-ext-next-s8-s9-post-green`) and `LATEST.md/.json` mirrored to top-level `runtime/checkpoints/`.
+- future action:
+- Continue into `S10` tool conformance harness and `S11` provider contract/conformance boundary hardening.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-protocol/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+
+### 2026-02-27 - Entry 266
+
+- checklist refs: `S10` `S11` `S12` `S13`
+- past action:
+- Completed S8/S9 (plugin-defined tools and tools capability endpoint) with full regression gates.
+- present action:
+- Closed remaining Phase S items:
+- `S10`: consolidated tool conformance coverage (core timeout/truncation/sandbox-deny in `carsinos-tools`, approval-gating deny/approve flows in gateway, plus plugin tool approval/resume coverage).
+- `S11`: provider contract/conformance boundaries verified against existing normalized provider interface and provider harness tests (`carsinos-providers` + gateway budget/kill-switch/circuit-breaker regression suites).
+- `S12`: published future channel adapter template + shim harness contract at `docs/channels/CHANNEL_ADAPTER_TEMPLATE_AND_HARNESS.md`.
+- `S13`: reran full regression + benchmark gates for final Phase S ship gate.
+- validation outcomes:
+- `cargo test -p carsinos-gateway` passed (`122` unit + `17` process E2E + `2` benchmark).
+- `cargo test --workspace --locked` passed across all crates/tests/doc-tests.
+- `cargo test -p carsinos-gateway --test e2e_process` passed (`17` tests).
+- `cargo test -p carsinos-gateway --test benchmark_process -- --nocapture` passed (latency + burst throughput metrics printed, tests green).
+- `CHECKLIST.md` updated: `S10`, `S11`, `S12`, `S13` marked complete.
+- Checkpoint SOP:
+- final phase snapshot recorded (`mc-ext-next-phase-s-complete`) and mirrored to top-level runtime checkpoints.
+- future action:
+- Begin PR chunking/review flow for Phase S deliverables (A/B/C/E/F style slices) while preserving existing local source-of-truth state.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/channels/CHANNEL_ADAPTER_TEMPLATE_AND_HARNESS.md`
+
+### 2026-02-27 - Entry 267
+
+- checklist refs: `T1` `T2` `T3` `T4` `T5` `T6` `T7` `T8` `T9` `T10` `T11` `T12` `T13` `T14` `T15`
+- past action:
+- Completed prior Phase S execution and baseline runtime/security/channels work.
+- present action:
+- Implemented the MC-MNO integration hardening track end-to-end:
+- added config-first runtime `memory.numquam` contract + secret-ref token wiring and runtime blend controls
+- added startup/runtime Numquam handshake checks (`health.get`/`capabilities.get`) with contract/degrade validation
+- added run-loop MNO policy engine + context budget truncation + breaker-safe fallback behavior
+- added MNO status surfaces in `/api/v1/status` and `/api/v1/jobs/status`
+- added explainability endpoint `POST /api/v1/runs/{run_id}/memory/why`
+- added memory sync endpoint `POST /api/v1/memory/sync` + scheduler modes (`memory.sync`, `memory.preflight`, `memory.parity_probe`, `memory.pipeline.hook`)
+- added Numquam-focused regression tests (breaker open, truncation metadata, explainability API)
+- published MNO runbooks/checklists in `docs/numquam/`
+- validation outcomes:
+- `cargo check -p carsinos-gateway --bin carsinos-gateway` passed.
+- `cargo test -p carsinos-gateway` passed (`125` unit + `17` process E2E + `2` benchmark).
+- `cargo test -p carsinos-gateway numquam_ -- --nocapture` passed (`7` unit + process/benchmark filters).
+- `cargo test -p carsinos-gateway --test e2e_process` passed (`17` tests).
+- `cargo test -p carsinos-gateway --test benchmark_process -- --nocapture` passed.
+- `cargo test -p carsinos-tools` passed.
+- `cargo test -p carsinos-storage` passed.
+- `CHECKLIST.md` updated: Phase `T` (`MC-MNO`) marked complete.
+- Checkpoint SOP:
+- phase-start + post-green snapshots recorded in `runtime/checkpoints/LATEST.md` and `runtime/checkpoints/LATEST.json` (`mc-mno-p0-start`, `mc-mno-post-green-tests`).
+- future action:
+- open PR chunking for MC-MNO changes (config/status + run-loop + scheduler/docs) and execute CodeRabbit review/merge workflow.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-protocol/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/numquam/MNO_PIPELINE_HOOKS_RUNBOOK.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/docs/numquam/MNO_SOAK_READINESS_CHECKLIST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+
+### 2026-02-27 - Entry 268
+
+- checklist refs: `T15`
+- past action:
+- Completed MC-MNO implementation and prior full regression/benchmark gates.
+- present action:
+- Revalidated MC-MNO P0 acceptance commands against current working tree and fixed checkpoint artifact drift:
+- synchronized `runtime/checkpoints/LATEST.md` with `LATEST.json` (carsinos + top-level mirror)
+- reran required MNO acceptance gates (`cargo check`, `numquam_` tests, process-level MNO integration test)
+- recorded fresh checkpoint snapshot (`mc-mno-post-green-reverify`) after green validations.
+- validation outcomes:
+- `cargo check -p carsinos-gateway --bin carsinos-gateway` passed.
+- `cargo test -p carsinos-gateway numquam_ -- --nocapture` passed.
+- `cargo test -p carsinos-gateway numquam_http_integration_wires_context_writeback_and_approval_process_level -- --nocapture` passed.
+- Checkpoint SOP:
+- `runtime/checkpoints/LATEST.md` and `runtime/checkpoints/LATEST.json` updated and mirrored to `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/`.
+- future action:
+- Continue from backlog closure workflow (PR chunking/review/merge) or start next ticket set once directed.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-27 - Entry 269
+
+- checklist refs: `T15`
+- past action:
+- Completed MC-MNO + regression reverify and synchronized checkpoint artifacts.
+- present action:
+- Executed repository sync-to-remote workflow with local filesystem as source of truth and no-loss controls:
+- created safety backup branch (`codex/safety-local-sot-20260226-230047`) and safety tag (`safety-local-sot-20260226-230047`)
+- created full git bundle backup under `/Users/domusanimae/Documents/openclaw replacement/runtime/backups/`
+- ran full regression gate (`cargo test --workspace --locked`) before publishing
+- created sync branch `codex/sync-local-sot-20260226-230214`
+- committed all local source-of-truth changes and opened PR `#41` to `main`
+- validation outcomes:
+- `cargo test --workspace --locked` passed (workspace green).
+- targeted MNO gates remained green from same local state.
+- Checkpoint SOP:
+- `phase start`, `post-green`, and `PR open` checkpoints recorded in `runtime/checkpoints/LATEST.md` + `LATEST.json` and mirrored to top-level runtime checkpoint path.
+- future action:
+- process CodeRabbit/CI review on PR #41, apply fixes if needed, merge, then record post-merge checkpoint.
 - changed files:
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`

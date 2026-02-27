@@ -261,6 +261,7 @@ pub struct NewJob {
 pub struct JobUpdatePatch {
     pub name: Option<String>,
     pub enabled: Option<bool>,
+    pub schedule_kind: Option<String>,
     pub interval_seconds: Option<i64>,
     pub run_at_ms: Option<i64>,
     pub next_run_at: Option<i64>,
@@ -382,6 +383,57 @@ pub struct EmbeddingSearchMatch {
     pub snippet: String,
     pub chunk_index: i64,
     pub score: f64,
+}
+
+#[derive(Debug, Clone)]
+pub struct DailyAuthProfileUsageRecord {
+    pub usage_day_utc: String,
+    pub auth_profile_id: String,
+    pub provider: String,
+    pub input_chars: i64,
+    pub output_chars: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub total_tokens: i64,
+    pub estimated_cost_usd: f64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct DailyAuthProfileUsageIncrement {
+    pub usage_day_utc: String,
+    pub auth_profile_id: String,
+    pub provider: String,
+    pub input_chars: i64,
+    pub output_chars: i64,
+    pub input_tokens: i64,
+    pub output_tokens: i64,
+    pub total_tokens: i64,
+    pub estimated_cost_usd: f64,
+}
+
+#[derive(Debug, Clone)]
+pub struct CircuitBreakerStateRecord {
+    pub breaker_key: String,
+    pub scope: String,
+    pub target_id: String,
+    pub state: String,
+    pub consecutive_failures: i64,
+    pub opened_at: Option<i64>,
+    pub cooldown_until: Option<i64>,
+    pub last_error_code: Option<String>,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct CircuitBreakerStateUpsert {
+    pub scope: String,
+    pub target_id: String,
+    pub state: String,
+    pub consecutive_failures: i64,
+    pub opened_at: Option<i64>,
+    pub cooldown_until: Option<i64>,
+    pub last_error_code: Option<String>,
 }
 
 impl Storage {
@@ -1271,6 +1323,235 @@ impl Storage {
         Ok(updated_at)
     }
 
+    pub fn get_daily_auth_profile_usage(
+        &self,
+        usage_day_utc: &str,
+        auth_profile_id: &str,
+    ) -> Result<Option<DailyAuthProfileUsageRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              usage_day_utc, auth_profile_id, provider,
+              input_chars, output_chars, input_tokens, output_tokens, total_tokens,
+              estimated_cost_usd, updated_at
+            FROM daily_auth_profile_usage
+            WHERE usage_day_utc = ?1 AND auth_profile_id = ?2
+            "#,
+        )?;
+        let record = stmt
+            .query_row(params![usage_day_utc, auth_profile_id], |row| {
+                Ok(DailyAuthProfileUsageRecord {
+                    usage_day_utc: row.get(0)?,
+                    auth_profile_id: row.get(1)?,
+                    provider: row.get(2)?,
+                    input_chars: row.get(3)?,
+                    output_chars: row.get(4)?,
+                    input_tokens: row.get(5)?,
+                    output_tokens: row.get(6)?,
+                    total_tokens: row.get(7)?,
+                    estimated_cost_usd: row.get(8)?,
+                    updated_at: row.get(9)?,
+                })
+            })
+            .optional()?;
+        Ok(record)
+    }
+
+    pub fn increment_daily_auth_profile_usage(
+        &self,
+        increment: DailyAuthProfileUsageIncrement,
+    ) -> Result<DailyAuthProfileUsageRecord> {
+        let conn = self.connect()?;
+        let updated_at = now_ms();
+        conn.execute(
+            r#"
+            INSERT INTO daily_auth_profile_usage (
+              usage_day_utc, auth_profile_id, provider,
+              input_chars, output_chars, input_tokens, output_tokens, total_tokens,
+              estimated_cost_usd, updated_at
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+            ON CONFLICT(usage_day_utc, auth_profile_id) DO UPDATE SET
+              provider = excluded.provider,
+              input_chars = daily_auth_profile_usage.input_chars + excluded.input_chars,
+              output_chars = daily_auth_profile_usage.output_chars + excluded.output_chars,
+              input_tokens = daily_auth_profile_usage.input_tokens + excluded.input_tokens,
+              output_tokens = daily_auth_profile_usage.output_tokens + excluded.output_tokens,
+              total_tokens = daily_auth_profile_usage.total_tokens + excluded.total_tokens,
+              estimated_cost_usd = daily_auth_profile_usage.estimated_cost_usd + excluded.estimated_cost_usd,
+              updated_at = excluded.updated_at
+            "#,
+            params![
+                increment.usage_day_utc,
+                increment.auth_profile_id,
+                increment.provider,
+                increment.input_chars,
+                increment.output_chars,
+                increment.input_tokens,
+                increment.output_tokens,
+                increment.total_tokens,
+                increment.estimated_cost_usd,
+                updated_at
+            ],
+        )
+        .context("failed to upsert daily auth profile usage")?;
+        self.get_daily_auth_profile_usage(&increment.usage_day_utc, &increment.auth_profile_id)?
+            .context("daily auth profile usage missing after upsert")
+    }
+
+    pub fn get_circuit_breaker_state(
+        &self,
+        scope: &str,
+        target_id: &str,
+    ) -> Result<Option<CircuitBreakerStateRecord>> {
+        let conn = self.connect()?;
+        let breaker_key = format!("{scope}:{target_id}");
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              breaker_key, scope, target_id, state, consecutive_failures,
+              opened_at, cooldown_until, last_error_code, updated_at
+            FROM circuit_breaker_states
+            WHERE breaker_key = ?1
+            "#,
+        )?;
+        let record = stmt
+            .query_row(params![breaker_key], |row| {
+                Ok(CircuitBreakerStateRecord {
+                    breaker_key: row.get(0)?,
+                    scope: row.get(1)?,
+                    target_id: row.get(2)?,
+                    state: row.get(3)?,
+                    consecutive_failures: row.get(4)?,
+                    opened_at: row.get(5)?,
+                    cooldown_until: row.get(6)?,
+                    last_error_code: row.get(7)?,
+                    updated_at: row.get(8)?,
+                })
+            })
+            .optional()?;
+        Ok(record)
+    }
+
+    pub fn list_circuit_breaker_states(
+        &self,
+        limit: u32,
+        scope: Option<&str>,
+    ) -> Result<Vec<CircuitBreakerStateRecord>> {
+        let conn = self.connect()?;
+        let mut out = Vec::new();
+        if let Some(scope) = scope {
+            let mut stmt = conn.prepare(
+                r#"
+                SELECT
+                  breaker_key, scope, target_id, state, consecutive_failures,
+                  opened_at, cooldown_until, last_error_code, updated_at
+                FROM circuit_breaker_states
+                WHERE scope = ?1
+                ORDER BY updated_at DESC
+                LIMIT ?2
+                "#,
+            )?;
+            let rows = stmt.query_map(params![scope, i64::from(limit)], |row| {
+                Ok(CircuitBreakerStateRecord {
+                    breaker_key: row.get(0)?,
+                    scope: row.get(1)?,
+                    target_id: row.get(2)?,
+                    state: row.get(3)?,
+                    consecutive_failures: row.get(4)?,
+                    opened_at: row.get(5)?,
+                    cooldown_until: row.get(6)?,
+                    last_error_code: row.get(7)?,
+                    updated_at: row.get(8)?,
+                })
+            })?;
+            for row in rows {
+                out.push(row?);
+            }
+        } else {
+            let mut stmt = conn.prepare(
+                r#"
+                SELECT
+                  breaker_key, scope, target_id, state, consecutive_failures,
+                  opened_at, cooldown_until, last_error_code, updated_at
+                FROM circuit_breaker_states
+                ORDER BY updated_at DESC
+                LIMIT ?1
+                "#,
+            )?;
+            let rows = stmt.query_map(params![i64::from(limit)], |row| {
+                Ok(CircuitBreakerStateRecord {
+                    breaker_key: row.get(0)?,
+                    scope: row.get(1)?,
+                    target_id: row.get(2)?,
+                    state: row.get(3)?,
+                    consecutive_failures: row.get(4)?,
+                    opened_at: row.get(5)?,
+                    cooldown_until: row.get(6)?,
+                    last_error_code: row.get(7)?,
+                    updated_at: row.get(8)?,
+                })
+            })?;
+            for row in rows {
+                out.push(row?);
+            }
+        }
+        Ok(out)
+    }
+
+    pub fn upsert_circuit_breaker_state(
+        &self,
+        upsert: CircuitBreakerStateUpsert,
+    ) -> Result<CircuitBreakerStateRecord> {
+        let conn = self.connect()?;
+        let updated_at = now_ms();
+        let breaker_key = format!("{}:{}", upsert.scope, upsert.target_id);
+        conn.execute(
+            r#"
+            INSERT INTO circuit_breaker_states (
+              breaker_key, scope, target_id, state, consecutive_failures,
+              opened_at, cooldown_until, last_error_code, updated_at
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            ON CONFLICT(breaker_key) DO UPDATE SET
+              scope = excluded.scope,
+              target_id = excluded.target_id,
+              state = excluded.state,
+              consecutive_failures = excluded.consecutive_failures,
+              opened_at = excluded.opened_at,
+              cooldown_until = excluded.cooldown_until,
+              last_error_code = excluded.last_error_code,
+              updated_at = excluded.updated_at
+            "#,
+            params![
+                breaker_key,
+                upsert.scope,
+                upsert.target_id,
+                upsert.state,
+                upsert.consecutive_failures,
+                upsert.opened_at,
+                upsert.cooldown_until,
+                upsert.last_error_code,
+                updated_at
+            ],
+        )
+        .context("failed to upsert circuit breaker state")?;
+        self.get_circuit_breaker_state(&upsert.scope, &upsert.target_id)?
+            .context("circuit breaker state missing after upsert")
+    }
+
+    pub fn clear_circuit_breaker_state(&self, scope: &str, target_id: &str) -> Result<()> {
+        let conn = self.connect()?;
+        let breaker_key = format!("{scope}:{target_id}");
+        conn.execute(
+            "DELETE FROM circuit_breaker_states WHERE breaker_key = ?1",
+            params![breaker_key],
+        )
+        .context("failed to clear circuit breaker state")?;
+        Ok(())
+    }
+
     pub fn create_note(&self, new_note: NewNote) -> Result<NoteRecord> {
         let conn = self.connect()?;
         let note_id = uuid::Uuid::new_v4().to_string();
@@ -1566,32 +1847,46 @@ impl Storage {
         let now = now_ms();
         let next_name = patch.name.unwrap_or(current.name);
         let next_enabled = patch.enabled.unwrap_or(current.enabled);
-        let next_interval = patch.interval_seconds.or(current.interval_seconds);
-        let next_run_at = patch.run_at_ms.or(current.run_at_ms);
+        let next_schedule_kind = patch.schedule_kind.unwrap_or(current.schedule_kind);
+        let mut next_interval = patch.interval_seconds.or(current.interval_seconds);
+        let mut next_run_at = patch.run_at_ms.or(current.run_at_ms);
         let next_next_run_at = patch.next_run_at.or(current.next_run_at);
         let next_payload = patch.payload_json.unwrap_or(current.payload_json);
         let next_max_retries = patch.max_retries.unwrap_or(current.max_retries);
         let next_retry_backoff = patch.retry_backoff_ms.unwrap_or(current.retry_backoff_ms);
         let next_timeout = patch.timeout_ms.unwrap_or(current.timeout_ms);
+        match next_schedule_kind.as_str() {
+            "cron" => {
+                next_interval = None;
+                next_run_at = None;
+            }
+            "once" | "at" => {
+                next_interval = None;
+            }
+            "interval" | "every" => {}
+            _ => {}
+        }
 
         conn.execute(
             r#"
             UPDATE jobs
             SET name = ?1,
                 enabled = ?2,
-                interval_seconds = ?3,
-                run_at_ms = ?4,
-                next_run_at = ?5,
-                payload_json = ?6,
-                max_retries = ?7,
-                retry_backoff_ms = ?8,
-                timeout_ms = ?9,
-                updated_at = ?10
-            WHERE job_id = ?11 AND deleted_at IS NULL
+                schedule_kind = ?3,
+                interval_seconds = ?4,
+                run_at_ms = ?5,
+                next_run_at = ?6,
+                payload_json = ?7,
+                max_retries = ?8,
+                retry_backoff_ms = ?9,
+                timeout_ms = ?10,
+                updated_at = ?11
+            WHERE job_id = ?12 AND deleted_at IS NULL
             "#,
             params![
                 next_name,
                 if next_enabled { 1 } else { 0 },
+                next_schedule_kind,
                 next_interval,
                 next_run_at,
                 next_next_run_at,
@@ -2908,6 +3203,138 @@ mod tests {
     }
 
     #[test]
+    fn daily_auth_profile_usage_upsert_increments_totals() {
+        let (_temp_dir, storage) = test_storage();
+        let profile = storage
+            .create_auth_profile(NewAuthProfile {
+                provider: "openai".to_string(),
+                display_name: "usage-profile".to_string(),
+                auth_mode: "api_key".to_string(),
+                risk_level: "low".to_string(),
+                enabled: true,
+                kill_switch_scope: "none".to_string(),
+                api_base_url: Some("https://api.openai.com".to_string()),
+                credentials_json: r#"{"api_key":"redacted"}"#.to_string(),
+            })
+            .expect("create usage profile");
+
+        let first = storage
+            .increment_daily_auth_profile_usage(DailyAuthProfileUsageIncrement {
+                usage_day_utc: "2026-02-20".to_string(),
+                auth_profile_id: profile.auth_profile_id.clone(),
+                provider: "openai".to_string(),
+                input_chars: 120,
+                output_chars: 80,
+                input_tokens: 30,
+                output_tokens: 20,
+                total_tokens: 50,
+                estimated_cost_usd: 0.015,
+            })
+            .expect("increment first usage");
+        assert_eq!(first.total_tokens, 50);
+        assert_eq!(first.estimated_cost_usd, 0.015);
+
+        let second = storage
+            .increment_daily_auth_profile_usage(DailyAuthProfileUsageIncrement {
+                usage_day_utc: "2026-02-20".to_string(),
+                auth_profile_id: profile.auth_profile_id.clone(),
+                provider: "openai".to_string(),
+                input_chars: 60,
+                output_chars: 40,
+                input_tokens: 15,
+                output_tokens: 10,
+                total_tokens: 25,
+                estimated_cost_usd: 0.0075,
+            })
+            .expect("increment second usage");
+        assert_eq!(second.input_chars, 180);
+        assert_eq!(second.output_chars, 120);
+        assert_eq!(second.input_tokens, 45);
+        assert_eq!(second.output_tokens, 30);
+        assert_eq!(second.total_tokens, 75);
+        assert!((second.estimated_cost_usd - 0.0225).abs() < 1e-9);
+
+        let loaded = storage
+            .get_daily_auth_profile_usage("2026-02-20", &profile.auth_profile_id)
+            .expect("load daily usage")
+            .expect("daily usage exists");
+        assert_eq!(loaded.total_tokens, 75);
+        assert!((loaded.estimated_cost_usd - 0.0225).abs() < 1e-9);
+    }
+
+    #[test]
+    fn circuit_breaker_state_upsert_round_trip_and_clear() {
+        let (_temp_dir, storage) = test_storage();
+
+        let first = storage
+            .upsert_circuit_breaker_state(CircuitBreakerStateUpsert {
+                scope: "provider".to_string(),
+                target_id: "openai".to_string(),
+                state: "closed".to_string(),
+                consecutive_failures: 1,
+                opened_at: None,
+                cooldown_until: None,
+                last_error_code: Some("TIMEOUT".to_string()),
+            })
+            .expect("upsert first breaker state");
+        assert_eq!(first.scope, "provider");
+        assert_eq!(first.target_id, "openai");
+        assert_eq!(first.state, "closed");
+        assert_eq!(first.consecutive_failures, 1);
+        assert_eq!(first.last_error_code.as_deref(), Some("TIMEOUT"));
+
+        let second = storage
+            .upsert_circuit_breaker_state(CircuitBreakerStateUpsert {
+                scope: "provider".to_string(),
+                target_id: "openai".to_string(),
+                state: "open".to_string(),
+                consecutive_failures: 3,
+                opened_at: Some(1_000),
+                cooldown_until: Some(2_000),
+                last_error_code: Some("RATE_LIMITED".to_string()),
+            })
+            .expect("upsert second breaker state");
+        assert_eq!(second.state, "open");
+        assert_eq!(second.consecutive_failures, 3);
+        assert_eq!(second.opened_at, Some(1_000));
+        assert_eq!(second.cooldown_until, Some(2_000));
+        assert_eq!(second.last_error_code.as_deref(), Some("RATE_LIMITED"));
+
+        let loaded = storage
+            .get_circuit_breaker_state("provider", "openai")
+            .expect("get breaker state")
+            .expect("breaker state exists");
+        assert_eq!(loaded.state, "open");
+        assert_eq!(loaded.consecutive_failures, 3);
+
+        let listed = storage
+            .list_circuit_breaker_states(10, None)
+            .expect("list breaker states");
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].scope, "provider");
+        assert_eq!(listed[0].target_id, "openai");
+        let listed_provider = storage
+            .list_circuit_breaker_states(10, Some("provider"))
+            .expect("list provider breaker states");
+        assert_eq!(listed_provider.len(), 1);
+        let listed_job = storage
+            .list_circuit_breaker_states(10, Some("job"))
+            .expect("list job breaker states");
+        assert!(listed_job.is_empty());
+
+        storage
+            .clear_circuit_breaker_state("provider", "openai")
+            .expect("clear breaker");
+        assert!(
+            storage
+                .get_circuit_breaker_state("provider", "openai")
+                .expect("get breaker after clear")
+                .is_none(),
+            "breaker should be cleared"
+        );
+    }
+
+    #[test]
     fn security_audit_event_round_trip_and_filters_work() {
         let (_temp_dir, storage) = test_storage();
         let created = storage
@@ -3335,6 +3762,7 @@ mod tests {
                 JobUpdatePatch {
                     name: Some("updated-job".to_string()),
                     enabled: Some(true),
+                    schedule_kind: None,
                     interval_seconds: Some(120),
                     run_at_ms: None,
                     next_run_at: Some(now + 120_000),

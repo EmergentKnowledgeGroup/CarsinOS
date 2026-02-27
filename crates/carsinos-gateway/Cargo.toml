@@ -18,12 +18,14 @@ carsinos-storage = { path = "../carsinos-storage" }
 carsinos-tools = { path = "../carsinos-tools" }
 serde.workspace = true
 serde_json.workspace = true
-tokio.workspace = true
+tokio = { workspace = true, features = ["io-util", "process"] }
 base64 = "0.22"
+fs2 = "0.4"
 keyring = "3"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 sha2 = "0.10"
 jsonwebtoken = "9"
+cron = "0.12"
 tower = { version = "0.5", features = ["util"] }
 tower-http = { workspace = true, features = ["request-id", "trace"] }
 tracing.workspace = true

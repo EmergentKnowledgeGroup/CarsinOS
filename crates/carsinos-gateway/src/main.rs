@@ -14,48 +14,67 @@ use carsinos_channels_telegram as telegram_channel;
 use carsinos_core::{
     ChannelAdapterHealth, ChannelAdapterLifecycle, ChannelAdapterLifecycleState, GatewayConfig,
     HookBus, HookEvent, HookPoint, HookRegistration, PluginCapability as CorePluginCapability,
+    PluginExecKind as CorePluginExecKind,
     PluginManifest as CorePluginManifest, PluginRegistry, SkillDocument as CoreSkillDocument,
-    SkillRegistry, TokenSource, PLUGIN_API_VERSION_V1,
+    SkillRegistry, TokenSource, PLUGIN_API_VERSION_V1, PLUGIN_MANIFEST_SCHEMA_VERSION_V2,
 };
 use carsinos_protocol::{
     AnthropicSetupTokenIngestRequest, AnthropicSetupTokenIngestResponse, ApprovalResponse,
-    AuthProfileResponse, ChannelRuntimeAdapterStatusResponse, CreateApprovalRequest,
-    CreateApprovalResponse, CreateAuthProfileRequest, CreateAuthProfileResponse, CreateJobRequest,
-    CreateJobResponse, CreateMessageRequest, CreateMessageResponse, CreateNoteRequest,
-    CreateNoteResponse, CreateRunRequest, CreateRunResponse, CreateSessionRequest,
-    CreateSessionResponse, DeleteRuntimeSecretRequest, DeleteRuntimeSecretResponse,
-    DiscordChannelConfig, GetAgentProviderProfileOrderResponse, GetChannelConfigResponse,
-    GetChannelRuntimeStatusResponse, GetNoteResponse, GetRuntimeConfigResponse, HealthResponse,
-    IngestChannelMessageResponse, IngestDiscordMessageRequest, IngestTelegramMessageRequest,
-    JobResponse, JobRunResponse, JobStatusResponse, ListApprovalsQuery, ListApprovalsResponse,
-    ListAuthProfilesQuery, ListAuthProfilesResponse, ListJobHistoryQuery, ListJobHistoryResponse,
-    ListJobsQuery, ListJobsResponse, ListMessagesQuery, ListMessagesResponse, ListNotesQuery,
-    ListNotesResponse, ListPluginsQuery, ListPluginsResponse, ListProviderCapabilitiesQuery,
+    AuthProfileResponse, ChannelRuntimeAdapterStatusResponse, CircuitBreakerStateResponse,
+    CreateApprovalRequest, CreateApprovalResponse, CreateAuthProfileRequest,
+    CreateAuthProfileResponse, CreateJobRequest, CreateJobResponse, CreateMessageRequest,
+    CreateMessageResponse, CreateNoteRequest, CreateNoteResponse, CreateRunRequest,
+    CreateRunResponse, CreateSessionRequest, CreateSessionResponse, DeleteRuntimeSecretRequest,
+    DeleteRuntimeSecretResponse, DiscordChannelConfig, FailureReasonCountResponse,
+    GetAgentProviderProfileOrderResponse, GetChannelConfigResponse,
+    GetChannelRuntimeStatusResponse, GetNoteResponse, GetRuntimeConfigResponse,
+    GetRuntimeTrustContractLockResponse, HealthResponse, IngestChannelMessageResponse,
+    IngestDiscordMessageRequest, IngestTelegramMessageRequest, InstallPluginRequest,
+    InstallPluginResponse, JobResponse, JobRunResponse, JobStatusResponse, ListApprovalsQuery,
+    ListApprovalsResponse, ListAuthProfilesQuery, ListAuthProfilesResponse, ListJobHistoryQuery,
+    ListJobHistoryResponse, ListJobsQuery, ListJobsResponse, ListMessagesQuery,
+    ListMessagesResponse, ListNotesQuery, ListNotesResponse, ListPluginRuntimeStatusResponse,
+    ListPluginsQuery, ListPluginsResponse, ListProviderCapabilitiesQuery,
     ListProviderCapabilitiesResponse, ListSessionsQuery, ListSessionsResponse, ListSkillsQuery,
-    ListSkillsResponse, MessageResponse, MetricsResponse, NoteResponse, OpenAiOauthFinishRequest,
-    OpenAiOauthFinishResponse, OpenAiOauthStartRequest, OpenAiOauthStartResponse,
-    PluginCapabilityResponse, PluginManifestResponse, ProviderCapabilityResponse,
-    ReconnectChannelRuntimeRequest, ReconnectChannelRuntimeResponse, RemoveJobResponse,
-    ResolveApprovalRequest, ResolveApprovalResponse, ResolveChannelApprovalActionRequest,
+    ListSkillsResponse, ListToolCapabilitiesQuery, ListToolCapabilitiesResponse, MessageResponse,
+    MetricsResponse, NoteResponse, OpenAiOauthFinishRequest, OpenAiOauthFinishResponse,
+    NumquamIntegrationStatusResponse, OpenAiOauthStartRequest, OpenAiOauthStartResponse,
+    PluginArtifactResponse,
+    PluginCapabilityResponse,
+    PluginCompatibilityResponse, PluginLimitsResponse, PluginManifestResponse,
+    PluginPermissionsResponse, PluginRuntimeStatusResponse, ToolCapabilityResponse,
+    ToolCapabilitySandboxResponse,
+    ProviderCapabilityResponse, ReconnectChannelRuntimeRequest, ReconnectChannelRuntimeResponse,
+    RefreshRuntimeTrustContractLockRequest, RefreshRuntimeTrustContractLockResponse,
+    RemoveJobResponse, ResolveApprovalRequest, ResolveApprovalResponse,
+    ResolveChannelApprovalActionRequest, RollbackPluginRequest, RollbackPluginResponse,
     RollbackRuntimeConfigRequest, RollbackRuntimeConfigResponse, RunJobNowResponse, RunResponse,
-    RuntimeChannelsConfig, RuntimeConfigResponse, RuntimeDiscordDeploymentConfig,
-    RuntimeGlobalConfig, RuntimeProviderPolicyConfig, RuntimeSecurityOpsConfig,
-    RuntimeTelegramDeploymentConfig, SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult,
-    SessionDetailResponse, SessionSummary, SetAgentProviderProfileOrderRequest,
-    SetAgentProviderProfileOrderResponse, SkillResponse, StatusResponse, TelegramChannelConfig,
-    UpdateAuthProfileStateRequest, UpdateAuthProfileStateResponse, UpdateChannelConfigRequest,
-    UpdateChannelConfigResponse, UpdateJobRequest, UpdateJobResponse, UpdateNoteRequest,
-    UpdateNoteResponse, UpdateRuntimeConfigRequest, UpdateRuntimeConfigResponse,
-    UpdateSkillStateRequest, UpdateSkillStateResponse, UpsertRuntimeSecretRequest,
-    UpsertRuntimeSecretResponse,
+    RunMemoryWhyRequest, RunMemoryWhyResponse,
+    RuntimeAutonomyGuardrailsConfig, RuntimeChannelsConfig, RuntimeConfigResponse,
+    RuntimeDiscordDeploymentConfig, RuntimeGlobalConfig, RuntimeMemoryConfig,
+    RuntimeNumquamConfig, RuntimeProviderPolicyConfig, RuntimeExtensionsConfig,
+    RuntimeSecurityOpsConfig, RuntimeTelegramDeploymentConfig,
+    RuntimeTrustContractLockResponse, RuntimeTrustContractLockSummaryResponse,
+    SchedulerLockStateResponse, SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult,
+    SessionDetailResponse, SessionSummary,
+    SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse, SkillResponse,
+    StatusResponse, SyncMemorySourceItemResponse, SyncMemorySourcesRequest,
+    SyncMemorySourcesResponse, TelegramChannelConfig, UpdateAuthProfileStateRequest,
+    UpdateAuthProfileStateResponse, UpdateChannelConfigRequest, UpdateChannelConfigResponse,
+    UpdateJobRequest, UpdateJobResponse, UpdateNoteRequest, UpdateNoteResponse,
+    UpdatePluginRequest, UpdatePluginResponse, UpdateRuntimeConfigRequest,
+    UpdateRuntimeConfigResponse, UpdateSkillStateRequest, UpdateSkillStateResponse,
+    UpsertRuntimeSecretRequest, UpsertRuntimeSecretResponse, HEARTBEAT_OUTPUT_ALERT_PREFIX,
+    HEARTBEAT_OUTPUT_OK, JOB_MODE_HEARTBEAT_RUN,
 };
 use carsinos_providers::{
     parse_provider_error_class as parse_provider_error_class_normalized,
     provider_error_retryable as provider_error_retryable_normalized, CompletionRequest,
-    ProviderAuthProfile, ProviderRegistry,
+    CompletionUsageMetrics, ProviderAuthProfile, ProviderRegistry,
 };
 use carsinos_storage::{
-    AppPaths, ApprovalRecord, ApprovalResolveResult, AuthProfileRecord, JobRecord, JobRunRecord,
+    AppPaths, ApprovalRecord, ApprovalResolveResult, AuthProfileRecord, CircuitBreakerStateRecord,
+    CircuitBreakerStateUpsert, DailyAuthProfileUsageIncrement, JobRecord, JobRunRecord,
     JobUpdatePatch, MessageRecord, NewApproval, NewAuthProfile, NewJob, NewMessage, NewNote,
     NewRun, NewSecurityAuditEvent, NewSession, NoteRecord, RunRecord, SecurityAuditEventListFilter,
     SecurityAuditEventRecord, SessionRecord, Storage,
@@ -71,12 +90,15 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::io::{ErrorKind, Read, Seek, SeekFrom, Write};
 use std::net::IpAddr;
 use std::path::{Path as FsPath, PathBuf};
+use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock as StdRwLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tokio::sync::{broadcast, RwLock, Semaphore};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::sync::{broadcast, Mutex, RwLock, Semaphore};
 use tokio::time::sleep;
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 use tower_http::trace::{DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer};
@@ -101,10 +123,12 @@ struct AppState {
     tool_concurrency: Arc<Semaphore>,
     channel_tool_allowed_providers: Arc<HashSet<String>>,
     channel_runtime: Arc<ChannelRuntimeManager>,
+    internal_channel_ingest_token: Arc<String>,
     tool_runner: LocalToolRunner,
     secret_store: SecretStore,
     oauth_sessions: Arc<RwLock<HashMap<String, PendingOpenAiOauthSession>>>,
     numquam_client: Option<NumquamClient>,
+    numquam_runtime_status: Arc<RwLock<NumquamRuntimeStatus>>,
     plugin_registry: Arc<RwLock<PluginRegistry>>,
     hook_bus: Arc<HookBus>,
     skill_registry: Arc<RwLock<SkillRegistry>>,
@@ -117,6 +141,311 @@ struct AppState {
     started_instant: Instant,
     db_path: Arc<String>,
     attachments_path: Arc<String>,
+    session_run_lanes: Arc<SessionRunLaneManager>,
+    tool_error_breaker: Arc<ToolErrorFingerprintBreaker>,
+    plugin_runtime_health: Arc<StdRwLock<HashMap<String, PluginRuntimeHealthState>>>,
+    plugin_daemons: Arc<RwLock<HashMap<String, Arc<Mutex<PluginDaemonSupervisor>>>>>,
+    scheduler_instance: Arc<SchedulerInstanceState>,
+    trust_contract_lock: Arc<RwLock<RuntimeTrustContractLockRecord>>,
+    trust_contract_lock_path: Arc<String>,
+    plugin_manifest_dirs: Arc<Vec<PathBuf>>,
+    state_dir: Arc<PathBuf>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct PluginRuntimeHealthState {
+    consecutive_failures: u64,
+    disabled_until_ms: Option<i64>,
+    last_error_code: Option<String>,
+    last_error: Option<String>,
+    last_success_ms: Option<i64>,
+    last_invoked_ms: Option<i64>,
+}
+
+struct PluginDaemonSupervisor {
+    command: String,
+    args: Vec<String>,
+    current_dir: Option<PathBuf>,
+    child: Option<tokio::process::Child>,
+    stdin: Option<tokio::process::ChildStdin>,
+    stdout: Option<BufReader<tokio::process::ChildStdout>>,
+}
+
+impl PluginDaemonSupervisor {
+    fn from_manifest(manifest: &CorePluginManifest) -> Self {
+        Self {
+            command: manifest.artifact.command.trim().to_string(),
+            args: manifest
+                .artifact
+                .args
+                .iter()
+                .map(|value| value.trim().to_string())
+                .collect::<Vec<_>>(),
+            current_dir: PathBuf::from(&manifest.artifact.local_path)
+                .parent()
+                .map(PathBuf::from),
+            child: None,
+            stdin: None,
+            stdout: None,
+        }
+    }
+
+    async fn stop(&mut self) {
+        if let Some(mut child) = self.child.take() {
+            let _ = child.kill().await;
+            let _ = child.wait().await;
+        }
+        self.stdin = None;
+        self.stdout = None;
+    }
+
+    async fn ensure_started(
+        &mut self,
+        plugin_id: &str,
+        kind: &str,
+    ) -> std::result::Result<(), PluginInvokeError> {
+        let mut needs_restart = self.child.is_none() || self.stdin.is_none() || self.stdout.is_none();
+        if let Some(child) = self.child.as_mut() {
+            match child.try_wait() {
+                Ok(Some(_)) => needs_restart = true,
+                Ok(None) => {}
+                Err(_) => needs_restart = true,
+            }
+        }
+        if !needs_restart {
+            return Ok(());
+        }
+
+        self.stop().await;
+        let started = Instant::now();
+        let mut command = tokio::process::Command::new(self.command.as_str());
+        command.args(self.args.iter().map(String::as_str));
+        command.kill_on_drop(true);
+        command.stdin(std::process::Stdio::piped());
+        command.stdout(std::process::Stdio::piped());
+        command.stderr(std::process::Stdio::piped());
+        command.env_clear();
+        if let Some(path_env) = std::env::var_os("PATH") {
+            command.env("PATH", path_env);
+        }
+        command.env("CARSINOS_PLUGIN_ID", plugin_id);
+        command.env("CARSINOS_PLUGIN_KIND", kind);
+        if let Some(current_dir) = self.current_dir.as_ref() {
+            command.current_dir(current_dir);
+        }
+
+        let mut child = command.spawn().map_err(|err| PluginInvokeError {
+            code: EXT_PLUGIN_EXEC_FAILED.to_string(),
+            message: format!("failed starting plugin daemon: {err}"),
+            duration_ms: started.elapsed().as_millis() as u64,
+            breaker_open: false,
+        })?;
+
+        let stdin = child.stdin.take().ok_or_else(|| PluginInvokeError {
+            code: EXT_PLUGIN_EXEC_FAILED.to_string(),
+            message: "plugin daemon stdin unavailable".to_string(),
+            duration_ms: started.elapsed().as_millis() as u64,
+            breaker_open: false,
+        })?;
+        let stdout = child.stdout.take().ok_or_else(|| PluginInvokeError {
+            code: EXT_PLUGIN_EXEC_FAILED.to_string(),
+            message: "plugin daemon stdout unavailable".to_string(),
+            duration_ms: started.elapsed().as_millis() as u64,
+            breaker_open: false,
+        })?;
+
+        self.child = Some(child);
+        self.stdin = Some(stdin);
+        self.stdout = Some(BufReader::new(stdout));
+        Ok(())
+    }
+}
+
+#[derive(Clone, Default)]
+struct SessionRunLaneManager {
+    lanes: Arc<StdRwLock<HashMap<String, Arc<Mutex<()>>>>>,
+}
+
+impl SessionRunLaneManager {
+    fn lane_for_session(&self, session_id: &str) -> Arc<Mutex<()>> {
+        if let Some(existing) = self
+            .lanes
+            .read()
+            .expect("session lane read lock poisoned")
+            .get(session_id)
+            .cloned()
+        {
+            return existing;
+        }
+
+        let mut write = self
+            .lanes
+            .write()
+            .expect("session lane write lock poisoned");
+        write
+            .entry(session_id.to_string())
+            .or_insert_with(|| Arc::new(Mutex::new(())))
+            .clone()
+    }
+}
+
+#[derive(Clone, Default)]
+struct ToolErrorFingerprintBreaker {
+    counts: Arc<StdRwLock<HashMap<String, u64>>>,
+}
+
+impl ToolErrorFingerprintBreaker {
+    fn record_failure(&self, fingerprint: &str) -> u64 {
+        let mut write = self
+            .counts
+            .write()
+            .expect("tool-error breaker write lock poisoned");
+        let entry = write.entry(fingerprint.to_string()).or_insert(0);
+        *entry = entry.saturating_add(1);
+        *entry
+    }
+
+    fn clear_fingerprint(&self, fingerprint: &str) {
+        let mut write = self
+            .counts
+            .write()
+            .expect("tool-error breaker write lock poisoned");
+        write.remove(fingerprint);
+    }
+
+    fn clear_tool(&self, tool_name: &str) {
+        let prefix = format!("{tool_name}:");
+        let mut write = self
+            .counts
+            .write()
+            .expect("tool-error breaker write lock poisoned");
+        write.retain(|fingerprint, _| !fingerprint.starts_with(&prefix));
+    }
+}
+
+#[derive(Clone)]
+struct SchedulerInstanceState {
+    enabled: bool,
+    lock_path: String,
+    owner: String,
+    detail: Option<String>,
+    _guard: Option<Arc<std::fs::File>>,
+}
+
+impl SchedulerInstanceState {
+    #[cfg(test)]
+    fn enabled_for_tests() -> Self {
+        Self {
+            enabled: true,
+            lock_path: "test://scheduler.instance.lock".to_string(),
+            owner: "test-owner".to_string(),
+            detail: None,
+            _guard: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct RuntimeTrustContractLockRecord {
+    schema_version: String,
+    trust_hash: String,
+    locked_at: i64,
+    locked_by: String,
+    global: RuntimeGlobalConfig,
+}
+
+fn scheduler_lock_owner_label() -> String {
+    let hostname = std::env::var("HOSTNAME")
+        .ok()
+        .or_else(|| std::env::var("COMPUTERNAME").ok())
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "unknown-host".to_string());
+    format!("pid:{}@{}", std::process::id(), hostname)
+}
+
+fn read_scheduler_lock_owner_hint(file: &mut std::fs::File) -> Option<String> {
+    if file.seek(SeekFrom::Start(0)).is_err() {
+        return None;
+    }
+    let mut buf = String::new();
+    if file.read_to_string(&mut buf).is_err() {
+        return None;
+    }
+    let parsed: serde_json::Value = serde_json::from_str(&buf).ok()?;
+    parsed
+        .get("owner")
+        .and_then(|value| value.as_str())
+        .map(|value| value.to_string())
+}
+
+fn acquire_scheduler_instance_lock(state_dir: &FsPath) -> AnyResult<SchedulerInstanceState> {
+    use fs2::FileExt;
+
+    let lock_dir = state_dir.join("locks");
+    std::fs::create_dir_all(&lock_dir)
+        .with_context(|| format!("failed to create lock directory {}", lock_dir.display()))?;
+    let lock_path = lock_dir.join("scheduler.instance.lock");
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .read(true)
+        .write(true)
+        .open(&lock_path)
+        .with_context(|| format!("failed to open scheduler lock file {}", lock_path.display()))?;
+
+    let owner = scheduler_lock_owner_label();
+    match file.try_lock_exclusive() {
+        Ok(()) => {
+            let metadata = serde_json::json!({
+                "owner": owner,
+                "pid": std::process::id(),
+                "started_at_utc": Utc::now().to_rfc3339()
+            });
+            file.set_len(0).with_context(|| {
+                format!(
+                    "failed to truncate scheduler lock file {}",
+                    lock_path.display()
+                )
+            })?;
+            file.seek(SeekFrom::Start(0)).with_context(|| {
+                format!("failed to seek scheduler lock file {}", lock_path.display())
+            })?;
+            file.write_all(metadata.to_string().as_bytes())
+                .with_context(|| {
+                    format!(
+                        "failed to write scheduler lock metadata {}",
+                        lock_path.display()
+                    )
+                })?;
+            let _ = file.sync_data();
+            Ok(SchedulerInstanceState {
+                enabled: true,
+                lock_path: lock_path.display().to_string(),
+                owner,
+                detail: None,
+                _guard: Some(Arc::new(file)),
+            })
+        }
+        Err(err) if err.kind() == ErrorKind::WouldBlock => {
+            let owner_hint = read_scheduler_lock_owner_hint(&mut file);
+            Ok(SchedulerInstanceState {
+                enabled: false,
+                lock_path: lock_path.display().to_string(),
+                owner: owner_hint
+                    .clone()
+                    .unwrap_or_else(|| "unknown-owner".to_string()),
+                detail: Some(match owner_hint {
+                    Some(value) => format!("scheduler lock held by {value}"),
+                    None => "scheduler lock held by another process".to_string(),
+                }),
+                _guard: None,
+            })
+        }
+        Err(err) => Err(anyhow::anyhow!(
+            "failed to acquire scheduler lock {}: {}",
+            lock_path.display(),
+            err
+        )),
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -433,37 +762,15 @@ impl TelegramRuntimeAdapter {
         Option<telegram_channel::TelegramTransportClient>,
     )> {
         let config = load_runtime_config_from_storage(&self.storage)?;
-        let secret_ref = config
-            .channels
-            .telegram
-            .bot_token_secret_ref
-            .clone()
-            .unwrap_or_default();
-        if secret_ref.trim().is_empty() {
-            anyhow::bail!("channels.telegram.bot_token_secret_ref is missing in runtime config");
-        }
-        let secret_key =
-            secret_key_from_secret_ref(&secret_ref).context("invalid telegram secret_ref")?;
-        match self.secret_store.get_raw(&secret_key) {
-            Ok(Some(_)) => {}
-            Ok(None) => {
-                anyhow::bail!(
-                    "telegram secret value not found for configured ref {}",
-                    secret_ref
-                );
-            }
-            Err(err) => {
-                anyhow::bail!("failed reading telegram secret: {}", err);
-            }
-        }
-
+        let operation_mode =
+            normalize_telegram_operation_mode(&config.channels.telegram.operation_mode);
         let webhook_mode = config
             .channels
             .telegram
             .webhook_mode
             .trim()
             .to_ascii_lowercase();
-        if webhook_mode == "webhook" {
+        if operation_mode == TELEGRAM_OPERATION_MODE_TRANSPORT && webhook_mode == "webhook" {
             let webhook_url = config
                 .channels
                 .telegram
@@ -478,8 +785,9 @@ impl TelegramRuntimeAdapter {
                 );
             }
         }
-        let operation_mode =
-            normalize_telegram_operation_mode(&config.channels.telegram.operation_mode);
+        if operation_mode != TELEGRAM_OPERATION_MODE_TRANSPORT {
+            return Ok((webhook_mode, operation_mode, None));
+        }
         let transport_client = build_telegram_transport_client(&config, &self.secret_store)
             .with_context(|| "telegram transport initialization failed")?;
         Ok((webhook_mode, operation_mode, transport_client))
@@ -577,32 +885,11 @@ impl DiscordRuntimeAdapter {
         Option<discord_channel::DiscordTransportClient>,
     )> {
         let config = load_runtime_config_from_storage(&self.storage)?;
-        let secret_ref = config
-            .channels
-            .discord
-            .bot_token_secret_ref
-            .clone()
-            .unwrap_or_default();
-        if secret_ref.trim().is_empty() {
-            anyhow::bail!("channels.discord.bot_token_secret_ref is missing in runtime config");
-        }
-        let secret_key =
-            secret_key_from_secret_ref(&secret_ref).context("invalid discord secret_ref")?;
-        match self.secret_store.get_raw(&secret_key) {
-            Ok(Some(_)) => {}
-            Ok(None) => {
-                anyhow::bail!(
-                    "discord secret value not found for configured ref {}",
-                    secret_ref
-                );
-            }
-            Err(err) => {
-                anyhow::bail!("failed reading discord secret: {}", err);
-            }
-        }
-
         let operation_mode =
             normalize_discord_operation_mode(&config.channels.discord.operation_mode);
+        if operation_mode != DISCORD_OPERATION_MODE_TRANSPORT {
+            return Ok((operation_mode, None));
+        }
         let transport_client = build_discord_transport_client(&config, &self.secret_store)
             .with_context(|| "discord transport initialization failed")?;
         Ok((operation_mode, transport_client))
@@ -749,12 +1036,15 @@ struct ParsedToolInvocation {
     metadata: ToolExecutionMetadata,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct ToolExecutionMetadata {
-    tool_name: &'static str,
-    risk_level: &'static str,
+    tool_name: String,
+    risk_level: String,
     requires_approval: bool,
     timeout_ms: Option<u64>,
+    plugin_id: Option<String>,
+    plugin_raw_args: Option<String>,
+    origin: String,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -797,10 +1087,13 @@ impl ToolDefinition {
             }
         }
         ToolExecutionMetadata {
-            tool_name: self.tool_name,
-            risk_level,
+            tool_name: self.tool_name.to_string(),
+            risk_level: risk_level.to_string(),
             requires_approval,
             timeout_ms: self.timeout_ms,
+            plugin_id: None,
+            plugin_raw_args: None,
+            origin: "core".to_string(),
         }
     }
 }
@@ -941,6 +1234,54 @@ impl ToolRegistry {
         let raw_args = parts.next().unwrap_or_default().trim_start();
         let definition = self.definitions.get(command)?;
         definition.parse(raw_args)
+    }
+
+    fn parse_line_with_plugins(
+        &self,
+        line: &str,
+        plugin_registry: Option<&PluginRegistry>,
+    ) -> Option<ParsedToolInvocation> {
+        if let Some(invocation) = self.parse_line(line) {
+            return Some(invocation);
+        }
+        let plugin_registry = plugin_registry?;
+        let stripped = line.strip_prefix("tool.")?;
+        let mut parts = stripped.splitn(2, |value: char| value.is_whitespace());
+        let command = parts.next()?.trim();
+        if command.is_empty() {
+            return None;
+        }
+        let raw_args = parts.next().unwrap_or_default().trim_start();
+        for manifest in plugin_registry.list_manifests() {
+            if !manifest.enabled {
+                continue;
+            }
+            if !manifest
+                .capabilities
+                .tools
+                .iter()
+                .any(|capability| capability.name.trim() == command)
+            {
+                continue;
+            }
+            let plugin_id = manifest.plugin_id.clone();
+            return Some(ParsedToolInvocation {
+                request: ToolRequest::Process(ProcessRequest {
+                    action: "plugin_tool".to_string(),
+                    session_id: None,
+                }),
+                metadata: ToolExecutionMetadata {
+                    tool_name: command.to_string(),
+                    risk_level: "high".to_string(),
+                    requires_approval: true,
+                    timeout_ms: manifest.limits.timeout_ms,
+                    plugin_id: Some(plugin_id.clone()),
+                    plugin_raw_args: Some(raw_args.to_string()),
+                    origin: format!("plugin:{plugin_id}"),
+                },
+            });
+        }
+        None
     }
 }
 
@@ -1264,6 +1605,11 @@ const APP_KV_CHANNELS_TELEGRAM: &str = "config.channels.telegram";
 const APP_KV_RUNTIME_CONFIG: &str = "config.runtime.v1";
 const APP_KV_RUNTIME_CONFIG_LAST_GOOD: &str = "config.runtime.last_good.v1";
 const APP_KV_SKILLS_STATE: &str = "config.skills.state";
+const TRUST_CONTRACT_LOCK_SCHEMA_VERSION: &str = "runtime.trust.lock.v1";
+const TRUST_CONTRACT_LOCK_REL_PATH: &str = "deployment/trust_contract.lock.json";
+const SCHEDULE_META_KEY: &str = "_carsinos_schedule";
+const SCHEDULE_META_CRON_EXPR: &str = "cron_expr";
+const INTERNAL_CHANNEL_INGEST_HEADER: &str = "x-carsinos-internal-ingest-token";
 const RUNTIME_CONFIG_SCHEMA_VERSION: &str = "runtime.config.v1";
 const DISCORD_OPERATION_MODE_SHIM: &str = "shim";
 const DISCORD_OPERATION_MODE_TRANSPORT: &str = "transport";
@@ -1271,6 +1617,7 @@ const TELEGRAM_OPERATION_MODE_SHIM: &str = "shim";
 const TELEGRAM_OPERATION_MODE_TRANSPORT: &str = "transport";
 const PLUGIN_REGISTRY_CONTRACT_VERSION: &str = "plugin.registry.v1";
 const SKILL_REGISTRY_CONTRACT_VERSION: &str = "skills.registry.v1";
+const PLUGIN_POINTER_SCHEMA_VERSION: &str = "plugin.pointer.v1";
 const NUMQUAM_SCHEMA_VERSION: &str = "integration.v1";
 const NUMQUAM_APPROVAL_KIND_WRITEBACK: &str = "memory.writeback";
 const AUTH_PROVIDER_OPENAI: &str = "openai";
@@ -1301,6 +1648,67 @@ const AUTH_PROFILE_HEALTH_FAILURE_PENALTY_RETRYABLE: i64 = 15;
 const AUTH_PROFILE_HEALTH_FAILURE_PENALTY_TERMINAL: i64 = 25;
 const AUTH_PROFILE_HEALTH_STREAK_PENALTY_STEP: i64 = 5;
 const AUTH_PROFILE_HEALTH_STREAK_PENALTY_CAP: i64 = 4;
+const REASON_BUDGET_MAX_RUN_MS: &str = "BUDGET_MAX_RUN_MS";
+const REASON_BUDGET_MAX_TOOL_CALLS: &str = "BUDGET_MAX_TOOL_CALLS";
+const REASON_BUDGET_MAX_PROVIDER_INPUT_CHARS: &str = "BUDGET_MAX_PROVIDER_INPUT_CHARS";
+const REASON_BUDGET_MAX_TOOL_OUTPUT_CHARS_TOTAL: &str = "BUDGET_MAX_TOOL_OUTPUT_CHARS_TOTAL";
+const REASON_BUDGET_MAX_PROVIDER_ATTEMPTS: &str = "BUDGET_MAX_PROVIDER_ATTEMPTS";
+const REASON_BUDGET_DAILY_TOKEN_LIMIT: &str = "BUDGET_DAILY_TOKEN_LIMIT";
+const REASON_BUDGET_DAILY_COST_LIMIT: &str = "BUDGET_DAILY_COST_LIMIT";
+const REASON_BUDGET_DAILY_COST_UNAVAILABLE: &str = "BUDGET_DAILY_COST_UNAVAILABLE";
+const REASON_BREAKER_TOOL_FANOUT_CAP: &str = "BREAKER_TOOL_FANOUT_CAP";
+const REASON_BREAKER_REPEATED_TOOL_ERROR: &str = "BREAKER_REPEATED_TOOL_ERROR";
+const REASON_BREAKER_PROVIDER_OPEN: &str = "BREAKER_PROVIDER_OPEN";
+const REASON_BREAKER_JOB_OPEN: &str = "BREAKER_JOB_OPEN";
+const REASON_BREAKER_NUMQUAM_OPEN: &str = "BREAKER_NUMQUAM_OPEN";
+const REASON_HEARTBEAT_TOOLS_FORBIDDEN: &str = "HEARTBEAT_TOOLS_FORBIDDEN";
+const REASON_HEARTBEAT_TIMEOUT: &str = "HEARTBEAT_TIMEOUT";
+const REASON_HEARTBEAT_OUTPUT_INVALID: &str = "HEARTBEAT_OUTPUT_INVALID";
+const REASON_HEARTBEAT_RUN_FAILED: &str = "HEARTBEAT_RUN_FAILED";
+const CIRCUIT_BREAKER_SCOPE_PROVIDER: &str = "provider";
+const CIRCUIT_BREAKER_SCOPE_JOB: &str = "job";
+const CIRCUIT_BREAKER_SCOPE_NUMQUAM: &str = "numquam";
+const NUMQUAM_BREAKER_TARGET: &str = "integration";
+const CIRCUIT_BREAKER_STATE_OPEN: &str = "open";
+const CIRCUIT_BREAKER_STATE_CLOSED: &str = "closed";
+const CIRCUIT_BREAKER_RESET_COOLDOWN_MS: i64 = 15 * 60 * 1000;
+const NUMQUAM_CONTRACT_VERSION: &str = "integration.v1";
+const NUMQUAM_REQUIRED_OPERATIONS: &[&str] = &[
+    "context.build",
+    "context.why",
+    "writeback.propose",
+    "writeback.resolve",
+    "health.get",
+    "capabilities.get",
+];
+const PLUGIN_RUNNER_CONTRACT_VERSION: &str = "carsinos.plugin_runner.v1";
+const PLUGIN_RUNTIME_STATUS_CONTRACT_VERSION: &str = "extension.plugin.runtime_status.v1";
+const PLUGIN_BREAKER_COOLDOWN_MS: i64 = 15 * 60 * 1000;
+const PLUGIN_RUNNER_DEFAULT_TIMEOUT_MS: u64 = 5_000;
+const PLUGIN_RUNNER_MAX_TIMEOUT_MS: u64 = 120_000;
+const PLUGIN_RUNNER_DEFAULT_OUTPUT_CHARS: usize = 64_000;
+const EXT_PLUGIN_DISABLED: &str = "EXT_PLUGIN_DISABLED";
+const EXT_PLUGIN_TIMEOUT: &str = "EXT_PLUGIN_TIMEOUT";
+const EXT_PLUGIN_OUTPUT_INVALID: &str = "EXT_PLUGIN_OUTPUT_INVALID";
+const EXT_PLUGIN_EXEC_FAILED: &str = "EXT_PLUGIN_EXEC_FAILED";
+const EXT_PLUGIN_SCHEMA_INVALID: &str = "EXT_PLUGIN_SCHEMA_INVALID";
+const EXT_PLUGIN_TOOL_NAME_COLLISION: &str = "EXT_PLUGIN_TOOL_NAME_COLLISION";
+const EXT_PLUGIN_SHA_MISMATCH: &str = "EXT_PLUGIN_SHA_MISMATCH";
+const EXT_PLUGIN_DAEMON_NOT_ALLOWLISTED: &str = "EXT_PLUGIN_DAEMON_NOT_ALLOWLISTED";
+
+const RESERVED_CORE_TOOL_NAMES: &[&str] = &[
+    "exec",
+    "process",
+    "fs.read",
+    "fs.write",
+    "web.search",
+    "web.fetch",
+    "channel.send",
+    "channel.reply",
+    "channel.pin",
+    "channel.reaction",
+    "channel.action",
+];
 
 const ROLE_OPERATOR_ADMIN: &str = "operator_admin";
 const ROLE_OPERATOR_READONLY: &str = "operator_readonly";
@@ -1442,6 +1850,37 @@ impl NumquamTransport {
 }
 
 #[derive(Debug, Clone)]
+struct NumquamRuntimeStatus {
+    enabled: bool,
+    transport: String,
+    health_status: String,
+    contract_version: Option<String>,
+    supported_schema_versions: Vec<String>,
+    degrade_mode: bool,
+    required_operations_missing: Vec<String>,
+    last_check_at: Option<i64>,
+    last_error_code: Option<String>,
+    last_error: Option<String>,
+}
+
+impl Default for NumquamRuntimeStatus {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            transport: "dual".to_string(),
+            health_status: "disabled".to_string(),
+            contract_version: None,
+            supported_schema_versions: Vec::new(),
+            degrade_mode: false,
+            required_operations_missing: Vec::new(),
+            last_check_at: None,
+            last_error_code: None,
+            last_error: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 struct NumquamClient {
     transport: NumquamTransport,
     integration_base_url: String,
@@ -1450,7 +1889,61 @@ struct NumquamClient {
     principal_id: String,
     principal_display_name: String,
     request_timeout: Duration,
+    context_build_timeout: Duration,
+    writeback_propose_timeout: Duration,
+    writeback_resolve_timeout: Duration,
+    handshake_timeout: Duration,
     http_client: reqwest::Client,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct NumquamHealthData {
+    #[serde(default)]
+    status: String,
+    #[serde(default)]
+    uptime_ms: Option<i64>,
+    #[serde(default)]
+    dependencies: Vec<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct NumquamCapabilitiesOperation {
+    #[serde(default)]
+    name: String,
+    #[serde(default = "default_true")]
+    enabled: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct NumquamCapabilitiesData {
+    #[serde(default)]
+    contract_version: String,
+    #[serde(default)]
+    supported_schema_versions: Vec<String>,
+    #[serde(default)]
+    transports: Vec<String>,
+    #[serde(default)]
+    operations: Vec<NumquamCapabilitiesOperation>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct NumquamContextWhyReason {
+    #[serde(default)]
+    evidence_id: String,
+    #[serde(default)]
+    reason: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct NumquamContextWhyData {
+    #[serde(default)]
+    reasons: Vec<NumquamContextWhyReason>,
+    #[serde(default)]
+    evidence: Vec<serde_json::Value>,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -1506,6 +1999,29 @@ struct NumquamContextData {
     timings: Option<serde_json::Value>,
     #[serde(default)]
     truncation: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone)]
+struct NumquamContextPolicy {
+    top_k: u64,
+    risk_signal: String,
+    message_window_max_messages: Option<u64>,
+    message_window_max_chars: Option<u64>,
+    memory_preference: Option<String>,
+    retrieval_query: Option<String>,
+}
+
+impl Default for NumquamContextPolicy {
+    fn default() -> Self {
+        Self {
+            top_k: 8,
+            risk_signal: "low".to_string(),
+            message_window_max_messages: Some(30),
+            message_window_max_chars: Some(24_000),
+            memory_preference: Some("numquam_primary".to_string()),
+            retrieval_query: None,
+        }
+    }
 }
 
 #[allow(dead_code)]
@@ -1567,7 +2083,9 @@ struct NumquamMcpRpcError {
 #[derive(Debug, Clone, Default, Serialize)]
 struct RunMemoryMetadata {
     enabled: bool,
+    blend_mode: Option<String>,
     transport: Option<String>,
+    context_policy: Option<serde_json::Value>,
     context_request_id: Option<String>,
     context_request_id_source: Option<String>,
     context_degrade_mode: bool,
@@ -1576,6 +2094,9 @@ struct RunMemoryMetadata {
     context_error_code: Option<String>,
     context_error_message: Option<String>,
     context_chars: usize,
+    context_original_chars: usize,
+    context_returned_chars: usize,
+    context_truncated: bool,
     route: Option<String>,
     confidence: Option<f64>,
     evidence: Vec<RunMemoryEvidence>,
@@ -1890,12 +2411,20 @@ async fn main() -> AnyResult<()> {
     let trusted_proxy_headers = bool_env("CARSINOS_TRUST_PROXY_HEADERS", false);
     let trusted_proxy_allowlist = load_trusted_proxy_allowlist_from_env();
     let rate_limiter = Arc::new(RequestRateLimiter::from_env());
+    let scheduler_instance = Arc::new(acquire_scheduler_instance_lock(&config.state_dir)?);
     enforce_network_exposure_policy(&config, trusted_proxy_headers, &trusted_proxy_allowlist)?;
     let paths = AppPaths::from_root(config.state_dir.clone());
     let _log_guards = init_tracing(&paths.logs_dir)?;
 
     carsinos_storage::init(&paths)?;
     let storage = Storage::from_paths(&paths);
+    let runtime_config = load_runtime_config_from_storage(&storage)?;
+    validate_runtime_config(&runtime_config)
+        .context("runtime config validation failed at startup")?;
+    let (trust_contract_lock_record, trust_contract_lock_path) =
+        load_or_bootstrap_runtime_trust_contract_lock(&config.state_dir, &runtime_config)?;
+    enforce_runtime_global_against_trust_lock(&runtime_config.global, &trust_contract_lock_record)
+        .context("runtime config trust contract mismatch at startup")?;
     let providers = ProviderRegistry::new();
     let plugin_manifest_dirs = load_plugin_manifest_dirs_from_env(&config.state_dir);
     let plugin_registry =
@@ -1958,6 +2487,8 @@ async fn main() -> AnyResult<()> {
         tool_concurrency_limit,
         channel_tool_allowed_providers = ?channel_tool_allowed_providers,
         skill_dirs = ?skill_dirs,
+        trust_lock_path = %trust_contract_lock_path.display(),
+        trust_lock_hash = %trust_contract_lock_record.trust_hash,
         extension_plugin_allowlist_enabled = extension_policy.plugin_allowlist_enabled,
         "extension registries initialized"
     );
@@ -1976,10 +2507,12 @@ async fn main() -> AnyResult<()> {
         tool_concurrency: tool_concurrency.clone(),
         channel_tool_allowed_providers: channel_tool_allowed_providers.clone(),
         channel_runtime: channel_runtime.clone(),
+        internal_channel_ingest_token: Arc::new(uuid::Uuid::new_v4().to_string()),
         tool_runner,
         secret_store: secret_store.clone(),
         oauth_sessions,
         numquam_client,
+        numquam_runtime_status: Arc::new(RwLock::new(NumquamRuntimeStatus::default())),
         plugin_registry: Arc::new(RwLock::new(plugin_registry)),
         hook_bus: Arc::new(hook_bus),
         skill_registry: Arc::new(RwLock::new(skill_registry)),
@@ -1992,17 +2525,44 @@ async fn main() -> AnyResult<()> {
         started_instant: Instant::now(),
         db_path: Arc::new(paths.db_path.display().to_string()),
         attachments_path: Arc::new(paths.attachments_dir.display().to_string()),
+        session_run_lanes: Arc::new(SessionRunLaneManager::default()),
+        tool_error_breaker: Arc::new(ToolErrorFingerprintBreaker::default()),
+        plugin_runtime_health: Arc::new(StdRwLock::new(HashMap::new())),
+        plugin_daemons: Arc::new(RwLock::new(HashMap::new())),
+        scheduler_instance: scheduler_instance.clone(),
+        trust_contract_lock: Arc::new(RwLock::new(trust_contract_lock_record)),
+        trust_contract_lock_path: Arc::new(trust_contract_lock_path.display().to_string()),
+        plugin_manifest_dirs: Arc::new(plugin_manifest_dirs.clone()),
+        state_dir: Arc::new(config.state_dir.clone()),
     };
     record_extension_hook_policy_denials(&state, &hook_policy_denials);
     state.channel_runtime.start_all();
 
-    let scheduler_state = state.clone();
-    tokio::spawn(async move {
-        scheduler_loop(scheduler_state).await;
-    });
+    if scheduler_instance.enabled {
+        let scheduler_state = state.clone();
+        tokio::spawn(async move {
+            scheduler_loop(scheduler_state).await;
+        });
+    } else {
+        warn!(
+            lock_path = %scheduler_instance.lock_path,
+            owner = %scheduler_instance.owner,
+            detail = ?scheduler_instance.detail,
+            "scheduler disabled: lock is held by another process"
+        );
+    }
     let channel_runtime_state = state.channel_runtime.clone();
     tokio::spawn(async move {
         channel_runtime_supervisor_loop(channel_runtime_state).await;
+    });
+    let channel_listener_state = state.clone();
+    tokio::spawn(async move {
+        channel_ingest_listener_loop(channel_listener_state).await;
+    });
+    refresh_numquam_handshake_state(&state).await;
+    let numquam_handshake_state = state.clone();
+    tokio::spawn(async move {
+        numquam_handshake_loop(numquam_handshake_state).await;
     });
 
     let app = build_app(state);
@@ -2019,6 +2579,9 @@ async fn main() -> AnyResult<()> {
         trusted_proxy_headers,
         secret_store = secret_store.mode_name(),
         operator_allowlist_entries,
+        scheduler_running = scheduler_instance.enabled,
+        scheduler_lock_path = %scheduler_instance.lock_path,
+        scheduler_lock_owner = %scheduler_instance.owner,
         "carsinos gateway starting"
     );
 
@@ -2071,6 +2634,38 @@ async fn status(
     let auth_ctx = require_bearer_auth(&headers, &state).map_err(|err| err.status)?;
     require_roles_raw(&auth_ctx, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])
         .map_err(|err| err.status)?;
+    let runtime_config = load_runtime_config(&state).map_err(|err| {
+        error!(error = %err, "failed loading runtime config for status endpoint");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    let autonomy_guardrails = runtime_config.autonomy_guardrails.clone();
+    let numquam = current_numquam_status(&state, Some(&runtime_config)).await;
+    let trust_lock = state.trust_contract_lock.read().await.clone();
+    let trust_hash = runtime_trust_contract_hash(&runtime_config.global).map_err(|err| {
+        error!(error = %err, "failed hashing runtime trust contract for status endpoint");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    let trust_contract_lock = RuntimeTrustContractLockSummaryResponse {
+        enforced: true,
+        lock_path: (*state.trust_contract_lock_path).clone(),
+        trust_hash: trust_lock.trust_hash.clone(),
+        locked_at: trust_lock.locked_at,
+        drift_detected: trust_hash != trust_lock.trust_hash,
+    };
+    let (circuit_breakers, open_circuit_breakers) = collect_breaker_summary(&state, 64, None)
+        .map_err(|err| {
+            error!(error = %err, "failed loading circuit breaker summary for status endpoint");
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    let top_stop_reasons = collect_top_stop_reasons_from_jobs(&state, 10).map_err(|err| {
+        error!(error = %err, "failed loading top stop reasons for status endpoint");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    let plugin_breakers = plugin_runtime_status_items(&state, true).await;
+    let open_plugin_breakers = plugin_breakers
+        .iter()
+        .filter(|item| item.disabled_until_ms.map(|value| value > current_time_ms()).unwrap_or(false))
+        .count() as u64;
 
     let response = StatusResponse {
         service: "carsinos-gateway".to_string(),
@@ -2079,6 +2674,15 @@ async fn status(
         uptime_ms: state.started_instant.elapsed().as_millis() as u64,
         db_path: (*state.db_path).clone(),
         attachments_path: (*state.attachments_path).clone(),
+        trust_contract_lock,
+        scheduler_lock: scheduler_lock_state_response(&state),
+        autonomy_guardrails,
+        numquam,
+        open_circuit_breakers,
+        circuit_breakers,
+        open_plugin_breakers,
+        plugin_breakers,
+        top_stop_reasons,
     };
 
     Ok(Json(response))
@@ -2161,6 +2765,94 @@ async fn list_provider_capabilities(
     }))
 }
 
+async fn list_tool_capabilities(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Query(query): Query<ListToolCapabilitiesQuery>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "tool.capabilities.list",
+        "tools.capabilities",
+    )?;
+
+    let include_disabled = query.include_disabled.unwrap_or(false);
+    let origin_filter = query
+        .origin
+        .as_ref()
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty());
+
+    let core_sandbox = ToolCapabilitySandboxResponse {
+        allowed_roots: state
+            .tool_runner
+            .sandbox
+            .allowed_roots
+            .iter()
+            .map(|path| path.display().to_string())
+            .collect::<Vec<_>>(),
+        network_policy: match state.tool_runner.sandbox.network_policy {
+            carsinos_tools::ToolNetworkPolicy::Allowlist => "allowlist".to_string(),
+            carsinos_tools::ToolNetworkPolicy::DenyAll => "deny_all".to_string(),
+        },
+        network_allowlist_count: state.tool_runner.sandbox.network_allowlist.len(),
+    };
+
+    let mut items = state
+        .tool_registry
+        .definitions
+        .values()
+        .map(|definition| ToolCapabilityResponse {
+            tool_name: definition.tool_name.to_string(),
+            origin: "core".to_string(),
+            risk_level: definition.base_risk_level.to_string(),
+            requires_approval: matches!(definition.approval_policy, ToolApprovalPolicy::Always),
+            timeout_ms: definition.timeout_ms,
+            enabled: true,
+            sandbox: core_sandbox.clone(),
+        })
+        .collect::<Vec<_>>();
+
+    for manifest in state.plugin_registry.read().await.list_manifests() {
+        for tool in manifest.capabilities.tools {
+            items.push(ToolCapabilityResponse {
+                tool_name: tool.name,
+                origin: format!("plugin:{}", manifest.plugin_id),
+                risk_level: "high".to_string(),
+                requires_approval: true,
+                timeout_ms: manifest.limits.timeout_ms,
+                enabled: manifest.enabled,
+                sandbox: ToolCapabilitySandboxResponse {
+                    allowed_roots: manifest.permissions.allowed_roots.clone(),
+                    network_policy: manifest.permissions.network_policy.clone(),
+                    network_allowlist_count: manifest.permissions.network_allowlist.len(),
+                },
+            });
+        }
+    }
+
+    if !include_disabled {
+        items.retain(|item| item.enabled);
+    }
+    if let Some(filter) = origin_filter.as_ref() {
+        items.retain(|item| item.origin.to_ascii_lowercase() == *filter);
+    }
+    items.sort_by(|left, right| {
+        left.origin
+            .cmp(&right.origin)
+            .then_with(|| left.tool_name.cmp(&right.tool_name))
+    });
+
+    Ok(Json(ListToolCapabilitiesResponse {
+        contract_version: "tool.capabilities.v1".to_string(),
+        items,
+    }))
+}
+
 async fn list_plugins(
     headers: HeaderMap,
     State(state): State<AppState>,
@@ -2190,6 +2882,1724 @@ async fn list_plugins(
         contract_version: PLUGIN_REGISTRY_CONTRACT_VERSION.to_string(),
         plugin_api_version: PLUGIN_API_VERSION_V1.to_string(),
         items,
+    }))
+}
+
+async fn plugin_runtime_status_items(
+    state: &AppState,
+    include_disabled: bool,
+) -> Vec<PluginRuntimeStatusResponse> {
+    let manifests = state.plugin_registry.read().await.list_manifests();
+    let health = state
+        .plugin_runtime_health
+        .read()
+        .expect("plugin runtime health read lock poisoned")
+        .clone();
+    manifests
+        .into_iter()
+        .filter(|manifest| include_disabled || manifest.enabled)
+        .map(|manifest| {
+            let entry = health.get(&manifest.plugin_id).cloned().unwrap_or_default();
+            let now_ms = current_time_ms();
+            let faulted = entry
+                .disabled_until_ms
+                .map(|value| value > now_ms)
+                .unwrap_or(false)
+                || entry.consecutive_failures > 0;
+            PluginRuntimeStatusResponse {
+                plugin_id: manifest.plugin_id,
+                enabled: manifest.enabled,
+                faulted,
+                disabled_until_ms: entry.disabled_until_ms,
+                consecutive_failures: entry.consecutive_failures,
+                last_error_code: entry.last_error_code,
+                last_error: entry.last_error,
+                last_success_ms: entry.last_success_ms,
+                last_invoked_ms: entry.last_invoked_ms,
+            }
+        })
+        .collect::<Vec<_>>()
+}
+
+async fn list_plugin_runtime_status(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Query(query): Query<ListPluginsQuery>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "plugin.runtime_status.list",
+        "plugins.runtime",
+    )?;
+    let items = plugin_runtime_status_items(&state, query.include_disabled.unwrap_or(false)).await;
+    Ok(Json(ListPluginRuntimeStatusResponse {
+        contract_version: PLUGIN_RUNTIME_STATUS_CONTRACT_VERSION.to_string(),
+        items,
+    }))
+}
+
+fn normalize_plugin_id(raw: &str) -> AnyResult<String> {
+    let normalized = raw.trim().to_ascii_lowercase();
+    if normalized.is_empty() {
+        anyhow::bail!("plugin_id must not be empty");
+    }
+    if !normalized
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'))
+    {
+        anyhow::bail!("plugin_id contains invalid characters");
+    }
+    Ok(normalized)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PluginVersionPointersRecord {
+    schema_version: String,
+    plugin_id: String,
+    active_version: String,
+    previous_version: Option<String>,
+    updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PluginRunnerPermissionsEnvelope {
+    allowed_roots: Vec<String>,
+    network_policy: String,
+    network_allowlist: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PluginRunnerLimitsEnvelope {
+    timeout_ms: u64,
+    max_output_chars: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PluginRunnerRequestEnvelope {
+    contract_version: String,
+    request_id: String,
+    kind: String,
+    plugin_id: String,
+    deadline_ms: u64,
+    permissions: PluginRunnerPermissionsEnvelope,
+    limits: PluginRunnerLimitsEnvelope,
+    payload: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PluginRunnerMetricsEnvelope {
+    #[serde(default)]
+    duration_ms: Option<u64>,
+    #[serde(default)]
+    output_chars: Option<usize>,
+    #[serde(default)]
+    timed_out: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PluginRunnerResponseEnvelope {
+    contract_version: String,
+    request_id: String,
+    status: String,
+    #[serde(default)]
+    result: Option<serde_json::Value>,
+    #[serde(default)]
+    error_code: Option<String>,
+    #[serde(default)]
+    error_message: Option<String>,
+    #[serde(default)]
+    metrics: Option<PluginRunnerMetricsEnvelope>,
+}
+
+#[derive(Debug, Clone)]
+struct PluginInvokeResult {
+    status: String,
+    result: Option<serde_json::Value>,
+    error_code: Option<String>,
+    error_message: Option<String>,
+    duration_ms: u64,
+    output_chars: usize,
+}
+
+#[derive(Debug, Clone)]
+struct PluginInvokeError {
+    code: String,
+    message: String,
+    duration_ms: u64,
+    breaker_open: bool,
+}
+
+#[derive(Debug, Clone)]
+struct PluginHookInvocationOutcome {
+    plugin_id: String,
+    hook_name: String,
+    status: String,
+    error_code: Option<String>,
+    error: Option<String>,
+    duration_ms: u64,
+    breaker_open: bool,
+}
+
+fn plugin_breaker_limit(runtime_config: &RuntimeConfigResponse) -> u64 {
+    runtime_config
+        .autonomy_guardrails
+        .max_consecutive_failures_before_breaker
+        .max(1)
+}
+
+fn plugin_runner_timeout_ms(manifest: &CorePluginManifest) -> u64 {
+    manifest
+        .limits
+        .timeout_ms
+        .unwrap_or(PLUGIN_RUNNER_DEFAULT_TIMEOUT_MS)
+        .clamp(100, PLUGIN_RUNNER_MAX_TIMEOUT_MS)
+}
+
+fn plugin_runner_max_output_chars(manifest: &CorePluginManifest) -> usize {
+    manifest
+        .limits
+        .max_output_chars
+        .unwrap_or(PLUGIN_RUNNER_DEFAULT_OUTPUT_CHARS)
+        .clamp(128, 1_000_000)
+}
+
+fn plugin_is_breaker_open(state: &AppState, plugin_id: &str, now_ms: i64) -> bool {
+    state
+        .plugin_runtime_health
+        .read()
+        .expect("plugin runtime health read lock poisoned")
+        .get(plugin_id)
+        .and_then(|item| item.disabled_until_ms)
+        .map(|value| value > now_ms)
+        .unwrap_or(false)
+}
+
+fn record_plugin_invoke_start(state: &AppState, plugin_id: &str, now_ms: i64) {
+    let mut write = state
+        .plugin_runtime_health
+        .write()
+        .expect("plugin runtime health write lock poisoned");
+    let entry = write.entry(plugin_id.to_string()).or_default();
+    entry.last_invoked_ms = Some(now_ms);
+}
+
+fn record_plugin_invoke_success(state: &AppState, plugin_id: &str, now_ms: i64) {
+    let mut write = state
+        .plugin_runtime_health
+        .write()
+        .expect("plugin runtime health write lock poisoned");
+    let entry = write.entry(plugin_id.to_string()).or_default();
+    entry.consecutive_failures = 0;
+    entry.disabled_until_ms = None;
+    entry.last_error_code = None;
+    entry.last_error = None;
+    entry.last_success_ms = Some(now_ms);
+    entry.last_invoked_ms = Some(now_ms);
+}
+
+fn record_plugin_invoke_failure(
+    state: &AppState,
+    plugin_id: &str,
+    now_ms: i64,
+    error_code: Option<String>,
+    error_message: Option<String>,
+    breaker_limit: u64,
+) -> bool {
+    let mut write = state
+        .plugin_runtime_health
+        .write()
+        .expect("plugin runtime health write lock poisoned");
+    let entry = write.entry(plugin_id.to_string()).or_default();
+    entry.consecutive_failures = entry.consecutive_failures.saturating_add(1);
+    entry.last_error_code = error_code;
+    entry.last_error = error_message;
+    entry.last_invoked_ms = Some(now_ms);
+    if entry.consecutive_failures >= breaker_limit {
+        entry.disabled_until_ms = Some(now_ms.saturating_add(PLUGIN_BREAKER_COOLDOWN_MS));
+        true
+    } else {
+        false
+    }
+}
+
+fn plugin_storage_root_from_runtime(
+    state: &AppState,
+    runtime_config: &RuntimeConfigResponse,
+) -> AnyResult<PathBuf> {
+    let configured = runtime_config
+        .extensions
+        .plugin_bundle_root
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    if let Some(raw_path) = configured {
+        if raw_path.contains("://") {
+            anyhow::bail!("extensions.plugin_bundle_root must be a local filesystem path");
+        }
+        let raw = PathBuf::from(raw_path);
+        if raw.is_absolute() {
+            return Ok(raw);
+        }
+        return Ok(state.state_dir.join(raw));
+    }
+    Ok(state.state_dir.join("plugins"))
+}
+
+fn plugin_bundle_dir(plugin_storage_root: &FsPath, plugin_id: &str, plugin_version: &str) -> PathBuf {
+    plugin_storage_root
+        .join("bundles")
+        .join(plugin_id)
+        .join(plugin_version)
+}
+
+fn plugin_bundle_manifest_path(
+    plugin_storage_root: &FsPath,
+    plugin_id: &str,
+    plugin_version: &str,
+) -> PathBuf {
+    plugin_bundle_dir(plugin_storage_root, plugin_id, plugin_version).join("manifest.json")
+}
+
+fn plugin_active_manifest_path(plugin_storage_root: &FsPath, plugin_id: &str) -> PathBuf {
+    plugin_storage_root
+        .join("active")
+        .join(format!("{plugin_id}.json"))
+}
+
+fn plugin_pointer_path(plugin_storage_root: &FsPath, plugin_id: &str) -> PathBuf {
+    plugin_storage_root
+        .join("pointers")
+        .join(format!("{plugin_id}.json"))
+}
+
+fn persist_json_atomic(path: &FsPath, payload: &str, context_label: &str) -> AnyResult<()> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("invalid path for {context_label}"))?;
+    std::fs::create_dir_all(parent).with_context(|| {
+        format!(
+            "failed to create parent directory for {context_label} {}",
+            parent.display()
+        )
+    })?;
+    let tmp_path = path.with_extension("tmp");
+    std::fs::write(&tmp_path, payload).with_context(|| {
+        format!(
+            "failed writing temporary {context_label} file {}",
+            tmp_path.display()
+        )
+    })?;
+    std::fs::rename(&tmp_path, path).with_context(|| {
+        format!(
+            "failed replacing {context_label} file {}",
+            path.display()
+        )
+    })?;
+    Ok(())
+}
+
+fn persist_plugin_manifest(path: &FsPath, manifest: &CorePluginManifest) -> AnyResult<()> {
+    let payload = serde_json::to_string_pretty(manifest)
+        .map_err(|err| anyhow::anyhow!("failed serializing plugin manifest: {err}"))?;
+    persist_json_atomic(path, &payload, "plugin manifest")
+}
+
+fn persist_plugin_pointer(path: &FsPath, pointer: &PluginVersionPointersRecord) -> AnyResult<()> {
+    let payload = serde_json::to_string_pretty(pointer)
+        .map_err(|err| anyhow::anyhow!("failed serializing plugin pointer: {err}"))?;
+    persist_json_atomic(path, &payload, "plugin pointer")
+}
+
+fn load_plugin_pointer(path: &FsPath) -> AnyResult<Option<PluginVersionPointersRecord>> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    let payload = std::fs::read_to_string(path)
+        .with_context(|| format!("failed reading plugin pointer file {}", path.display()))?;
+    let pointer: PluginVersionPointersRecord = serde_json::from_str(&payload)
+        .with_context(|| format!("failed parsing plugin pointer file {}", path.display()))?;
+    if pointer.schema_version.trim() != PLUGIN_POINTER_SCHEMA_VERSION {
+        anyhow::bail!(
+            "unsupported plugin pointer schema_version '{}' in {}",
+            pointer.schema_version,
+            path.display()
+        );
+    }
+    Ok(Some(pointer))
+}
+
+fn load_bundle_manifest(
+    plugin_storage_root: &FsPath,
+    plugin_id: &str,
+    plugin_version: &str,
+) -> AnyResult<CorePluginManifest> {
+    let path = plugin_bundle_manifest_path(plugin_storage_root, plugin_id, plugin_version);
+    let payload = std::fs::read_to_string(&path)
+        .with_context(|| format!("failed reading bundle manifest {}", path.display()))?;
+    let manifest = serde_json::from_str::<CorePluginManifest>(&payload)
+        .with_context(|| format!("failed parsing bundle manifest {}", path.display()))?;
+    Ok(manifest)
+}
+
+fn sha256_file_hex(path: &FsPath) -> AnyResult<String> {
+    let bytes = std::fs::read(path)
+        .with_context(|| format!("failed reading file for sha256 {}", path.display()))?;
+    let digest = Sha256::digest(bytes);
+    Ok(format!("{digest:x}"))
+}
+
+fn normalize_local_source_path(raw: &str) -> AnyResult<PathBuf> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        anyhow::bail!("artifact.local_path cannot be empty");
+    }
+    if trimmed.contains("://") {
+        anyhow::bail!("artifact.local_path must reference a local filesystem path");
+    }
+    let candidate = PathBuf::from(trimmed);
+    if candidate.is_absolute() {
+        Ok(candidate)
+    } else {
+        Ok(std::env::current_dir()
+            .context("failed resolving current_dir for artifact.local_path")?
+            .join(candidate))
+    }
+}
+
+fn ensure_plugin_tool_names_do_not_collide(manifest: &CorePluginManifest) -> AnyResult<()> {
+    let reserved = RESERVED_CORE_TOOL_NAMES
+        .iter()
+        .copied()
+        .collect::<HashSet<_>>();
+    for tool in &manifest.capabilities.tools {
+        if reserved.contains(tool.name.as_str()) {
+            anyhow::bail!(
+                "{}: plugin tool '{}' collides with reserved core tool name",
+                EXT_PLUGIN_TOOL_NAME_COLLISION,
+                tool.name
+            );
+        }
+    }
+    Ok(())
+}
+
+fn ensure_daemon_allowlist(
+    runtime_config: &RuntimeConfigResponse,
+    manifest: &CorePluginManifest,
+) -> AnyResult<()> {
+    if manifest.artifact.exec_kind != carsinos_core::PluginExecKind::Daemon {
+        return Ok(());
+    }
+    let plugin_id = manifest.plugin_id.trim().to_ascii_lowercase();
+    let allowlisted = runtime_config
+        .extensions
+        .plugin_daemon_allowlist
+        .iter()
+        .any(|entry| entry.trim().eq_ignore_ascii_case(&plugin_id));
+    if !allowlisted {
+        anyhow::bail!(
+            "{}: plugin '{}' is not allowlisted for daemon execution",
+            EXT_PLUGIN_DAEMON_NOT_ALLOWLISTED,
+            plugin_id
+        );
+    }
+    Ok(())
+}
+
+fn materialize_plugin_bundle(
+    plugin_storage_root: &FsPath,
+    manifest: &CorePluginManifest,
+) -> AnyResult<CorePluginManifest> {
+    let source_path = normalize_local_source_path(&manifest.artifact.local_path)?;
+    if !source_path.exists() || !source_path.is_file() {
+        anyhow::bail!(
+            "artifact.local_path does not reference an existing file: {}",
+            source_path.display()
+        );
+    }
+    let expected_sha = manifest.artifact.sha256.trim().to_ascii_lowercase();
+    let source_sha = sha256_file_hex(&source_path)?;
+    if source_sha != expected_sha {
+        anyhow::bail!(
+            "{}: artifact digest mismatch for plugin '{}'",
+            EXT_PLUGIN_SHA_MISMATCH,
+            manifest.plugin_id
+        );
+    }
+
+    let bundle_dir = plugin_bundle_dir(
+        plugin_storage_root,
+        manifest.plugin_id.as_str(),
+        manifest.plugin_version.as_str(),
+    );
+    std::fs::create_dir_all(&bundle_dir).with_context(|| {
+        format!(
+            "failed creating plugin bundle directory {}",
+            bundle_dir.display()
+        )
+    })?;
+    let artifact_filename = source_path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .map(|value| value.to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "artifact.bin".to_string());
+    let bundled_artifact_path = bundle_dir.join(artifact_filename);
+    std::fs::copy(&source_path, &bundled_artifact_path).with_context(|| {
+        format!(
+            "failed copying plugin artifact '{}' -> '{}'",
+            source_path.display(),
+            bundled_artifact_path.display()
+        )
+    })?;
+    let bundled_sha = sha256_file_hex(&bundled_artifact_path)?;
+    if bundled_sha != expected_sha {
+        anyhow::bail!(
+            "{}: copied artifact digest mismatch for plugin '{}'",
+            EXT_PLUGIN_SHA_MISMATCH,
+            manifest.plugin_id
+        );
+    }
+
+    let mut materialized = manifest.clone();
+    let source_display = source_path.display().to_string();
+    materialized.artifact.local_path = bundled_artifact_path.display().to_string();
+    if materialized.artifact.command.trim() == source_display {
+        materialized.artifact.command = materialized.artifact.local_path.clone();
+    }
+    for arg in &mut materialized.artifact.args {
+        if arg.trim() == source_display {
+            *arg = materialized.artifact.local_path.clone();
+        }
+    }
+    let bundle_manifest_path = plugin_bundle_manifest_path(
+        plugin_storage_root,
+        manifest.plugin_id.as_str(),
+        manifest.plugin_version.as_str(),
+    );
+    persist_plugin_manifest(&bundle_manifest_path, &materialized)?;
+    Ok(materialized)
+}
+
+fn parse_plugin_manifest_request(value: serde_json::Value) -> AnyResult<CorePluginManifest> {
+    serde_json::from_value::<CorePluginManifest>(value).context("invalid plugin manifest payload")
+}
+
+fn hook_point_capability_name(hook_point: HookPoint) -> &'static str {
+    match hook_point {
+        HookPoint::RunStart => "run.start",
+        HookPoint::RunEnd => "run.end",
+        HookPoint::ToolBefore => "tool.before",
+        HookPoint::ToolAfter => "tool.after",
+        HookPoint::CompactionBefore => "compaction.before",
+        HookPoint::CompactionAfter => "compaction.after",
+    }
+}
+
+fn parse_plugin_runner_response_strict(payload: &str) -> AnyResult<PluginRunnerResponseEnvelope> {
+    let trimmed = payload.trim();
+    if trimmed.is_empty() {
+        anyhow::bail!("plugin runner stdout was empty");
+    }
+    let mut deserializer = serde_json::Deserializer::from_str(trimmed);
+    let mut parsed = PluginRunnerResponseEnvelope::deserialize(&mut deserializer)
+        .context("plugin runner stdout was not valid json envelope")?;
+    deserializer
+        .end()
+        .context("plugin runner stdout contained trailing non-json output")?;
+    parsed.status = parsed.status.trim().to_ascii_lowercase();
+    if parsed.contract_version.trim() != PLUGIN_RUNNER_CONTRACT_VERSION {
+        anyhow::bail!(
+            "unexpected plugin runner contract_version '{}'",
+            parsed.contract_version.trim()
+        );
+    }
+    if !matches!(parsed.status.as_str(), "ok" | "error" | "deny") {
+        anyhow::bail!("unsupported plugin runner status '{}'", parsed.status);
+    }
+    Ok(parsed)
+}
+
+async fn invoke_plugin_runner_subprocess_impl(
+    state: &AppState,
+    manifest: &CorePluginManifest,
+    kind: &str,
+    payload: serde_json::Value,
+) -> std::result::Result<PluginInvokeResult, PluginInvokeError> {
+    let now_ms = current_time_ms();
+    if plugin_is_breaker_open(state, &manifest.plugin_id, now_ms) {
+        return Err(PluginInvokeError {
+            code: EXT_PLUGIN_DISABLED.to_string(),
+            message: format!("plugin '{}' is disabled by breaker", manifest.plugin_id),
+            duration_ms: 0,
+            breaker_open: true,
+        });
+    }
+    record_plugin_invoke_start(state, &manifest.plugin_id, now_ms);
+
+    let breaker_limit = load_runtime_config(state)
+        .map(|config| plugin_breaker_limit(&config))
+        .unwrap_or(3);
+    let timeout_ms = plugin_runner_timeout_ms(manifest);
+    let max_output_chars = plugin_runner_max_output_chars(manifest);
+    let request_id = uuid::Uuid::new_v4().to_string();
+    let request_envelope = PluginRunnerRequestEnvelope {
+        contract_version: PLUGIN_RUNNER_CONTRACT_VERSION.to_string(),
+        request_id: request_id.clone(),
+        kind: kind.to_string(),
+        plugin_id: manifest.plugin_id.clone(),
+        deadline_ms: (current_time_ms().max(0) as u64).saturating_add(timeout_ms),
+        permissions: PluginRunnerPermissionsEnvelope {
+            allowed_roots: manifest.permissions.allowed_roots.clone(),
+            network_policy: manifest.permissions.network_policy.clone(),
+            network_allowlist: manifest.permissions.network_allowlist.clone(),
+        },
+        limits: PluginRunnerLimitsEnvelope {
+            timeout_ms,
+            max_output_chars,
+        },
+        payload,
+    };
+    let request_json = match serde_json::to_string(&request_envelope) {
+        Ok(value) => value,
+        Err(err) => {
+            let message = format!("failed serializing plugin runner request: {err}");
+            let tripped = record_plugin_invoke_failure(
+                state,
+                &manifest.plugin_id,
+                current_time_ms(),
+                Some(EXT_PLUGIN_SCHEMA_INVALID.to_string()),
+                Some(message.clone()),
+                breaker_limit,
+            );
+            return Err(PluginInvokeError {
+                code: EXT_PLUGIN_SCHEMA_INVALID.to_string(),
+                message,
+                duration_ms: 0,
+                breaker_open: tripped,
+            });
+        }
+    };
+
+    if manifest.artifact.command.trim().is_empty() {
+        let message = "plugin manifest artifact.command cannot be empty".to_string();
+        let tripped = record_plugin_invoke_failure(
+            state,
+            &manifest.plugin_id,
+            current_time_ms(),
+            Some(EXT_PLUGIN_SCHEMA_INVALID.to_string()),
+            Some(message.clone()),
+            breaker_limit,
+        );
+        return Err(PluginInvokeError {
+            code: EXT_PLUGIN_SCHEMA_INVALID.to_string(),
+            message,
+            duration_ms: 0,
+            breaker_open: tripped,
+        });
+    }
+
+    let started = Instant::now();
+    let mut command = tokio::process::Command::new(manifest.artifact.command.trim());
+    command.args(manifest.artifact.args.iter().map(|value| value.trim()));
+    command.kill_on_drop(true);
+    command.stdin(std::process::Stdio::piped());
+    command.stdout(std::process::Stdio::piped());
+    command.stderr(std::process::Stdio::piped());
+    command.env_clear();
+    if let Some(path_env) = std::env::var_os("PATH") {
+        command.env("PATH", path_env);
+    }
+    command.env("CARSINOS_PLUGIN_ID", manifest.plugin_id.as_str());
+    command.env("CARSINOS_PLUGIN_KIND", kind);
+    if let Some(parent) = PathBuf::from(&manifest.artifact.local_path)
+        .parent()
+        .map(PathBuf::from)
+    {
+        command.current_dir(parent);
+    }
+
+    let mut child = match command.spawn() {
+        Ok(child) => child,
+        Err(err) => {
+            let message = format!("failed spawning plugin subprocess: {err}");
+            let tripped = record_plugin_invoke_failure(
+                state,
+                &manifest.plugin_id,
+                current_time_ms(),
+                Some(EXT_PLUGIN_EXEC_FAILED.to_string()),
+                Some(message.clone()),
+                breaker_limit,
+            );
+            return Err(PluginInvokeError {
+                code: EXT_PLUGIN_EXEC_FAILED.to_string(),
+                message,
+                duration_ms: started.elapsed().as_millis() as u64,
+                breaker_open: tripped,
+            });
+        }
+    };
+
+    if let Some(mut stdin) = child.stdin.take() {
+        if let Err(err) = stdin.write_all(request_json.as_bytes()).await {
+            let message = format!("failed writing plugin request stdin: {err}");
+            let tripped = record_plugin_invoke_failure(
+                state,
+                &manifest.plugin_id,
+                current_time_ms(),
+                Some(EXT_PLUGIN_EXEC_FAILED.to_string()),
+                Some(message.clone()),
+                breaker_limit,
+            );
+            return Err(PluginInvokeError {
+                code: EXT_PLUGIN_EXEC_FAILED.to_string(),
+                message,
+                duration_ms: started.elapsed().as_millis() as u64,
+                breaker_open: tripped,
+            });
+        }
+        let _ = stdin.shutdown().await;
+    }
+
+    let output = match tokio::time::timeout(Duration::from_millis(timeout_ms), child.wait_with_output())
+        .await
+    {
+        Ok(Ok(output)) => output,
+        Ok(Err(err)) => {
+            let message = format!("plugin subprocess wait failed: {err}");
+            let tripped = record_plugin_invoke_failure(
+                state,
+                &manifest.plugin_id,
+                current_time_ms(),
+                Some(EXT_PLUGIN_EXEC_FAILED.to_string()),
+                Some(message.clone()),
+                breaker_limit,
+            );
+            return Err(PluginInvokeError {
+                code: EXT_PLUGIN_EXEC_FAILED.to_string(),
+                message,
+                duration_ms: started.elapsed().as_millis() as u64,
+                breaker_open: tripped,
+            });
+        }
+        Err(_) => {
+            let message = format!(
+                "plugin subprocess timed out after {}ms for '{}'",
+                timeout_ms, manifest.plugin_id
+            );
+            let tripped = record_plugin_invoke_failure(
+                state,
+                &manifest.plugin_id,
+                current_time_ms(),
+                Some(EXT_PLUGIN_TIMEOUT.to_string()),
+                Some(message.clone()),
+                breaker_limit,
+            );
+            return Err(PluginInvokeError {
+                code: EXT_PLUGIN_TIMEOUT.to_string(),
+                message,
+                duration_ms: started.elapsed().as_millis() as u64,
+                breaker_open: tripped,
+            });
+        }
+    };
+
+    if output.stdout.len() > max_output_chars {
+        let message = format!(
+            "plugin stdout exceeded {} chars for '{}'",
+            max_output_chars, manifest.plugin_id
+        );
+        let tripped = record_plugin_invoke_failure(
+            state,
+            &manifest.plugin_id,
+            current_time_ms(),
+            Some(EXT_PLUGIN_OUTPUT_INVALID.to_string()),
+            Some(message.clone()),
+            breaker_limit,
+        );
+        return Err(PluginInvokeError {
+            code: EXT_PLUGIN_OUTPUT_INVALID.to_string(),
+            message,
+            duration_ms: started.elapsed().as_millis() as u64,
+            breaker_open: tripped,
+        });
+    }
+
+    let stdout_text = match String::from_utf8(output.stdout) {
+        Ok(text) => text,
+        Err(err) => {
+            let message = format!("plugin stdout is not utf-8: {err}");
+            let tripped = record_plugin_invoke_failure(
+                state,
+                &manifest.plugin_id,
+                current_time_ms(),
+                Some(EXT_PLUGIN_OUTPUT_INVALID.to_string()),
+                Some(message.clone()),
+                breaker_limit,
+            );
+            return Err(PluginInvokeError {
+                code: EXT_PLUGIN_OUTPUT_INVALID.to_string(),
+                message,
+                duration_ms: started.elapsed().as_millis() as u64,
+                breaker_open: tripped,
+            });
+        }
+    };
+    let stderr_text = String::from_utf8_lossy(&output.stderr).to_string();
+    let parsed = match parse_plugin_runner_response_strict(&stdout_text) {
+        Ok(parsed) => parsed,
+        Err(err) => {
+            let message = if stderr_text.trim().is_empty() {
+                format!("{}: {}", EXT_PLUGIN_OUTPUT_INVALID, err)
+            } else {
+                format!("{}: {}; stderr={}", EXT_PLUGIN_OUTPUT_INVALID, err, stderr_text.trim())
+            };
+            let tripped = record_plugin_invoke_failure(
+                state,
+                &manifest.plugin_id,
+                current_time_ms(),
+                Some(EXT_PLUGIN_OUTPUT_INVALID.to_string()),
+                Some(message.clone()),
+                breaker_limit,
+            );
+            return Err(PluginInvokeError {
+                code: EXT_PLUGIN_OUTPUT_INVALID.to_string(),
+                message,
+                duration_ms: started.elapsed().as_millis() as u64,
+                breaker_open: tripped,
+            });
+        }
+    };
+    if parsed.request_id != request_id {
+        let message = format!(
+            "plugin response request_id mismatch: expected {}, got {}",
+            request_id, parsed.request_id
+        );
+        let tripped = record_plugin_invoke_failure(
+            state,
+            &manifest.plugin_id,
+            current_time_ms(),
+            Some(EXT_PLUGIN_SCHEMA_INVALID.to_string()),
+            Some(message.clone()),
+            breaker_limit,
+        );
+        return Err(PluginInvokeError {
+            code: EXT_PLUGIN_SCHEMA_INVALID.to_string(),
+            message,
+            duration_ms: started.elapsed().as_millis() as u64,
+            breaker_open: tripped,
+        });
+    }
+
+    let duration_ms = started.elapsed().as_millis() as u64;
+    let output_chars = stdout_text.chars().count();
+    if parsed.status == "error" {
+        let code = parsed
+            .error_code
+            .clone()
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| EXT_PLUGIN_EXEC_FAILED.to_string());
+        let message = parsed
+            .error_message
+            .clone()
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| "plugin returned status=error".to_string());
+        let tripped = record_plugin_invoke_failure(
+            state,
+            &manifest.plugin_id,
+            current_time_ms(),
+            Some(code.clone()),
+            Some(message.clone()),
+            breaker_limit,
+        );
+        return Err(PluginInvokeError {
+            code,
+            message,
+            duration_ms,
+            breaker_open: tripped,
+        });
+    }
+
+    record_plugin_invoke_success(state, &manifest.plugin_id, current_time_ms());
+    Ok(PluginInvokeResult {
+        status: parsed.status,
+        result: parsed.result,
+        error_code: parsed.error_code,
+        error_message: parsed.error_message,
+        duration_ms,
+        output_chars,
+    })
+}
+
+async fn daemon_supervisor_for_plugin(
+    state: &AppState,
+    manifest: &CorePluginManifest,
+) -> Arc<Mutex<PluginDaemonSupervisor>> {
+    let plugin_id = manifest.plugin_id.clone();
+    if let Some(existing) = state.plugin_daemons.read().await.get(&plugin_id).cloned() {
+        return existing;
+    }
+    let mut write = state.plugin_daemons.write().await;
+    write
+        .entry(plugin_id)
+        .or_insert_with(|| Arc::new(Mutex::new(PluginDaemonSupervisor::from_manifest(manifest))))
+        .clone()
+}
+
+async fn reset_plugin_daemon_supervisor(state: &AppState, plugin_id: &str) {
+    let removed = {
+        let mut write = state.plugin_daemons.write().await;
+        write.remove(plugin_id)
+    };
+    if let Some(supervisor) = removed {
+        let mut guard = supervisor.lock().await;
+        guard.stop().await;
+    }
+}
+
+async fn invoke_plugin_runner_daemon(
+    state: &AppState,
+    manifest: &CorePluginManifest,
+    kind: &str,
+    payload: serde_json::Value,
+) -> std::result::Result<PluginInvokeResult, PluginInvokeError> {
+    let now_ms = current_time_ms();
+    if plugin_is_breaker_open(state, &manifest.plugin_id, now_ms) {
+        return Err(PluginInvokeError {
+            code: EXT_PLUGIN_DISABLED.to_string(),
+            message: format!("plugin '{}' is disabled by breaker", manifest.plugin_id),
+            duration_ms: 0,
+            breaker_open: true,
+        });
+    }
+    record_plugin_invoke_start(state, &manifest.plugin_id, now_ms);
+
+    let breaker_limit = load_runtime_config(state)
+        .map(|config| plugin_breaker_limit(&config))
+        .unwrap_or(3);
+    let timeout_ms = plugin_runner_timeout_ms(manifest);
+    let max_output_chars = plugin_runner_max_output_chars(manifest);
+    let request_id = uuid::Uuid::new_v4().to_string();
+    let request_envelope = PluginRunnerRequestEnvelope {
+        contract_version: PLUGIN_RUNNER_CONTRACT_VERSION.to_string(),
+        request_id: request_id.clone(),
+        kind: kind.to_string(),
+        plugin_id: manifest.plugin_id.clone(),
+        deadline_ms: (current_time_ms().max(0) as u64).saturating_add(timeout_ms),
+        permissions: PluginRunnerPermissionsEnvelope {
+            allowed_roots: manifest.permissions.allowed_roots.clone(),
+            network_policy: manifest.permissions.network_policy.clone(),
+            network_allowlist: manifest.permissions.network_allowlist.clone(),
+        },
+        limits: PluginRunnerLimitsEnvelope {
+            timeout_ms,
+            max_output_chars,
+        },
+        payload,
+    };
+    let request_json = serde_json::to_string(&request_envelope).map_err(|err| PluginInvokeError {
+        code: EXT_PLUGIN_SCHEMA_INVALID.to_string(),
+        message: format!("failed serializing plugin daemon request: {err}"),
+        duration_ms: 0,
+        breaker_open: false,
+    })?;
+
+    let supervisor = daemon_supervisor_for_plugin(state, manifest).await;
+    let started = Instant::now();
+    let mut guard = supervisor.lock().await;
+    if let Err(err) = guard.ensure_started(&manifest.plugin_id, kind).await {
+        let tripped = record_plugin_invoke_failure(
+            state,
+            &manifest.plugin_id,
+            current_time_ms(),
+            Some(err.code.clone()),
+            Some(err.message.clone()),
+            breaker_limit,
+        );
+        return Err(PluginInvokeError {
+            breaker_open: tripped,
+            ..err
+        });
+    }
+    if let Some(stdin) = guard.stdin.as_mut() {
+        if let Err(err) = stdin
+            .write_all(format!("{request_json}\n").as_bytes())
+            .await
+        {
+            guard.stop().await;
+            let message = format!("plugin daemon stdin write failed: {err}");
+            let tripped = record_plugin_invoke_failure(
+                state,
+                &manifest.plugin_id,
+                current_time_ms(),
+                Some(EXT_PLUGIN_EXEC_FAILED.to_string()),
+                Some(message.clone()),
+                breaker_limit,
+            );
+            return Err(PluginInvokeError {
+                code: EXT_PLUGIN_EXEC_FAILED.to_string(),
+                message,
+                duration_ms: started.elapsed().as_millis() as u64,
+                breaker_open: tripped,
+            });
+        }
+        if let Err(err) = stdin.flush().await {
+            guard.stop().await;
+            let message = format!("plugin daemon stdin flush failed: {err}");
+            let tripped = record_plugin_invoke_failure(
+                state,
+                &manifest.plugin_id,
+                current_time_ms(),
+                Some(EXT_PLUGIN_EXEC_FAILED.to_string()),
+                Some(message.clone()),
+                breaker_limit,
+            );
+            return Err(PluginInvokeError {
+                code: EXT_PLUGIN_EXEC_FAILED.to_string(),
+                message,
+                duration_ms: started.elapsed().as_millis() as u64,
+                breaker_open: tripped,
+            });
+        }
+    } else {
+        guard.stop().await;
+        let message = "plugin daemon stdin missing".to_string();
+        let tripped = record_plugin_invoke_failure(
+            state,
+            &manifest.plugin_id,
+            current_time_ms(),
+            Some(EXT_PLUGIN_EXEC_FAILED.to_string()),
+            Some(message.clone()),
+            breaker_limit,
+        );
+        return Err(PluginInvokeError {
+            code: EXT_PLUGIN_EXEC_FAILED.to_string(),
+            message,
+            duration_ms: started.elapsed().as_millis() as u64,
+            breaker_open: tripped,
+        });
+    }
+
+    let mut line = String::new();
+    let read_result = {
+        let Some(stdout) = guard.stdout.as_mut() else {
+            guard.stop().await;
+            let message = "plugin daemon stdout missing".to_string();
+            let tripped = record_plugin_invoke_failure(
+                state,
+                &manifest.plugin_id,
+                current_time_ms(),
+                Some(EXT_PLUGIN_EXEC_FAILED.to_string()),
+                Some(message.clone()),
+                breaker_limit,
+            );
+            return Err(PluginInvokeError {
+                code: EXT_PLUGIN_EXEC_FAILED.to_string(),
+                message,
+                duration_ms: started.elapsed().as_millis() as u64,
+                breaker_open: tripped,
+            });
+        };
+        tokio::time::timeout(Duration::from_millis(timeout_ms), stdout.read_line(&mut line)).await
+    };
+    let bytes = match read_result {
+        Ok(Ok(bytes)) => bytes,
+        Ok(Err(err)) => {
+            guard.stop().await;
+            let message = format!("plugin daemon stdout read failed: {err}");
+            let tripped = record_plugin_invoke_failure(
+                state,
+                &manifest.plugin_id,
+                current_time_ms(),
+                Some(EXT_PLUGIN_EXEC_FAILED.to_string()),
+                Some(message.clone()),
+                breaker_limit,
+            );
+            return Err(PluginInvokeError {
+                code: EXT_PLUGIN_EXEC_FAILED.to_string(),
+                message,
+                duration_ms: started.elapsed().as_millis() as u64,
+                breaker_open: tripped,
+            });
+        }
+        Err(_) => {
+            guard.stop().await;
+            let message = format!(
+                "plugin daemon timed out after {}ms for '{}'",
+                timeout_ms, manifest.plugin_id
+            );
+            let tripped = record_plugin_invoke_failure(
+                state,
+                &manifest.plugin_id,
+                current_time_ms(),
+                Some(EXT_PLUGIN_TIMEOUT.to_string()),
+                Some(message.clone()),
+                breaker_limit,
+            );
+            return Err(PluginInvokeError {
+                code: EXT_PLUGIN_TIMEOUT.to_string(),
+                message,
+                duration_ms: started.elapsed().as_millis() as u64,
+                breaker_open: tripped,
+            });
+        }
+    };
+    if bytes == 0 {
+        guard.stop().await;
+        let message = "plugin daemon returned EOF".to_string();
+        let tripped = record_plugin_invoke_failure(
+            state,
+            &manifest.plugin_id,
+            current_time_ms(),
+            Some(EXT_PLUGIN_EXEC_FAILED.to_string()),
+            Some(message.clone()),
+            breaker_limit,
+        );
+        return Err(PluginInvokeError {
+            code: EXT_PLUGIN_EXEC_FAILED.to_string(),
+            message,
+            duration_ms: started.elapsed().as_millis() as u64,
+            breaker_open: tripped,
+        });
+    }
+    drop(guard);
+
+    if line.chars().count() > max_output_chars {
+        let message = format!(
+            "plugin daemon output exceeded {} chars for '{}'",
+            max_output_chars, manifest.plugin_id
+        );
+        let tripped = record_plugin_invoke_failure(
+            state,
+            &manifest.plugin_id,
+            current_time_ms(),
+            Some(EXT_PLUGIN_OUTPUT_INVALID.to_string()),
+            Some(message.clone()),
+            breaker_limit,
+        );
+        return Err(PluginInvokeError {
+            code: EXT_PLUGIN_OUTPUT_INVALID.to_string(),
+            message,
+            duration_ms: started.elapsed().as_millis() as u64,
+            breaker_open: tripped,
+        });
+    }
+
+    let parsed = match parse_plugin_runner_response_strict(&line) {
+        Ok(parsed) => parsed,
+        Err(err) => {
+            let message = format!("{}: {}", EXT_PLUGIN_OUTPUT_INVALID, err);
+            let tripped = record_plugin_invoke_failure(
+                state,
+                &manifest.plugin_id,
+                current_time_ms(),
+                Some(EXT_PLUGIN_OUTPUT_INVALID.to_string()),
+                Some(message.clone()),
+                breaker_limit,
+            );
+            return Err(PluginInvokeError {
+                code: EXT_PLUGIN_OUTPUT_INVALID.to_string(),
+                message,
+                duration_ms: started.elapsed().as_millis() as u64,
+                breaker_open: tripped,
+            });
+        }
+    };
+    if parsed.request_id != request_id {
+        let message = format!(
+            "plugin daemon response request_id mismatch: expected {}, got {}",
+            request_id, parsed.request_id
+        );
+        let tripped = record_plugin_invoke_failure(
+            state,
+            &manifest.plugin_id,
+            current_time_ms(),
+            Some(EXT_PLUGIN_SCHEMA_INVALID.to_string()),
+            Some(message.clone()),
+            breaker_limit,
+        );
+        return Err(PluginInvokeError {
+            code: EXT_PLUGIN_SCHEMA_INVALID.to_string(),
+            message,
+            duration_ms: started.elapsed().as_millis() as u64,
+            breaker_open: tripped,
+        });
+    }
+
+    let duration_ms = started.elapsed().as_millis() as u64;
+    let output_chars = line.chars().count();
+    if parsed.status == "error" {
+        let code = parsed
+            .error_code
+            .clone()
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| EXT_PLUGIN_EXEC_FAILED.to_string());
+        let message = parsed
+            .error_message
+            .clone()
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| "plugin daemon returned status=error".to_string());
+        let tripped = record_plugin_invoke_failure(
+            state,
+            &manifest.plugin_id,
+            current_time_ms(),
+            Some(code.clone()),
+            Some(message.clone()),
+            breaker_limit,
+        );
+        return Err(PluginInvokeError {
+            code,
+            message,
+            duration_ms,
+            breaker_open: tripped,
+        });
+    }
+
+    record_plugin_invoke_success(state, &manifest.plugin_id, current_time_ms());
+    Ok(PluginInvokeResult {
+        status: parsed.status,
+        result: parsed.result,
+        error_code: parsed.error_code,
+        error_message: parsed.error_message,
+        duration_ms,
+        output_chars,
+    })
+}
+
+async fn invoke_plugin_runner(
+    state: &AppState,
+    manifest: &CorePluginManifest,
+    kind: &str,
+    payload: serde_json::Value,
+) -> std::result::Result<PluginInvokeResult, PluginInvokeError> {
+    match manifest.artifact.exec_kind {
+        CorePluginExecKind::Subprocess => {
+            invoke_plugin_runner_subprocess_impl(state, manifest, kind, payload).await
+        }
+        CorePluginExecKind::Daemon => invoke_plugin_runner_daemon(state, manifest, kind, payload).await,
+    }
+}
+
+async fn invoke_plugin_hooks_for_point(
+    state: &AppState,
+    run: &RunRecord,
+    hook_point: HookPoint,
+    tool_name: Option<&str>,
+    metadata: &serde_json::Value,
+) -> Vec<PluginHookInvocationOutcome> {
+    let runtime_config = match load_runtime_config(state) {
+        Ok(config) => config,
+        Err(err) => {
+            warn!(
+                run_id = %run.run_id,
+                hook_point = %hook_point.as_str(),
+                error = %err,
+                "failed loading runtime config before plugin hook invocation"
+            );
+            return Vec::new();
+        }
+    };
+
+    let hook_name = hook_point_capability_name(hook_point);
+    let manifests = state.plugin_registry.read().await.list_manifests();
+    let mut outcomes = Vec::new();
+    for manifest in manifests {
+        if !manifest.enabled {
+            continue;
+        }
+        if !manifest
+            .capabilities
+            .hooks
+            .iter()
+            .any(|capability| capability.name.trim() == hook_name)
+        {
+            continue;
+        }
+        if manifest.schema_version.trim() != PLUGIN_MANIFEST_SCHEMA_VERSION_V2 {
+            continue;
+        }
+        if manifest.artifact.command.trim().is_empty() {
+            continue;
+        }
+        if !state.extension_policy.plugin_allowed(&manifest.plugin_id) {
+            continue;
+        }
+        if let Err(err) = ensure_daemon_allowlist(&runtime_config, &manifest) {
+            outcomes.push(PluginHookInvocationOutcome {
+                plugin_id: manifest.plugin_id,
+                hook_name: hook_name.to_string(),
+                status: "deny".to_string(),
+                error_code: Some(EXT_PLUGIN_DAEMON_NOT_ALLOWLISTED.to_string()),
+                error: Some(err.to_string()),
+                duration_ms: 0,
+                breaker_open: false,
+            });
+            continue;
+        }
+
+        let payload = serde_json::json!({
+            "hook_name": hook_name,
+            "hook_point": hook_point.as_str(),
+            "run_id": run.run_id,
+            "session_id": run.session_id,
+            "tool_name": tool_name,
+            "metadata": metadata
+        });
+        emit_event(
+            state,
+            "extension.plugin.invoked",
+            serde_json::json!({
+                "plugin_id": manifest.plugin_id,
+                "hook_name": hook_name,
+                "run_id": run.run_id,
+                "session_id": run.session_id,
+                "transport": "subprocess",
+                "exec_kind": match manifest.artifact.exec_kind {
+                    CorePluginExecKind::Subprocess => "subprocess",
+                    CorePluginExecKind::Daemon => "daemon",
+                }
+            }),
+        );
+        match invoke_plugin_runner(state, &manifest, "hook", payload).await {
+            Ok(result) => {
+                emit_event(
+                    state,
+                    "extension.plugin.succeeded",
+                    serde_json::json!({
+                        "plugin_id": manifest.plugin_id,
+                        "hook_name": hook_name,
+                        "run_id": run.run_id,
+                        "status": result.status,
+                        "duration_ms": result.duration_ms,
+                        "output_chars": result.output_chars
+                    }),
+                );
+                outcomes.push(PluginHookInvocationOutcome {
+                    plugin_id: manifest.plugin_id,
+                    hook_name: hook_name.to_string(),
+                    status: result.status,
+                    error_code: result.error_code,
+                    error: result.error_message,
+                    duration_ms: result.duration_ms,
+                    breaker_open: false,
+                });
+            }
+            Err(err) => {
+                emit_event(
+                    state,
+                    "extension.plugin.failed",
+                    serde_json::json!({
+                        "plugin_id": manifest.plugin_id,
+                        "hook_name": hook_name,
+                        "run_id": run.run_id,
+                        "error_code": err.code,
+                        "error": err.message,
+                        "duration_ms": err.duration_ms
+                    }),
+                );
+                if err.breaker_open {
+                    reset_plugin_daemon_supervisor(state, &manifest.plugin_id).await;
+                    emit_event(
+                        state,
+                        "extension.plugin.disabled",
+                        serde_json::json!({
+                            "plugin_id": manifest.plugin_id,
+                            "hook_name": hook_name,
+                            "run_id": run.run_id,
+                            "error_code": err.code
+                        }),
+                    );
+                }
+                outcomes.push(PluginHookInvocationOutcome {
+                    plugin_id: manifest.plugin_id,
+                    hook_name: hook_name.to_string(),
+                    status: "error".to_string(),
+                    error_code: Some(err.code),
+                    error: Some(err.message),
+                    duration_ms: err.duration_ms,
+                    breaker_open: err.breaker_open,
+                });
+            }
+        }
+    }
+    outcomes
+}
+
+async fn refresh_plugin_hook_runtime(
+    state: &AppState,
+    plugin_registry_snapshot: &PluginRegistry,
+) -> AnyResult<usize> {
+    let (new_hook_bus, denials) =
+        build_hook_bus_from_registry(plugin_registry_snapshot, state.extension_policy.as_ref())?;
+    state
+        .hook_bus
+        .replace_with(&new_hook_bus)
+        .context("failed replacing extension hook registry")?;
+    record_extension_hook_policy_denials(state, &denials);
+    Ok(denials.len())
+}
+
+async fn install_plugin(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<InstallPluginRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let mut manifest = parse_plugin_manifest_request(request.manifest)
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+    if manifest.schema_version.trim() != PLUGIN_MANIFEST_SCHEMA_VERSION_V2 {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "plugin install requires schema_version carsinos.plugin.manifest.v2",
+        ));
+    }
+    let plugin_id = normalize_plugin_id(&manifest.plugin_id)
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    let resource = format!("plugin:{plugin_id}");
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN],
+        "extension.plugin.install",
+        &resource,
+    )?;
+    if !state.extension_policy.plugin_allowed(&plugin_id) {
+        return Err(api_error_with_code(
+            StatusCode::FORBIDDEN,
+            "POLICY_DENY",
+            "plugin is not allowlisted by extension policy",
+        ));
+    }
+    manifest.plugin_id = plugin_id.clone();
+    let runtime_config = load_runtime_config(&state)
+        .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
+    let plugin_storage_root = plugin_storage_root_from_runtime(&state, &runtime_config)
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+
+    ensure_plugin_tool_names_do_not_collide(&manifest)
+        .map_err(|err| api_error_with_code(StatusCode::BAD_REQUEST, EXT_PLUGIN_TOOL_NAME_COLLISION, &err.to_string()))?;
+    ensure_daemon_allowlist(&runtime_config, &manifest)
+        .map_err(|err| api_error_with_code(StatusCode::BAD_REQUEST, EXT_PLUGIN_DAEMON_NOT_ALLOWLISTED, &err.to_string()))?;
+
+    let (installed_manifest, plugin_registry_snapshot, active_manifest_path, pointer_path) = {
+        let mut registry = state.plugin_registry.write().await;
+        if registry.get_manifest(&plugin_id).is_some() {
+            return Err(api_error(
+                StatusCode::BAD_REQUEST,
+                "plugin_id already exists; use update endpoint",
+            ));
+        }
+
+        let mut candidate = registry.clone();
+        candidate
+            .register_manifest(manifest)
+            .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+        let normalized = candidate.get_manifest(&plugin_id).ok_or_else(|| {
+            api_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "plugin manifest missing after install validation",
+            )
+        })?;
+        let materialized = materialize_plugin_bundle(&plugin_storage_root, &normalized)
+            .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+        candidate
+            .replace_manifest(materialized)
+            .map_err(|err| internal_err_with_error("materializing plugin manifest failed", err))?;
+        let installed = candidate.get_manifest(&plugin_id).ok_or_else(|| {
+            api_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "plugin manifest missing after install",
+            )
+        })?;
+        let active_path = plugin_active_manifest_path(&plugin_storage_root, &plugin_id);
+        persist_plugin_manifest(&active_path, &installed)
+            .map_err(|err| internal_err_with_error("persisting active plugin manifest failed", err))?;
+        let pointer_path = plugin_pointer_path(&plugin_storage_root, &plugin_id);
+        let pointer = PluginVersionPointersRecord {
+            schema_version: PLUGIN_POINTER_SCHEMA_VERSION.to_string(),
+            plugin_id: plugin_id.clone(),
+            active_version: installed.plugin_version.clone(),
+            previous_version: None,
+            updated_at: current_time_ms(),
+        };
+        persist_plugin_pointer(&pointer_path, &pointer)
+            .map_err(|err| internal_err_with_error("persisting plugin pointer failed", err))?;
+        *registry = candidate;
+        (installed, registry.clone(), active_path, pointer_path)
+    };
+    reset_plugin_daemon_supervisor(&state, &plugin_id).await;
+    let hook_policy_denials = refresh_plugin_hook_runtime(&state, &plugin_registry_snapshot)
+        .await
+        .map_err(|err| internal_err_with_error("refreshing plugin hook runtime failed", err))?;
+    let reason = request
+        .reason
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    record_security_audit(
+        &headers,
+        &state,
+        &auth,
+        "extension.plugin.install",
+        &resource,
+        "allow",
+        reason.clone(),
+        StatusCode::OK,
+        None,
+        None,
+        None,
+        Some(serde_json::json!({
+            "plugin_id": plugin_id,
+            "plugin_version": installed_manifest.plugin_version,
+            "plugin_storage_root": plugin_storage_root.display().to_string(),
+            "active_manifest_path": active_manifest_path.display().to_string(),
+            "pointer_path": pointer_path.display().to_string(),
+            "hook_policy_denials": hook_policy_denials,
+            "reason": reason
+        })),
+    );
+    Ok(Json(InstallPluginResponse {
+        plugin: to_plugin_manifest_response(installed_manifest),
+        rollback_available: false,
+        hook_policy_denials,
+    }))
+}
+
+async fn update_plugin(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(plugin_id): Path<String>,
+    Json(request): Json<UpdatePluginRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let plugin_id = normalize_plugin_id(&plugin_id)
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+    let mut manifest = parse_plugin_manifest_request(request.manifest)
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+    if manifest.schema_version.trim() != PLUGIN_MANIFEST_SCHEMA_VERSION_V2 {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "plugin update requires schema_version carsinos.plugin.manifest.v2",
+        ));
+    }
+    let manifest_plugin_id = normalize_plugin_id(&manifest.plugin_id)
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+    if manifest_plugin_id != plugin_id {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "manifest plugin_id must match path plugin_id",
+        ));
+    }
+
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    let resource = format!("plugin:{plugin_id}");
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN],
+        "extension.plugin.update",
+        &resource,
+    )?;
+    if !state.extension_policy.plugin_allowed(&plugin_id) {
+        return Err(api_error_with_code(
+            StatusCode::FORBIDDEN,
+            "POLICY_DENY",
+            "plugin is not allowlisted by extension policy",
+        ));
+    }
+    manifest.plugin_id = plugin_id.clone();
+    let runtime_config = load_runtime_config(&state)
+        .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
+    let plugin_storage_root = plugin_storage_root_from_runtime(&state, &runtime_config)
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+    ensure_plugin_tool_names_do_not_collide(&manifest)
+        .map_err(|err| api_error_with_code(StatusCode::BAD_REQUEST, EXT_PLUGIN_TOOL_NAME_COLLISION, &err.to_string()))?;
+    ensure_daemon_allowlist(&runtime_config, &manifest)
+        .map_err(|err| api_error_with_code(StatusCode::BAD_REQUEST, EXT_PLUGIN_DAEMON_NOT_ALLOWLISTED, &err.to_string()))?;
+
+    let (updated_manifest, previous_manifest, plugin_registry_snapshot, active_manifest_path, pointer_path) = {
+        let mut registry = state.plugin_registry.write().await;
+        let mut candidate = registry.clone();
+        let previous = candidate
+            .get_manifest(&plugin_id)
+            .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "plugin_id not found"))?;
+        candidate
+            .replace_manifest(manifest)
+            .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+        let normalized = candidate.get_manifest(&plugin_id).ok_or_else(|| {
+            api_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "plugin manifest missing after update validation",
+            )
+        })?;
+        ensure_plugin_tool_names_do_not_collide(&normalized)
+            .map_err(|err| api_error_with_code(StatusCode::BAD_REQUEST, EXT_PLUGIN_TOOL_NAME_COLLISION, &err.to_string()))?;
+        ensure_daemon_allowlist(&runtime_config, &normalized)
+            .map_err(|err| api_error_with_code(StatusCode::BAD_REQUEST, EXT_PLUGIN_DAEMON_NOT_ALLOWLISTED, &err.to_string()))?;
+        let materialized = materialize_plugin_bundle(&plugin_storage_root, &normalized)
+            .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+        let updated = candidate
+            .replace_manifest(materialized)
+            .map_err(|err| internal_err_with_error("materializing plugin manifest failed", err))?;
+        let active_path = plugin_active_manifest_path(&plugin_storage_root, &plugin_id);
+        persist_plugin_manifest(&active_path, &updated)
+            .map_err(|err| internal_err_with_error("persisting active plugin manifest failed", err))?;
+        let pointer_path = plugin_pointer_path(&plugin_storage_root, &plugin_id);
+        let pointer = PluginVersionPointersRecord {
+            schema_version: PLUGIN_POINTER_SCHEMA_VERSION.to_string(),
+            plugin_id: plugin_id.clone(),
+            active_version: updated.plugin_version.clone(),
+            previous_version: Some(previous.plugin_version.clone()),
+            updated_at: current_time_ms(),
+        };
+        persist_plugin_pointer(&pointer_path, &pointer)
+            .map_err(|err| internal_err_with_error("persisting plugin pointer failed", err))?;
+        *registry = candidate;
+        (updated, previous, registry.clone(), active_path, pointer_path)
+    };
+    reset_plugin_daemon_supervisor(&state, &plugin_id).await;
+    let hook_policy_denials = refresh_plugin_hook_runtime(&state, &plugin_registry_snapshot)
+        .await
+        .map_err(|err| internal_err_with_error("refreshing plugin hook runtime failed", err))?;
+    let reason = request
+        .reason
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    record_security_audit(
+        &headers,
+        &state,
+        &auth,
+        "extension.plugin.update",
+        &resource,
+        "allow",
+        reason.clone(),
+        StatusCode::OK,
+        None,
+        None,
+        None,
+        Some(serde_json::json!({
+            "plugin_id": plugin_id,
+            "previous_version": previous_manifest.plugin_version,
+            "plugin_version": updated_manifest.plugin_version,
+            "plugin_storage_root": plugin_storage_root.display().to_string(),
+            "active_manifest_path": active_manifest_path.display().to_string(),
+            "pointer_path": pointer_path.display().to_string(),
+            "hook_policy_denials": hook_policy_denials,
+            "reason": reason
+        })),
+    );
+    Ok(Json(UpdatePluginResponse {
+        plugin: to_plugin_manifest_response(updated_manifest),
+        rollback_available: true,
+        hook_policy_denials,
+    }))
+}
+
+async fn rollback_plugin(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(plugin_id): Path<String>,
+    Json(request): Json<RollbackPluginRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let plugin_id = normalize_plugin_id(&plugin_id)
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    let resource = format!("plugin:{plugin_id}");
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN],
+        "extension.plugin.rollback",
+        &resource,
+    )?;
+
+    let runtime_config = load_runtime_config(&state)
+        .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
+    let plugin_storage_root = plugin_storage_root_from_runtime(&state, &runtime_config)
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+    let pointer_path = plugin_pointer_path(&plugin_storage_root, &plugin_id);
+    let pointer = load_plugin_pointer(&pointer_path)
+        .map_err(|err| internal_err_with_error("loading plugin pointer failed", err))?
+        .ok_or_else(|| api_error(StatusCode::BAD_REQUEST, "plugin rollback pointer is missing"))?;
+    let rollback_version = pointer
+        .previous_version
+        .clone()
+        .ok_or_else(|| api_error(StatusCode::BAD_REQUEST, "plugin rollback target is missing"))?;
+    let rollback_manifest = load_bundle_manifest(&plugin_storage_root, &plugin_id, &rollback_version)
+        .map_err(|err| internal_err_with_error("loading rollback bundle manifest failed", err))?;
+    ensure_plugin_tool_names_do_not_collide(&rollback_manifest)
+        .map_err(|err| api_error_with_code(StatusCode::BAD_REQUEST, EXT_PLUGIN_TOOL_NAME_COLLISION, &err.to_string()))?;
+    ensure_daemon_allowlist(&runtime_config, &rollback_manifest)
+        .map_err(|err| api_error_with_code(StatusCode::BAD_REQUEST, EXT_PLUGIN_DAEMON_NOT_ALLOWLISTED, &err.to_string()))?;
+
+    let (current_manifest, rolled_back_manifest, plugin_registry_snapshot, active_manifest_path) = {
+        let mut registry = state.plugin_registry.write().await;
+        let mut candidate = registry.clone();
+        let current = candidate
+            .get_manifest(&plugin_id)
+            .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "plugin_id not found"))?;
+        let rolled_back = candidate
+            .replace_manifest(rollback_manifest)
+            .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+        let active_path = plugin_active_manifest_path(&plugin_storage_root, &plugin_id);
+        persist_plugin_manifest(&active_path, &rolled_back)
+            .map_err(|err| internal_err_with_error("persisting active plugin manifest failed", err))?;
+        let next_pointer = PluginVersionPointersRecord {
+            schema_version: PLUGIN_POINTER_SCHEMA_VERSION.to_string(),
+            plugin_id: plugin_id.clone(),
+            active_version: rolled_back.plugin_version.clone(),
+            previous_version: Some(current.plugin_version.clone()),
+            updated_at: current_time_ms(),
+        };
+        persist_plugin_pointer(&pointer_path, &next_pointer)
+            .map_err(|err| internal_err_with_error("persisting plugin pointer failed", err))?;
+        *registry = candidate;
+        (current, rolled_back, registry.clone(), active_path)
+    };
+    reset_plugin_daemon_supervisor(&state, &plugin_id).await;
+    let hook_policy_denials = refresh_plugin_hook_runtime(&state, &plugin_registry_snapshot)
+        .await
+        .map_err(|err| internal_err_with_error("refreshing plugin hook runtime failed", err))?;
+    let reason = request
+        .reason
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    record_security_audit(
+        &headers,
+        &state,
+        &auth,
+        "extension.plugin.rollback",
+        &resource,
+        "allow",
+        reason.clone(),
+        StatusCode::OK,
+        None,
+        None,
+        None,
+        Some(serde_json::json!({
+            "plugin_id": plugin_id,
+            "restored_version": rolled_back_manifest.plugin_version,
+            "next_rollback_version": current_manifest.plugin_version,
+            "rollback_from_version": rollback_version,
+            "plugin_storage_root": plugin_storage_root.display().to_string(),
+            "active_manifest_path": active_manifest_path.display().to_string(),
+            "pointer_path": pointer_path.display().to_string(),
+            "hook_policy_denials": hook_policy_denials,
+            "reason": reason
+        })),
+    );
+    Ok(Json(RollbackPluginResponse {
+        plugin: to_plugin_manifest_response(rolled_back_manifest),
+        rollback_available: true,
+        hook_policy_denials,
     }))
 }
 
@@ -2396,6 +4806,50 @@ fn require_bearer_auth(
             .auth_failures_total
             .fetch_add(1, Ordering::Relaxed);
     })?;
+    if headers
+        .get(INTERNAL_CHANNEL_INGEST_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|token| token == state.internal_channel_ingest_token.as_str())
+    {
+        let mut roles = HashSet::new();
+        roles.insert(ROLE_CHANNEL_ADAPTER.to_string());
+        roles.insert(ROLE_SERVICE_INTERNAL.to_string());
+        let auth_context = AuthContext {
+            principal_id: "channel_listener".to_string(),
+            roles,
+            auth_method: "internal_ingest",
+            token_id: None,
+            session_id: None,
+            client_ip,
+        };
+        if state.rate_limiter.config.enabled {
+            state
+                .rate_limiter
+                .check(
+                    &format!("ip:{}", auth_context.client_ip),
+                    state.rate_limiter.config.per_ip_limit,
+                )
+                .inspect_err(|_| {
+                    state
+                        .metrics
+                        .auth_failures_total
+                        .fetch_add(1, Ordering::Relaxed);
+                })?;
+            state
+                .rate_limiter
+                .check(
+                    &format!("principal:{}", auth_context.principal_id),
+                    state.rate_limiter.config.per_principal_limit,
+                )
+                .inspect_err(|_| {
+                    state
+                        .metrics
+                        .auth_failures_total
+                        .fetch_add(1, Ordering::Relaxed);
+                })?;
+        }
+        return Ok(auth_context);
+    }
     let token = parse_bearer_token(headers).ok_or_else(|| {
         state
             .metrics
@@ -2874,7 +5328,21 @@ fn build_app(state: AppState) -> Router {
             "/api/v1/providers/capabilities",
             get(list_provider_capabilities),
         )
+        .route("/api/v1/tools/capabilities", get(list_tool_capabilities))
         .route("/api/v1/extensions/plugins", get(list_plugins))
+        .route(
+            "/api/v1/extensions/plugins/status",
+            get(list_plugin_runtime_status),
+        )
+        .route("/api/v1/extensions/plugins/install", post(install_plugin))
+        .route(
+            "/api/v1/extensions/plugins/{plugin_id}/update",
+            post(update_plugin),
+        )
+        .route(
+            "/api/v1/extensions/plugins/{plugin_id}/rollback",
+            post(rollback_plugin),
+        )
         .route("/api/v1/extensions/skills", get(list_skills))
         .route(
             "/api/v1/extensions/skills/{skill_id}/state",
@@ -2889,12 +5357,14 @@ fn build_app(state: AppState) -> Router {
         )
         .route("/api/v1/sessions/{session_id}/runs", post(create_run))
         .route("/api/v1/runs/{run_id}/resume", post(resume_run))
+        .route("/api/v1/runs/{run_id}/memory/why", post(run_memory_why))
         .route("/api/v1/memory/notes", get(list_notes).post(create_note))
         .route(
             "/api/v1/memory/notes/{note_id}",
             get(get_note).post(update_note),
         )
         .route("/api/v1/memory/search", post(search_memory))
+        .route("/api/v1/memory/sync", post(sync_memory_sources))
         .route(
             "/api/v1/auth/profiles",
             get(list_auth_profiles).post(create_auth_profile),
@@ -2923,6 +5393,14 @@ fn build_app(state: AppState) -> Router {
         .route(
             "/api/v1/config/runtime",
             get(get_runtime_config).post(update_runtime_config),
+        )
+        .route(
+            "/api/v1/config/runtime/trust-lock",
+            get(get_runtime_trust_contract_lock),
+        )
+        .route(
+            "/api/v1/config/runtime/trust-lock/refresh",
+            post(refresh_runtime_trust_contract_lock),
         )
         .route(
             "/api/v1/config/runtime/rollback",
@@ -3335,6 +5813,240 @@ async fn search_memory(
         top_k: top_k as u32,
         max_chars,
         items,
+    }))
+}
+
+fn memory_sync_source_kv_key(source_path: &str) -> String {
+    let digest = Sha256::digest(source_path.as_bytes());
+    let digest_hex = format!("{digest:x}");
+    format!("memory.sync.source.{}", &digest_hex[..24])
+}
+
+fn normalize_memory_sync_sources(sources: &[String]) -> Vec<String> {
+    let mut normalized = sources
+        .iter()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+    normalized.sort();
+    normalized.dedup();
+    normalized
+}
+
+fn sync_memory_sources_internal(
+    state: &AppState,
+    sources: &[String],
+) -> Vec<SyncMemorySourceItemResponse> {
+    let mut items = Vec::new();
+    let now_ms = current_time_ms();
+    for source in normalize_memory_sync_sources(sources) {
+        let path = FsPath::new(&source);
+        if source.contains("://") {
+            items.push(SyncMemorySourceItemResponse {
+                source_path: source,
+                note_id: None,
+                status: "failed".to_string(),
+                detail: Some("source path must be local filesystem path".to_string()),
+                synced_at: now_ms,
+            });
+            continue;
+        }
+        let body = match std::fs::read_to_string(path) {
+            Ok(value) => value,
+            Err(err) => {
+                items.push(SyncMemorySourceItemResponse {
+                    source_path: source,
+                    note_id: None,
+                    status: "failed".to_string(),
+                    detail: Some(format!("read failed: {err}")),
+                    synced_at: now_ms,
+                });
+                continue;
+            }
+        };
+        let body = body.trim().to_string();
+        if body.is_empty() {
+            items.push(SyncMemorySourceItemResponse {
+                source_path: source,
+                note_id: None,
+                status: "failed".to_string(),
+                detail: Some("memory source is empty".to_string()),
+                synced_at: now_ms,
+            });
+            continue;
+        }
+        let title = path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .map(|value| format!("memory.md sync: {value}"))
+            .or_else(|| Some(format!("memory.md sync: {}", source)));
+        let tags_json = serde_json::json!(["memory_md_sync"]).to_string();
+        let kv_key = memory_sync_source_kv_key(&source);
+        let mapped_note_id = state
+            .storage
+            .get_app_kv_json(&kv_key)
+            .ok()
+            .flatten()
+            .and_then(|(json, _)| serde_json::from_str::<serde_json::Value>(&json).ok())
+            .and_then(|value| value.get("note_id").and_then(|item| item.as_str()).map(str::to_string));
+        let mut note_id = None;
+        let mut created = false;
+        let result = if let Some(existing_note_id) = mapped_note_id.as_ref() {
+            match state.storage.update_note(
+                existing_note_id,
+                title.clone(),
+                Some(body.clone()),
+                Some(tags_json.clone()),
+            ) {
+                Ok(Some(note)) => {
+                    note_id = Some(note.note_id.clone());
+                    persist_note_embeddings(state, &note)
+                }
+                Ok(None) => {
+                    let created_note = state.storage.create_note(NewNote {
+                        title: title.clone(),
+                        body: body.clone(),
+                        tags_json: tags_json.clone(),
+                    });
+                    match created_note {
+                        Ok(note) => {
+                            note_id = Some(note.note_id.clone());
+                            created = true;
+                            persist_note_embeddings(state, &note)
+                        }
+                        Err(err) => Err(err.into()),
+                    }
+                }
+                Err(err) => Err(err.into()),
+            }
+        } else {
+            let created_note = state.storage.create_note(NewNote {
+                title: title.clone(),
+                body: body.clone(),
+                tags_json: tags_json.clone(),
+            });
+            match created_note {
+                Ok(note) => {
+                    note_id = Some(note.note_id.clone());
+                    created = true;
+                    persist_note_embeddings(state, &note)
+                }
+                Err(err) => Err(err.into()),
+            }
+        };
+
+        match result {
+            Ok(_) => {
+                let metadata = serde_json::json!({
+                    "source_path": source,
+                    "note_id": note_id,
+                    "synced_at": now_ms
+                })
+                .to_string();
+                let _ = state.storage.set_app_kv_json(&kv_key, metadata);
+                if created {
+                    state
+                        .metrics
+                        .notes_created_total
+                        .fetch_add(1, Ordering::Relaxed);
+                } else {
+                    state
+                        .metrics
+                        .notes_updated_total
+                        .fetch_add(1, Ordering::Relaxed);
+                }
+                items.push(SyncMemorySourceItemResponse {
+                    source_path: source,
+                    note_id,
+                    status: if created {
+                        "created".to_string()
+                    } else {
+                        "updated".to_string()
+                    },
+                    detail: None,
+                    synced_at: now_ms,
+                });
+            }
+            Err(err) => {
+                items.push(SyncMemorySourceItemResponse {
+                    source_path: source,
+                    note_id,
+                    status: "failed".to_string(),
+                    detail: Some(err.to_string()),
+                    synced_at: now_ms,
+                });
+            }
+        }
+    }
+    items
+}
+
+async fn sync_memory_sources(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<SyncMemorySourcesRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_AUTOMATION_RUNNER],
+        "memory.sync",
+        "memory.sources",
+    )?;
+    let runtime_config = load_runtime_config(&state)
+        .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
+    let sources = if request.sources.is_empty() {
+        runtime_config.memory.memory_md_sources.clone()
+    } else {
+        request.sources.clone()
+    };
+    if sources.is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "no memory sources configured",
+        ));
+    }
+    let items = sync_memory_sources_internal(&state, &sources);
+    let failed = items
+        .iter()
+        .filter(|item| item.status == "failed")
+        .count() as u64;
+    let synced = (items.len() as u64).saturating_sub(failed);
+    record_security_audit(
+        &headers,
+        &state,
+        &auth,
+        "memory.sync",
+        "memory.sources",
+        if failed == 0 { "allow" } else { "deny" },
+        Some(format!(
+            "memory sync complete: synced={} failed={}",
+            synced, failed
+        )),
+        if failed == 0 {
+            StatusCode::OK
+        } else {
+            StatusCode::MULTI_STATUS
+        },
+        if failed == 0 {
+            None
+        } else {
+            Some("DEPENDENCY_UNAVAILABLE")
+        },
+        None,
+        None,
+        Some(serde_json::json!({
+            "sources_total": items.len(),
+            "synced": synced,
+            "failed": failed
+        })),
+    );
+    Ok(Json(SyncMemorySourcesResponse {
+        items,
+        synced,
+        failed,
     }))
 }
 
@@ -4587,6 +7299,79 @@ async fn get_runtime_config(
     Ok(Json(GetRuntimeConfigResponse { config }))
 }
 
+async fn get_runtime_trust_contract_lock(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
+    let lock = state.trust_contract_lock.read().await.clone();
+    Ok(Json(GetRuntimeTrustContractLockResponse {
+        lock: runtime_trust_lock_response(&lock, state.trust_contract_lock_path.as_str()),
+    }))
+}
+
+async fn refresh_runtime_trust_contract_lock(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<RefreshRuntimeTrustContractLockRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN],
+        "runtime.trust_lock.refresh",
+        "config.runtime.trust_lock",
+    )?;
+
+    let runtime_config = load_runtime_config(&state)
+        .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
+    let lock_record = build_runtime_trust_contract_lock_record(
+        &runtime_config.global,
+        &auth.principal_id,
+        Utc::now().timestamp_millis(),
+    )
+    .map_err(|err| internal_err_with_error("building runtime trust lock failed", err))?;
+    let lock_path = state.trust_contract_lock_path.as_str().to_string();
+    persist_runtime_trust_contract_lock(FsPath::new(&lock_path), &lock_record)
+        .map_err(|err| internal_err_with_error("persisting runtime trust lock failed", err))?;
+    {
+        let mut write = state.trust_contract_lock.write().await;
+        *write = lock_record.clone();
+    }
+
+    let reason = request
+        .reason
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    record_security_audit(
+        &headers,
+        &state,
+        &auth,
+        "runtime.trust_lock.refresh",
+        "config.runtime.trust_lock",
+        "allow",
+        reason.clone(),
+        StatusCode::OK,
+        None,
+        None,
+        None,
+        Some(serde_json::json!({
+            "lock_path": lock_path,
+            "trust_hash": lock_record.trust_hash,
+            "locked_at": lock_record.locked_at,
+            "reason": reason
+        })),
+    );
+
+    Ok(Json(RefreshRuntimeTrustContractLockResponse {
+        lock: runtime_trust_lock_response(&lock_record, state.trust_contract_lock_path.as_str()),
+    }))
+}
+
 async fn update_runtime_config(
     headers: HeaderMap,
     State(state): State<AppState>,
@@ -4605,10 +7390,16 @@ async fn update_runtime_config(
     let update_global = request.global.is_some();
     let update_providers = request.providers.is_some();
     let update_channels = request.channels.is_some();
+    let update_memory = request.memory.is_some();
+    let update_extensions = request.extensions.is_some();
     let update_security = request.security.is_some();
+    let update_autonomy_guardrails = request.autonomy_guardrails.is_some();
 
     let existing = load_runtime_config(&state)
         .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
+    let existing_trust_lock = state.trust_contract_lock.read().await.clone();
+    enforce_runtime_global_against_trust_lock(&existing.global, &existing_trust_lock)
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
     let existing_json = serde_json::to_string(&existing).map_err(|err| {
         internal_err_with_error("serializing existing runtime config failed", err.into())
     })?;
@@ -4624,13 +7415,44 @@ async fn update_runtime_config(
     if let Some(channels) = request.channels {
         config.channels = channels;
     }
+    if let Some(memory) = request.memory {
+        config.memory = memory;
+    }
+    if let Some(extensions) = request.extensions {
+        config.extensions = extensions;
+    }
     if let Some(security) = request.security {
         config.security = security;
+    }
+    if let Some(autonomy_guardrails) = request.autonomy_guardrails {
+        config.autonomy_guardrails = autonomy_guardrails;
     }
     config.schema_version = RUNTIME_CONFIG_SCHEMA_VERSION.to_string();
 
     validate_runtime_config(&config)
         .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+    let lock_path = state.trust_contract_lock_path.as_str().to_string();
+    let mut trust_lock_hash = existing_trust_lock.trust_hash.clone();
+    let trust_lock_refreshed = if update_global {
+        let refreshed_lock = build_runtime_trust_contract_lock_record(
+            &config.global,
+            &auth.principal_id,
+            Utc::now().timestamp_millis(),
+        )
+        .map_err(|err| internal_err_with_error("building runtime trust lock failed", err))?;
+        persist_runtime_trust_contract_lock(FsPath::new(&lock_path), &refreshed_lock)
+            .map_err(|err| internal_err_with_error("persisting runtime trust lock failed", err))?;
+        trust_lock_hash = refreshed_lock.trust_hash.clone();
+        {
+            let mut write = state.trust_contract_lock.write().await;
+            *write = refreshed_lock;
+        }
+        true
+    } else {
+        enforce_runtime_global_against_trust_lock(&config.global, &existing_trust_lock)
+            .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+        false
+    };
 
     let config_json = serde_json::to_string(&config)
         .map_err(|err| internal_err_with_error("serializing runtime config failed", err.into()))?;
@@ -4657,8 +7479,17 @@ async fn update_runtime_config(
     if update_channels {
         changed_scopes.push("channels");
     }
+    if update_memory {
+        changed_scopes.push("memory");
+    }
+    if update_extensions {
+        changed_scopes.push("extensions");
+    }
     if update_security {
         changed_scopes.push("security");
+    }
+    if update_autonomy_guardrails {
+        changed_scopes.push("autonomy_guardrails");
     }
     record_security_audit(
         &headers,
@@ -4678,7 +7509,10 @@ async fn update_runtime_config(
             "rollback_snapshot_updated_at": previous_snapshot_updated_at,
             "changed_scopes": changed_scopes,
             "previous_hash": existing_hash,
-            "new_hash": config_hash
+            "new_hash": config_hash,
+            "trust_lock_refreshed": trust_lock_refreshed,
+            "trust_lock_hash": trust_lock_hash,
+            "trust_lock_path": lock_path
         })),
     );
     state.channel_runtime.reconcile();
@@ -4703,6 +7537,9 @@ async fn rollback_runtime_config(
 
     let current = load_runtime_config(&state)
         .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
+    let existing_trust_lock = state.trust_contract_lock.read().await.clone();
+    enforce_runtime_global_against_trust_lock(&current.global, &existing_trust_lock)
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
     let current_json = serde_json::to_string(&current).map_err(|err| {
         internal_err_with_error("serializing current runtime config failed", err.into())
     })?;
@@ -4746,6 +7583,19 @@ async fn rollback_runtime_config(
         .set_app_kv_json(APP_KV_RUNTIME_CONFIG, persisted_rollback_json)
         .map_err(|err| internal_err_with_error("writing runtime rollback config failed", err))?;
     rollback_config.updated_at = updated_at;
+    let lock_path = state.trust_contract_lock_path.as_str().to_string();
+    let refreshed_lock = build_runtime_trust_contract_lock_record(
+        &rollback_config.global,
+        &auth.principal_id,
+        Utc::now().timestamp_millis(),
+    )
+    .map_err(|err| internal_err_with_error("building runtime trust lock failed", err))?;
+    persist_runtime_trust_contract_lock(FsPath::new(&lock_path), &refreshed_lock)
+        .map_err(|err| internal_err_with_error("persisting runtime trust lock failed", err))?;
+    {
+        let mut write = state.trust_contract_lock.write().await;
+        *write = refreshed_lock.clone();
+    }
 
     let reason = request
         .reason
@@ -4771,7 +7621,9 @@ async fn rollback_runtime_config(
             "rollback_snapshot_updated_at": rollback_snapshot_updated_at,
             "restored_hash": rollback_hash,
             "replaced_hash": current_hash,
-            "reason": reason
+            "reason": reason,
+            "trust_lock_hash": refreshed_lock.trust_hash,
+            "trust_lock_path": lock_path
         })),
     );
     state.channel_runtime.reconcile();
@@ -4943,13 +7795,21 @@ async fn execute_channel_run(
             model_id,
         })?
         .with_context(|| format!("creating run for session {} failed", session.session_id))?;
-    execute_run_with_status_handling(
+    match execute_run_with_lane_control(
         state,
         &created_run,
         &session.agent_id,
         requested_auth_profile_id,
+        RunLaneConflictPolicy::Wait,
     )
     .await
+    {
+        Ok(run) => Ok(run),
+        Err(RunLaneExecutionError::Busy) => {
+            anyhow::bail!("unexpected channel lane lock busy state")
+        }
+        Err(RunLaneExecutionError::Execute(err)) => Err(err),
+    }
 }
 
 async fn ingest_telegram_channel_message(
@@ -5629,11 +8489,23 @@ async fn job_status(
         .storage
         .jobs_due_count(now_ms)
         .map_err(|err| internal_err_with_error("loading due jobs count failed", err))?;
+    let runtime_config =
+        load_runtime_config(&state).map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
+    let numquam = current_numquam_status(&state, Some(&runtime_config)).await;
+    let (circuit_breakers, open_circuit_breakers) = collect_breaker_summary(&state, 64, None)
+        .map_err(|err| internal_err_with_error("loading circuit breaker summary failed", err))?;
+    let top_stop_reasons = collect_top_stop_reasons_from_jobs(&state, 10)
+        .map_err(|err| internal_err_with_error("loading top stop reasons failed", err))?;
     Ok(Json(JobStatusResponse {
-        scheduler_running: true,
+        scheduler_running: state.scheduler_instance.enabled,
+        scheduler_lock: scheduler_lock_state_response(&state),
         jobs_total,
         jobs_enabled,
         jobs_due,
+        numquam,
+        open_circuit_breakers,
+        circuit_breakers,
+        top_stop_reasons,
         now_utc: Utc::now(),
     }))
 }
@@ -5657,15 +8529,30 @@ async fn add_job(
     if name.is_empty() {
         return Err(api_error(StatusCode::BAD_REQUEST, "name cannot be empty"));
     }
-    let schedule_kind = request.schedule_kind.trim().to_ascii_lowercase();
+    let schedule_kind = normalize_job_schedule_kind(&request.schedule_kind)?;
     let interval_seconds = request.interval_seconds.map(|value| value as i64);
     let run_at_ms = request.run_at_ms;
-    let next_run_at =
-        compute_initial_next_run_at(schedule_kind.as_str(), interval_seconds, run_at_ms, now_ms)?;
-    let payload_json = request
+    let cron_expr = request
+        .cron_expr
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string());
+    let next_run_at = compute_initial_next_run_at(
+        schedule_kind.as_str(),
+        interval_seconds,
+        run_at_ms,
+        cron_expr.as_deref(),
+        now_ms,
+    )?;
+    let payload_value = request
         .payload_json
-        .unwrap_or_else(|| serde_json::json!({ "mode": "noop" }))
-        .to_string();
+        .unwrap_or_else(|| serde_json::json!({ "mode": "noop" }));
+    let payload_json = materialize_job_payload_with_schedule_metadata(
+        payload_value,
+        schedule_kind.as_str(),
+        cron_expr.as_deref(),
+    )?;
     let max_retries = request.max_retries.unwrap_or(1).clamp(0, 10) as i64;
     let retry_backoff_ms = request.retry_backoff_ms.unwrap_or(1_000).clamp(10, 300_000) as i64;
     let timeout_ms = request.timeout_ms.unwrap_or(60_000).clamp(50, 600_000) as i64;
@@ -5749,10 +8636,37 @@ async fn update_job(
         .name
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
+    let schedule_kind = match request.schedule_kind.as_ref() {
+        Some(value) => normalize_job_schedule_kind(value)?,
+        None => current.schedule_kind.clone(),
+    };
     let interval_seconds = request.interval_seconds.map(|value| value as i64);
     let run_at_ms = request.run_at_ms;
-    let next_run_at =
-        compute_updated_next_run_at(&current, interval_seconds, run_at_ms, current_time_ms())?;
+    let current_cron_expr = job_cron_expr_from_payload_json(&current.payload_json);
+    let cron_expr = request
+        .cron_expr
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string())
+        .or(current_cron_expr);
+    let next_run_at = compute_updated_next_run_at(
+        &current,
+        schedule_kind.as_str(),
+        interval_seconds,
+        run_at_ms,
+        cron_expr.as_deref(),
+        current_time_ms(),
+    )?;
+    let payload_base = request.payload_json.unwrap_or_else(|| {
+        serde_json::from_str(&current.payload_json)
+            .unwrap_or_else(|_| serde_json::json!({ "mode": "noop" }))
+    });
+    let payload_json = materialize_job_payload_with_schedule_metadata(
+        payload_base,
+        schedule_kind.as_str(),
+        cron_expr.as_deref(),
+    )?;
 
     let updated = state
         .storage
@@ -5761,10 +8675,11 @@ async fn update_job(
             JobUpdatePatch {
                 name,
                 enabled: request.enabled,
+                schedule_kind: Some(schedule_kind),
                 interval_seconds,
                 run_at_ms,
                 next_run_at,
-                payload_json: request.payload_json.map(|value| value.to_string()),
+                payload_json: Some(payload_json),
                 max_retries: request.max_retries.map(|value| value as i64),
                 retry_backoff_ms: request.retry_backoff_ms.map(|value| value as i64),
                 timeout_ms: request.timeout_ms.map(|value| value as i64),
@@ -5973,14 +8888,26 @@ async fn create_run(
         }),
     );
 
-    let run = execute_run_with_status_handling(
+    let run = match execute_run_with_lane_control(
         &state,
         &created_run,
         &session.agent_id,
         requested_auth_profile_id.as_deref(),
+        RunLaneConflictPolicy::RejectIfBusy,
     )
     .await
-    .map_err(|err| internal_err_with_error("executing run failed", err))?;
+    {
+        Ok(run) => run,
+        Err(RunLaneExecutionError::Busy) => {
+            return Err(api_error(
+                StatusCode::CONFLICT,
+                "an active run is already in progress for this session",
+            ))
+        }
+        Err(RunLaneExecutionError::Execute(err)) => {
+            return Err(internal_err_with_error("executing run failed", err))
+        }
+    };
     info!(
         run_id = %run.run_id,
         session_id = %run.session_id,
@@ -6034,9 +8961,26 @@ async fn resume_run(
         .get_session(&run.session_id)
         .map_err(|err| internal_err_with_error("loading session for run failed", err))?
         .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "session not found for run"))?;
-    let refreshed = execute_run_with_status_handling(&state, &run, &session.agent_id, None)
-        .await
-        .map_err(|err| internal_err_with_error("resuming run failed", err))?;
+    let refreshed = match execute_run_with_lane_control(
+        &state,
+        &run,
+        &session.agent_id,
+        None,
+        RunLaneConflictPolicy::RejectIfBusy,
+    )
+    .await
+    {
+        Ok(run) => run,
+        Err(RunLaneExecutionError::Busy) => {
+            return Err(api_error(
+                StatusCode::CONFLICT,
+                "an active run is already in progress for this session",
+            ))
+        }
+        Err(RunLaneExecutionError::Execute(err)) => {
+            return Err(internal_err_with_error("resuming run failed", err))
+        }
+    };
     record_security_audit(
         &headers,
         &state,
@@ -6059,6 +9003,150 @@ async fn resume_run(
             run: to_run_response(refreshed),
         }),
     ))
+}
+
+async fn run_memory_why(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(run_id): Path<String>,
+    Json(request): Json<RunMemoryWhyRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "run.memory.why",
+        &format!("run:{run_id}"),
+    )?;
+    let run = state
+        .storage
+        .get_run(&run_id)
+        .map_err(|err| internal_err_with_error("loading run failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "run not found"))?;
+    let runtime_config = load_runtime_config(&state)
+        .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
+    let client = resolve_numquam_client(&state, &runtime_config)
+        .map_err(|err| internal_err_with_error("resolving numquam client failed", err))?
+        .ok_or_else(|| {
+            api_error(
+                StatusCode::FAILED_DEPENDENCY,
+                "numquam integration is disabled for context.why",
+            )
+        })?;
+
+    let mut evidence_ids = request
+        .evidence_ids
+        .iter()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+    if evidence_ids.is_empty() {
+        if let Some(usage_json) = run.usage_json.as_ref() {
+            if let Ok(usage_value) = serde_json::from_str::<serde_json::Value>(usage_json) {
+                if let Some(items) = usage_value
+                    .get("memory")
+                    .and_then(|value| value.get("evidence"))
+                    .and_then(|value| value.as_array())
+                {
+                    for item in items {
+                        if let Some(evidence_id) =
+                            item.get("evidence_id").and_then(|value| value.as_str())
+                        {
+                            let normalized = evidence_id.trim();
+                            if !normalized.is_empty() {
+                                evidence_ids.push(normalized.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    evidence_ids.sort();
+    evidence_ids.dedup();
+    if evidence_ids.is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "no evidence ids available for context.why",
+        ));
+    }
+
+    let envelope = client
+        .context_why(
+            &run.session_id,
+            &run.run_id,
+            &evidence_ids,
+            request.expand_citations,
+        )
+        .await
+        .map_err(|err| internal_err_with_error("calling numquam context.why failed", err))?;
+    if !envelope.ok {
+        let message = envelope
+            .error
+            .as_ref()
+            .map(|row| row.message.clone())
+            .unwrap_or_else(|| "numquam context.why returned non-ok envelope".to_string());
+        let status = envelope
+            .error
+            .as_ref()
+            .map(|row| numquam_status_from_error_code(row.code.as_str()))
+            .unwrap_or(StatusCode::BAD_GATEWAY);
+        return Err(api_error(status, &message));
+    }
+
+    let reasons = envelope
+        .data
+        .as_ref()
+        .map(|row| {
+            row.reasons
+                .iter()
+                .map(|item| {
+                    serde_json::json!({
+                        "evidence_id": item.evidence_id,
+                        "reason": item.reason
+                    })
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let evidence = envelope
+        .data
+        .as_ref()
+        .map(|row| row.evidence.clone())
+        .unwrap_or_default();
+    record_security_audit(
+        &headers,
+        &state,
+        &auth,
+        "run.memory.why",
+        &format!("run:{}", run.run_id),
+        "allow",
+        Some("fetched numquam context.why".to_string()),
+        StatusCode::OK,
+        None,
+        Some(&run.session_id),
+        Some(&run.run_id),
+        Some(serde_json::json!({
+            "evidence_ids": evidence_ids,
+            "request_id": envelope.request_id,
+            "request_id_source": envelope.request_id_source,
+            "degrade_mode": envelope.degrade_mode
+        })),
+    );
+
+    Ok(Json(RunMemoryWhyResponse {
+        run_id: run.run_id,
+        session_id: run.session_id,
+        transport: Some(client.transport.as_str().to_string()),
+        request_id: Some(envelope.request_id),
+        request_id_source: Some(envelope.request_id_source),
+        degrade_mode: envelope.degrade_mode,
+        warning_codes: numquam_warning_codes(&envelope.warnings),
+        reasons,
+        evidence,
+    }))
 }
 
 async fn list_approvals(
@@ -6224,7 +9312,13 @@ async fn resolve_approval(
         if existing_record.kind == NUMQUAM_APPROVAL_KIND_WRITEBACK
             && existing_record.status == "requested"
         {
-            let client = state.numquam_client.as_ref().ok_or_else(|| {
+            let runtime_config = load_runtime_config(&state)
+                .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
+            let client = resolve_numquam_client(&state, &runtime_config)
+                .map_err(|err| {
+                    internal_err_with_error("resolving numquam client failed", err)
+                })?
+                .ok_or_else(|| {
                 api_error(
                     StatusCode::FAILED_DEPENDENCY,
                     "numquam integration is disabled for memory writeback resolve",
@@ -6556,6 +9650,485 @@ async fn run_security_audit_retention(
     }))
 }
 
+fn budget_error(code: &str, detail: impl AsRef<str>) -> anyhow::Error {
+    anyhow::anyhow!("{code}: {}", detail.as_ref())
+}
+
+fn extract_reason_code_from_error_text(error_text: &str) -> Option<String> {
+    let candidate = error_text.split(':').next()?.trim();
+    if candidate.is_empty() {
+        return None;
+    }
+    if candidate
+        .chars()
+        .all(|ch| ch.is_ascii_uppercase() || ch.is_ascii_digit() || ch == '_')
+    {
+        Some(candidate.to_string())
+    } else {
+        None
+    }
+}
+
+fn normalize_breaker_error_code(error_code: Option<&str>) -> Option<String> {
+    error_code
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+fn get_active_circuit_breaker_state(
+    state: &AppState,
+    scope: &str,
+    target_id: &str,
+) -> AnyResult<Option<CircuitBreakerStateRecord>> {
+    let now = current_time_ms();
+    let Some(record) = state.storage.get_circuit_breaker_state(scope, target_id)? else {
+        return Ok(None);
+    };
+    if record.state != CIRCUIT_BREAKER_STATE_OPEN {
+        return Ok(None);
+    }
+    if let Some(cooldown_until) = record.cooldown_until {
+        if cooldown_until > now {
+            return Ok(Some(record));
+        }
+        state
+            .storage
+            .upsert_circuit_breaker_state(CircuitBreakerStateUpsert {
+                scope: scope.to_string(),
+                target_id: target_id.to_string(),
+                state: CIRCUIT_BREAKER_STATE_CLOSED.to_string(),
+                consecutive_failures: 0,
+                opened_at: None,
+                cooldown_until: None,
+                last_error_code: record.last_error_code.clone(),
+            })?;
+        return Ok(None);
+    }
+    Ok(Some(record))
+}
+
+fn reset_circuit_breaker_state_on_success(
+    state: &AppState,
+    scope: &str,
+    target_id: &str,
+) -> AnyResult<()> {
+    let Some(existing) = state.storage.get_circuit_breaker_state(scope, target_id)? else {
+        return Ok(());
+    };
+    if existing.state == CIRCUIT_BREAKER_STATE_CLOSED && existing.consecutive_failures == 0 {
+        return Ok(());
+    }
+    state
+        .storage
+        .upsert_circuit_breaker_state(CircuitBreakerStateUpsert {
+            scope: scope.to_string(),
+            target_id: target_id.to_string(),
+            state: CIRCUIT_BREAKER_STATE_CLOSED.to_string(),
+            consecutive_failures: 0,
+            opened_at: None,
+            cooldown_until: None,
+            last_error_code: None,
+        })?;
+    Ok(())
+}
+
+fn record_circuit_breaker_failure(
+    state: &AppState,
+    scope: &str,
+    target_id: &str,
+    error_code: Option<&str>,
+    failure_limit: u64,
+) -> AnyResult<CircuitBreakerStateRecord> {
+    let now = current_time_ms();
+    let existing = state.storage.get_circuit_breaker_state(scope, target_id)?;
+    if let Some(record) = existing.as_ref() {
+        if record.state == CIRCUIT_BREAKER_STATE_OPEN {
+            if let Some(cooldown_until) = record.cooldown_until {
+                if cooldown_until > now {
+                    return Ok(record.clone());
+                }
+            } else {
+                return Ok(record.clone());
+            }
+        }
+    }
+    let previous_failures = existing
+        .as_ref()
+        .filter(|record| record.state == CIRCUIT_BREAKER_STATE_CLOSED)
+        .map(|record| record.consecutive_failures.max(0))
+        .unwrap_or(0);
+    let next_failures = previous_failures.saturating_add(1);
+    let threshold = failure_limit.max(1).min(i64::MAX as u64) as i64;
+    let should_open = next_failures >= threshold;
+    state
+        .storage
+        .upsert_circuit_breaker_state(CircuitBreakerStateUpsert {
+            scope: scope.to_string(),
+            target_id: target_id.to_string(),
+            state: if should_open {
+                CIRCUIT_BREAKER_STATE_OPEN.to_string()
+            } else {
+                CIRCUIT_BREAKER_STATE_CLOSED.to_string()
+            },
+            consecutive_failures: next_failures,
+            opened_at: if should_open { Some(now) } else { None },
+            cooldown_until: if should_open {
+                Some(now.saturating_add(CIRCUIT_BREAKER_RESET_COOLDOWN_MS))
+            } else {
+                None
+            },
+            last_error_code: normalize_breaker_error_code(error_code),
+        })
+}
+
+fn to_circuit_breaker_state_response(
+    record: CircuitBreakerStateRecord,
+) -> CircuitBreakerStateResponse {
+    CircuitBreakerStateResponse {
+        scope: record.scope,
+        target_id: record.target_id,
+        state: record.state,
+        consecutive_failures: record.consecutive_failures,
+        cooldown_until: record.cooldown_until,
+        last_error_code: record.last_error_code,
+        updated_at: record.updated_at,
+    }
+}
+
+fn scheduler_lock_state_response(state: &AppState) -> SchedulerLockStateResponse {
+    SchedulerLockStateResponse {
+        enabled: state.scheduler_instance.enabled,
+        lock_path: state.scheduler_instance.lock_path.clone(),
+        owner: state.scheduler_instance.owner.clone(),
+        detail: state.scheduler_instance.detail.clone(),
+    }
+}
+
+async fn current_numquam_status(
+    state: &AppState,
+    runtime_config: Option<&RuntimeConfigResponse>,
+) -> NumquamIntegrationStatusResponse {
+    let runtime = state.numquam_runtime_status.read().await.clone();
+    let breaker_record = state
+        .storage
+        .get_circuit_breaker_state(CIRCUIT_BREAKER_SCOPE_NUMQUAM, NUMQUAM_BREAKER_TARGET)
+        .ok()
+        .flatten();
+    let now_ms = current_time_ms();
+    let breaker_open = breaker_record
+        .as_ref()
+        .map(|record| {
+            record.state == CIRCUIT_BREAKER_STATE_OPEN
+                && record
+                    .cooldown_until
+                    .map(|value| value > now_ms)
+                    .unwrap_or(true)
+        })
+        .unwrap_or(false);
+    let fallback_transport = runtime_config
+        .map(|config| config.memory.numquam.transport.clone())
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "dual".to_string());
+    let fallback_enabled = runtime_config
+        .map(|config| config.memory.numquam.enabled)
+        .unwrap_or(false)
+        || state.numquam_client.is_some();
+
+    NumquamIntegrationStatusResponse {
+        enabled: if runtime.last_check_at.is_some() {
+            runtime.enabled
+        } else {
+            fallback_enabled
+        },
+        transport: if runtime.transport.trim().is_empty() {
+            fallback_transport
+        } else {
+            runtime.transport
+        },
+        health_status: if runtime.health_status.trim().is_empty() {
+            "unknown".to_string()
+        } else {
+            runtime.health_status
+        },
+        contract_version: runtime.contract_version,
+        supported_schema_versions: runtime.supported_schema_versions,
+        degrade_mode: runtime.degrade_mode || breaker_open,
+        breaker_open,
+        breaker_cooldown_until: breaker_record.as_ref().and_then(|record| record.cooldown_until),
+        breaker_consecutive_failures: breaker_record
+            .as_ref()
+            .map(|record| record.consecutive_failures)
+            .unwrap_or(0),
+        required_operations_missing: runtime.required_operations_missing,
+        last_check_at: runtime.last_check_at,
+        last_error_code: runtime
+            .last_error_code
+            .or_else(|| breaker_record.as_ref().and_then(|record| record.last_error_code.clone())),
+        last_error: runtime.last_error,
+    }
+}
+
+fn collect_breaker_summary(
+    state: &AppState,
+    limit: u32,
+    scope: Option<&str>,
+) -> AnyResult<(Vec<CircuitBreakerStateResponse>, u64)> {
+    let records = state.storage.list_circuit_breaker_states(limit, scope)?;
+    let open_count = records
+        .iter()
+        .filter(|record| record.state == CIRCUIT_BREAKER_STATE_OPEN)
+        .count() as u64;
+    let items = records
+        .into_iter()
+        .map(to_circuit_breaker_state_response)
+        .collect::<Vec<_>>();
+    Ok((items, open_count))
+}
+
+fn collect_top_stop_reasons_from_jobs(
+    state: &AppState,
+    limit: usize,
+) -> AnyResult<Vec<FailureReasonCountResponse>> {
+    let jobs = state.storage.list_jobs(500, true)?;
+    let mut counts: HashMap<String, u64> = HashMap::new();
+    for job in jobs {
+        let Some(error_text) = job.last_error.as_deref() else {
+            continue;
+        };
+        let code = extract_reason_code_from_error_text(error_text)
+            .unwrap_or_else(|| "UNKNOWN".to_string());
+        let entry = counts.entry(code).or_insert(0);
+        *entry = entry.saturating_add(1);
+    }
+    let mut items = counts
+        .into_iter()
+        .map(|(code, count)| FailureReasonCountResponse { code, count })
+        .collect::<Vec<_>>();
+    items.sort_by(|left, right| {
+        right
+            .count
+            .cmp(&left.count)
+            .then_with(|| left.code.cmp(&right.code))
+    });
+    items.truncate(limit.max(1));
+    Ok(items)
+}
+
+fn effective_tool_fanout_cap(max_tool_calls_per_run: u64) -> u64 {
+    const TOOL_FANOUT_HARD_CAP: u64 = 8;
+    max_tool_calls_per_run.min(TOOL_FANOUT_HARD_CAP).max(1)
+}
+
+fn normalize_tool_error_text(error_text: &str) -> String {
+    error_text
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_digit() {
+                '#'
+            } else {
+                ch.to_ascii_lowercase()
+            }
+        })
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn tool_error_fingerprint(tool_name: &str, error_code: &str, error_text: &str) -> String {
+    let normalized = normalize_tool_error_text(error_text);
+    let digest = Sha256::digest(format!("{tool_name}|{error_code}|{normalized}").as_bytes());
+    let digest_hex = format!("{digest:x}");
+    format!("{tool_name}:{error_code}:{}", &digest_hex[..16])
+}
+
+fn usage_day_utc_key() -> String {
+    Utc::now().format("%Y-%m-%d").to_string()
+}
+
+fn lookup_runtime_provider_policy<'a>(
+    config: &'a RuntimeConfigResponse,
+    provider: &str,
+) -> Option<&'a RuntimeProviderPolicyConfig> {
+    config
+        .providers
+        .iter()
+        .find(|policy| policy.provider.eq_ignore_ascii_case(provider))
+}
+
+fn compute_estimated_cost_usd(
+    usage: &CompletionUsageMetrics,
+    provider_policy: Option<&RuntimeProviderPolicyConfig>,
+) -> Option<f64> {
+    if let Some(cost) = usage.estimated_cost_usd {
+        return Some(cost);
+    }
+    let rate = provider_policy.and_then(|policy| policy.usd_per_1k_tokens)?;
+    Some((usage.total_tokens as f64 / 1000.0) * rate)
+}
+
+fn disable_auth_profile_for_budget_breach(
+    state: &AppState,
+    profile: &AuthProfileRecord,
+    reason_code: &str,
+    reason_detail: &str,
+) {
+    match state.storage.update_auth_profile_state(
+        &profile.auth_profile_id,
+        Some(false),
+        Some(KILL_SWITCH_SCOPE_PROFILE.to_string()),
+    ) {
+        Ok(_) => warn!(
+            auth_profile_id = %profile.auth_profile_id,
+            provider = %profile.provider,
+            reason_code,
+            reason_detail,
+            "auth profile disabled by daily budget kill-switch"
+        ),
+        Err(err) => warn!(
+            auth_profile_id = %profile.auth_profile_id,
+            provider = %profile.provider,
+            reason_code,
+            reason_detail,
+            error = %err,
+            "failed to disable auth profile after daily budget breach"
+        ),
+    }
+}
+
+fn apply_daily_auth_profile_budget_accounting(
+    state: &AppState,
+    provider_policy: Option<&RuntimeProviderPolicyConfig>,
+    selected_profile: Option<&AuthProfileRecord>,
+    usage: &CompletionUsageMetrics,
+) -> AnyResult<Option<serde_json::Value>> {
+    let Some(profile) = selected_profile else {
+        return Ok(None);
+    };
+
+    let usage_day_utc = usage_day_utc_key();
+    let token_limit = provider_policy.and_then(|policy| policy.daily_token_budget);
+    let cost_limit = provider_policy.and_then(|policy| policy.daily_cost_usd_budget);
+    let estimated_cost_usd = compute_estimated_cost_usd(usage, provider_policy);
+
+    if cost_limit.is_some() && estimated_cost_usd.is_none() {
+        return Err(budget_error(
+            REASON_BUDGET_DAILY_COST_UNAVAILABLE,
+            format!(
+                "daily_cost_usd_budget configured for provider '{}' but cost cannot be computed (missing usage.estimated_cost_usd and usd_per_1k_tokens)",
+                profile.provider
+            ),
+        ));
+    }
+
+    let updated_usage =
+        state
+            .storage
+            .increment_daily_auth_profile_usage(DailyAuthProfileUsageIncrement {
+                usage_day_utc: usage_day_utc.clone(),
+                auth_profile_id: profile.auth_profile_id.clone(),
+                provider: profile.provider.clone(),
+                input_chars: usage.input_chars as i64,
+                output_chars: usage.output_chars as i64,
+                input_tokens: usage.input_tokens as i64,
+                output_tokens: usage.output_tokens as i64,
+                total_tokens: usage.total_tokens as i64,
+                estimated_cost_usd: estimated_cost_usd.unwrap_or(0.0),
+            })?;
+
+    if let Some(limit) = token_limit {
+        if (updated_usage.total_tokens as u64) > limit {
+            let detail = format!(
+                "profile {} exceeded daily token budget: {} > {} on {}",
+                profile.auth_profile_id, updated_usage.total_tokens, limit, usage_day_utc
+            );
+            disable_auth_profile_for_budget_breach(
+                state,
+                profile,
+                REASON_BUDGET_DAILY_TOKEN_LIMIT,
+                &detail,
+            );
+            return Err(budget_error(REASON_BUDGET_DAILY_TOKEN_LIMIT, detail));
+        }
+    }
+
+    if let Some(limit) = cost_limit {
+        if updated_usage.estimated_cost_usd > limit {
+            let detail = format!(
+                "profile {} exceeded daily USD budget: {:.6} > {:.6} on {}",
+                profile.auth_profile_id, updated_usage.estimated_cost_usd, limit, usage_day_utc
+            );
+            disable_auth_profile_for_budget_breach(
+                state,
+                profile,
+                REASON_BUDGET_DAILY_COST_LIMIT,
+                &detail,
+            );
+            return Err(budget_error(REASON_BUDGET_DAILY_COST_LIMIT, detail));
+        }
+    }
+
+    Ok(Some(serde_json::json!({
+        "usage_day_utc": usage_day_utc,
+        "auth_profile_id": &profile.auth_profile_id,
+        "provider": &profile.provider,
+        "token_limit": token_limit,
+        "cost_limit_usd": cost_limit,
+        "usd_per_1k_tokens": provider_policy.and_then(|policy| policy.usd_per_1k_tokens),
+        "totals": {
+            "input_chars": updated_usage.input_chars,
+            "output_chars": updated_usage.output_chars,
+            "input_tokens": updated_usage.input_tokens,
+            "output_tokens": updated_usage.output_tokens,
+            "total_tokens": updated_usage.total_tokens,
+            "estimated_cost_usd": updated_usage.estimated_cost_usd
+        }
+    })))
+}
+
+fn guardrail_reason_code(error_text: &str) -> Option<&'static str> {
+    for code in [
+        REASON_BUDGET_MAX_RUN_MS,
+        REASON_BUDGET_MAX_TOOL_CALLS,
+        REASON_BUDGET_MAX_PROVIDER_INPUT_CHARS,
+        REASON_BUDGET_MAX_TOOL_OUTPUT_CHARS_TOTAL,
+        REASON_BUDGET_MAX_PROVIDER_ATTEMPTS,
+        REASON_BUDGET_DAILY_TOKEN_LIMIT,
+        REASON_BUDGET_DAILY_COST_LIMIT,
+        REASON_BUDGET_DAILY_COST_UNAVAILABLE,
+        REASON_BREAKER_TOOL_FANOUT_CAP,
+        REASON_BREAKER_REPEATED_TOOL_ERROR,
+        REASON_BREAKER_NUMQUAM_OPEN,
+    ] {
+        if error_text.starts_with(code) {
+            return Some(code);
+        }
+    }
+    None
+}
+
+fn enforce_run_wall_time_budget(started: Instant, max_run_ms: u64) -> AnyResult<()> {
+    let elapsed_ms = started.elapsed().as_millis() as u64;
+    if elapsed_ms > max_run_ms {
+        return Err(budget_error(
+            REASON_BUDGET_MAX_RUN_MS,
+            format!(
+                "run elapsed {}ms exceeds max_run_ms {}ms",
+                elapsed_ms, max_run_ms
+            ),
+        ));
+    }
+    Ok(())
+}
+
+fn load_runtime_autonomy_guardrails(
+    state: &AppState,
+) -> AnyResult<RuntimeAutonomyGuardrailsConfig> {
+    let config = load_runtime_config(state)?;
+    Ok(config.autonomy_guardrails)
+}
+
 async fn execute_run(
     state: &AppState,
     run: &RunRecord,
@@ -6599,19 +10172,62 @@ async fn execute_run(
         .storage
         .latest_user_message_text(&run.session_id)?
         .unwrap_or_default();
+    let autonomy_guardrails = load_runtime_autonomy_guardrails(state)?;
+    enforce_run_wall_time_budget(started, autonomy_guardrails.max_run_ms)?;
 
-    let tool_requests = parse_tool_requests_from_input(&input, state.tool_registry.as_ref())?;
+    let plugin_registry_snapshot = state.plugin_registry.read().await.clone();
+    let tool_requests = parse_tool_requests_from_input(
+        &input,
+        state.tool_registry.as_ref(),
+        Some(&plugin_registry_snapshot),
+    )?;
+    if (tool_requests.len() as u64) > autonomy_guardrails.max_tool_calls_per_run {
+        return Err(budget_error(
+            REASON_BUDGET_MAX_TOOL_CALLS,
+            format!(
+                "parsed {} tool calls exceeds max_tool_calls_per_run {}",
+                tool_requests.len(),
+                autonomy_guardrails.max_tool_calls_per_run
+            ),
+        ));
+    }
+    let tool_fanout_cap = effective_tool_fanout_cap(autonomy_guardrails.max_tool_calls_per_run);
+    if (tool_requests.len() as u64) > tool_fanout_cap {
+        return Err(budget_error(
+            REASON_BREAKER_TOOL_FANOUT_CAP,
+            format!(
+                "parsed {} tool calls exceeds fanout cap {}",
+                tool_requests.len(),
+                tool_fanout_cap
+            ),
+        ));
+    }
+    let repeated_tool_error_limit = autonomy_guardrails
+        .max_consecutive_failures_before_breaker
+        .max(1);
     enum ToolExecutionAttempt {
         Success(ToolResult),
         ToolError(ToolError),
         JoinError(String),
     }
     let mut tool_output_blocks = Vec::new();
+    let mut total_tool_output_chars: usize = 0;
     for invocation in tool_requests {
+        enforce_run_wall_time_budget(started, autonomy_guardrails.max_run_ms)?;
         let tool_metadata = invocation.metadata;
         let request = invocation.request;
-        let tool_name = tool_metadata.tool_name;
-        let args_json = serde_json::to_string(&request).unwrap_or_else(|_| "{}".to_string());
+        let tool_name = tool_metadata.tool_name.as_str();
+        let args_json = if let Some(raw_args) = tool_metadata.plugin_raw_args.as_ref() {
+            serde_json::json!({
+                "origin": &tool_metadata.origin,
+                "plugin_id": &tool_metadata.plugin_id,
+                "tool_name": &tool_metadata.tool_name,
+                "raw_args": raw_args
+            })
+            .to_string()
+        } else {
+            serde_json::to_string(&request).unwrap_or_else(|_| "{}".to_string())
+        };
         let tool_call = state
             .storage
             .create_tool_call(&run.run_id, tool_name, args_json.clone())?
@@ -6621,7 +10237,7 @@ async fn execute_run(
             run_id = %run.run_id,
             session_id = %run.session_id,
             tool_name,
-            risk_level = tool_metadata.risk_level,
+            risk_level = %tool_metadata.risk_level,
             requires_approval = tool_metadata.requires_approval,
             timeout_ms = tool_metadata.timeout_ms,
             "tool execution dispatched"
@@ -6633,7 +10249,7 @@ async fn execute_run(
             Some(tool_name),
             serde_json::json!({
                 "tool_call_id": &tool_call.tool_call_id,
-                "risk_level": tool_metadata.risk_level,
+                "risk_level": &tool_metadata.risk_level,
                 "requires_approval": tool_metadata.requires_approval,
                 "timeout_ms": tool_metadata.timeout_ms
             }),
@@ -6798,7 +10414,7 @@ async fn execute_run(
                         "tool_call_id": &tool_call.tool_call_id,
                         "status": "blocked",
                         "approval_id": &approval.approval_id,
-                        "risk_level": tool_metadata.risk_level,
+                        "risk_level": &tool_metadata.risk_level,
                         "error_code": "APPROVAL_REQUIRED",
                         "duration_ms": duration_ms
                     }),
@@ -6812,7 +10428,12 @@ async fn execute_run(
             }
         }
 
-        let execution_attempt = if let ToolRequest::ChannelAction(channel_request) = &request {
+        let execution_attempt = if tool_metadata.plugin_id.is_some() {
+            match execute_plugin_tool_invocation(state, run, &tool_metadata, &args_json).await {
+                Ok(result) => ToolExecutionAttempt::Success(result),
+                Err(tool_err) => ToolExecutionAttempt::ToolError(tool_err),
+            }
+        } else if let ToolRequest::ChannelAction(channel_request) = &request {
             match execute_channel_action_tool(state, run, channel_request).await {
                 Ok(result) => ToolExecutionAttempt::Success(result),
                 Err(tool_err) => ToolExecutionAttempt::ToolError(tool_err),
@@ -6843,6 +10464,8 @@ async fn execute_run(
             ToolExecutionAttempt::ToolError(tool_err) => {
                 let (error_code, retryable) = tool_error_code_and_retryable(&tool_err);
                 let error_text = format!("tool execution failed: {tool_err}");
+                let fingerprint = tool_error_fingerprint(tool_name, error_code, &error_text);
+                let streak_count = state.tool_error_breaker.record_failure(&fingerprint);
                 let duration_ms = tool_started.elapsed().as_millis() as u64;
                 let envelope = tool_error_envelope(
                     &tool_metadata,
@@ -6862,8 +10485,10 @@ async fn execute_run(
                     run_id = %run.run_id,
                     session_id = %run.session_id,
                     tool_name,
-                    risk_level = tool_metadata.risk_level,
+                    risk_level = %tool_metadata.risk_level,
                     error_code,
+                    fingerprint = %fingerprint,
+                    streak_count,
                     retryable,
                     duration_ms,
                     "tool execution failed"
@@ -6876,16 +10501,31 @@ async fn execute_run(
                     serde_json::json!({
                         "tool_call_id": &tool_call.tool_call_id,
                         "status": "failed",
-                        "risk_level": tool_metadata.risk_level,
+                        "risk_level": &tool_metadata.risk_level,
                         "error_code": error_code,
+                        "error_fingerprint": &fingerprint,
+                        "error_streak_count": streak_count,
                         "duration_ms": duration_ms
                     }),
                 )
                 .await;
+                if streak_count >= repeated_tool_error_limit {
+                    state.tool_error_breaker.clear_fingerprint(&fingerprint);
+                    return Err(budget_error(
+                        REASON_BREAKER_REPEATED_TOOL_ERROR,
+                        format!(
+                            "tool error fingerprint {} reached streak {} (limit {})",
+                            fingerprint, streak_count, repeated_tool_error_limit
+                        ),
+                    ));
+                }
                 anyhow::bail!("{error_text}");
             }
             ToolExecutionAttempt::JoinError(join_error) => {
                 let error_text = format!("tool runner join error: {join_error}");
+                let fingerprint =
+                    tool_error_fingerprint(tool_name, "TOOL_RUNNER_JOIN", &error_text);
+                let streak_count = state.tool_error_breaker.record_failure(&fingerprint);
                 let duration_ms = tool_started.elapsed().as_millis() as u64;
                 let envelope = tool_error_envelope(
                     &tool_metadata,
@@ -6905,7 +10545,9 @@ async fn execute_run(
                     run_id = %run.run_id,
                     session_id = %run.session_id,
                     tool_name,
-                    risk_level = tool_metadata.risk_level,
+                    risk_level = %tool_metadata.risk_level,
+                    fingerprint = %fingerprint,
+                    streak_count,
                     duration_ms,
                     "tool runner join failure"
                 );
@@ -6917,12 +10559,24 @@ async fn execute_run(
                     serde_json::json!({
                         "tool_call_id": &tool_call.tool_call_id,
                         "status": "failed",
-                        "risk_level": tool_metadata.risk_level,
+                        "risk_level": &tool_metadata.risk_level,
                         "error_code": "TOOL_RUNNER_JOIN",
+                        "error_fingerprint": &fingerprint,
+                        "error_streak_count": streak_count,
                         "duration_ms": duration_ms
                     }),
                 )
                 .await;
+                if streak_count >= repeated_tool_error_limit {
+                    state.tool_error_breaker.clear_fingerprint(&fingerprint);
+                    return Err(budget_error(
+                        REASON_BREAKER_REPEATED_TOOL_ERROR,
+                        format!(
+                            "tool error fingerprint {} reached streak {} (limit {})",
+                            fingerprint, streak_count, repeated_tool_error_limit
+                        ),
+                    ));
+                }
                 anyhow::bail!("{error_text}");
             }
         };
@@ -6937,11 +10591,12 @@ async fn execute_run(
             Some(tool_output_json.clone()),
             None,
         )?;
+        state.tool_error_breaker.clear_tool(tool_name);
         info!(
             run_id = %run.run_id,
             session_id = %run.session_id,
             tool_name,
-            risk_level = tool_metadata.risk_level,
+            risk_level = %tool_metadata.risk_level,
             duration_ms,
             truncated = tool_result.truncated,
             timed_out,
@@ -6956,7 +10611,7 @@ async fn execute_run(
                 "tool_call_id": &tool_call.tool_call_id,
                 "status": if timed_out { "timeout" } else { "succeeded" },
                 "output_chars": tool_output_json.len(),
-                "risk_level": tool_metadata.risk_level,
+                "risk_level": &tool_metadata.risk_level,
                 "truncated": tool_result.truncated,
                 "timed_out": timed_out,
                 "duration_ms": duration_ms
@@ -6977,82 +10632,18 @@ async fn execute_run(
                 "delta": format!("[tool:{}] {}", tool_name, tool_summary)
             }),
         );
-        tool_output_blocks.push(format!("[{}] {}", tool_name, tool_output_json));
-    }
-
-    let mut memory_metadata = RunMemoryMetadata::default();
-    let mut memory_context_text = None;
-    if let Some(client) = state.numquam_client.as_ref() {
-        memory_metadata.enabled = true;
-        memory_metadata.transport = Some(client.transport.as_str().to_string());
-        match client
-            .context_build(&run.session_id, &run.run_id, &input)
-            .await
-        {
-            Ok(envelope) => {
-                memory_metadata.context_request_id = Some(envelope.request_id.clone());
-                memory_metadata.context_request_id_source =
-                    Some(envelope.request_id_source.clone());
-                memory_metadata.context_degrade_mode = envelope.degrade_mode;
-                memory_metadata.context_fallback_recommendation =
-                    envelope.fallback_recommendation.clone();
-                memory_metadata.context_warning_codes = numquam_warning_codes(&envelope.warnings);
-                if envelope.ok {
-                    if envelope.degrade_mode {
-                        warn!(
-                            run_id = %run.run_id,
-                            session_id = %run.session_id,
-                            operation = %envelope.operation,
-                            "Numquam context is in degrade mode; using stateless provider input"
-                        );
-                    } else if let Some(data) = envelope.data {
-                        let context_text = data.context_text.trim().to_string();
-                        memory_metadata.route = data.route;
-                        memory_metadata.confidence = data.confidence;
-                        memory_metadata.context_chars = context_text.len();
-                        memory_metadata.evidence = data
-                            .evidence
-                            .into_iter()
-                            .map(|row| RunMemoryEvidence {
-                                evidence_id: row.evidence_id.clone(),
-                                provenance_handle: if row.evidence_id.trim().is_empty() {
-                                    "evidence:unknown".to_string()
-                                } else {
-                                    format!("evidence:{}", row.evidence_id)
-                                },
-                                citation_refs: row.citations,
-                                confidence: row.confidence,
-                                conflict_flag: is_conflict_evidence(&row.kind, &row.section),
-                            })
-                            .collect();
-                        if !context_text.is_empty() {
-                            memory_context_text = Some(context_text);
-                        }
-                    }
-                } else if let Some(error) = envelope.error {
-                    memory_metadata.context_error_code = Some(error.code.clone());
-                    memory_metadata.context_error_message = Some(error.message.clone());
-                    warn!(
-                        run_id = %run.run_id,
-                        session_id = %run.session_id,
-                        error_code = %error.code,
-                        error_message = %error.message,
-                        retryable = error.retryable.unwrap_or(false),
-                        operator_action = error.operator_action.unwrap_or_default(),
-                        "Numquam context request returned non-ok envelope; using stateless provider input"
-                    );
-                }
-            }
-            Err(err) => {
-                memory_metadata.context_error_message = Some(err.to_string());
-                warn!(
-                    run_id = %run.run_id,
-                    session_id = %run.session_id,
-                    error = %err,
-                    "Numquam context request failed; using stateless provider input"
-                );
-            }
+        total_tool_output_chars = total_tool_output_chars.saturating_add(tool_output_json.len());
+        if (total_tool_output_chars as u64) > autonomy_guardrails.max_tool_output_chars_total {
+            return Err(budget_error(
+                REASON_BUDGET_MAX_TOOL_OUTPUT_CHARS_TOTAL,
+                format!(
+                    "tool output chars {} exceeds max_tool_output_chars_total {}",
+                    total_tool_output_chars, autonomy_guardrails.max_tool_output_chars_total
+                ),
+            ));
         }
+        tool_output_blocks.push(format!("[{}] {}", tool_name, tool_output_json));
+        enforce_run_wall_time_budget(started, autonomy_guardrails.max_run_ms)?;
     }
 
     let provider_base_input = if tool_output_blocks.is_empty() {
@@ -7064,6 +10655,283 @@ async fn execute_run(
             tool_output_blocks.join("\n")
         )
     };
+    let runtime_config = load_runtime_config(state)?;
+    let memory_blend_mode = runtime_config.memory.blend_mode.clone();
+    let mut memory_metadata = RunMemoryMetadata::default();
+    memory_metadata.blend_mode = Some(memory_blend_mode.clone());
+    let mut memory_context_text = None;
+    let use_numquam = memory_blend_mode != "local_fallback_only";
+    if use_numquam {
+        refresh_numquam_handshake_state(state).await;
+        match resolve_numquam_client(state, &runtime_config) {
+            Ok(Some(client)) => {
+                memory_metadata.enabled = true;
+                memory_metadata.transport = Some(client.transport.as_str().to_string());
+                let run_mode = infer_run_memory_mode(state, &run.session_id);
+                let policy = build_numquam_context_policy(
+                    state,
+                    run,
+                    &input,
+                    &autonomy_guardrails,
+                    &memory_blend_mode,
+                );
+                memory_metadata.context_policy = Some(serde_json::json!({
+                    "run_mode": run_mode,
+                    "top_k": policy.top_k,
+                    "risk_signal": policy.risk_signal,
+                    "message_window": {
+                        "max_messages": policy.message_window_max_messages,
+                        "max_chars": policy.message_window_max_chars
+                    },
+                    "memory_preference": policy.memory_preference,
+                    "retrieval_query_chars": policy.retrieval_query.as_ref().map(|value| value.chars().count()).unwrap_or(0)
+                }));
+                info!(
+                    run_id = %run.run_id,
+                    session_id = %run.session_id,
+                    run_mode = %run_mode,
+                    top_k = policy.top_k,
+                    risk_signal = %policy.risk_signal,
+                    blend_mode = %memory_blend_mode,
+                    "Numquam context policy selected"
+                );
+
+                let handshake_status = state.numquam_runtime_status.read().await.clone();
+                if handshake_status.degrade_mode {
+                    memory_metadata.context_degrade_mode = true;
+                    memory_metadata.context_error_code = handshake_status
+                        .last_error_code
+                        .clone()
+                        .or_else(|| Some("DEPENDENCY_UNAVAILABLE".to_string()));
+                    memory_metadata.context_error_message = handshake_status.last_error.clone().or_else(|| {
+                        Some("Numquam handshake is degraded; using fallback context".to_string())
+                    });
+                    append_system_security_audit(
+                        state,
+                        "numquam.fallback",
+                        "allow",
+                        Some("run skipped Numquam context because handshake is degraded".to_string()),
+                        memory_metadata.context_error_code.clone(),
+                        Some(serde_json::json!({
+                            "run_id": &run.run_id,
+                            "session_id": &run.session_id,
+                            "health_status": handshake_status.health_status
+                        })),
+                    );
+                } else if let Some(active_breaker) = get_active_circuit_breaker_state(
+                    state,
+                    CIRCUIT_BREAKER_SCOPE_NUMQUAM,
+                    NUMQUAM_BREAKER_TARGET,
+                )? {
+                    memory_metadata.context_error_code = Some(REASON_BREAKER_NUMQUAM_OPEN.to_string());
+                    memory_metadata.context_error_message = Some(format!(
+                        "Numquam breaker open until {}",
+                        active_breaker.cooldown_until.unwrap_or(0)
+                    ));
+                    emit_event(
+                        state,
+                        "run.guardrail",
+                        serde_json::json!({
+                            "run_id": &run.run_id,
+                            "session_id": &run.session_id,
+                            "reason_code": REASON_BREAKER_NUMQUAM_OPEN,
+                            "scope": CIRCUIT_BREAKER_SCOPE_NUMQUAM,
+                            "target_id": NUMQUAM_BREAKER_TARGET,
+                            "cooldown_until": active_breaker.cooldown_until,
+                            "consecutive_failures": active_breaker.consecutive_failures,
+                            "last_error_code": active_breaker.last_error_code
+                        }),
+                    );
+                    append_system_security_audit(
+                        state,
+                        "numquam.fallback",
+                        "deny",
+                        Some("run skipped Numquam context because breaker is open".to_string()),
+                        Some(REASON_BREAKER_NUMQUAM_OPEN.to_string()),
+                        Some(serde_json::json!({
+                            "run_id": &run.run_id,
+                            "session_id": &run.session_id
+                        })),
+                    );
+                } else {
+                    match client
+                        .context_build(&run.session_id, &run.run_id, &input, &policy)
+                        .await
+                    {
+                        Ok(envelope) => {
+                            memory_metadata.context_request_id = Some(envelope.request_id.clone());
+                            memory_metadata.context_request_id_source =
+                                Some(envelope.request_id_source.clone());
+                            memory_metadata.context_degrade_mode = envelope.degrade_mode;
+                            memory_metadata.context_fallback_recommendation =
+                                envelope.fallback_recommendation.clone();
+                            memory_metadata.context_warning_codes =
+                                numquam_warning_codes(&envelope.warnings);
+                            if envelope.ok {
+                                let _ = reset_circuit_breaker_state_on_success(
+                                    state,
+                                    CIRCUIT_BREAKER_SCOPE_NUMQUAM,
+                                    NUMQUAM_BREAKER_TARGET,
+                                );
+                                if envelope.degrade_mode {
+                                    warn!(
+                                        run_id = %run.run_id,
+                                        session_id = %run.session_id,
+                                        operation = %envelope.operation,
+                                        "Numquam context is in degrade mode; using stateless provider input"
+                                    );
+                                    append_system_security_audit(
+                                        state,
+                                        "numquam.fallback",
+                                        "allow",
+                                        Some("Numquam context returned degrade_mode=true; stateless/local fallback used".to_string()),
+                                        None,
+                                        Some(serde_json::json!({
+                                            "run_id": &run.run_id,
+                                            "session_id": &run.session_id,
+                                            "operation": &envelope.operation
+                                        })),
+                                    );
+                                } else if let Some(data) = envelope.data {
+                                    let context_text = data.context_text.trim().to_string();
+                                    let context_cap = compute_numquam_context_char_cap(
+                                        &autonomy_guardrails,
+                                        provider_base_input.len(),
+                                    );
+                                    let (trimmed_context, truncated, original_chars) =
+                                        truncate_text_to_chars(&context_text, context_cap);
+                                    memory_metadata.route = data.route;
+                                    memory_metadata.confidence = data.confidence;
+                                    memory_metadata.context_chars = trimmed_context.len();
+                                    memory_metadata.context_original_chars = original_chars;
+                                    memory_metadata.context_returned_chars =
+                                        trimmed_context.chars().count();
+                                    memory_metadata.context_truncated = truncated;
+                                    if truncated
+                                        && !memory_metadata
+                                            .context_warning_codes
+                                            .iter()
+                                            .any(|code| code == "CONTEXT_TRUNCATED_FOR_BUDGET")
+                                    {
+                                        memory_metadata
+                                            .context_warning_codes
+                                            .push("CONTEXT_TRUNCATED_FOR_BUDGET".to_string());
+                                    }
+                                    memory_metadata.evidence = data
+                                        .evidence
+                                        .into_iter()
+                                        .map(|row| RunMemoryEvidence {
+                                            evidence_id: row.evidence_id.clone(),
+                                            provenance_handle: if row.evidence_id.trim().is_empty() {
+                                                "evidence:unknown".to_string()
+                                            } else {
+                                                format!("evidence:{}", row.evidence_id)
+                                            },
+                                            citation_refs: row.citations,
+                                            confidence: row.confidence,
+                                            conflict_flag: is_conflict_evidence(&row.kind, &row.section),
+                                        })
+                                        .collect();
+                                    if !trimmed_context.trim().is_empty() {
+                                        memory_context_text = Some(trimmed_context);
+                                    }
+                                }
+                            } else if let Some(error) = envelope.error {
+                                memory_metadata.context_error_code = Some(error.code.clone());
+                                memory_metadata.context_error_message = Some(error.message.clone());
+                                warn!(
+                                    run_id = %run.run_id,
+                                    session_id = %run.session_id,
+                                    error_code = %error.code,
+                                    error_message = %error.message,
+                                    retryable = error.retryable.unwrap_or(false),
+                                    operator_action = error.operator_action.unwrap_or_default(),
+                                    "Numquam context request returned non-ok envelope; using stateless provider input"
+                                );
+                                let breaker_state = record_circuit_breaker_failure(
+                                    state,
+                                    CIRCUIT_BREAKER_SCOPE_NUMQUAM,
+                                    NUMQUAM_BREAKER_TARGET,
+                                    Some(error.code.as_str()),
+                                    autonomy_guardrails
+                                        .max_consecutive_failures_before_breaker
+                                        .max(1),
+                                )?;
+                                if breaker_state.state == CIRCUIT_BREAKER_STATE_OPEN {
+                                    emit_event(
+                                        state,
+                                        "run.guardrail",
+                                        serde_json::json!({
+                                            "run_id": &run.run_id,
+                                            "session_id": &run.session_id,
+                                            "reason_code": REASON_BREAKER_NUMQUAM_OPEN,
+                                            "scope": CIRCUIT_BREAKER_SCOPE_NUMQUAM,
+                                            "target_id": NUMQUAM_BREAKER_TARGET,
+                                            "cooldown_until": breaker_state.cooldown_until,
+                                            "consecutive_failures": breaker_state.consecutive_failures,
+                                            "last_error_code": breaker_state.last_error_code
+                                        }),
+                                    );
+                                }
+                            }
+                        }
+                        Err(err) => {
+                            memory_metadata.context_error_message = Some(err.to_string());
+                            let error_code = extract_reason_code_from_error_text(&err.to_string())
+                                .unwrap_or_else(|| "DEPENDENCY_UNAVAILABLE".to_string());
+                            let breaker_state = record_circuit_breaker_failure(
+                                state,
+                                CIRCUIT_BREAKER_SCOPE_NUMQUAM,
+                                NUMQUAM_BREAKER_TARGET,
+                                Some(error_code.as_str()),
+                                autonomy_guardrails
+                                    .max_consecutive_failures_before_breaker
+                                    .max(1),
+                            )?;
+                            if breaker_state.state == CIRCUIT_BREAKER_STATE_OPEN {
+                                emit_event(
+                                    state,
+                                    "run.guardrail",
+                                    serde_json::json!({
+                                        "run_id": &run.run_id,
+                                        "session_id": &run.session_id,
+                                        "reason_code": REASON_BREAKER_NUMQUAM_OPEN,
+                                        "scope": CIRCUIT_BREAKER_SCOPE_NUMQUAM,
+                                        "target_id": NUMQUAM_BREAKER_TARGET,
+                                        "cooldown_until": breaker_state.cooldown_until,
+                                        "consecutive_failures": breaker_state.consecutive_failures,
+                                        "last_error_code": breaker_state.last_error_code
+                                    }),
+                                );
+                            }
+                            warn!(
+                                run_id = %run.run_id,
+                                session_id = %run.session_id,
+                                error = %err,
+                                "Numquam context request failed; using stateless provider input"
+                            );
+                        }
+                    }
+                }
+            }
+            Ok(None) => {
+                memory_metadata.context_error_code = Some("AUTH_REQUIRED".to_string());
+                memory_metadata.context_error_message =
+                    Some("Numquam integration is not configured".to_string());
+            }
+            Err(err) => {
+                memory_metadata.context_error_code = Some("INTERNAL_ERROR".to_string());
+                memory_metadata.context_error_message = Some(err.to_string());
+                warn!(
+                    run_id = %run.run_id,
+                    session_id = %run.session_id,
+                    error = %err,
+                    "Numquam runtime client resolution failed; using stateless provider input"
+                );
+            }
+        }
+    }
+
     emit_extension_hook_point(
         state,
         run,
@@ -7100,8 +10968,18 @@ async fn execute_run(
     if let Some(context_text) = memory_context_text {
         context_sections.push(format!("Numquam memory context:\n{}", context_text));
     }
-    if let Some(local_context) = local_memory_context {
-        context_sections.push(format!("Local notes context:\n{}", local_context));
+    let include_local_context = match memory_blend_mode.as_str() {
+        "local_augment" => true,
+        "local_fallback_only" => true,
+        _ => memory_metadata.context_degrade_mode
+            || memory_metadata.context_error_code.is_some()
+            || !memory_metadata.enabled
+            || context_sections.is_empty(),
+    };
+    if include_local_context {
+        if let Some(local_context) = local_memory_context {
+            context_sections.push(format!("Local notes context:\n{}", local_context));
+        }
     }
     if let Some((skills_context, skill_ids)) = resolve_skill_context(state, &input).await {
         applied_skill_ids = skill_ids;
@@ -7128,6 +11006,45 @@ async fn execute_run(
         }),
     )
     .await;
+    if (provider_input.len() as u64) > autonomy_guardrails.max_provider_input_chars {
+        return Err(budget_error(
+            REASON_BUDGET_MAX_PROVIDER_INPUT_CHARS,
+            format!(
+                "provider input chars {} exceeds max_provider_input_chars {}",
+                provider_input.len(),
+                autonomy_guardrails.max_provider_input_chars
+            ),
+        ));
+    }
+    enforce_run_wall_time_budget(started, autonomy_guardrails.max_run_ms)?;
+    if let Some(active_breaker) = get_active_circuit_breaker_state(
+        state,
+        CIRCUIT_BREAKER_SCOPE_PROVIDER,
+        &run.model_provider,
+    )? {
+        emit_event(
+            state,
+            "run.guardrail",
+            serde_json::json!({
+                "run_id": &run.run_id,
+                "session_id": &run.session_id,
+                "reason_code": REASON_BREAKER_PROVIDER_OPEN,
+                "scope": CIRCUIT_BREAKER_SCOPE_PROVIDER,
+                "target_id": &run.model_provider,
+                "cooldown_until": active_breaker.cooldown_until,
+                "consecutive_failures": active_breaker.consecutive_failures,
+                "last_error_code": active_breaker.last_error_code
+            }),
+        );
+        return Err(budget_error(
+            REASON_BREAKER_PROVIDER_OPEN,
+            format!(
+                "provider '{}' circuit breaker open until {}",
+                run.model_provider,
+                active_breaker.cooldown_until.unwrap_or(0)
+            ),
+        ));
+    }
 
     let auth_candidates = resolve_run_auth_profiles(
         state,
@@ -7141,11 +11058,22 @@ async fn execute_run(
     } else {
         auth_candidates.len()
     };
+    let max_provider_attempts = autonomy_guardrails.max_provider_attempts.max(1) as usize;
+    let breaker_failure_limit = autonomy_guardrails
+        .max_consecutive_failures_before_breaker
+        .max(1);
+    let attempts_total = candidate_count.min(max_provider_attempts);
 
     let mut completion = None;
     let mut last_error = None;
+    let mut selected_auth_profile: Option<AuthProfileRecord> = None;
 
-    for (attempt_index, auth_record) in auth_candidates.into_iter().enumerate() {
+    for (attempt_index, auth_record) in auth_candidates
+        .into_iter()
+        .take(max_provider_attempts)
+        .enumerate()
+    {
+        enforce_run_wall_time_budget(started, autonomy_guardrails.max_run_ms)?;
         let auth_profile = match auth_record.as_ref() {
             Some(record) => match to_provider_auth_profile(state, record) {
                 Ok(profile) => Some(profile),
@@ -7160,7 +11088,7 @@ async fn execute_run(
                         "skipping auth profile because credentials could not be hydrated"
                     );
                     last_error = Some(err);
-                    if attempt_index + 1 >= candidate_count {
+                    if attempt_index + 1 >= attempts_total {
                         break;
                     }
                     continue;
@@ -7195,7 +11123,7 @@ async fn execute_run(
                 run_id = %run.run_id,
                 session_id = %run.session_id,
                 attempt = attempt_index + 1,
-                attempts_total = candidate_count,
+                attempts_total,
                 provider = %run.model_provider,
                 model_id = %run.model_id,
                 auth_profile_id = %auth_record.auth_profile_id,
@@ -7209,7 +11137,7 @@ async fn execute_run(
                 run_id = %run.run_id,
                 session_id = %run.session_id,
                 attempt = attempt_index + 1,
-                attempts_total = candidate_count,
+                attempts_total,
                 provider = %run.model_provider,
                 model_id = %run.model_id,
                 auth_mode = "none",
@@ -7229,6 +11157,7 @@ async fn execute_run(
                 auth_profile: auth_profile.clone(),
             })
             .await;
+        enforce_run_wall_time_budget(started, autonomy_guardrails.max_run_ms)?;
 
         match result {
             Ok(response) => {
@@ -7238,7 +11167,7 @@ async fn execute_run(
                     provider = %run.model_provider,
                     model_id = %run.model_id,
                     attempt = attempt_index + 1,
-                    attempts_total = candidate_count,
+                    attempts_total,
                     auth_mode = auth_profile
                         .as_ref()
                         .map(|profile| profile.auth_mode.as_str())
@@ -7248,6 +11177,12 @@ async fn execute_run(
                     "provider completion succeeded"
                 );
                 update_auth_profile_health_state(state, auth_record.as_ref(), true, None, None);
+                reset_circuit_breaker_state_on_success(
+                    state,
+                    CIRCUIT_BREAKER_SCOPE_PROVIDER,
+                    &run.model_provider,
+                )?;
+                selected_auth_profile = auth_record.clone();
                 completion = Some(response);
                 break;
             }
@@ -7262,7 +11197,7 @@ async fn execute_run(
                     provider = %run.model_provider,
                     model_id = %run.model_id,
                     attempt = attempt_index + 1,
-                    attempts_total = candidate_count,
+                    attempts_total,
                     auth_mode = auth_profile
                         .as_ref()
                         .map(|profile| profile.auth_mode.as_str())
@@ -7281,7 +11216,37 @@ async fn execute_run(
                     Some(can_retry),
                     Some(error_code.as_str()),
                 );
-                if !can_retry || attempt_index + 1 >= candidate_count {
+                let breaker_state = record_circuit_breaker_failure(
+                    state,
+                    CIRCUIT_BREAKER_SCOPE_PROVIDER,
+                    &run.model_provider,
+                    Some(error_code.as_str()),
+                    breaker_failure_limit,
+                )?;
+                if breaker_state.state == CIRCUIT_BREAKER_STATE_OPEN {
+                    emit_event(
+                        state,
+                        "run.guardrail",
+                        serde_json::json!({
+                            "run_id": &run.run_id,
+                            "session_id": &run.session_id,
+                            "reason_code": REASON_BREAKER_PROVIDER_OPEN,
+                            "scope": CIRCUIT_BREAKER_SCOPE_PROVIDER,
+                            "target_id": &run.model_provider,
+                            "cooldown_until": breaker_state.cooldown_until,
+                            "consecutive_failures": breaker_state.consecutive_failures,
+                            "last_error_code": breaker_state.last_error_code
+                        }),
+                    );
+                    last_error = Some(anyhow::anyhow!(
+                        "{REASON_BREAKER_PROVIDER_OPEN}: provider '{}' breaker opened until {} after {} consecutive failures",
+                        run.model_provider,
+                        breaker_state.cooldown_until.unwrap_or(0),
+                        breaker_state.consecutive_failures
+                    ));
+                    break;
+                }
+                if !can_retry || attempt_index + 1 >= attempts_total {
                     break;
                 }
                 warn!(
@@ -7289,7 +11254,7 @@ async fn execute_run(
                     session_id = %run.session_id,
                     provider = %run.model_provider,
                     from_attempt = attempt_index + 1,
-                    to_attempt = attempt_index + 2,
+                    to_attempt = (attempt_index + 2).min(attempts_total),
                     "attempting auth-profile fallback after provider failure"
                 );
             }
@@ -7299,12 +11264,28 @@ async fn execute_run(
     let completion = match completion {
         Some(response) => response,
         None => {
+            if candidate_count > attempts_total {
+                return Err(budget_error(
+                    REASON_BUDGET_MAX_PROVIDER_ATTEMPTS,
+                    format!(
+                        "candidate auth paths {} exceeded max_provider_attempts {}",
+                        candidate_count, max_provider_attempts
+                    ),
+                ));
+            }
             let error = last_error
                 .map(|err| err.to_string())
                 .unwrap_or_else(|| "provider completion failed".to_string());
             anyhow::bail!("{error}");
         }
     };
+    let provider_policy = lookup_runtime_provider_policy(&runtime_config, &run.model_provider);
+    let provider_budget_metadata = apply_daily_auth_profile_budget_accounting(
+        state,
+        provider_policy,
+        selected_auth_profile.as_ref(),
+        &completion.usage,
+    )?;
 
     for delta in completion.deltas {
         debug!(run_id = %run.run_id, delta_chars = delta.len(), "provider delta");
@@ -7340,129 +11321,152 @@ async fn execute_run(
         anyhow::bail!("session missing while persisting assistant output");
     }
 
-    if let Some(client) = state.numquam_client.as_ref() {
-        let writeback_result = client
-            .writeback_propose(
-                &run.session_id,
-                &run.run_id,
-                &input,
-                &output_text,
-                &memory_metadata.evidence,
-            )
-            .await;
+    if use_numquam {
         let mut writeback_metadata = RunMemoryWritebackMetadata::default();
-        match writeback_result {
-            Ok(envelope) => {
-                writeback_metadata.request_id = Some(envelope.request_id.clone());
-                writeback_metadata.request_id_source = Some(envelope.request_id_source.clone());
-                writeback_metadata.degrade_mode = envelope.degrade_mode;
-                writeback_metadata.fallback_recommendation =
-                    envelope.fallback_recommendation.clone();
-                writeback_metadata.warning_codes = numquam_warning_codes(&envelope.warnings);
+        match resolve_numquam_client(state, &runtime_config) {
+            Ok(Some(client)) => {
+                let writeback_result = client
+                    .writeback_propose(
+                        &run.session_id,
+                        &run.run_id,
+                        &input,
+                        &output_text,
+                        &memory_metadata.evidence,
+                    )
+                    .await;
+                match writeback_result {
+                    Ok(envelope) => {
+                        writeback_metadata.request_id = Some(envelope.request_id.clone());
+                        writeback_metadata.request_id_source =
+                            Some(envelope.request_id_source.clone());
+                        writeback_metadata.degrade_mode = envelope.degrade_mode;
+                        writeback_metadata.fallback_recommendation =
+                            envelope.fallback_recommendation.clone();
+                        writeback_metadata.warning_codes = numquam_warning_codes(&envelope.warnings);
 
-                if envelope.ok {
-                    if let Some(data) = envelope.data {
-                        writeback_metadata.proposal_id = Some(data.proposal_id.clone());
-                        writeback_metadata.status = Some(data.status.clone());
-                        writeback_metadata.idempotent_replay = data.idempotent_replay;
-                        writeback_metadata.audit_ref = data.audit_ref.clone();
-                        if data.status == "pending_review" {
-                            let approval_payload = serde_json::json!({
-                                "proposal_id": data.proposal_id,
-                                "audit_ref": data.audit_ref,
-                                "request_id": envelope.request_id,
-                                "request_id_source": envelope.request_id_source,
-                                "transport": client.transport.as_str()
-                            });
-                            let request_json = approval_payload.to_string();
-                            let existing = state.storage.find_latest_approval_for_request(
-                                &run.run_id,
-                                NUMQUAM_APPROVAL_KIND_WRITEBACK,
-                                &request_json,
-                            )?;
-                            if existing.is_none() {
-                                if let Some(approval) =
-                                    state.storage.create_approval(NewApproval {
-                                        run_id: run.run_id.clone(),
-                                        tool_call_id: None,
-                                        kind: NUMQUAM_APPROVAL_KIND_WRITEBACK.to_string(),
-                                        request_summary: format!(
-                                            "Review Numquam memory writeback proposal {}",
-                                            data.proposal_id
-                                        ),
-                                        request_json: request_json.clone(),
-                                    })?
-                                {
-                                    emit_event(
-                                        state,
-                                        "approval.requested",
-                                        serde_json::json!({
-                                            "approval_id": &approval.approval_id,
-                                            "run_id": &approval.run_id,
-                                            "status": &approval.status,
-                                            "kind": &approval.kind
-                                        }),
-                                    );
+                        if envelope.ok {
+                            if let Some(data) = envelope.data {
+                                writeback_metadata.proposal_id = Some(data.proposal_id.clone());
+                                writeback_metadata.status = Some(data.status.clone());
+                                writeback_metadata.idempotent_replay = data.idempotent_replay;
+                                writeback_metadata.audit_ref = data.audit_ref.clone();
+                                if data.status == "pending_review" {
+                                    let approval_payload = serde_json::json!({
+                                        "proposal_id": data.proposal_id,
+                                        "audit_ref": data.audit_ref,
+                                        "request_id": envelope.request_id,
+                                        "request_id_source": envelope.request_id_source,
+                                        "transport": client.transport.as_str()
+                                    });
+                                    let request_json = approval_payload.to_string();
+                                    let existing = state.storage.find_latest_approval_for_request(
+                                        &run.run_id,
+                                        NUMQUAM_APPROVAL_KIND_WRITEBACK,
+                                        &request_json,
+                                    )?;
+                                    if existing.is_none() {
+                                        if let Some(approval) =
+                                            state.storage.create_approval(NewApproval {
+                                                run_id: run.run_id.clone(),
+                                                tool_call_id: None,
+                                                kind: NUMQUAM_APPROVAL_KIND_WRITEBACK.to_string(),
+                                                request_summary: format!(
+                                                    "Review Numquam memory writeback proposal {}",
+                                                    data.proposal_id
+                                                ),
+                                                request_json: request_json.clone(),
+                                            })?
+                                        {
+                                            emit_event(
+                                                state,
+                                                "approval.requested",
+                                                serde_json::json!({
+                                                    "approval_id": &approval.approval_id,
+                                                    "run_id": &approval.run_id,
+                                                    "status": &approval.status,
+                                                    "kind": &approval.kind
+                                                }),
+                                            );
+                                        }
+                                    }
                                 }
                             }
+                        } else if let Some(error) = envelope.error {
+                            writeback_metadata.error_code = Some(error.code.clone());
+                            writeback_metadata.error_message = Some(error.message.clone());
+                            warn!(
+                                run_id = %run.run_id,
+                                session_id = %run.session_id,
+                                error_code = %error.code,
+                                error_message = %error.message,
+                                retryable = error.retryable.unwrap_or(false),
+                                operator_action = error.operator_action.unwrap_or_default(),
+                                "Numquam writeback proposal returned non-ok envelope"
+                            );
                         }
                     }
-                } else if let Some(error) = envelope.error {
-                    writeback_metadata.error_code = Some(error.code.clone());
-                    writeback_metadata.error_message = Some(error.message.clone());
-                    warn!(
-                        run_id = %run.run_id,
-                        session_id = %run.session_id,
-                        error_code = %error.code,
-                        error_message = %error.message,
-                        retryable = error.retryable.unwrap_or(false),
-                        operator_action = error.operator_action.unwrap_or_default(),
-                        "Numquam writeback proposal returned non-ok envelope"
-                    );
+                    Err(err) => {
+                        writeback_metadata.error_message = Some(err.to_string());
+                        warn!(
+                            run_id = %run.run_id,
+                            session_id = %run.session_id,
+                            error = %err,
+                            "Numquam writeback proposal failed"
+                        );
+                    }
                 }
             }
+            Ok(None) => {
+                writeback_metadata.error_code = Some("AUTH_REQUIRED".to_string());
+                writeback_metadata.error_message =
+                    Some("Numquam integration is not configured".to_string());
+            }
             Err(err) => {
+                writeback_metadata.error_code = Some("INTERNAL_ERROR".to_string());
                 writeback_metadata.error_message = Some(err.to_string());
-                warn!(
-                    run_id = %run.run_id,
-                    session_id = %run.session_id,
-                    error = %err,
-                    "Numquam writeback proposal failed"
-                );
             }
         }
         memory_metadata.writeback = Some(writeback_metadata);
     }
 
-    if memory_metadata.enabled
-        || local_memory_metadata.enabled
-        || local_memory_metadata.error.is_some()
-        || !applied_skill_ids.is_empty()
-    {
-        let mut usage_payload = serde_json::Map::new();
-        if memory_metadata.enabled {
-            usage_payload.insert("memory".to_string(), serde_json::json!(&memory_metadata));
-        }
-        usage_payload.insert(
-            "local_memory".to_string(),
-            serde_json::json!(&local_memory_metadata),
-        );
-        if !applied_skill_ids.is_empty() {
-            usage_payload.insert(
-                "skills".to_string(),
-                serde_json::json!({
-                    "applied_skill_ids": applied_skill_ids
-                }),
-            );
-        }
-        let usage_json = serde_json::Value::Object(usage_payload).to_string();
-        state
-            .storage
-            .set_run_usage_json(&run.run_id, &usage_json)
-            .with_context(|| {
-                format!("failed to persist run {} memory usage metadata", run.run_id)
-            })?;
+    let mut usage_payload = serde_json::Map::new();
+    usage_payload.insert(
+        "provider".to_string(),
+        serde_json::json!({
+            "model_provider": &run.model_provider,
+            "model_id": &run.model_id,
+            "auth_profile_id": selected_auth_profile
+                .as_ref()
+                .map(|profile| profile.auth_profile_id.clone()),
+            "input_chars": completion.usage.input_chars,
+            "output_chars": completion.usage.output_chars,
+            "input_tokens": completion.usage.input_tokens,
+            "output_tokens": completion.usage.output_tokens,
+            "total_tokens": completion.usage.total_tokens,
+            "estimated_cost_usd": completion.usage.estimated_cost_usd,
+            "budget": provider_budget_metadata
+        }),
+    );
+    if memory_metadata.enabled {
+        usage_payload.insert("memory".to_string(), serde_json::json!(&memory_metadata));
     }
+    usage_payload.insert(
+        "local_memory".to_string(),
+        serde_json::json!(&local_memory_metadata),
+    );
+    if !applied_skill_ids.is_empty() {
+        usage_payload.insert(
+            "skills".to_string(),
+            serde_json::json!({
+                "applied_skill_ids": applied_skill_ids
+            }),
+        );
+    }
+    let usage_json = serde_json::Value::Object(usage_payload).to_string();
+    state
+        .storage
+        .set_run_usage_json(&run.run_id, &usage_json)
+        .with_context(|| format!("failed to persist run {} usage metadata", run.run_id))?;
 
     state
         .storage
@@ -7488,6 +11492,44 @@ async fn execute_run(
     Ok(())
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RunLaneConflictPolicy {
+    Wait,
+    RejectIfBusy,
+}
+
+#[derive(Debug)]
+enum RunLaneExecutionError {
+    Busy,
+    Execute(anyhow::Error),
+}
+
+async fn execute_run_with_lane_control(
+    state: &AppState,
+    run: &RunRecord,
+    agent_id: &str,
+    requested_auth_profile_id: Option<&str>,
+    policy: RunLaneConflictPolicy,
+) -> std::result::Result<RunRecord, RunLaneExecutionError> {
+    let lane = state.session_run_lanes.lane_for_session(&run.session_id);
+    match policy {
+        RunLaneConflictPolicy::Wait => {
+            let _guard = lane.lock().await;
+            execute_run_with_status_handling(state, run, agent_id, requested_auth_profile_id)
+                .await
+                .map_err(RunLaneExecutionError::Execute)
+        }
+        RunLaneConflictPolicy::RejectIfBusy => {
+            let Ok(_guard) = lane.try_lock() else {
+                return Err(RunLaneExecutionError::Busy);
+            };
+            execute_run_with_status_handling(state, run, agent_id, requested_auth_profile_id)
+                .await
+                .map_err(RunLaneExecutionError::Execute)
+        }
+    }
+}
+
 async fn execute_run_with_status_handling(
     state: &AppState,
     run: &RunRecord,
@@ -7499,10 +11541,12 @@ async fn execute_run_with_status_handling(
         .runs_started_total
         .fetch_add(1, Ordering::Relaxed);
     if let Err(err) = execute_run(state, run, agent_id, requested_auth_profile_id).await {
+        let error_text = err.to_string();
+        let error_code = guardrail_reason_code(&error_text);
         error!(
             run_id = %run.run_id,
             session_id = %run.session_id,
-            error = %err,
+            error = %error_text,
             "run execution failed"
         );
         state
@@ -7511,7 +11555,7 @@ async fn execute_run_with_status_handling(
             .fetch_add(1, Ordering::Relaxed);
         state
             .storage
-            .mark_run_failed(&run.run_id, &err.to_string())
+            .mark_run_failed(&run.run_id, &error_text)
             .with_context(|| format!("failed to mark run {} failed", run.run_id))?;
         emit_event(
             state,
@@ -7520,7 +11564,8 @@ async fn execute_run_with_status_handling(
                 "run_id": &run.run_id,
                 "session_id": &run.session_id,
                 "status": "failed",
-                "error": err.to_string()
+                "error": error_text,
+                "error_code": error_code
             }),
         );
     }
@@ -7612,6 +11657,148 @@ impl NumquamClient {
             principal_id,
             principal_display_name,
             request_timeout,
+            context_build_timeout: request_timeout,
+            writeback_propose_timeout: request_timeout,
+            writeback_resolve_timeout: request_timeout,
+            handshake_timeout: request_timeout,
+            http_client,
+        }))
+    }
+
+    fn from_runtime_config(
+        runtime_config: &RuntimeConfigResponse,
+        secret_store: &SecretStore,
+    ) -> AnyResult<Option<Self>> {
+        let config = &runtime_config.memory.numquam;
+        if !config.enabled {
+            return Ok(None);
+        }
+
+        let integration_base_url = config
+            .integration_base_url
+            .as_ref()
+            .map(|value| value.trim().trim_end_matches('/').to_string())
+            .filter(|value| !value.is_empty())
+            .or_else(|| {
+                std::env::var("CARSINOS_NUMQUAM_BASE_URL")
+                    .ok()
+                    .map(|value| value.trim().trim_end_matches('/').to_string())
+                    .filter(|value| !value.is_empty())
+            })
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "memory.numquam.integration_base_url is required when memory.numquam.enabled=true"
+                )
+            })?;
+        let transport_raw = config.transport.trim().to_ascii_lowercase();
+        let transport = match transport_raw.as_str() {
+            "http" => NumquamTransport::Http,
+            "mcp" => NumquamTransport::Mcp,
+            "dual" => NumquamTransport::Dual,
+            other => anyhow::bail!(
+                "invalid memory.numquam.transport value: {other} (expected http|mcp|dual)"
+            ),
+        };
+
+        let context_build_timeout = Duration::from_millis(
+            config
+                .context_build_timeout_ms
+                .clamp(200, 120_000),
+        );
+        let writeback_propose_timeout = Duration::from_millis(
+            config
+                .writeback_propose_timeout_ms
+                .clamp(200, 120_000),
+        );
+        let writeback_resolve_timeout = Duration::from_millis(
+            config
+                .writeback_resolve_timeout_ms
+                .clamp(200, 120_000),
+        );
+        let handshake_timeout = Duration::from_millis(config.handshake_timeout_ms.clamp(200, 120_000));
+        let request_timeout = [
+            context_build_timeout,
+            writeback_propose_timeout,
+            writeback_resolve_timeout,
+            handshake_timeout,
+        ]
+        .into_iter()
+        .max()
+        .unwrap_or(Duration::from_millis(4_000));
+
+        let token = if let Some(secret_ref) = config
+            .token_secret_ref
+            .as_ref()
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty())
+        {
+            let secret_key = secret_key_from_secret_ref(secret_ref)?;
+            Some(
+                secret_store
+                .get_raw(&secret_key)?
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "memory.numquam.token_secret_ref points to missing/empty secret: {}",
+                        secret_ref
+                    )
+                })?,
+            )
+        } else {
+            std::env::var("CARSINOS_NUMQUAM_TOKEN")
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        };
+
+        let principal_id = config
+            .principal_id
+            .as_ref()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .or_else(|| {
+                std::env::var("CARSINOS_NUMQUAM_PRINCIPAL_ID")
+                    .ok()
+                    .map(|value| value.trim().to_string())
+                    .filter(|value| !value.is_empty())
+            })
+            .unwrap_or_else(|| "carsinos_gateway".to_string());
+        let principal_display_name = config
+            .principal_display_name
+            .as_ref()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .or_else(|| {
+                std::env::var("CARSINOS_NUMQUAM_PRINCIPAL_NAME")
+                    .ok()
+                    .map(|value| value.trim().to_string())
+                    .filter(|value| !value.is_empty())
+            })
+            .unwrap_or_else(|| "carsinOS Gateway".to_string());
+        let mcp_url = std::env::var("CARSINOS_NUMQUAM_MCP_URL")
+            .ok()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| format!("{integration_base_url}/mcp"));
+
+        let http_client = reqwest::Client::builder()
+            .timeout(request_timeout)
+            .build()
+            .context("failed building Numquam HTTP client from runtime config")?;
+
+        Ok(Some(Self {
+            transport,
+            integration_base_url,
+            mcp_url,
+            token,
+            principal_id,
+            principal_display_name,
+            request_timeout,
+            context_build_timeout,
+            writeback_propose_timeout,
+            writeback_resolve_timeout,
+            handshake_timeout,
             http_client,
         }))
     }
@@ -7621,6 +11808,7 @@ impl NumquamClient {
         session_id: &str,
         run_id: &str,
         message: &str,
+        policy: &NumquamContextPolicy,
     ) -> AnyResult<NumquamEnvelope<NumquamContextData>> {
         let request_id = new_numquam_request_id();
         let mut base_arguments = serde_json::Map::new();
@@ -7643,13 +11831,47 @@ impl NumquamClient {
         base_arguments.insert(
             "retrieval".to_string(),
             serde_json::json!({
-                "top_k": 8
+                "top_k": policy.top_k
             }),
         );
         base_arguments.insert(
             "risk_signal".to_string(),
-            serde_json::Value::String("low".to_string()),
+            serde_json::Value::String(policy.risk_signal.clone()),
         );
+        if let (Some(max_messages), Some(max_chars)) = (
+            policy.message_window_max_messages,
+            policy.message_window_max_chars,
+        ) {
+            base_arguments.insert(
+                "message_window".to_string(),
+                serde_json::json!({
+                    "max_messages": max_messages,
+                    "max_chars": max_chars
+                }),
+            );
+        }
+        if let Some(memory_preference) = policy
+            .memory_preference
+            .as_ref()
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty())
+        {
+            base_arguments.insert(
+                "memory_preference".to_string(),
+                serde_json::Value::String(memory_preference.to_string()),
+            );
+        }
+        if let Some(retrieval_query) = policy
+            .retrieval_query
+            .as_ref()
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty())
+        {
+            base_arguments.insert(
+                "retrieval_query".to_string(),
+                serde_json::Value::String(retrieval_query.to_string()),
+            );
+        }
         base_arguments.insert(
             "principal".to_string(),
             serde_json::json!({
@@ -7763,6 +11985,7 @@ impl NumquamClient {
                 "evidence": evidence_payload
             }
         });
+        validate_numquam_writeback_propose_payload(&payload)?;
 
         match self.transport {
             NumquamTransport::Http => self.writeback_propose_http(payload, &idempotency_key).await,
@@ -7856,6 +12079,143 @@ impl NumquamClient {
         }
     }
 
+    async fn context_why(
+        &self,
+        session_id: &str,
+        run_id: &str,
+        evidence_ids: &[String],
+        expand_citations: bool,
+    ) -> AnyResult<NumquamEnvelope<NumquamContextWhyData>> {
+        let request_id = new_numquam_request_id();
+        let payload = serde_json::json!({
+            "schema_version": NUMQUAM_SCHEMA_VERSION,
+            "request_id": request_id,
+            "session_id": session_id,
+            "run_id": run_id,
+            "principal": {
+                "principal_id": &self.principal_id,
+                "display_name": &self.principal_display_name,
+                "role_hint": "operator"
+            },
+            "data": {
+                "evidence_ids": evidence_ids,
+                "expand_citations": expand_citations
+            }
+        });
+
+        match self.transport {
+            NumquamTransport::Http => {
+                self.post_integration_http_with_timeout(
+                    "/api/integration/v1/context/why",
+                    &payload,
+                    None,
+                    self.handshake_timeout,
+                )
+                .await
+            }
+            NumquamTransport::Mcp => {
+                let args = serde_json::json!({
+                    "request_id": payload.get("request_id").cloned().unwrap_or(serde_json::Value::Null),
+                    "session_id": payload.get("session_id").cloned().unwrap_or(serde_json::Value::Null),
+                    "run_id": payload.get("run_id").cloned().unwrap_or(serde_json::Value::Null),
+                    "principal": payload.get("principal").cloned().unwrap_or_else(|| serde_json::json!({})),
+                    "evidence_ids": evidence_ids,
+                    "expand_citations": expand_citations
+                });
+                self.post_integration_mcp("integration.context.why", args).await
+            }
+            NumquamTransport::Dual => {
+                let http_result = self
+                    .post_integration_http_with_timeout(
+                        "/api/integration/v1/context/why",
+                        &payload,
+                        None,
+                        self.handshake_timeout,
+                    )
+                    .await;
+                let args = serde_json::json!({
+                    "request_id": payload.get("request_id").cloned().unwrap_or(serde_json::Value::Null),
+                    "session_id": payload.get("session_id").cloned().unwrap_or(serde_json::Value::Null),
+                    "run_id": payload.get("run_id").cloned().unwrap_or(serde_json::Value::Null),
+                    "principal": payload.get("principal").cloned().unwrap_or_else(|| serde_json::json!({})),
+                    "evidence_ids": evidence_ids,
+                    "expand_citations": expand_citations
+                });
+                let mcp_result = self.post_integration_mcp("integration.context.why", args).await;
+                merge_numquam_dual_result("context.why", http_result, mcp_result, |_, _| true)
+            }
+        }
+    }
+
+    async fn health_get(&self) -> AnyResult<NumquamEnvelope<NumquamHealthData>> {
+        let request_id = new_numquam_request_id();
+        match self.transport {
+            NumquamTransport::Http => {
+                self.get_integration_http("/api/integration/v1/health", self.handshake_timeout)
+                    .await
+            }
+            NumquamTransport::Mcp => {
+                let args = serde_json::json!({ "request_id": request_id });
+                self.post_integration_mcp("integration.health.get", args).await
+            }
+            NumquamTransport::Dual => {
+                let http_result = self
+                    .get_integration_http("/api/integration/v1/health", self.handshake_timeout)
+                    .await;
+                let args = serde_json::json!({ "request_id": request_id });
+                let mcp_result = self.post_integration_mcp("integration.health.get", args).await;
+                merge_numquam_dual_result("health.get", http_result, mcp_result, |http, mcp| {
+                    http.data.as_ref().map(|value| value.status.as_str())
+                        == mcp.data.as_ref().map(|value| value.status.as_str())
+                })
+            }
+        }
+    }
+
+    async fn capabilities_get(&self) -> AnyResult<NumquamEnvelope<NumquamCapabilitiesData>> {
+        let request_id = new_numquam_request_id();
+        match self.transport {
+            NumquamTransport::Http => {
+                self.get_integration_http(
+                    "/api/integration/v1/capabilities",
+                    self.handshake_timeout,
+                )
+                .await
+            }
+            NumquamTransport::Mcp => {
+                let args = serde_json::json!({ "request_id": request_id });
+                self.post_integration_mcp("integration.capabilities.get", args)
+                    .await
+            }
+            NumquamTransport::Dual => {
+                let http_result = self
+                    .get_integration_http(
+                        "/api/integration/v1/capabilities",
+                        self.handshake_timeout,
+                    )
+                    .await;
+                let args = serde_json::json!({ "request_id": request_id });
+                let mcp_result = self
+                    .post_integration_mcp("integration.capabilities.get", args)
+                    .await;
+                merge_numquam_dual_result(
+                    "capabilities.get",
+                    http_result,
+                    mcp_result,
+                    |http, mcp| {
+                        http.data
+                            .as_ref()
+                            .map(|value| value.contract_version.as_str())
+                            == mcp
+                                .data
+                                .as_ref()
+                                .map(|value| value.contract_version.as_str())
+                    },
+                )
+            }
+        }
+    }
+
     async fn context_build_http(
         &self,
         args: serde_json::Value,
@@ -7880,20 +12240,35 @@ impl NumquamClient {
             .get("principal")
             .cloned()
             .unwrap_or_else(|| serde_json::json!({}));
+        let mut data = serde_json::json!({
+            "message": message,
+            "retrieval": args.get("retrieval").cloned().unwrap_or_else(|| serde_json::json!({"top_k": 8})),
+            "risk_signal": args.get("risk_signal").cloned().unwrap_or_else(|| serde_json::Value::String("low".to_string()))
+        });
+        if let Some(message_window) = args.get("message_window").cloned() {
+            data["message_window"] = message_window;
+        }
+        if let Some(memory_preference) = args.get("memory_preference").cloned() {
+            data["memory_preference"] = memory_preference;
+        }
+        if let Some(retrieval_query) = args.get("retrieval_query").cloned() {
+            data["retrieval_query"] = retrieval_query;
+        }
         let payload = serde_json::json!({
             "schema_version": NUMQUAM_SCHEMA_VERSION,
             "request_id": request_id,
             "session_id": session_id,
             "run_id": run_id,
             "principal": principal,
-            "data": {
-                "message": message,
-                "retrieval": args.get("retrieval").cloned().unwrap_or_else(|| serde_json::json!({"top_k": 8})),
-                "risk_signal": args.get("risk_signal").cloned().unwrap_or_else(|| serde_json::Value::String("low".to_string()))
-            }
+            "data": data
         });
-        self.post_integration_http("/api/integration/v1/context/build", &payload, None)
-            .await
+        self.post_integration_http_with_timeout(
+            "/api/integration/v1/context/build",
+            &payload,
+            None,
+            self.context_build_timeout,
+        )
+        .await
     }
 
     async fn context_build_mcp(
@@ -7907,7 +12282,10 @@ impl NumquamClient {
             "principal": args.get("principal").cloned().unwrap_or_else(|| serde_json::json!({})),
             "message": args.get("message").cloned().unwrap_or(serde_json::Value::String(String::new())),
             "retrieval": args.get("retrieval").cloned().unwrap_or_else(|| serde_json::json!({"top_k": 8})),
-            "risk_signal": args.get("risk_signal").cloned().unwrap_or_else(|| serde_json::Value::String("low".to_string()))
+            "risk_signal": args.get("risk_signal").cloned().unwrap_or_else(|| serde_json::Value::String("low".to_string())),
+            "message_window": args.get("message_window").cloned().unwrap_or(serde_json::Value::Null),
+            "memory_preference": args.get("memory_preference").cloned().unwrap_or(serde_json::Value::Null),
+            "retrieval_query": args.get("retrieval_query").cloned().unwrap_or(serde_json::Value::Null)
         });
         self.post_integration_mcp("integration.context.build", payload)
             .await
@@ -7918,10 +12296,11 @@ impl NumquamClient {
         payload: serde_json::Value,
         idempotency_key: &str,
     ) -> AnyResult<NumquamEnvelope<NumquamWritebackProposeData>> {
-        self.post_integration_http(
+        self.post_integration_http_with_timeout(
             "/api/integration/v1/writeback/propose",
             &payload,
             Some(idempotency_key),
+            self.writeback_propose_timeout,
         )
         .await
     }
@@ -7948,8 +12327,13 @@ impl NumquamClient {
         &self,
         payload: serde_json::Value,
     ) -> AnyResult<NumquamEnvelope<NumquamWritebackResolveData>> {
-        self.post_integration_http("/api/integration/v1/writeback/resolve", &payload, None)
-            .await
+        self.post_integration_http_with_timeout(
+            "/api/integration/v1/writeback/resolve",
+            &payload,
+            None,
+            self.writeback_resolve_timeout,
+        )
+        .await
     }
 
     async fn writeback_resolve_mcp(
@@ -7970,14 +12354,15 @@ impl NumquamClient {
             .await
     }
 
-    async fn post_integration_http<T: DeserializeOwned>(
+    async fn post_integration_http_with_timeout<T: DeserializeOwned>(
         &self,
         path: &str,
         payload: &serde_json::Value,
         idempotency_key: Option<&str>,
+        timeout: Duration,
     ) -> AnyResult<NumquamEnvelope<T>> {
         let url = format!("{}{}", self.integration_base_url, path);
-        let mut request = self.http_client.post(url).json(payload);
+        let mut request = self.http_client.post(url).timeout(timeout).json(payload);
         if let Some(token) = self.token.as_deref() {
             request = request.bearer_auth(token);
         }
@@ -8002,6 +12387,46 @@ impl NumquamClient {
             };
             format!(
                 "failed parsing Numquam integration envelope (status={} body={})",
+                status.as_u16(),
+                clipped
+            )
+        })?;
+        if envelope.schema_version != NUMQUAM_SCHEMA_VERSION {
+            anyhow::bail!(
+                "unexpected Numquam schema_version: {}",
+                envelope.schema_version
+            );
+        }
+        Ok(envelope)
+    }
+
+    async fn get_integration_http<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        timeout: Duration,
+    ) -> AnyResult<NumquamEnvelope<T>> {
+        let url = format!("{}{}", self.integration_base_url, path);
+        let mut request = self.http_client.get(url).timeout(timeout);
+        if let Some(token) = self.token.as_deref() {
+            request = request.bearer_auth(token);
+        }
+        let response = request
+            .send()
+            .await
+            .with_context(|| format!("Numquam HTTP GET request failed for path {path}"))?;
+        let status = response.status();
+        let body = response
+            .text()
+            .await
+            .context("failed reading Numquam HTTP GET response body")?;
+        let envelope: NumquamEnvelope<T> = serde_json::from_str(&body).with_context(|| {
+            let clipped = if body.len() > 300 {
+                &body[..300]
+            } else {
+                &body
+            };
+            format!(
+                "failed parsing Numquam HTTP GET integration envelope (status={} body={})",
                 status.as_u16(),
                 clipped
             )
@@ -8118,6 +12543,437 @@ impl NumquamClient {
     }
 }
 
+fn resolve_numquam_client(
+    state: &AppState,
+    runtime_config: &RuntimeConfigResponse,
+) -> AnyResult<Option<NumquamClient>> {
+    match NumquamClient::from_runtime_config(runtime_config, &state.secret_store) {
+        Ok(Some(client)) => Ok(Some(client)),
+        Ok(None) => Ok(state.numquam_client.clone()),
+        Err(err) => {
+            if state.numquam_client.is_some() {
+                warn!(
+                    error = %err,
+                    "runtime Numquam config failed; falling back to env compatibility client"
+                );
+                Ok(state.numquam_client.clone())
+            } else {
+                Err(err)
+            }
+        }
+    }
+}
+
+fn validate_numquam_writeback_propose_payload(payload: &serde_json::Value) -> AnyResult<()> {
+    let data = payload
+        .get("data")
+        .and_then(|value| value.as_object())
+        .ok_or_else(|| anyhow::anyhow!("numquam writeback payload missing data object"))?;
+    let mutation = data
+        .get("mutation")
+        .and_then(|value| value.as_object())
+        .ok_or_else(|| anyhow::anyhow!("numquam writeback payload missing data.mutation object"))?;
+    let intent = mutation
+        .get("intent")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| anyhow::anyhow!("numquam writeback payload missing mutation.intent"))?;
+    let target_kind = mutation
+        .get("target_kind")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| anyhow::anyhow!("numquam writeback payload missing mutation.target_kind"))?;
+    let target_id = mutation
+        .get("target_id")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let body = mutation.get("body");
+    if matches!(intent, "edit" | "delete" | "conflict") && target_id.is_none() {
+        anyhow::bail!("numquam writeback payload requires mutation.target_id for intent={intent}");
+    }
+    if matches!(intent, "create" | "edit") && body.is_none() {
+        anyhow::bail!("numquam writeback payload requires mutation.body for intent={intent}");
+    }
+    if target_kind.is_empty() {
+        anyhow::bail!("numquam writeback payload mutation.target_kind cannot be empty");
+    }
+    let evidence = data
+        .get("evidence")
+        .and_then(|value| value.as_array())
+        .ok_or_else(|| anyhow::anyhow!("numquam writeback payload missing data.evidence array"))?;
+    if evidence.is_empty() {
+        anyhow::bail!("numquam writeback payload data.evidence must not be empty");
+    }
+    for (index, item) in evidence.iter().enumerate() {
+        let Some(object) = item.as_object() else {
+            anyhow::bail!("numquam writeback evidence[{index}] must be an object");
+        };
+        let required_string_fields = ["provenance_handle", "source_kind", "source_id", "excerpt"];
+        for field in required_string_fields {
+            let valid = object
+                .get(field)
+                .and_then(|value| value.as_str())
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .is_some();
+            if !valid {
+                anyhow::bail!("numquam writeback evidence[{index}] missing required field '{field}'");
+            }
+        }
+        let citation = object
+            .get("citation")
+            .and_then(|value| value.as_object())
+            .ok_or_else(|| anyhow::anyhow!("numquam writeback evidence[{index}] missing citation object"))?;
+        for field in ["type", "ref"] {
+            let valid = citation
+                .get(field)
+                .and_then(|value| value.as_str())
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .is_some();
+            if !valid {
+                anyhow::bail!(
+                    "numquam writeback evidence[{index}] citation missing required field '{field}'"
+                );
+            }
+        }
+        if object
+            .get("confidence")
+            .and_then(|value| value.as_f64())
+            .filter(|value| value.is_finite() && (0.0..=1.0).contains(value))
+            .is_none()
+        {
+            anyhow::bail!("numquam writeback evidence[{index}] confidence must be in [0.0, 1.0]");
+        }
+    }
+    Ok(())
+}
+
+fn numquam_transport_supported_by_capabilities(
+    transport: NumquamTransport,
+    capabilities: &NumquamCapabilitiesData,
+) -> bool {
+    let supports_http = capabilities
+        .transports
+        .iter()
+        .any(|value| value.trim().eq_ignore_ascii_case("http"));
+    let supports_mcp = capabilities
+        .transports
+        .iter()
+        .any(|value| value.trim().eq_ignore_ascii_case("mcp"));
+    match transport {
+        NumquamTransport::Http => supports_http,
+        NumquamTransport::Mcp => supports_mcp,
+        NumquamTransport::Dual => supports_http && supports_mcp,
+    }
+}
+
+fn numquam_required_ops_missing(capabilities: &NumquamCapabilitiesData) -> Vec<String> {
+    let enabled = capabilities
+        .operations
+        .iter()
+        .filter(|row| row.enabled)
+        .map(|row| row.name.trim().to_string())
+        .collect::<HashSet<_>>();
+    NUMQUAM_REQUIRED_OPERATIONS
+        .iter()
+        .filter(|name| !enabled.contains(**name))
+        .map(|name| (*name).to_string())
+        .collect::<Vec<_>>()
+}
+
+fn append_system_security_audit(
+    state: &AppState,
+    action: &str,
+    decision: &str,
+    reason: Option<String>,
+    error_code: Option<String>,
+    metadata: Option<serde_json::Value>,
+) {
+    let event = NewSecurityAuditEvent {
+        request_id: format!("sys.numquam.{}", uuid::Uuid::new_v4()),
+        correlation_id: format!("sys.numquam.{}", uuid::Uuid::new_v4()),
+        principal: "system:numquam".to_string(),
+        action: action.to_string(),
+        resource: "numquam.integration".to_string(),
+        decision: decision.to_string(),
+        reason,
+        transport: "internal".to_string(),
+        status: if decision == "allow" {
+            "ok".to_string()
+        } else {
+            "error".to_string()
+        },
+        error_code,
+        session_id: None,
+        run_id: None,
+        metadata_json: metadata.as_ref().map(serde_json::Value::to_string),
+    };
+    if let Err(err) = state.storage.append_security_audit_event(event) {
+        warn!(error = %err, "failed to append system security audit event");
+    }
+}
+
+async fn refresh_numquam_handshake_state(state: &AppState) {
+    let runtime_config = match load_runtime_config(state) {
+        Ok(config) => config,
+        Err(err) => {
+            warn!(error = %err, "failed loading runtime config for Numquam handshake");
+            let mut write = state.numquam_runtime_status.write().await;
+            write.enabled = state.numquam_client.is_some();
+            write.health_status = "degraded".to_string();
+            write.degrade_mode = true;
+            write.last_error_code = Some("INTERNAL_ERROR".to_string());
+            write.last_error = Some(format!("runtime config load failed: {err}"));
+            write.last_check_at = Some(current_time_ms());
+            return;
+        }
+    };
+    let mut next = NumquamRuntimeStatus::default();
+    next.enabled = runtime_config.memory.numquam.enabled || state.numquam_client.is_some();
+    next.transport = runtime_config.memory.numquam.transport.clone();
+    next.last_check_at = Some(current_time_ms());
+    if !next.enabled {
+        next.health_status = "disabled".to_string();
+        let mut write = state.numquam_runtime_status.write().await;
+        *write = next;
+        return;
+    }
+
+    let breaker_limit = runtime_config
+        .autonomy_guardrails
+        .max_consecutive_failures_before_breaker
+        .max(1);
+    let client = match resolve_numquam_client(state, &runtime_config) {
+        Ok(Some(client)) => client,
+        Ok(None) => {
+            next.health_status = "disabled".to_string();
+            next.degrade_mode = true;
+            next.last_error_code = Some("AUTH_REQUIRED".to_string());
+            next.last_error = Some("Numquam client is not configured".to_string());
+            append_system_security_audit(
+                state,
+                "numquam.handshake",
+                "deny",
+                Some("Numquam client unavailable".to_string()),
+                Some("AUTH_REQUIRED".to_string()),
+                None,
+            );
+            let _ = record_circuit_breaker_failure(
+                state,
+                CIRCUIT_BREAKER_SCOPE_NUMQUAM,
+                NUMQUAM_BREAKER_TARGET,
+                Some("AUTH_REQUIRED"),
+                breaker_limit,
+            );
+            let mut write = state.numquam_runtime_status.write().await;
+            *write = next;
+            return;
+        }
+        Err(err) => {
+            next.health_status = "degraded".to_string();
+            next.degrade_mode = true;
+            next.last_error_code = Some("INTERNAL_ERROR".to_string());
+            next.last_error = Some(err.to_string());
+            append_system_security_audit(
+                state,
+                "numquam.handshake",
+                "deny",
+                Some("Numquam runtime config could not be resolved".to_string()),
+                Some("INTERNAL_ERROR".to_string()),
+                Some(serde_json::json!({ "error": err.to_string() })),
+            );
+            let _ = record_circuit_breaker_failure(
+                state,
+                CIRCUIT_BREAKER_SCOPE_NUMQUAM,
+                NUMQUAM_BREAKER_TARGET,
+                Some("INTERNAL_ERROR"),
+                breaker_limit,
+            );
+            let mut write = state.numquam_runtime_status.write().await;
+            *write = next;
+            return;
+        }
+    };
+    next.transport = client.transport.as_str().to_string();
+
+    let capabilities_envelope = client.capabilities_get().await;
+    let health_envelope = client.health_get().await;
+    match (capabilities_envelope, health_envelope) {
+        (Ok(capabilities), Ok(health)) => {
+            let capabilities_data = capabilities.data.clone();
+            let health_data = health.data.clone();
+            next.contract_version = capabilities_data
+                .as_ref()
+                .map(|value| value.contract_version.clone())
+                .filter(|value| !value.trim().is_empty());
+            next.supported_schema_versions = capabilities_data
+                .as_ref()
+                .map(|value| value.supported_schema_versions.clone())
+                .unwrap_or_default();
+            if !capabilities.ok {
+                next.health_status = "degraded".to_string();
+                next.degrade_mode = true;
+                next.last_error_code = capabilities.error.as_ref().map(|row| row.code.clone());
+                next.last_error = capabilities.error.as_ref().map(|row| row.message.clone());
+            } else if !health.ok {
+                next.health_status = "degraded".to_string();
+                next.degrade_mode = true;
+                next.last_error_code = health.error.as_ref().map(|row| row.code.clone());
+                next.last_error = health.error.as_ref().map(|row| row.message.clone());
+            } else if let (Some(cap_data), Some(health_data)) = (capabilities_data, health_data) {
+                next.required_operations_missing = numquam_required_ops_missing(&cap_data);
+                let transport_supported =
+                    numquam_transport_supported_by_capabilities(client.transport, &cap_data);
+                let contract_version_ok = cap_data.contract_version.trim() == NUMQUAM_CONTRACT_VERSION;
+                let schema_supported = cap_data
+                    .supported_schema_versions
+                    .iter()
+                    .any(|value| value.trim() == NUMQUAM_CONTRACT_VERSION);
+                let health_status = health_data.status.trim().to_ascii_lowercase();
+                let healthy = health_status == "ok"
+                    && transport_supported
+                    && contract_version_ok
+                    && schema_supported
+                    && next.required_operations_missing.is_empty();
+                next.health_status = if healthy {
+                    "ok".to_string()
+                } else if health_status.is_empty() {
+                    "degraded".to_string()
+                } else {
+                    health_status
+                };
+                next.degrade_mode = !healthy || next.health_status != "ok";
+                if !healthy {
+                    let mut reasons = Vec::new();
+                    if !transport_supported {
+                        reasons.push("transport_unsupported");
+                    }
+                    if !contract_version_ok {
+                        reasons.push("contract_version_mismatch");
+                        next.last_error_code = Some("CONTRACT_VERSION_UNSUPPORTED".to_string());
+                    }
+                    if !schema_supported {
+                        reasons.push("schema_unsupported");
+                        next.last_error_code = Some("CONTRACT_VERSION_UNSUPPORTED".to_string());
+                    }
+                    if !next.required_operations_missing.is_empty() {
+                        reasons.push("missing_required_operations");
+                        next.last_error_code = Some("CONTRACT_VERSION_UNSUPPORTED".to_string());
+                    }
+                    if next.health_status != "ok" {
+                        reasons.push("health_not_ok");
+                    }
+                    next.last_error = Some(format!(
+                        "numquam handshake mismatch: {}",
+                        reasons.join(",")
+                    ));
+                }
+            } else {
+                next.health_status = "degraded".to_string();
+                next.degrade_mode = true;
+                next.last_error_code = Some("INTERNAL_ERROR".to_string());
+                next.last_error = Some("Numquam handshake missing response data".to_string());
+            }
+
+            if next.degrade_mode {
+                let breaker_state = record_circuit_breaker_failure(
+                    state,
+                    CIRCUIT_BREAKER_SCOPE_NUMQUAM,
+                    NUMQUAM_BREAKER_TARGET,
+                    next.last_error_code.as_deref(),
+                    breaker_limit,
+                )
+                .ok();
+                append_system_security_audit(
+                    state,
+                    "numquam.handshake",
+                    "deny",
+                    next.last_error.clone(),
+                    next.last_error_code.clone(),
+                    Some(serde_json::json!({
+                        "transport": next.transport,
+                        "health_status": next.health_status,
+                        "required_operations_missing": next.required_operations_missing,
+                        "breaker_state": breaker_state.as_ref().map(|row| row.state.clone())
+                    })),
+                );
+            } else {
+                let _ = reset_circuit_breaker_state_on_success(
+                    state,
+                    CIRCUIT_BREAKER_SCOPE_NUMQUAM,
+                    NUMQUAM_BREAKER_TARGET,
+                );
+                append_system_security_audit(
+                    state,
+                    "numquam.handshake",
+                    "allow",
+                    Some("Numquam contract handshake passed".to_string()),
+                    None,
+                    Some(serde_json::json!({
+                        "transport": next.transport,
+                        "health_status": next.health_status,
+                        "contract_version": next.contract_version,
+                        "supported_schema_versions": next.supported_schema_versions
+                    })),
+                );
+            }
+        }
+        (cap_result, health_result) => {
+            let cap_err = cap_result.err().map(|err| err.to_string());
+            let health_err = health_result.err().map(|err| err.to_string());
+            next.health_status = "degraded".to_string();
+            next.degrade_mode = true;
+            next.last_error_code = Some("DEPENDENCY_UNAVAILABLE".to_string());
+            next.last_error = Some(format!(
+                "Numquam handshake failed: capabilities={} health={}",
+                cap_err
+                    .as_deref()
+                    .unwrap_or("ok"),
+                health_err
+                    .as_deref()
+                    .unwrap_or("ok")
+            ));
+            let breaker_state = record_circuit_breaker_failure(
+                state,
+                CIRCUIT_BREAKER_SCOPE_NUMQUAM,
+                NUMQUAM_BREAKER_TARGET,
+                Some("DEPENDENCY_UNAVAILABLE"),
+                breaker_limit,
+            )
+            .ok();
+            append_system_security_audit(
+                state,
+                "numquam.handshake",
+                "deny",
+                next.last_error.clone(),
+                Some("DEPENDENCY_UNAVAILABLE".to_string()),
+                Some(serde_json::json!({
+                    "capabilities_error": cap_err,
+                    "health_error": health_err,
+                    "breaker_state": breaker_state.as_ref().map(|row| row.state.clone())
+                })),
+            );
+        }
+    }
+
+    let mut write = state.numquam_runtime_status.write().await;
+    *write = next;
+}
+
+async fn numquam_handshake_loop(state: AppState) {
+    loop {
+        refresh_numquam_handshake_state(&state).await;
+        let interval_ms = load_runtime_config(&state)
+            .map(|config| config.memory.numquam.handshake_interval_ms.clamp(1_000, 3_600_000))
+            .unwrap_or(30_000);
+        sleep(Duration::from_millis(interval_ms)).await;
+    }
+}
+
 fn merge_numquam_dual_result<T>(
     operation: &str,
     http_result: AnyResult<NumquamEnvelope<T>>,
@@ -8125,12 +12981,18 @@ fn merge_numquam_dual_result<T>(
     parity_check: impl Fn(&NumquamEnvelope<T>, &NumquamEnvelope<T>) -> bool,
 ) -> AnyResult<NumquamEnvelope<T>> {
     match (http_result, mcp_result) {
-        (Ok(http), Ok(mcp)) => {
+        (Ok(mut http), Ok(mcp)) => {
             if !parity_check(&http, &mcp) {
                 warn!(
                     operation,
                     "Numquam dual transport parity mismatch detected; using HTTP envelope"
                 );
+                http.warnings.push(NumquamWarning {
+                    warning_code: "PARITY_MISMATCH".to_string(),
+                    message: "HTTP/MCP response parity mismatch".to_string(),
+                    started_at_utc: Some(Utc::now().to_rfc3339()),
+                    scope: Some(operation.to_string()),
+                });
             }
             Ok(http)
         }
@@ -8179,7 +13041,296 @@ async fn channel_runtime_supervisor_loop(manager: Arc<ChannelRuntimeManager>) {
     }
 }
 
+async fn channel_ingest_listener_loop(state: AppState) {
+    info!("channel ingest listener loops started");
+    tokio::join!(
+        telegram_channel_listener_loop(state.clone()),
+        discord_channel_listener_loop(state)
+    );
+}
+
+async fn telegram_channel_listener_loop(state: AppState) {
+    let mut update_offset: Option<i64> = None;
+    loop {
+        match poll_telegram_channel_listener_once(&state, &mut update_offset).await {
+            Ok((active, processed)) => {
+                if processed > 0 {
+                    emit_event(
+                        &state,
+                        "channel.listener.tick",
+                        serde_json::json!({
+                            "provider": "telegram",
+                            "processed_messages": processed,
+                            "active": active
+                        }),
+                    );
+                }
+                if !active {
+                    sleep(Duration::from_secs(3)).await;
+                }
+            }
+            Err(err) => {
+                warn!(error = %err, "telegram listener tick failed");
+                sleep(Duration::from_secs(2)).await;
+            }
+        }
+    }
+}
+
+async fn discord_channel_listener_loop(state: AppState) {
+    let mut channel_cursors: HashMap<String, String> = HashMap::new();
+    loop {
+        match poll_discord_channel_listener_once(&state, &mut channel_cursors).await {
+            Ok((active, processed)) => {
+                if processed > 0 {
+                    emit_event(
+                        &state,
+                        "channel.listener.tick",
+                        serde_json::json!({
+                            "provider": "discord",
+                            "processed_messages": processed,
+                            "active": active
+                        }),
+                    );
+                }
+                sleep(Duration::from_secs(if active { 2 } else { 3 })).await;
+            }
+            Err(err) => {
+                warn!(error = %err, "discord listener tick failed");
+                sleep(Duration::from_secs(2)).await;
+            }
+        }
+    }
+}
+
+async fn poll_telegram_channel_listener_once(
+    state: &AppState,
+    update_offset: &mut Option<i64>,
+) -> AnyResult<(bool, usize)> {
+    let runtime_config = load_runtime_config_from_storage(&state.storage)?;
+    if normalize_telegram_operation_mode(&runtime_config.channels.telegram.operation_mode)
+        != TELEGRAM_OPERATION_MODE_TRANSPORT
+    {
+        return Ok((false, 0));
+    }
+    if runtime_config
+        .channels
+        .telegram
+        .webhook_mode
+        .trim()
+        .to_ascii_lowercase()
+        != "long_poll"
+    {
+        return Ok((false, 0));
+    }
+
+    let transport_client =
+        build_telegram_transport_client(&runtime_config, &state.secret_store)?
+            .ok_or_else(|| anyhow::anyhow!("telegram listener requires transport mode client"))?;
+    let headers = internal_channel_ingest_headers(state)?;
+    let updates = transport_client.get_updates_once_with_retry(*update_offset)?;
+    if updates.is_empty() {
+        return Ok((true, 0));
+    }
+
+    let mut processed_messages = 0_usize;
+    let mut max_update_id = update_offset.unwrap_or(i64::MIN);
+    for update in updates {
+        max_update_id = max_update_id.max(update.update_id);
+        let Some(message) = update.message else {
+            continue;
+        };
+        if message
+            .from
+            .as_ref()
+            .and_then(|item| item.is_bot)
+            .unwrap_or(false)
+        {
+            continue;
+        }
+
+        let text = message.text.unwrap_or_default();
+        let is_group_chat = message.chat.chat_type.trim().to_ascii_lowercase() != "private";
+        let user_id = message
+            .from
+            .as_ref()
+            .map(|item| item.id)
+            .unwrap_or(message.chat.id);
+        let request = IngestTelegramMessageRequest {
+            chat_id: message.chat.id,
+            user_id,
+            text,
+            is_group_chat,
+            mentions_bot: false,
+            reply_to_bot: false,
+            source_message_id: Some(message.message_id.to_string()),
+            run_immediately: None,
+            model_provider: None,
+            model_id: None,
+            auth_profile_id: None,
+        };
+        match ingest_telegram_channel_message(headers.clone(), State(state.clone()), Json(request))
+            .await
+        {
+            Ok(_) => {
+                processed_messages = processed_messages.saturating_add(1);
+            }
+            Err((status, payload)) => {
+                warn!(
+                    status = %status,
+                    error = %payload.0.error,
+                    error_code = ?payload.0.error_code,
+                    "telegram listener ingest request failed"
+                );
+            }
+        }
+    }
+    *update_offset = Some(max_update_id.saturating_add(1));
+    Ok((true, processed_messages))
+}
+
+async fn poll_discord_channel_listener_once(
+    state: &AppState,
+    channel_cursors: &mut HashMap<String, String>,
+) -> AnyResult<(bool, usize)> {
+    let runtime_config = load_runtime_config_from_storage(&state.storage)?;
+    if normalize_discord_operation_mode(&runtime_config.channels.discord.operation_mode)
+        != DISCORD_OPERATION_MODE_TRANSPORT
+    {
+        return Ok((false, 0));
+    }
+    let staging_channels = runtime_config.channels.discord.staging_channel_ids.clone();
+    if staging_channels.is_empty() {
+        return Ok((false, 0));
+    }
+
+    let transport_client = build_discord_transport_client(&runtime_config, &state.secret_store)?
+        .ok_or_else(|| anyhow::anyhow!("discord listener requires transport mode client"))?;
+    let bot_application_id = runtime_config
+        .channels
+        .discord
+        .application_id
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let headers = internal_channel_ingest_headers(state)?;
+    let mut processed_messages = 0_usize;
+
+    for raw_channel_id in staging_channels {
+        let channel_id = raw_channel_id.trim().to_string();
+        if channel_id.is_empty() {
+            continue;
+        }
+        let baseline = channel_cursors.get(&channel_id).map(|value| value.as_str());
+        let mut highest_seen = baseline.map(|value| value.to_string());
+        let messages = transport_client.get_channel_messages_with_retry(&channel_id, 25)?;
+        for message in messages.into_iter().rev() {
+            if discord_snowflake_is_newer(&message.id, highest_seen.as_deref()) {
+                highest_seen = Some(message.id.clone());
+            }
+            if !discord_snowflake_is_newer(&message.id, baseline) {
+                continue;
+            }
+            if message.author.bot.unwrap_or(false) {
+                continue;
+            }
+
+            let mentions_bot =
+                discord_message_mentions_bot(&message, bot_application_id.as_deref());
+            let request = IngestDiscordMessageRequest {
+                guild_id: message.guild_id.clone(),
+                channel_id: message.channel_id.clone(),
+                thread_id: None,
+                author_id: message.author.id.clone(),
+                text: message.content.clone(),
+                mentions_bot,
+                is_dm: message.guild_id.is_none(),
+                source_message_id: Some(message.id.clone()),
+                run_immediately: None,
+                model_provider: None,
+                model_id: None,
+                auth_profile_id: None,
+            };
+            match ingest_discord_channel_message(
+                headers.clone(),
+                State(state.clone()),
+                Json(request),
+            )
+            .await
+            {
+                Ok(_) => {
+                    processed_messages = processed_messages.saturating_add(1);
+                }
+                Err((status, payload)) => {
+                    warn!(
+                        status = %status,
+                        channel_id = %channel_id,
+                        error = %payload.0.error,
+                        error_code = ?payload.0.error_code,
+                        "discord listener ingest request failed"
+                    );
+                }
+            }
+        }
+
+        if let Some(highest_seen) = highest_seen {
+            channel_cursors.insert(channel_id, highest_seen);
+        }
+    }
+
+    Ok((true, processed_messages))
+}
+
+fn discord_snowflake_is_newer(candidate: &str, baseline: Option<&str>) -> bool {
+    let candidate = candidate.trim();
+    if candidate.is_empty() {
+        return false;
+    }
+    let Some(baseline) = baseline.map(str::trim).filter(|value| !value.is_empty()) else {
+        return true;
+    };
+    match (candidate.parse::<u128>(), baseline.parse::<u128>()) {
+        (Ok(left), Ok(right)) => left > right,
+        _ => candidate > baseline,
+    }
+}
+
+fn discord_message_mentions_bot(
+    message: &discord_channel::DiscordTransportInboundMessage,
+    bot_application_id: Option<&str>,
+) -> bool {
+    let Some(bot_id) = bot_application_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return false;
+    };
+    if message.mentions.iter().any(|mention| mention.id == bot_id) {
+        return true;
+    }
+    let mention_plain = format!("<@{bot_id}>");
+    let mention_nickname = format!("<@!{bot_id}>");
+    message.content.contains(&mention_plain) || message.content.contains(&mention_nickname)
+}
+
+fn internal_channel_ingest_headers(state: &AppState) -> AnyResult<HeaderMap> {
+    let mut headers = HeaderMap::new();
+    let token_value = HeaderValue::from_str(state.internal_channel_ingest_token.as_str())
+        .context("internal channel ingest token contains invalid header characters")?;
+    headers.insert(INTERNAL_CHANNEL_INGEST_HEADER, token_value);
+    Ok(headers)
+}
+
 async fn scheduler_loop(state: AppState) {
+    if !state.scheduler_instance.enabled {
+        info!(
+            lock_path = %state.scheduler_instance.lock_path,
+            owner = %state.scheduler_instance.owner,
+            detail = ?state.scheduler_instance.detail,
+            "scheduler loop not started because instance lock is not owned"
+        );
+        return;
+    }
     let worker_id = format!("gateway-worker-{}", std::process::id());
     info!(worker_id = %worker_id, "scheduler loop started");
     loop {
@@ -8220,13 +13371,78 @@ async fn execute_job_once(
         .create_job_run(&job.job_id, trigger_kind, 1)?
         .with_context(|| format!("failed creating job run for {}", job.job_id))?;
     let mut attempt: i64 = 0;
+    let guardrails = load_runtime_autonomy_guardrails(state)?;
+    let breaker_failure_limit = guardrails.max_consecutive_failures_before_breaker.max(1);
+    let payload_mode = job_payload_mode(&job.payload_json);
+    let mut timeout_ms = job.timeout_ms.max(1) as u64;
+    let mut retry_budget = job.max_retries.max(0);
+    if payload_mode == JOB_MODE_HEARTBEAT_RUN {
+        timeout_ms = timeout_ms.min(guardrails.heartbeat_max_run_ms.max(1));
+        retry_budget = 0;
+    }
+    if let Some(active_breaker) =
+        get_active_circuit_breaker_state(state, CIRCUIT_BREAKER_SCOPE_JOB, &job.job_id)?
+    {
+        let error_text = format!(
+            "{REASON_BREAKER_JOB_OPEN}: job '{}' circuit breaker open until {}",
+            job.job_id,
+            active_breaker.cooldown_until.unwrap_or(0)
+        );
+        let next_run_at = next_run_after_completion(job);
+        let finished = state
+            .storage
+            .finish_job_run_failed(
+                &job.job_id,
+                &job_run.job_run_id,
+                1,
+                error_text.clone(),
+                next_run_at,
+            )?
+            .with_context(|| format!("missing skipped run {}", job_run.job_run_id))?;
+        disable_once_scheduled_job_if_needed(state, job);
+        emit_event(
+            state,
+            "job.skip",
+            serde_json::json!({
+                "job_id": &job.job_id,
+                "job_run_id": &finished.job_run_id,
+                "trigger_kind": trigger_kind,
+                "reason_code": REASON_BREAKER_JOB_OPEN,
+                "scope": CIRCUIT_BREAKER_SCOPE_JOB,
+                "target_id": &job.job_id,
+                "cooldown_until": active_breaker.cooldown_until,
+                "consecutive_failures": active_breaker.consecutive_failures,
+                "last_error_code": active_breaker.last_error_code
+            }),
+        );
+        return Ok(finished);
+    }
 
     loop {
         attempt += 1;
-        match execute_job_payload(state, job, attempt).await {
+        let payload_result = match tokio::time::timeout(
+            Duration::from_millis(timeout_ms),
+            execute_job_payload(state, job, attempt),
+        )
+        .await
+        {
+            Ok(result) => result,
+            Err(_) => {
+                if payload_mode == JOB_MODE_HEARTBEAT_RUN {
+                    Err(anyhow::anyhow!(
+                        "TIMEOUT:{REASON_HEARTBEAT_TIMEOUT}: job payload exceeded timeout_ms={timeout_ms}"
+                    ))
+                } else {
+                    Err(anyhow::anyhow!(
+                        "TIMEOUT: job payload exceeded timeout_ms={timeout_ms}"
+                    ))
+                }
+            }
+        };
+        match payload_result {
             Ok(output_json) => {
                 let next_run_at = next_run_after_completion(job);
-                let disable_job = job.schedule_kind == "once";
+                let disable_job = matches!(job.schedule_kind.as_str(), "once" | "at");
                 let finished = state
                     .storage
                     .finish_job_run_success(
@@ -8238,6 +13454,11 @@ async fn execute_job_once(
                         disable_job,
                     )?
                     .with_context(|| format!("missing finished run {}", job_run.job_run_id))?;
+                reset_circuit_breaker_state_on_success(
+                    state,
+                    CIRCUIT_BREAKER_SCOPE_JOB,
+                    &job.job_id,
+                )?;
                 emit_event(
                     state,
                     "job.run",
@@ -8254,7 +13475,7 @@ async fn execute_job_once(
             }
             Err(err) => {
                 let error_text = err.to_string();
-                let retry_budget = job.max_retries.max(0);
+                let error_code = extract_reason_code_from_error_text(&error_text);
                 if attempt <= retry_budget {
                     warn!(
                         job_id = %job.job_id,
@@ -8279,22 +13500,14 @@ async fn execute_job_once(
                         next_run_at,
                     )?
                     .with_context(|| format!("missing failed run {}", job_run.job_run_id))?;
-                if job.schedule_kind == "once" {
-                    let _ = state.storage.update_job(
-                        &job.job_id,
-                        JobUpdatePatch {
-                            name: None,
-                            enabled: Some(false),
-                            interval_seconds: None,
-                            run_at_ms: None,
-                            next_run_at: None,
-                            payload_json: None,
-                            max_retries: None,
-                            retry_backoff_ms: None,
-                            timeout_ms: None,
-                        },
-                    );
-                }
+                disable_once_scheduled_job_if_needed(state, job);
+                let breaker_state = record_circuit_breaker_failure(
+                    state,
+                    CIRCUIT_BREAKER_SCOPE_JOB,
+                    &job.job_id,
+                    error_code.as_deref(),
+                    breaker_failure_limit,
+                )?;
                 emit_event(
                     state,
                     "job.run",
@@ -8305,13 +13518,51 @@ async fn execute_job_once(
                         "attempt": attempt,
                         "trigger_kind": trigger_kind,
                         "error": error_text,
+                        "error_code": error_code.as_deref(),
                         "elapsed_ms": started.elapsed().as_millis() as u64
                     }),
                 );
+                if breaker_state.state == CIRCUIT_BREAKER_STATE_OPEN {
+                    emit_event(
+                        state,
+                        "job.breaker",
+                        serde_json::json!({
+                            "job_id": &job.job_id,
+                            "job_run_id": &finished.job_run_id,
+                            "reason_code": REASON_BREAKER_JOB_OPEN,
+                            "scope": CIRCUIT_BREAKER_SCOPE_JOB,
+                            "target_id": &job.job_id,
+                            "cooldown_until": breaker_state.cooldown_until,
+                            "consecutive_failures": breaker_state.consecutive_failures,
+                            "last_error_code": breaker_state.last_error_code
+                        }),
+                    );
+                }
                 return Ok(finished);
             }
         }
     }
+}
+
+fn disable_once_scheduled_job_if_needed(state: &AppState, job: &JobRecord) {
+    if !matches!(job.schedule_kind.as_str(), "once" | "at") {
+        return;
+    }
+    let _ = state.storage.update_job(
+        &job.job_id,
+        JobUpdatePatch {
+            name: None,
+            enabled: Some(false),
+            schedule_kind: None,
+            interval_seconds: None,
+            run_at_ms: None,
+            next_run_at: None,
+            payload_json: None,
+            max_retries: None,
+            retry_backoff_ms: None,
+            timeout_ms: None,
+        },
+    );
 }
 
 fn required_job_payload_string(payload: &serde_json::Value, key: &str) -> AnyResult<String> {
@@ -8331,6 +13582,359 @@ fn optional_job_payload_string(payload: &serde_json::Value, key: &str) -> Option
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(|value| value.to_string())
+}
+
+fn job_payload_mode(payload_json: &str) -> String {
+    serde_json::from_str::<serde_json::Value>(payload_json)
+        .ok()
+        .and_then(|payload| {
+            payload
+                .get("mode")
+                .and_then(|value| value.as_str())
+                .map(|value| value.trim().to_ascii_lowercase())
+        })
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "noop".to_string())
+}
+
+fn heartbeat_input_contains_tool_directive(
+    input: &str,
+    tool_registry: &ToolRegistry,
+) -> AnyResult<bool> {
+    if !parse_tool_requests_from_input(input, tool_registry, None)?.is_empty() {
+        return Ok(true);
+    }
+    for raw_line in input.lines() {
+        let line = raw_line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let upper = line.to_ascii_uppercase();
+        if upper.starts_with("TOOL:") || upper.starts_with("TOOL ") || upper.starts_with("TOOL\t") {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn validate_heartbeat_result_contract(result: &str) -> AnyResult<()> {
+    let trimmed = result.trim();
+    if trimmed == HEARTBEAT_OUTPUT_OK {
+        return Ok(());
+    }
+    if let Some(message) = trimmed.strip_prefix(HEARTBEAT_OUTPUT_ALERT_PREFIX) {
+        if !message.trim().is_empty() {
+            return Ok(());
+        }
+    }
+    anyhow::bail!(
+        "{REASON_HEARTBEAT_OUTPUT_INVALID}: heartbeat.run output must be '{}' or '{} <message>'",
+        HEARTBEAT_OUTPUT_OK,
+        HEARTBEAT_OUTPUT_ALERT_PREFIX
+    );
+}
+
+fn resolve_heartbeat_contract_result(payload: &serde_json::Value) -> AnyResult<String> {
+    if let Some(explicit) = optional_job_payload_string(payload, "result") {
+        validate_heartbeat_result_contract(&explicit)?;
+        return Ok(explicit.trim().to_string());
+    }
+    let result = if let Some(alert_message) = optional_job_payload_string(payload, "alert_message")
+        .or_else(|| optional_job_payload_string(payload, "alert"))
+    {
+        format!("{HEARTBEAT_OUTPUT_ALERT_PREFIX} {}", alert_message.trim())
+    } else {
+        HEARTBEAT_OUTPUT_OK.to_string()
+    };
+    validate_heartbeat_result_contract(&result)?;
+    Ok(result)
+}
+
+async fn execute_heartbeat_run_job(
+    state: &AppState,
+    job: &JobRecord,
+    payload: &serde_json::Value,
+    attempt: i64,
+) -> AnyResult<String> {
+    let input = required_job_payload_string(payload, "input")?;
+    if heartbeat_input_contains_tool_directive(&input, &state.tool_registry)? {
+        anyhow::bail!(
+            "{REASON_HEARTBEAT_TOOLS_FORBIDDEN}: heartbeat.run input contains tool directives"
+        );
+    }
+    let result = resolve_heartbeat_contract_result(payload)?;
+    let guardrails = load_runtime_autonomy_guardrails(state)?;
+    let effective_timeout_ms = (job.timeout_ms.max(1) as u64).min(guardrails.heartbeat_max_run_ms);
+    let status = if result == HEARTBEAT_OUTPUT_OK {
+        "ok"
+    } else {
+        "alert"
+    };
+    emit_event(
+        state,
+        "job.heartbeat",
+        serde_json::json!({
+            "job_id": &job.job_id,
+            "attempt": attempt,
+            "status": status,
+            "result": &result,
+            "tools_disabled": true,
+            "effective_timeout_ms": effective_timeout_ms
+        }),
+    );
+    Ok(serde_json::json!({
+        "mode": JOB_MODE_HEARTBEAT_RUN,
+        "job_id": &job.job_id,
+        "attempt": attempt,
+        "input": input,
+        "result": &result,
+        "status": status,
+        "tools_disabled": true,
+        "effective_timeout_ms": effective_timeout_ms,
+        "now_ms": current_time_ms()
+    })
+    .to_string())
+}
+
+fn parse_memory_sources_from_payload(payload: &serde_json::Value) -> Vec<String> {
+    payload
+        .get("sources")
+        .and_then(|value| value.as_array())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.as_str())
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+async fn execute_memory_sync_job(
+    state: &AppState,
+    job: &JobRecord,
+    payload: &serde_json::Value,
+    attempt: i64,
+) -> AnyResult<String> {
+    let runtime_config = load_runtime_config(state)?;
+    let requested_sources = parse_memory_sources_from_payload(payload);
+    let sources = if requested_sources.is_empty() {
+        runtime_config.memory.memory_md_sources.clone()
+    } else {
+        requested_sources
+    };
+    if sources.is_empty() {
+        anyhow::bail!("INVALID_INPUT: memory.sync requires configured sources");
+    }
+    let items = sync_memory_sources_internal(state, &sources);
+    let failed = items.iter().filter(|item| item.status == "failed").count() as u64;
+    let synced = (items.len() as u64).saturating_sub(failed);
+    emit_event(
+        state,
+        "job.memory.sync",
+        serde_json::json!({
+            "job_id": &job.job_id,
+            "attempt": attempt,
+            "sources_total": items.len(),
+            "synced": synced,
+            "failed": failed
+        }),
+    );
+    Ok(serde_json::json!({
+        "mode": "memory.sync",
+        "job_id": &job.job_id,
+        "attempt": attempt,
+        "sources_total": items.len(),
+        "synced": synced,
+        "failed": failed,
+        "items": items,
+        "now_ms": current_time_ms()
+    })
+    .to_string())
+}
+
+async fn execute_memory_preflight_job(
+    state: &AppState,
+    job: &JobRecord,
+    payload: &serde_json::Value,
+    attempt: i64,
+) -> AnyResult<String> {
+    refresh_numquam_handshake_state(state).await;
+    let runtime_config = load_runtime_config(state)?;
+    let status = current_numquam_status(state, Some(&runtime_config)).await;
+    let fail_on_degrade = payload
+        .get("fail_on_degrade")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+    emit_event(
+        state,
+        "job.memory.preflight",
+        serde_json::json!({
+            "job_id": &job.job_id,
+            "attempt": attempt,
+            "enabled": status.enabled,
+            "transport": status.transport,
+            "health_status": status.health_status,
+            "degrade_mode": status.degrade_mode,
+            "breaker_open": status.breaker_open
+        }),
+    );
+    if fail_on_degrade && (status.degrade_mode || status.breaker_open) {
+        let reason = status
+            .last_error
+            .clone()
+            .unwrap_or_else(|| "numquam preflight detected degraded state".to_string());
+        anyhow::bail!("DEPENDENCY_UNAVAILABLE: {reason}");
+    }
+    Ok(serde_json::json!({
+        "mode": "memory.preflight",
+        "job_id": &job.job_id,
+        "attempt": attempt,
+        "numquam": status,
+        "now_ms": current_time_ms()
+    })
+    .to_string())
+}
+
+async fn execute_memory_parity_probe_job(
+    state: &AppState,
+    job: &JobRecord,
+    payload: &serde_json::Value,
+    attempt: i64,
+) -> AnyResult<String> {
+    let runtime_config = load_runtime_config(state)?;
+    let client = resolve_numquam_client(state, &runtime_config)?;
+    let Some(client) = client else {
+        anyhow::bail!("DEPENDENCY_UNAVAILABLE: numquam client is not configured");
+    };
+    if client.transport != NumquamTransport::Dual {
+        return Ok(serde_json::json!({
+            "mode": "memory.parity_probe",
+            "job_id": &job.job_id,
+            "attempt": attempt,
+            "skipped": true,
+            "reason": "transport is not dual",
+            "transport": client.transport.as_str(),
+            "now_ms": current_time_ms()
+        })
+        .to_string());
+    }
+    let session_id = optional_job_payload_string(payload, "session_id")
+        .unwrap_or_else(|| format!("parity_probe:{}", job.job_id));
+    let run_id = optional_job_payload_string(payload, "run_id")
+        .unwrap_or_else(|| format!("parity_probe:run:{}", job.job_id));
+    let message = optional_job_payload_string(payload, "message")
+        .unwrap_or_else(|| "parity probe".to_string());
+    let policy = NumquamContextPolicy::default();
+    let http_result = client
+        .context_build_http(serde_json::json!({
+            "request_id": new_numquam_request_id(),
+            "session_id": &session_id,
+            "run_id": &run_id,
+            "message": &message,
+            "retrieval": { "top_k": policy.top_k },
+            "risk_signal": policy.risk_signal,
+            "principal": {
+                "principal_id": &client.principal_id,
+                "display_name": &client.principal_display_name,
+                "role_hint": "operator"
+            }
+        }))
+        .await?;
+    let mcp_result = client
+        .context_build_mcp(serde_json::json!({
+            "request_id": new_numquam_request_id(),
+            "session_id": &session_id,
+            "run_id": &run_id,
+            "message": &message,
+            "retrieval": { "top_k": policy.top_k },
+            "risk_signal": policy.risk_signal,
+            "principal": {
+                "principal_id": &client.principal_id,
+                "display_name": &client.principal_display_name,
+                "role_hint": "operator"
+            }
+        }))
+        .await?;
+    let http_context = http_result
+        .data
+        .as_ref()
+        .map(|value| value.context_text.trim().to_string())
+        .unwrap_or_default();
+    let mcp_context = mcp_result
+        .data
+        .as_ref()
+        .map(|value| value.context_text.trim().to_string())
+        .unwrap_or_default();
+    let parity_match = http_context == mcp_context;
+    if !parity_match {
+        append_system_security_audit(
+            state,
+            "numquam.parity_probe",
+            "deny",
+            Some("HTTP/MCP parity mismatch detected".to_string()),
+            Some("CONTRACT_VERSION_UNSUPPORTED".to_string()),
+            Some(serde_json::json!({
+                "job_id": &job.job_id,
+                "session_id": session_id,
+                "run_id": run_id
+            })),
+        );
+    }
+    emit_event(
+        state,
+        "job.memory.parity_probe",
+        serde_json::json!({
+            "job_id": &job.job_id,
+            "attempt": attempt,
+            "parity_match": parity_match,
+            "http_request_id": http_result.request_id,
+            "mcp_request_id": mcp_result.request_id
+        }),
+    );
+    Ok(serde_json::json!({
+        "mode": "memory.parity_probe",
+        "job_id": &job.job_id,
+        "attempt": attempt,
+        "parity_match": parity_match,
+        "http_request_id": http_result.request_id,
+        "mcp_request_id": mcp_result.request_id,
+        "now_ms": current_time_ms()
+    })
+    .to_string())
+}
+
+fn execute_memory_pipeline_hook_job(
+    state: &AppState,
+    job: &JobRecord,
+    payload: &serde_json::Value,
+    attempt: i64,
+) -> AnyResult<String> {
+    let hook = required_job_payload_string(payload, "hook")?;
+    let hook_payload = payload
+        .get("hook_payload")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!({}));
+    emit_event(
+        state,
+        "memory.pipeline.hook",
+        serde_json::json!({
+            "job_id": &job.job_id,
+            "attempt": attempt,
+            "hook": &hook,
+            "hook_payload": hook_payload
+        }),
+    );
+    Ok(serde_json::json!({
+        "mode": "memory.pipeline.hook",
+        "job_id": &job.job_id,
+        "attempt": attempt,
+        "hook": hook,
+        "hook_payload": hook_payload,
+        "now_ms": current_time_ms()
+    })
+    .to_string())
 }
 
 fn scheduler_auth_context(job_id: &str, mode: &str) -> AuthContext {
@@ -8494,6 +14098,7 @@ fn dispatch_channel_ingest_reply(
                 &runtime_config,
                 &state.secret_store,
                 target,
+                &action,
                 &chunks,
             )
             .map(|ids| ids.into_iter().map(|id| id.to_string()).collect::<Vec<_>>())?;
@@ -8612,6 +14217,7 @@ fn dispatch_scheduler_delivery(
                 &runtime_config,
                 &state.secret_store,
                 target_id,
+                &action,
                 &chunks,
             )
             .map(|ids| ids.into_iter().map(|id| id.to_string()).collect::<Vec<_>>())
@@ -8918,9 +14524,21 @@ async fn execute_session_run_job(
             )
         })?;
 
-    let refreshed =
-        execute_run_with_status_handling(state, &run, &agent_id, auth_profile_id.as_deref())
-            .await?;
+    let refreshed = match execute_run_with_lane_control(
+        state,
+        &run,
+        &agent_id,
+        auth_profile_id.as_deref(),
+        RunLaneConflictPolicy::Wait,
+    )
+    .await
+    {
+        Ok(run) => run,
+        Err(RunLaneExecutionError::Busy) => {
+            anyhow::bail!("unexpected scheduler lane lock busy state")
+        }
+        Err(RunLaneExecutionError::Execute(err)) => return Err(err),
+    };
 
     let run_succeeded = refreshed.status == "succeeded";
     let delivery_targets = parse_scheduler_delivery_targets(payload);
@@ -9095,7 +14713,9 @@ async fn execute_job_payload(state: &AppState, job: &JobRecord, attempt: i64) ->
     let mode = payload
         .get("mode")
         .and_then(|value| value.as_str())
-        .unwrap_or("noop");
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "noop".to_string());
 
     if mode == "fail" {
         anyhow::bail!("job payload requested failure");
@@ -9111,6 +14731,11 @@ async fn execute_job_payload(state: &AppState, job: &JobRecord, attempt: i64) ->
             );
         }
     }
+    if let Some(delay_ms) = payload.get("delay_ms").and_then(|value| value.as_u64()) {
+        if delay_ms > 0 {
+            sleep(Duration::from_millis(delay_ms.min(600_000))).await;
+        }
+    }
 
     if mode == "secret.rotate_profile" {
         return execute_secret_rotate_job(state, job, &payload);
@@ -9118,12 +14743,36 @@ async fn execute_job_payload(state: &AppState, job: &JobRecord, attempt: i64) ->
     if mode == "secret.revoke_profile" {
         return execute_secret_revoke_job(state, job, &payload);
     }
+    if mode == JOB_MODE_HEARTBEAT_RUN {
+        return execute_heartbeat_run_job(state, job, &payload, attempt)
+            .await
+            .map_err(|err| {
+                let text = err.to_string();
+                if extract_reason_code_from_error_text(&text).is_some() {
+                    anyhow::anyhow!("{text}")
+                } else {
+                    anyhow::anyhow!("{REASON_HEARTBEAT_RUN_FAILED}: {text}")
+                }
+            });
+    }
+    if mode == "memory.sync" {
+        return execute_memory_sync_job(state, job, &payload, attempt).await;
+    }
+    if mode == "memory.preflight" {
+        return execute_memory_preflight_job(state, job, &payload, attempt).await;
+    }
+    if mode == "memory.parity_probe" {
+        return execute_memory_parity_probe_job(state, job, &payload, attempt).await;
+    }
+    if mode == "memory.pipeline.hook" {
+        return execute_memory_pipeline_hook_job(state, job, &payload, attempt);
+    }
     if mode == "session.run" {
         return execute_session_run_job(state, job, &payload).await;
     }
 
     let output = serde_json::json!({
-        "mode": mode,
+        "mode": &mode,
         "job_id": &job.job_id,
         "attempt": attempt,
         "now_ms": current_time_ms(),
@@ -9137,10 +14786,13 @@ async fn execute_job_payload(state: &AppState, job: &JobRecord, attempt: i64) ->
 
 fn next_run_after_completion(job: &JobRecord) -> Option<i64> {
     match job.schedule_kind.as_str() {
-        "interval" => job
+        "interval" | "every" => job
             .interval_seconds
             .map(|seconds| current_time_ms().saturating_add(seconds.max(1) * 1000)),
-        "once" => None,
+        "once" | "at" => None,
+        "cron" => job_cron_expr_from_payload_json(&job.payload_json).and_then(|cron_expr| {
+            compute_next_cron_run_at(cron_expr.as_str(), current_time_ms()).ok()
+        }),
         _ => None,
     }
 }
@@ -9172,12 +14824,18 @@ fn default_runtime_provider_policies() -> Vec<RuntimeProviderPolicyConfig> {
             enabled: true,
             allow_consumer_oauth: false,
             kill_switch_scope: KILL_SWITCH_SCOPE_NONE.to_string(),
+            daily_token_budget: None,
+            daily_cost_usd_budget: None,
+            usd_per_1k_tokens: None,
         },
         RuntimeProviderPolicyConfig {
             provider: AUTH_PROVIDER_ANTHROPIC.to_string(),
             enabled: true,
             allow_consumer_oauth: false,
             kill_switch_scope: KILL_SWITCH_SCOPE_NONE.to_string(),
+            daily_token_budget: None,
+            daily_cost_usd_budget: None,
+            usd_per_1k_tokens: None,
         },
     ]
 }
@@ -9221,6 +14879,15 @@ fn default_runtime_config() -> RuntimeConfigResponse {
                 staging_chat_ids: Vec::new(),
             },
         },
+        memory: RuntimeMemoryConfig {
+            blend_mode: "mno_primary".to_string(),
+            memory_md_sources: Vec::new(),
+            numquam: RuntimeNumquamConfig::default(),
+        },
+        extensions: RuntimeExtensionsConfig {
+            plugin_daemon_allowlist: Vec::new(),
+            plugin_bundle_root: None,
+        },
         security: RuntimeSecurityOpsConfig {
             threat_model_approver: None,
             risk_acceptance_owner: None,
@@ -9231,6 +14898,7 @@ fn default_runtime_config() -> RuntimeConfigResponse {
             audit_hot_retention_days: 90,
             audit_archive_retention_days: 365,
         },
+        autonomy_guardrails: RuntimeAutonomyGuardrailsConfig::default(),
         updated_at: 0,
     }
 }
@@ -9242,10 +14910,246 @@ fn normalize_runtime_config(mut config: RuntimeConfigResponse) -> RuntimeConfigR
     if config.providers.is_empty() {
         config.providers = default_runtime_provider_policies();
     }
+    config.memory.blend_mode = match config.memory.blend_mode.trim().to_ascii_lowercase().as_str() {
+        "local_fallback_only" => "local_fallback_only".to_string(),
+        "local_augment" => "local_augment".to_string(),
+        _ => "mno_primary".to_string(),
+    };
+    config.memory.memory_md_sources = config
+        .memory
+        .memory_md_sources
+        .iter()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+    config.memory.memory_md_sources.sort();
+    config.memory.memory_md_sources.dedup();
+    config.memory.numquam.integration_base_url = config
+        .memory
+        .numquam
+        .integration_base_url
+        .as_ref()
+        .map(|value| value.trim().trim_end_matches('/').to_string())
+        .filter(|value| !value.is_empty());
+    config.memory.numquam.token_secret_ref = config
+        .memory
+        .numquam
+        .token_secret_ref
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    config.memory.numquam.principal_id = config
+        .memory
+        .numquam
+        .principal_id
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    config.memory.numquam.principal_display_name = config
+        .memory
+        .numquam
+        .principal_display_name
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    config.memory.numquam.transport =
+        config.memory.numquam.transport.trim().to_ascii_lowercase();
+    if config.memory.numquam.transport.is_empty() {
+        config.memory.numquam.transport = "dual".to_string();
+    }
+    config.extensions.plugin_daemon_allowlist = config
+        .extensions
+        .plugin_daemon_allowlist
+        .iter()
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+    config.extensions.plugin_daemon_allowlist.sort();
+    config.extensions.plugin_daemon_allowlist.dedup();
+    config.extensions.plugin_bundle_root = config
+        .extensions
+        .plugin_bundle_root
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
     if config.updated_at < 0 {
         config.updated_at = 0;
     }
     config
+}
+
+fn normalize_string_allowlist(values: &[String]) -> Vec<String> {
+    let mut normalized = values
+        .iter()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .collect::<Vec<_>>();
+    normalized.sort();
+    normalized.dedup();
+    normalized
+}
+
+fn normalize_runtime_global_for_trust_lock(global: &RuntimeGlobalConfig) -> RuntimeGlobalConfig {
+    RuntimeGlobalConfig {
+        jwt_issuer_allowlist: normalize_string_allowlist(&global.jwt_issuer_allowlist),
+        jwt_audience_allowlist: normalize_string_allowlist(&global.jwt_audience_allowlist),
+        trusted_proxy_allowlist: normalize_string_allowlist(&global.trusted_proxy_allowlist),
+        tls_termination_mode: global.tls_termination_mode.trim().to_ascii_lowercase(),
+        public_base_url: global
+            .public_base_url
+            .as_ref()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty()),
+    }
+}
+
+fn runtime_trust_contract_hash(global: &RuntimeGlobalConfig) -> AnyResult<String> {
+    let normalized = normalize_runtime_global_for_trust_lock(global);
+    let payload = serde_json::to_string(&normalized).map_err(|err| {
+        anyhow::anyhow!("failed serializing runtime global trust contract: {err}")
+    })?;
+    Ok(sha256_hex(&payload))
+}
+
+fn build_runtime_trust_contract_lock_record(
+    global: &RuntimeGlobalConfig,
+    locked_by: &str,
+    locked_at: i64,
+) -> AnyResult<RuntimeTrustContractLockRecord> {
+    let normalized_global = normalize_runtime_global_for_trust_lock(global);
+    let trust_hash = runtime_trust_contract_hash(&normalized_global)?;
+    Ok(RuntimeTrustContractLockRecord {
+        schema_version: TRUST_CONTRACT_LOCK_SCHEMA_VERSION.to_string(),
+        trust_hash,
+        locked_at,
+        locked_by: locked_by.trim().to_string(),
+        global: normalized_global,
+    })
+}
+
+fn trust_contract_lock_path(state_dir: &FsPath) -> PathBuf {
+    state_dir.join(TRUST_CONTRACT_LOCK_REL_PATH)
+}
+
+fn persist_runtime_trust_contract_lock(
+    path: &FsPath,
+    lock: &RuntimeTrustContractLockRecord,
+) -> AnyResult<()> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("invalid trust lock path"))?;
+    std::fs::create_dir_all(parent).with_context(|| {
+        format!(
+            "failed to create runtime trust lock parent directory {}",
+            parent.display()
+        )
+    })?;
+    let payload = serde_json::to_string_pretty(lock)
+        .map_err(|err| anyhow::anyhow!("failed serializing runtime trust lock: {err}"))?;
+    let tmp_path = path.with_extension("tmp");
+    std::fs::write(&tmp_path, payload).with_context(|| {
+        format!(
+            "failed writing temporary runtime trust lock file {}",
+            tmp_path.display()
+        )
+    })?;
+    std::fs::rename(&tmp_path, path).with_context(|| {
+        format!(
+            "failed replacing runtime trust lock file {}",
+            path.display()
+        )
+    })?;
+    Ok(())
+}
+
+fn load_runtime_trust_contract_lock(
+    path: &FsPath,
+) -> AnyResult<Option<RuntimeTrustContractLockRecord>> {
+    if !path.exists() {
+        return Ok(None);
+    }
+    let payload = std::fs::read_to_string(path)
+        .with_context(|| format!("failed reading runtime trust lock file {}", path.display()))?;
+    let mut lock: RuntimeTrustContractLockRecord = serde_json::from_str(&payload)
+        .with_context(|| format!("failed parsing runtime trust lock file {}", path.display()))?;
+    if lock.schema_version.trim() != TRUST_CONTRACT_LOCK_SCHEMA_VERSION {
+        anyhow::bail!(
+            "unsupported runtime trust lock schema_version '{}' in {}",
+            lock.schema_version,
+            path.display()
+        );
+    }
+    lock.locked_by = lock.locked_by.trim().to_string();
+    if lock.locked_by.is_empty() {
+        anyhow::bail!("runtime trust lock missing locked_by in {}", path.display());
+    }
+    lock.global = normalize_runtime_global_for_trust_lock(&lock.global);
+    let expected_hash = runtime_trust_contract_hash(&lock.global)?;
+    if lock.trust_hash.trim() != expected_hash {
+        anyhow::bail!(
+            "runtime trust lock hash mismatch in {} (expected {}, got {})",
+            path.display(),
+            expected_hash,
+            lock.trust_hash
+        );
+    }
+    Ok(Some(lock))
+}
+
+fn load_or_bootstrap_runtime_trust_contract_lock(
+    state_dir: &FsPath,
+    runtime_config: &RuntimeConfigResponse,
+) -> AnyResult<(RuntimeTrustContractLockRecord, PathBuf)> {
+    let path = trust_contract_lock_path(state_dir);
+    if let Some(lock) = load_runtime_trust_contract_lock(&path)? {
+        return Ok((lock, path));
+    }
+    let locked_by = std::env::var("CARSINOS_TRUST_LOCK_OWNER")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "bootstrap".to_string());
+    let lock = build_runtime_trust_contract_lock_record(
+        &runtime_config.global,
+        &locked_by,
+        Utc::now().timestamp_millis(),
+    )?;
+    persist_runtime_trust_contract_lock(&path, &lock)?;
+    info!(
+        lock_path = %path.display(),
+        trust_hash = %lock.trust_hash,
+        "bootstrapped runtime trust contract lock from current runtime config"
+    );
+    Ok((lock, path))
+}
+
+fn enforce_runtime_global_against_trust_lock(
+    global: &RuntimeGlobalConfig,
+    lock: &RuntimeTrustContractLockRecord,
+) -> AnyResult<()> {
+    let actual_hash = runtime_trust_contract_hash(global)?;
+    if actual_hash != lock.trust_hash {
+        anyhow::bail!(
+            "runtime global trust settings differ from deployment trust lock (expected hash {}, got {})",
+            lock.trust_hash,
+            actual_hash
+        );
+    }
+    Ok(())
+}
+
+fn runtime_trust_lock_response(
+    lock: &RuntimeTrustContractLockRecord,
+    lock_path: &str,
+) -> RuntimeTrustContractLockResponse {
+    RuntimeTrustContractLockResponse {
+        schema_version: lock.schema_version.clone(),
+        lock_path: lock_path.to_string(),
+        trust_hash: lock.trust_hash.clone(),
+        locked_at: lock.locked_at,
+        locked_by: lock.locked_by.clone(),
+        global: lock.global.clone(),
+    }
 }
 
 fn load_runtime_config_from_storage(storage: &Storage) -> AnyResult<RuntimeConfigResponse> {
@@ -9348,6 +15252,30 @@ fn validate_runtime_config(config: &RuntimeConfigResponse) -> AnyResult<()> {
                 "invalid provider kill_switch_scope: {} (expected none|profile|provider|global)",
                 provider.kill_switch_scope
             );
+        }
+        if let Some(limit) = provider.daily_token_budget {
+            if limit == 0 {
+                anyhow::bail!("provider.daily_token_budget must be > 0 when configured");
+            }
+            if limit > 10_000_000_000 {
+                anyhow::bail!("provider.daily_token_budget must be <= 10000000000");
+            }
+        }
+        if let Some(limit) = provider.daily_cost_usd_budget {
+            if !limit.is_finite() || limit <= 0.0 {
+                anyhow::bail!("provider.daily_cost_usd_budget must be > 0 when configured");
+            }
+            if limit > 1_000_000.0 {
+                anyhow::bail!("provider.daily_cost_usd_budget must be <= 1000000");
+            }
+        }
+        if let Some(cost) = provider.usd_per_1k_tokens {
+            if !cost.is_finite() || cost <= 0.0 {
+                anyhow::bail!("provider.usd_per_1k_tokens must be > 0 when configured");
+            }
+            if cost > 10_000.0 {
+                anyhow::bail!("provider.usd_per_1k_tokens must be <= 10000");
+            }
         }
     }
 
@@ -9472,12 +15400,163 @@ fn validate_runtime_config(config: &RuntimeConfigResponse) -> AnyResult<()> {
         }
     }
 
+    if !matches!(
+        config.memory.blend_mode.as_str(),
+        "mno_primary" | "local_fallback_only" | "local_augment"
+    ) {
+        anyhow::bail!(
+            "invalid memory.blend_mode: {} (expected mno_primary|local_fallback_only|local_augment)",
+            config.memory.blend_mode
+        );
+    }
+    for source in &config.memory.memory_md_sources {
+        if source.contains("://") {
+            anyhow::bail!("memory.memory_md_sources entries must be local filesystem paths");
+        }
+        if source.len() > 4096 {
+            anyhow::bail!("memory.memory_md_sources entry is too long (max 4096 chars)");
+        }
+    }
+
+    let numquam = &config.memory.numquam;
+    if !matches!(numquam.transport.as_str(), "http" | "mcp" | "dual") {
+        anyhow::bail!(
+            "invalid memory.numquam.transport: {} (expected http|mcp|dual)",
+            numquam.transport
+        );
+    }
+    if numquam.enabled {
+        let has_base_url = numquam
+            .integration_base_url
+            .as_ref()
+            .map(|value| !value.trim().is_empty())
+            .unwrap_or(false)
+            || std::env::var("CARSINOS_NUMQUAM_BASE_URL")
+                .ok()
+                .map(|value| !value.trim().is_empty())
+                .unwrap_or(false);
+        if !has_base_url {
+            anyhow::bail!(
+                "memory.numquam.integration_base_url (or CARSINOS_NUMQUAM_BASE_URL) is required when memory.numquam.enabled=true"
+            );
+        }
+    }
+    if let Some(base_url) = &numquam.integration_base_url {
+        if !(base_url.starts_with("http://") || base_url.starts_with("https://")) {
+            anyhow::bail!(
+                "memory.numquam.integration_base_url must start with http:// or https:// when provided"
+            );
+        }
+    }
+    validate_secret_ref(
+        &numquam.token_secret_ref,
+        "memory.numquam.token_secret_ref",
+    )?;
+    let timeout_fields = [
+        (
+            "memory.numquam.context_build_timeout_ms",
+            numquam.context_build_timeout_ms,
+        ),
+        (
+            "memory.numquam.writeback_propose_timeout_ms",
+            numquam.writeback_propose_timeout_ms,
+        ),
+        (
+            "memory.numquam.writeback_resolve_timeout_ms",
+            numquam.writeback_resolve_timeout_ms,
+        ),
+        ("memory.numquam.handshake_timeout_ms", numquam.handshake_timeout_ms),
+    ];
+    for (field, value) in timeout_fields {
+        if value < 200 {
+            anyhow::bail!("{field} must be >= 200");
+        }
+        if value > 120_000 {
+            anyhow::bail!("{field} must be <= 120000");
+        }
+    }
+    if numquam.handshake_interval_ms < 1_000 {
+        anyhow::bail!("memory.numquam.handshake_interval_ms must be >= 1000");
+    }
+    if numquam.handshake_interval_ms > 3_600_000 {
+        anyhow::bail!("memory.numquam.handshake_interval_ms must be <= 3600000");
+    }
+
+    let mut seen_daemon_ids = HashSet::new();
+    for plugin_id in &config.extensions.plugin_daemon_allowlist {
+        let normalized = normalize_plugin_id(plugin_id)?;
+        if !seen_daemon_ids.insert(normalized.clone()) {
+            anyhow::bail!("duplicate plugin daemon allowlist id: {normalized}");
+        }
+    }
+    if let Some(bundle_root) = &config.extensions.plugin_bundle_root {
+        if bundle_root.contains("://") {
+            anyhow::bail!("extensions.plugin_bundle_root must be a local filesystem path");
+        }
+    }
+
     if config.security.audit_hot_retention_days < 90 {
         anyhow::bail!("security.audit_hot_retention_days must be >= 90");
     }
     if config.security.audit_archive_retention_days < config.security.audit_hot_retention_days {
         anyhow::bail!(
             "security.audit_archive_retention_days must be >= security.audit_hot_retention_days"
+        );
+    }
+
+    if config.autonomy_guardrails.max_run_ms < 1_000 {
+        anyhow::bail!("autonomy_guardrails.max_run_ms must be >= 1000");
+    }
+    if config.autonomy_guardrails.max_run_ms > 1_800_000 {
+        anyhow::bail!("autonomy_guardrails.max_run_ms must be <= 1800000");
+    }
+    if config.autonomy_guardrails.max_tool_calls_per_run == 0 {
+        anyhow::bail!("autonomy_guardrails.max_tool_calls_per_run must be >= 1");
+    }
+    if config.autonomy_guardrails.max_tool_calls_per_run > 256 {
+        anyhow::bail!("autonomy_guardrails.max_tool_calls_per_run must be <= 256");
+    }
+    if config.autonomy_guardrails.max_provider_input_chars < 256 {
+        anyhow::bail!("autonomy_guardrails.max_provider_input_chars must be >= 256");
+    }
+    if config.autonomy_guardrails.max_provider_input_chars > 1_000_000 {
+        anyhow::bail!("autonomy_guardrails.max_provider_input_chars must be <= 1000000");
+    }
+    if config.autonomy_guardrails.max_tool_output_chars_total < 256 {
+        anyhow::bail!("autonomy_guardrails.max_tool_output_chars_total must be >= 256");
+    }
+    if config.autonomy_guardrails.max_tool_output_chars_total > 2_000_000 {
+        anyhow::bail!("autonomy_guardrails.max_tool_output_chars_total must be <= 2000000");
+    }
+    if config.autonomy_guardrails.max_provider_attempts == 0 {
+        anyhow::bail!("autonomy_guardrails.max_provider_attempts must be >= 1");
+    }
+    if config.autonomy_guardrails.max_provider_attempts > 10 {
+        anyhow::bail!("autonomy_guardrails.max_provider_attempts must be <= 10");
+    }
+    if config
+        .autonomy_guardrails
+        .max_consecutive_failures_before_breaker
+        == 0
+    {
+        anyhow::bail!("autonomy_guardrails.max_consecutive_failures_before_breaker must be >= 1");
+    }
+    if config
+        .autonomy_guardrails
+        .max_consecutive_failures_before_breaker
+        > 20
+    {
+        anyhow::bail!("autonomy_guardrails.max_consecutive_failures_before_breaker must be <= 20");
+    }
+    if config.autonomy_guardrails.heartbeat_max_run_ms < 100 {
+        anyhow::bail!("autonomy_guardrails.heartbeat_max_run_ms must be >= 100");
+    }
+    if config.autonomy_guardrails.heartbeat_max_run_ms > 60_000 {
+        anyhow::bail!("autonomy_guardrails.heartbeat_max_run_ms must be <= 60000");
+    }
+    if config.autonomy_guardrails.heartbeat_max_run_ms > config.autonomy_guardrails.max_run_ms {
+        anyhow::bail!(
+            "autonomy_guardrails.heartbeat_max_run_ms must be <= autonomy_guardrails.max_run_ms"
         );
     }
 
@@ -9704,7 +15783,7 @@ fn build_telegram_transport_client(
     Ok(Some(client))
 }
 
-fn parse_telegram_chat_target(target: &str) -> AnyResult<i64> {
+fn parse_telegram_target(target: &str) -> AnyResult<(i64, Option<i64>)> {
     let trimmed = target.trim();
     if trimmed.is_empty() {
         anyhow::bail!("telegram target must not be empty");
@@ -9713,32 +15792,131 @@ fn parse_telegram_chat_target(target: &str) -> AnyResult<i64> {
     if normalized.is_empty() {
         anyhow::bail!("telegram target does not include a chat id");
     }
-    normalized
+    let (chat_part, message_part) = match normalized.split_once('/') {
+        Some((chat, message_id)) => (chat.trim().to_string(), Some(message_id.trim().to_string())),
+        None => (normalized.to_string(), None),
+    };
+    let chat_id = chat_part
         .parse::<i64>()
-        .with_context(|| format!("invalid telegram chat target '{}'", target))
+        .with_context(|| format!("invalid telegram chat target '{}'", target))?;
+    let message_id = match message_part {
+        Some(value) if value.is_empty() => {
+            anyhow::bail!(
+                "telegram target message id must not be empty when '/' is present: {}",
+                target
+            );
+        }
+        Some(value) => Some(
+            value
+                .parse::<i64>()
+                .with_context(|| format!("invalid telegram target message id '{}'", value))?,
+        ),
+        None => None,
+    };
+    Ok((chat_id, message_id))
 }
 
 fn send_telegram_chunks_via_transport(
     runtime_config: &RuntimeConfigResponse,
     secret_store: &SecretStore,
     target: &str,
+    action: &str,
     chunks: &[String],
 ) -> AnyResult<Vec<i64>> {
-    let chat_id = parse_telegram_chat_target(target)?;
+    let (chat_id, target_message_id) = parse_telegram_target(target)?;
     let transport_client = build_telegram_transport_client(runtime_config, secret_store)?
         .ok_or_else(|| anyhow::anyhow!("telegram transport mode is not enabled"))?;
+    let reply_to_message_id = if action == "reply" {
+        target_message_id
+    } else {
+        None
+    };
     let mut message_ids = Vec::with_capacity(chunks.len());
     for chunk in chunks {
         let response = transport_client.send_message_with_retry(
             &telegram_channel::TelegramTransportOutboundRequest {
                 chat_id,
                 text: chunk.clone(),
-                reply_to_message_id: None,
+                reply_to_message_id,
             },
         )?;
         message_ids.push(response.message_id);
     }
     Ok(message_ids)
+}
+
+fn pin_telegram_message_via_transport(
+    runtime_config: &RuntimeConfigResponse,
+    secret_store: &SecretStore,
+    target: &str,
+) -> AnyResult<i64> {
+    let (chat_id, message_id) = parse_telegram_target(target)?;
+    let message_id = message_id
+        .ok_or_else(|| anyhow::anyhow!("telegram target must include message id for pin"))?;
+    let transport_client = build_telegram_transport_client(runtime_config, secret_store)?
+        .ok_or_else(|| anyhow::anyhow!("telegram transport mode is not enabled"))?;
+    transport_client.pin_message_with_retry(&telegram_channel::TelegramPinMessageRequest {
+        chat_id,
+        message_id,
+    })?;
+    Ok(message_id)
+}
+
+fn react_telegram_message_via_transport(
+    runtime_config: &RuntimeConfigResponse,
+    secret_store: &SecretStore,
+    target: &str,
+    reaction: &str,
+) -> AnyResult<i64> {
+    let (chat_id, message_id) = parse_telegram_target(target)?;
+    let message_id = message_id
+        .ok_or_else(|| anyhow::anyhow!("telegram target must include message id for reaction"))?;
+    let transport_client = build_telegram_transport_client(runtime_config, secret_store)?
+        .ok_or_else(|| anyhow::anyhow!("telegram transport mode is not enabled"))?;
+    transport_client.set_message_reaction_with_retry(
+        &telegram_channel::TelegramReactionRequest {
+            chat_id,
+            message_id,
+            reaction: reaction.to_string(),
+        },
+    )?;
+    Ok(message_id)
+}
+
+fn pin_discord_message_via_transport(
+    runtime_config: &RuntimeConfigResponse,
+    secret_store: &SecretStore,
+    target: &str,
+) -> AnyResult<String> {
+    let (channel_id, target_message_id) = parse_discord_target(target)?;
+    let message_id = target_message_id
+        .ok_or_else(|| anyhow::anyhow!("discord target must include message id for pin"))?;
+    let transport_client = build_discord_transport_client(runtime_config, secret_store)?
+        .ok_or_else(|| anyhow::anyhow!("discord transport mode is not enabled"))?;
+    transport_client.pin_message_with_retry(&discord_channel::DiscordPinMessageRequest {
+        channel_id,
+        message_id: message_id.clone(),
+    })?;
+    Ok(message_id)
+}
+
+fn react_discord_message_via_transport(
+    runtime_config: &RuntimeConfigResponse,
+    secret_store: &SecretStore,
+    target: &str,
+    reaction: &str,
+) -> AnyResult<String> {
+    let (channel_id, target_message_id) = parse_discord_target(target)?;
+    let message_id = target_message_id
+        .ok_or_else(|| anyhow::anyhow!("discord target must include message id for reaction"))?;
+    let transport_client = build_discord_transport_client(runtime_config, secret_store)?
+        .ok_or_else(|| anyhow::anyhow!("discord transport mode is not enabled"))?;
+    transport_client.add_reaction_with_retry(&discord_channel::DiscordReactionRequest {
+        channel_id,
+        message_id: message_id.clone(),
+        emoji: reaction.to_string(),
+    })?;
+    Ok(message_id)
 }
 
 fn sha256_hex(value: &str) -> String {
@@ -9832,6 +16010,19 @@ fn tool_error_code_and_retryable(err: &ToolError) -> (&'static str, bool) {
     }
 }
 
+fn channel_transport_failure_status(reason: &str) -> (StatusCode, &'static str) {
+    let normalized = reason.to_ascii_lowercase();
+    if normalized.contains("target")
+        || normalized.contains("invalid")
+        || normalized.contains("must include")
+        || normalized.contains("must not be empty")
+    {
+        (StatusCode::BAD_REQUEST, "INVALID_INPUT")
+    } else {
+        (StatusCode::FAILED_DEPENDENCY, "DEPENDENCY_UNAVAILABLE")
+    }
+}
+
 async fn execute_channel_action_tool(
     state: &AppState,
     run: &RunRecord,
@@ -9898,7 +16089,7 @@ async fn execute_channel_action_tool(
         return Err(ToolError::PolicyDenied(reason));
     }
     let action_supported = match provider.as_str() {
-        "telegram" => matches!(action.as_str(), "send" | "reply" | "pin"),
+        "telegram" => matches!(action.as_str(), "send" | "reply" | "pin" | "reaction"),
         "discord" => matches!(action.as_str(), "send" | "reply" | "pin" | "reaction"),
         _ => false,
     };
@@ -9982,34 +16173,79 @@ async fn execute_channel_action_tool(
         ),
     });
     let mut chunk_count = text_chunks.as_ref().map(|value| value.len()).unwrap_or(0);
-    let mut delivery_mode = DISCORD_OPERATION_MODE_SHIM;
+    let mut delivery_mode = if provider == "telegram" {
+        TELEGRAM_OPERATION_MODE_SHIM
+    } else {
+        DISCORD_OPERATION_MODE_SHIM
+    };
     let mut transport_message_ids: Vec<String> = Vec::new();
+    let mut transport_dispatched = false;
+    let mut fallback_reason: Option<String> = None;
 
-    if provider == "telegram" && matches!(action.as_str(), "send" | "reply") {
-        if let Some(chunks) = text_chunks.as_ref() {
-            let runtime_config = load_runtime_config(state).map_err(|err| {
-                ToolError::Failed(format!("failed loading runtime config: {err}"))
-            })?;
-            if normalize_telegram_operation_mode(&runtime_config.channels.telegram.operation_mode)
-                == TELEGRAM_OPERATION_MODE_TRANSPORT
-            {
-                transport_message_ids = send_telegram_chunks_via_transport(
+    let runtime_config = load_runtime_config(state)
+        .map_err(|err| ToolError::Failed(format!("failed loading runtime config: {err}")))?;
+    if provider == "telegram" {
+        let transport_enabled =
+            normalize_telegram_operation_mode(&runtime_config.channels.telegram.operation_mode)
+                == TELEGRAM_OPERATION_MODE_TRANSPORT;
+        if transport_enabled {
+            delivery_mode = TELEGRAM_OPERATION_MODE_TRANSPORT;
+            if matches!(action.as_str(), "send" | "reply") {
+                if let Some(chunks) = text_chunks.as_ref() {
+                    transport_message_ids = send_telegram_chunks_via_transport(
+                        &runtime_config,
+                        &state.secret_store,
+                        &target,
+                        &action,
+                        chunks,
+                    )
+                    .map(|ids| ids.into_iter().map(|id| id.to_string()).collect::<Vec<_>>())
+                    .map_err(|err| {
+                        let reason = format!("telegram transport dispatch failed: {err}");
+                        let (status, error_code) = channel_transport_failure_status(&reason);
+                        record_security_audit_internal(
+                            state,
+                            "channel.tool_action.execute",
+                            &resource,
+                            "deny",
+                            Some(reason.clone()),
+                            status,
+                            Some(error_code),
+                            Some(&run.session_id),
+                            Some(&run.run_id),
+                            Some(serde_json::json!({
+                                "provider": provider.clone(),
+                                "action": action.clone(),
+                                "target": target.clone(),
+                                "delivery_mode": TELEGRAM_OPERATION_MODE_TRANSPORT
+                            })),
+                        );
+                        if status == StatusCode::BAD_REQUEST {
+                            ToolError::InvalidRequest(reason)
+                        } else {
+                            ToolError::Failed(reason)
+                        }
+                    })?;
+                    chunk_count = transport_message_ids.len();
+                    transport_dispatched = true;
+                }
+            } else if action == "pin" {
+                let message_id = pin_telegram_message_via_transport(
                     &runtime_config,
                     &state.secret_store,
                     &target,
-                    chunks,
                 )
-                .map(|ids| ids.into_iter().map(|id| id.to_string()).collect::<Vec<_>>())
                 .map_err(|err| {
-                    let reason = format!("telegram transport dispatch failed: {err}");
+                    let reason = format!("telegram pin transport dispatch failed: {err}");
+                    let (status, error_code) = channel_transport_failure_status(&reason);
                     record_security_audit_internal(
                         state,
                         "channel.tool_action.execute",
                         &resource,
                         "deny",
                         Some(reason.clone()),
-                        StatusCode::FAILED_DEPENDENCY,
-                        Some("DEPENDENCY_UNAVAILABLE"),
+                        status,
+                        Some(error_code),
                         Some(&run.session_id),
                         Some(&run.run_id),
                         Some(serde_json::json!({
@@ -10019,37 +16255,120 @@ async fn execute_channel_action_tool(
                             "delivery_mode": TELEGRAM_OPERATION_MODE_TRANSPORT
                         })),
                     );
-                    ToolError::Failed(reason)
+                    if status == StatusCode::BAD_REQUEST {
+                        ToolError::InvalidRequest(reason)
+                    } else {
+                        ToolError::Failed(reason)
+                    }
                 })?;
-                chunk_count = transport_message_ids.len();
-                delivery_mode = TELEGRAM_OPERATION_MODE_TRANSPORT;
-            }
-        }
-    } else if provider == "discord" && matches!(action.as_str(), "send" | "reply") {
-        if let Some(chunks) = text_chunks.as_ref() {
-            let runtime_config = load_runtime_config(state).map_err(|err| {
-                ToolError::Failed(format!("failed loading runtime config: {err}"))
-            })?;
-            if normalize_discord_operation_mode(&runtime_config.channels.discord.operation_mode)
-                == DISCORD_OPERATION_MODE_TRANSPORT
-            {
-                transport_message_ids = send_discord_chunks_via_transport(
+                transport_message_ids.push(message_id.to_string());
+                chunk_count = 1;
+                transport_dispatched = true;
+            } else if action == "reaction" {
+                let reaction_value = reaction.clone().unwrap_or_default();
+                let message_id = react_telegram_message_via_transport(
                     &runtime_config,
                     &state.secret_store,
                     &target,
-                    &action,
-                    chunks,
+                    &reaction_value,
                 )
                 .map_err(|err| {
-                    let reason = format!("discord transport dispatch failed: {err}");
+                    let reason = format!("telegram reaction transport dispatch failed: {err}");
+                    let (status, error_code) = channel_transport_failure_status(&reason);
                     record_security_audit_internal(
                         state,
                         "channel.tool_action.execute",
                         &resource,
                         "deny",
                         Some(reason.clone()),
-                        StatusCode::FAILED_DEPENDENCY,
-                        Some("DEPENDENCY_UNAVAILABLE"),
+                        status,
+                        Some(error_code),
+                        Some(&run.session_id),
+                        Some(&run.run_id),
+                        Some(serde_json::json!({
+                            "provider": provider.clone(),
+                            "action": action.clone(),
+                            "target": target.clone(),
+                            "delivery_mode": TELEGRAM_OPERATION_MODE_TRANSPORT
+                        })),
+                    );
+                    if status == StatusCode::BAD_REQUEST {
+                        ToolError::InvalidRequest(reason)
+                    } else {
+                        ToolError::Failed(reason)
+                    }
+                })?;
+                transport_message_ids.push(message_id.to_string());
+                chunk_count = 1;
+                transport_dispatched = true;
+            }
+        } else if matches!(action.as_str(), "pin" | "reaction") {
+            fallback_reason = Some(format!(
+                "telegram operation_mode=shim; '{}' was not applied upstream",
+                action
+            ));
+        }
+    } else if provider == "discord" {
+        let transport_enabled =
+            normalize_discord_operation_mode(&runtime_config.channels.discord.operation_mode)
+                == DISCORD_OPERATION_MODE_TRANSPORT;
+        if transport_enabled {
+            delivery_mode = DISCORD_OPERATION_MODE_TRANSPORT;
+            if matches!(action.as_str(), "send" | "reply") {
+                if let Some(chunks) = text_chunks.as_ref() {
+                    transport_message_ids = send_discord_chunks_via_transport(
+                        &runtime_config,
+                        &state.secret_store,
+                        &target,
+                        &action,
+                        chunks,
+                    )
+                    .map_err(|err| {
+                        let reason = format!("discord transport dispatch failed: {err}");
+                        let (status, error_code) = channel_transport_failure_status(&reason);
+                        record_security_audit_internal(
+                            state,
+                            "channel.tool_action.execute",
+                            &resource,
+                            "deny",
+                            Some(reason.clone()),
+                            status,
+                            Some(error_code),
+                            Some(&run.session_id),
+                            Some(&run.run_id),
+                            Some(serde_json::json!({
+                                "provider": provider.clone(),
+                                "action": action.clone(),
+                                "target": target.clone(),
+                                "delivery_mode": DISCORD_OPERATION_MODE_TRANSPORT
+                            })),
+                        );
+                        if status == StatusCode::BAD_REQUEST {
+                            ToolError::InvalidRequest(reason)
+                        } else {
+                            ToolError::Failed(reason)
+                        }
+                    })?;
+                    chunk_count = transport_message_ids.len();
+                    transport_dispatched = true;
+                }
+            } else if action == "pin" {
+                let message_id = pin_discord_message_via_transport(
+                    &runtime_config,
+                    &state.secret_store,
+                    &target,
+                )
+                .map_err(|err| {
+                    let reason = format!("discord pin transport dispatch failed: {err}");
+                    let (status, error_code) = channel_transport_failure_status(&reason);
+                    record_security_audit_internal(
+                        state,
+                        "channel.tool_action.execute",
+                        &resource,
+                        "deny",
+                        Some(reason.clone()),
+                        status,
+                        Some(error_code),
                         Some(&run.session_id),
                         Some(&run.run_id),
                         Some(serde_json::json!({
@@ -10059,13 +16378,65 @@ async fn execute_channel_action_tool(
                             "delivery_mode": DISCORD_OPERATION_MODE_TRANSPORT
                         })),
                     );
-                    ToolError::Failed(reason)
+                    if status == StatusCode::BAD_REQUEST {
+                        ToolError::InvalidRequest(reason)
+                    } else {
+                        ToolError::Failed(reason)
+                    }
                 })?;
-                chunk_count = transport_message_ids.len();
-                delivery_mode = DISCORD_OPERATION_MODE_TRANSPORT;
+                transport_message_ids.push(message_id);
+                chunk_count = 1;
+                transport_dispatched = true;
+            } else if action == "reaction" {
+                let reaction_value = reaction.clone().unwrap_or_default();
+                let message_id = react_discord_message_via_transport(
+                    &runtime_config,
+                    &state.secret_store,
+                    &target,
+                    &reaction_value,
+                )
+                .map_err(|err| {
+                    let reason = format!("discord reaction transport dispatch failed: {err}");
+                    let (status, error_code) = channel_transport_failure_status(&reason);
+                    record_security_audit_internal(
+                        state,
+                        "channel.tool_action.execute",
+                        &resource,
+                        "deny",
+                        Some(reason.clone()),
+                        status,
+                        Some(error_code),
+                        Some(&run.session_id),
+                        Some(&run.run_id),
+                        Some(serde_json::json!({
+                            "provider": provider.clone(),
+                            "action": action.clone(),
+                            "target": target.clone(),
+                            "delivery_mode": DISCORD_OPERATION_MODE_TRANSPORT
+                        })),
+                    );
+                    if status == StatusCode::BAD_REQUEST {
+                        ToolError::InvalidRequest(reason)
+                    } else {
+                        ToolError::Failed(reason)
+                    }
+                })?;
+                transport_message_ids.push(message_id);
+                chunk_count = 1;
+                transport_dispatched = true;
             }
+        } else if matches!(action.as_str(), "pin" | "reaction") {
+            fallback_reason = Some(format!(
+                "discord operation_mode=shim; '{}' was not applied upstream",
+                action
+            ));
         }
     }
+    let dispatched = if matches!(action.as_str(), "pin" | "reaction") {
+        transport_dispatched
+    } else {
+        true
+    };
 
     emit_event(
         state,
@@ -10078,6 +16449,8 @@ async fn execute_channel_action_tool(
             "target": target,
             "chunk_count": chunk_count,
             "delivery_mode": delivery_mode,
+            "transport_dispatched": transport_dispatched,
+            "fallback_reason": fallback_reason,
             "transport_message_ids": transport_message_ids.clone()
         }),
     );
@@ -10096,7 +16469,9 @@ async fn execute_channel_action_tool(
             "action": action,
             "target": target,
             "chunk_count": chunk_count,
-            "delivery_mode": delivery_mode
+            "delivery_mode": delivery_mode,
+            "transport_dispatched": transport_dispatched,
+            "fallback_reason": fallback_reason
         })),
     );
 
@@ -10109,7 +16484,9 @@ async fn execute_channel_action_tool(
             "text": text,
             "reaction": reaction,
             "delivery_mode": delivery_mode,
-            "dispatched": true,
+            "dispatched": dispatched,
+            "transport_dispatched": transport_dispatched,
+            "fallback_reason": fallback_reason,
             "chunk_count": chunk_count,
             "transport_message_ids": transport_message_ids,
             "chunks": text_chunks.unwrap_or_default()
@@ -10118,9 +16495,100 @@ async fn execute_channel_action_tool(
     })
 }
 
+async fn execute_plugin_tool_invocation(
+    state: &AppState,
+    run: &RunRecord,
+    tool_metadata: &ToolExecutionMetadata,
+    args_json: &str,
+) -> Result<ToolResult, ToolError> {
+    let plugin_id = tool_metadata
+        .plugin_id
+        .as_ref()
+        .ok_or_else(|| ToolError::InvalidRequest("plugin tool metadata missing plugin_id".to_string()))?;
+    let manifest = state
+        .plugin_registry
+        .read()
+        .await
+        .get_manifest(plugin_id)
+        .ok_or_else(|| {
+            ToolError::InvalidRequest(format!("plugin tool owner '{}' not found", plugin_id))
+        })?;
+    if !manifest.enabled {
+        return Err(ToolError::PolicyDenied(format!(
+            "plugin '{}' is disabled",
+            plugin_id
+        )));
+    }
+    if !manifest
+        .capabilities
+        .tools
+        .iter()
+        .any(|capability| capability.name.trim() == tool_metadata.tool_name)
+    {
+        return Err(ToolError::InvalidRequest(format!(
+            "plugin '{}' does not expose tool '{}'",
+            plugin_id, tool_metadata.tool_name
+        )));
+    }
+
+    let raw_args = tool_metadata
+        .plugin_raw_args
+        .as_ref()
+        .map(|value| value.trim())
+        .unwrap_or("");
+    let parsed_args = if raw_args.is_empty() {
+        serde_json::Value::Null
+    } else if let Ok(value) = serde_json::from_str::<serde_json::Value>(raw_args) {
+        value
+    } else {
+        serde_json::json!({ "raw_args": raw_args })
+    };
+    let payload = serde_json::json!({
+        "tool_name": &tool_metadata.tool_name,
+        "args": parsed_args,
+        "raw_args": raw_args,
+        "request_json": args_json,
+        "run_id": &run.run_id,
+        "session_id": &run.session_id
+    });
+    let result = invoke_plugin_runner(state, &manifest, "tool", payload)
+        .await
+        .map_err(|err| {
+            if err.code == EXT_PLUGIN_DISABLED {
+                ToolError::PolicyDenied(format!("{}: {}", err.code, err.message))
+            } else {
+                ToolError::Failed(format!("{}: {}", err.code, err.message))
+            }
+        })?;
+
+    match result.status.as_str() {
+        "ok" => Ok(ToolResult {
+            tool: carsinos_tools::ToolName::Process,
+            output: serde_json::json!({
+                "plugin_id": plugin_id,
+                "tool_name": &tool_metadata.tool_name,
+                "result": result.result.unwrap_or(serde_json::Value::Null),
+                "duration_ms": result.duration_ms
+            }),
+            truncated: false,
+        }),
+        "deny" => Err(ToolError::PolicyDenied(
+            result
+                .error_message
+                .unwrap_or_else(|| "plugin tool invocation denied".to_string()),
+        )),
+        _ => Err(ToolError::Failed(
+            result
+                .error_message
+                .unwrap_or_else(|| "plugin tool invocation failed".to_string()),
+        )),
+    }
+}
+
 fn parse_tool_requests_from_input(
     input: &str,
     tool_registry: &ToolRegistry,
+    plugin_registry: Option<&PluginRegistry>,
 ) -> AnyResult<Vec<ParsedToolInvocation>> {
     let mut requests = Vec::new();
     for raw_line in input.lines() {
@@ -10128,7 +16596,7 @@ fn parse_tool_requests_from_input(
         if line.is_empty() {
             continue;
         }
-        if let Some(parsed) = tool_registry.parse_line(line) {
+        if let Some(parsed) = tool_registry.parse_line_with_plugins(line, plugin_registry) {
             requests.push(parsed);
         }
     }
@@ -10793,6 +17261,110 @@ fn persist_note_embeddings(state: &AppState, note: &NoteRecord) -> AnyResult<()>
     Ok(())
 }
 
+fn truncate_text_to_chars(input: &str, max_chars: usize) -> (String, bool, usize) {
+    if max_chars == 0 {
+        let original = input.chars().count();
+        return (String::new(), original > 0, original);
+    }
+    let mut count = 0usize;
+    let mut output = String::new();
+    for ch in input.chars() {
+        if count >= max_chars {
+            let original = input.chars().count();
+            return (output, true, original);
+        }
+        output.push(ch);
+        count = count.saturating_add(1);
+    }
+    (output, false, count)
+}
+
+fn infer_run_memory_mode(state: &AppState, session_id: &str) -> String {
+    let messages = state.storage.list_messages(session_id, 32).unwrap_or_default();
+    messages
+        .into_iter()
+        .rev()
+        .find(|message| message.role == "user")
+        .map(|message| message.source_channel.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty())
+        .map(|channel| {
+            if channel == "scheduler" {
+                "scheduled".to_string()
+            } else if channel == "telegram" || channel == "discord" {
+                "channel".to_string()
+            } else {
+                "manual".to_string()
+            }
+        })
+        .unwrap_or_else(|| "manual".to_string())
+}
+
+fn build_numquam_context_policy(
+    state: &AppState,
+    run: &RunRecord,
+    input: &str,
+    guardrails: &RuntimeAutonomyGuardrailsConfig,
+    blend_mode: &str,
+) -> NumquamContextPolicy {
+    let run_mode = infer_run_memory_mode(state, &run.session_id);
+    let mut policy = NumquamContextPolicy::default();
+    match run_mode.as_str() {
+        "scheduled" => {
+            policy.top_k = 12;
+            policy.risk_signal = "medium".to_string();
+            policy.message_window_max_messages = Some(60);
+        }
+        "channel" => {
+            policy.top_k = 10;
+            policy.risk_signal = "medium".to_string();
+            policy.message_window_max_messages = Some(40);
+        }
+        _ => {
+            policy.top_k = 8;
+            policy.risk_signal = "low".to_string();
+            policy.message_window_max_messages = Some(30);
+        }
+    }
+    let lowered = input.to_ascii_lowercase();
+    let high_risk_markers = ["urgent", "critical", "incident", "outage", "security", "breach"];
+    if input.chars().count() > 1_800
+        || high_risk_markers
+            .iter()
+            .any(|marker| lowered.contains(marker))
+    {
+        policy.risk_signal = "high".to_string();
+        policy.top_k = policy.top_k.max(14);
+    }
+    let message_window_chars = ((guardrails.max_provider_input_chars as f64) * 0.70) as u64;
+    policy.message_window_max_chars = Some(message_window_chars.clamp(2_048, 120_000));
+    policy.memory_preference = Some(match blend_mode {
+        "local_fallback_only" => "local_only".to_string(),
+        "local_augment" => "local_augment".to_string(),
+        _ => "numquam_primary".to_string(),
+    });
+    let retrieval_query = input.trim();
+    if !retrieval_query.is_empty() {
+        let query = retrieval_query.chars().take(512).collect::<String>();
+        if !query.trim().is_empty() {
+            policy.retrieval_query = Some(query);
+        }
+    }
+    policy
+}
+
+fn compute_numquam_context_char_cap(
+    guardrails: &RuntimeAutonomyGuardrailsConfig,
+    provider_base_input_len: usize,
+) -> usize {
+    let max_provider_chars = guardrails.max_provider_input_chars as usize;
+    let reserved_fixed = 512usize;
+    let reserved_local = ((max_provider_chars as f64) * 0.20) as usize;
+    let reserved_total = provider_base_input_len
+        .saturating_add(reserved_fixed)
+        .saturating_add(reserved_local.clamp(256, 8_000));
+    max_provider_chars.saturating_sub(reserved_total)
+}
+
 fn retrieve_local_memory_context(
     state: &AppState,
     input: &str,
@@ -11120,6 +17692,85 @@ async fn emit_extension_hook_point(
     tool_name: Option<&str>,
     metadata: serde_json::Value,
 ) {
+    let plugin_outcomes =
+        invoke_plugin_hooks_for_point(state, run, hook_point, tool_name, &metadata).await;
+    for outcome in plugin_outcomes {
+        let plugin_id = outcome.plugin_id.clone();
+        let hook_name = outcome.hook_name.clone();
+        let status = outcome.status.clone();
+        let error_code = outcome.error_code.clone();
+        let error_text = outcome.error.clone();
+        let status_ok = matches!(outcome.status.as_str(), "ok" | "deny");
+        if status_ok {
+            debug!(
+                run_id = %run.run_id,
+                session_id = %run.session_id,
+                hook_point = %hook_point.as_str(),
+                plugin_id = %plugin_id,
+                hook_name = %hook_name,
+                status = %status,
+                duration_ms = outcome.duration_ms,
+                "plugin hook invocation completed"
+            );
+        } else {
+            warn!(
+                run_id = %run.run_id,
+                session_id = %run.session_id,
+                hook_point = %hook_point.as_str(),
+                plugin_id = %plugin_id,
+                hook_name = %hook_name,
+                error_code = %error_code.clone().unwrap_or_default(),
+                error = %error_text.clone().unwrap_or_default(),
+                breaker_open = outcome.breaker_open,
+                duration_ms = outcome.duration_ms,
+                "plugin hook invocation failed"
+            );
+        }
+        record_security_audit_internal(
+            state,
+            "extension.plugin.invoke",
+            &format!("plugin:{}:{}", plugin_id, hook_name),
+            if status_ok { "allow" } else { "deny" },
+            error_text.clone(),
+            if status_ok {
+                StatusCode::OK
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            },
+            error_code.as_deref(),
+            Some(&run.session_id),
+            Some(&run.run_id),
+            Some(serde_json::json!({
+                "plugin_id": plugin_id,
+                "hook_name": hook_name,
+                "hook_point": hook_point.as_str(),
+                "status": status,
+                "duration_ms": outcome.duration_ms,
+                "breaker_open": outcome.breaker_open,
+                "tool_name": tool_name
+            })),
+        );
+        if outcome.breaker_open {
+            record_security_audit_internal(
+                state,
+                "extension.plugin.disabled",
+                &format!("plugin:{}", plugin_id),
+                "deny",
+                error_text.clone(),
+                StatusCode::SERVICE_UNAVAILABLE,
+                Some(EXT_PLUGIN_DISABLED),
+                Some(&run.session_id),
+                Some(&run.run_id),
+                Some(serde_json::json!({
+                    "plugin_id": plugin_id,
+                    "hook_name": hook_name,
+                    "hook_point": hook_point.as_str(),
+                    "reason": "breaker tripped after consecutive failures"
+                })),
+            );
+        }
+    }
+
     let event = HookEvent {
         hook_point,
         run_id: run.run_id.clone(),
@@ -11449,18 +18100,136 @@ fn auth_mode_policy(auth_mode: &str) -> Option<AuthModePolicy> {
     }
 }
 
+fn normalize_job_schedule_kind(
+    schedule_kind: &str,
+) -> std::result::Result<String, (StatusCode, Json<ApiError>)> {
+    let normalized = schedule_kind.trim().to_ascii_lowercase();
+    if matches!(
+        normalized.as_str(),
+        "interval" | "once" | "every" | "at" | "cron"
+    ) {
+        Ok(normalized)
+    } else {
+        Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "schedule_kind must be one of: interval, once, every, at, cron",
+        ))
+    }
+}
+
+fn job_cron_expr_from_payload_json(payload_json: &str) -> Option<String> {
+    serde_json::from_str::<serde_json::Value>(payload_json)
+        .ok()
+        .and_then(|payload| {
+            payload
+                .get(SCHEDULE_META_KEY)
+                .and_then(|value| value.as_object())
+                .and_then(|meta| meta.get(SCHEDULE_META_CRON_EXPR))
+                .and_then(|value| value.as_str())
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(|value| value.to_string())
+        })
+}
+
+fn materialize_job_payload_with_schedule_metadata(
+    mut payload: serde_json::Value,
+    schedule_kind: &str,
+    cron_expr: Option<&str>,
+) -> std::result::Result<String, (StatusCode, Json<ApiError>)> {
+    let payload_object = payload.as_object_mut().ok_or_else(|| {
+        api_error(
+            StatusCode::BAD_REQUEST,
+            "payload_json must be a JSON object",
+        )
+    })?;
+
+    if schedule_kind == "cron" {
+        let cron_expr = cron_expr
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                api_error(StatusCode::BAD_REQUEST, "cron schedule requires cron_expr")
+            })?;
+        let _ = compute_next_cron_run_at(cron_expr, current_time_ms())?;
+        payload_object.insert(
+            SCHEDULE_META_KEY.to_string(),
+            serde_json::json!({
+                SCHEDULE_META_CRON_EXPR: cron_expr
+            }),
+        );
+    } else {
+        payload_object.remove(SCHEDULE_META_KEY);
+    }
+    Ok(payload.to_string())
+}
+
+fn normalize_cron_expression_for_parser(
+    cron_expr: &str,
+) -> std::result::Result<String, (StatusCode, Json<ApiError>)> {
+    let trimmed = cron_expr.trim();
+    if trimmed.is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "cron_expr cannot be empty",
+        ));
+    }
+    let expanded = match trimmed {
+        "@yearly" | "@annually" => "0 0 0 1 1 *".to_string(),
+        "@monthly" => "0 0 0 1 * *".to_string(),
+        "@weekly" => "0 0 0 * * 0".to_string(),
+        "@daily" | "@midnight" => "0 0 0 * * *".to_string(),
+        "@hourly" => "0 0 * * * *".to_string(),
+        _ => {
+            let field_count = trimmed.split_whitespace().count();
+            match field_count {
+                5 => format!("0 {trimmed}"),
+                6 | 7 => trimmed.to_string(),
+                _ => {
+                    return Err(api_error(
+                        StatusCode::BAD_REQUEST,
+                        "cron_expr must use 5, 6, or 7 fields",
+                    ));
+                }
+            }
+        }
+    };
+    Ok(expanded)
+}
+
+fn compute_next_cron_run_at(
+    cron_expr: &str,
+    after_ms: i64,
+) -> std::result::Result<i64, (StatusCode, Json<ApiError>)> {
+    let normalized = normalize_cron_expression_for_parser(cron_expr)?;
+    let schedule = cron::Schedule::from_str(&normalized)
+        .map_err(|_| api_error(StatusCode::BAD_REQUEST, "cron_expr is invalid"))?;
+    let baseline = DateTime::<Utc>::from_timestamp_millis(after_ms).ok_or_else(|| {
+        api_error(
+            StatusCode::BAD_REQUEST,
+            "cron schedule baseline timestamp is invalid",
+        )
+    })?;
+    schedule
+        .after(&baseline)
+        .next()
+        .map(|next| next.timestamp_millis())
+        .ok_or_else(|| api_error(StatusCode::BAD_REQUEST, "cron_expr has no future schedule"))
+}
+
 fn compute_initial_next_run_at(
     schedule_kind: &str,
     interval_seconds: Option<i64>,
     run_at_ms: Option<i64>,
+    cron_expr: Option<&str>,
     now_ms: i64,
 ) -> std::result::Result<Option<i64>, (StatusCode, Json<ApiError>)> {
     match schedule_kind {
-        "interval" => {
+        "interval" | "every" => {
             let interval = interval_seconds.ok_or_else(|| {
                 api_error(
                     StatusCode::BAD_REQUEST,
-                    "interval schedule requires interval_seconds",
+                    "interval/every schedule requires interval_seconds",
                 )
             })?;
             if interval <= 0 {
@@ -11473,33 +18242,48 @@ fn compute_initial_next_run_at(
                 run_at_ms.unwrap_or(now_ms.saturating_add(interval * 1000)),
             ))
         }
-        "once" => {
+        "once" | "at" => {
             let run_at_ms = run_at_ms.ok_or_else(|| {
-                api_error(StatusCode::BAD_REQUEST, "once schedule requires run_at_ms")
+                api_error(
+                    StatusCode::BAD_REQUEST,
+                    "once/at schedule requires run_at_ms",
+                )
             })?;
             Ok(Some(run_at_ms))
         }
+        "cron" => {
+            let cron_expr = cron_expr
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    api_error(StatusCode::BAD_REQUEST, "cron schedule requires cron_expr")
+                })?;
+            let baseline = run_at_ms.unwrap_or(now_ms);
+            Ok(Some(compute_next_cron_run_at(cron_expr, baseline)?))
+        }
         _ => Err(api_error(
             StatusCode::BAD_REQUEST,
-            "schedule_kind must be one of: interval, once",
+            "schedule_kind must be one of: interval, once, every, at, cron",
         )),
     }
 }
 
 fn compute_updated_next_run_at(
     current: &JobRecord,
+    schedule_kind: &str,
     interval_override: Option<i64>,
     run_at_override: Option<i64>,
+    cron_expr: Option<&str>,
     now_ms: i64,
 ) -> std::result::Result<Option<i64>, (StatusCode, Json<ApiError>)> {
-    match current.schedule_kind.as_str() {
-        "interval" => {
+    match schedule_kind {
+        "interval" | "every" => {
             let interval = interval_override
                 .or(current.interval_seconds)
                 .ok_or_else(|| {
                     api_error(
                         StatusCode::BAD_REQUEST,
-                        "interval schedule requires interval_seconds",
+                        "interval/every schedule requires interval_seconds",
                     )
                 })?;
             if interval <= 0 {
@@ -11513,9 +18297,19 @@ fn compute_updated_next_run_at(
                 baseline.unwrap_or(now_ms.saturating_add(interval * 1000)),
             ))
         }
-        "once" => Ok(run_at_override
+        "once" | "at" => Ok(run_at_override
             .or(current.run_at_ms)
             .or(current.next_run_at)),
+        "cron" => {
+            let cron_expr = cron_expr
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .ok_or_else(|| {
+                    api_error(StatusCode::BAD_REQUEST, "cron schedule requires cron_expr")
+                })?;
+            let baseline = run_at_override.or(current.next_run_at).unwrap_or(now_ms);
+            Ok(Some(compute_next_cron_run_at(cron_expr, baseline)?))
+        }
         _ => Err(api_error(
             StatusCode::BAD_REQUEST,
             "unsupported schedule_kind on existing job",
@@ -11609,6 +18403,11 @@ fn to_note_response(record: NoteRecord) -> NoteResponse {
 }
 
 fn to_job_response(record: JobRecord) -> JobResponse {
+    let cron_expr = if record.schedule_kind == "cron" {
+        job_cron_expr_from_payload_json(&record.payload_json)
+    } else {
+        None
+    };
     JobResponse {
         job_id: record.job_id,
         agent_id: record.agent_id,
@@ -11617,6 +18416,7 @@ fn to_job_response(record: JobRecord) -> JobResponse {
         schedule_kind: record.schedule_kind,
         interval_seconds: record.interval_seconds,
         run_at_ms: record.run_at_ms,
+        cron_expr,
         next_run_at: record.next_run_at,
         payload_json: record.payload_json,
         max_retries: record.max_retries,
@@ -11668,11 +18468,34 @@ fn to_security_audit_event_response(
 
 fn to_plugin_manifest_response(manifest: CorePluginManifest) -> PluginManifestResponse {
     PluginManifestResponse {
+        schema_version: manifest.schema_version,
         plugin_id: manifest.plugin_id,
         display_name: manifest.display_name,
         plugin_version: manifest.plugin_version,
         api_version: manifest.api_version,
         enabled: manifest.enabled,
+        artifact: PluginArtifactResponse {
+            exec_kind: match manifest.artifact.exec_kind {
+                CorePluginExecKind::Subprocess => "subprocess".to_string(),
+                CorePluginExecKind::Daemon => "daemon".to_string(),
+            },
+            local_path: manifest.artifact.local_path,
+            command: manifest.artifact.command,
+            args: manifest.artifact.args,
+            sha256: manifest.artifact.sha256,
+        },
+        compatibility: PluginCompatibilityResponse {
+            min_gateway_version: manifest.compatibility.min_gateway_version,
+        },
+        permissions: PluginPermissionsResponse {
+            allowed_roots: manifest.permissions.allowed_roots,
+            network_policy: manifest.permissions.network_policy,
+            network_allowlist: manifest.permissions.network_allowlist,
+        },
+        limits: PluginLimitsResponse {
+            timeout_ms: manifest.limits.timeout_ms,
+            max_output_chars: manifest.limits.max_output_chars,
+        },
         tools: manifest
             .capabilities
             .tools
@@ -11785,9 +18608,30 @@ fn load_plugin_manifest_dirs_from_env(state_dir: &FsPath) -> Vec<PathBuf> {
     }
 
     if directories.is_empty() {
-        directories.push(state_dir.join("plugins"));
+        let plugin_root = state_dir.join("plugins");
+        let active_dir = plugin_root.join("active");
+        if directory_has_json_manifests(&active_dir) {
+            directories.push(active_dir);
+        } else if directory_has_json_manifests(&plugin_root) {
+            directories.push(plugin_root);
+        } else {
+            directories.push(active_dir);
+        }
     }
     directories
+}
+
+fn directory_has_json_manifests(path: &FsPath) -> bool {
+    if !path.exists() || !path.is_dir() {
+        return false;
+    }
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return false;
+    };
+    entries.flatten().any(|entry| {
+        let entry_path = entry.path();
+        entry_path.is_file() && entry_path.extension().and_then(|value| value.to_str()) == Some("json")
+    })
 }
 
 fn hook_point_from_capability_name(name: &str) -> AnyResult<HookPoint> {
@@ -12141,7 +18985,7 @@ mod tests {
     use axum::body::{to_bytes, Body};
     use axum::extract::State as AxumState;
     use axum::http::Request;
-    use httpmock::Method::POST;
+    use httpmock::Method::{GET, POST};
     use httpmock::MockServer;
     use tempfile::TempDir;
     use tokio::net::TcpListener;
@@ -12150,6 +18994,7 @@ mod tests {
     struct TestContext {
         _temp_dir: TempDir,
         app: Router,
+        state: AppState,
         storage: Storage,
         secret_store: SecretStore,
         hook_bus: Arc<HookBus>,
@@ -12366,6 +19211,15 @@ mod tests {
             }),
             counters: StdRwLock::new(HashMap::new()),
         };
+        let trust_lock_path = trust_contract_lock_path(temp_dir.path());
+        let trust_lock = build_runtime_trust_contract_lock_record(
+            &default_runtime_config().global,
+            "test",
+            Utc::now().timestamp_millis(),
+        )
+        .expect("build runtime trust lock");
+        persist_runtime_trust_contract_lock(&trust_lock_path, &trust_lock)
+            .expect("persist runtime trust lock");
 
         let state = AppState {
             auth_mode,
@@ -12381,10 +19235,12 @@ mod tests {
             tool_concurrency,
             channel_tool_allowed_providers: Arc::new(channel_tool_allowed_providers),
             channel_runtime,
+            internal_channel_ingest_token: Arc::new(uuid::Uuid::new_v4().to_string()),
             tool_runner: LocalToolRunner::default(),
             secret_store: secret_store.clone(),
             oauth_sessions: Arc::new(RwLock::new(HashMap::new())),
             numquam_client,
+            numquam_runtime_status: Arc::new(RwLock::new(NumquamRuntimeStatus::default())),
             plugin_registry: Arc::new(RwLock::new(plugin_registry)),
             hook_bus: hook_bus.clone(),
             skill_registry: skill_registry.clone(),
@@ -12397,13 +19253,24 @@ mod tests {
             started_instant: Instant::now(),
             db_path: Arc::new(paths.db_path.display().to_string()),
             attachments_path: Arc::new(paths.attachments_dir.display().to_string()),
+            session_run_lanes: Arc::new(SessionRunLaneManager::default()),
+            tool_error_breaker: Arc::new(ToolErrorFingerprintBreaker::default()),
+            plugin_runtime_health: Arc::new(StdRwLock::new(HashMap::new())),
+            plugin_daemons: Arc::new(RwLock::new(HashMap::new())),
+            scheduler_instance: Arc::new(SchedulerInstanceState::enabled_for_tests()),
+            trust_contract_lock: Arc::new(RwLock::new(trust_lock)),
+            trust_contract_lock_path: Arc::new(trust_lock_path.display().to_string()),
+            plugin_manifest_dirs: Arc::new(vec![temp_dir.path().join("plugins").join("active")]),
+            state_dir: Arc::new(temp_dir.path().to_path_buf()),
         };
         state.channel_runtime.start_all();
         record_extension_hook_policy_denials(&state, &hook_policy_denials);
 
+        let app = build_app(state.clone());
         TestContext {
             _temp_dir: temp_dir,
-            app: build_app(state),
+            app,
+            state,
             storage,
             secret_store,
             hook_bus,
@@ -12415,6 +19282,8 @@ mod tests {
     struct NumquamStubConfig {
         context_text: String,
         context_degrade: bool,
+        health_status: String,
+        drop_required_operation: Option<String>,
     }
 
     impl NumquamStubConfig {
@@ -12422,6 +19291,8 @@ mod tests {
             Self {
                 context_text: "stored memory says user likes tea".to_string(),
                 context_degrade: false,
+                health_status: "ok".to_string(),
+                drop_required_operation: None,
             }
         }
     }
@@ -12455,6 +19326,7 @@ mod tests {
                 "/api/integration/v1/context/build",
                 post(numquam_stub_context_build),
             )
+            .route("/api/integration/v1/context/why", post(numquam_stub_context_why))
             .route(
                 "/api/integration/v1/writeback/propose",
                 post(numquam_stub_writeback_propose),
@@ -12462,6 +19334,11 @@ mod tests {
             .route(
                 "/api/integration/v1/writeback/resolve",
                 post(numquam_stub_writeback_resolve),
+            )
+            .route("/api/integration/v1/health", get(numquam_stub_health))
+            .route(
+                "/api/integration/v1/capabilities",
+                get(numquam_stub_capabilities),
             )
             .route("/mcp", post(numquam_stub_mcp))
             .with_state(app_state);
@@ -12558,6 +19435,45 @@ mod tests {
         }))
     }
 
+    async fn numquam_stub_context_why(
+        Json(payload): Json<serde_json::Value>,
+    ) -> Json<serde_json::Value> {
+        let request_id = payload
+            .get("request_id")
+            .and_then(|value| value.as_str())
+            .unwrap_or("req_stub_why")
+            .to_string();
+        let evidence_ids = payload
+            .get("data")
+            .and_then(|value| value.get("evidence_ids"))
+            .and_then(|value| value.as_array())
+            .cloned()
+            .unwrap_or_default();
+        let reasons = evidence_ids
+            .iter()
+            .filter_map(|item| item.as_str())
+            .map(|id| {
+                serde_json::json!({
+                    "evidence_id": id,
+                    "reason": format!("Stub reason for {}", id)
+                })
+            })
+            .collect::<Vec<_>>();
+        Json(serde_json::json!({
+            "schema_version": NUMQUAM_SCHEMA_VERSION,
+            "request_id": request_id,
+            "request_id_source": "client",
+            "operation": "context.why",
+            "ok": true,
+            "degrade_mode": false,
+            "warnings": [],
+            "data": {
+                "reasons": reasons,
+                "evidence": []
+            }
+        }))
+    }
+
     async fn numquam_stub_writeback_resolve(
         AxumState(state): AxumState<NumquamStubState>,
         Json(payload): Json<serde_json::Value>,
@@ -12600,6 +19516,68 @@ mod tests {
                 "already_resolved": false,
                 "resolved_at_utc": Utc::now(),
                 "audit_ref": "audit_stub_resolve"
+            }
+        }))
+    }
+
+    async fn numquam_stub_health(
+        AxumState(state): AxumState<NumquamStubState>,
+    ) -> Json<serde_json::Value> {
+        Json(serde_json::json!({
+            "schema_version": NUMQUAM_SCHEMA_VERSION,
+            "request_id": "req_stub_health",
+            "request_id_source": "server_generated",
+            "operation": "health.get",
+            "ok": true,
+            "degrade_mode": state.config.health_status != "ok",
+            "warnings": [],
+            "data": {
+                "status": state.config.health_status,
+                "uptime_ms": 1234,
+                "dependencies": []
+            }
+        }))
+    }
+
+    async fn numquam_stub_capabilities(
+        AxumState(state): AxumState<NumquamStubState>,
+    ) -> Json<serde_json::Value> {
+        let mut operations = vec![
+            "context.build",
+            "context.why",
+            "writeback.propose",
+            "writeback.resolve",
+            "health.get",
+            "capabilities.get",
+        ];
+        if let Some(drop_name) = state.config.drop_required_operation.as_ref() {
+            operations.retain(|name| name != drop_name);
+        }
+        let ops = operations
+            .into_iter()
+            .map(|name| {
+                serde_json::json!({
+                    "name": name,
+                    "enabled": true,
+                    "requires_auth": true,
+                    "required_roles": ["operator"],
+                    "idempotent": false
+                })
+            })
+            .collect::<Vec<_>>();
+        Json(serde_json::json!({
+            "schema_version": NUMQUAM_SCHEMA_VERSION,
+            "request_id": "req_stub_capabilities",
+            "request_id_source": "server_generated",
+            "operation": "capabilities.get",
+            "ok": true,
+            "degrade_mode": false,
+            "warnings": [],
+            "data": {
+                "contract_version": NUMQUAM_CONTRACT_VERSION,
+                "supported_schema_versions": [NUMQUAM_CONTRACT_VERSION],
+                "transports": ["http", "mcp"],
+                "operations": ops
             }
         }))
     }
@@ -12679,6 +19657,29 @@ mod tests {
                     }
                 })
             }
+            "integration.context.why" => {
+                let request_id = arguments
+                    .get("request_id")
+                    .and_then(|value| value.as_str())
+                    .unwrap_or("req_stub_mcp_why")
+                    .to_string();
+                serde_json::json!({
+                    "schema_version": NUMQUAM_SCHEMA_VERSION,
+                    "request_id": request_id,
+                    "request_id_source": "client",
+                    "operation": "context.why",
+                    "ok": true,
+                    "degrade_mode": false,
+                    "warnings": [],
+                    "data": {
+                        "reasons": [{
+                            "evidence_id": "ev_stub_1",
+                            "reason": "Stub why"
+                        }],
+                        "evidence": []
+                    }
+                })
+            }
             "integration.writeback.propose" => {
                 let request_id = arguments
                     .get("request_id")
@@ -12743,6 +19744,52 @@ mod tests {
                     }
                 })
             }
+            "integration.health.get" => serde_json::json!({
+                "schema_version": NUMQUAM_SCHEMA_VERSION,
+                "request_id": "req_stub_mcp_health",
+                "request_id_source": "server_generated",
+                "operation": "health.get",
+                "ok": true,
+                "degrade_mode": state.config.health_status != "ok",
+                "warnings": [],
+                "data": {
+                    "status": state.config.health_status,
+                    "uptime_ms": 1234,
+                    "dependencies": []
+                }
+            }),
+            "integration.capabilities.get" => {
+                let mut operations = vec![
+                    "context.build",
+                    "context.why",
+                    "writeback.propose",
+                    "writeback.resolve",
+                    "health.get",
+                    "capabilities.get",
+                ];
+                if let Some(drop_name) = state.config.drop_required_operation.as_ref() {
+                    operations.retain(|name| name != drop_name);
+                }
+                let ops = operations
+                    .into_iter()
+                    .map(|op| serde_json::json!({"name": op, "enabled": true}))
+                    .collect::<Vec<_>>();
+                serde_json::json!({
+                    "schema_version": NUMQUAM_SCHEMA_VERSION,
+                    "request_id": "req_stub_mcp_capabilities",
+                    "request_id_source": "server_generated",
+                    "operation": "capabilities.get",
+                    "ok": true,
+                    "degrade_mode": false,
+                    "warnings": [],
+                    "data": {
+                        "contract_version": NUMQUAM_CONTRACT_VERSION,
+                        "supported_schema_versions": [NUMQUAM_CONTRACT_VERSION],
+                        "transports": ["http", "mcp"],
+                        "operations": ops
+                    }
+                })
+            }
             _ => serde_json::json!({
                 "schema_version": NUMQUAM_SCHEMA_VERSION,
                 "request_id": "req_stub_unknown",
@@ -12777,6 +19824,26 @@ mod tests {
         build_test_numquam_client_with_transport(base_url, NumquamTransport::Http)
     }
 
+    fn build_test_numquam_client_unreachable() -> NumquamClient {
+        NumquamClient {
+            transport: NumquamTransport::Http,
+            integration_base_url: "http://127.0.0.1:9".to_string(),
+            mcp_url: "http://127.0.0.1:9/mcp".to_string(),
+            token: None,
+            principal_id: "test_operator".to_string(),
+            principal_display_name: "Test Operator".to_string(),
+            request_timeout: Duration::from_millis(200),
+            context_build_timeout: Duration::from_millis(200),
+            writeback_propose_timeout: Duration::from_millis(200),
+            writeback_resolve_timeout: Duration::from_millis(200),
+            handshake_timeout: Duration::from_millis(200),
+            http_client: reqwest::Client::builder()
+                .timeout(Duration::from_millis(200))
+                .build()
+                .expect("numquam unreachable test client"),
+        }
+    }
+
     fn build_test_numquam_client_with_transport(
         base_url: &str,
         transport: NumquamTransport,
@@ -12789,6 +19856,10 @@ mod tests {
             principal_id: "test_operator".to_string(),
             principal_display_name: "Test Operator".to_string(),
             request_timeout: Duration::from_secs(3),
+            context_build_timeout: Duration::from_secs(3),
+            writeback_propose_timeout: Duration::from_secs(3),
+            writeback_resolve_timeout: Duration::from_secs(3),
+            handshake_timeout: Duration::from_secs(3),
             http_client: reqwest::Client::builder()
                 .timeout(Duration::from_secs(3))
                 .build()
@@ -13011,6 +20082,77 @@ mod tests {
         serde_json::from_slice(&bytes).expect("json body")
     }
 
+    async fn update_runtime_autonomy_guardrails(ctx: &TestContext, payload_json: &str) {
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(payload_json.to_string()),
+            ))
+            .await
+            .expect("runtime config update request");
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    async fn update_runtime_provider_policies(ctx: &TestContext, providers_json: &str) {
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(format!(r#"{{"providers":{providers_json}}}"#)),
+            ))
+            .await
+            .expect("runtime provider policy update request");
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    async fn create_session_with_user_message(
+        ctx: &TestContext,
+        title: &str,
+        content_text: &str,
+    ) -> String {
+        let create_session_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(serde_json::json!({ "title": title }).to_string()),
+            ))
+            .await
+            .expect("create session");
+        assert_eq!(create_session_response.status(), StatusCode::CREATED);
+        let create_session_json = parse_json(create_session_response).await;
+        let session_id = create_session_json["session"]["session_id"]
+            .as_str()
+            .expect("session_id")
+            .to_string();
+
+        let create_message_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(
+                    serde_json::json!({
+                        "role": "user",
+                        "content_text": content_text
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("create message");
+        assert_eq!(create_message_response.status(), StatusCode::CREATED);
+
+        session_id
+    }
+
     #[derive(Debug, Serialize)]
     struct TestJwtClaims {
         iss: String,
@@ -13101,6 +20243,7 @@ tool.process terminate abc123
 tool.process status abc123
 "#,
             &registry,
+            None,
         )
         .expect("parse tool requests");
         assert_eq!(invocations.len(), 5);
@@ -13129,9 +20272,12 @@ tool.process status abc123
     #[test]
     fn tool_registry_timeout_metadata_is_applied_to_exec_requests() {
         let registry = ToolRegistry::with_timeouts(Some(2500), Some(4000));
-        let invocations =
-            parse_tool_requests_from_input("tool.exec echo hi\ntool.process status abc", &registry)
-                .expect("parse tool requests");
+        let invocations = parse_tool_requests_from_input(
+            "tool.exec echo hi\ntool.process status abc",
+            &registry,
+            None,
+        )
+        .expect("parse tool requests");
         assert_eq!(invocations.len(), 2);
 
         match &invocations[0].request {
@@ -13153,6 +20299,7 @@ tool.channel_pin discord:c1/m42
 tool.channel_reaction discord:c1/m42|:thumbsup:
 "#,
             &registry,
+            None,
         )
         .expect("parse channel action tools");
         assert_eq!(invocations.len(), 4);
@@ -13176,18 +20323,33 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     }
 
     #[test]
-    fn parse_telegram_chat_target_accepts_numeric_and_prefixed_values() {
-        assert_eq!(parse_telegram_chat_target("1001").expect("chat id"), 1001);
+    fn parse_telegram_target_accepts_numeric_and_prefixed_values() {
+        assert_eq!(parse_telegram_target("1001").expect("chat id").0, 1001);
         assert_eq!(
-            parse_telegram_chat_target("chat:-100123").expect("prefixed chat id"),
+            parse_telegram_target("chat:-100123")
+                .expect("prefixed chat id")
+                .0,
             -100123
         );
     }
 
     #[test]
-    fn parse_telegram_chat_target_rejects_non_numeric_values() {
-        let err = parse_telegram_chat_target("chat:not-a-number").expect_err("invalid target");
+    fn parse_telegram_target_rejects_non_numeric_chat_id() {
+        let err = parse_telegram_target("chat:not-a-number").expect_err("invalid target");
         assert!(err.to_string().contains("invalid telegram chat target"));
+    }
+
+    #[test]
+    fn parse_telegram_target_accepts_optional_message_id() {
+        let parsed = parse_telegram_target("chat:1001/42").expect("telegram target");
+        assert_eq!(parsed.0, 1001);
+        assert_eq!(parsed.1, Some(42));
+    }
+
+    #[test]
+    fn parse_telegram_target_rejects_empty_message_id() {
+        let err = parse_telegram_target("chat:1001/").expect_err("invalid telegram target");
+        assert!(err.to_string().contains("message id must not be empty"));
     }
 
     #[test]
@@ -14737,6 +21899,192 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         let resolve_json = parse_json(resolve_response).await;
         assert_eq!(resolve_json["approval"]["status"], "approved");
         assert_eq!(resolve_counter.load(Ordering::Relaxed), 1);
+    }
+
+    #[tokio::test]
+    async fn numquam_breaker_opens_after_consecutive_failures_and_runs_fallback() {
+        let ctx = test_context_with_numquam(build_test_numquam_client_unreachable());
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"numquam-breaker"}"#),
+            ))
+            .await
+            .expect("create session");
+        let create_json = parse_json(create_response).await;
+        let session_id = create_json["session"]["session_id"]
+            .as_str()
+            .expect("session_id")
+            .to_string();
+
+        for index in 0..3 {
+            let _ = ctx
+                .app
+                .clone()
+                .oneshot(auth_request(
+                    "POST",
+                    &format!("/api/v1/sessions/{session_id}/messages"),
+                    Body::from(format!(
+                        r#"{{"role":"user","content_text":"breaker message {}"}}"#,
+                        index
+                    )),
+                ))
+                .await
+                .expect("create message");
+            let run_response = ctx
+                .app
+                .clone()
+                .oneshot(auth_request(
+                    "POST",
+                    &format!("/api/v1/sessions/{session_id}/runs"),
+                    Body::from("{}"),
+                ))
+                .await
+                .expect("create run");
+            assert_eq!(run_response.status(), StatusCode::CREATED);
+            let run_json = parse_json(run_response).await;
+            assert_eq!(run_json["run"]["status"], "succeeded");
+        }
+
+        let status_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request("GET", "/api/v1/status", Body::empty()))
+            .await
+            .expect("status");
+        assert_eq!(status_response.status(), StatusCode::OK);
+        let status_json = parse_json(status_response).await;
+        assert_eq!(status_json["numquam"]["breaker_open"], true);
+        assert_eq!(status_json["numquam"]["degrade_mode"], true);
+    }
+
+    #[tokio::test]
+    async fn numquam_context_truncates_to_provider_input_budget() {
+        let mut config = NumquamStubConfig::healthy();
+        config.context_text = "A".repeat(20_000);
+        let stub = spawn_numquam_stub(config).await;
+        let ctx = test_context_with_numquam(build_test_numquam_client(&stub.base_url));
+
+        let mut runtime = load_runtime_config(&ctx.state).expect("load runtime config");
+        runtime.autonomy_guardrails.max_provider_input_chars = 1_400;
+        let payload = serde_json::to_string(&runtime).expect("serialize runtime config");
+        ctx.storage
+            .set_app_kv_json(APP_KV_RUNTIME_CONFIG, payload)
+            .expect("persist runtime config");
+
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"numquam-truncation"}"#),
+            ))
+            .await
+            .expect("create session");
+        let create_json = parse_json(create_response).await;
+        let session_id = create_json["session"]["session_id"]
+            .as_str()
+            .expect("session_id")
+            .to_string();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(r#"{"role":"user","content_text":"truncate context please"}"#),
+            ))
+            .await
+            .expect("create message");
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("create run");
+        let run_json = parse_json(run_response).await;
+        assert_eq!(run_json["run"]["status"], "succeeded");
+        let usage_json = run_json["run"]["usage_json"].as_str().expect("usage_json");
+        let usage_value: serde_json::Value =
+            serde_json::from_str(usage_json).expect("parse usage json");
+        assert_eq!(usage_value["memory"]["context_truncated"], true);
+        assert!(
+            usage_value["memory"]["context_original_chars"]
+                .as_u64()
+                .unwrap_or(0)
+                > usage_value["memory"]["context_returned_chars"]
+                    .as_u64()
+                    .unwrap_or(0)
+        );
+    }
+
+    #[tokio::test]
+    async fn run_memory_why_endpoint_returns_numquam_explainability_payload() {
+        let stub = spawn_numquam_stub(NumquamStubConfig::healthy()).await;
+        let ctx = test_context_with_numquam(build_test_numquam_client(&stub.base_url));
+
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"numquam-why"}"#),
+            ))
+            .await
+            .expect("create session");
+        let create_json = parse_json(create_response).await;
+        let session_id = create_json["session"]["session_id"]
+            .as_str()
+            .expect("session_id")
+            .to_string();
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(r#"{"role":"user","content_text":"hello explainability"}"#),
+            ))
+            .await
+            .expect("create message");
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("create run");
+        let run_json = parse_json(run_response).await;
+        let run_id = run_json["run"]["run_id"].as_str().expect("run id");
+
+        let why_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/runs/{run_id}/memory/why"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("run memory why");
+        assert_eq!(why_response.status(), StatusCode::OK);
+        let why_json = parse_json(why_response).await;
+        assert_eq!(why_json["run_id"], run_id);
+        assert!(why_json["reasons"].as_array().is_some());
     }
 
     #[tokio::test]
@@ -16529,6 +23877,35 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             default_json["config"]["security"]["audit_hot_retention_days"],
             90
         );
+        assert_eq!(
+            default_json["config"]["autonomy_guardrails"]["max_run_ms"],
+            120000
+        );
+        assert_eq!(
+            default_json["config"]["autonomy_guardrails"]["max_tool_calls_per_run"],
+            16
+        );
+        assert_eq!(
+            default_json["config"]["autonomy_guardrails"]["max_provider_input_chars"],
+            32000
+        );
+        assert_eq!(
+            default_json["config"]["autonomy_guardrails"]["max_tool_output_chars_total"],
+            64000
+        );
+        assert_eq!(
+            default_json["config"]["autonomy_guardrails"]["max_provider_attempts"],
+            3
+        );
+        assert_eq!(
+            default_json["config"]["autonomy_guardrails"]
+                ["max_consecutive_failures_before_breaker"],
+            3
+        );
+        assert_eq!(
+            default_json["config"]["autonomy_guardrails"]["heartbeat_max_run_ms"],
+            5000
+        );
 
         let update = ctx
             .app
@@ -16583,6 +23960,15 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                             "audit_archive_encryption": "kms",
                             "audit_hot_retention_days": 90,
                             "audit_archive_retention_days": 365
+                        },
+                        "autonomy_guardrails": {
+                            "max_run_ms": 150000,
+                            "max_tool_calls_per_run": 18,
+                            "max_provider_input_chars": 50000,
+                            "max_tool_output_chars_total": 80000,
+                            "max_provider_attempts": 4,
+                            "max_consecutive_failures_before_breaker": 5,
+                            "heartbeat_max_run_ms": 7000
                         }
                     }"#,
                 ),
@@ -16606,6 +23992,14 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         assert_eq!(
             update_json["config"]["security"]["audit_archive_retention_days"],
             365
+        );
+        assert_eq!(
+            update_json["config"]["autonomy_guardrails"]["max_run_ms"],
+            150000
+        );
+        assert_eq!(
+            update_json["config"]["autonomy_guardrails"]["max_provider_attempts"],
+            4
         );
 
         let second_update = ctx
@@ -16752,6 +24146,867 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             invalid_discord_operation_mode.status(),
             StatusCode::BAD_REQUEST
         );
+
+        let invalid_autonomy_guardrails = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    r#"{
+                        "autonomy_guardrails": {
+                            "max_run_ms": 120000,
+                            "max_tool_calls_per_run": 16,
+                            "max_provider_input_chars": 32000,
+                            "max_tool_output_chars_total": 64000,
+                            "max_provider_attempts": 0,
+                            "max_consecutive_failures_before_breaker": 3,
+                            "heartbeat_max_run_ms": 5000
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("invalid autonomy guardrail runtime config update");
+        assert_eq!(
+            invalid_autonomy_guardrails.status(),
+            StatusCode::BAD_REQUEST
+        );
+    }
+
+    #[test]
+    fn run_wall_time_budget_helper_returns_terminal_reason_code() {
+        let started = Instant::now() - Duration::from_millis(10);
+        let err = enforce_run_wall_time_budget(started, 1).expect_err("expected wall-time budget");
+        assert!(err.to_string().starts_with(REASON_BUDGET_MAX_RUN_MS));
+    }
+
+    #[tokio::test]
+    async fn run_budget_max_tool_calls_fails_with_reason_code() {
+        let ctx = test_context();
+        update_runtime_autonomy_guardrails(
+            &ctx,
+            r#"{
+                "autonomy_guardrails": {
+                    "max_tool_calls_per_run": 1
+                }
+            }"#,
+        )
+        .await;
+
+        let session_id = create_session_with_user_message(
+            &ctx,
+            "budget-tool-calls",
+            "tool.process status p1\ntool.process status p2",
+        )
+        .await;
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("create run");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+        let run_json = parse_json(run_response).await;
+        assert_eq!(run_json["run"]["status"], "failed");
+        let error_text = run_json["run"]["error_text"].as_str().unwrap_or_default();
+        assert!(error_text.contains(REASON_BUDGET_MAX_TOOL_CALLS));
+    }
+
+    #[tokio::test]
+    async fn run_breaker_tool_fanout_cap_fails_with_reason_code() {
+        let ctx = test_context();
+        update_runtime_autonomy_guardrails(
+            &ctx,
+            r#"{
+                "autonomy_guardrails": {
+                    "max_tool_calls_per_run": 16
+                }
+            }"#,
+        )
+        .await;
+
+        let fanout_input = (1..=9)
+            .map(|idx| format!("tool.process status p{idx}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let session_id = create_session_with_user_message(&ctx, "fanout-cap", &fanout_input).await;
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("create run");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+        let run_json = parse_json(run_response).await;
+        assert_eq!(run_json["run"]["status"], "failed");
+        let error_text = run_json["run"]["error_text"].as_str().unwrap_or_default();
+        assert!(error_text.contains(REASON_BREAKER_TOOL_FANOUT_CAP));
+    }
+
+    #[tokio::test]
+    async fn repeated_tool_error_fingerprint_trips_breaker_reason_code() {
+        let ctx = test_context();
+        update_runtime_autonomy_guardrails(
+            &ctx,
+            r#"{
+                "autonomy_guardrails": {
+                    "max_consecutive_failures_before_breaker": 2
+                }
+            }"#,
+        )
+        .await;
+
+        let session_id = create_session_with_user_message(
+            &ctx,
+            "tool-error-breaker",
+            "tool.process unknown 123",
+        )
+        .await;
+
+        let first_run = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("first run");
+        assert_eq!(first_run.status(), StatusCode::CREATED);
+        let first_run_json = parse_json(first_run).await;
+        assert_eq!(first_run_json["run"]["status"], "failed");
+        assert!(
+            !first_run_json["run"]["error_text"]
+                .as_str()
+                .unwrap_or_default()
+                .contains(REASON_BREAKER_REPEATED_TOOL_ERROR),
+            "breaker should not trip on first failure"
+        );
+
+        let second_run = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("second run");
+        assert_eq!(second_run.status(), StatusCode::CREATED);
+        let second_run_json = parse_json(second_run).await;
+        assert_eq!(second_run_json["run"]["status"], "failed");
+        let error_text = second_run_json["run"]["error_text"]
+            .as_str()
+            .unwrap_or_default();
+        assert!(
+            error_text.contains(REASON_BREAKER_REPEATED_TOOL_ERROR),
+            "expected breaker reason, got {error_text}"
+        );
+    }
+
+    #[tokio::test]
+    async fn run_budget_max_provider_input_chars_fails_with_reason_code() {
+        let ctx = test_context();
+        update_runtime_autonomy_guardrails(
+            &ctx,
+            r#"{
+                "autonomy_guardrails": {
+                    "max_provider_input_chars": 256
+                }
+            }"#,
+        )
+        .await;
+
+        let long_input = "x".repeat(800);
+        let session_id =
+            create_session_with_user_message(&ctx, "budget-provider-input", &long_input).await;
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("create run");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+        let run_json = parse_json(run_response).await;
+        assert_eq!(run_json["run"]["status"], "failed");
+        let error_text = run_json["run"]["error_text"].as_str().unwrap_or_default();
+        assert!(error_text.contains(REASON_BUDGET_MAX_PROVIDER_INPUT_CHARS));
+    }
+
+    #[tokio::test]
+    async fn run_budget_max_tool_output_chars_fails_with_reason_code() {
+        let ctx = test_context();
+        update_runtime_autonomy_guardrails(
+            &ctx,
+            r#"{
+                "autonomy_guardrails": {
+                    "max_tool_output_chars_total": 300
+                }
+            }"#,
+        )
+        .await;
+
+        let session_id = create_session_with_user_message(
+            &ctx,
+            "budget-tool-output",
+            "tool.process status 123\ntool.process status 456",
+        )
+        .await;
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("create run");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+        let run_json = parse_json(run_response).await;
+        assert_eq!(run_json["run"]["status"], "failed");
+        let error_text = run_json["run"]["error_text"].as_str().unwrap_or_default();
+        assert!(
+            error_text.contains(REASON_BUDGET_MAX_TOOL_OUTPUT_CHARS_TOTAL),
+            "unexpected error text: {error_text}"
+        );
+    }
+
+    #[tokio::test]
+    async fn run_budget_max_provider_attempts_fails_with_reason_code() {
+        let ctx = test_context();
+        update_runtime_autonomy_guardrails(
+            &ctx,
+            r#"{
+                "autonomy_guardrails": {
+                    "max_provider_attempts": 1
+                }
+            }"#,
+        )
+        .await;
+
+        let server = MockServer::start_async().await;
+        let _completion = server
+            .mock_async(|when, then| {
+                when.method(POST).path("/v1/chat/completions");
+                then.status(429)
+                    .header("content-type", "application/json")
+                    .body(r#"{"error":{"message":"rate limited"}}"#);
+            })
+            .await;
+        let api_base_url = server.url("");
+
+        let create_profile_a = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(format!(
+                    r#"{{
+                        "provider":"openai",
+                        "display_name":"budget-a",
+                        "auth_mode":"api_key",
+                        "risk_level":"low",
+                        "enabled":true,
+                        "kill_switch_scope":"none",
+                        "api_base_url":"{api_base_url}",
+                        "credentials_json":{{"api_key":"k-a"}}
+                    }}"#
+                )),
+            ))
+            .await
+            .expect("create profile a");
+        assert_eq!(create_profile_a.status(), StatusCode::CREATED);
+
+        let create_profile_b = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(format!(
+                    r#"{{
+                        "provider":"openai",
+                        "display_name":"budget-b",
+                        "auth_mode":"api_key",
+                        "risk_level":"low",
+                        "enabled":true,
+                        "kill_switch_scope":"none",
+                        "api_base_url":"{api_base_url}",
+                        "credentials_json":{{"api_key":"k-b"}}
+                    }}"#
+                )),
+            ))
+            .await
+            .expect("create profile b");
+        assert_eq!(create_profile_b.status(), StatusCode::CREATED);
+
+        let session_id =
+            create_session_with_user_message(&ctx, "budget-provider-attempts", "provider budget")
+                .await;
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from(r#"{"model_provider":"openai","model_id":"gpt-test"}"#),
+            ))
+            .await
+            .expect("create run");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+        let run_json = parse_json(run_response).await;
+        assert_eq!(run_json["run"]["status"], "failed");
+        let error_text = run_json["run"]["error_text"].as_str().unwrap_or_default();
+        assert!(error_text.contains(REASON_BUDGET_MAX_PROVIDER_ATTEMPTS));
+    }
+
+    #[tokio::test]
+    async fn daily_token_budget_breach_disables_auth_profile_and_fails_run() {
+        let ctx = test_context();
+        update_runtime_provider_policies(
+            &ctx,
+            r#"[
+                {
+                    "provider":"openai",
+                    "enabled":true,
+                    "allow_consumer_oauth":false,
+                    "kill_switch_scope":"none",
+                    "daily_token_budget":10
+                },
+                {
+                    "provider":"anthropic",
+                    "enabled":true,
+                    "allow_consumer_oauth":false,
+                    "kill_switch_scope":"none"
+                }
+            ]"#,
+        )
+        .await;
+
+        let server = MockServer::start_async().await;
+        let _completion = server
+            .mock_async(|when, then| {
+                when.method(POST).path("/v1/chat/completions");
+                then.status(200)
+                    .header("content-type", "application/json")
+                    .body(
+                        r#"{
+                            "choices":[{"message":{"content":"daily budget test response"}}],
+                            "usage":{"prompt_tokens":8,"completion_tokens":4,"total_tokens":12}
+                        }"#,
+                    );
+            })
+            .await;
+        let api_base_url = server.url("");
+
+        let create_profile = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(format!(
+                    r#"{{
+                        "provider":"openai",
+                        "display_name":"daily-token-profile",
+                        "auth_mode":"api_key",
+                        "risk_level":"low",
+                        "enabled":true,
+                        "kill_switch_scope":"none",
+                        "api_base_url":"{api_base_url}",
+                        "credentials_json":{{"api_key":"daily-token-key"}}
+                    }}"#
+                )),
+            ))
+            .await
+            .expect("create auth profile");
+        assert_eq!(create_profile.status(), StatusCode::CREATED);
+        let create_profile_json = parse_json(create_profile).await;
+        let auth_profile_id = create_profile_json["profile"]["auth_profile_id"]
+            .as_str()
+            .expect("auth_profile_id")
+            .to_string();
+
+        let session_id =
+            create_session_with_user_message(&ctx, "daily-token-budget", "token budget run").await;
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from(r#"{"model_provider":"openai","model_id":"gpt-test"}"#),
+            ))
+            .await
+            .expect("create run");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+        let run_json = parse_json(run_response).await;
+        assert_eq!(run_json["run"]["status"], "failed");
+        let error_text = run_json["run"]["error_text"].as_str().unwrap_or_default();
+        assert!(
+            error_text.contains(REASON_BUDGET_DAILY_TOKEN_LIMIT),
+            "expected daily token budget reason, got {error_text}"
+        );
+
+        let updated = ctx
+            .storage
+            .get_auth_profile(&auth_profile_id)
+            .expect("load updated profile")
+            .expect("profile exists");
+        assert!(!updated.enabled);
+        assert_eq!(updated.kill_switch_scope, KILL_SWITCH_SCOPE_PROFILE);
+    }
+
+    #[tokio::test]
+    async fn daily_cost_budget_without_cost_model_fails_closed() {
+        let ctx = test_context();
+        update_runtime_provider_policies(
+            &ctx,
+            r#"[
+                {
+                    "provider":"openai",
+                    "enabled":true,
+                    "allow_consumer_oauth":false,
+                    "kill_switch_scope":"none",
+                    "daily_cost_usd_budget":0.01
+                },
+                {
+                    "provider":"anthropic",
+                    "enabled":true,
+                    "allow_consumer_oauth":false,
+                    "kill_switch_scope":"none"
+                }
+            ]"#,
+        )
+        .await;
+
+        let server = MockServer::start_async().await;
+        let _completion = server
+            .mock_async(|when, then| {
+                when.method(POST).path("/v1/chat/completions");
+                then.status(200)
+                    .header("content-type", "application/json")
+                    .body(
+                        r#"{
+                            "choices":[{"message":{"content":"cost budget test response"}}]
+                        }"#,
+                    );
+            })
+            .await;
+        let api_base_url = server.url("");
+
+        let create_profile = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(format!(
+                    r#"{{
+                        "provider":"openai",
+                        "display_name":"daily-cost-profile",
+                        "auth_mode":"api_key",
+                        "risk_level":"low",
+                        "enabled":true,
+                        "kill_switch_scope":"none",
+                        "api_base_url":"{api_base_url}",
+                        "credentials_json":{{"api_key":"daily-cost-key"}}
+                    }}"#
+                )),
+            ))
+            .await
+            .expect("create auth profile");
+        assert_eq!(create_profile.status(), StatusCode::CREATED);
+        let create_profile_json = parse_json(create_profile).await;
+        let auth_profile_id = create_profile_json["profile"]["auth_profile_id"]
+            .as_str()
+            .expect("auth_profile_id")
+            .to_string();
+
+        let session_id =
+            create_session_with_user_message(&ctx, "daily-cost-budget", "cost budget run").await;
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from(r#"{"model_provider":"openai","model_id":"gpt-test"}"#),
+            ))
+            .await
+            .expect("create run");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+        let run_json = parse_json(run_response).await;
+        assert_eq!(run_json["run"]["status"], "failed");
+        let error_text = run_json["run"]["error_text"].as_str().unwrap_or_default();
+        assert!(
+            error_text.contains(REASON_BUDGET_DAILY_COST_UNAVAILABLE),
+            "expected fail-closed cost reason, got {error_text}"
+        );
+
+        let updated = ctx
+            .storage
+            .get_auth_profile(&auth_profile_id)
+            .expect("load updated profile")
+            .expect("profile exists");
+        assert!(updated.enabled);
+    }
+
+    #[tokio::test]
+    async fn provider_circuit_breaker_opens_and_blocks_followup_runs() {
+        let ctx = test_context();
+        update_runtime_autonomy_guardrails(
+            &ctx,
+            r#"{
+                "autonomy_guardrails": {
+                    "max_consecutive_failures_before_breaker": 1
+                }
+            }"#,
+        )
+        .await;
+
+        let server = MockServer::start_async().await;
+        let completion = server
+            .mock_async(|when, then| {
+                when.method(POST).path("/v1/chat/completions");
+                then.status(429)
+                    .header("content-type", "application/json")
+                    .body(r#"{"error":{"message":"rate limited"}} "#);
+            })
+            .await;
+        let api_base_url = server.url("");
+
+        let create_profile = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(format!(
+                    r#"{{
+                        "provider":"openai",
+                        "display_name":"provider-breaker-profile",
+                        "auth_mode":"api_key",
+                        "risk_level":"low",
+                        "enabled":true,
+                        "kill_switch_scope":"none",
+                        "api_base_url":"{api_base_url}",
+                        "credentials_json":{{"api_key":"provider-breaker-key"}}
+                    }}"#
+                )),
+            ))
+            .await
+            .expect("create auth profile");
+        assert_eq!(create_profile.status(), StatusCode::CREATED);
+
+        let first_session =
+            create_session_with_user_message(&ctx, "provider-breaker-first", "first run").await;
+        let first_run = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{first_session}/runs"),
+                Body::from(r#"{"model_provider":"openai","model_id":"gpt-test"}"#),
+            ))
+            .await
+            .expect("first provider run");
+        assert_eq!(first_run.status(), StatusCode::CREATED);
+        let first_json = parse_json(first_run).await;
+        assert_eq!(first_json["run"]["status"], "failed");
+
+        let provider_breaker = ctx
+            .storage
+            .get_circuit_breaker_state(CIRCUIT_BREAKER_SCOPE_PROVIDER, "openai")
+            .expect("load provider breaker")
+            .expect("provider breaker exists");
+        assert_eq!(provider_breaker.state, CIRCUIT_BREAKER_STATE_OPEN);
+        assert!(provider_breaker.cooldown_until.is_some());
+
+        let second_session =
+            create_session_with_user_message(&ctx, "provider-breaker-second", "second run").await;
+        let second_run = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{second_session}/runs"),
+                Body::from(r#"{"model_provider":"openai","model_id":"gpt-test"}"#),
+            ))
+            .await
+            .expect("second provider run");
+        assert_eq!(second_run.status(), StatusCode::CREATED);
+        let second_json = parse_json(second_run).await;
+        assert_eq!(second_json["run"]["status"], "failed");
+        assert!(second_json["run"]["error_text"]
+            .as_str()
+            .unwrap_or_default()
+            .contains(REASON_BREAKER_PROVIDER_OPEN));
+
+        assert_eq!(completion.hits_async().await, 1);
+    }
+
+    #[tokio::test]
+    async fn provider_circuit_breaker_resets_after_cooldown_expiry() {
+        let ctx = test_context();
+        let server = MockServer::start_async().await;
+        let completion = server
+            .mock_async(|when, then| {
+                when.method(POST).path("/v1/chat/completions");
+                then.status(200)
+                    .header("content-type", "application/json")
+                    .body(r#"{"choices":[{"message":{"content":"breaker reset ok"}}]}"#);
+            })
+            .await;
+        let api_base_url = server.url("");
+
+        let create_profile = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(format!(
+                    r#"{{
+                        "provider":"openai",
+                        "display_name":"provider-breaker-reset-profile",
+                        "auth_mode":"api_key",
+                        "risk_level":"low",
+                        "enabled":true,
+                        "kill_switch_scope":"none",
+                        "api_base_url":"{api_base_url}",
+                        "credentials_json":{{"api_key":"provider-breaker-reset-key"}}
+                    }}"#
+                )),
+            ))
+            .await
+            .expect("create auth profile");
+        assert_eq!(create_profile.status(), StatusCode::CREATED);
+
+        let now = current_time_ms();
+        ctx.storage
+            .upsert_circuit_breaker_state(CircuitBreakerStateUpsert {
+                scope: CIRCUIT_BREAKER_SCOPE_PROVIDER.to_string(),
+                target_id: "openai".to_string(),
+                state: CIRCUIT_BREAKER_STATE_OPEN.to_string(),
+                consecutive_failures: 4,
+                opened_at: Some(now.saturating_sub(10_000)),
+                cooldown_until: Some(now.saturating_sub(1)),
+                last_error_code: Some("RATE_LIMITED".to_string()),
+            })
+            .expect("seed expired provider breaker");
+
+        let session_id =
+            create_session_with_user_message(&ctx, "provider-breaker-reset", "reset run").await;
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from(r#"{"model_provider":"openai","model_id":"gpt-test"}"#),
+            ))
+            .await
+            .expect("provider run after expired breaker");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+        let run_json = parse_json(run_response).await;
+        assert_eq!(run_json["run"]["status"], "succeeded");
+        assert_eq!(completion.hits_async().await, 1);
+
+        let breaker = ctx
+            .storage
+            .get_circuit_breaker_state(CIRCUIT_BREAKER_SCOPE_PROVIDER, "openai")
+            .expect("load provider breaker after success")
+            .expect("provider breaker exists");
+        assert_eq!(breaker.state, CIRCUIT_BREAKER_STATE_CLOSED);
+        assert_eq!(breaker.consecutive_failures, 0);
+    }
+
+    #[tokio::test]
+    async fn job_circuit_breaker_opens_and_skips_subsequent_runs() {
+        let ctx = test_context();
+        update_runtime_autonomy_guardrails(
+            &ctx,
+            r#"{
+                "autonomy_guardrails": {
+                    "max_consecutive_failures_before_breaker": 2
+                }
+            }"#,
+        )
+        .await;
+
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(
+                    r#"{
+                        "agent_id":"default",
+                        "name":"job-breaker-open",
+                        "enabled":true,
+                        "schedule_kind":"interval",
+                        "interval_seconds":60,
+                        "payload_json":{"mode":"fail"},
+                        "max_retries":0,
+                        "retry_backoff_ms":5,
+                        "timeout_ms":1000
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create breaker job");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_json = parse_json(create_response).await;
+        let job_id = create_json["job"]["job_id"]
+            .as_str()
+            .expect("job_id")
+            .to_string();
+
+        for _ in 0..2 {
+            let run_response = ctx
+                .app
+                .clone()
+                .oneshot(auth_request(
+                    "POST",
+                    &format!("/api/v1/jobs/{job_id}/run"),
+                    Body::empty(),
+                ))
+                .await
+                .expect("run breaker job");
+            assert_eq!(run_response.status(), StatusCode::OK);
+            let run_json = parse_json(run_response).await;
+            assert_eq!(run_json["job_run"]["status"], "failed");
+            assert!(!run_json["job_run"]["error_text"]
+                .as_str()
+                .unwrap_or_default()
+                .contains(REASON_BREAKER_JOB_OPEN));
+        }
+
+        let breaker = ctx
+            .storage
+            .get_circuit_breaker_state(CIRCUIT_BREAKER_SCOPE_JOB, &job_id)
+            .expect("load job breaker")
+            .expect("job breaker exists");
+        assert_eq!(breaker.state, CIRCUIT_BREAKER_STATE_OPEN);
+        assert!(breaker.cooldown_until.is_some());
+
+        let third_run = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/jobs/{job_id}/run"),
+                Body::empty(),
+            ))
+            .await
+            .expect("third run");
+        assert_eq!(third_run.status(), StatusCode::OK);
+        let third_json = parse_json(third_run).await;
+        assert_eq!(third_json["job_run"]["status"], "failed");
+        assert!(third_json["job_run"]["error_text"]
+            .as_str()
+            .unwrap_or_default()
+            .contains(REASON_BREAKER_JOB_OPEN));
+    }
+
+    #[tokio::test]
+    async fn job_circuit_breaker_resets_after_cooldown_expiry() {
+        let ctx = test_context();
+
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(
+                    r#"{
+                        "agent_id":"default",
+                        "name":"job-breaker-reset",
+                        "enabled":true,
+                        "schedule_kind":"interval",
+                        "interval_seconds":60,
+                        "payload_json":{"mode":"noop","message":"breaker reset"},
+                        "max_retries":0,
+                        "retry_backoff_ms":5,
+                        "timeout_ms":1000
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create reset breaker job");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_json = parse_json(create_response).await;
+        let job_id = create_json["job"]["job_id"]
+            .as_str()
+            .expect("job_id")
+            .to_string();
+
+        let now = current_time_ms();
+        ctx.storage
+            .upsert_circuit_breaker_state(CircuitBreakerStateUpsert {
+                scope: CIRCUIT_BREAKER_SCOPE_JOB.to_string(),
+                target_id: job_id.clone(),
+                state: CIRCUIT_BREAKER_STATE_OPEN.to_string(),
+                consecutive_failures: 3,
+                opened_at: Some(now.saturating_sub(20_000)),
+                cooldown_until: Some(now.saturating_sub(1)),
+                last_error_code: Some("TIMEOUT".to_string()),
+            })
+            .expect("seed expired job breaker");
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/jobs/{job_id}/run"),
+                Body::empty(),
+            ))
+            .await
+            .expect("run reset breaker job");
+        assert_eq!(run_response.status(), StatusCode::OK);
+        let run_json = parse_json(run_response).await;
+        assert_eq!(run_json["job_run"]["status"], "succeeded");
+        assert!(!run_json["job_run"]["error_text"]
+            .as_str()
+            .unwrap_or_default()
+            .contains(REASON_BREAKER_JOB_OPEN));
+
+        let breaker = ctx
+            .storage
+            .get_circuit_breaker_state(CIRCUIT_BREAKER_SCOPE_JOB, &job_id)
+            .expect("load job breaker after reset run")
+            .expect("job breaker exists");
+        assert_eq!(breaker.state, CIRCUIT_BREAKER_STATE_CLOSED);
+        assert_eq!(breaker.consecutive_failures, 0);
     }
 
     #[tokio::test]
@@ -17423,6 +25678,230 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     }
 
     #[tokio::test]
+    async fn telegram_listener_long_poll_ingests_updates_end_to_end() {
+        let ctx = test_context();
+        let transport = MockServer::start();
+        let updates_mock = transport.mock(|when, then| {
+            when.method(POST).path("/bottelegram-token/getUpdates");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(
+                    r#"{
+                    "ok": true,
+                    "result": [
+                        {
+                            "update_id": 2001,
+                            "message": {
+                                "message_id": 44,
+                                "chat": {"id": 4242, "type": "private"},
+                                "from": {"id": 700, "is_bot": false},
+                                "text": "listener hello"
+                            }
+                        }
+                    ]
+                }"#,
+                );
+        });
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/channels",
+                Body::from(
+                    r#"{
+                        "telegram":{
+                            "require_mention_in_groups":false,
+                            "allowlisted_user_ids":[],
+                            "auto_run_enabled":false,
+                            "default_model_provider":"mock",
+                            "default_model_id":"mock-echo-v1"
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update telegram channel config");
+        ctx.secret_store
+            .set_raw("runtime.channels.telegram.bot_token", "telegram-token")
+            .expect("set telegram listener token");
+        let runtime_update_payload = serde_json::json!({
+            "channels": {
+                "discord": {
+                    "bot_token_secret_ref": null,
+                    "operation_mode": "shim",
+                    "application_id": null,
+                    "intents": ["guilds"],
+                    "staging_guild_ids": [],
+                    "staging_channel_ids": []
+                },
+                "telegram": {
+                    "bot_token_secret_ref": "secret://runtime.channels.telegram.bot_token",
+                    "operation_mode": "transport",
+                    "api_base_url": transport.base_url(),
+                    "transport_timeout_ms": 1000,
+                    "transport_retry_attempts": 1,
+                    "long_poll_timeout_seconds": 1,
+                    "webhook_mode": "long_poll",
+                    "webhook_url": null,
+                    "staging_chat_ids": []
+                }
+            }
+        });
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(runtime_update_payload.to_string()),
+            ))
+            .await
+            .expect("runtime update for telegram listener");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let mut offset = None;
+        let (active, processed) = poll_telegram_channel_listener_once(&ctx.state, &mut offset)
+            .await
+            .expect("telegram poll listener");
+        assert!(active);
+        assert_eq!(processed, 1);
+        assert_eq!(offset, Some(2002));
+        updates_mock.assert_hits(1);
+
+        let session = ctx
+            .storage
+            .get_session_by_key("telegram:dm:700")
+            .expect("load telegram listener session")
+            .expect("telegram listener session exists");
+        let messages = ctx
+            .storage
+            .list_messages(&session.session_id, 10)
+            .expect("load telegram listener messages");
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].content_text, "listener hello");
+    }
+
+    #[tokio::test]
+    async fn discord_listener_polls_staging_channels_and_uses_cursor_end_to_end() {
+        let ctx = test_context();
+        let transport = MockServer::start();
+        let messages_mock = transport.mock(|when, then| {
+            when.method(GET)
+                .path("/channels/stage-chan/messages")
+                .query_param("limit", "25");
+            then.status(200).header("content-type", "application/json").body(
+                r#"[
+                    {"id":"1002","channel_id":"stage-chan","guild_id":null,"content":"second","author":{"id":"u2","bot":false},"mentions":[]},
+                    {"id":"1001","channel_id":"stage-chan","guild_id":null,"content":"first","author":{"id":"u1","bot":false},"mentions":[]}
+                ]"#,
+            );
+        });
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/channels",
+                Body::from(
+                    r#"{
+                        "discord":{
+                            "require_mention_in_guild_channels":false,
+                            "allowlisted_user_ids":[],
+                            "auto_run_enabled":false,
+                            "default_model_provider":"mock",
+                            "default_model_id":"mock-echo-v1"
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update discord channel config");
+        ctx.secret_store
+            .set_raw("runtime.channels.discord.bot_token", "discord-token")
+            .expect("set discord listener token");
+        let runtime_update_payload = serde_json::json!({
+            "channels": {
+                "discord": {
+                    "bot_token_secret_ref": "secret://runtime.channels.discord.bot_token",
+                    "operation_mode": "transport",
+                    "api_base_url": transport.base_url(),
+                    "transport_timeout_ms": 1000,
+                    "transport_retry_attempts": 1,
+                    "application_id": "bot-app-1",
+                    "intents": ["guilds","guild_messages","direct_messages"],
+                    "staging_guild_ids": [],
+                    "staging_channel_ids": ["stage-chan"]
+                },
+                "telegram": {
+                    "bot_token_secret_ref": null,
+                    "operation_mode": "shim",
+                    "webhook_mode": "long_poll",
+                    "webhook_url": null,
+                    "staging_chat_ids": []
+                }
+            }
+        });
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(runtime_update_payload.to_string()),
+            ))
+            .await
+            .expect("runtime update for discord listener");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let mut cursors = HashMap::new();
+        let (active, processed) = poll_discord_channel_listener_once(&ctx.state, &mut cursors)
+            .await
+            .expect("discord listener poll first");
+        assert!(active);
+        assert_eq!(processed, 2);
+        assert_eq!(
+            cursors
+                .get("stage-chan")
+                .expect("discord listener cursor present"),
+            "1002"
+        );
+
+        let (active_second, processed_second) =
+            poll_discord_channel_listener_once(&ctx.state, &mut cursors)
+                .await
+                .expect("discord listener poll second");
+        assert!(active_second);
+        assert_eq!(processed_second, 0);
+        messages_mock.assert_hits(2);
+
+        let session_u1 = ctx
+            .storage
+            .get_session_by_key("discord:dm:u1")
+            .expect("load session u1")
+            .expect("session u1 exists");
+        let session_u2 = ctx
+            .storage
+            .get_session_by_key("discord:dm:u2")
+            .expect("load session u2")
+            .expect("session u2 exists");
+        let messages_u1 = ctx
+            .storage
+            .list_messages(&session_u1.session_id, 10)
+            .expect("messages u1");
+        let messages_u2 = ctx
+            .storage
+            .list_messages(&session_u2.session_id, 10)
+            .expect("messages u2");
+        assert_eq!(messages_u1.len(), 1);
+        assert_eq!(messages_u2.len(), 1);
+        assert_eq!(messages_u1[0].content_text, "first");
+        assert_eq!(messages_u2[0].content_text, "second");
+    }
+
+    #[tokio::test]
     async fn high_risk_auth_profile_requires_kill_switch() {
         let ctx = test_context();
 
@@ -17831,6 +26310,10 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         assert_eq!(status_response.status(), StatusCode::OK);
         let status_json = parse_json(status_response).await;
         assert!(status_json["jobs_total"].as_u64().unwrap_or(0) >= 1);
+        assert!(status_json["scheduler_lock"]["enabled"].is_boolean());
+        assert!(status_json["scheduler_lock"]["lock_path"].is_string());
+        assert!(status_json["circuit_breakers"].is_array());
+        assert!(status_json["top_stop_reasons"].is_array());
 
         let run_now_response = ctx
             .app
@@ -17892,6 +26375,207 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     }
 
     #[tokio::test]
+    async fn jobs_support_every_at_and_cron_schedule_kinds() {
+        let ctx = test_context();
+        let now_ms = current_time_ms();
+
+        let create_every = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(
+                    r#"{
+                        "agent_id":"default",
+                        "name":"job-every",
+                        "enabled":true,
+                        "schedule_kind":"every",
+                        "interval_seconds":45,
+                        "payload_json":{"mode":"noop","message":"every"}
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create every job");
+        assert_eq!(create_every.status(), StatusCode::CREATED);
+        let create_every_json = parse_json(create_every).await;
+        assert_eq!(create_every_json["job"]["schedule_kind"], "every");
+        assert_eq!(create_every_json["job"]["interval_seconds"], 45);
+        assert!(create_every_json["job"]["cron_expr"].is_null());
+        let every_job_id = create_every_json["job"]["job_id"]
+            .as_str()
+            .expect("every job id")
+            .to_string();
+
+        let run_at_ms = now_ms.saturating_add(120_000);
+        let create_at = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(format!(
+                    r#"{{
+                        "agent_id":"default",
+                        "name":"job-at",
+                        "enabled":true,
+                        "schedule_kind":"at",
+                        "run_at_ms":{run_at_ms},
+                        "payload_json":{{"mode":"noop","message":"at"}}
+                    }}"#
+                )),
+            ))
+            .await
+            .expect("create at job");
+        assert_eq!(create_at.status(), StatusCode::CREATED);
+        let create_at_json = parse_json(create_at).await;
+        assert_eq!(create_at_json["job"]["schedule_kind"], "at");
+        assert_eq!(create_at_json["job"]["run_at_ms"], run_at_ms);
+        assert_eq!(create_at_json["job"]["next_run_at"], run_at_ms);
+        let at_job_id = create_at_json["job"]["job_id"]
+            .as_str()
+            .expect("at job id")
+            .to_string();
+
+        let at_run_now = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/jobs/{at_job_id}/run"),
+                Body::empty(),
+            ))
+            .await
+            .expect("run at job");
+        assert_eq!(at_run_now.status(), StatusCode::OK);
+        let at_job = ctx
+            .storage
+            .get_job(&at_job_id)
+            .expect("load at job")
+            .expect("at job exists");
+        assert!(!at_job.enabled);
+
+        let create_cron = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(
+                    r#"{
+                        "agent_id":"default",
+                        "name":"job-cron",
+                        "enabled":true,
+                        "schedule_kind":"cron",
+                        "cron_expr":"*/5 * * * *",
+                        "payload_json":{"mode":"noop","message":"cron"}
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create cron job");
+        assert_eq!(create_cron.status(), StatusCode::CREATED);
+        let create_cron_json = parse_json(create_cron).await;
+        assert_eq!(create_cron_json["job"]["schedule_kind"], "cron");
+        assert_eq!(create_cron_json["job"]["cron_expr"], "*/5 * * * *");
+        let cron_job_id = create_cron_json["job"]["job_id"]
+            .as_str()
+            .expect("cron job id")
+            .to_string();
+
+        let cron_run_now = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/jobs/{cron_job_id}/run"),
+                Body::empty(),
+            ))
+            .await
+            .expect("run cron job");
+        assert_eq!(cron_run_now.status(), StatusCode::OK);
+        let cron_job = ctx
+            .storage
+            .get_job(&cron_job_id)
+            .expect("load cron job")
+            .expect("cron job exists");
+        assert!(cron_job.enabled);
+        assert!(cron_job.next_run_at.unwrap_or(0) > current_time_ms());
+
+        let update_every_to_cron = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/jobs/{every_job_id}/update"),
+                Body::from(r#"{"schedule_kind":"cron","cron_expr":"*/15 * * * *"}"#),
+            ))
+            .await
+            .expect("update every to cron");
+        assert_eq!(update_every_to_cron.status(), StatusCode::OK);
+        let update_every_to_cron_json = parse_json(update_every_to_cron).await;
+        assert_eq!(update_every_to_cron_json["job"]["schedule_kind"], "cron");
+        assert_eq!(
+            update_every_to_cron_json["job"]["cron_expr"],
+            "*/15 * * * *"
+        );
+    }
+
+    #[tokio::test]
+    async fn jobs_reject_invalid_cron_expression() {
+        let ctx = test_context();
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(
+                    r#"{
+                        "agent_id":"default",
+                        "name":"job-invalid-cron",
+                        "enabled":true,
+                        "schedule_kind":"cron",
+                        "cron_expr":"invalid cron",
+                        "payload_json":{"mode":"noop"}
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create invalid cron job");
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let response_json = parse_json(response).await;
+        assert!(response_json["error"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("cron_expr"));
+    }
+
+    #[tokio::test]
+    async fn status_endpoint_exposes_guardrail_and_breaker_observability() {
+        let ctx = test_context();
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request("GET", "/api/v1/status", Body::empty()))
+            .await
+            .expect("status response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let status_json = parse_json(response).await;
+        assert!(status_json["scheduler_lock"]["enabled"].is_boolean());
+        assert!(status_json["scheduler_lock"]["owner"].is_string());
+        assert!(status_json["scheduler_lock"]["lock_path"].is_string());
+        assert_eq!(status_json["autonomy_guardrails"]["max_run_ms"], 120000);
+        assert_eq!(
+            status_json["autonomy_guardrails"]["heartbeat_max_run_ms"],
+            5000
+        );
+        assert!(status_json["circuit_breakers"].is_array());
+        assert!(status_json["top_stop_reasons"].is_array());
+    }
+
+    #[tokio::test]
     async fn run_now_retries_until_payload_succeeds() {
         let ctx = test_context();
 
@@ -17938,6 +26622,325 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         let run_json = parse_json(run_now_response).await;
         assert_eq!(run_json["job_run"]["status"], "succeeded");
         assert_eq!(run_json["job_run"]["attempt"], 3);
+    }
+
+    #[tokio::test]
+    async fn run_now_marks_timeout_when_payload_exceeds_timeout() {
+        let ctx = test_context();
+
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(
+                    r#"{
+                        "agent_id":"default",
+                        "name":"job-timeout",
+                        "enabled":true,
+                        "schedule_kind":"interval",
+                        "interval_seconds":60,
+                        "payload_json":{"mode":"noop","delay_ms":120},
+                        "max_retries":0,
+                        "retry_backoff_ms":5,
+                        "timeout_ms":50
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create timeout job");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_json = parse_json(create_response).await;
+        let job_id = create_json["job"]["job_id"]
+            .as_str()
+            .expect("job_id")
+            .to_string();
+
+        let run_now_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/jobs/{job_id}/run"),
+                Body::empty(),
+            ))
+            .await
+            .expect("run timeout job");
+        assert_eq!(run_now_response.status(), StatusCode::OK);
+        let run_json = parse_json(run_now_response).await;
+        assert_eq!(run_json["job_run"]["status"], "failed");
+        assert_eq!(run_json["job_run"]["attempt"], 1);
+        assert!(
+            run_json["job_run"]["error_text"]
+                .as_str()
+                .unwrap_or_default()
+                .starts_with("TIMEOUT:"),
+            "expected timeout-marked error text, got {}",
+            run_json["job_run"]["error_text"]
+        );
+
+        let history_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/jobs/{job_id}/history?limit=5"),
+                Body::empty(),
+            ))
+            .await
+            .expect("job history response");
+        assert_eq!(history_response.status(), StatusCode::OK);
+        let history_json = parse_json(history_response).await;
+        let history_items = history_json["items"].as_array().expect("history items");
+        assert_eq!(history_items.len(), 1);
+        assert_eq!(history_items[0]["status"], "failed");
+        assert!(
+            history_items[0]["error_text"]
+                .as_str()
+                .unwrap_or_default()
+                .starts_with("TIMEOUT:"),
+            "expected timeout persisted error text, got {}",
+            history_items[0]["error_text"]
+        );
+    }
+
+    #[tokio::test]
+    async fn run_now_heartbeat_mode_emits_contract_output() {
+        let ctx = test_context();
+
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(
+                    r#"{
+                        "agent_id":"default",
+                        "name":"job-heartbeat-ok",
+                        "enabled":true,
+                        "schedule_kind":"interval",
+                        "interval_seconds":60,
+                        "payload_json":{"mode":"heartbeat.run","input":"heartbeat ping"},
+                        "max_retries":4,
+                        "retry_backoff_ms":5,
+                        "timeout_ms":1000
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create heartbeat job");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_json = parse_json(create_response).await;
+        let job_id = create_json["job"]["job_id"]
+            .as_str()
+            .expect("job_id")
+            .to_string();
+
+        let run_now_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/jobs/{job_id}/run"),
+                Body::empty(),
+            ))
+            .await
+            .expect("run heartbeat job");
+        assert_eq!(run_now_response.status(), StatusCode::OK);
+        let run_json = parse_json(run_now_response).await;
+        assert_eq!(run_json["job_run"]["status"], "succeeded");
+        let output_json = run_json["job_run"]["output_json"]
+            .as_str()
+            .expect("output_json");
+        let output: serde_json::Value = serde_json::from_str(output_json).expect("parse output");
+        assert_eq!(output["mode"], JOB_MODE_HEARTBEAT_RUN);
+        assert_eq!(output["status"], "ok");
+        assert_eq!(output["result"], HEARTBEAT_OUTPUT_OK);
+        assert_eq!(output["tools_disabled"], true);
+    }
+
+    #[tokio::test]
+    async fn run_now_heartbeat_rejects_tool_lines_without_retry() {
+        let ctx = test_context();
+
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(
+                    r#"{
+                        "agent_id":"default",
+                        "name":"job-heartbeat-tool-reject",
+                        "enabled":true,
+                        "schedule_kind":"interval",
+                        "interval_seconds":60,
+                        "payload_json":{"mode":"heartbeat.run","input":"TOOL: fs.read {\"path\":\"/tmp/x\"}"},
+                        "max_retries":6,
+                        "retry_backoff_ms":5,
+                        "timeout_ms":1000
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create heartbeat reject job");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_json = parse_json(create_response).await;
+        let job_id = create_json["job"]["job_id"]
+            .as_str()
+            .expect("job_id")
+            .to_string();
+
+        let run_now_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/jobs/{job_id}/run"),
+                Body::empty(),
+            ))
+            .await
+            .expect("run heartbeat reject job");
+        assert_eq!(run_now_response.status(), StatusCode::OK);
+        let run_json = parse_json(run_now_response).await;
+        assert_eq!(run_json["job_run"]["status"], "failed");
+        assert_eq!(
+            run_json["job_run"]["attempt"].as_i64().expect("attempt"),
+            1,
+            "heartbeat mode must not perform follow-up retries"
+        );
+        assert!(run_json["job_run"]["error_text"]
+            .as_str()
+            .unwrap_or_default()
+            .contains(REASON_HEARTBEAT_TOOLS_FORBIDDEN));
+    }
+
+    #[tokio::test]
+    async fn run_now_heartbeat_enforces_result_contract() {
+        let ctx = test_context();
+
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(
+                    r#"{
+                        "agent_id":"default",
+                        "name":"job-heartbeat-contract",
+                        "enabled":true,
+                        "schedule_kind":"interval",
+                        "interval_seconds":60,
+                        "payload_json":{"mode":"heartbeat.run","input":"ok","result":"HEARTBEAT_MAYBE"},
+                        "max_retries":3,
+                        "retry_backoff_ms":5,
+                        "timeout_ms":1000
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create heartbeat contract job");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_json = parse_json(create_response).await;
+        let job_id = create_json["job"]["job_id"]
+            .as_str()
+            .expect("job_id")
+            .to_string();
+
+        let run_now_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/jobs/{job_id}/run"),
+                Body::empty(),
+            ))
+            .await
+            .expect("run heartbeat contract job");
+        assert_eq!(run_now_response.status(), StatusCode::OK);
+        let run_json = parse_json(run_now_response).await;
+        assert_eq!(run_json["job_run"]["status"], "failed");
+        assert_eq!(run_json["job_run"]["attempt"], 1);
+        assert!(run_json["job_run"]["error_text"]
+            .as_str()
+            .unwrap_or_default()
+            .contains(REASON_HEARTBEAT_OUTPUT_INVALID));
+    }
+
+    #[tokio::test]
+    async fn run_now_heartbeat_uses_guardrail_timeout_and_no_retry() {
+        let ctx = test_context();
+        update_runtime_autonomy_guardrails(
+            &ctx,
+            r#"{
+                "autonomy_guardrails": {
+                    "max_run_ms": 120000,
+                    "max_tool_calls_per_run": 16,
+                    "max_provider_input_chars": 32000,
+                    "max_tool_output_chars_total": 64000,
+                    "max_provider_attempts": 3,
+                    "max_consecutive_failures_before_breaker": 3,
+                    "heartbeat_max_run_ms": 100
+                }
+            }"#,
+        )
+        .await;
+
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(
+                    r#"{
+                        "agent_id":"default",
+                        "name":"job-heartbeat-timeout",
+                        "enabled":true,
+                        "schedule_kind":"interval",
+                        "interval_seconds":60,
+                        "payload_json":{"mode":"heartbeat.run","input":"ping","delay_ms":250},
+                        "max_retries":8,
+                        "retry_backoff_ms":5,
+                        "timeout_ms":1000
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create heartbeat timeout job");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_json = parse_json(create_response).await;
+        let job_id = create_json["job"]["job_id"]
+            .as_str()
+            .expect("job_id")
+            .to_string();
+
+        let run_now_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/jobs/{job_id}/run"),
+                Body::empty(),
+            ))
+            .await
+            .expect("run heartbeat timeout job");
+        assert_eq!(run_now_response.status(), StatusCode::OK);
+        let run_json = parse_json(run_now_response).await;
+        assert_eq!(run_json["job_run"]["status"], "failed");
+        assert_eq!(run_json["job_run"]["attempt"], 1);
+        assert!(
+            run_json["job_run"]["error_text"]
+                .as_str()
+                .unwrap_or_default()
+                .starts_with("TIMEOUT:"),
+            "expected guardrail timeout, got {}",
+            run_json["job_run"]["error_text"]
+        );
     }
 
     #[tokio::test]
@@ -18664,6 +27667,53 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     }
 
     #[tokio::test]
+    async fn create_run_returns_conflict_when_session_lane_is_locked() {
+        let ctx = test_context();
+
+        let create_session_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"lane-lock"}"#),
+            ))
+            .await
+            .expect("create session");
+        let create_session_json = parse_json(create_session_response).await;
+        let session_id = create_session_json["session"]["session_id"]
+            .as_str()
+            .expect("session_id")
+            .to_string();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(r#"{"role":"user","content_text":"lock me"}"#),
+            ))
+            .await
+            .expect("message");
+
+        let lane = ctx.state.session_run_lanes.lane_for_session(&session_id);
+        let _guard = lane.lock().await;
+
+        let blocked_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("run");
+        assert_eq!(blocked_response.status(), StatusCode::CONFLICT);
+    }
+
+    #[tokio::test]
     async fn approval_actions_require_allowlisted_operator_when_configured() {
         let ctx = test_context_with_allowlist(vec!["op-1".to_string()]);
 
@@ -18979,6 +28029,56 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     }
 
+    #[tokio::test]
+    async fn tool_capabilities_endpoint_includes_core_and_plugin_tools() {
+        let ctx = test_context_with_plugins(vec![
+            sample_plugin_manifest("plugin.alpha", true),
+            sample_plugin_manifest("plugin.beta", false),
+        ]);
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/tools/capabilities?include_disabled=true",
+                Body::empty(),
+            ))
+            .await
+            .expect("tool capabilities response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = parse_json(response).await;
+        assert_eq!(body["contract_version"], "tool.capabilities.v1");
+        let items = body["items"].as_array().expect("capability items");
+        assert!(items.iter().any(|item| item["origin"] == "core" && item["tool_name"] == "exec"));
+        assert!(items.iter().any(|item| {
+            item["origin"] == "plugin:plugin.alpha"
+                && item["tool_name"] == "tool.plugin.alpha"
+                && item["risk_level"] == "high"
+                && item["requires_approval"] == true
+        }));
+        assert!(items
+            .iter()
+            .any(|item| item["origin"] == "plugin:plugin.beta" && item["enabled"] == false));
+
+        let filtered_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/tools/capabilities?origin=plugin:plugin.alpha",
+                Body::empty(),
+            ))
+            .await
+            .expect("tool capabilities filtered response");
+        assert_eq!(filtered_response.status(), StatusCode::OK);
+        let filtered_body = parse_json(filtered_response).await;
+        let filtered_items = filtered_body["items"].as_array().expect("filtered items");
+        assert!(!filtered_items.is_empty());
+        assert!(filtered_items
+            .iter()
+            .all(|item| item["origin"] == "plugin:plugin.alpha"));
+    }
+
     fn sample_plugin_manifest(plugin_id: &str, enabled: bool) -> CorePluginManifest {
         CorePluginManifest {
             schema_version: "carsinos.plugin.manifest.v1".to_string(),
@@ -18987,6 +28087,10 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             plugin_version: "1.0.0".to_string(),
             api_version: PLUGIN_API_VERSION_V1.to_string(),
             enabled,
+            artifact: carsinos_core::PluginArtifact::default(),
+            compatibility: carsinos_core::PluginCompatibility::default(),
+            permissions: carsinos_core::PluginPermissions::default(),
+            limits: carsinos_core::PluginExecutionLimits::default(),
             capabilities: carsinos_core::PluginCapabilities {
                 tools: vec![carsinos_core::PluginCapability {
                     name: format!("tool.{plugin_id}"),
@@ -18998,6 +28102,101 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             },
             metadata: std::collections::BTreeMap::new(),
         }
+    }
+
+    fn sample_plugin_manifest_v2(
+        plugin_id: &str,
+        enabled: bool,
+        artifact_local_path: String,
+        artifact_sha256: String,
+    ) -> CorePluginManifest {
+        let mut manifest = sample_plugin_manifest(plugin_id, enabled);
+        manifest.schema_version = PLUGIN_MANIFEST_SCHEMA_VERSION_V2.to_string();
+        manifest.artifact = carsinos_core::PluginArtifact {
+            exec_kind: carsinos_core::PluginExecKind::Subprocess,
+            local_path: artifact_local_path,
+            command: "echo".to_string(),
+            args: vec!["plugin-test".to_string()],
+            sha256: artifact_sha256,
+        };
+        manifest
+    }
+
+    fn write_plugin_artifact(
+        temp_dir: &TempDir,
+        plugin_id: &str,
+        version: &str,
+        contents: &str,
+    ) -> (String, String) {
+        let artifact_dir = temp_dir.path().join("plugin_artifacts");
+        std::fs::create_dir_all(&artifact_dir).expect("create plugin artifact dir");
+        let artifact_path = artifact_dir.join(format!("{plugin_id}-{version}.bin"));
+        std::fs::write(&artifact_path, contents).expect("write plugin artifact");
+        let digest = sha256_file_hex(&artifact_path).expect("hash plugin artifact");
+        (
+            artifact_path
+                .to_str()
+                .expect("artifact path utf-8")
+                .to_string(),
+            digest,
+        )
+    }
+
+    fn sample_hook_runner_manifest_v2(
+        plugin_id: &str,
+        plugin_version: &str,
+        artifact_local_path: String,
+        artifact_sha256: String,
+        hook_name: &str,
+    ) -> CorePluginManifest {
+        let mut manifest =
+            sample_plugin_manifest_v2(plugin_id, true, artifact_local_path.clone(), artifact_sha256);
+        manifest.plugin_version = plugin_version.to_string();
+        manifest.artifact.command = "python3".to_string();
+        manifest.artifact.args = vec![artifact_local_path];
+        manifest.capabilities.hooks = vec![carsinos_core::PluginCapability {
+            name: hook_name.to_string(),
+            description: Some("runner hook".to_string()),
+        }];
+        manifest
+    }
+
+    fn sample_daemon_hook_runner_manifest_v2(
+        plugin_id: &str,
+        plugin_version: &str,
+        artifact_local_path: String,
+        artifact_sha256: String,
+        hook_name: &str,
+    ) -> CorePluginManifest {
+        let mut manifest = sample_hook_runner_manifest_v2(
+            plugin_id,
+            plugin_version,
+            artifact_local_path,
+            artifact_sha256,
+            hook_name,
+        );
+        manifest.artifact.exec_kind = carsinos_core::PluginExecKind::Daemon;
+        manifest
+    }
+
+    fn sample_plugin_tool_runner_manifest_v2(
+        plugin_id: &str,
+        plugin_version: &str,
+        artifact_local_path: String,
+        artifact_sha256: String,
+        tool_name: &str,
+    ) -> CorePluginManifest {
+        let mut manifest =
+            sample_plugin_manifest_v2(plugin_id, true, artifact_local_path.clone(), artifact_sha256);
+        manifest.plugin_version = plugin_version.to_string();
+        manifest.artifact.command = "python3".to_string();
+        manifest.artifact.args = vec![artifact_local_path];
+        manifest.capabilities.tools = vec![carsinos_core::PluginCapability {
+            name: tool_name.to_string(),
+            description: Some("plugin-defined tool".to_string()),
+        }];
+        manifest.capabilities.hooks = vec![];
+        manifest
     }
 
     fn sample_hook_plugin_manifest(
@@ -19060,6 +28259,593 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         assert_eq!(items.len(), 2);
         assert!(items.iter().any(|item| item["plugin_id"] == "plugin.alpha"));
         assert!(items.iter().any(|item| item["plugin_id"] == "plugin.beta"));
+    }
+
+    #[tokio::test]
+    async fn extension_plugin_install_update_and_rollback_lifecycle() {
+        let ctx = test_context();
+        let (artifact_path_v1, artifact_sha_v1) =
+            write_plugin_artifact(&ctx._temp_dir, "plugin.live", "1.0.0", "plugin-live-v1");
+        let manifest_v1 =
+            sample_plugin_manifest_v2("plugin.live", true, artifact_path_v1, artifact_sha_v1);
+        let install_payload = serde_json::json!({
+            "manifest": manifest_v1,
+            "reason": "install test plugin"
+        });
+        let install_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/extensions/plugins/install",
+                Body::from(install_payload.to_string()),
+            ))
+            .await
+            .expect("install plugin response");
+        assert_eq!(install_response.status(), StatusCode::OK);
+        let install_json = parse_json(install_response).await;
+        assert_eq!(install_json["plugin"]["plugin_id"], "plugin.live");
+        assert_eq!(install_json["plugin"]["plugin_version"], "1.0.0");
+        assert_eq!(install_json["rollback_available"], false);
+
+        let (artifact_path_v2, artifact_sha_v2) =
+            write_plugin_artifact(&ctx._temp_dir, "plugin.live", "1.1.0", "plugin-live-v2");
+        let mut manifest_v2 =
+            sample_plugin_manifest_v2("plugin.live", true, artifact_path_v2, artifact_sha_v2);
+        manifest_v2.plugin_version = "1.1.0".to_string();
+        manifest_v2.capabilities.hooks = vec![carsinos_core::PluginCapability {
+            name: "run.start".to_string(),
+            description: Some("lifecycle hook".to_string()),
+        }];
+        let update_payload = serde_json::json!({
+            "manifest": manifest_v2,
+            "reason": "bump plugin version"
+        });
+        let update_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/extensions/plugins/plugin.live/update",
+                Body::from(update_payload.to_string()),
+            ))
+            .await
+            .expect("update plugin response");
+        assert_eq!(update_response.status(), StatusCode::OK);
+        let update_json = parse_json(update_response).await;
+        assert_eq!(update_json["plugin"]["plugin_version"], "1.1.0");
+        assert_eq!(update_json["rollback_available"], true);
+
+        let rollback_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/extensions/plugins/plugin.live/rollback",
+                Body::from(r#"{"reason":"restore previous plugin build"}"#),
+            ))
+            .await
+            .expect("rollback plugin response");
+        assert_eq!(rollback_response.status(), StatusCode::OK);
+        let rollback_json = parse_json(rollback_response).await;
+        assert_eq!(rollback_json["plugin"]["plugin_version"], "1.0.0");
+        assert_eq!(rollback_json["rollback_available"], true);
+    }
+
+    #[tokio::test]
+    async fn plugin_hook_runner_invocation_updates_runtime_status() {
+        let ctx = test_context();
+        let (artifact_path, artifact_sha) = write_plugin_artifact(
+            &ctx._temp_dir,
+            "plugin.runner.ok",
+            "1.0.0",
+            r#"import json
+import sys
+request = json.load(sys.stdin)
+response = {
+    "contract_version": "carsinos.plugin_runner.v1",
+    "request_id": request.get("request_id", ""),
+    "status": "ok",
+    "result": {"hook_name": request.get("payload", {}).get("hook_name")},
+    "error_code": None,
+    "error_message": None,
+    "metrics": {"duration_ms": 1, "output_chars": 2, "timed_out": False}
+}
+sys.stdout.write(json.dumps(response))
+"#,
+        );
+        let manifest = sample_hook_runner_manifest_v2(
+            "plugin.runner.ok",
+            "1.0.0",
+            artifact_path,
+            artifact_sha,
+            "run.start",
+        );
+        let install_payload = serde_json::json!({
+            "manifest": manifest,
+            "reason": "runner hook install"
+        });
+        let install_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/extensions/plugins/install",
+                Body::from(install_payload.to_string()),
+            ))
+            .await
+            .expect("install hook runner plugin");
+        assert_eq!(install_response.status(), StatusCode::OK);
+
+        let create_session_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"plugin-runner-hook"}"#),
+            ))
+            .await
+            .expect("create session");
+        let create_session_json = parse_json(create_session_response).await;
+        let session_id = create_session_json["session"]["session_id"]
+            .as_str()
+            .expect("session id");
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(r#"{"role":"user","content_text":"hook runner test"}"#),
+            ))
+            .await
+            .expect("create message");
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from(r#"{"model_provider":"mock","model_id":"mock-echo-v1"}"#),
+            ))
+            .await
+            .expect("run response");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+
+        let runtime_status_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/extensions/plugins/status?include_disabled=true",
+                Body::empty(),
+            ))
+            .await
+            .expect("plugin runtime status response");
+        assert_eq!(runtime_status_response.status(), StatusCode::OK);
+        let runtime_status_json = parse_json(runtime_status_response).await;
+        let items = runtime_status_json["items"]
+            .as_array()
+            .expect("plugin runtime status items");
+        let plugin_entry = items
+            .iter()
+            .find(|item| item["plugin_id"] == "plugin.runner.ok")
+            .expect("runner plugin status");
+        assert_eq!(plugin_entry["consecutive_failures"], 0);
+        assert!(plugin_entry["last_success_ms"].as_i64().is_some());
+    }
+
+    #[tokio::test]
+    async fn plugin_hook_runner_failure_trips_breaker_after_three_invocations() {
+        let ctx = test_context();
+        let (artifact_path, artifact_sha) = write_plugin_artifact(
+            &ctx._temp_dir,
+            "plugin.runner.fail",
+            "1.0.0",
+            r#"import sys
+_ = sys.stdin.read()
+sys.stdout.write("not-json")
+"#,
+        );
+        let manifest = sample_hook_runner_manifest_v2(
+            "plugin.runner.fail",
+            "1.0.0",
+            artifact_path,
+            artifact_sha,
+            "run.start",
+        );
+        let install_payload = serde_json::json!({
+            "manifest": manifest,
+            "reason": "runner fail hook install"
+        });
+        let install_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/extensions/plugins/install",
+                Body::from(install_payload.to_string()),
+            ))
+            .await
+            .expect("install fail hook plugin");
+        assert_eq!(install_response.status(), StatusCode::OK);
+
+        let create_session_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"plugin-runner-breaker"}"#),
+            ))
+            .await
+            .expect("create session");
+        let create_session_json = parse_json(create_session_response).await;
+        let session_id = create_session_json["session"]["session_id"]
+            .as_str()
+            .expect("session id")
+            .to_string();
+
+        for _ in 0..3 {
+            let _ = ctx
+                .app
+                .clone()
+                .oneshot(auth_request(
+                    "POST",
+                    &format!("/api/v1/sessions/{session_id}/messages"),
+                    Body::from(r#"{"role":"user","content_text":"breaker trip test"}"#),
+                ))
+                .await
+                .expect("create message");
+            let run_response = ctx
+                .app
+                .clone()
+                .oneshot(auth_request(
+                    "POST",
+                    &format!("/api/v1/sessions/{session_id}/runs"),
+                    Body::from(r#"{"model_provider":"mock","model_id":"mock-echo-v1"}"#),
+                ))
+                .await
+                .expect("run response");
+            assert_eq!(run_response.status(), StatusCode::CREATED);
+        }
+
+        let runtime_status_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/extensions/plugins/status?include_disabled=true",
+                Body::empty(),
+            ))
+            .await
+            .expect("plugin runtime status response");
+        assert_eq!(runtime_status_response.status(), StatusCode::OK);
+        let runtime_status_json = parse_json(runtime_status_response).await;
+        let items = runtime_status_json["items"]
+            .as_array()
+            .expect("plugin runtime status items");
+        let plugin_entry = items
+            .iter()
+            .find(|item| item["plugin_id"] == "plugin.runner.fail")
+            .expect("runner fail plugin status");
+        assert!(plugin_entry["consecutive_failures"].as_u64().unwrap_or_default() >= 3);
+        assert!(plugin_entry["disabled_until_ms"].as_i64().is_some());
+        assert_eq!(plugin_entry["faulted"], true);
+
+        let status_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request("GET", "/api/v1/status", Body::empty()))
+            .await
+            .expect("status response");
+        assert_eq!(status_response.status(), StatusCode::OK);
+        let status_json = parse_json(status_response).await;
+        assert!(status_json["open_plugin_breakers"]
+            .as_u64()
+            .unwrap_or_default()
+            >= 1);
+    }
+
+    #[tokio::test]
+    async fn daemon_hook_runner_requires_allowlist_and_restarts_after_exit() {
+        let ctx = test_context();
+        let (artifact_path, artifact_sha) = write_plugin_artifact(
+            &ctx._temp_dir,
+            "plugin.runner.daemon",
+            "1.0.0",
+            r#"import json
+import sys
+line = sys.stdin.readline()
+if line:
+    request = json.loads(line)
+    response = {
+        "contract_version": "carsinos.plugin_runner.v1",
+        "request_id": request.get("request_id", ""),
+        "status": "ok",
+        "result": {"hook_name": request.get("payload", {}).get("hook_name")},
+        "error_code": None,
+        "error_message": None
+    }
+    sys.stdout.write(json.dumps(response) + "\n")
+    sys.stdout.flush()
+"#,
+        );
+        let manifest = sample_daemon_hook_runner_manifest_v2(
+            "plugin.runner.daemon",
+            "1.0.0",
+            artifact_path,
+            artifact_sha,
+            "run.start",
+        );
+
+        let install_payload = serde_json::json!({
+            "manifest": manifest,
+            "reason": "daemon hook install"
+        });
+        let install_without_allowlist = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/extensions/plugins/install",
+                Body::from(install_payload.to_string()),
+            ))
+            .await
+            .expect("install daemon plugin without allowlist");
+        assert_eq!(install_without_allowlist.status(), StatusCode::BAD_REQUEST);
+        let install_without_allowlist_json = parse_json(install_without_allowlist).await;
+        assert_eq!(
+            install_without_allowlist_json["error_code"],
+            EXT_PLUGIN_DAEMON_NOT_ALLOWLISTED
+        );
+
+        let runtime_update_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    r#"{"extensions":{"plugin_daemon_allowlist":["plugin.runner.daemon"]}}"#,
+                ),
+            ))
+            .await
+            .expect("runtime config update response");
+        assert_eq!(runtime_update_response.status(), StatusCode::OK);
+
+        let install_with_allowlist = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/extensions/plugins/install",
+                Body::from(install_payload.to_string()),
+            ))
+            .await
+            .expect("install daemon plugin with allowlist");
+        assert_eq!(install_with_allowlist.status(), StatusCode::OK);
+
+        let create_session_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"plugin-daemon-runner"}"#),
+            ))
+            .await
+            .expect("create session");
+        let create_session_json = parse_json(create_session_response).await;
+        let session_id = create_session_json["session"]["session_id"]
+            .as_str()
+            .expect("session id")
+            .to_string();
+        for _ in 0..2 {
+            let _ = ctx
+                .app
+                .clone()
+                .oneshot(auth_request(
+                    "POST",
+                    &format!("/api/v1/sessions/{session_id}/messages"),
+                    Body::from(r#"{"role":"user","content_text":"daemon hook test"}"#),
+                ))
+                .await
+                .expect("create message");
+            let run_response = ctx
+                .app
+                .clone()
+                .oneshot(auth_request(
+                    "POST",
+                    &format!("/api/v1/sessions/{session_id}/runs"),
+                    Body::from(r#"{"model_provider":"mock","model_id":"mock-echo-v1"}"#),
+                ))
+                .await
+                .expect("run response");
+            assert_eq!(run_response.status(), StatusCode::CREATED);
+        }
+
+        let runtime_status_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/extensions/plugins/status?include_disabled=true",
+                Body::empty(),
+            ))
+            .await
+            .expect("plugin runtime status response");
+        assert_eq!(runtime_status_response.status(), StatusCode::OK);
+        let runtime_status_json = parse_json(runtime_status_response).await;
+        let items = runtime_status_json["items"]
+            .as_array()
+            .expect("plugin runtime status items");
+        let plugin_entry = items
+            .iter()
+            .find(|item| item["plugin_id"] == "plugin.runner.daemon")
+            .expect("daemon plugin runtime status");
+        assert_eq!(plugin_entry["consecutive_failures"], 0);
+        assert!(plugin_entry["last_success_ms"].as_i64().is_some());
+    }
+
+    #[tokio::test]
+    async fn plugin_defined_tool_requires_approval_and_executes_after_resume() {
+        let ctx = test_context();
+        let (artifact_path, artifact_sha) = write_plugin_artifact(
+            &ctx._temp_dir,
+            "plugin.tool.echo",
+            "1.0.0",
+            r#"import json
+import sys
+request = json.load(sys.stdin)
+response = {
+    "contract_version": "carsinos.plugin_runner.v1",
+    "request_id": request.get("request_id", ""),
+    "status": "ok",
+    "result": {
+        "echo": request.get("payload", {}).get("args"),
+        "tool_name": request.get("payload", {}).get("tool_name")
+    },
+    "error_code": None,
+    "error_message": None
+}
+sys.stdout.write(json.dumps(response))
+"#,
+        );
+        let manifest = sample_plugin_tool_runner_manifest_v2(
+            "plugin.tool.echo",
+            "1.0.0",
+            artifact_path,
+            artifact_sha,
+            "plugin.echo",
+        );
+        let install_payload = serde_json::json!({
+            "manifest": manifest,
+            "reason": "plugin tool install"
+        });
+        let install_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/extensions/plugins/install",
+                Body::from(install_payload.to_string()),
+            ))
+            .await
+            .expect("install plugin tool");
+        assert_eq!(install_response.status(), StatusCode::OK);
+
+        let create_session_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"plugin-tool-approval"}"#),
+            ))
+            .await
+            .expect("create session");
+        let create_session_json = parse_json(create_session_response).await;
+        let session_id = create_session_json["session"]["session_id"]
+            .as_str()
+            .expect("session id")
+            .to_string();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(
+                    r#"{"role":"user","content_text":"tool.plugin.echo {\"text\":\"hello\"}"}"#,
+                ),
+            ))
+            .await
+            .expect("create message");
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("create run");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+        let run_json = parse_json(run_response).await;
+        assert_eq!(run_json["run"]["status"], "failed");
+        let run_id = run_json["run"]["run_id"]
+            .as_str()
+            .expect("run id")
+            .to_string();
+
+        let approvals_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/approvals?status=requested",
+                Body::empty(),
+            ))
+            .await
+            .expect("list approvals");
+        let approvals_json = parse_json(approvals_response).await;
+        let approval_id = approvals_json["items"]
+            .as_array()
+            .expect("approvals")
+            .iter()
+            .find(|item| item["run_id"] == run_id && item["kind"] == "plugin.echo")
+            .and_then(|item| item["approval_id"].as_str())
+            .expect("plugin approval id")
+            .to_string();
+
+        let resolve_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/approvals/{approval_id}/resolve"),
+                Body::from(r#"{"decision":"approve","decided_via":"test"}"#),
+            ))
+            .await
+            .expect("resolve approval");
+        assert_eq!(resolve_response.status(), StatusCode::OK);
+
+        let resume_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/runs/{run_id}/resume"),
+                Body::empty(),
+            ))
+            .await
+            .expect("resume run");
+        assert_eq!(resume_response.status(), StatusCode::OK);
+        let resume_json = parse_json(resume_response).await;
+        assert_eq!(resume_json["run"]["status"], "succeeded");
+
+        let tool_calls = ctx
+            .storage
+            .list_tool_calls(&run_id, 10)
+            .expect("list tool calls");
+        let plugin_call = tool_calls
+            .iter()
+            .find(|item| item.tool_name == "plugin.echo")
+            .expect("plugin tool call");
+        let result_json = plugin_call
+            .result_json
+            .as_ref()
+            .expect("plugin tool result envelope");
+        let result_value: serde_json::Value =
+            serde_json::from_str(result_json).expect("parse plugin tool result");
+        assert_eq!(result_value["tool_name"], "plugin.echo");
+        assert_eq!(result_value["status"], "ok");
+        assert_eq!(result_value["output"]["plugin_id"], "plugin.tool.echo");
     }
 
     #[tokio::test]

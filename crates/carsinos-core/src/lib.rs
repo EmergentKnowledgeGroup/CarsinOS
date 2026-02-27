@@ -98,6 +98,7 @@ fn default_state_dir() -> Result<PathBuf> {
 }
 
 pub const PLUGIN_MANIFEST_SCHEMA_VERSION_V1: &str = "carsinos.plugin.manifest.v1";
+pub const PLUGIN_MANIFEST_SCHEMA_VERSION_V2: &str = "carsinos.plugin.manifest.v2";
 pub const PLUGIN_API_VERSION_V1: &str = "carsinos.plugin.api.v1";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -112,9 +113,68 @@ pub struct PluginManifest {
     #[serde(default = "default_plugin_enabled")]
     pub enabled: bool,
     #[serde(default)]
+    pub artifact: PluginArtifact,
+    #[serde(default)]
+    pub compatibility: PluginCompatibility,
+    #[serde(default)]
+    pub permissions: PluginPermissions,
+    #[serde(default)]
+    pub limits: PluginExecutionLimits,
+    #[serde(default)]
     pub capabilities: PluginCapabilities,
     #[serde(default)]
     pub metadata: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PluginExecKind {
+    Subprocess,
+    Daemon,
+}
+
+impl Default for PluginExecKind {
+    fn default() -> Self {
+        Self::Subprocess
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PluginArtifact {
+    #[serde(default = "default_plugin_exec_kind")]
+    pub exec_kind: PluginExecKind,
+    #[serde(default)]
+    pub local_path: String,
+    #[serde(default)]
+    pub command: String,
+    #[serde(default)]
+    pub args: Vec<String>,
+    #[serde(default)]
+    pub sha256: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PluginCompatibility {
+    #[serde(default)]
+    pub min_gateway_version: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PluginPermissions {
+    #[serde(default)]
+    pub allowed_roots: Vec<String>,
+    #[serde(default = "default_plugin_network_policy")]
+    pub network_policy: String,
+    #[serde(default)]
+    pub network_allowlist: Vec<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PluginExecutionLimits {
+    #[serde(default)]
+    pub timeout_ms: Option<u64>,
+    #[serde(default)]
+    pub max_output_chars: Option<usize>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
@@ -189,10 +249,14 @@ impl PluginRegistry {
     }
 
     pub fn register_manifest(&mut self, mut manifest: PluginManifest) -> Result<()> {
-        if manifest.schema_version.trim() != PLUGIN_MANIFEST_SCHEMA_VERSION_V1 {
+        let schema_version = manifest.schema_version.trim().to_string();
+        if !matches!(
+            schema_version.as_str(),
+            PLUGIN_MANIFEST_SCHEMA_VERSION_V1 | PLUGIN_MANIFEST_SCHEMA_VERSION_V2
+        ) {
             bail!(
                 "unsupported plugin manifest schema_version: {}",
-                manifest.schema_version.trim()
+                schema_version
             );
         }
         if manifest.api_version.trim() != PLUGIN_API_VERSION_V1 {
@@ -212,6 +276,12 @@ impl PluginRegistry {
         }
         if self.manifests.contains_key(&plugin_id) {
             bail!("plugin_id already registered: {plugin_id}");
+        }
+
+        normalize_plugin_metadata(&mut manifest);
+        if schema_version.as_str() == PLUGIN_MANIFEST_SCHEMA_VERSION_V2 {
+            normalize_plugin_artifact(&mut manifest.artifact)
+                .context("invalid plugin artifact declaration")?;
         }
 
         let mut local_tool_names = BTreeSet::new();
@@ -272,7 +342,7 @@ impl PluginRegistry {
         manifest.plugin_id = plugin_id.clone();
         manifest.display_name = manifest.display_name.trim().to_string();
         manifest.plugin_version = manifest.plugin_version.trim().to_string();
-        manifest.schema_version = PLUGIN_MANIFEST_SCHEMA_VERSION_V1.to_string();
+        manifest.schema_version = schema_version.to_string();
         manifest.api_version = PLUGIN_API_VERSION_V1.to_string();
         self.manifests.insert(plugin_id, manifest);
         Ok(())
@@ -302,6 +372,35 @@ impl PluginRegistry {
                 self.channel_bindings.get(&normalized).map(String::as_str)
             }
         }
+    }
+
+    pub fn get_manifest(&self, plugin_id: &str) -> Option<PluginManifest> {
+        let normalized = normalize_identifier(plugin_id).ok()?;
+        self.manifests.get(&normalized).cloned()
+    }
+
+    pub fn replace_manifest(&mut self, manifest: PluginManifest) -> Result<PluginManifest> {
+        let normalized = normalize_identifier(&manifest.plugin_id)
+            .context("plugin_id must be non-empty and use [a-z0-9._-] characters")?;
+        if !self.manifests.contains_key(&normalized) {
+            bail!("plugin_id not registered: {normalized}");
+        }
+
+        let mut manifests = self.list_manifests();
+        manifests.retain(|existing| existing.plugin_id != normalized);
+        manifests.push(manifest);
+
+        let mut rebuilt = Self::new();
+        for item in manifests {
+            rebuilt.register_manifest(item)?;
+        }
+        let replaced = rebuilt
+            .manifests
+            .get(&normalized)
+            .cloned()
+            .with_context(|| format!("plugin manifest disappeared after replace: {normalized}"))?;
+        *self = rebuilt;
+        Ok(replaced)
     }
 }
 
@@ -461,6 +560,19 @@ impl HookBus {
             });
         }
         results
+    }
+
+    pub fn replace_with(&self, other: &HookBus) -> Result<()> {
+        let other_guard = other
+            .registrations
+            .read()
+            .map_err(|_| anyhow::anyhow!("hook bus lock poisoned"))?;
+        let mut guard = self
+            .registrations
+            .write()
+            .map_err(|_| anyhow::anyhow!("hook bus lock poisoned"))?;
+        *guard = other_guard.clone();
+        Ok(())
     }
 }
 
@@ -689,6 +801,14 @@ fn default_plugin_manifest_schema_version() -> String {
     PLUGIN_MANIFEST_SCHEMA_VERSION_V1.to_string()
 }
 
+fn default_plugin_exec_kind() -> PluginExecKind {
+    PluginExecKind::Subprocess
+}
+
+fn default_plugin_network_policy() -> String {
+    "deny_all".to_string()
+}
+
 fn default_plugin_api_version() -> String {
     PLUGIN_API_VERSION_V1.to_string()
 }
@@ -736,6 +856,62 @@ fn normalize_capabilities(
             .as_ref()
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty());
+    }
+    Ok(())
+}
+
+fn normalize_plugin_metadata(manifest: &mut PluginManifest) {
+    manifest.artifact.local_path = manifest.artifact.local_path.trim().to_string();
+    manifest.artifact.command = manifest.artifact.command.trim().to_string();
+    manifest.artifact.args = manifest
+        .artifact
+        .args
+        .iter()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .collect();
+    manifest.artifact.sha256 = manifest.artifact.sha256.trim().to_ascii_lowercase();
+    manifest.compatibility.min_gateway_version = manifest
+        .compatibility
+        .min_gateway_version
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    manifest.permissions.allowed_roots = manifest
+        .permissions
+        .allowed_roots
+        .iter()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .collect();
+    manifest.permissions.network_policy = manifest
+        .permissions
+        .network_policy
+        .trim()
+        .to_ascii_lowercase();
+    manifest.permissions.network_allowlist = manifest
+        .permissions
+        .network_allowlist
+        .iter()
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty())
+        .collect();
+}
+
+fn normalize_plugin_artifact(artifact: &mut PluginArtifact) -> Result<()> {
+    if artifact.local_path.is_empty() {
+        bail!("artifact.local_path cannot be empty for schema v2");
+    }
+    if artifact.command.is_empty() {
+        bail!("artifact.command cannot be empty for schema v2");
+    }
+    if artifact.sha256.len() != 64
+        || !artifact
+            .sha256
+            .chars()
+            .all(|value| value.is_ascii_hexdigit())
+    {
+        bail!("artifact.sha256 must be a 64-character lowercase hex digest");
     }
     Ok(())
 }
@@ -814,6 +990,10 @@ mod tests {
             plugin_version: "1.0.0".to_string(),
             api_version: PLUGIN_API_VERSION_V1.to_string(),
             enabled: true,
+            artifact: PluginArtifact::default(),
+            compatibility: PluginCompatibility::default(),
+            permissions: PluginPermissions::default(),
+            limits: PluginExecutionLimits::default(),
             capabilities: PluginCapabilities {
                 tools: vec![PluginCapability {
                     name: "tool.alpha".to_string(),

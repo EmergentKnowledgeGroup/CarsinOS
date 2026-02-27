@@ -257,3 +257,35 @@ CREATE TABLE IF NOT EXISTS embeddings (
 
 CREATE INDEX IF NOT EXISTS idx_embeddings_source
 ON embeddings(source_kind, source_id);
+
+CREATE TABLE IF NOT EXISTS daily_auth_profile_usage (
+  usage_day_utc TEXT NOT NULL,
+  auth_profile_id TEXT NOT NULL REFERENCES auth_profiles(auth_profile_id),
+  provider TEXT NOT NULL,
+  input_chars INTEGER NOT NULL,
+  output_chars INTEGER NOT NULL,
+  input_tokens INTEGER NOT NULL,
+  output_tokens INTEGER NOT NULL,
+  total_tokens INTEGER NOT NULL,
+  estimated_cost_usd REAL NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (usage_day_utc, auth_profile_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_daily_auth_profile_usage_provider_day
+ON daily_auth_profile_usage(provider, usage_day_utc, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS circuit_breaker_states (
+  breaker_key TEXT PRIMARY KEY,
+  scope TEXT NOT NULL,
+  target_id TEXT NOT NULL,
+  state TEXT NOT NULL,
+  consecutive_failures INTEGER NOT NULL,
+  opened_at INTEGER,
+  cooldown_until INTEGER,
+  last_error_code TEXT,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_circuit_breaker_scope_target
+ON circuit_breaker_states(scope, target_id, updated_at DESC);
