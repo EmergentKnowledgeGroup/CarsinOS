@@ -1,29 +1,42 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-27T05:02:49.668774+00:00",
+  "captured_at": "2026-02-27T05:22:57.562878+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/sync-local-sot-20260226-230214",
-  "head_short": "bd431bd",
-  "step": "repo-sync-pr-open",
-  "note": "Opened PR #41 to sync local source-of-truth branch to main",
-  "next_cmd": "gh pr view 41 --json state,mergeStateStatus,headRefName,baseRefName,url",
+  "branch": "codex/pr42-coderabbit-followup",
+  "head_short": "0215a5c",
+  "step": "pr42-cr-fixes-post-green",
+  "note": "Applied CodeRabbit suggestions for checkpoint consistency and reran validation gates",
+  "next_cmd": "git status --short --branch",
+  "validations": [
+    "cargo check -p carsinos-gateway --bin carsinos-gateway",
+    "cargo test -p carsinos-gateway --test e2e_process",
+    "cargo test -p carsinos-gateway --test benchmark_process -- --nocapture"
+  ],
   "status": {
     "staged": [],
-    "modified": [],
+    "modified": [
+      "CHECKPOINT.md",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "untracked": [],
     "conflicted": [],
-    "dirty": false
+    "dirty": true
   },
   "changed_files": {
-    "working_tree": [],
+    "working_tree": [
+      "CHECKPOINT.md",
+      "runtime/checkpoints/LATEST.json",
+      "runtime/checkpoints/LATEST.md"
+    ],
     "staged": []
   },
   "recent_commits": [
-    "bd431bd sync: publish local source-of-truth runtime and ticket-pack updates",
-    "fc01dfb docs: checkpoint hard-blocker owner-input state",
-    "dada1f5 docs: checkpoint PR #40 post-merge status",
-    "5bb5247 Merge pull request #40 from ProfessahX/codex/chunk-pr40-channel-soak-workflow",
-    "25e8aec docs: checkpoint PR #40 open status"
+    "0215a5c docs: checkpoint PR #42 open state",
+    "452b977 chore(gateway): remove dead numquam/plugin fields and checkpoint state",
+    "031a0c2 Merge pull request #41 from ProfessahX/codex/sync-local-sot-20260226-230214",
+    "4d14144 docs: checkpoint repo sync PR #41 open state",
+    "bd431bd sync: publish local source-of-truth runtime and ticket-pack updates"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",

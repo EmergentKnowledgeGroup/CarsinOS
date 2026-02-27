@@ -1,11 +1,11 @@
 # LATEST Checkpoint
 
-- step: repo-sync-pr-open
-- note: Opened PR #41 to sync local source-of-truth branch to main
-- branch: codex/sync-local-sot-20260226-230214
-- head: bd431bd
-- next_cmd: gh pr view 41 --json state,mergeStateStatus,headRefName,baseRefName,url
+- step: pr42-cr-fixes-post-green
+- note: Applied CodeRabbit suggestions for checkpoint consistency and reran validation gates
+- branch: codex/pr42-coderabbit-followup
+- head: 0215a5c
+- next_cmd: git status --short --branch
 - validations:
-- `cargo test --workspace --locked`
-- `cargo test -p carsinos-gateway numquam_ -- --nocapture`
-- `cargo test -p carsinos-gateway numquam_http_integration_wires_context_writeback_and_approval_process_level -- --nocapture`
+  - `cargo check -p carsinos-gateway --bin carsinos-gateway`
+  - `cargo test -p carsinos-gateway --test e2e_process`
+  - `cargo test -p carsinos-gateway --test benchmark_process -- --nocapture`
