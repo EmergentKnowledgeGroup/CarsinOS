@@ -5809,6 +5809,11 @@ mod tests {
             .expect("list active leases");
         assert_eq!(active_before_release.len(), 2);
 
+        let blocked_release = storage
+            .release_agent_mail_file_lease(&lease.lease_id, Some("wrong_holder"))
+            .expect("blocked release check");
+        assert!(blocked_release.is_none());
+
         let released = storage
             .release_agent_mail_file_lease(&lease.lease_id, Some("lyra"))
             .expect("release lease")

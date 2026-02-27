@@ -11215,13 +11215,20 @@ async fn send_agent_mail_message(
     }
 
     let sender_principal = resolve_agent_mail_principal(request.sender_principal, &auth);
-    if !agent_mail_is_operator_role(&auth)
-        && !ensure_agent_mail_thread_membership(&state, &thread_id, &sender_principal)?
-    {
-        return Err(api_error(
-            StatusCode::FORBIDDEN,
-            "thread send access denied",
-        ));
+    if !agent_mail_is_operator_role(&auth) {
+        let caller_is_member =
+            ensure_agent_mail_thread_membership(&state, &thread_id, &auth.principal_id)?;
+        let sender_is_member = if sender_principal == auth.principal_id {
+            caller_is_member
+        } else {
+            ensure_agent_mail_thread_membership(&state, &thread_id, &sender_principal)?
+        };
+        if !caller_is_member || !sender_is_member {
+            return Err(api_error(
+                StatusCode::FORBIDDEN,
+                "thread send access denied",
+            ));
+        }
     }
     let body_text = request.body_text.trim().to_string();
     if body_text.is_empty() {
