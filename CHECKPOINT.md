@@ -5802,3 +5802,23 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/CHECKPOINT.md`
+
+### 2026-02-27 - Entry 274
+
+- checklist refs: `Q4` `Q7`
+- past action:
+- Committed and pushed `7a5592b` to PR #43 with strict clippy fixes for gateway/gui paths and checkpoint alignment.
+- present action:
+- Recorded PR-open checkpoint state for the active review loop:
+- `runtime/checkpoints/LATEST.md` now points to PR status poll command for #43
+- `runtime/checkpoints/LATEST.json` now includes updated `step`, `note`, `branch`, `head`, `next_cmd`, and `validations`
+- validation outcomes:
+- Prior gate validations remain green from Entry 273 (clippy + storage/protocol/gateway test suites).
+- Checkpoint SOP:
+- checkpoint updated at PR-open stage per workflow lock sequence.
+- future action:
+- poll PR #43 checks/reviews; if CodeRabbit comments appear, implement and repush; merge when required checks are green.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/CHECKPOINT.md`

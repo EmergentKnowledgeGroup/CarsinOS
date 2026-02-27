@@ -1,10 +1,10 @@
 # LATEST Checkpoint
 
-- step: `mc3-pr43-post-green`
-- note: `Clippy gate and regression suites green after gateway lint fixes`
+- step: `mc3-pr43-update-pushed`
+- note: `Pushed clippy cleanup commit to open PR #43; waiting on checks/review`
 - branch: `codex/mc3-pr1-backend`
-- head: `9933a87`
-- next_cmd: `git add crates/carsinos-gateway/src/main.rs crates/carsinos-gui/src/main.rs runtime/checkpoints/LATEST.md runtime/checkpoints/LATEST.json CHECKPOINT.md && git commit -m "fix(gateway): clear clippy gate warnings for pr43"`
+- head: `7a5592b`
+- next_cmd: `gh pr view 43 --json url,state,reviewDecision,statusCheckRollup,reviews`
 - validations:
   - `cargo clippy -p carsinos-gateway -p carsinos-storage -p carsinos-protocol -p carsinos-gui -p carsinos-cli --all-targets -- -D warnings`
   - `cargo test -p carsinos-storage`
