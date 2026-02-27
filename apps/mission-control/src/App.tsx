@@ -733,6 +733,8 @@ export default function App() {
   const boardRefreshTimer = useRef<number | null>(null);
   const missionControlRefreshTimer = useRef<number | null>(null);
   const agentMailRefreshTimer = useRef<number | null>(null);
+  const mailThreadLoadSeq = useRef(0);
+  const roomThreadLoadSeq = useRef(0);
 
   const cardsByColumn = useMemo(() => toCardsByColumn(board), [board]);
 
@@ -1134,34 +1136,54 @@ export default function App() {
     if (!selectedMailThreadId || !settings.gateway_url.trim() || !tokenConfigured) {
       return;
     }
+    const requestSeq = ++mailThreadLoadSeq.current;
     void loadMailThreadById(selectedMailThreadId, settings)
       .then(({ detail, messages }) => {
+        if (requestSeq !== mailThreadLoadSeq.current) {
+          return;
+        }
         setMailThreadDetail(detail);
         setMailMessages(messages);
       })
       .catch((error: unknown) => {
+        if (requestSeq !== mailThreadLoadSeq.current) {
+          return;
+        }
         setNotice({
           tone: "error",
           message: `Mail thread load failed: ${String(error)}`,
         });
       });
+    return () => {
+      mailThreadLoadSeq.current += 1;
+    };
   }, [loadMailThreadById, selectedMailThreadId, settings, tokenConfigured]);
 
   useEffect(() => {
     if (!selectedRoomThreadId || !settings.gateway_url.trim() || !tokenConfigured) {
       return;
     }
+    const requestSeq = ++roomThreadLoadSeq.current;
     void loadMailThreadById(selectedRoomThreadId, settings)
       .then(({ detail, messages }) => {
+        if (requestSeq !== roomThreadLoadSeq.current) {
+          return;
+        }
         setRoomThreadDetail(detail);
         setRoomMessages(messages);
       })
       .catch((error: unknown) => {
+        if (requestSeq !== roomThreadLoadSeq.current) {
+          return;
+        }
         setNotice({
           tone: "error",
           message: `Room thread load failed: ${String(error)}`,
         });
       });
+    return () => {
+      roomThreadLoadSeq.current += 1;
+    };
   }, [loadMailThreadById, selectedRoomThreadId, settings, tokenConfigured]);
 
   useEffect(() => {
@@ -1195,8 +1217,7 @@ export default function App() {
           frame.event_type.startsWith("job.") ||
           frame.event_type.startsWith("approval.") ||
           frame.event_type.startsWith("channel.") ||
-          frame.event_type.startsWith("extension.") ||
-          isAgentMailEvent
+          frame.event_type.startsWith("extension.")
         ) {
           queueMissionControlRefresh(settings);
         }
@@ -2013,17 +2034,25 @@ export default function App() {
 
   const createFileLease = async () => {
     const ttl = Number(leaseTtlMs);
-    if (!Number.isFinite(ttl) || ttl <= 0) {
+    if (!Number.isFinite(ttl) || ttl <= 0 || !Number.isInteger(ttl)) {
       setNotice({
         tone: "error",
-        message: "Lease TTL must be a positive number of milliseconds.",
+        message: "Lease TTL must be a positive integer number of milliseconds.",
+      });
+      return;
+    }
+    const globPattern = leaseGlobPattern.trim();
+    if (!globPattern) {
+      setNotice({
+        tone: "error",
+        message: "Lease glob pattern is required.",
       });
       return;
     }
     try {
       const created = await createAgentMailFileLease(settings, {
         holder_principal: leaseHolderPrincipal.trim() || undefined,
-        glob_pattern: leaseGlobPattern.trim(),
+        glob_pattern: globPattern,
         exclusive: leaseExclusive,
         ttl_ms: ttl,
         note: leaseNote.trim() || undefined,

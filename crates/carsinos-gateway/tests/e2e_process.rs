@@ -1482,7 +1482,7 @@ async fn agent_mail_flow_supports_threads_messages_attachments_and_leases() -> R
         &[
             ("CARSINOS_AGENT_MAIL_ATTACHMENT_MAX_BYTES", "4096"),
             (
-                "CARSINOS_AGENT_MAIL_ALLOWED_MIMES",
+                "CARSINOS_AGENT_MAIL_ALLOWED_MIME",
                 "text/plain,application/json",
             ),
         ],
@@ -1616,13 +1616,12 @@ async fn agent_mail_flow_supports_threads_messages_attachments_and_leases() -> R
         .await
         .context("download agent-mail attachment request failed")?;
     assert_eq!(downloaded_attachment.status(), StatusCode::OK);
-    assert_eq!(
-        downloaded_attachment
-            .headers()
-            .get("content-type")
-            .and_then(|value| value.to_str().ok()),
-        Some("text/plain")
-    );
+    let content_type = downloaded_attachment
+        .headers()
+        .get("content-type")
+        .and_then(|value| value.to_str().ok())
+        .context("content-type header missing on attachment download response")?;
+    assert!(content_type.starts_with("text/plain"));
     let downloaded_bytes = downloaded_attachment
         .bytes()
         .await

@@ -579,6 +579,7 @@ export async function listAgentMailFileLeases(
     includeReleased?: boolean;
   } = {}
 ): Promise<AgentMailFileLeaseResponse[]> {
+  // Intentionally returns the unwrapped lease array for direct list rendering in UI panels.
   const params = new URLSearchParams();
   if (options.holderPrincipal?.trim()) {
     params.set("holder_principal", options.holderPrincipal.trim());

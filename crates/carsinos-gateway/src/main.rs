@@ -5728,20 +5728,24 @@ fn agent_mail_attachment_max_bytes() -> usize {
         .unwrap_or(AGENT_MAIL_DEFAULT_ATTACHMENT_MAX_BYTES)
 }
 
-fn agent_mail_allowed_mimes() -> HashSet<String> {
-    let configured = std::env::var("CARSINOS_AGENT_MAIL_ALLOWED_MIME").unwrap_or_else(|_| {
-        "text/plain,text/markdown,application/pdf,image/png,image/jpeg,image/webp,image/gif"
-            .to_string()
-    });
-    configured
-        .split(',')
-        .map(|item| item.trim().to_ascii_lowercase())
-        .filter(|item| !item.is_empty())
-        .collect::<HashSet<_>>()
+fn agent_mail_allowed_mimes() -> &'static HashSet<String> {
+    static ALLOWED_MIMES: std::sync::OnceLock<HashSet<String>> = std::sync::OnceLock::new();
+    ALLOWED_MIMES.get_or_init(|| {
+        let configured = std::env::var("CARSINOS_AGENT_MAIL_ALLOWED_MIME").unwrap_or_else(|_| {
+            "text/plain,text/markdown,application/pdf,image/png,image/jpeg,image/webp,image/gif"
+                .to_string()
+        });
+        configured
+            .split(',')
+            .map(|item| item.trim().to_ascii_lowercase())
+            .filter(|item| !item.is_empty())
+            .collect::<HashSet<_>>()
+    })
 }
 
 fn agent_mail_mime_allowed(mime: &str) -> bool {
-    agent_mail_allowed_mimes().contains(mime.trim().to_ascii_lowercase().as_str())
+    let normalized = mime.trim().to_ascii_lowercase();
+    agent_mail_allowed_mimes().contains(normalized.as_str())
 }
 
 fn board_asset_mime_allowed(mime: &str) -> bool {
@@ -11419,28 +11423,31 @@ async fn upload_agent_mail_attachment(
         .join("agent_mail")
         .join(&message.thread_id)
         .join(&message.message_id);
-    std::fs::create_dir_all(&assets_dir).map_err(|err| {
-        internal_err_with_error(
-            "creating agent-mail attachments directory failed",
-            err.into(),
-        )
-    })?;
+    tokio::fs::create_dir_all(&assets_dir)
+        .await
+        .map_err(|err| {
+            internal_err_with_error(
+                "creating agent-mail attachments directory failed",
+                err.into(),
+            )
+        })?;
     let local_path = assets_dir.join(format!("{attachment_id}_{filename}"));
-    let mut file = std::fs::OpenOptions::new()
+    let mut file = tokio::fs::OpenOptions::new()
         .create_new(true)
         .write(true)
         .open(&local_path)
+        .await
         .map_err(|err| {
             internal_err_with_error("opening agent-mail attachment file failed", err.into())
         })?;
-    file.write_all(&content).map_err(|err| {
+    file.write_all(&content).await.map_err(|err| {
         internal_err_with_error("writing agent-mail attachment file failed", err.into())
     })?;
-    file.flush().map_err(|err| {
+    file.flush().await.map_err(|err| {
         internal_err_with_error("flushing agent-mail attachment file failed", err.into())
     })?;
 
-    let attachment = state
+    let attachment_result = state
         .storage
         .create_agent_mail_attachment(NewAgentMailAttachment {
             message_id: message_id.clone(),
@@ -11449,9 +11456,36 @@ async fn upload_agent_mail_attachment(
             sha256: digest_hex,
             bytes: content.len() as i64,
             local_path: local_path.display().to_string(),
-        })
-        .map_err(|err| internal_err_with_error("persisting agent-mail attachment failed", err))?
-        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "agent-mail message not found"))?;
+        });
+    let attachment = match attachment_result {
+        Ok(Some(attachment)) => attachment,
+        Ok(None) => {
+            if let Err(remove_err) = tokio::fs::remove_file(&local_path).await {
+                warn!(
+                    error = %remove_err,
+                    path = %local_path.display(),
+                    "failed to cleanup agent-mail attachment file after missing message"
+                );
+            }
+            return Err(api_error(
+                StatusCode::NOT_FOUND,
+                "agent-mail message not found",
+            ));
+        }
+        Err(err) => {
+            if let Err(remove_err) = tokio::fs::remove_file(&local_path).await {
+                warn!(
+                    error = %remove_err,
+                    path = %local_path.display(),
+                    "failed to cleanup agent-mail attachment file after storage error"
+                );
+            }
+            return Err(internal_err_with_error(
+                "persisting agent-mail attachment failed",
+                err,
+            ));
+        }
+    };
     let attachment_response = to_agent_mail_attachment_response(attachment.clone());
     emit_event(
         &state,

@@ -1425,6 +1425,10 @@ impl Storage {
             if principal.is_empty() {
                 continue;
             }
+            if principal == new_thread.created_by_principal.trim() {
+                participants.insert(principal, "owner".to_string());
+                continue;
+            }
             let normalized_role = role.trim();
             participants.insert(
                 principal,
@@ -1500,7 +1504,7 @@ impl Storage {
             .as_ref()
             .map(|value| value.trim().to_string());
         let kind = filter.kind.as_ref().map(|value| value.trim().to_string());
-        let limit = i64::from(filter.limit.max(1));
+        let limit = filter.limit.max(1) as usize;
         let mut stmt = conn.prepare(
             r#"
             SELECT
@@ -1563,26 +1567,22 @@ impl Storage {
                 )
               )
             ORDER BY t.updated_at DESC
-            LIMIT ?3
             "#,
         )?;
-        let rows = stmt.query_map(
-            params![principal.as_deref(), kind.as_deref(), limit],
-            |row| {
-                let summary = AgentMailThreadSummaryRecord {
-                    thread: map_agent_mail_thread_row(row)?,
-                    participant_count: row.get(7)?,
-                    message_count: row.get(8)?,
-                    latest_message_at: row.get(9)?,
-                    latest_message_preview: row.get(10)?,
-                    latest_sender_principal: row.get(11)?,
-                    unread_count: row.get(12)?,
-                };
-                let outbox_count: i64 = row.get(13)?;
-                let inbox_count: i64 = row.get(14)?;
-                Ok((summary, outbox_count, inbox_count))
-            },
-        )?;
+        let rows = stmt.query_map(params![principal.as_deref(), kind.as_deref()], |row| {
+            let summary = AgentMailThreadSummaryRecord {
+                thread: map_agent_mail_thread_row(row)?,
+                participant_count: row.get(7)?,
+                message_count: row.get(8)?,
+                latest_message_at: row.get(9)?,
+                latest_message_preview: row.get(10)?,
+                latest_sender_principal: row.get(11)?,
+                unread_count: row.get(12)?,
+            };
+            let outbox_count: i64 = row.get(13)?;
+            let inbox_count: i64 = row.get(14)?;
+            Ok((summary, outbox_count, inbox_count))
+        })?;
         let mut out = Vec::new();
         let mailbox = filter
             .mailbox
@@ -1594,7 +1594,7 @@ impl Storage {
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty());
         let search_thread_ids = if let Some(query) = search_text.as_deref() {
-            self.search_agent_mail_thread_ids(query, filter.limit.max(1))?
+            self.search_agent_mail_thread_ids(query, 2_000)?
         } else {
             std::collections::HashSet::new()
         };
@@ -1628,6 +1628,9 @@ impl Storage {
                 }
             }
             out.push(summary);
+            if out.len() >= limit {
+                break;
+            }
         }
         Ok(out)
     }
@@ -1771,7 +1774,7 @@ impl Storage {
               message_id, thread_id, sender_principal, sender_kind, body_text, metadata_json, created_at
             FROM agent_mail_messages
             WHERE thread_id = ?1
-            ORDER BY created_at ASC
+            ORDER BY created_at DESC
             LIMIT ?2
             "#,
         )?;
@@ -1783,6 +1786,7 @@ impl Storage {
         for row in rows {
             out.push(row?);
         }
+        out.reverse();
         Ok(out)
     }
 
@@ -1933,9 +1937,10 @@ impl Storage {
         &self,
         new_lease: NewAgentMailFileLease,
     ) -> Result<AgentMailFileLeaseRecord> {
-        let conn = self.connect()?;
+        let mut conn = self.connect()?;
+        let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
         let now = now_ms();
-        conn.execute(
+        tx.execute(
             r#"
             UPDATE agent_mail_file_leases
             SET released_at = COALESCE(released_at, ?1)
@@ -1944,7 +1949,7 @@ impl Storage {
             "#,
             params![now],
         )?;
-        let conflict_count: i64 = conn.query_row(
+        let conflict_count: i64 = tx.query_row(
             r#"
             SELECT COUNT(*)
             FROM agent_mail_file_leases
@@ -1962,7 +1967,7 @@ impl Storage {
         let lease_id = uuid::Uuid::new_v4().to_string();
         let ttl_ms = new_lease.ttl_ms.clamp(60_000, 86_400_000);
         let expires_at = now.saturating_add(ttl_ms);
-        conn.execute(
+        tx.execute(
             r#"
             INSERT INTO agent_mail_file_leases (
               lease_id, holder_principal, glob_pattern, exclusive, ttl_ms, note, created_at, expires_at, released_at
@@ -1979,6 +1984,7 @@ impl Storage {
                 expires_at
             ],
         )?;
+        tx.commit()?;
         self.get_agent_mail_file_lease(&lease_id)?
             .context("created lease missing after insert")
     }
@@ -2045,7 +2051,7 @@ impl Storage {
     ) -> Result<Option<AgentMailFileLeaseRecord>> {
         let conn = self.connect()?;
         let now = now_ms();
-        conn.execute(
+        let rows_affected = conn.execute(
             r#"
             UPDATE agent_mail_file_leases
             SET released_at = COALESCE(released_at, ?1)
@@ -2055,6 +2061,9 @@ impl Storage {
             "#,
             params![now, lease_id, holder_principal],
         )?;
+        if rows_affected == 0 {
+            return Ok(None);
+        }
         self.get_agent_mail_file_lease(lease_id)
     }
 
