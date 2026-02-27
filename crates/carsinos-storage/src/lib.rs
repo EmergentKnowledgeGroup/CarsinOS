@@ -48,8 +48,11 @@ fn migrate(db_path: &Path) -> Result<()> {
 }
 
 fn seed_default_entities(db_path: &Path) -> Result<()> {
-    let conn = Connection::open(db_path)
+    let mut conn = Connection::open(db_path)
         .with_context(|| format!("failed to open sqlite db at {}", db_path.display()))?;
+    let tx = conn
+        .transaction()
+        .context("failed to start default-entity seed transaction")?;
     let now = now_ms();
     let workspace_root = std::env::current_dir()
         .map(|path| path.display().to_string())
@@ -60,7 +63,7 @@ fn seed_default_entities(db_path: &Path) -> Result<()> {
         ("lyra", "Lyra"),
         ("claude", "Claude"),
     ] {
-        conn.execute(
+        tx.execute(
             r#"
         INSERT OR IGNORE INTO agents
           (agent_id, name, workspace_root, model_provider, model_id, tool_profile, created_at, updated_at)
@@ -81,11 +84,13 @@ fn seed_default_entities(db_path: &Path) -> Result<()> {
         .with_context(|| format!("failed to seed {agent_id} agent"))?;
     }
 
-    seed_default_boards(&conn, now)?;
+    seed_default_boards(&tx, now)?;
+    tx.commit()
+        .context("failed to commit default-entity seed transaction")?;
     Ok(())
 }
 
-fn seed_default_boards(conn: &Connection, now: i64) -> Result<()> {
+fn seed_default_boards(conn: &Transaction<'_>, now: i64) -> Result<()> {
     let tasks_board_id = upsert_board(conn, "tasks", "Tasks", "tasks", now)?;
     let content_board_id = upsert_board(conn, "content", "Content Pipeline", "content", now)?;
 
@@ -133,7 +138,7 @@ fn seed_default_boards(conn: &Connection, now: i64) -> Result<()> {
 }
 
 fn upsert_board(
-    conn: &Connection,
+    conn: &Transaction<'_>,
     board_key: &str,
     name: &str,
     board_type: &str,
@@ -171,7 +176,7 @@ fn upsert_board(
 }
 
 fn upsert_board_column(
-    conn: &Connection,
+    conn: &Transaction<'_>,
     board_id: &str,
     column_key: &str,
     name: &str,
@@ -1044,6 +1049,7 @@ impl Storage {
                 due_at = ?6, tags_json = ?7, script_markdown = ?8, updated_at = ?9
             WHERE card_id = ?10
               AND board_id = ?11
+              AND archived_at IS NULL
             "#,
             params![
                 next_title,
@@ -1145,6 +1151,7 @@ impl Storage {
             SET column_id = ?1, position = ?2, updated_at = ?3
             WHERE card_id = ?4
               AND board_id = ?5
+              AND archived_at IS NULL
             "#,
             params![target_column_id, target_position, now, card_id, board_id],
         )?;
@@ -1174,6 +1181,7 @@ impl Storage {
             SET linked_session_id = ?1, latest_run_id = ?2, updated_at = ?3
             WHERE card_id = ?4
               AND board_id = ?5
+              AND archived_at IS NULL
             "#,
             params![linked_session_id, latest_run_id, now, card_id, board_id],
         )?;
