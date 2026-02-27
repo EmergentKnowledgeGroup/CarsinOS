@@ -20,10 +20,15 @@ use carsinos_core::{
     PLUGIN_MANIFEST_SCHEMA_VERSION_V2,
 };
 use carsinos_protocol::{
-    AgentResponse, AnthropicSetupTokenIngestRequest, AnthropicSetupTokenIngestResponse,
-    ApprovalResponse, AuthProfileResponse, BoardAutomationRuleResponse, BoardCardAssetResponse,
-    BoardCardResponse, BoardColumnResponse, BoardDetailResponse, BoardSummaryResponse,
-    ChannelRuntimeAdapterStatusResponse, CircuitBreakerStateResponse, CreateAgentRequest,
+    AckAgentMailMessageRequest, AckAgentMailMessageResponse, AgentMailAttachmentResponse,
+    AgentMailFileLeaseResponse, AgentMailMessageRecipientResponse, AgentMailMessageResponse,
+    AgentMailThreadDetailResponse, AgentMailThreadParticipantResponse,
+    AgentMailThreadSummaryResponse, AgentResponse, AnthropicSetupTokenIngestRequest,
+    AnthropicSetupTokenIngestResponse, ApprovalResponse, AuthProfileResponse,
+    BoardAutomationRuleResponse, BoardCardAssetResponse, BoardCardResponse, BoardColumnResponse,
+    BoardDetailResponse, BoardSummaryResponse, ChannelRuntimeAdapterStatusResponse,
+    CircuitBreakerStateResponse, CreateAgentMailFileLeaseRequest, CreateAgentMailFileLeaseResponse,
+    CreateAgentMailThreadRequest, CreateAgentMailThreadResponse, CreateAgentRequest,
     CreateAgentResponse, CreateApprovalRequest, CreateApprovalResponse, CreateAuthProfileRequest,
     CreateAuthProfileResponse, CreateBoardCardRequest, CreateBoardCardResponse, CreateJobRequest,
     CreateJobResponse, CreateMessageRequest, CreateMessageResponse, CreateNoteRequest,
@@ -34,15 +39,18 @@ use carsinos_protocol::{
     GetChannelRuntimeStatusResponse, GetNoteResponse, GetRuntimeConfigResponse,
     GetRuntimeTrustContractLockResponse, HealthResponse, IngestChannelMessageResponse,
     IngestDiscordMessageRequest, IngestTelegramMessageRequest, InstallPluginRequest,
-    InstallPluginResponse, JobResponse, JobRunResponse, JobStatusResponse, ListAgentsResponse,
-    ListApprovalsQuery, ListApprovalsResponse, ListAuthProfilesQuery, ListAuthProfilesResponse,
-    ListBoardAutomationRulesResponse, ListBoardsResponse, ListJobHistoryQuery,
-    ListJobHistoryResponse, ListJobsQuery, ListJobsResponse, ListMessagesQuery,
-    ListMessagesResponse, ListNotesQuery, ListNotesResponse, ListPluginRuntimeStatusResponse,
-    ListPluginsQuery, ListPluginsResponse, ListProviderCapabilitiesQuery,
-    ListProviderCapabilitiesResponse, ListSessionsQuery, ListSessionsResponse, ListSkillsQuery,
-    ListSkillsResponse, ListToolCapabilitiesQuery, ListToolCapabilitiesResponse, MessageResponse,
-    MetricsResponse, MissionControlCalendarWeekJobResponse, MissionControlCalendarWeekQuery,
+    InstallPluginResponse, JobResponse, JobRunResponse, JobStatusResponse,
+    ListAgentMailFileLeasesQuery, ListAgentMailFileLeasesResponse, ListAgentMailMessagesQuery,
+    ListAgentMailMessagesResponse, ListAgentMailThreadsQuery, ListAgentMailThreadsResponse,
+    ListAgentsResponse, ListApprovalsQuery, ListApprovalsResponse, ListAuthProfilesQuery,
+    ListAuthProfilesResponse, ListBoardAutomationRulesResponse, ListBoardsResponse,
+    ListJobHistoryQuery, ListJobHistoryResponse, ListJobsQuery, ListJobsResponse,
+    ListMessagesQuery, ListMessagesResponse, ListNotesQuery, ListNotesResponse,
+    ListPluginRuntimeStatusResponse, ListPluginsQuery, ListPluginsResponse,
+    ListProviderCapabilitiesQuery, ListProviderCapabilitiesResponse, ListSessionsQuery,
+    ListSessionsResponse, ListSkillsQuery, ListSkillsResponse, ListToolCapabilitiesQuery,
+    ListToolCapabilitiesResponse, MessageResponse, MetricsResponse,
+    MissionControlCalendarWeekJobResponse, MissionControlCalendarWeekQuery,
     MissionControlCalendarWeekResponse, MissionControlFocusItemResponse, MissionControlFocusQuery,
     MissionControlFocusResponse, MoveBoardCardRequest, MoveBoardCardResponse, NoteResponse,
     NumquamIntegrationStatusResponse, OpenAiOauthFinishRequest, OpenAiOauthFinishResponse,
@@ -51,17 +59,19 @@ use carsinos_protocol::{
     PluginManifestResponse, PluginPermissionsResponse, PluginRuntimeStatusResponse,
     ProviderCapabilityResponse, ReconnectChannelRuntimeRequest, ReconnectChannelRuntimeResponse,
     RefreshRuntimeTrustContractLockRequest, RefreshRuntimeTrustContractLockResponse,
-    RemoveJobResponse, ResolveApprovalRequest, ResolveApprovalResponse,
-    ResolveChannelApprovalActionRequest, RollbackPluginRequest, RollbackPluginResponse,
-    RollbackRuntimeConfigRequest, RollbackRuntimeConfigResponse, RunBoardAutomationRuleResponse,
-    RunBoardCardRequest, RunBoardCardResponse, RunJobNowResponse, RunMemoryWhyRequest,
-    RunMemoryWhyResponse, RunResponse, RuntimeAutonomyGuardrailsConfig, RuntimeChannelsConfig,
-    RuntimeConfigResponse, RuntimeDiscordDeploymentConfig, RuntimeExtensionsConfig,
-    RuntimeGlobalConfig, RuntimeMemoryConfig, RuntimeNumquamConfig, RuntimeProviderPolicyConfig,
+    ReleaseAgentMailFileLeaseRequest, ReleaseAgentMailFileLeaseResponse, RemoveJobResponse,
+    ResolveApprovalRequest, ResolveApprovalResponse, ResolveChannelApprovalActionRequest,
+    RollbackPluginRequest, RollbackPluginResponse, RollbackRuntimeConfigRequest,
+    RollbackRuntimeConfigResponse, RunBoardAutomationRuleResponse, RunBoardCardRequest,
+    RunBoardCardResponse, RunJobNowResponse, RunMemoryWhyRequest, RunMemoryWhyResponse,
+    RunResponse, RuntimeAutonomyGuardrailsConfig, RuntimeChannelsConfig, RuntimeConfigResponse,
+    RuntimeDiscordDeploymentConfig, RuntimeExtensionsConfig, RuntimeGlobalConfig,
+    RuntimeMemoryConfig, RuntimeNumquamConfig, RuntimeProviderPolicyConfig,
     RuntimeSecurityOpsConfig, RuntimeTelegramDeploymentConfig, RuntimeTrustContractLockResponse,
     RuntimeTrustContractLockSummaryResponse, SanitizedPath, SchedulerLockStateResponse,
-    SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult, SessionDetailResponse,
-    SessionSummary, SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse,
+    SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult, SendAgentMailMessageRequest,
+    SendAgentMailMessageResponse, SessionDetailResponse, SessionSummary,
+    SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse,
     SetBoardAutomationRuleStateRequest, SetBoardAutomationRuleStateResponse, SkillResponse,
     StatusResponse, SyncMemorySourceItemResponse, SyncMemorySourcesRequest,
     SyncMemorySourcesResponse, TelegramChannelConfig, ToolCapabilityResponse,
@@ -71,6 +81,7 @@ use carsinos_protocol::{
     UpdateJobRequest, UpdateJobResponse, UpdateNoteRequest, UpdateNoteResponse,
     UpdatePluginRequest, UpdatePluginResponse, UpdateRuntimeConfigRequest,
     UpdateRuntimeConfigResponse, UpdateSkillStateRequest, UpdateSkillStateResponse,
+    UploadAgentMailAttachmentRequest, UploadAgentMailAttachmentResponse,
     UploadBoardCardAssetRequest, UploadBoardCardAssetResponse, UpsertBoardAutomationRuleRequest,
     UpsertBoardAutomationRuleResponse, UpsertRuntimeSecretRequest, UpsertRuntimeSecretResponse,
     WsEventFrame, HEARTBEAT_OUTPUT_ALERT_PREFIX, HEARTBEAT_OUTPUT_OK, JOB_MODE_HEARTBEAT_RUN,
@@ -81,13 +92,15 @@ use carsinos_providers::{
     CompletionUsageMetrics, ProviderAuthProfile, ProviderRegistry,
 };
 use carsinos_storage::{
-    AgentRecord, AgentUpdatePatch, AppPaths, ApprovalRecord, ApprovalResolveResult,
-    AuthProfileRecord, BoardCardAssetRecord, BoardCardRecord, BoardCardUpdatePatch,
-    BoardColumnRecord, BoardRecord, CircuitBreakerStateRecord, CircuitBreakerStateUpsert,
-    DailyAuthProfileUsageIncrement, JobRecord, JobRunRecord, JobUpdatePatch, MessageRecord,
-    NewAgent, NewApproval, NewAuthProfile, NewBoardCard, NewBoardCardAsset, NewJob, NewMessage,
-    NewNote, NewRun, NewSecurityAuditEvent, NewSession, NoteRecord, RunRecord,
-    SecurityAuditEventListFilter, SecurityAuditEventRecord, SessionRecord, Storage,
+    AgentMailThreadListFilter, AgentRecord, AgentUpdatePatch, AppPaths, ApprovalRecord,
+    ApprovalResolveResult, AuthProfileRecord, BoardCardAssetRecord, BoardCardRecord,
+    BoardCardUpdatePatch, BoardColumnRecord, BoardRecord, CircuitBreakerStateRecord,
+    CircuitBreakerStateUpsert, DailyAuthProfileUsageIncrement, JobRecord, JobRunRecord,
+    JobUpdatePatch, MessageRecord, NewAgent, NewAgentMailAttachment, NewAgentMailFileLease,
+    NewAgentMailMessage, NewAgentMailThread, NewApproval, NewAuthProfile, NewBoardCard,
+    NewBoardCardAsset, NewJob, NewMessage, NewNote, NewRun, NewSecurityAuditEvent, NewSession,
+    NoteRecord, RunRecord, SecurityAuditEventListFilter, SecurityAuditEventRecord, SessionRecord,
+    Storage,
 };
 use carsinos_tools::{
     ChannelActionRequest, ExecRequest, FsReadRequest, FsWriteMode, FsWriteRequest, LocalToolRunner,
@@ -5625,6 +5638,38 @@ fn build_app(state: AppState) -> Router {
             get(mission_control_calendar_week),
         )
         .route("/api/v1/mission-control/focus", get(mission_control_focus))
+        .route(
+            "/api/v1/agent-mail/threads",
+            get(list_agent_mail_threads).post(create_agent_mail_thread),
+        )
+        .route(
+            "/api/v1/agent-mail/threads/{thread_id}",
+            get(get_agent_mail_thread),
+        )
+        .route(
+            "/api/v1/agent-mail/threads/{thread_id}/messages",
+            get(list_agent_mail_messages).post(send_agent_mail_message),
+        )
+        .route(
+            "/api/v1/agent-mail/messages/{message_id}/ack",
+            post(ack_agent_mail_message),
+        )
+        .route(
+            "/api/v1/agent-mail/messages/{message_id}/attachments/upload",
+            post(upload_agent_mail_attachment),
+        )
+        .route(
+            "/api/v1/agent-mail/messages/{message_id}/attachments/{attachment_id}",
+            get(download_agent_mail_attachment),
+        )
+        .route(
+            "/api/v1/agent-mail/leases",
+            get(list_agent_mail_file_leases).post(create_agent_mail_file_lease),
+        )
+        .route(
+            "/api/v1/agent-mail/leases/{lease_id}/release",
+            post(release_agent_mail_file_lease),
+        )
         .route("/api/v1/approvals", get(list_approvals))
         .route("/api/v1/approvals/request", post(create_approval_request))
         .route(
@@ -5670,6 +5715,34 @@ fn build_app(state: AppState) -> Router {
 
 const BOARD_CARD_UPLOAD_MAX_BYTES: usize = 10 * 1024 * 1024;
 const BOARD_CARD_TOTAL_UPLOAD_MAX_BYTES: i64 = 100 * 1024 * 1024;
+const AGENT_MAIL_DEFAULT_ATTACHMENT_MAX_BYTES: usize = 10 * 1024 * 1024;
+const AGENT_MAIL_DEFAULT_THREAD_LIMIT: u32 = 200;
+const AGENT_MAIL_DEFAULT_MESSAGE_LIMIT: u32 = 400;
+const AGENT_MAIL_DEFAULT_THREAD_RATE_LIMIT: usize = 80;
+
+fn agent_mail_attachment_max_bytes() -> usize {
+    std::env::var("CARSINOS_AGENT_MAIL_ATTACHMENT_MAX_BYTES")
+        .ok()
+        .and_then(|value| value.trim().parse::<usize>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(AGENT_MAIL_DEFAULT_ATTACHMENT_MAX_BYTES)
+}
+
+fn agent_mail_allowed_mimes() -> HashSet<String> {
+    let configured = std::env::var("CARSINOS_AGENT_MAIL_ALLOWED_MIME").unwrap_or_else(|_| {
+        "text/plain,text/markdown,application/pdf,image/png,image/jpeg,image/webp,image/gif"
+            .to_string()
+    });
+    configured
+        .split(',')
+        .map(|item| item.trim().to_ascii_lowercase())
+        .filter(|item| !item.is_empty())
+        .collect::<HashSet<_>>()
+}
+
+fn agent_mail_mime_allowed(mime: &str) -> bool {
+    agent_mail_allowed_mimes().contains(mime.trim().to_ascii_lowercase().as_str())
+}
 
 fn board_asset_mime_allowed(mime: &str) -> bool {
     matches!(
@@ -5803,6 +5876,102 @@ fn to_board_card_response(
             .map(to_board_card_asset_response)
             .collect(),
     }
+}
+
+fn to_agent_mail_thread_summary_response(
+    record: &carsinos_storage::AgentMailThreadSummaryRecord,
+) -> AgentMailThreadSummaryResponse {
+    AgentMailThreadSummaryResponse {
+        thread_id: record.thread.thread_id.clone(),
+        kind: record.thread.kind.clone(),
+        subject: record.thread.subject.clone(),
+        created_by_principal: record.thread.created_by_principal.clone(),
+        participant_count: record.participant_count,
+        message_count: record.message_count,
+        latest_message_at: record.latest_message_at,
+        latest_message_preview: record.latest_message_preview.clone(),
+        latest_sender_principal: record.latest_sender_principal.clone(),
+        unread_count: record.unread_count,
+        created_at: record.thread.created_at,
+        updated_at: record.thread.updated_at,
+    }
+}
+
+fn to_agent_mail_participant_response(
+    record: carsinos_storage::AgentMailThreadParticipantRecord,
+) -> AgentMailThreadParticipantResponse {
+    AgentMailThreadParticipantResponse {
+        principal_id: record.principal_id,
+        role: record.role,
+        joined_at: record.joined_at,
+        last_read_at: record.last_read_at,
+        muted: record.muted,
+    }
+}
+
+fn to_agent_mail_attachment_response(
+    record: carsinos_storage::AgentMailAttachmentRecord,
+) -> AgentMailAttachmentResponse {
+    AgentMailAttachmentResponse {
+        attachment_id: record.attachment_id,
+        message_id: record.message_id,
+        filename: record.filename,
+        mime: record.mime,
+        sha256: record.sha256,
+        bytes: record.bytes,
+        created_at: record.created_at,
+    }
+}
+
+fn to_agent_mail_file_lease_response(
+    record: carsinos_storage::AgentMailFileLeaseRecord,
+) -> AgentMailFileLeaseResponse {
+    AgentMailFileLeaseResponse {
+        lease_id: record.lease_id,
+        holder_principal: record.holder_principal,
+        glob_pattern: record.glob_pattern,
+        exclusive: record.exclusive,
+        ttl_ms: record.ttl_ms,
+        note: record.note,
+        created_at: record.created_at,
+        expires_at: record.expires_at,
+        released_at: record.released_at,
+    }
+}
+
+fn load_agent_mail_message_response(
+    state: &AppState,
+    record: carsinos_storage::AgentMailMessageRecord,
+) -> std::result::Result<AgentMailMessageResponse, (StatusCode, Json<ApiError>)> {
+    let recipients = state
+        .storage
+        .list_agent_mail_message_recipients(&record.message_id)
+        .map_err(|err| internal_err_with_error("loading agent-mail recipients failed", err))?
+        .into_iter()
+        .map(|item| AgentMailMessageRecipientResponse {
+            recipient_principal: item.recipient_principal,
+            delivered_at: item.delivered_at,
+            acked_at: item.acked_at,
+        })
+        .collect::<Vec<_>>();
+    let attachments = state
+        .storage
+        .list_agent_mail_attachments(&record.message_id)
+        .map_err(|err| internal_err_with_error("loading agent-mail attachments failed", err))?
+        .into_iter()
+        .map(to_agent_mail_attachment_response)
+        .collect::<Vec<_>>();
+    Ok(AgentMailMessageResponse {
+        message_id: record.message_id,
+        thread_id: record.thread_id,
+        sender_principal: record.sender_principal,
+        sender_kind: record.sender_kind,
+        body_text: record.body_text,
+        metadata_json: record.metadata_json,
+        created_at: record.created_at,
+        recipients,
+        attachments,
+    })
 }
 
 fn load_board_detail_response(
@@ -10670,6 +10839,813 @@ async fn mission_control_focus(
     Ok(Json(MissionControlFocusResponse {
         generated_at_ms: now_ms,
         items,
+    }))
+}
+
+fn resolve_agent_mail_principal(requested: Option<String>, auth: &AuthContext) -> String {
+    requested
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| auth.principal_id.clone())
+}
+
+fn agent_mail_is_operator_role(auth: &AuthContext) -> bool {
+    auth.roles.contains(ROLE_OPERATOR_ADMIN) || auth.roles.contains(ROLE_OPERATOR_READONLY)
+}
+
+fn ensure_agent_mail_thread_membership(
+    state: &AppState,
+    thread_id: &str,
+    principal_id: &str,
+) -> std::result::Result<bool, (StatusCode, Json<ApiError>)> {
+    let participants = state
+        .storage
+        .list_agent_mail_thread_participants(thread_id)
+        .map_err(|err| internal_err_with_error("loading agent-mail participants failed", err))?;
+    Ok(participants
+        .iter()
+        .any(|participant| participant.principal_id == principal_id))
+}
+
+async fn list_agent_mail_threads(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Query(query): Query<ListAgentMailThreadsQuery>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_OPERATOR_READONLY,
+            ROLE_AUTOMATION_RUNNER,
+            ROLE_CHANNEL_ADAPTER,
+        ],
+        "agent_mail.thread.list",
+        "agent_mail.threads",
+    )?;
+    let limit = query
+        .limit
+        .unwrap_or(AGENT_MAIL_DEFAULT_THREAD_LIMIT)
+        .clamp(1, 500);
+    let principal = resolve_agent_mail_principal(query.principal_id, &auth);
+    let filter = AgentMailThreadListFilter {
+        kind: query
+            .kind
+            .as_ref()
+            .map(|value| value.trim().to_ascii_lowercase())
+            .filter(|value| !value.is_empty()),
+        principal_id: Some(principal),
+        mailbox: query
+            .mailbox
+            .as_ref()
+            .map(|value| value.trim().to_ascii_lowercase())
+            .filter(|value| !value.is_empty()),
+        search_text: query.search.map(|value| value.trim().to_string()),
+        limit,
+    };
+    let items = state
+        .storage
+        .list_agent_mail_threads(&filter)
+        .map_err(|err| internal_err_with_error("listing agent-mail threads failed", err))?
+        .iter()
+        .map(to_agent_mail_thread_summary_response)
+        .collect::<Vec<_>>();
+    Ok(Json(ListAgentMailThreadsResponse { items }))
+}
+
+async fn create_agent_mail_thread(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<CreateAgentMailThreadRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_AUTOMATION_RUNNER,
+            ROLE_CHANNEL_ADAPTER,
+        ],
+        "agent_mail.thread.create",
+        "agent_mail.threads",
+    )?;
+    require_endpoint_rate_limit_with_error(&state, &auth, "agent_mail")?;
+    let kind = request
+        .kind
+        .as_ref()
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "direct".to_string());
+    if !matches!(kind.as_str(), "direct" | "room") {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "agent-mail thread kind must be direct or room",
+        ));
+    }
+    let subject = request.subject.trim().to_string();
+    if subject.is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "agent-mail subject must not be empty",
+        ));
+    }
+    if subject.chars().count() > 240 {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "agent-mail subject exceeds maximum length",
+        ));
+    }
+    let creator_principal = auth.principal_id.trim().to_string();
+    let participants = request
+        .participants
+        .iter()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .map(|value| (value, "member".to_string()))
+        .collect::<Vec<_>>();
+    let created = state
+        .storage
+        .create_agent_mail_thread(NewAgentMailThread {
+            kind: kind.clone(),
+            subject: subject.clone(),
+            created_by_principal: creator_principal.clone(),
+            participants,
+        })
+        .map_err(|err| internal_err_with_error("creating agent-mail thread failed", err))?;
+    let participant_count = state
+        .storage
+        .list_agent_mail_thread_participants(&created.thread_id)
+        .map_err(|err| internal_err_with_error("loading thread participants failed", err))?
+        .len() as i64;
+    let summary = AgentMailThreadSummaryResponse {
+        thread_id: created.thread_id.clone(),
+        kind,
+        subject,
+        created_by_principal: creator_principal,
+        participant_count,
+        message_count: 0,
+        latest_message_at: None,
+        latest_message_preview: None,
+        latest_sender_principal: None,
+        unread_count: 0,
+        created_at: created.created_at,
+        updated_at: created.updated_at,
+    };
+    emit_event(
+        &state,
+        "agent_mail.thread.created",
+        serde_json::json!({
+            "thread_id": summary.thread_id,
+            "kind": summary.kind,
+            "subject": summary.subject,
+            "participant_count": summary.participant_count
+        }),
+    );
+    record_security_audit(
+        &headers,
+        &state,
+        &auth,
+        "agent_mail.thread.create",
+        &format!("agent_mail_thread:{}", summary.thread_id),
+        "allow",
+        Some("agent-mail thread created".to_string()),
+        StatusCode::CREATED,
+        None,
+        None,
+        None,
+        Some(serde_json::json!({
+            "kind": summary.kind,
+            "participant_count": summary.participant_count
+        })),
+    );
+    Ok((
+        StatusCode::CREATED,
+        Json(CreateAgentMailThreadResponse { thread: summary }),
+    ))
+}
+
+async fn get_agent_mail_thread(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(thread_id): Path<String>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_OPERATOR_READONLY,
+            ROLE_AUTOMATION_RUNNER,
+            ROLE_CHANNEL_ADAPTER,
+        ],
+        "agent_mail.thread.get",
+        &format!("agent_mail_thread:{}", thread_id.trim()),
+    )?;
+    let thread_id = thread_id.trim().to_string();
+    let thread = state
+        .storage
+        .get_agent_mail_thread(&thread_id)
+        .map_err(|err| internal_err_with_error("loading agent-mail thread failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "agent-mail thread not found"))?;
+    if !agent_mail_is_operator_role(&auth)
+        && !ensure_agent_mail_thread_membership(&state, &thread_id, &auth.principal_id)?
+    {
+        return Err(api_error(StatusCode::FORBIDDEN, "thread access denied"));
+    }
+    let participants = state
+        .storage
+        .list_agent_mail_thread_participants(&thread_id)
+        .map_err(|err| internal_err_with_error("loading thread participants failed", err))?;
+    let summaries = state
+        .storage
+        .list_agent_mail_threads(&AgentMailThreadListFilter {
+            kind: Some(thread.kind.clone()),
+            principal_id: Some(auth.principal_id.clone()),
+            mailbox: None,
+            search_text: None,
+            limit: AGENT_MAIL_DEFAULT_THREAD_LIMIT,
+        })
+        .map_err(|err| internal_err_with_error("loading thread summary failed", err))?;
+    let summary = summaries
+        .iter()
+        .find(|item| item.thread.thread_id == thread_id)
+        .map(to_agent_mail_thread_summary_response)
+        .unwrap_or_else(|| AgentMailThreadSummaryResponse {
+            thread_id: thread.thread_id.clone(),
+            kind: thread.kind.clone(),
+            subject: thread.subject.clone(),
+            created_by_principal: thread.created_by_principal.clone(),
+            participant_count: participants.len() as i64,
+            message_count: 0,
+            latest_message_at: None,
+            latest_message_preview: None,
+            latest_sender_principal: None,
+            unread_count: 0,
+            created_at: thread.created_at,
+            updated_at: thread.updated_at,
+        });
+    Ok(Json(AgentMailThreadDetailResponse {
+        thread: summary,
+        participants: participants
+            .into_iter()
+            .map(to_agent_mail_participant_response)
+            .collect(),
+    }))
+}
+
+async fn list_agent_mail_messages(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(thread_id): Path<String>,
+    Query(query): Query<ListAgentMailMessagesQuery>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_OPERATOR_READONLY,
+            ROLE_AUTOMATION_RUNNER,
+            ROLE_CHANNEL_ADAPTER,
+        ],
+        "agent_mail.message.list",
+        &format!("agent_mail_thread:{}", thread_id.trim()),
+    )?;
+    let thread_id = thread_id.trim().to_string();
+    let thread_exists = state
+        .storage
+        .get_agent_mail_thread(&thread_id)
+        .map_err(|err| internal_err_with_error("loading thread before list failed", err))?
+        .is_some();
+    if !thread_exists {
+        return Err(api_error(
+            StatusCode::NOT_FOUND,
+            "agent-mail thread not found",
+        ));
+    }
+    if !agent_mail_is_operator_role(&auth)
+        && !ensure_agent_mail_thread_membership(&state, &thread_id, &auth.principal_id)?
+    {
+        return Err(api_error(StatusCode::FORBIDDEN, "thread access denied"));
+    }
+    let limit = query
+        .limit
+        .unwrap_or(AGENT_MAIL_DEFAULT_MESSAGE_LIMIT)
+        .clamp(1, 1000);
+    let records = state
+        .storage
+        .list_agent_mail_messages(&thread_id, limit)
+        .map_err(|err| internal_err_with_error("listing agent-mail messages failed", err))?;
+    let mut items = Vec::new();
+    for record in records {
+        items.push(load_agent_mail_message_response(&state, record)?);
+    }
+    Ok(Json(ListAgentMailMessagesResponse { items }))
+}
+
+async fn send_agent_mail_message(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(thread_id): Path<String>,
+    Json(request): Json<SendAgentMailMessageRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_AUTOMATION_RUNNER,
+            ROLE_CHANNEL_ADAPTER,
+        ],
+        "agent_mail.message.send",
+        &format!("agent_mail_thread:{}", thread_id.trim()),
+    )?;
+    require_endpoint_rate_limit_with_error(&state, &auth, "agent_mail")?;
+    let thread_id = thread_id.trim().to_string();
+    if state.rate_limiter.config.enabled {
+        let principal_limit = AGENT_MAIL_DEFAULT_THREAD_RATE_LIMIT;
+        state
+            .rate_limiter
+            .check(
+                &format!(
+                    "agent_mail_thread:{}:principal:{}",
+                    thread_id, auth.principal_id
+                ),
+                principal_limit,
+            )
+            .map_err(|err| {
+                if err.code == "RATE_LIMITED" {
+                    api_error_rate_limited(
+                        &err.message,
+                        "agent_mail.thread.principal",
+                        err.retry_after_seconds
+                            .unwrap_or(state.rate_limiter.config.window_seconds),
+                    )
+                } else {
+                    api_error_with_code(err.status, err.code, &err.message)
+                }
+            })?;
+    }
+
+    let thread_exists = state
+        .storage
+        .get_agent_mail_thread(&thread_id)
+        .map_err(|err| internal_err_with_error("loading thread before send failed", err))?
+        .is_some();
+    if !thread_exists {
+        return Err(api_error(
+            StatusCode::NOT_FOUND,
+            "agent-mail thread not found",
+        ));
+    }
+
+    let sender_principal = resolve_agent_mail_principal(request.sender_principal, &auth);
+    if !agent_mail_is_operator_role(&auth)
+        && !ensure_agent_mail_thread_membership(&state, &thread_id, &sender_principal)?
+    {
+        return Err(api_error(
+            StatusCode::FORBIDDEN,
+            "thread send access denied",
+        ));
+    }
+    let body_text = request.body_text.trim().to_string();
+    if body_text.is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "agent-mail message body cannot be empty",
+        ));
+    }
+    if body_text.chars().count() > 16_000 {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "agent-mail message body exceeds maximum length",
+        ));
+    }
+    let sender_kind = request
+        .sender_kind
+        .as_ref()
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "agent".to_string());
+    let metadata_json = request
+        .metadata_json
+        .as_ref()
+        .and_then(|value| serde_json::to_string(value).ok());
+    let message = state
+        .storage
+        .create_agent_mail_message(NewAgentMailMessage {
+            thread_id: thread_id.clone(),
+            sender_principal: sender_principal.clone(),
+            sender_kind,
+            body_text: body_text.clone(),
+            metadata_json,
+            recipients: request.recipients.clone(),
+        })
+        .map_err(|err| internal_err_with_error("sending agent-mail message failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "agent-mail thread not found"))?;
+    let message_response = load_agent_mail_message_response(&state, message)?;
+    emit_event(
+        &state,
+        "agent_mail.message.created",
+        serde_json::json!({
+            "thread_id": message_response.thread_id,
+            "message_id": message_response.message_id,
+            "sender_principal": message_response.sender_principal,
+            "recipient_count": message_response.recipients.len()
+        }),
+    );
+    record_security_audit(
+        &headers,
+        &state,
+        &auth,
+        "agent_mail.message.send",
+        &format!("agent_mail_thread:{}", thread_id),
+        "allow",
+        Some("agent-mail message sent".to_string()),
+        StatusCode::CREATED,
+        None,
+        None,
+        None,
+        Some(serde_json::json!({
+            "message_id": message_response.message_id,
+            "recipient_count": message_response.recipients.len()
+        })),
+    );
+    Ok((
+        StatusCode::CREATED,
+        Json(SendAgentMailMessageResponse {
+            message: message_response,
+        }),
+    ))
+}
+
+async fn ack_agent_mail_message(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(message_id): Path<String>,
+    Json(request): Json<AckAgentMailMessageRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_AUTOMATION_RUNNER,
+            ROLE_CHANNEL_ADAPTER,
+        ],
+        "agent_mail.message.ack",
+        &format!("agent_mail_message:{}", message_id.trim()),
+    )?;
+    require_endpoint_rate_limit_with_error(&state, &auth, "agent_mail")?;
+    let recipient_principal = resolve_agent_mail_principal(request.recipient_principal, &auth);
+    let message_id = message_id.trim().to_string();
+    let ack = state
+        .storage
+        .acknowledge_agent_mail_message(&message_id, &recipient_principal)
+        .map_err(|err| internal_err_with_error("acknowledging agent-mail message failed", err))?
+        .ok_or_else(|| {
+            api_error(
+                StatusCode::NOT_FOUND,
+                "agent-mail message recipient not found",
+            )
+        })?;
+    emit_event(
+        &state,
+        "agent_mail.message.ack",
+        serde_json::json!({
+            "message_id": message_id,
+            "recipient_principal": recipient_principal,
+            "acked_at": ack.acked_at
+        }),
+    );
+    record_security_audit(
+        &headers,
+        &state,
+        &auth,
+        "agent_mail.message.ack",
+        &format!("agent_mail_message:{}", message_id),
+        "allow",
+        Some("agent-mail message acknowledged".to_string()),
+        StatusCode::OK,
+        None,
+        None,
+        None,
+        None,
+    );
+    Ok(Json(AckAgentMailMessageResponse {
+        message_id,
+        recipient_principal,
+        acked_at: ack.acked_at,
+    }))
+}
+
+async fn upload_agent_mail_attachment(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(message_id): Path<String>,
+    Json(request): Json<UploadAgentMailAttachmentRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_AUTOMATION_RUNNER,
+            ROLE_CHANNEL_ADAPTER,
+        ],
+        "agent_mail.attachment.upload",
+        &format!("agent_mail_message:{}", message_id.trim()),
+    )?;
+    require_endpoint_rate_limit_with_error(&state, &auth, "agent_mail")?;
+    let message_id = message_id.trim().to_string();
+    let message = state
+        .storage
+        .get_agent_mail_message(&message_id)
+        .map_err(|err| internal_err_with_error("loading agent-mail message failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "agent-mail message not found"))?;
+    if !agent_mail_is_operator_role(&auth)
+        && !ensure_agent_mail_thread_membership(&state, &message.thread_id, &auth.principal_id)?
+    {
+        return Err(api_error(
+            StatusCode::FORBIDDEN,
+            "attachment upload access denied",
+        ));
+    }
+
+    let mime = request.mime.trim().to_ascii_lowercase();
+    if !agent_mail_mime_allowed(&mime) {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "agent-mail attachment mime is not allowed",
+        ));
+    }
+    let filename = sanitize_filename(&request.filename);
+    let content = base64::engine::general_purpose::STANDARD
+        .decode(request.content_base64.trim().as_bytes())
+        .map_err(|_| api_error(StatusCode::BAD_REQUEST, "content_base64 decode failed"))?;
+    if content.is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "attachment content cannot be empty",
+        ));
+    }
+    if content.len() > agent_mail_attachment_max_bytes() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "attachment exceeds configured size cap",
+        ));
+    }
+
+    let digest_hex = format!("{:x}", Sha256::digest(&content));
+    let attachment_id = uuid::Uuid::new_v4().to_string();
+    let assets_dir = state
+        .state_dir
+        .join("attachments")
+        .join("agent_mail")
+        .join(&message.thread_id)
+        .join(&message.message_id);
+    std::fs::create_dir_all(&assets_dir).map_err(|err| {
+        internal_err_with_error(
+            "creating agent-mail attachments directory failed",
+            err.into(),
+        )
+    })?;
+    let local_path = assets_dir.join(format!("{attachment_id}_{filename}"));
+    let mut file = std::fs::OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&local_path)
+        .map_err(|err| {
+            internal_err_with_error("opening agent-mail attachment file failed", err.into())
+        })?;
+    file.write_all(&content).map_err(|err| {
+        internal_err_with_error("writing agent-mail attachment file failed", err.into())
+    })?;
+    file.flush().map_err(|err| {
+        internal_err_with_error("flushing agent-mail attachment file failed", err.into())
+    })?;
+
+    let attachment = state
+        .storage
+        .create_agent_mail_attachment(NewAgentMailAttachment {
+            message_id: message_id.clone(),
+            filename,
+            mime,
+            sha256: digest_hex,
+            bytes: content.len() as i64,
+            local_path: local_path.display().to_string(),
+        })
+        .map_err(|err| internal_err_with_error("persisting agent-mail attachment failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "agent-mail message not found"))?;
+    let attachment_response = to_agent_mail_attachment_response(attachment.clone());
+    emit_event(
+        &state,
+        "agent_mail.message.attachment_uploaded",
+        serde_json::json!({
+            "thread_id": message.thread_id,
+            "message_id": message_id,
+            "attachment_id": attachment_response.attachment_id,
+            "mime": attachment_response.mime,
+            "bytes": attachment_response.bytes
+        }),
+    );
+    Ok(Json(UploadAgentMailAttachmentResponse {
+        attachment: attachment_response,
+    }))
+}
+
+async fn download_agent_mail_attachment(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path((message_id, attachment_id)): Path<(String, String)>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_OPERATOR_READONLY,
+            ROLE_AUTOMATION_RUNNER,
+            ROLE_CHANNEL_ADAPTER,
+        ],
+        "agent_mail.attachment.download",
+        &format!("agent_mail_attachment:{}", attachment_id.trim()),
+    )?;
+    let message_id = message_id.trim().to_string();
+    let attachment = state
+        .storage
+        .get_agent_mail_attachment(attachment_id.trim())
+        .map_err(|err| internal_err_with_error("loading agent-mail attachment failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "agent-mail attachment not found"))?;
+    if attachment.message_id != message_id {
+        return Err(api_error(
+            StatusCode::NOT_FOUND,
+            "agent-mail attachment not found",
+        ));
+    }
+    let message = state
+        .storage
+        .get_agent_mail_message(&message_id)
+        .map_err(|err| internal_err_with_error("loading agent-mail message failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "agent-mail message not found"))?;
+    if !agent_mail_is_operator_role(&auth)
+        && !ensure_agent_mail_thread_membership(&state, &message.thread_id, &auth.principal_id)?
+    {
+        return Err(api_error(
+            StatusCode::FORBIDDEN,
+            "attachment download access denied",
+        ));
+    }
+    let local_path = FsPath::new(&attachment.local_path);
+    if !local_path.exists() {
+        return Err(api_error(
+            StatusCode::NOT_FOUND,
+            "agent-mail attachment file not found",
+        ));
+    }
+    let mime = HeaderValue::from_str(attachment.mime.as_str())
+        .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream"));
+    let stream =
+        ReaderStream::new(tokio::fs::File::open(local_path).await.map_err(|err| {
+            internal_err_with_error("opening attachment file failed", err.into())
+        })?);
+    let body = Body::from_stream(stream);
+    let mut response = Response::new(body);
+    response
+        .headers_mut()
+        .insert(header::CONTENT_TYPE, mime.clone());
+    let disposition = format!(
+        "attachment; filename=\"{}\"",
+        sanitize_filename(&attachment.filename)
+    );
+    let disposition = HeaderValue::from_str(disposition.as_str())
+        .unwrap_or_else(|_| HeaderValue::from_static("attachment"));
+    response
+        .headers_mut()
+        .insert(header::CONTENT_DISPOSITION, disposition);
+    Ok(response)
+}
+
+async fn list_agent_mail_file_leases(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Query(query): Query<ListAgentMailFileLeasesQuery>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_OPERATOR_READONLY,
+            ROLE_AUTOMATION_RUNNER,
+        ],
+        "agent_mail.lease.list",
+        "agent_mail.leases",
+    )?;
+    let holder = query
+        .holder_principal
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let items = state
+        .storage
+        .list_agent_mail_file_leases(holder.as_deref(), query.include_released.unwrap_or(false))
+        .map_err(|err| internal_err_with_error("listing agent-mail leases failed", err))?
+        .into_iter()
+        .map(to_agent_mail_file_lease_response)
+        .collect::<Vec<_>>();
+    Ok(Json(ListAgentMailFileLeasesResponse { items }))
+}
+
+async fn create_agent_mail_file_lease(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<CreateAgentMailFileLeaseRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_AUTOMATION_RUNNER],
+        "agent_mail.lease.create",
+        "agent_mail.leases",
+    )?;
+    require_endpoint_rate_limit_with_error(&state, &auth, "agent_mail")?;
+    let holder_principal = resolve_agent_mail_principal(request.holder_principal, &auth);
+    let glob_pattern = request.glob_pattern.trim().to_string();
+    if glob_pattern.is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "glob_pattern must not be empty",
+        ));
+    }
+    let lease = state
+        .storage
+        .create_agent_mail_file_lease(NewAgentMailFileLease {
+            holder_principal,
+            glob_pattern,
+            exclusive: request.exclusive,
+            ttl_ms: request.ttl_ms,
+            note: request.note.clone(),
+        })
+        .map_err(|err| {
+            let message = err.to_string();
+            if message.contains("active lease conflict") {
+                api_error_with_code(StatusCode::CONFLICT, "CONFLICT", &message)
+            } else {
+                internal_err_with_error("creating agent-mail lease failed", err)
+            }
+        })?;
+    Ok((
+        StatusCode::CREATED,
+        Json(CreateAgentMailFileLeaseResponse {
+            lease: to_agent_mail_file_lease_response(lease),
+        }),
+    ))
+}
+
+async fn release_agent_mail_file_lease(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(lease_id): Path<String>,
+    Json(request): Json<ReleaseAgentMailFileLeaseRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_AUTOMATION_RUNNER],
+        "agent_mail.lease.release",
+        &format!("agent_mail_lease:{}", lease_id.trim()),
+    )?;
+    let lease = state
+        .storage
+        .release_agent_mail_file_lease(lease_id.trim(), request.holder_principal.as_deref())
+        .map_err(|err| internal_err_with_error("releasing agent-mail lease failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "agent-mail lease not found"))?;
+    Ok(Json(ReleaseAgentMailFileLeaseResponse {
+        lease: to_agent_mail_file_lease_response(lease),
     }))
 }
 

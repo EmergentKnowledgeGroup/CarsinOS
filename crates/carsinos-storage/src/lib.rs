@@ -561,6 +561,128 @@ pub struct NewBoardCardAsset {
 }
 
 #[derive(Debug, Clone)]
+pub struct AgentMailThreadRecord {
+    pub thread_id: String,
+    pub kind: String,
+    pub subject: String,
+    pub created_by_principal: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub archived_at: Option<i64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AgentMailThreadParticipantRecord {
+    pub thread_id: String,
+    pub principal_id: String,
+    pub role: String,
+    pub joined_at: i64,
+    pub last_read_at: Option<i64>,
+    pub muted: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct AgentMailMessageRecord {
+    pub message_id: String,
+    pub thread_id: String,
+    pub sender_principal: String,
+    pub sender_kind: String,
+    pub body_text: String,
+    pub metadata_json: Option<String>,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct AgentMailMessageRecipientRecord {
+    pub message_id: String,
+    pub recipient_principal: String,
+    pub delivered_at: i64,
+    pub acked_at: Option<i64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AgentMailAttachmentRecord {
+    pub attachment_id: String,
+    pub message_id: String,
+    pub filename: String,
+    pub mime: String,
+    pub sha256: String,
+    pub bytes: i64,
+    pub local_path: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct AgentMailThreadSummaryRecord {
+    pub thread: AgentMailThreadRecord,
+    pub participant_count: i64,
+    pub message_count: i64,
+    pub latest_message_at: Option<i64>,
+    pub latest_message_preview: Option<String>,
+    pub latest_sender_principal: Option<String>,
+    pub unread_count: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewAgentMailThread {
+    pub kind: String,
+    pub subject: String,
+    pub created_by_principal: String,
+    pub participants: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewAgentMailMessage {
+    pub thread_id: String,
+    pub sender_principal: String,
+    pub sender_kind: String,
+    pub body_text: String,
+    pub metadata_json: Option<String>,
+    pub recipients: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewAgentMailAttachment {
+    pub message_id: String,
+    pub filename: String,
+    pub mime: String,
+    pub sha256: String,
+    pub bytes: i64,
+    pub local_path: String,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct AgentMailThreadListFilter {
+    pub kind: Option<String>,
+    pub principal_id: Option<String>,
+    pub mailbox: Option<String>,
+    pub search_text: Option<String>,
+    pub limit: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct AgentMailFileLeaseRecord {
+    pub lease_id: String,
+    pub holder_principal: String,
+    pub glob_pattern: String,
+    pub exclusive: bool,
+    pub ttl_ms: i64,
+    pub note: Option<String>,
+    pub created_at: i64,
+    pub expires_at: i64,
+    pub released_at: Option<i64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewAgentMailFileLease {
+    pub holder_principal: String,
+    pub glob_pattern: String,
+    pub exclusive: bool,
+    pub ttl_ms: i64,
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Clone)]
 pub struct NewAuthProfile {
     pub provider: String,
     pub display_name: String,
@@ -1264,6 +1386,699 @@ impl Storage {
         let mut out = Vec::new();
         for row in rows {
             out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn create_agent_mail_thread(
+        &self,
+        new_thread: NewAgentMailThread,
+    ) -> Result<AgentMailThreadRecord> {
+        let mut conn = self.connect()?;
+        let tx = conn.transaction()?;
+        let now = now_ms();
+        let thread_id = uuid::Uuid::new_v4().to_string();
+        tx.execute(
+            r#"
+            INSERT INTO agent_mail_threads (
+              thread_id, kind, subject, created_by_principal, created_at, updated_at, archived_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL)
+            "#,
+            params![
+                thread_id,
+                new_thread.kind.trim(),
+                new_thread.subject.trim(),
+                new_thread.created_by_principal.trim(),
+                now,
+                now
+            ],
+        )
+        .context("failed to create agent mail thread")?;
+
+        let mut participants = std::collections::BTreeMap::<String, String>::new();
+        participants.insert(
+            new_thread.created_by_principal.trim().to_string(),
+            "owner".to_string(),
+        );
+        for (principal, role) in new_thread.participants {
+            let principal = principal.trim().to_string();
+            if principal.is_empty() {
+                continue;
+            }
+            let normalized_role = role.trim();
+            participants.insert(
+                principal,
+                if normalized_role.is_empty() {
+                    "member".to_string()
+                } else {
+                    normalized_role.to_string()
+                },
+            );
+        }
+
+        for (principal_id, role) in participants {
+            tx.execute(
+                r#"
+                INSERT OR IGNORE INTO agent_mail_thread_participants (
+                  thread_id, principal_id, role, joined_at, last_read_at, muted
+                ) VALUES (?1, ?2, ?3, ?4, NULL, 0)
+                "#,
+                params![thread_id, principal_id, role, now],
+            )
+            .context("failed to insert thread participant")?;
+        }
+        tx.commit()?;
+        self.get_agent_mail_thread(&thread_id)?
+            .context("created agent mail thread missing after commit")
+    }
+
+    pub fn get_agent_mail_thread(&self, thread_id: &str) -> Result<Option<AgentMailThreadRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              thread_id, kind, subject, created_by_principal, created_at, updated_at, archived_at
+            FROM agent_mail_threads
+            WHERE thread_id = ?1
+              AND archived_at IS NULL
+            "#,
+        )?;
+        Ok(stmt
+            .query_row(params![thread_id], map_agent_mail_thread_row)
+            .optional()?)
+    }
+
+    pub fn list_agent_mail_thread_participants(
+        &self,
+        thread_id: &str,
+    ) -> Result<Vec<AgentMailThreadParticipantRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              thread_id, principal_id, role, joined_at, last_read_at, muted
+            FROM agent_mail_thread_participants
+            WHERE thread_id = ?1
+            ORDER BY joined_at ASC, principal_id ASC
+            "#,
+        )?;
+        let rows = stmt.query_map(params![thread_id], map_agent_mail_participant_row)?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn list_agent_mail_threads(
+        &self,
+        filter: &AgentMailThreadListFilter,
+    ) -> Result<Vec<AgentMailThreadSummaryRecord>> {
+        let conn = self.connect()?;
+        let principal = filter
+            .principal_id
+            .as_ref()
+            .map(|value| value.trim().to_string());
+        let kind = filter.kind.as_ref().map(|value| value.trim().to_string());
+        let limit = i64::from(filter.limit.max(1));
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              t.thread_id,
+              t.kind,
+              t.subject,
+              t.created_by_principal,
+              t.created_at,
+              t.updated_at,
+              t.archived_at,
+              (SELECT COUNT(*) FROM agent_mail_thread_participants p WHERE p.thread_id = t.thread_id) AS participant_count,
+              (SELECT COUNT(*) FROM agent_mail_messages m WHERE m.thread_id = t.thread_id) AS message_count,
+              (SELECT MAX(m.created_at) FROM agent_mail_messages m WHERE m.thread_id = t.thread_id) AS latest_message_at,
+              (
+                SELECT substr(m.body_text, 1, 220)
+                FROM agent_mail_messages m
+                WHERE m.thread_id = t.thread_id
+                ORDER BY m.created_at DESC
+                LIMIT 1
+              ) AS latest_message_preview,
+              (
+                SELECT m.sender_principal
+                FROM agent_mail_messages m
+                WHERE m.thread_id = t.thread_id
+                ORDER BY m.created_at DESC
+                LIMIT 1
+              ) AS latest_sender_principal,
+              (
+                SELECT COUNT(*)
+                FROM agent_mail_messages m
+                JOIN agent_mail_message_recipients r
+                  ON r.message_id = m.message_id
+                WHERE m.thread_id = t.thread_id
+                  AND (?1 IS NOT NULL AND r.recipient_principal = ?1)
+                  AND r.acked_at IS NULL
+              ) AS unread_count,
+              (
+                SELECT COUNT(*)
+                FROM agent_mail_messages m
+                WHERE m.thread_id = t.thread_id
+                  AND (?1 IS NOT NULL AND m.sender_principal = ?1)
+              ) AS outbox_count,
+              (
+                SELECT COUNT(*)
+                FROM agent_mail_messages m
+                JOIN agent_mail_message_recipients r
+                  ON r.message_id = m.message_id
+                WHERE m.thread_id = t.thread_id
+                  AND (?1 IS NOT NULL AND r.recipient_principal = ?1)
+              ) AS inbox_count
+            FROM agent_mail_threads t
+            WHERE t.archived_at IS NULL
+              AND (?2 IS NULL OR t.kind = ?2)
+              AND (
+                ?1 IS NULL OR EXISTS (
+                  SELECT 1
+                  FROM agent_mail_thread_participants p
+                  WHERE p.thread_id = t.thread_id
+                    AND p.principal_id = ?1
+                )
+              )
+            ORDER BY t.updated_at DESC
+            LIMIT ?3
+            "#,
+        )?;
+        let rows = stmt.query_map(
+            params![principal.as_deref(), kind.as_deref(), limit],
+            |row| {
+                let summary = AgentMailThreadSummaryRecord {
+                    thread: map_agent_mail_thread_row(row)?,
+                    participant_count: row.get(7)?,
+                    message_count: row.get(8)?,
+                    latest_message_at: row.get(9)?,
+                    latest_message_preview: row.get(10)?,
+                    latest_sender_principal: row.get(11)?,
+                    unread_count: row.get(12)?,
+                };
+                let outbox_count: i64 = row.get(13)?;
+                let inbox_count: i64 = row.get(14)?;
+                Ok((summary, outbox_count, inbox_count))
+            },
+        )?;
+        let mut out = Vec::new();
+        let mailbox = filter
+            .mailbox
+            .as_ref()
+            .map(|value| value.trim().to_ascii_lowercase());
+        let search_text = filter
+            .search_text
+            .as_ref()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+        let search_thread_ids = if let Some(query) = search_text.as_deref() {
+            self.search_agent_mail_thread_ids(query, filter.limit.max(1))?
+        } else {
+            std::collections::HashSet::new()
+        };
+        for row in rows {
+            let (summary, outbox_count, inbox_count) = row?;
+            let mailbox_match = match mailbox.as_deref() {
+                Some("inbox") => inbox_count > 0,
+                Some("outbox") => outbox_count > 0,
+                _ => true,
+            };
+            if !mailbox_match {
+                continue;
+            }
+            if let Some(query) = search_text.as_deref() {
+                let lowered = query.to_ascii_lowercase();
+                let subject_match = summary
+                    .thread
+                    .subject
+                    .to_ascii_lowercase()
+                    .contains(lowered.as_str());
+                let preview_match = summary
+                    .latest_message_preview
+                    .as_ref()
+                    .map(|value| value.to_ascii_lowercase().contains(lowered.as_str()))
+                    .unwrap_or(false);
+                if !subject_match
+                    && !preview_match
+                    && !search_thread_ids.contains(summary.thread.thread_id.as_str())
+                {
+                    continue;
+                }
+            }
+            out.push(summary);
+        }
+        Ok(out)
+    }
+
+    pub fn create_agent_mail_message(
+        &self,
+        new_message: NewAgentMailMessage,
+    ) -> Result<Option<AgentMailMessageRecord>> {
+        let mut conn = self.connect()?;
+        let tx = conn.transaction()?;
+        let thread = tx
+            .query_row(
+                r#"
+                SELECT thread_id
+                FROM agent_mail_threads
+                WHERE thread_id = ?1
+                  AND archived_at IS NULL
+                "#,
+                params![new_message.thread_id.as_str()],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?;
+        if thread.is_none() {
+            return Ok(None);
+        }
+
+        let now = now_ms();
+        tx.execute(
+            r#"
+            INSERT OR IGNORE INTO agent_mail_thread_participants (
+              thread_id, principal_id, role, joined_at, last_read_at, muted
+            ) VALUES (?1, ?2, 'member', ?3, ?3, 0)
+            "#,
+            params![
+                new_message.thread_id.as_str(),
+                new_message.sender_principal.trim(),
+                now
+            ],
+        )?;
+
+        let message_id = uuid::Uuid::new_v4().to_string();
+        tx.execute(
+            r#"
+            INSERT INTO agent_mail_messages (
+              message_id, thread_id, sender_principal, sender_kind, body_text, metadata_json, created_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+            "#,
+            params![
+                message_id,
+                new_message.thread_id.trim(),
+                new_message.sender_principal.trim(),
+                new_message.sender_kind.trim(),
+                new_message.body_text,
+                new_message.metadata_json,
+                now
+            ],
+        )
+        .context("failed to create agent mail message")?;
+
+        let mut recipients = new_message
+            .recipients
+            .into_iter()
+            .map(|entry| entry.trim().to_string())
+            .filter(|entry| !entry.is_empty())
+            .collect::<std::collections::BTreeSet<_>>();
+        if recipients.is_empty() {
+            let mut stmt = tx.prepare(
+                r#"
+                SELECT principal_id
+                FROM agent_mail_thread_participants
+                WHERE thread_id = ?1
+                  AND principal_id != ?2
+                "#,
+            )?;
+            let rows = stmt.query_map(
+                params![
+                    new_message.thread_id.as_str(),
+                    new_message.sender_principal.as_str()
+                ],
+                |row| row.get::<_, String>(0),
+            )?;
+            for row in rows {
+                recipients.insert(row?);
+            }
+        }
+
+        for recipient in recipients {
+            tx.execute(
+                r#"
+                INSERT OR IGNORE INTO agent_mail_thread_participants (
+                  thread_id, principal_id, role, joined_at, last_read_at, muted
+                ) VALUES (?1, ?2, 'member', ?3, NULL, 0)
+                "#,
+                params![new_message.thread_id.as_str(), recipient.as_str(), now],
+            )?;
+            tx.execute(
+                r#"
+                INSERT OR REPLACE INTO agent_mail_message_recipients (
+                  message_id, recipient_principal, delivered_at, acked_at
+                ) VALUES (?1, ?2, ?3, NULL)
+                "#,
+                params![message_id.as_str(), recipient.as_str(), now],
+            )?;
+        }
+
+        tx.execute(
+            "UPDATE agent_mail_threads SET updated_at = ?1 WHERE thread_id = ?2",
+            params![now, new_message.thread_id.as_str()],
+        )?;
+        tx.commit()?;
+        self.get_agent_mail_message(&message_id)
+    }
+
+    pub fn get_agent_mail_message(
+        &self,
+        message_id: &str,
+    ) -> Result<Option<AgentMailMessageRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              message_id, thread_id, sender_principal, sender_kind, body_text, metadata_json, created_at
+            FROM agent_mail_messages
+            WHERE message_id = ?1
+            "#,
+        )?;
+        Ok(stmt
+            .query_row(params![message_id], map_agent_mail_message_row)
+            .optional()?)
+    }
+
+    pub fn list_agent_mail_messages(
+        &self,
+        thread_id: &str,
+        limit: u32,
+    ) -> Result<Vec<AgentMailMessageRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              message_id, thread_id, sender_principal, sender_kind, body_text, metadata_json, created_at
+            FROM agent_mail_messages
+            WHERE thread_id = ?1
+            ORDER BY created_at ASC
+            LIMIT ?2
+            "#,
+        )?;
+        let rows = stmt.query_map(
+            params![thread_id, i64::from(limit.max(1))],
+            map_agent_mail_message_row,
+        )?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn list_agent_mail_message_recipients(
+        &self,
+        message_id: &str,
+    ) -> Result<Vec<AgentMailMessageRecipientRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              message_id, recipient_principal, delivered_at, acked_at
+            FROM agent_mail_message_recipients
+            WHERE message_id = ?1
+            ORDER BY recipient_principal ASC
+            "#,
+        )?;
+        let rows = stmt.query_map(params![message_id], map_agent_mail_message_recipient_row)?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn acknowledge_agent_mail_message(
+        &self,
+        message_id: &str,
+        recipient_principal: &str,
+    ) -> Result<Option<AgentMailMessageRecipientRecord>> {
+        let conn = self.connect()?;
+        let now = now_ms();
+        conn.execute(
+            r#"
+            UPDATE agent_mail_message_recipients
+            SET acked_at = COALESCE(acked_at, ?1)
+            WHERE message_id = ?2
+              AND recipient_principal = ?3
+            "#,
+            params![now, message_id, recipient_principal],
+        )?;
+        conn.execute(
+            r#"
+            UPDATE agent_mail_thread_participants
+            SET last_read_at = ?1
+            WHERE thread_id = (
+                SELECT thread_id
+                FROM agent_mail_messages
+                WHERE message_id = ?2
+            )
+              AND principal_id = ?3
+            "#,
+            params![now, message_id, recipient_principal],
+        )?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              message_id, recipient_principal, delivered_at, acked_at
+            FROM agent_mail_message_recipients
+            WHERE message_id = ?1
+              AND recipient_principal = ?2
+            "#,
+        )?;
+        Ok(stmt
+            .query_row(
+                params![message_id, recipient_principal],
+                map_agent_mail_message_recipient_row,
+            )
+            .optional()?)
+    }
+
+    pub fn create_agent_mail_attachment(
+        &self,
+        new_attachment: NewAgentMailAttachment,
+    ) -> Result<Option<AgentMailAttachmentRecord>> {
+        let conn = self.connect()?;
+        let attachment_id = uuid::Uuid::new_v4().to_string();
+        let now = now_ms();
+        let inserted = conn.execute(
+            r#"
+            INSERT INTO agent_mail_attachments (
+              attachment_id, message_id, filename, mime, sha256, bytes, local_path, created_at
+            )
+            SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8
+            FROM agent_mail_messages
+            WHERE message_id = ?9
+            LIMIT 1
+            "#,
+            params![
+                attachment_id,
+                new_attachment.message_id,
+                new_attachment.filename,
+                new_attachment.mime,
+                new_attachment.sha256,
+                new_attachment.bytes,
+                new_attachment.local_path,
+                now,
+                new_attachment.message_id
+            ],
+        )?;
+        if inserted == 0 {
+            return Ok(None);
+        }
+        self.get_agent_mail_attachment(&attachment_id)
+    }
+
+    pub fn get_agent_mail_attachment(
+        &self,
+        attachment_id: &str,
+    ) -> Result<Option<AgentMailAttachmentRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              attachment_id, message_id, filename, mime, sha256, bytes, local_path, created_at
+            FROM agent_mail_attachments
+            WHERE attachment_id = ?1
+            "#,
+        )?;
+        Ok(stmt
+            .query_row(params![attachment_id], map_agent_mail_attachment_row)
+            .optional()?)
+    }
+
+    pub fn list_agent_mail_attachments(
+        &self,
+        message_id: &str,
+    ) -> Result<Vec<AgentMailAttachmentRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              attachment_id, message_id, filename, mime, sha256, bytes, local_path, created_at
+            FROM agent_mail_attachments
+            WHERE message_id = ?1
+            ORDER BY created_at ASC
+            "#,
+        )?;
+        let rows = stmt.query_map(params![message_id], map_agent_mail_attachment_row)?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn create_agent_mail_file_lease(
+        &self,
+        new_lease: NewAgentMailFileLease,
+    ) -> Result<AgentMailFileLeaseRecord> {
+        let conn = self.connect()?;
+        let now = now_ms();
+        conn.execute(
+            r#"
+            UPDATE agent_mail_file_leases
+            SET released_at = COALESCE(released_at, ?1)
+            WHERE released_at IS NULL
+              AND expires_at <= ?1
+            "#,
+            params![now],
+        )?;
+        let conflict_count: i64 = conn.query_row(
+            r#"
+            SELECT COUNT(*)
+            FROM agent_mail_file_leases
+            WHERE released_at IS NULL
+              AND expires_at > ?1
+              AND glob_pattern = ?2
+              AND (exclusive = 1 OR ?3 = 1)
+            "#,
+            params![now, new_lease.glob_pattern.trim(), new_lease.exclusive],
+            |row| row.get(0),
+        )?;
+        if conflict_count > 0 {
+            anyhow::bail!("active lease conflict");
+        }
+        let lease_id = uuid::Uuid::new_v4().to_string();
+        let ttl_ms = new_lease.ttl_ms.clamp(60_000, 86_400_000);
+        let expires_at = now.saturating_add(ttl_ms);
+        conn.execute(
+            r#"
+            INSERT INTO agent_mail_file_leases (
+              lease_id, holder_principal, glob_pattern, exclusive, ttl_ms, note, created_at, expires_at, released_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, NULL)
+            "#,
+            params![
+                lease_id,
+                new_lease.holder_principal.trim(),
+                new_lease.glob_pattern.trim(),
+                new_lease.exclusive,
+                ttl_ms,
+                new_lease.note,
+                now,
+                expires_at
+            ],
+        )?;
+        self.get_agent_mail_file_lease(&lease_id)?
+            .context("created lease missing after insert")
+    }
+
+    pub fn get_agent_mail_file_lease(
+        &self,
+        lease_id: &str,
+    ) -> Result<Option<AgentMailFileLeaseRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              lease_id, holder_principal, glob_pattern, exclusive, ttl_ms, note, created_at, expires_at, released_at
+            FROM agent_mail_file_leases
+            WHERE lease_id = ?1
+            "#,
+        )?;
+        Ok(stmt
+            .query_row(params![lease_id], map_agent_mail_file_lease_row)
+            .optional()?)
+    }
+
+    pub fn list_agent_mail_file_leases(
+        &self,
+        holder_principal: Option<&str>,
+        include_released: bool,
+    ) -> Result<Vec<AgentMailFileLeaseRecord>> {
+        let conn = self.connect()?;
+        let now = now_ms();
+        conn.execute(
+            r#"
+            UPDATE agent_mail_file_leases
+            SET released_at = COALESCE(released_at, ?1)
+            WHERE released_at IS NULL
+              AND expires_at <= ?1
+            "#,
+            params![now],
+        )?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              lease_id, holder_principal, glob_pattern, exclusive, ttl_ms, note, created_at, expires_at, released_at
+            FROM agent_mail_file_leases
+            WHERE (?1 IS NULL OR holder_principal = ?1)
+              AND (?2 = 1 OR released_at IS NULL)
+            ORDER BY created_at DESC
+            "#,
+        )?;
+        let rows = stmt.query_map(
+            params![holder_principal, if include_released { 1 } else { 0 }],
+            map_agent_mail_file_lease_row,
+        )?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn release_agent_mail_file_lease(
+        &self,
+        lease_id: &str,
+        holder_principal: Option<&str>,
+    ) -> Result<Option<AgentMailFileLeaseRecord>> {
+        let conn = self.connect()?;
+        let now = now_ms();
+        conn.execute(
+            r#"
+            UPDATE agent_mail_file_leases
+            SET released_at = COALESCE(released_at, ?1)
+            WHERE lease_id = ?2
+              AND released_at IS NULL
+              AND (?3 IS NULL OR holder_principal = ?3)
+            "#,
+            params![now, lease_id, holder_principal],
+        )?;
+        self.get_agent_mail_file_lease(lease_id)
+    }
+
+    fn search_agent_mail_thread_ids(
+        &self,
+        query_text: &str,
+        limit: u32,
+    ) -> Result<std::collections::HashSet<String>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT DISTINCT thread_id
+            FROM agent_mail_messages_fts
+            WHERE agent_mail_messages_fts MATCH ?1
+            LIMIT ?2
+            "#,
+        )?;
+        let sanitized = query_text.trim().replace('"', "").replace('\'', " ");
+        let rows = stmt.query_map(params![sanitized, i64::from(limit.max(1))], |row| {
+            row.get::<_, String>(0)
+        })?;
+        let mut out = std::collections::HashSet::new();
+        for row in rows {
+            out.insert(row?);
         }
         Ok(out)
     }
@@ -3436,6 +4251,87 @@ fn map_board_card_asset_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<BoardCa
     })
 }
 
+fn map_agent_mail_thread_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<AgentMailThreadRecord> {
+    Ok(AgentMailThreadRecord {
+        thread_id: row.get(0)?,
+        kind: row.get(1)?,
+        subject: row.get(2)?,
+        created_by_principal: row.get(3)?,
+        created_at: row.get(4)?,
+        updated_at: row.get(5)?,
+        archived_at: row.get(6)?,
+    })
+}
+
+fn map_agent_mail_participant_row(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<AgentMailThreadParticipantRecord> {
+    let muted: i64 = row.get(5)?;
+    Ok(AgentMailThreadParticipantRecord {
+        thread_id: row.get(0)?,
+        principal_id: row.get(1)?,
+        role: row.get(2)?,
+        joined_at: row.get(3)?,
+        last_read_at: row.get(4)?,
+        muted: muted != 0,
+    })
+}
+
+fn map_agent_mail_message_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<AgentMailMessageRecord> {
+    Ok(AgentMailMessageRecord {
+        message_id: row.get(0)?,
+        thread_id: row.get(1)?,
+        sender_principal: row.get(2)?,
+        sender_kind: row.get(3)?,
+        body_text: row.get(4)?,
+        metadata_json: row.get(5)?,
+        created_at: row.get(6)?,
+    })
+}
+
+fn map_agent_mail_message_recipient_row(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<AgentMailMessageRecipientRecord> {
+    Ok(AgentMailMessageRecipientRecord {
+        message_id: row.get(0)?,
+        recipient_principal: row.get(1)?,
+        delivered_at: row.get(2)?,
+        acked_at: row.get(3)?,
+    })
+}
+
+fn map_agent_mail_attachment_row(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<AgentMailAttachmentRecord> {
+    Ok(AgentMailAttachmentRecord {
+        attachment_id: row.get(0)?,
+        message_id: row.get(1)?,
+        filename: row.get(2)?,
+        mime: row.get(3)?,
+        sha256: row.get(4)?,
+        bytes: row.get(5)?,
+        local_path: row.get(6)?,
+        created_at: row.get(7)?,
+    })
+}
+
+fn map_agent_mail_file_lease_row(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<AgentMailFileLeaseRecord> {
+    let exclusive: i64 = row.get(3)?;
+    Ok(AgentMailFileLeaseRecord {
+        lease_id: row.get(0)?,
+        holder_principal: row.get(1)?,
+        glob_pattern: row.get(2)?,
+        exclusive: exclusive != 0,
+        ttl_ms: row.get(4)?,
+        note: row.get(5)?,
+        created_at: row.get(6)?,
+        expires_at: row.get(7)?,
+        released_at: row.get(8)?,
+    })
+}
+
 fn map_run_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<RunRecord> {
     Ok(RunRecord {
         run_id: row.get(0)?,
@@ -4794,5 +5690,131 @@ mod tests {
         assert_eq!(refreshed.last_error.as_deref(), Some("intentional failure"));
         assert!(refreshed.lease_owner.is_none());
         assert!(refreshed.lease_expires_at.is_none());
+    }
+
+    #[test]
+    fn agent_mail_thread_message_search_and_ack_work() {
+        let (_temp_dir, storage) = test_storage();
+        let thread = storage
+            .create_agent_mail_thread(NewAgentMailThread {
+                kind: "direct".to_string(),
+                subject: "Launch sync".to_string(),
+                created_by_principal: "lyra".to_string(),
+                participants: vec![("claude".to_string(), "member".to_string())],
+            })
+            .expect("create thread");
+        assert_eq!(thread.kind, "direct");
+
+        let participants = storage
+            .list_agent_mail_thread_participants(&thread.thread_id)
+            .expect("list participants");
+        assert_eq!(participants.len(), 2);
+
+        let first = storage
+            .create_agent_mail_message(NewAgentMailMessage {
+                thread_id: thread.thread_id.clone(),
+                sender_principal: "lyra".to_string(),
+                sender_kind: "agent".to_string(),
+                body_text: "We should ship the pipeline fix tonight.".to_string(),
+                metadata_json: None,
+                recipients: vec!["claude".to_string()],
+            })
+            .expect("create first message")
+            .expect("message inserted");
+        assert_eq!(first.sender_principal, "lyra");
+
+        let summaries = storage
+            .list_agent_mail_threads(&AgentMailThreadListFilter {
+                kind: Some("direct".to_string()),
+                principal_id: Some("claude".to_string()),
+                mailbox: Some("inbox".to_string()),
+                search_text: Some("pipeline".to_string()),
+                limit: 25,
+            })
+            .expect("list inbox summaries");
+        assert_eq!(summaries.len(), 1);
+        assert!(summaries[0].unread_count >= 1);
+
+        let ack = storage
+            .acknowledge_agent_mail_message(&first.message_id, "claude")
+            .expect("ack query")
+            .expect("ack row");
+        assert!(ack.acked_at.is_some());
+
+        let attachment = storage
+            .create_agent_mail_attachment(NewAgentMailAttachment {
+                message_id: first.message_id.clone(),
+                filename: "notes.txt".to_string(),
+                mime: "text/plain".to_string(),
+                sha256: "abc123".to_string(),
+                bytes: 5,
+                local_path: "/tmp/notes.txt".to_string(),
+            })
+            .expect("create attachment")
+            .expect("attachment exists");
+        assert_eq!(attachment.filename, "notes.txt");
+
+        let attachments = storage
+            .list_agent_mail_attachments(&first.message_id)
+            .expect("list attachments");
+        assert_eq!(attachments.len(), 1);
+        assert_eq!(attachments[0].attachment_id, attachment.attachment_id);
+    }
+
+    #[test]
+    fn agent_mail_file_leases_enforce_conflicts_and_release() {
+        let (_temp_dir, storage) = test_storage();
+        let lease = storage
+            .create_agent_mail_file_lease(NewAgentMailFileLease {
+                holder_principal: "lyra".to_string(),
+                glob_pattern: "src/**".to_string(),
+                exclusive: true,
+                ttl_ms: 120_000,
+                note: Some("migration pass".to_string()),
+            })
+            .expect("create lease");
+        assert!(lease.exclusive);
+
+        let conflict = storage.create_agent_mail_file_lease(NewAgentMailFileLease {
+            holder_principal: "claude".to_string(),
+            glob_pattern: "src/**".to_string(),
+            exclusive: true,
+            ttl_ms: 120_000,
+            note: None,
+        });
+        assert!(conflict.is_err());
+
+        let non_conflict = storage
+            .create_agent_mail_file_lease(NewAgentMailFileLease {
+                holder_principal: "claude".to_string(),
+                glob_pattern: "docs/**".to_string(),
+                exclusive: false,
+                ttl_ms: 120_000,
+                note: None,
+            })
+            .expect("create non-conflicting lease");
+        assert!(!non_conflict.exclusive);
+
+        let active_before_release = storage
+            .list_agent_mail_file_leases(None, false)
+            .expect("list active leases");
+        assert_eq!(active_before_release.len(), 2);
+
+        let released = storage
+            .release_agent_mail_file_lease(&lease.lease_id, Some("lyra"))
+            .expect("release lease")
+            .expect("released lease exists");
+        assert!(released.released_at.is_some());
+
+        let recreated = storage
+            .create_agent_mail_file_lease(NewAgentMailFileLease {
+                holder_principal: "claude".to_string(),
+                glob_pattern: "src/**".to_string(),
+                exclusive: true,
+                ttl_ms: 120_000,
+                note: Some("post-release".to_string()),
+            })
+            .expect("create lease after release");
+        assert_eq!(recreated.glob_pattern, "src/**");
     }
 }

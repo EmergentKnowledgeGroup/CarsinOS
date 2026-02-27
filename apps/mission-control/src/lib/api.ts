@@ -1,12 +1,22 @@
 import { getGatewayToken } from "./runtime";
 import type {
+  AckAgentMailMessageResponse,
+  AgentMailFileLeaseResponse,
+  AgentMailThreadDetailResponse,
   AgentProviderProfileOrderResponse,
   AuthProfileResponse,
   BoardDetail,
   BoardDetailResponse,
+  CreateAgentMailFileLeaseResponse,
+  CreateAgentMailThreadResponse,
+  CreateMemoryNoteResponse,
   GetChannelRuntimeStatusResponse,
   HealthResponse,
   JobStatusResponse,
+  ListAgentMailFileLeasesResponse,
+  ListAgentMailMessagesResponse,
+  ListAgentMailThreadsResponse,
+  ListMemoryNotesResponse,
   ListAuthProfilesResponse,
   ListApprovalsResponse,
   ListJobsResponse,
@@ -19,15 +29,18 @@ import type {
   MissionControlFocusResponse,
   MoveBoardCardResponse,
   PluginManifestResponse,
+  ReleaseAgentMailFileLeaseResponse,
   ResolveApprovalResponse,
   RuntimeConnectionSettings,
   RunJobNowResponse,
   RunBoardCardResponse,
+  SendAgentMailMessageResponse,
   StatusResponse,
   UpdatePluginResponse,
   UpdateSkillStateResponse,
   UpdateJobResponse,
   UpdateBoardCardResponse,
+  UploadAgentMailAttachmentResponse,
   UploadBoardCardAssetResponse,
 } from "../types";
 
@@ -162,6 +175,30 @@ export async function getMissionControlFocus(
     settings,
     `/api/v1/mission-control/focus?limit=${encodeURIComponent(String(limit))}`
   );
+}
+
+export async function listMemoryNotes(
+  settings: RuntimeConnectionSettings,
+  limit = 20
+): Promise<ListMemoryNotesResponse> {
+  return requestJson<ListMemoryNotesResponse>(
+    settings,
+    `/api/v1/memory/notes?limit=${encodeURIComponent(String(limit))}`
+  );
+}
+
+export async function createMemoryNote(
+  settings: RuntimeConnectionSettings,
+  payload: {
+    title?: string;
+    body: string;
+    tags?: string[];
+  }
+): Promise<CreateMemoryNoteResponse> {
+  return requestJson<CreateMemoryNoteResponse>(settings, "/api/v1/memory/notes", {
+    method: "POST",
+    body: payload,
+  });
 }
 
 export async function listJobs(
@@ -380,6 +417,218 @@ export async function reconnectChannelRuntime(
       provider,
     },
   });
+}
+
+export async function listAgentMailThreads(
+  settings: RuntimeConnectionSettings,
+  options: {
+    kind?: string;
+    mailbox?: "all" | "inbox" | "outbox";
+    principalId?: string;
+    search?: string;
+    limit?: number;
+  } = {}
+): Promise<ListAgentMailThreadsResponse> {
+  const params = new URLSearchParams();
+  if (options.kind?.trim()) {
+    params.set("kind", options.kind.trim());
+  }
+  if (options.mailbox && options.mailbox !== "all") {
+    params.set("mailbox", options.mailbox);
+  }
+  if (options.principalId?.trim()) {
+    params.set("principal_id", options.principalId.trim());
+  }
+  if (options.search?.trim()) {
+    params.set("search", options.search.trim());
+  }
+  if (options.limit !== undefined) {
+    params.set("limit", String(options.limit));
+  }
+  const suffix = params.size > 0 ? `?${params.toString()}` : "";
+  return requestJson<ListAgentMailThreadsResponse>(
+    settings,
+    `/api/v1/agent-mail/threads${suffix}`
+  );
+}
+
+export async function createAgentMailThread(
+  settings: RuntimeConnectionSettings,
+  payload: {
+    kind?: "direct" | "room";
+    subject: string;
+    participants: string[];
+  }
+): Promise<CreateAgentMailThreadResponse> {
+  return requestJson<CreateAgentMailThreadResponse>(settings, "/api/v1/agent-mail/threads", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export async function getAgentMailThread(
+  settings: RuntimeConnectionSettings,
+  threadId: string
+): Promise<AgentMailThreadDetailResponse> {
+  return requestJson<AgentMailThreadDetailResponse>(
+    settings,
+    `/api/v1/agent-mail/threads/${encodeURIComponent(threadId)}`
+  );
+}
+
+export async function listAgentMailMessages(
+  settings: RuntimeConnectionSettings,
+  threadId: string,
+  limit = 300
+): Promise<ListAgentMailMessagesResponse> {
+  return requestJson<ListAgentMailMessagesResponse>(
+    settings,
+    `/api/v1/agent-mail/threads/${encodeURIComponent(threadId)}/messages?limit=${encodeURIComponent(String(limit))}`
+  );
+}
+
+export async function sendAgentMailMessage(
+  settings: RuntimeConnectionSettings,
+  threadId: string,
+  payload: {
+    sender_principal?: string;
+    sender_kind?: string;
+    body_text: string;
+    metadata_json?: Record<string, unknown>;
+    recipients: string[];
+  }
+): Promise<SendAgentMailMessageResponse> {
+  return requestJson<SendAgentMailMessageResponse>(
+    settings,
+    `/api/v1/agent-mail/threads/${encodeURIComponent(threadId)}/messages`,
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
+export async function ackAgentMailMessage(
+  settings: RuntimeConnectionSettings,
+  messageId: string,
+  recipientPrincipal?: string
+): Promise<AckAgentMailMessageResponse> {
+  return requestJson<AckAgentMailMessageResponse>(
+    settings,
+    `/api/v1/agent-mail/messages/${encodeURIComponent(messageId)}/ack`,
+    {
+      method: "POST",
+      body: {
+        recipient_principal: recipientPrincipal,
+      },
+    }
+  );
+}
+
+export async function uploadAgentMailAttachment(
+  settings: RuntimeConnectionSettings,
+  messageId: string,
+  payload: {
+    filename: string;
+    mime: string;
+    content_base64: string;
+  }
+): Promise<UploadAgentMailAttachmentResponse> {
+  return requestJson<UploadAgentMailAttachmentResponse>(
+    settings,
+    `/api/v1/agent-mail/messages/${encodeURIComponent(messageId)}/attachments/upload`,
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
+export async function fetchAgentMailAttachmentBlob(
+  settings: RuntimeConnectionSettings,
+  messageId: string,
+  attachmentId: string
+): Promise<Blob> {
+  const token = await getGatewayToken();
+  if (!token) {
+    throw new Error("Gateway token is not configured.");
+  }
+  const response = await fetchWithTimeout(
+    resolveApiUrl(
+      settings.gateway_url,
+      `/api/v1/agent-mail/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`
+    ),
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`${response.status} ${response.statusText}: ${text}`);
+  }
+  return response.blob();
+}
+
+export async function listAgentMailFileLeases(
+  settings: RuntimeConnectionSettings,
+  options: {
+    holderPrincipal?: string;
+    includeReleased?: boolean;
+  } = {}
+): Promise<AgentMailFileLeaseResponse[]> {
+  const params = new URLSearchParams();
+  if (options.holderPrincipal?.trim()) {
+    params.set("holder_principal", options.holderPrincipal.trim());
+  }
+  if (options.includeReleased !== undefined) {
+    params.set("include_released", String(options.includeReleased));
+  }
+  const suffix = params.size > 0 ? `?${params.toString()}` : "";
+  const response = await requestJson<ListAgentMailFileLeasesResponse>(
+    settings,
+    `/api/v1/agent-mail/leases${suffix}`
+  );
+  return response.items;
+}
+
+export async function createAgentMailFileLease(
+  settings: RuntimeConnectionSettings,
+  payload: {
+    holder_principal?: string;
+    glob_pattern: string;
+    exclusive: boolean;
+    ttl_ms: number;
+    note?: string;
+  }
+): Promise<CreateAgentMailFileLeaseResponse> {
+  return requestJson<CreateAgentMailFileLeaseResponse>(
+    settings,
+    "/api/v1/agent-mail/leases",
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
+export async function releaseAgentMailFileLease(
+  settings: RuntimeConnectionSettings,
+  leaseId: string,
+  holderPrincipal?: string
+): Promise<ReleaseAgentMailFileLeaseResponse> {
+  return requestJson<ReleaseAgentMailFileLeaseResponse>(
+    settings,
+    `/api/v1/agent-mail/leases/${encodeURIComponent(leaseId)}/release`,
+    {
+      method: "POST",
+      body: {
+        holder_principal: holderPrincipal,
+      },
+    }
+  );
 }
 
 export async function createBoardCard(

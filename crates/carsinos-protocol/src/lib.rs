@@ -1792,6 +1792,190 @@ pub struct MissionControlFocusResponse {
     pub items: Vec<MissionControlFocusItemResponse>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListAgentMailThreadsQuery {
+    pub kind: Option<String>,
+    pub mailbox: Option<String>,
+    pub principal_id: Option<String>,
+    pub search: Option<String>,
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListAgentMailMessagesQuery {
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListAgentMailFileLeasesQuery {
+    pub holder_principal: Option<String>,
+    pub include_released: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AgentMailThreadSummaryResponse {
+    pub thread_id: String,
+    pub kind: String,
+    pub subject: String,
+    pub created_by_principal: String,
+    pub participant_count: i64,
+    pub message_count: i64,
+    pub latest_message_at: Option<i64>,
+    pub latest_message_preview: Option<String>,
+    pub latest_sender_principal: Option<String>,
+    pub unread_count: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AgentMailThreadParticipantResponse {
+    pub principal_id: String,
+    pub role: String,
+    pub joined_at: i64,
+    pub last_read_at: Option<i64>,
+    pub muted: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AgentMailMessageRecipientResponse {
+    pub recipient_principal: String,
+    pub delivered_at: i64,
+    pub acked_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AgentMailAttachmentResponse {
+    pub attachment_id: String,
+    pub message_id: String,
+    pub filename: String,
+    pub mime: String,
+    pub sha256: String,
+    pub bytes: i64,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AgentMailMessageResponse {
+    pub message_id: String,
+    pub thread_id: String,
+    pub sender_principal: String,
+    pub sender_kind: String,
+    pub body_text: String,
+    pub metadata_json: Option<String>,
+    pub created_at: i64,
+    pub recipients: Vec<AgentMailMessageRecipientResponse>,
+    pub attachments: Vec<AgentMailAttachmentResponse>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AgentMailThreadDetailResponse {
+    pub thread: AgentMailThreadSummaryResponse,
+    pub participants: Vec<AgentMailThreadParticipantResponse>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListAgentMailThreadsResponse {
+    pub items: Vec<AgentMailThreadSummaryResponse>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListAgentMailMessagesResponse {
+    pub items: Vec<AgentMailMessageResponse>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CreateAgentMailThreadRequest {
+    pub kind: Option<String>,
+    pub subject: String,
+    pub participants: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CreateAgentMailThreadResponse {
+    pub thread: AgentMailThreadSummaryResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SendAgentMailMessageRequest {
+    pub sender_principal: Option<String>,
+    pub sender_kind: Option<String>,
+    pub body_text: String,
+    pub metadata_json: Option<serde_json::Value>,
+    pub recipients: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SendAgentMailMessageResponse {
+    pub message: AgentMailMessageResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AckAgentMailMessageRequest {
+    pub recipient_principal: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AckAgentMailMessageResponse {
+    pub message_id: String,
+    pub recipient_principal: String,
+    pub acked_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UploadAgentMailAttachmentRequest {
+    pub filename: String,
+    pub mime: String,
+    pub content_base64: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UploadAgentMailAttachmentResponse {
+    pub attachment: AgentMailAttachmentResponse,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AgentMailFileLeaseResponse {
+    pub lease_id: String,
+    pub holder_principal: String,
+    pub glob_pattern: String,
+    pub exclusive: bool,
+    pub ttl_ms: i64,
+    pub note: Option<String>,
+    pub created_at: i64,
+    pub expires_at: i64,
+    pub released_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CreateAgentMailFileLeaseRequest {
+    pub holder_principal: Option<String>,
+    pub glob_pattern: String,
+    pub exclusive: bool,
+    pub ttl_ms: i64,
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ReleaseAgentMailFileLeaseRequest {
+    pub holder_principal: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListAgentMailFileLeasesResponse {
+    pub items: Vec<AgentMailFileLeaseResponse>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CreateAgentMailFileLeaseResponse {
+    pub lease: AgentMailFileLeaseResponse,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ReleaseAgentMailFileLeaseResponse {
+    pub lease: AgentMailFileLeaseResponse,
+}
+
 #[cfg(test)]
 mod tests {
     use super::{ws_event_entity_from_type, WsEventFrame, WS_EVENT_SCHEMA_VERSION_V1};

@@ -362,3 +362,111 @@ CREATE TABLE IF NOT EXISTS board_card_assets (
 
 CREATE INDEX IF NOT EXISTS idx_board_card_assets_card
 ON board_card_assets(card_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS agent_mail_threads (
+  thread_id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  created_by_principal TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  archived_at INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_mail_threads_kind_updated
+ON agent_mail_threads(kind, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS agent_mail_thread_participants (
+  thread_id TEXT NOT NULL REFERENCES agent_mail_threads(thread_id),
+  principal_id TEXT NOT NULL,
+  role TEXT NOT NULL,
+  joined_at INTEGER NOT NULL,
+  last_read_at INTEGER,
+  muted INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (thread_id, principal_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_mail_participants_principal
+ON agent_mail_thread_participants(principal_id, thread_id);
+
+CREATE TABLE IF NOT EXISTS agent_mail_messages (
+  message_id TEXT PRIMARY KEY,
+  thread_id TEXT NOT NULL REFERENCES agent_mail_threads(thread_id),
+  sender_principal TEXT NOT NULL,
+  sender_kind TEXT NOT NULL,
+  body_text TEXT NOT NULL,
+  metadata_json TEXT,
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_mail_messages_thread_time
+ON agent_mail_messages(thread_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_agent_mail_messages_sender_time
+ON agent_mail_messages(sender_principal, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS agent_mail_message_recipients (
+  message_id TEXT NOT NULL REFERENCES agent_mail_messages(message_id),
+  recipient_principal TEXT NOT NULL,
+  delivered_at INTEGER NOT NULL,
+  acked_at INTEGER,
+  PRIMARY KEY (message_id, recipient_principal)
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_mail_recipients_principal_time
+ON agent_mail_message_recipients(recipient_principal, delivered_at DESC);
+
+CREATE TABLE IF NOT EXISTS agent_mail_attachments (
+  attachment_id TEXT PRIMARY KEY,
+  message_id TEXT NOT NULL REFERENCES agent_mail_messages(message_id),
+  filename TEXT NOT NULL,
+  mime TEXT NOT NULL,
+  sha256 TEXT NOT NULL,
+  bytes INTEGER NOT NULL,
+  local_path TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_mail_attachments_message
+ON agent_mail_attachments(message_id, created_at DESC);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS agent_mail_messages_fts
+USING fts5(
+  thread_id UNINDEXED,
+  sender_principal UNINDEXED,
+  body_text,
+  content='agent_mail_messages',
+  content_rowid='rowid'
+);
+
+CREATE TRIGGER IF NOT EXISTS agent_mail_messages_ai AFTER INSERT ON agent_mail_messages BEGIN
+  INSERT INTO agent_mail_messages_fts(rowid, thread_id, sender_principal, body_text)
+  VALUES (new.rowid, new.thread_id, new.sender_principal, new.body_text);
+END;
+
+CREATE TRIGGER IF NOT EXISTS agent_mail_messages_ad AFTER DELETE ON agent_mail_messages BEGIN
+  INSERT INTO agent_mail_messages_fts(agent_mail_messages_fts, rowid, thread_id, sender_principal, body_text)
+  VALUES ('delete', old.rowid, old.thread_id, old.sender_principal, old.body_text);
+END;
+
+CREATE TRIGGER IF NOT EXISTS agent_mail_messages_au AFTER UPDATE ON agent_mail_messages BEGIN
+  INSERT INTO agent_mail_messages_fts(agent_mail_messages_fts, rowid, thread_id, sender_principal, body_text)
+  VALUES ('delete', old.rowid, old.thread_id, old.sender_principal, old.body_text);
+  INSERT INTO agent_mail_messages_fts(rowid, thread_id, sender_principal, body_text)
+  VALUES (new.rowid, new.thread_id, new.sender_principal, new.body_text);
+END;
+
+CREATE TABLE IF NOT EXISTS agent_mail_file_leases (
+  lease_id TEXT PRIMARY KEY,
+  holder_principal TEXT NOT NULL,
+  glob_pattern TEXT NOT NULL,
+  exclusive INTEGER NOT NULL,
+  ttl_ms INTEGER NOT NULL,
+  note TEXT,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  released_at INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_mail_file_leases_active
+ON agent_mail_file_leases(released_at, expires_at, holder_principal);

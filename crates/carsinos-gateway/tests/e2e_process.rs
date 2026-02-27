@@ -1473,6 +1473,217 @@ async fn parallel_runs_for_same_session_return_conflict() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn agent_mail_flow_supports_threads_messages_attachments_and_leases() -> Result<()> {
+    let state_dir = TempDir::new().context("failed to create temp state directory")?;
+    let gateway = GatewayProcess::spawn_with_env(
+        state_dir.path(),
+        "e2e-token-agent-mail",
+        Some("op-1"),
+        &[
+            ("CARSINOS_AGENT_MAIL_ATTACHMENT_MAX_BYTES", "4096"),
+            (
+                "CARSINOS_AGENT_MAIL_ALLOWED_MIMES",
+                "text/plain,application/json",
+            ),
+        ],
+    )
+    .await?;
+
+    let created_thread = gateway
+        .request_with_operator(Method::POST, "/api/v1/agent-mail/threads", "op-1")
+        .json(&json!({
+            "kind": "direct",
+            "subject": "lyra-claude-sync",
+            "participants": ["lyra", "claude"]
+        }))
+        .send()
+        .await
+        .context("create agent-mail thread request failed")?;
+    assert_eq!(created_thread.status(), StatusCode::CREATED);
+    let created_thread_json = json_body(created_thread).await?;
+    let thread_id = created_thread_json["thread"]["thread_id"]
+        .as_str()
+        .context("missing agent-mail thread_id")?
+        .to_string();
+
+    let listed_threads = gateway
+        .request_with_operator(
+            Method::GET,
+            "/api/v1/agent-mail/threads?kind=direct&mailbox=all&principal_id=claude&limit=30",
+            "op-1",
+        )
+        .send()
+        .await
+        .context("list agent-mail threads request failed")?;
+    assert_eq!(listed_threads.status(), StatusCode::OK);
+    let listed_threads_json = json_body(listed_threads).await?;
+    let listed_items = listed_threads_json["items"]
+        .as_array()
+        .context("agent-mail list items missing")?;
+    assert!(listed_items
+        .iter()
+        .any(|item| item["thread_id"] == thread_id));
+
+    let sent_message = gateway
+        .request_with_operator(
+            Method::POST,
+            format!("/api/v1/agent-mail/threads/{thread_id}/messages"),
+            "op-1",
+        )
+        .json(&json!({
+            "sender_principal": "lyra",
+            "sender_kind": "agent",
+            "body_text": "handoff payload: sync task state",
+            "recipients": ["claude"],
+            "metadata_json": {
+                "mode": "handoff",
+                "priority": "normal"
+            }
+        }))
+        .send()
+        .await
+        .context("send agent-mail message request failed")?;
+    assert_eq!(sent_message.status(), StatusCode::CREATED);
+    let sent_message_json = json_body(sent_message).await?;
+    let message_id = sent_message_json["message"]["message_id"]
+        .as_str()
+        .context("missing message_id")?
+        .to_string();
+
+    let listed_messages = gateway
+        .request_with_operator(
+            Method::GET,
+            format!("/api/v1/agent-mail/threads/{thread_id}/messages?limit=100"),
+            "op-1",
+        )
+        .send()
+        .await
+        .context("list agent-mail messages request failed")?;
+    assert_eq!(listed_messages.status(), StatusCode::OK);
+    let listed_messages_json = json_body(listed_messages).await?;
+    let message_items = listed_messages_json["items"]
+        .as_array()
+        .context("message items missing")?;
+    let first_message = message_items.first().context("no message returned")?;
+    assert_eq!(first_message["message_id"], message_id);
+    assert_eq!(first_message["sender_principal"], "lyra");
+
+    let acknowledged = gateway
+        .request_with_operator(
+            Method::POST,
+            format!("/api/v1/agent-mail/messages/{message_id}/ack"),
+            "op-1",
+        )
+        .json(&json!({
+            "recipient_principal": "claude"
+        }))
+        .send()
+        .await
+        .context("ack agent-mail message request failed")?;
+    assert_eq!(acknowledged.status(), StatusCode::OK);
+    let acknowledged_json = json_body(acknowledged).await?;
+    assert_eq!(acknowledged_json["recipient_principal"], "claude");
+    assert!(acknowledged_json["acked_at"].as_i64().is_some());
+
+    let uploaded_attachment = gateway
+        .request_with_operator(
+            Method::POST,
+            format!("/api/v1/agent-mail/messages/{message_id}/attachments/upload"),
+            "op-1",
+        )
+        .json(&json!({
+            "filename": "handoff.txt",
+            "mime": "text/plain",
+            "content_base64": "aGVsbG8gd29ybGQ="
+        }))
+        .send()
+        .await
+        .context("upload agent-mail attachment request failed")?;
+    assert_eq!(uploaded_attachment.status(), StatusCode::OK);
+    let uploaded_attachment_json = json_body(uploaded_attachment).await?;
+    let attachment_id = uploaded_attachment_json["attachment"]["attachment_id"]
+        .as_str()
+        .context("missing attachment_id")?
+        .to_string();
+
+    let downloaded_attachment = gateway
+        .request_with_operator(
+            Method::GET,
+            format!("/api/v1/agent-mail/messages/{message_id}/attachments/{attachment_id}"),
+            "op-1",
+        )
+        .send()
+        .await
+        .context("download agent-mail attachment request failed")?;
+    assert_eq!(downloaded_attachment.status(), StatusCode::OK);
+    assert_eq!(
+        downloaded_attachment
+            .headers()
+            .get("content-type")
+            .and_then(|value| value.to_str().ok()),
+        Some("text/plain")
+    );
+    let downloaded_bytes = downloaded_attachment
+        .bytes()
+        .await
+        .context("reading downloaded attachment bytes failed")?;
+    assert_eq!(downloaded_bytes.as_ref(), b"hello world");
+
+    let created_lease = gateway
+        .request_with_operator(Method::POST, "/api/v1/agent-mail/leases", "op-1")
+        .json(&json!({
+            "holder_principal": "lyra",
+            "glob_pattern": "workspace/**",
+            "exclusive": true,
+            "ttl_ms": 600000,
+            "note": "serialize edits"
+        }))
+        .send()
+        .await
+        .context("create agent-mail lease request failed")?;
+    assert_eq!(created_lease.status(), StatusCode::CREATED);
+    let created_lease_json = json_body(created_lease).await?;
+    let lease_id = created_lease_json["lease"]["lease_id"]
+        .as_str()
+        .context("missing lease_id")?
+        .to_string();
+
+    let conflicting_lease = gateway
+        .request_with_operator(Method::POST, "/api/v1/agent-mail/leases", "op-1")
+        .json(&json!({
+            "holder_principal": "claude",
+            "glob_pattern": "workspace/**",
+            "exclusive": true,
+            "ttl_ms": 600000,
+            "note": "conflict expected"
+        }))
+        .send()
+        .await
+        .context("conflicting lease request failed")?;
+    assert_eq!(conflicting_lease.status(), StatusCode::CONFLICT);
+
+    let released_lease = gateway
+        .request_with_operator(
+            Method::POST,
+            format!("/api/v1/agent-mail/leases/{lease_id}/release"),
+            "op-1",
+        )
+        .json(&json!({
+            "holder_principal": "lyra"
+        }))
+        .send()
+        .await
+        .context("release lease request failed")?;
+    assert_eq!(released_lease.status(), StatusCode::OK);
+    let released_lease_json = json_body(released_lease).await?;
+    assert!(released_lease_json["lease"]["released_at"]
+        .as_i64()
+        .is_some());
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn request_logs_are_written_to_state_log_directory() -> Result<()> {
     let state_dir = TempDir::new().context("failed to create temp state directory")?;
     let gateway = GatewayProcess::spawn(state_dir.path(), "e2e-token-logs", None).await?;
