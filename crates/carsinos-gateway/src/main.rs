@@ -4808,10 +4808,12 @@ async fn update_skill_state(
 
 async fn ws_handler(
     headers: HeaderMap,
+    Query(query): Query<WsAuthQuery>,
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
 ) -> std::result::Result<impl IntoResponse, StatusCode> {
-    let auth_ctx = require_bearer_auth(&headers, &state).map_err(|err| err.status)?;
+    let auth_headers = ws_auth_headers_with_query_token(&headers, &query)?;
+    let auth_ctx = require_bearer_auth(&auth_headers, &state).map_err(|err| err.status)?;
     require_roles_raw(
         &auth_ctx,
         &[
@@ -4825,6 +4827,33 @@ async fn ws_handler(
     let rx = state.event_tx.subscribe();
     let event_seq = state.event_seq.clone();
     Ok(ws.on_upgrade(move |socket| handle_socket(socket, rx, state.started_at, event_seq)))
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct WsAuthQuery {
+    token: Option<String>,
+}
+
+fn ws_auth_headers_with_query_token(
+    headers: &HeaderMap,
+    query: &WsAuthQuery,
+) -> std::result::Result<HeaderMap, StatusCode> {
+    if headers.contains_key(header::AUTHORIZATION) {
+        return Ok(headers.clone());
+    }
+    let Some(token) = query
+        .token
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    else {
+        return Ok(headers.clone());
+    };
+    let mut merged = headers.clone();
+    let auth_header =
+        HeaderValue::from_str(&format!("Bearer {token}")).map_err(|_| StatusCode::UNAUTHORIZED)?;
+    merged.insert(header::AUTHORIZATION, auth_header);
+    Ok(merged)
 }
 
 async fn handle_socket(

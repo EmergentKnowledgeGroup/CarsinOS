@@ -252,3 +252,12 @@ Execution checklist derived from `PLAN.md`. IDs are stable and must be used by `
 - [x] `V3` `MC3-AUTO-002` Implement scripting->thumbnail automation job flow with card updates and attachment writeback.
 - [x] `V4` `MC3-AUTO-002` Enforce no-runaway guardrails (max attempts/day, breaker, audit trail, explicit stop reasons).
 - [x] `V5` Extend regression/e2e/benchmark coverage for automation flows and verify existing suites remain green.
+
+## Phase W - MC Slick + Agent Mail (PR-B)
+
+- [x] `W1` `MC-SLICK-APP-001` Create `apps/mission-control` Tauri + React + Vite skeleton with one-command dev scripts.
+- [x] `W2` `MC-SLICK-APP-002` Implement config-first connection/auth UX (gateway URL, token secret storage, health/reconnect actions).
+- [x] `W3` `MC-SLICK-APP-003` Implement websocket realtime client with incremental event routing by `event_type`.
+- [x] `W4` `MC-SLICK-APP-010` Implement Kanban board UI with virtualization + drag/drop + optimistic update rollback.
+- [x] `W5` `MC-SLICK-APP-011` + `MC-SLICK-APP-012` Implement card drawer run hook and asset upload/preview using secure asset fetch endpoint.
+- [ ] `W6` Run phase regression gates and benchmark suite, then complete PR workflow (open, CR loop, merge, post-merge checkpoint).
