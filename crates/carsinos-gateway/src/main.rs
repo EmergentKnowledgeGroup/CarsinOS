@@ -1,10 +1,11 @@
 use anyhow::{Context, Result as AnyResult};
+use axum::body::Body;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::State;
 use axum::extract::{Path, Query};
 use axum::http::Request;
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -70,7 +71,7 @@ use carsinos_protocol::{
     UpdateRuntimeConfigResponse, UpdateSkillStateRequest, UpdateSkillStateResponse,
     UploadBoardCardAssetRequest, UploadBoardCardAssetResponse, UpsertBoardAutomationRuleRequest,
     UpsertBoardAutomationRuleResponse, UpsertRuntimeSecretRequest, UpsertRuntimeSecretResponse,
-    HEARTBEAT_OUTPUT_ALERT_PREFIX, HEARTBEAT_OUTPUT_OK, JOB_MODE_HEARTBEAT_RUN,
+    WsEventFrame, HEARTBEAT_OUTPUT_ALERT_PREFIX, HEARTBEAT_OUTPUT_OK, JOB_MODE_HEARTBEAT_RUN,
 };
 use carsinos_providers::{
     parse_provider_error_class as parse_provider_error_class_normalized,
@@ -4829,21 +4830,27 @@ async fn handle_socket(
     mut event_rx: broadcast::Receiver<String>,
     started_at: DateTime<Utc>,
 ) {
-    let event = serde_json::json!({
-        "v": 1,
-        "type": "event",
-        "event": "gateway.status",
-        "seq": 1,
-        "data": {
+    let event = WsEventFrame::new(
+        0,
+        "gateway.status",
+        serde_json::json!({
             "service": "carsinos-gateway",
             "started_at_utc": started_at,
             "now_utc": Utc::now(),
             "status": "ok"
+        }),
+    );
+
+    let initial_frame = match serde_json::to_string(&event) {
+        Ok(frame) => frame,
+        Err(err) => {
+            warn!(error = %err, "failed to serialize websocket gateway.status frame");
+            return;
         }
-    });
+    };
 
     if socket
-        .send(Message::Text(event.to_string().into()))
+        .send(Message::Text(initial_frame.into()))
         .await
         .is_err()
     {
@@ -5456,6 +5463,10 @@ fn build_app(state: AppState) -> Router {
         .route(
             "/api/v1/boards/{board_id}/cards/{card_id}/assets/upload",
             post(upload_board_card_asset),
+        )
+        .route(
+            "/api/v1/boards/{board_id}/cards/{card_id}/assets/{card_asset_id}",
+            get(download_board_card_asset),
         )
         .route(
             "/api/v1/boards/{board_id}/cards/{card_id}/run",
@@ -6296,6 +6307,93 @@ async fn upload_board_card_asset(
             asset: asset_response,
         }),
     ))
+}
+
+async fn download_board_card_asset(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path((board_id, card_id, card_asset_id)): Path<(String, String, String)>,
+) -> std::result::Result<Response, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(
+        &auth,
+        &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_OPERATOR_READONLY,
+            ROLE_AUTOMATION_RUNNER,
+        ],
+    )?;
+
+    let board_id = board_id.trim().to_string();
+    let card_id = card_id.trim().to_string();
+    let card_asset_id = card_asset_id.trim().to_string();
+
+    let card = state
+        .storage
+        .get_board_card(&card_id)
+        .map_err(|err| internal_err_with_error("loading board card failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "board card not found"))?;
+    if card.board_id != board_id {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "board card does not belong to board",
+        ));
+    }
+
+    let asset = state
+        .storage
+        .get_board_card_asset(&card_asset_id)
+        .map_err(|err| internal_err_with_error("loading board card asset failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "board card asset not found"))?;
+    if asset.card_id != card_id {
+        return Err(api_error(
+            StatusCode::NOT_FOUND,
+            "board card asset not found",
+        ));
+    }
+
+    let attachments_root = std::fs::canonicalize(state.attachments_path.as_str())
+        .unwrap_or_else(|_| PathBuf::from(state.attachments_path.as_str()));
+    let resolved_path = std::fs::canonicalize(PathBuf::from(&asset.local_path)).map_err(|err| {
+        if err.kind() == ErrorKind::NotFound {
+            api_error(StatusCode::NOT_FOUND, "board card asset file not found")
+        } else {
+            internal_err_with_error("resolving board card asset path failed", err.into())
+        }
+    })?;
+    if !resolved_path.starts_with(&attachments_root) {
+        return Err(api_error(
+            StatusCode::FORBIDDEN,
+            "board card asset path is outside attachments root",
+        ));
+    }
+
+    let bytes = std::fs::read(&resolved_path).map_err(|err| {
+        if err.kind() == ErrorKind::NotFound {
+            api_error(StatusCode::NOT_FOUND, "board card asset file not found")
+        } else {
+            internal_err_with_error("reading board card asset file failed", err.into())
+        }
+    })?;
+
+    let mut response = Response::new(Body::from(bytes));
+    *response.status_mut() = StatusCode::OK;
+    let mime_header = HeaderValue::from_str(&asset.mime)
+        .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream"));
+    response
+        .headers_mut()
+        .insert(header::CONTENT_TYPE, mime_header);
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    let safe_filename = sanitize_filename(&asset.filename);
+    if let Ok(disposition) = HeaderValue::from_str(&format!("inline; filename=\"{safe_filename}\""))
+    {
+        response
+            .headers_mut()
+            .insert(header::CONTENT_DISPOSITION, disposition);
+    }
+    Ok(response)
 }
 
 async fn run_board_card(
@@ -20775,14 +20873,10 @@ fn build_hook_bus_from_registry(
 
 fn emit_event(state: &AppState, event_name: &str, data: serde_json::Value) {
     let seq = state.event_seq.fetch_add(1, Ordering::Relaxed);
-    let frame = serde_json::json!({
-        "v": 1,
-        "type": "event",
-        "event": event_name,
-        "seq": seq,
-        "data": data
-    });
-    let _ = state.event_tx.send(frame.to_string());
+    let frame = WsEventFrame::new(seq, event_name, data);
+    if let Ok(serialized) = serde_json::to_string(&frame) {
+        let _ = state.event_tx.send(serialized);
+    }
 }
 
 fn load_operator_allowlist_from_env() -> Vec<String> {
@@ -31434,6 +31528,9 @@ sys.stdout.write(json.dumps(response))
         assert_eq!(upload_response.status(), StatusCode::CREATED);
         let upload_json = parse_json(upload_response).await;
         assert_eq!(upload_json["asset"]["mime"], "text/plain");
+        let asset_id = upload_json["asset"]["card_asset_id"]
+            .as_str()
+            .expect("asset id");
         assert_eq!(
             upload_json["card"]["assets"]
                 .as_array()
@@ -31441,6 +31538,29 @@ sys.stdout.write(json.dumps(response))
                 .len(),
             1
         );
+
+        let download_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/boards/{tasks_board_id}/cards/{card_id}/assets/{asset_id}"),
+                Body::empty(),
+            ))
+            .await
+            .expect("asset download response");
+        assert_eq!(download_response.status(), StatusCode::OK);
+        assert_eq!(
+            download_response
+                .headers()
+                .get(header::CONTENT_TYPE)
+                .and_then(|value| value.to_str().ok()),
+            Some("text/plain")
+        );
+        let body = to_bytes(download_response.into_body(), usize::MAX)
+            .await
+            .expect("asset download body");
+        assert_eq!(body.as_ref(), b"hello world");
     }
 
     #[tokio::test]

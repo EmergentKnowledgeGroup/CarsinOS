@@ -136,7 +136,13 @@ async fn websocket_stream_includes_run_and_approval_events() -> Result<()> {
     let gateway = GatewayProcess::spawn(state_dir.path(), "e2e-token-ws", Some("op-1")).await?;
     let mut ws = gateway.connect_ws().await?;
 
-    wait_for_ws_event(&mut ws, "gateway.status", Duration::from_secs(2)).await?;
+    let gateway_status =
+        wait_for_ws_event(&mut ws, "gateway.status", Duration::from_secs(2)).await?;
+    assert_eq!(gateway_status["schema_version"], "carsinos.ws.event.v1");
+    assert_eq!(gateway_status["event_type"], "gateway.status");
+    assert_eq!(gateway_status["entity"], "gateway");
+    assert_eq!(gateway_status["payload"]["status"], "ok");
+    assert!(gateway_status["event_id"].as_str().is_some());
 
     let created_session = gateway
         .request(Method::POST, "/api/v1/sessions")
