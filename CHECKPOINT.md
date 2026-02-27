@@ -5822,3 +5822,24 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/CHECKPOINT.md`
+
+### 2026-02-27 - Entry 275
+
+- checklist refs: `Q4` `Q7`
+- past action:
+- Monitored PR #43 check cycle and captured failed `Security PR Gate` logs from Actions run `22482361974`.
+- present action:
+- Diagnosed root cause: CI pinned `cargo-audit` `0.21.0`, which fails parsing CVSS 4.0 advisories (`unsupported CVSS version: 4.0`).
+- Updated `.github/workflows/pr-gate.yml` to pin `cargo-audit` to `0.22.1` (CVSS4-capable).
+- Revalidated `cargo audit` locally (pass with allowed warning policy).
+- validation outcomes:
+- `cargo audit` passed (no blocking vulnerabilities; allowed warnings only).
+- Checkpoint SOP:
+- post-green snapshot recorded for this remediation batch and checkpoint artifacts refreshed with required fields.
+- future action:
+- commit/push CI pin fix, re-run PR #43 checks, monitor CodeRabbit/check state, and merge when green.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/.github/workflows/pr-gate.yml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend/CHECKPOINT.md`

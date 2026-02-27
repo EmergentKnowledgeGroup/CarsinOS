@@ -1,12 +1,9 @@
 # LATEST Checkpoint
 
-- step: `mc3-pr43-update-pushed`
-- note: `Pushed clippy cleanup commit to open PR #43; waiting on checks/review`
+- step: `mc3-pr43-cargo-audit-pin-post-green`
+- note: `Updated PR gate cargo-audit pin for CVSS4 compatibility and validated cargo audit`
 - branch: `codex/mc3-pr1-backend`
-- head: `7a5592b`
-- next_cmd: `gh pr view 43 --json url,state,reviewDecision,statusCheckRollup,reviews`
+- head: `dfedfb8`
+- next_cmd: `git add .github/workflows/pr-gate.yml CHECKPOINT.md runtime/checkpoints/LATEST.md runtime/checkpoints/LATEST.json && git commit -m "ci(pr-gate): pin cargo-audit to CVSS4-capable version" && git push origin codex/mc3-pr1-backend`
 - validations:
-  - `cargo clippy -p carsinos-gateway -p carsinos-storage -p carsinos-protocol -p carsinos-gui -p carsinos-cli --all-targets -- -D warnings`
-  - `cargo test -p carsinos-storage`
-  - `cargo test -p carsinos-protocol`
-  - `cargo test -p carsinos-gateway`
+  - `cargo audit`
