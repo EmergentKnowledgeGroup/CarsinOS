@@ -1884,14 +1884,17 @@ export default function App() {
         sender_kind: "agent",
         recipients: parsePrincipalCsv(options.recipientsCsv),
       });
-      for (const file of options.files) {
-        const contentBase64 = await fileToBase64(file);
-        await uploadAgentMailAttachment(settings, sent.message.message_id, {
-          filename: file.name,
-          mime: file.type || "application/octet-stream",
-          content_base64: contentBase64,
-        });
-      }
+      const uploadResults = await Promise.allSettled(
+        options.files.map(async (file) => {
+          const contentBase64 = await fileToBase64(file);
+          await uploadAgentMailAttachment(settings, sent.message.message_id, {
+            filename: file.name,
+            mime: file.type || "application/octet-stream",
+            content_base64: contentBase64,
+          });
+        })
+      );
+      const failedUploads = uploadResults.filter((result) => result.status === "rejected").length;
       if (options.context === "mail") {
         setMailComposeBody("");
         setMailComposeRecipients("");
@@ -1902,8 +1905,13 @@ export default function App() {
         setChatAttachmentFiles([]);
       }
       setNotice({
-        tone: "info",
-        message: options.files.length > 0 ? "Message + attachments sent." : "Message sent.",
+        tone: failedUploads > 0 ? "error" : "info",
+        message:
+          failedUploads > 0
+            ? `Message sent, but ${failedUploads} attachment(s) failed to upload.`
+            : options.files.length > 0
+              ? "Message + attachments sent."
+              : "Message sent.",
       });
       queueAgentMailRefresh(settings);
     } catch (error) {

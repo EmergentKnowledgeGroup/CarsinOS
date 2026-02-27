@@ -1398,6 +1398,10 @@ impl Storage {
         let tx = conn.transaction()?;
         let now = now_ms();
         let thread_id = uuid::Uuid::new_v4().to_string();
+        let creator = new_thread.created_by_principal.trim().to_string();
+        if creator.is_empty() {
+            anyhow::bail!("created_by_principal is required");
+        }
         tx.execute(
             r#"
             INSERT INTO agent_mail_threads (
@@ -1408,7 +1412,7 @@ impl Storage {
                 thread_id,
                 new_thread.kind.trim(),
                 new_thread.subject.trim(),
-                new_thread.created_by_principal.trim(),
+                creator.as_str(),
                 now,
                 now
             ],
@@ -1416,16 +1420,13 @@ impl Storage {
         .context("failed to create agent mail thread")?;
 
         let mut participants = std::collections::BTreeMap::<String, String>::new();
-        participants.insert(
-            new_thread.created_by_principal.trim().to_string(),
-            "owner".to_string(),
-        );
+        participants.insert(creator.clone(), "owner".to_string());
         for (principal, role) in new_thread.participants {
             let principal = principal.trim().to_string();
             if principal.is_empty() {
                 continue;
             }
-            if principal == new_thread.created_by_principal.trim() {
+            if principal == creator {
                 participants.insert(principal, "owner".to_string());
                 continue;
             }
@@ -1641,6 +1642,12 @@ impl Storage {
     ) -> Result<Option<AgentMailMessageRecord>> {
         let mut conn = self.connect()?;
         let tx = conn.transaction()?;
+        let thread_id = new_message.thread_id.trim().to_string();
+        let sender_principal = new_message.sender_principal.trim().to_string();
+        if thread_id.is_empty() || sender_principal.is_empty() {
+            anyhow::bail!("thread_id and sender_principal are required");
+        }
+        let sender_kind = new_message.sender_kind.trim().to_string();
         let thread = tx
             .query_row(
                 r#"
@@ -1649,7 +1656,7 @@ impl Storage {
                 WHERE thread_id = ?1
                   AND archived_at IS NULL
                 "#,
-                params![new_message.thread_id.as_str()],
+                params![thread_id.as_str()],
                 |row| row.get::<_, String>(0),
             )
             .optional()?;
@@ -1664,11 +1671,7 @@ impl Storage {
               thread_id, principal_id, role, joined_at, last_read_at, muted
             ) VALUES (?1, ?2, 'member', ?3, ?3, 0)
             "#,
-            params![
-                new_message.thread_id.as_str(),
-                new_message.sender_principal.trim(),
-                now
-            ],
+            params![thread_id.as_str(), sender_principal.as_str(), now],
         )?;
 
         let message_id = uuid::Uuid::new_v4().to_string();
@@ -1680,9 +1683,9 @@ impl Storage {
             "#,
             params![
                 message_id,
-                new_message.thread_id.trim(),
-                new_message.sender_principal.trim(),
-                new_message.sender_kind.trim(),
+                thread_id.as_str(),
+                sender_principal.as_str(),
+                sender_kind.as_str(),
                 new_message.body_text,
                 new_message.metadata_json,
                 now
@@ -1706,10 +1709,7 @@ impl Storage {
                 "#,
             )?;
             let rows = stmt.query_map(
-                params![
-                    new_message.thread_id.as_str(),
-                    new_message.sender_principal.as_str()
-                ],
+                params![thread_id.as_str(), sender_principal.as_str()],
                 |row| row.get::<_, String>(0),
             )?;
             for row in rows {
@@ -1724,7 +1724,7 @@ impl Storage {
                   thread_id, principal_id, role, joined_at, last_read_at, muted
                 ) VALUES (?1, ?2, 'member', ?3, NULL, 0)
                 "#,
-                params![new_message.thread_id.as_str(), recipient.as_str(), now],
+                params![thread_id.as_str(), recipient.as_str(), now],
             )?;
             tx.execute(
                 r#"
@@ -1738,7 +1738,7 @@ impl Storage {
 
         tx.execute(
             "UPDATE agent_mail_threads SET updated_at = ?1 WHERE thread_id = ?2",
-            params![now, new_message.thread_id.as_str()],
+            params![now, thread_id.as_str()],
         )?;
         tx.commit()?;
         self.get_agent_mail_message(&message_id)

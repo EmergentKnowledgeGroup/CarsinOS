@@ -11316,6 +11316,31 @@ async fn ack_agent_mail_message(
     require_endpoint_rate_limit_with_error(&state, &auth, "agent_mail")?;
     let recipient_principal = resolve_agent_mail_principal(request.recipient_principal, &auth);
     let message_id = message_id.trim().to_string();
+    let message = state
+        .storage
+        .get_agent_mail_message(&message_id)
+        .map_err(|err| internal_err_with_error("loading agent-mail message failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "agent-mail message not found"))?;
+    if !agent_mail_is_operator_role(&auth) {
+        if !ensure_agent_mail_thread_membership(&state, &message.thread_id, &auth.principal_id)? {
+            return Err(api_error(
+                StatusCode::FORBIDDEN,
+                "acknowledge access denied",
+            ));
+        }
+        if recipient_principal != auth.principal_id
+            && !ensure_agent_mail_thread_membership(
+                &state,
+                &message.thread_id,
+                &recipient_principal,
+            )?
+        {
+            return Err(api_error(
+                StatusCode::FORBIDDEN,
+                "acknowledge access denied",
+            ));
+        }
+    }
     let ack = state
         .storage
         .acknowledge_agent_mail_message(&message_id, &recipient_principal)
@@ -11548,7 +11573,10 @@ async fn download_agent_mail_attachment(
         ));
     }
     let local_path = FsPath::new(&attachment.local_path);
-    if !local_path.exists() {
+    let exists = tokio::fs::try_exists(&local_path)
+        .await
+        .map_err(|err| internal_err_with_error("checking attachment file failed", err.into()))?;
+    if !exists {
         return Err(api_error(
             StatusCode::NOT_FOUND,
             "agent-mail attachment file not found",
