@@ -141,7 +141,7 @@ Acceptance:
 Priority: P0  
 Deliver:
 1. Connect to `/api/v1/ws`.
-2. Parse event envelope and route by `event_type` (`board.*`, `run.*`, `approval.*`, `job.*`, etc).
+2. Parse event envelope and route by `event_type` (`board.*`, `run.*`, `approval.*`, `job.*`, etc.).
 3. UI state updates are incremental (no full reload per event).
 Acceptance:
 1. Card move from Client A appears on Client B without refresh.

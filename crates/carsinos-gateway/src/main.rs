@@ -108,6 +108,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{broadcast, Mutex, RwLock, Semaphore};
 use tokio::time::sleep;
+use tokio_util::io::ReaderStream;
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 use tower_http::trace::{DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer};
 use tracing::{debug, error, info, warn, Level};
@@ -4822,16 +4823,19 @@ async fn ws_handler(
     .map_err(|err| err.status)?;
     info!("websocket client connected");
     let rx = state.event_tx.subscribe();
-    Ok(ws.on_upgrade(move |socket| handle_socket(socket, rx, state.started_at)))
+    let event_seq = state.event_seq.clone();
+    Ok(ws.on_upgrade(move |socket| handle_socket(socket, rx, state.started_at, event_seq)))
 }
 
 async fn handle_socket(
     mut socket: WebSocket,
     mut event_rx: broadcast::Receiver<String>,
     started_at: DateTime<Utc>,
+    event_seq: Arc<AtomicU64>,
 ) {
+    let seq = event_seq.fetch_add(1, Ordering::Relaxed);
     let event = WsEventFrame::new(
-        0,
+        seq,
         "gateway.status",
         serde_json::json!({
             "service": "carsinos-gateway",
@@ -6194,10 +6198,7 @@ async fn upload_board_card_asset(
         .map_err(|err| internal_err_with_error("loading board card failed", err))?
         .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "board card not found"))?;
     if card.board_id != board_id {
-        return Err(api_error(
-            StatusCode::BAD_REQUEST,
-            "board card does not belong to board",
-        ));
+        return Err(api_error(StatusCode::NOT_FOUND, "board card not found"));
     }
     let mime = request.mime.trim().to_ascii_lowercase();
     if !board_asset_mime_allowed(&mime) {
@@ -6334,10 +6335,7 @@ async fn download_board_card_asset(
         .map_err(|err| internal_err_with_error("loading board card failed", err))?
         .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "board card not found"))?;
     if card.board_id != board_id {
-        return Err(api_error(
-            StatusCode::BAD_REQUEST,
-            "board card does not belong to board",
-        ));
+        return Err(api_error(StatusCode::NOT_FOUND, "board card not found"));
     }
 
     let asset = state
@@ -6352,30 +6350,20 @@ async fn download_board_card_asset(
         ));
     }
 
-    let attachments_path = PathBuf::from(state.attachments_path.as_str());
-    let attachments_root =
-        tokio::task::spawn_blocking(move || std::fs::canonicalize(attachments_path))
-            .await
-            .map_err(|err| {
-                internal_err_with_error("canonicalizing attachments root task failed", err.into())
-            })?
-            .map_err(|err| {
-                internal_err_with_error("canonicalizing attachments root failed", err.into())
-            })?;
-    let local_path = asset.local_path.clone();
-    let resolved_path =
-        tokio::task::spawn_blocking(move || std::fs::canonicalize(PathBuf::from(local_path)))
-            .await
-            .map_err(|err| {
-                internal_err_with_error("resolving board card asset path task failed", err.into())
-            })?
-            .map_err(|err| {
-                if err.kind() == ErrorKind::NotFound {
-                    api_error(StatusCode::NOT_FOUND, "board card asset file not found")
-                } else {
-                    internal_err_with_error("resolving board card asset path failed", err.into())
-                }
-            })?;
+    let attachments_root = tokio::fs::canonicalize(state.attachments_path.as_str())
+        .await
+        .map_err(|err| {
+            internal_err_with_error("canonicalizing attachments root failed", err.into())
+        })?;
+    let resolved_path = tokio::fs::canonicalize(PathBuf::from(&asset.local_path))
+        .await
+        .map_err(|err| {
+            if err.kind() == ErrorKind::NotFound {
+                api_error(StatusCode::NOT_FOUND, "board card asset file not found")
+            } else {
+                internal_err_with_error("resolving board card asset path failed", err.into())
+            }
+        })?;
     if !resolved_path.starts_with(&attachments_root) {
         return Err(api_error(
             StatusCode::FORBIDDEN,
@@ -6383,22 +6371,17 @@ async fn download_board_card_asset(
         ));
     }
 
-    let read_path = resolved_path.clone();
-    let bytes = tokio::task::spawn_blocking(move || std::fs::read(&read_path))
-        .await
-        .map_err(|err| {
-            internal_err_with_error("reading board card asset file task failed", err.into())
-        })?
-        .map_err(|err| {
-            if err.kind() == ErrorKind::NotFound {
-                api_error(StatusCode::NOT_FOUND, "board card asset file not found")
-            } else {
-                internal_err_with_error("reading board card asset file failed", err.into())
-            }
-        })?;
-
-    let mut response = Response::new(Body::from(bytes));
+    let file = tokio::fs::File::open(&resolved_path).await.map_err(|err| {
+        if err.kind() == ErrorKind::NotFound {
+            api_error(StatusCode::NOT_FOUND, "board card asset file not found")
+        } else {
+            internal_err_with_error("opening board card asset file failed", err.into())
+        }
+    })?;
+    let stream = ReaderStream::new(file);
+    let mut response = Response::new(Body::from_stream(stream));
     *response.status_mut() = StatusCode::OK;
+
     let mime_header = HeaderValue::from_str(&asset.mime)
         .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream"));
     response
@@ -20895,8 +20878,18 @@ fn build_hook_bus_from_registry(
 fn emit_event(state: &AppState, event_name: &str, data: serde_json::Value) {
     let seq = state.event_seq.fetch_add(1, Ordering::Relaxed);
     let frame = WsEventFrame::new(seq, event_name, data);
-    if let Ok(serialized) = serde_json::to_string(&frame) {
-        let _ = state.event_tx.send(serialized);
+    match serde_json::to_string(&frame) {
+        Ok(serialized) => {
+            let _ = state.event_tx.send(serialized);
+        }
+        Err(err) => {
+            error!(
+                error = %err,
+                event_name = event_name,
+                seq = seq,
+                "failed to serialize websocket event frame"
+            );
+        }
     }
 }
 
@@ -31577,6 +31570,13 @@ sys.stdout.write(json.dumps(response))
                 .get(header::CONTENT_TYPE)
                 .and_then(|value| value.to_str().ok()),
             Some("text/plain")
+        );
+        assert_eq!(
+            download_response
+                .headers()
+                .get(header::CACHE_CONTROL)
+                .and_then(|value| value.to_str().ok()),
+            Some("no-store")
         );
         let body = to_bytes(download_response.into_body(), usize::MAX)
             .await
