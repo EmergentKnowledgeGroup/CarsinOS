@@ -23,6 +23,7 @@ export interface WsSubscription {
 export function connectGatewayEvents(options: ConnectOptions): WsSubscription {
   let closed = false;
   let socket: WebSocket | null = null;
+  let reconnectTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
   let reconnectDelayMs = 750;
   let reconnectAttempts = 0;
 
@@ -60,6 +61,10 @@ export function connectGatewayEvents(options: ConnectOptions): WsSubscription {
 
   const connect = async () => {
     const token = await getGatewayToken();
+    if (closed) {
+      options.onState("idle");
+      return;
+    }
     if (!token || !options.settings.gateway_url.trim()) {
       options.onState("idle");
       return;
@@ -131,7 +136,12 @@ export function connectGatewayEvents(options: ConnectOptions): WsSubscription {
     }
     const nextDelay = reconnectDelayMs;
     reconnectDelayMs = Math.min(reconnectDelayMs * 2, 5000);
-    globalThis.setTimeout(() => {
+    if (reconnectTimer !== null) {
+      globalThis.clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    reconnectTimer = globalThis.setTimeout(() => {
+      reconnectTimer = null;
       if (!closed) {
         void connect();
       }
@@ -143,6 +153,10 @@ export function connectGatewayEvents(options: ConnectOptions): WsSubscription {
   return {
     close() {
       closed = true;
+      if (reconnectTimer !== null) {
+        globalThis.clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
       if (socket) {
         socket.close();
       }
