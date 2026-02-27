@@ -161,7 +161,7 @@ Deliver:
 1. Drawer: description, owner (agent/human from config-backed agent list), due date, tags, script markdown.
 2. “Run card” button; shows run status + latest run id.
 Acceptance:
-1. Run is triggered via `POST /api/v1/boards/{board}/cards/{card}/run`.
+1. Run is triggered via `POST /api/v1/boards/{board_id}/cards/{card_id}/run`.
 2. Drawer shows updated linked run id within 2s (WS preferred).
 
 ### MC-SLICK-APP-012 Asset Upload + Preview

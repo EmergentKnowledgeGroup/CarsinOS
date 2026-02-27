@@ -31585,6 +31585,166 @@ sys.stdout.write(json.dumps(response))
     }
 
     #[tokio::test]
+    async fn board_card_asset_download_enforces_auth_and_not_found_paths() {
+        let ctx = test_context();
+
+        let boards_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request("GET", "/api/v1/boards", Body::empty()))
+            .await
+            .expect("boards response");
+        assert_eq!(boards_response.status(), StatusCode::OK);
+        let boards_json = parse_json(boards_response).await;
+        let tasks_board_id = boards_json["items"]
+            .as_array()
+            .expect("boards items")
+            .iter()
+            .find(|item| item["board_key"] == "tasks")
+            .and_then(|item| item["board_id"].as_str())
+            .expect("tasks board_id")
+            .to_string();
+
+        let board_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/boards/{tasks_board_id}"),
+                Body::empty(),
+            ))
+            .await
+            .expect("board detail response");
+        assert_eq!(board_response.status(), StatusCode::OK);
+        let board_json = parse_json(board_response).await;
+        let backlog_column_id = board_json["columns"]
+            .as_array()
+            .expect("columns")
+            .iter()
+            .find(|item| item["column_key"] == "backlog")
+            .and_then(|item| item["column_id"].as_str())
+            .expect("backlog column_id")
+            .to_string();
+
+        let create_card_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/boards/{tasks_board_id}/cards/create"),
+                Body::from(format!(
+                    r#"{{
+                    "column_id":"{}",
+                    "title":"Asset policy checks"
+                }}"#,
+                    backlog_column_id
+                )),
+            ))
+            .await
+            .expect("create board card response");
+        assert_eq!(create_card_response.status(), StatusCode::CREATED);
+        let create_card_json = parse_json(create_card_response).await;
+        let card_id = create_card_json["card"]["card_id"]
+            .as_str()
+            .expect("card_id")
+            .to_string();
+
+        let upload_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/boards/{tasks_board_id}/cards/{card_id}/assets/upload"),
+                Body::from(
+                    r#"{
+                    "filename":"policy.txt",
+                    "mime":"text/plain",
+                    "content_base64":"cG9saWN5"
+                }"#,
+                ),
+            ))
+            .await
+            .expect("asset upload response");
+        assert_eq!(upload_response.status(), StatusCode::CREATED);
+        let upload_json = parse_json(upload_response).await;
+        let asset_id = upload_json["asset"]["card_asset_id"]
+            .as_str()
+            .expect("asset id")
+            .to_string();
+
+        let asset_uri =
+            format!("/api/v1/boards/{tasks_board_id}/cards/{card_id}/assets/{asset_id}");
+
+        let unauthorized_response = ctx
+            .app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(asset_uri.as_str())
+                    .body(Body::empty())
+                    .expect("unauthorized request"),
+            )
+            .await
+            .expect("unauthorized response");
+        assert_eq!(unauthorized_response.status(), StatusCode::UNAUTHORIZED);
+
+        let missing_asset_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/boards/{tasks_board_id}/cards/{card_id}/assets/missing-asset"),
+                Body::empty(),
+            ))
+            .await
+            .expect("missing asset response");
+        assert_eq!(missing_asset_response.status(), StatusCode::NOT_FOUND);
+
+        let board_mismatch_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/boards/not-this-board/cards/{card_id}/assets/{asset_id}"),
+                Body::empty(),
+            ))
+            .await
+            .expect("board mismatch response");
+        assert_eq!(board_mismatch_response.status(), StatusCode::NOT_FOUND);
+
+        let outside_root_file = tempfile::NamedTempFile::new().expect("outside root file");
+        std::fs::write(outside_root_file.path(), b"outside-root").expect("write outside root file");
+        let outside_asset = ctx
+            .storage
+            .create_board_card_asset(NewBoardCardAsset {
+                card_id: card_id.clone(),
+                filename: "outside.txt".to_string(),
+                mime: "text/plain".to_string(),
+                sha256: "outside-sha".to_string(),
+                bytes: 12,
+                local_path: outside_root_file.path().to_string_lossy().to_string(),
+            })
+            .expect("create outside root asset")
+            .expect("outside root asset record");
+
+        let forbidden_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!(
+                    "/api/v1/boards/{tasks_board_id}/cards/{card_id}/assets/{}",
+                    outside_asset.card_asset_id
+                ),
+                Body::empty(),
+            ))
+            .await
+            .expect("outside root forbidden response");
+        assert_eq!(forbidden_response.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
     async fn run_board_card_links_session_and_latest_run() {
         let ctx = test_context();
         let boards_response = ctx
