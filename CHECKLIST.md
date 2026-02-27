@@ -260,4 +260,33 @@ Execution checklist derived from `PLAN.md`. IDs are stable and must be used by `
 - [x] `W3` `MC-SLICK-APP-003` Implement websocket realtime client with incremental event routing by `event_type`.
 - [x] `W4` `MC-SLICK-APP-010` Implement Kanban board UI with virtualization + drag/drop + optimistic update rollback.
 - [x] `W5` `MC-SLICK-APP-011` + `MC-SLICK-APP-012` Implement card drawer run hook and asset upload/preview using secure asset fetch endpoint.
-- [ ] `W6` Run phase regression gates and benchmark suite, then complete PR workflow (open, CR loop, merge, post-merge checkpoint).
+- [x] `W6` Run phase regression gates and benchmark suite, then complete PR workflow (open, CR loop, merge, post-merge checkpoint).
+
+## Phase X - MC Slick P1 (PR-C)
+
+- [ ] `X1` `MC-SLICK-BE-101` Add stable mission-control read model APIs for calendar week view and operator focus queue.
+- [ ] `X2` `MC-SLICK-APP-101` Implement Mission Control Calendar tab with week board, always-running lane, next-up queue, and run/pause/resume actions.
+- [ ] `X3` `MC-SLICK-APP-102` Implement Operator Focus tab with actionable queue (approvals, failures, channel health, breaker alerts).
+- [ ] `X4` `MC-SLICK-APP-103` Implement Event Stream tab backed by websocket feed with default noise filtering and raw toggle.
+- [ ] `X5` Run PR-C regression + benchmark + security gates and complete PR workflow (open, CR loop, merge, post-merge checkpoint).
+
+## Phase Y - MC Slick P2 Cockpit (PR-D)
+
+- [ ] `Y1` `MC-SLICK-APP-201` Implement cockpit widget registry/palette/grid with save/load pages and import/export JSON.
+- [ ] `Y2` `MC-SLICK-APP-202` Implement pinned health strip with incident-mode filtering and top-priority break/fail indicators.
+- [ ] `Y3` `MC-SLICK-APP-203` Implement multi-agent/provider control surfaces (profile order, channel ops, skill/plugin toggles).
+- [ ] `Y4` Run PR-D regression + benchmark + security gates and complete PR workflow (open, CR loop, merge, post-merge checkpoint).
+
+## Phase Z - Agent Mail P3 (PR-E)
+
+- [ ] `Z1` `AM-BE-001` Add agent-mail persistence/search schema + storage APIs with attachment policy controls.
+- [ ] `Z2` `AM-BE-002..004` Add agent-mail HTTP/WS APIs (threads/messages/ack/chatrooms) with guardrails/rate limits/audit trails.
+- [ ] `Z3` `AM-APP-001` Implement Mission Control Mail page (inbox/outbox/thread/compose/search/summarize).
+- [ ] `Z4` `AM-APP-002` Implement Mission Control Chatrooms page with realtime stream + moderation controls.
+- [ ] `Z5` `AM-OPT-001` Implement optional advisory file leases (TTL/exclusive/conflict visibility).
+- [ ] `Z6` Run PR-E regression + benchmark + security gates and complete PR workflow (open, CR loop, merge, post-merge checkpoint).
+
+## Phase AA - Agent Mail MCP Facade (PR-F Optional)
+
+- [ ] `AA1` `AM-MCP-001` Implement MCP-compatible facade endpoints for agent-mail send/fetch/ack/leases.
+- [ ] `AA2` Run PR-F regression + benchmark + security gates and complete PR workflow (open, CR loop, merge, post-merge checkpoint).

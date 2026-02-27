@@ -4,12 +4,21 @@ import clsx from "clsx";
 import {
   createBoardCard,
   fetchBoardCardAssetBlob,
+  getChannelRuntimeStatus,
   getBoard,
+  getMissionControlCalendarWeek,
+  getMissionControlFocus,
   getGatewayHealth,
   listAgents,
   listBoards,
+  listJobs,
+  listApprovals,
   moveBoardCard,
+  reconnectChannelRuntime,
+  resolveApproval,
+  runJobNow,
   runBoardCard,
+  setJobEnabledState,
   updateBoardCard,
   uploadBoardCardAsset,
 } from "./lib/api";
@@ -26,6 +35,10 @@ import type {
   BoardCard,
   BoardColumn,
   BoardDetail,
+  ChannelRuntimeAdapterStatusResponse,
+  MissionControlCalendarJob,
+  MissionControlCalendarWeekResponse,
+  MissionControlFocusItem,
   RuntimeConnectionSettings,
   WsEventFrame,
 } from "./types";
@@ -34,6 +47,16 @@ import "./styles.css";
 interface Notice {
   tone: "info" | "error" | "critical";
   message: string;
+}
+
+type MissionControlTab = "boards" | "calendar" | "focus" | "events";
+
+interface EventStreamItem {
+  event_id: string;
+  event_type: string;
+  entity: string;
+  ts_unix_ms: number;
+  payload: Record<string, unknown>;
 }
 
 interface CardEditorDraft {
@@ -196,6 +219,13 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
+function formatDateTime(unixMs: number | null | undefined): string {
+  if (!unixMs) {
+    return "n/a";
+  }
+  return new Date(unixMs).toLocaleString();
+}
+
 function BoardLane(props: {
   column: BoardColumn;
   cards: BoardCard[];
@@ -316,6 +346,7 @@ function BoardLane(props: {
 }
 
 export default function App() {
+  const [activeTab, setActiveTab] = useState<MissionControlTab>("boards");
   const [settings, setSettings] = useState<RuntimeConnectionSettings>(
     loadConnectionSettings()
   );
@@ -326,11 +357,22 @@ export default function App() {
   const [healthState, setHealthState] = useState("idle");
   const [wsState, setWsState] = useState<WsLifecycleState>("idle");
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [eventStream, setEventStream] = useState<EventStreamItem[]>([]);
+  const [showRawEvents, setShowRawEvents] = useState(false);
 
   const [boards, setBoards] = useState<{ board_id: string; name: string }[]>([]);
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
   const [board, setBoard] = useState<BoardDetail | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [calendarWeek, setCalendarWeek] = useState<MissionControlCalendarWeekResponse | null>(
+    null
+  );
+  const [focusItems, setFocusItems] = useState<MissionControlFocusItem[]>([]);
+  const [channelStatuses, setChannelStatuses] = useState<ChannelRuntimeAdapterStatusResponse[]>(
+    []
+  );
+  const [jobsById, setJobsById] = useState<Map<string, MissionControlCalendarJob>>(new Map());
+  const [approvalsById, setApprovalsById] = useState<Set<string>>(new Set());
 
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [cardEditor, setCardEditor] = useState<CardEditorDraft>(emptyEditorDraft());
@@ -338,6 +380,7 @@ export default function App() {
   const [dragCardId, setDragCardId] = useState<string | null>(null);
 
   const boardRefreshTimer = useRef<number | null>(null);
+  const missionControlRefreshTimer = useRef<number | null>(null);
 
   const cardsByColumn = useMemo(() => toCardsByColumn(board), [board]);
 
@@ -376,9 +419,9 @@ export default function App() {
   const queueBoardRefresh = useCallback(
     (boardId: string, runtimeSettings: RuntimeConnectionSettings = settings) => {
       if (boardRefreshTimer.current) {
-        window.clearTimeout(boardRefreshTimer.current);
+        globalThis.clearTimeout(boardRefreshTimer.current);
       }
-      boardRefreshTimer.current = window.setTimeout(() => {
+      boardRefreshTimer.current = globalThis.setTimeout(() => {
         void refreshBoard(boardId, runtimeSettings).catch((error: unknown) => {
           setNotice({
             tone: "error",
@@ -388,6 +431,67 @@ export default function App() {
       }, 250);
     },
     [refreshBoard, settings]
+  );
+
+  const loadMissionControlReadModels = useCallback(
+    async (runtimeSettings: RuntimeConnectionSettings = settings) => {
+      const [calendar, focus, jobs, approvals, channelRuntime] = await Promise.all([
+        getMissionControlCalendarWeek(runtimeSettings),
+        getMissionControlFocus(runtimeSettings, 100),
+        listJobs(runtimeSettings, 200),
+        listApprovals(runtimeSettings, "requested", 200),
+        getChannelRuntimeStatus(runtimeSettings),
+      ]);
+      setCalendarWeek(calendar);
+      setFocusItems(focus.items);
+      setJobsById(
+        new Map(
+          jobs.items.map((item) => [
+            item.job_id,
+            {
+              job_id: item.job_id,
+              name: item.name,
+              agent_id: item.agent_id,
+              enabled: item.enabled,
+              schedule_kind: item.schedule_kind,
+              interval_seconds: item.interval_seconds,
+              cron_expr: item.cron_expr,
+              next_run_at: item.next_run_at,
+              last_run_at: item.last_run_at,
+              last_error: item.last_error,
+              lane:
+                item.enabled &&
+                item.schedule_kind === "interval" &&
+                (item.interval_seconds ?? 0) <= 300 &&
+                (item.interval_seconds ?? 0) > 0
+                  ? "always_running"
+                  : "scheduled",
+              primary_action: item.enabled ? "pause" : "resume",
+            } satisfies MissionControlCalendarJob,
+          ])
+        )
+      );
+      setApprovalsById(new Set(approvals.items.map((item) => item.approval_id)));
+      setChannelStatuses(channelRuntime.items);
+    },
+    [settings]
+  );
+
+  const queueMissionControlRefresh = useCallback(
+    (runtimeSettings: RuntimeConnectionSettings = settings) => {
+      if (missionControlRefreshTimer.current) {
+        globalThis.clearTimeout(missionControlRefreshTimer.current);
+      }
+      missionControlRefreshTimer.current = globalThis.setTimeout(() => {
+        void loadMissionControlReadModels(runtimeSettings).catch((error: unknown) => {
+          setNotice({
+            tone: "error",
+            message: `Mission Control refresh failed: ${String(error)}`,
+          });
+        });
+      }, 300);
+    },
+    [loadMissionControlReadModels, settings]
   );
 
   const loadBaseline = useCallback(
@@ -418,8 +522,9 @@ export default function App() {
       } else {
         setBoard(null);
       }
+      await loadMissionControlReadModels(runtimeSettings);
     },
-    [activeBoardId, refreshBoard, settings]
+    [activeBoardId, loadMissionControlReadModels, refreshBoard, settings]
   );
 
   useEffect(() => {
@@ -437,6 +542,25 @@ export default function App() {
       maxReconnectAttempts: 40,
       onState: setWsState,
       onEvent: (frame: WsEventFrame) => {
+        setEventStream((previous) => {
+          const next: EventStreamItem = {
+            event_id: frame.event_id,
+            event_type: frame.event_type,
+            entity: frame.entity,
+            ts_unix_ms: frame.ts_unix_ms,
+            payload: frame.payload,
+          };
+          return [next, ...previous].slice(0, 400);
+        });
+
+        if (
+          frame.event_type.startsWith("job.") ||
+          frame.event_type.startsWith("approval.") ||
+          frame.event_type.startsWith("channel.")
+        ) {
+          queueMissionControlRefresh(settings);
+        }
+
         if (!activeBoardId) {
           return;
         }
@@ -527,7 +651,13 @@ export default function App() {
     return () => {
       subscription.close();
     };
-  }, [activeBoardId, queueBoardRefresh, settings, tokenConfigured]);
+  }, [
+    activeBoardId,
+    queueBoardRefresh,
+    queueMissionControlRefresh,
+    settings,
+    tokenConfigured,
+  ]);
 
   const saveConnection = async () => {
     try {
@@ -725,6 +855,101 @@ export default function App() {
     }
   };
 
+  const runCalendarJobNow = async (jobId: string) => {
+    try {
+      const response = await runJobNow(settings, jobId);
+      setNotice({
+        tone: "info",
+        message: `Job run started (${response.job_run.status})`,
+      });
+      queueMissionControlRefresh(settings);
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message: `Run-now failed: ${String(error)}`,
+      });
+    }
+  };
+
+  const toggleCalendarJob = async (jobId: string, enabled: boolean) => {
+    try {
+      const response = await setJobEnabledState(settings, jobId, enabled);
+      setJobsById((previous) => {
+        const next = new Map(previous);
+        const existing = next.get(jobId);
+        if (existing) {
+          next.set(jobId, {
+            ...existing,
+            enabled: response.job.enabled,
+            primary_action: response.job.enabled ? "pause" : "resume",
+            next_run_at: response.job.next_run_at,
+            last_error: response.job.last_error,
+          });
+        }
+        return next;
+      });
+      setNotice({
+        tone: "info",
+        message: enabled ? "Job resumed." : "Job paused.",
+      });
+      queueMissionControlRefresh(settings);
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message: `Job state update failed: ${String(error)}`,
+      });
+    }
+  };
+
+  const resolveFocusApproval = async (
+    approvalId: string,
+    decision: "approve" | "deny"
+  ) => {
+    try {
+      const response = await resolveApproval(settings, approvalId, decision);
+      setApprovalsById((previous) => {
+        const next = new Set(previous);
+        if (response.approval.status !== "requested") {
+          next.delete(approvalId);
+        }
+        return next;
+      });
+      setNotice({
+        tone: "info",
+        message: `Approval ${decision}d.`,
+      });
+      queueMissionControlRefresh(settings);
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message: `Approval ${decision} failed: ${String(error)}`,
+      });
+    }
+  };
+
+  const reconnectFocusChannel = async (provider: string) => {
+    try {
+      await reconnectChannelRuntime(settings, provider);
+      setNotice({
+        tone: "info",
+        message: `Channel reconnect requested for ${provider}.`,
+      });
+      queueMissionControlRefresh(settings);
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message: `Channel reconnect failed: ${String(error)}`,
+      });
+    }
+  };
+
+  const visibleEvents = useMemo(() => {
+    if (showRawEvents) {
+      return eventStream;
+    }
+    return eventStream.filter((event) => !event.event_type.startsWith("heartbeat."));
+  }, [eventStream, showRawEvents]);
+
   const columns = board?.columns ?? [];
   const boardScrollerRef = useRef<HTMLDivElement | null>(null);
   const columnVirtualizer = useVirtualizer({
@@ -735,10 +960,17 @@ export default function App() {
     overscan: 2,
   });
 
+  const calendarAlwaysRunning = calendarWeek?.always_running ?? [];
+  const calendarNextUp = calendarWeek?.next_up ?? [];
+  const calendarJobs = calendarWeek?.jobs ?? Array.from(jobsById.values());
+
   useEffect(() => {
     return () => {
       if (boardRefreshTimer.current) {
-        window.clearTimeout(boardRefreshTimer.current);
+        globalThis.clearTimeout(boardRefreshTimer.current);
+      }
+      if (missionControlRefreshTimer.current) {
+        globalThis.clearTimeout(missionControlRefreshTimer.current);
       }
       if (selectedPreviewUrl) {
         URL.revokeObjectURL(selectedPreviewUrl);
@@ -795,236 +1027,538 @@ export default function App() {
         <div className={clsx("mc-notice", `mc-notice-${notice.tone}`)}>{notice.message}</div>
       ) : null}
 
-      <section className="mc-main-grid">
-        <section className="mc-board-panel">
-          <div className="mc-board-toolbar">
-            <label>
-              Board
-              <select
-                value={activeBoardId ?? ""}
-                onChange={(event) => void handleBoardChange(event.target.value)}
-              >
-                {boards.map((item) => (
-                  <option key={item.board_id} value={item.board_id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+      <section className="mc-tabs">
+        <button
+          type="button"
+          className={clsx("mc-tab", activeTab === "boards" && "mc-tab-active")}
+          onClick={() => setActiveTab("boards")}
+        >
+          Boards
+        </button>
+        <button
+          type="button"
+          className={clsx("mc-tab", activeTab === "calendar" && "mc-tab-active")}
+          onClick={() => setActiveTab("calendar")}
+        >
+          Calendar
+        </button>
+        <button
+          type="button"
+          className={clsx("mc-tab", activeTab === "focus" && "mc-tab-active")}
+          onClick={() => setActiveTab("focus")}
+        >
+          Operator Focus
+        </button>
+        <button
+          type="button"
+          className={clsx("mc-tab", activeTab === "events" && "mc-tab-active")}
+          onClick={() => setActiveTab("events")}
+        >
+          Event Stream
+        </button>
+      </section>
 
-          <div className="mc-board-scroll" ref={boardScrollerRef}>
-            <div
-              className="mc-board-canvas"
-              style={{ width: `${columnVirtualizer.getTotalSize()}px` }}
-            >
-              {columnVirtualizer.getVirtualItems().map((virtualColumn) => {
-                const column = columns[virtualColumn.index];
-                const cards = cardsByColumn.get(column.column_id) ?? [];
-                return (
-                  <div
-                    key={column.column_id}
-                    className="mc-board-column-wrap"
-                    style={{ transform: `translateX(${virtualColumn.start}px)` }}
-                  >
-                    <BoardLane
-                      column={column}
-                      cards={cards}
-                      selectedCardId={selectedCardId}
-                      dragCardId={dragCardId}
-                      setDragCardId={setDragCardId}
-                      onSelectCard={setSelectedCardId}
-                      onDropCard={handleDropCard}
-                      onCreateCard={handleCreateCard}
-                    />
-                  </div>
-                );
-              })}
+      {activeTab === "boards" ? (
+        <section className="mc-main-grid">
+          <section className="mc-board-panel">
+            <div className="mc-board-toolbar">
+              <label>
+                Board
+                <select
+                  value={activeBoardId ?? ""}
+                  onChange={(event) => void handleBoardChange(event.target.value)}
+                >
+                  {boards.map((item) => (
+                    <option key={item.board_id} value={item.board_id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
-          </div>
-        </section>
 
-        <aside className="mc-drawer">
-          {!selectedCard ? (
-            <div className="mc-empty-drawer">Select a card to edit and run.</div>
-          ) : (
-            <>
-              <header className="mc-drawer-header">
-                <h2>Card Drawer</h2>
-                {selectedCard.latest_run_id ? (
-                  <span className="run-pill">latest run: {selectedCard.latest_run_id}</span>
-                ) : null}
-              </header>
-
-              <label>
-                Title
-                <input
-                  value={cardEditor.title}
-                  onChange={(event) =>
-                    setCardEditor((previous) => ({
-                      ...previous,
-                      title: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-
-              <label>
-                Description
-                <textarea
-                  value={cardEditor.description}
-                  onChange={(event) =>
-                    setCardEditor((previous) => ({
-                      ...previous,
-                      description: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-
-              <div className="mc-field-grid">
-                <label>
-                  Owner Kind
-                  <select
-                    value={cardEditor.ownerKind}
-                    onChange={(event) =>
-                      setCardEditor((previous) => ({
-                        ...previous,
-                        ownerKind: event.target.value,
-                      }))
-                    }
-                  >
-                    <option value="unassigned">unassigned</option>
-                    <option value="agent">agent</option>
-                    <option value="human">human</option>
-                  </select>
-                </label>
-
-                <label>
-                  Owner Agent
-                  <select
-                    value={cardEditor.ownerAgentId}
-                    onChange={(event) =>
-                      setCardEditor((previous) => ({
-                        ...previous,
-                        ownerAgentId: event.target.value,
-                      }))
-                    }
-                  >
-                    <option value="">none</option>
-                    {agents.map((agent) => (
-                      <option key={agent.agent_id} value={agent.agent_id}>
-                        {agent.name} ({agent.agent_id})
-                      </option>
-                    ))}
-                  </select>
-                </label>
+            <div className="mc-board-scroll" ref={boardScrollerRef}>
+              <div
+                className="mc-board-canvas"
+                style={{ width: `${columnVirtualizer.getTotalSize()}px` }}
+              >
+                {columnVirtualizer.getVirtualItems().map((virtualColumn) => {
+                  const column = columns[virtualColumn.index];
+                  const cards = cardsByColumn.get(column.column_id) ?? [];
+                  return (
+                    <div
+                      key={column.column_id}
+                      className="mc-board-column-wrap"
+                      style={{ transform: `translateX(${virtualColumn.start}px)` }}
+                    >
+                      <BoardLane
+                        column={column}
+                        cards={cards}
+                        selectedCardId={selectedCardId}
+                        dragCardId={dragCardId}
+                        setDragCardId={setDragCardId}
+                        onSelectCard={setSelectedCardId}
+                        onDropCard={handleDropCard}
+                        onCreateCard={handleCreateCard}
+                      />
+                    </div>
+                  );
+                })}
               </div>
+            </div>
+          </section>
 
-              <div className="mc-field-grid">
+          <aside className="mc-drawer">
+            {!selectedCard ? (
+              <div className="mc-empty-drawer">Select a card to edit and run.</div>
+            ) : (
+              <>
+                <header className="mc-drawer-header">
+                  <h2>Card Drawer</h2>
+                  {selectedCard.latest_run_id ? (
+                    <span className="run-pill">latest run: {selectedCard.latest_run_id}</span>
+                  ) : null}
+                </header>
+
                 <label>
-                  Owner Human
+                  Title
                   <input
-                    value={cardEditor.ownerHumanId}
+                    value={cardEditor.title}
                     onChange={(event) =>
                       setCardEditor((previous) => ({
                         ...previous,
-                        ownerHumanId: event.target.value,
+                        title: event.target.value,
                       }))
                     }
                   />
                 </label>
 
                 <label>
-                  Due
-                  <input
-                    type="datetime-local"
-                    value={cardEditor.dueAt}
+                  Description
+                  <textarea
+                    value={cardEditor.description}
                     onChange={(event) =>
                       setCardEditor((previous) => ({
                         ...previous,
-                        dueAt: event.target.value,
+                        description: event.target.value,
                       }))
                     }
                   />
                 </label>
-              </div>
 
-              <label>
-                Tags (comma separated)
-                <input
-                  value={cardEditor.tagsCsv}
-                  onChange={(event) =>
-                    setCardEditor((previous) => ({
-                      ...previous,
-                      tagsCsv: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-
-              <label>
-                Script Markdown
-                <textarea
-                  className="script-area"
-                  value={cardEditor.scriptMarkdown}
-                  onChange={(event) =>
-                    setCardEditor((previous) => ({
-                      ...previous,
-                      scriptMarkdown: event.target.value,
-                    }))
-                  }
-                />
-              </label>
-
-              <div className="mc-drawer-actions">
-                <button type="button" onClick={() => void saveCardDraft()}>
-                  Save Card
-                </button>
-                <button type="button" onClick={() => void runCard()}>
-                  Run Card
-                </button>
-              </div>
-
-              <section className="mc-assets">
-                <h3>Assets</h3>
-                <label className="upload-pill">
-                  <input
-                    type="file"
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (!file) {
-                        return;
+                <div className="mc-field-grid">
+                  <label>
+                    Owner Kind
+                    <select
+                      value={cardEditor.ownerKind}
+                      onChange={(event) =>
+                        setCardEditor((previous) => ({
+                          ...previous,
+                          ownerKind: event.target.value,
+                        }))
                       }
-                      void uploadAsset(file);
-                      event.currentTarget.value = "";
-                    }}
+                    >
+                      <option value="unassigned">unassigned</option>
+                      <option value="agent">agent</option>
+                      <option value="human">human</option>
+                    </select>
+                  </label>
+
+                  <label>
+                    Owner Agent
+                    <select
+                      value={cardEditor.ownerAgentId}
+                      onChange={(event) =>
+                        setCardEditor((previous) => ({
+                          ...previous,
+                          ownerAgentId: event.target.value,
+                        }))
+                      }
+                    >
+                      <option value="">none</option>
+                      {agents.map((agent) => (
+                        <option key={agent.agent_id} value={agent.agent_id}>
+                          {agent.name} ({agent.agent_id})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <div className="mc-field-grid">
+                  <label>
+                    Owner Human
+                    <input
+                      value={cardEditor.ownerHumanId}
+                      onChange={(event) =>
+                        setCardEditor((previous) => ({
+                          ...previous,
+                          ownerHumanId: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+
+                  <label>
+                    Due
+                    <input
+                      type="datetime-local"
+                      value={cardEditor.dueAt}
+                      onChange={(event) =>
+                        setCardEditor((previous) => ({
+                          ...previous,
+                          dueAt: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
+
+                <label>
+                  Tags (comma separated)
+                  <input
+                    value={cardEditor.tagsCsv}
+                    onChange={(event) =>
+                      setCardEditor((previous) => ({
+                        ...previous,
+                        tagsCsv: event.target.value,
+                      }))
+                    }
                   />
-                  Upload
                 </label>
+
+                <label>
+                  Script Markdown
+                  <textarea
+                    className="script-area"
+                    value={cardEditor.scriptMarkdown}
+                    onChange={(event) =>
+                      setCardEditor((previous) => ({
+                        ...previous,
+                        scriptMarkdown: event.target.value,
+                      }))
+                    }
+                  />
+                </label>
+
+                <div className="mc-drawer-actions">
+                  <button type="button" onClick={() => void saveCardDraft()}>
+                    Save Card
+                  </button>
+                  <button type="button" onClick={() => void runCard()}>
+                    Run Card
+                  </button>
+                </div>
+
+                <section className="mc-assets">
+                  <h3>Assets</h3>
+                  <label className="upload-pill">
+                    <input
+                      type="file"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (!file) {
+                          return;
+                        }
+                        void uploadAsset(file);
+                        event.currentTarget.value = "";
+                      }}
+                    />
+                    Upload
+                  </label>
+                  <ul>
+                    {selectedCard.assets.map((asset) => (
+                      <li key={asset.card_asset_id}>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void previewAsset(selectedCard.card_id, asset.card_asset_id)
+                          }
+                        >
+                          {asset.filename}
+                        </button>
+                        <span>{formatBytes(asset.bytes)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {selectedPreviewUrl ? (
+                    <div className="mc-preview-wrap">
+                      <img src={selectedPreviewUrl} alt="asset preview" />
+                    </div>
+                  ) : null}
+                </section>
+              </>
+            )}
+          </aside>
+        </section>
+      ) : null}
+
+      {activeTab === "calendar" ? (
+        <section className="mc-alt-grid">
+          <article className="mc-surface">
+            <header className="mc-surface-header">
+              <h2>Week Planning</h2>
+              <p>
+                {calendarWeek
+                  ? `${formatDateTime(calendarWeek.week_start_ms)} - ${formatDateTime(
+                      calendarWeek.week_end_ms
+                    )}`
+                  : "No week data loaded"}
+              </p>
+            </header>
+            <div className="mc-lane-grid">
+              <section className="mc-lane-panel">
+                <h3>Always Running</h3>
                 <ul>
-                  {selectedCard.assets.map((asset) => (
-                    <li key={asset.card_asset_id}>
-                      <button
-                        type="button"
-                        onClick={() => void previewAsset(selectedCard.card_id, asset.card_asset_id)}
-                      >
-                        {asset.filename}
-                      </button>
-                      <span>{formatBytes(asset.bytes)}</span>
+                  {calendarAlwaysRunning.map((job) => (
+                    <li key={job.job_id}>
+                      <div>
+                        <strong>{job.name}</strong>
+                        <p>{job.agent_id}</p>
+                      </div>
+                      <div className="mc-inline-actions">
+                        <button type="button" onClick={() => void runCalendarJobNow(job.job_id)}>
+                          Run now
+                        </button>
+                        <button
+                          type="button"
+                          className={job.enabled ? "danger" : ""}
+                          onClick={() => void toggleCalendarJob(job.job_id, !job.enabled)}
+                        >
+                          {job.enabled ? "Pause" : "Resume"}
+                        </button>
+                      </div>
                     </li>
                   ))}
                 </ul>
-                {selectedPreviewUrl ? (
-                  <div className="mc-preview-wrap">
-                    <img src={selectedPreviewUrl} alt="asset preview" />
-                  </div>
-                ) : null}
               </section>
-            </>
-          )}
-        </aside>
-      </section>
+              <section className="mc-lane-panel">
+                <h3>Next Up</h3>
+                <ul>
+                  {calendarNextUp.map((job) => (
+                    <li key={job.job_id}>
+                      <div>
+                        <strong>{job.name}</strong>
+                        <p>{formatDateTime(job.next_run_at)}</p>
+                      </div>
+                      <button type="button" onClick={() => void runCalendarJobNow(job.job_id)}>
+                        Run now
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            </div>
+          </article>
+          <article className="mc-surface">
+            <header className="mc-surface-header">
+              <h2>Scheduler Matrix</h2>
+              <p>{calendarJobs.length} jobs</p>
+            </header>
+            <div className="mc-table-wrap">
+              <table className="mc-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Schedule</th>
+                    <th>Next Run</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {calendarJobs.map((job) => (
+                    <tr key={job.job_id}>
+                      <td>
+                        <strong>{job.name}</strong>
+                        <p>{job.agent_id}</p>
+                      </td>
+                      <td>
+                        {job.schedule_kind}
+                        {job.interval_seconds ? ` / ${job.interval_seconds}s` : ""}
+                        {job.cron_expr ? ` / ${job.cron_expr}` : ""}
+                      </td>
+                      <td>{formatDateTime(job.next_run_at)}</td>
+                      <td>
+                        <span
+                          className={clsx("chip", job.enabled ? "chip-up" : "chip-down")}
+                        >
+                          {job.enabled ? "enabled" : "paused"}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="mc-inline-actions">
+                          <button type="button" onClick={() => void runCalendarJobNow(job.job_id)}>
+                            Run
+                          </button>
+                          <button
+                            type="button"
+                            className={job.enabled ? "danger" : ""}
+                            onClick={() => void toggleCalendarJob(job.job_id, !job.enabled)}
+                          >
+                            {job.enabled ? "Pause" : "Resume"}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+      ) : null}
+
+      {activeTab === "focus" ? (
+        <section className="mc-alt-grid">
+          <article className="mc-surface">
+            <header className="mc-surface-header">
+              <h2>Operator Focus Queue</h2>
+              <p>{focusItems.length} open attention items</p>
+            </header>
+            <div className="mc-focus-list">
+              {focusItems.map((item) => (
+                <article key={item.item_id} className={clsx("mc-focus-item", item.severity)}>
+                  <div className="mc-focus-head">
+                    <span className={clsx("chip", `chip-${item.severity}`)}>
+                      {item.severity}
+                    </span>
+                    <span>{item.category}</span>
+                    <span>{formatDateTime(item.created_at)}</span>
+                  </div>
+                  <h3>{item.title}</h3>
+                  <p>{item.detail}</p>
+                  <div className="mc-inline-actions">
+                    {item.category === "approval" ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void resolveFocusApproval(
+                              String(item.action_payload.approval_id ?? ""),
+                              "approve"
+                            )
+                          }
+                        >
+                          Approve
+                        </button>
+                        <button
+                          type="button"
+                          className="danger"
+                          onClick={() =>
+                            void resolveFocusApproval(
+                              String(item.action_payload.approval_id ?? ""),
+                              "deny"
+                            )
+                          }
+                        >
+                          Deny
+                        </button>
+                      </>
+                    ) : null}
+                    {item.category === "run_failure" ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void runCalendarJobNow(String(item.action_payload.job_id ?? ""))
+                        }
+                      >
+                        Retry Job
+                      </button>
+                    ) : null}
+                    {item.category === "channel_health" ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void reconnectFocusChannel(
+                            String(item.action_payload.provider ?? "")
+                          )
+                        }
+                      >
+                        Reconnect Channel
+                      </button>
+                    ) : null}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </article>
+          <article className="mc-surface">
+            <header className="mc-surface-header">
+              <h2>Ops Snapshot</h2>
+              <p>Live queue and channel posture</p>
+            </header>
+            <ul className="mc-stat-list">
+              <li>
+                <strong>Pending approvals</strong>
+                <span>{approvalsById.size}</span>
+              </li>
+              <li>
+                <strong>Channel adapters</strong>
+                <span>{channelStatuses.length}</span>
+              </li>
+              <li>
+                <strong>Degraded channels</strong>
+                <span>
+                  {
+                    channelStatuses.filter(
+                      (item) => !item.healthy || item.lifecycle_state !== "running"
+                    ).length
+                  }
+                </span>
+              </li>
+            </ul>
+            <div className="mc-channel-grid">
+              {channelStatuses.map((item) => (
+                <article key={item.provider} className="mc-channel-card">
+                  <h3>{item.provider}</h3>
+                  <p>{item.lifecycle_state}</p>
+                  <p>{item.last_error ?? item.detail ?? "healthy"}</p>
+                  <button
+                    type="button"
+                    onClick={() => void reconnectFocusChannel(item.provider)}
+                  >
+                    Reconnect
+                  </button>
+                </article>
+              ))}
+            </div>
+          </article>
+        </section>
+      ) : null}
+
+      {activeTab === "events" ? (
+        <section className="mc-alt-grid">
+          <article className="mc-surface">
+            <header className="mc-surface-header">
+              <h2>Realtime Event Stream</h2>
+              <label className="mc-checkbox">
+                <input
+                  type="checkbox"
+                  checked={showRawEvents}
+                  onChange={(event) => setShowRawEvents(event.target.checked)}
+                />
+                Show raw heartbeat events
+              </label>
+            </header>
+            <div className="mc-events">
+              {visibleEvents.map((event) => (
+                <article key={event.event_id} className="mc-event-item">
+                  <div className="mc-event-head">
+                    <span>{event.event_type}</span>
+                    <span>{event.entity}</span>
+                    <span>{formatDateTime(event.ts_unix_ms)}</span>
+                  </div>
+                  <pre>{JSON.stringify(event.payload, null, 2)}</pre>
+                </article>
+              ))}
+              {visibleEvents.length === 0 ? (
+                <p className="mc-empty-events">No events captured yet.</p>
+              ) : null}
+            </div>
+          </article>
+        </section>
+      ) : null}
     </main>
   );
 }
