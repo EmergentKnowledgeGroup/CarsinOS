@@ -1,9 +1,55 @@
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
+use std::path::Path;
 
 pub const JOB_MODE_HEARTBEAT_RUN: &str = "heartbeat.run";
 pub const HEARTBEAT_OUTPUT_OK: &str = "HEARTBEAT_OK";
 pub const HEARTBEAT_OUTPUT_ALERT_PREFIX: &str = "ALERT:";
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SanitizedPath(String);
+
+impl SanitizedPath {
+    pub fn from_raw(raw: impl AsRef<str>) -> Self {
+        let value = raw.as_ref().trim();
+        if value.is_empty() {
+            return Self("<unset>".to_string());
+        }
+        let path = Path::new(value);
+        if path.is_absolute() {
+            if let Some(name) = path.file_name().and_then(|item| item.to_str()) {
+                return Self(format!("<redacted>/{name}"));
+            }
+            return Self("<redacted>".to_string());
+        }
+        Self(value.to_string())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl From<String> for SanitizedPath {
+    fn from(value: String) -> Self {
+        Self::from_raw(value)
+    }
+}
+
+impl From<&str> for SanitizedPath {
+    fn from(value: &str) -> Self {
+        Self::from_raw(value)
+    }
+}
+
+impl Serialize for SanitizedPath {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.0)
+    }
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct HealthResponse {
@@ -290,6 +336,284 @@ pub struct SkillResponse {
 pub struct ListSkillsResponse {
     pub contract_version: String,
     pub items: Vec<SkillResponse>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AgentResponse {
+    pub agent_id: String,
+    pub name: String,
+    pub workspace_root: SanitizedPath,
+    pub model_provider: String,
+    pub model_id: String,
+    pub tool_profile: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListAgentsResponse {
+    pub items: Vec<AgentResponse>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GetAgentResponse {
+    pub agent: AgentResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CreateAgentRequest {
+    pub agent_id: String,
+    pub name: String,
+    pub workspace_root: Option<String>,
+    pub model_provider: Option<String>,
+    pub model_id: Option<String>,
+    pub tool_profile: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CreateAgentResponse {
+    pub agent: AgentResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdateAgentRequest {
+    pub name: Option<String>,
+    pub workspace_root: Option<String>,
+    pub model_provider: Option<String>,
+    pub model_id: Option<String>,
+    pub tool_profile: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UpdateAgentResponse {
+    pub agent: AgentResponse,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BoardSummaryResponse {
+    pub board_id: String,
+    pub board_key: String,
+    pub name: String,
+    pub board_type: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub column_count: usize,
+    pub card_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListBoardsResponse {
+    pub items: Vec<BoardSummaryResponse>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BoardColumnResponse {
+    pub column_id: String,
+    pub board_id: String,
+    pub column_key: String,
+    pub name: String,
+    pub position: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BoardCardAssetResponse {
+    pub card_asset_id: String,
+    pub card_id: String,
+    pub filename: String,
+    pub mime: String,
+    pub sha256: String,
+    pub bytes: i64,
+    pub local_path: SanitizedPath,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BoardCardResponse {
+    pub card_id: String,
+    pub board_id: String,
+    pub column_id: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub owner_kind: String,
+    pub owner_agent_id: Option<String>,
+    pub owner_human_id: Option<String>,
+    pub due_at: Option<i64>,
+    pub tags: Vec<String>,
+    pub script_markdown: Option<String>,
+    pub linked_session_id: Option<String>,
+    pub latest_run_id: Option<String>,
+    pub position: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub assets: Vec<BoardCardAssetResponse>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BoardDetailResponse {
+    pub board: BoardSummaryResponse,
+    pub columns: Vec<BoardColumnResponse>,
+    pub cards: Vec<BoardCardResponse>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CreateBoardCardRequest {
+    pub column_id: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub owner_kind: Option<String>,
+    pub owner_agent_id: Option<String>,
+    pub owner_human_id: Option<String>,
+    pub due_at: Option<i64>,
+    pub tags: Option<Vec<String>>,
+    pub script_markdown: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CreateBoardCardResponse {
+    pub card: BoardCardResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdateBoardCardRequest {
+    pub title: Option<String>,
+    pub description: Option<Option<String>>,
+    pub owner_kind: Option<String>,
+    pub owner_agent_id: Option<Option<String>>,
+    pub owner_human_id: Option<Option<String>>,
+    pub due_at: Option<Option<i64>>,
+    pub tags: Option<Option<Vec<String>>>,
+    pub script_markdown: Option<Option<String>>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UpdateBoardCardResponse {
+    pub card: BoardCardResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MoveBoardCardRequest {
+    pub column_id: String,
+    pub before_card_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MoveBoardCardResponse {
+    pub card: BoardCardResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UploadBoardCardAssetRequest {
+    pub filename: String,
+    pub mime: String,
+    pub content_base64: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UploadBoardCardAssetResponse {
+    pub card: BoardCardResponse,
+    pub asset: BoardCardAssetResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RunBoardCardRequest {
+    pub prompt: Option<String>,
+    pub model_provider: Option<String>,
+    pub model_id: Option<String>,
+    pub auth_profile_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RunBoardCardResponse {
+    pub card: BoardCardResponse,
+    pub run: RunResponse,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BoardAutomationRuleResponse {
+    pub rule_id: String,
+    pub job_id: String,
+    pub board_id: String,
+    pub column_id: String,
+    pub target_column_id: String,
+    pub name: String,
+    pub agent_id: String,
+    pub enabled: bool,
+    pub schedule_kind: String,
+    pub interval_seconds: Option<i64>,
+    pub run_at_ms: Option<i64>,
+    pub cron_expr: Option<String>,
+    pub next_run_at: Option<i64>,
+    pub max_cards_per_run: i64,
+    pub max_runs_per_day: i64,
+    pub max_attempts_per_card_per_day: i64,
+    pub breaker_failure_threshold: i64,
+    pub breaker_cooldown_ms: i64,
+    pub generate_thumbnail_draft: bool,
+    pub model_provider: Option<String>,
+    pub model_id: Option<String>,
+    pub auth_profile_id: Option<String>,
+    pub last_run_at: Option<i64>,
+    pub last_error: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListBoardAutomationRulesResponse {
+    pub items: Vec<BoardAutomationRuleResponse>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GetBoardAutomationRuleResponse {
+    pub rule: BoardAutomationRuleResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpsertBoardAutomationRuleRequest {
+    pub rule_id: Option<String>,
+    pub name: Option<String>,
+    pub enabled: Option<bool>,
+    pub agent_id: Option<String>,
+    pub schedule_kind: Option<String>,
+    pub interval_seconds: Option<u64>,
+    pub run_at_ms: Option<i64>,
+    pub cron_expr: Option<String>,
+    pub target_column_id: Option<String>,
+    pub max_cards_per_run: Option<u32>,
+    pub max_runs_per_day: Option<u32>,
+    pub max_attempts_per_card_per_day: Option<u32>,
+    pub breaker_failure_threshold: Option<u32>,
+    pub breaker_cooldown_ms: Option<u64>,
+    pub generate_thumbnail_draft: Option<bool>,
+    pub model_provider: Option<String>,
+    pub model_id: Option<String>,
+    pub auth_profile_id: Option<String>,
+    pub timeout_ms: Option<u64>,
+    pub max_retries: Option<u32>,
+    pub retry_backoff_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UpsertBoardAutomationRuleResponse {
+    pub rule: BoardAutomationRuleResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SetBoardAutomationRuleStateRequest {
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SetBoardAutomationRuleStateResponse {
+    pub rule: BoardAutomationRuleResponse,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RunBoardAutomationRuleResponse {
+    pub rule: BoardAutomationRuleResponse,
+    pub job_run: JobRunResponse,
 }
 
 #[derive(Debug, Clone, Deserialize)]

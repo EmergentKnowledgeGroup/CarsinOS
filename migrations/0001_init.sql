@@ -289,3 +289,76 @@ CREATE TABLE IF NOT EXISTS circuit_breaker_states (
 
 CREATE INDEX IF NOT EXISTS idx_circuit_breaker_scope_target
 ON circuit_breaker_states(scope, target_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS boards (
+  board_id TEXT PRIMARY KEY,
+  board_key TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  board_type TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  archived_at INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_boards_type_updated
+ON boards(board_type, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS board_columns (
+  column_id TEXT PRIMARY KEY,
+  board_id TEXT NOT NULL REFERENCES boards(board_id),
+  column_key TEXT NOT NULL,
+  name TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  archived_at INTEGER,
+  UNIQUE(board_id, column_key),
+  UNIQUE(board_id, column_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_board_columns_position
+ON board_columns(board_id, position, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS board_cards (
+  card_id TEXT PRIMARY KEY,
+  board_id TEXT NOT NULL REFERENCES boards(board_id),
+  column_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  owner_kind TEXT NOT NULL,
+  owner_agent_id TEXT,
+  owner_human_id TEXT,
+  due_at INTEGER,
+  tags_json TEXT,
+  script_markdown TEXT,
+  linked_session_id TEXT,
+  latest_run_id TEXT,
+  position INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  archived_at INTEGER,
+  FOREIGN KEY (board_id, column_id) REFERENCES board_columns(board_id, column_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_board_cards_column_position
+ON board_cards(column_id, position, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_board_cards_board_updated
+ON board_cards(board_id, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_board_cards_board_column_position
+ON board_cards(board_id, column_id, position, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS board_card_assets (
+  card_asset_id TEXT PRIMARY KEY,
+  card_id TEXT NOT NULL REFERENCES board_cards(card_id),
+  filename TEXT NOT NULL,
+  mime TEXT NOT NULL,
+  sha256 TEXT NOT NULL,
+  bytes INTEGER NOT NULL,
+  local_path TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_board_card_assets_card
+ON board_card_assets(card_id, created_at DESC);
