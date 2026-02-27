@@ -733,7 +733,9 @@ impl Storage {
             WHERE agent_id = ?1
             "#,
         )?;
-        Ok(stmt.query_row(params![agent_id], map_agent_row).optional()?)
+        Ok(stmt
+            .query_row(params![agent_id], map_agent_row)
+            .optional()?)
     }
 
     pub fn create_agent(&self, new_agent: NewAgent) -> Result<AgentRecord> {
@@ -836,7 +838,9 @@ impl Storage {
               AND archived_at IS NULL
             "#,
         )?;
-        Ok(stmt.query_row(params![board_id], map_board_row).optional()?)
+        Ok(stmt
+            .query_row(params![board_id], map_board_row)
+            .optional()?)
     }
 
     pub fn list_board_columns(&self, board_id: &str) -> Result<Vec<BoardColumnRecord>> {
@@ -892,7 +896,9 @@ impl Storage {
               AND archived_at IS NULL
             "#,
         )?;
-        Ok(stmt.query_row(params![card_id], map_board_card_row).optional()?)
+        Ok(stmt
+            .query_row(params![card_id], map_board_card_row)
+            .optional()?)
     }
 
     pub fn create_board_card(&self, new_card: NewBoardCard) -> Result<BoardCardRecord> {
@@ -1052,8 +1058,9 @@ impl Storage {
                     |row| row.get::<_, i64>(0),
                 )
                 .optional()?;
-            let position = maybe_position
-                .with_context(|| format!("before_card_id not found in target column: {before_card_id}"))?;
+            let position = maybe_position.with_context(|| {
+                format!("before_card_id not found in target column: {before_card_id}")
+            })?;
             tx.execute(
                 r#"
                 UPDATE board_cards
@@ -1164,7 +1171,10 @@ impl Storage {
         self.get_board_card_asset(&card_asset_id)
     }
 
-    pub fn get_board_card_asset(&self, card_asset_id: &str) -> Result<Option<BoardCardAssetRecord>> {
+    pub fn get_board_card_asset(
+        &self,
+        card_asset_id: &str,
+    ) -> Result<Option<BoardCardAssetRecord>> {
         let conn = self.connect()?;
         let mut stmt = conn.prepare(
             r#"
