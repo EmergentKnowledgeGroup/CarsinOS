@@ -5667,3 +5667,29 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-27 - Entry 269
+
+- checklist refs: `T15`
+- past action:
+- Completed MC-MNO + regression reverify and synchronized checkpoint artifacts.
+- present action:
+- Executed repository sync-to-remote workflow with local filesystem as source of truth and no-loss controls:
+- created safety backup branch (`codex/safety-local-sot-20260226-230047`) and safety tag (`safety-local-sot-20260226-230047`)
+- created full git bundle backup under `/Users/domusanimae/Documents/openclaw replacement/runtime/backups/`
+- ran full regression gate (`cargo test --workspace --locked`) before publishing
+- created sync branch `codex/sync-local-sot-20260226-230214`
+- committed all local source-of-truth changes and opened PR `#41` to `main`
+- validation outcomes:
+- `cargo test --workspace --locked` passed (workspace green).
+- targeted MNO gates remained green from same local state.
+- Checkpoint SOP:
+- `phase start`, `post-green`, and `PR open` checkpoints recorded in `runtime/checkpoints/LATEST.md` + `LATEST.json` and mirrored to top-level runtime checkpoint path.
+- future action:
+- process CodeRabbit/CI review on PR #41, apply fixes if needed, merge, then record post-merge checkpoint.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
