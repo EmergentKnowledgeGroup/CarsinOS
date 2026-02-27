@@ -5711,7 +5711,7 @@ Tracks execution continuity across context compactions.
 - Checkpoint SOP:
 - phase-start and post-green snapshots recorded and mirrored to top-level runtime checkpoint path.
 - future action:
-- open PR #42, wait for CodeRabbit completion at 5-minute intervals, apply any review fixes, rerun gates, and merge.
+- monitor PR #42, apply review fixes, rerun gates, and merge.
 - changed files:
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/crates/carsinos-gateway/src/main.rs`
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
@@ -5719,3 +5719,30 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+
+### 2026-02-27 - Entry 271
+
+- checklist refs: `Q4` `Q7`
+- past action:
+- Opened PR #42 and received CodeRabbit review comments.
+- present action:
+- Applied CodeRabbit-requested checkpoint consistency fixes:
+- added top-level `validations` array to `runtime/checkpoints/LATEST.json`
+- adjusted `runtime/checkpoints/LATEST.md` validation commands to render as nested list under `validations:`
+- updated `CHECKPOINT.md` future-action wording from "open PR #42" to "monitor PR #42"
+- mirrored checkpoint files to top-level runtime checkpoint path
+- reran validation gates after fixes.
+- validation outcomes:
+- `cargo check -p carsinos-gateway --bin carsinos-gateway` passed.
+- `cargo test -p carsinos-gateway --test e2e_process` passed.
+- `cargo test -p carsinos-gateway --test benchmark_process -- --nocapture` passed.
+- Checkpoint SOP:
+- post-green snapshot recorded (`pr42-cr-fixes-post-green`) and mirrored.
+- future action:
+- push fixes to PR #42, wait for CodeRabbit completion, and merge once clean.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/CHECKPOINT.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
