@@ -31,6 +31,32 @@ interface ApiRequestOptions {
   body?: unknown;
 }
 
+const DEFAULT_GATEWAY_TIMEOUT_MS = 15_000;
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs = DEFAULT_GATEWAY_TIMEOUT_MS
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = globalThis.setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+  try {
+    return await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(`Gateway request timed out after ${timeoutMs}ms.`);
+    }
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeoutId);
+  }
+}
+
 async function requestJson<T>(
   settings: RuntimeConnectionSettings,
   path: string,
@@ -41,14 +67,17 @@ async function requestJson<T>(
     throw new Error("Gateway token is not configured.");
   }
 
-  const response = await fetch(resolveApiUrl(settings.gateway_url, path), {
-    method: options.method ?? "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-  });
+  const response = await fetchWithTimeout(
+    resolveApiUrl(settings.gateway_url, path),
+    {
+      method: options.method ?? "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    }
+  );
 
   if (!response.ok) {
     const text = await response.text();
@@ -202,7 +231,7 @@ export async function fetchBoardCardAssetBlob(
     throw new Error("Gateway token is not configured.");
   }
 
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     resolveApiUrl(
       settings.gateway_url,
       `/api/v1/boards/${encodeURIComponent(boardId)}/cards/${encodeURIComponent(cardId)}/assets/${encodeURIComponent(cardAssetId)}`

@@ -36,7 +36,7 @@ export interface BoardCard {
   column_id: string;
   title: string;
   description: string | null;
-  owner_kind: "agent" | "human" | "unassigned" | string;
+  owner_kind: "agent" | "human" | "unassigned" | (string & {});
   owner_agent_id: string | null;
   owner_human_id: string | null;
   due_at: number | null;
@@ -60,11 +60,7 @@ export interface ListBoardsResponse {
   items: BoardSummary[];
 }
 
-export interface BoardDetailResponse {
-  board: BoardSummary;
-  columns: BoardColumn[];
-  cards: BoardCard[];
-}
+export type BoardDetailResponse = BoardDetail;
 
 export interface UpdateBoardCardResponse {
   card: BoardCard;

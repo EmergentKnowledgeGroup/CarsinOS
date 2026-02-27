@@ -32,7 +32,7 @@ import type {
 import "./styles.css";
 
 interface Notice {
-  tone: "info" | "error";
+  tone: "info" | "error" | "critical";
   message: string;
 }
 
@@ -112,13 +112,12 @@ function withOptimisticMove(
   }
 
   const targetList = grouped.get(targetColumnId) ?? [];
-  const insertIndex =
+  const beforeIndex =
     beforeCardId === undefined
-      ? targetList.length
-      : Math.max(
-          0,
-          targetList.findIndex((card) => card.card_id === beforeCardId)
-        );
+      ? -1
+      : targetList.findIndex((card) => card.card_id === beforeCardId);
+  const insertIndex =
+    beforeCardId === undefined || beforeIndex < 0 ? targetList.length : beforeIndex;
 
   const nextCard: BoardCard = {
     ...movingCard,
@@ -149,7 +148,7 @@ function withOptimisticMove(
 }
 
 function toInputDateTimeValue(unixMs: number | null): string {
-  if (!unixMs) {
+  if (unixMs === null || unixMs === undefined) {
     return "";
   }
   const date = new Date(unixMs);
@@ -367,20 +366,20 @@ export default function App() {
   }, [selectedCard]);
 
   const refreshBoard = useCallback(
-    async (boardId: string) => {
-      const detail = await getBoard(settings, boardId);
+    async (boardId: string, runtimeSettings: RuntimeConnectionSettings = settings) => {
+      const detail = await getBoard(runtimeSettings, boardId);
       setBoard(detail);
     },
     [settings]
   );
 
   const queueBoardRefresh = useCallback(
-    (boardId: string) => {
+    (boardId: string, runtimeSettings: RuntimeConnectionSettings = settings) => {
       if (boardRefreshTimer.current) {
         window.clearTimeout(boardRefreshTimer.current);
       }
       boardRefreshTimer.current = window.setTimeout(() => {
-        void refreshBoard(boardId).catch((error: unknown) => {
+        void refreshBoard(boardId, runtimeSettings).catch((error: unknown) => {
           setNotice({
             tone: "error",
             message: `Board refresh failed: ${String(error)}`,
@@ -388,33 +387,40 @@ export default function App() {
         });
       }, 250);
     },
-    [refreshBoard]
+    [refreshBoard, settings]
   );
 
-  const loadBaseline = useCallback(async () => {
-    if (!settings.gateway_url.trim()) {
-      return;
-    }
+  const loadBaseline = useCallback(
+    async (
+      runtimeSettings: RuntimeConnectionSettings = settings,
+      preferredBoardId?: string | null
+    ) => {
+      if (!runtimeSettings.gateway_url.trim()) {
+        return;
+      }
 
-    setHealthState("checking");
-    const [health, boardList, agentList] = await Promise.all([
-      getGatewayHealth(settings),
-      listBoards(settings),
-      listAgents(settings),
-    ]);
+      setHealthState("checking");
+      const [health, boardList, agentList] = await Promise.all([
+        getGatewayHealth(runtimeSettings),
+        listBoards(runtimeSettings),
+        listAgents(runtimeSettings),
+      ]);
 
-    setHealthState(health.ok === false ? "down" : "up");
-    setBoards(boardList.items.map((item) => ({ board_id: item.board_id, name: item.name })));
-    setAgents(agentList.items);
+      setHealthState(health.ok === false ? "down" : "up");
+      setBoards(boardList.items.map((item) => ({ board_id: item.board_id, name: item.name })));
+      setAgents(agentList.items);
 
-    const targetBoardId = activeBoardId ?? boardList.items[0]?.board_id ?? null;
-    setActiveBoardId(targetBoardId);
-    if (targetBoardId) {
-      await refreshBoard(targetBoardId);
-    } else {
-      setBoard(null);
-    }
-  }, [activeBoardId, refreshBoard, settings]);
+      const targetBoardId =
+        preferredBoardId ?? activeBoardId ?? boardList.items[0]?.board_id ?? null;
+      setActiveBoardId(targetBoardId);
+      if (targetBoardId) {
+        await refreshBoard(targetBoardId, runtimeSettings);
+      } else {
+        setBoard(null);
+      }
+    },
+    [activeBoardId, refreshBoard, settings]
+  );
 
   useEffect(() => {
     void isGatewayTokenConfigured().then(setTokenConfigured);
@@ -428,6 +434,7 @@ export default function App() {
 
     const subscription = connectGatewayEvents({
       settings,
+      maxReconnectAttempts: 40,
       onState: setWsState,
       onEvent: (frame: WsEventFrame) => {
         if (!activeBoardId) {
@@ -455,7 +462,7 @@ export default function App() {
             }
             const target = previous.cards.find((item) => item.card_id === cardId);
             if (!target) {
-              queueBoardRefresh(activeBoardId);
+              queueBoardRefresh(activeBoardId, settings);
               return previous;
             }
             return withUpsertCard(previous, {
@@ -484,7 +491,7 @@ export default function App() {
           }
 
           if (frame.event_type === "board.card.created") {
-            queueBoardRefresh(activeBoardId);
+            queueBoardRefresh(activeBoardId, settings);
             return previous;
           }
 
@@ -500,7 +507,7 @@ export default function App() {
             }
             const target = previous.cards.find((item) => item.card_id === cardId);
             if (!target) {
-              queueBoardRefresh(activeBoardId);
+              queueBoardRefresh(activeBoardId, settings);
               return previous;
             }
             return withUpsertCard(previous, {
@@ -510,7 +517,7 @@ export default function App() {
           }
 
           if (frame.event_type === "board.asset.uploaded") {
-            queueBoardRefresh(activeBoardId);
+            queueBoardRefresh(activeBoardId, settings);
           }
           return previous;
         });
@@ -523,23 +530,30 @@ export default function App() {
   }, [activeBoardId, queueBoardRefresh, settings, tokenConfigured]);
 
   const saveConnection = async () => {
-    const nextSettings: RuntimeConnectionSettings = {
-      gateway_url: gatewayDraft.trim(),
-    };
-    persistConnectionSettings(nextSettings);
-    setSettings(nextSettings);
+    try {
+      const nextSettings: RuntimeConnectionSettings = {
+        gateway_url: gatewayDraft.trim(),
+      };
+      persistConnectionSettings(nextSettings);
+      setSettings(nextSettings);
 
-    if (tokenDraft.trim()) {
-      await setGatewayToken(tokenDraft.trim());
-      setTokenDraft("");
-    }
+      if (tokenDraft.trim()) {
+        await setGatewayToken(tokenDraft.trim());
+        setTokenDraft("");
+      }
 
-    const hasToken = await isGatewayTokenConfigured();
-    setTokenConfigured(hasToken);
+      const hasToken = await isGatewayTokenConfigured();
+      setTokenConfigured(hasToken);
 
-    if (hasToken && nextSettings.gateway_url.trim()) {
-      await loadBaseline();
-      setNotice({ tone: "info", message: "Connection settings saved." });
+      if (hasToken && nextSettings.gateway_url.trim()) {
+        await loadBaseline(nextSettings);
+        setNotice({ tone: "info", message: "Connection settings saved." });
+      }
+    } catch (error) {
+      setNotice({
+        tone: "critical",
+        message: `Connection save failed: ${String(error)}`,
+      });
     }
   };
 
@@ -551,13 +565,27 @@ export default function App() {
   };
 
   const reconnect = async () => {
-    await loadBaseline();
-    setNotice({ tone: "info", message: "Connection refreshed." });
+    try {
+      await loadBaseline(settings);
+      setNotice({ tone: "info", message: "Connection refreshed." });
+    } catch (error) {
+      setNotice({
+        tone: "critical",
+        message: `Reconnect failed: ${String(error)}`,
+      });
+    }
   };
 
   const handleBoardChange = async (boardId: string) => {
-    setActiveBoardId(boardId);
-    await refreshBoard(boardId);
+    try {
+      setActiveBoardId(boardId);
+      await refreshBoard(boardId, settings);
+    } catch (error) {
+      setNotice({
+        tone: "critical",
+        message: `Board load failed: ${String(error)}`,
+      });
+    }
   };
 
   const handleDropCard = async (
@@ -569,7 +597,9 @@ export default function App() {
       return;
     }
     const snapshot = board;
-    setBoard(withOptimisticMove(board, cardId, columnId, beforeCardId));
+    setBoard((previous) =>
+      previous ? withOptimisticMove(previous, cardId, columnId, beforeCardId) : previous
+    );
     try {
       const moved = await moveBoardCard(settings, activeBoardId, cardId, {
         column_id: columnId,
@@ -585,7 +615,7 @@ export default function App() {
   };
 
   const handleCreateCard = async (columnId: string, title: string) => {
-    if (!activeBoardId || !board) {
+    if (!activeBoardId) {
       return;
     }
     try {
@@ -593,7 +623,9 @@ export default function App() {
         column_id: columnId,
         title,
       });
-      setBoard(withUpsertCard(board, created.card));
+      setBoard((previous) =>
+        previous ? withUpsertCard(previous, created.card) : previous
+      );
       setNotice({ tone: "info", message: `Card created: ${created.card.title}` });
     } catch (error) {
       setNotice({ tone: "error", message: `Card create failed: ${String(error)}` });
@@ -601,7 +633,7 @@ export default function App() {
   };
 
   const saveCardDraft = async () => {
-    if (!activeBoardId || !selectedCardId || !board) {
+    if (!activeBoardId || !selectedCardId) {
       return;
     }
     try {
@@ -620,7 +652,9 @@ export default function App() {
           : null,
         script_markdown: cardEditor.scriptMarkdown.trim() || null,
       });
-      setBoard(withUpsertCard(board, response.card));
+      setBoard((previous) =>
+        previous ? withUpsertCard(previous, response.card) : previous
+      );
       setNotice({ tone: "info", message: "Card updated." });
     } catch (error) {
       setNotice({ tone: "error", message: `Card update failed: ${String(error)}` });
@@ -628,12 +662,14 @@ export default function App() {
   };
 
   const runCard = async () => {
-    if (!activeBoardId || !selectedCardId || !board) {
+    if (!activeBoardId || !selectedCardId) {
       return;
     }
     try {
       const response = await runBoardCard(settings, activeBoardId, selectedCardId);
-      setBoard(withUpsertCard(board, response.card));
+      setBoard((previous) =>
+        previous ? withUpsertCard(previous, response.card) : previous
+      );
       setNotice({
         tone: "info",
         message: `Run queued: ${response.run.run_id} (${response.run.status})`,
@@ -644,7 +680,7 @@ export default function App() {
   };
 
   const uploadAsset = async (file: File) => {
-    if (!activeBoardId || !selectedCardId || !board) {
+    if (!activeBoardId || !selectedCardId) {
       return;
     }
     try {
@@ -659,7 +695,9 @@ export default function App() {
           content_base64: contentBase64,
         }
       );
-      setBoard(withUpsertCard(board, response.card));
+      setBoard((previous) =>
+        previous ? withUpsertCard(previous, response.card) : previous
+      );
       setNotice({ tone: "info", message: `Asset uploaded: ${response.asset.filename}` });
     } catch (error) {
       setNotice({ tone: "error", message: `Asset upload failed: ${String(error)}` });

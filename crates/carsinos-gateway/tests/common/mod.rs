@@ -116,7 +116,11 @@ impl GatewayProcess {
 
     #[allow(dead_code)]
     pub async fn connect_ws_with_query_token(&self) -> Result<WsStream> {
-        let url = format!("ws://{}/api/v1/ws?token={}", self.bind, self.token);
+        let url = format!(
+            "ws://{}/api/v1/ws?token={}",
+            self.bind,
+            urlencoding::encode(&self.token)
+        );
         let request = url
             .into_client_request()
             .context("failed to build websocket request")?;

@@ -4829,7 +4829,7 @@ async fn ws_handler(
     Ok(ws.on_upgrade(move |socket| handle_socket(socket, rx, state.started_at, event_seq)))
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Deserialize, Default)]
 struct WsAuthQuery {
     token: Option<String>,
 }

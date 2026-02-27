@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Unbounded:wght@500;700&display=swap");
+@import "https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Unbounded:wght@500;700&display=swap";
 
 :root {
   --bg: #f1ede6;
@@ -11,6 +11,7 @@
   --warn: #b65d14;
   --danger: #aa2b35;
   --shadow: 0 16px 34px rgba(20, 18, 13, 0.12);
+  --toolbar-height: 255px;
 }
 
 * {
@@ -47,7 +48,7 @@ body {
 
 .mc-brand-block h1 {
   margin: 0;
-  font-family: "Unbounded", sans-serif;
+  font-family: Unbounded, sans-serif;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   font-size: clamp(1.05rem, 2.2vw, 1.55rem);
@@ -195,6 +196,12 @@ button.danger {
   border-color: #eba8b0;
 }
 
+.mc-notice-critical {
+  background: #f6dce0;
+  border-color: #d97986;
+  color: #6d121e;
+}
+
 .mc-main-grid {
   flex: 1;
   min-height: 0;
@@ -238,7 +245,7 @@ button.danger {
 .mc-board-column-wrap {
   position: absolute;
   width: 308px;
-  height: calc(100vh - 255px);
+  height: calc(100vh - var(--toolbar-height, 255px));
   min-height: 420px;
 }
 
@@ -261,7 +268,7 @@ button.danger {
 
 .mc-lane-header h3 {
   margin: 0;
-  font-family: "Unbounded", sans-serif;
+  font-family: Unbounded, sans-serif;
   font-size: 0.9rem;
   letter-spacing: 0.03em;
 }
@@ -339,7 +346,7 @@ button.danger {
 
 .mc-drawer-header h2 {
   margin: 0;
-  font-family: "Unbounded", sans-serif;
+  font-family: Unbounded, sans-serif;
   font-size: 0.95rem;
 }
 
@@ -374,7 +381,7 @@ button.danger {
 
 .mc-assets h3 {
   margin: 0 0 0.5rem;
-  font-family: "Unbounded", sans-serif;
+  font-family: Unbounded, sans-serif;
   font-size: 0.84rem;
 }
 

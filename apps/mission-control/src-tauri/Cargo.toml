@@ -3,8 +3,6 @@ name = "carsinos-mission-control"
 version = "0.1.0"
 description = "CarsinOS Mission Control desktop shell"
 authors = ["CarsinOS"]
-license = ""
-repository = ""
 edition = "2021"
 rust-version = "1.77.2"
 

@@ -45,12 +45,18 @@ export async function setGatewayToken(token: string): Promise<void> {
     await invoke("set_gateway_token", { token: value });
     return;
   }
+  if (typeof window === "undefined") {
+    return;
+  }
   window.localStorage.setItem(TOKEN_KEY_FALLBACK, value);
 }
 
 export async function clearGatewayToken(): Promise<void> {
   if (isTauriRuntime()) {
     await invoke("clear_gateway_token");
+    return;
+  }
+  if (typeof window === "undefined") {
     return;
   }
   window.localStorage.removeItem(TOKEN_KEY_FALLBACK);
@@ -60,12 +66,18 @@ export async function getGatewayToken(): Promise<string | null> {
   if (isTauriRuntime()) {
     return invoke<string | null>("get_gateway_token");
   }
+  if (typeof window === "undefined") {
+    return null;
+  }
   return window.localStorage.getItem(TOKEN_KEY_FALLBACK);
 }
 
 export async function isGatewayTokenConfigured(): Promise<boolean> {
   if (isTauriRuntime()) {
     return invoke<boolean>("gateway_token_present");
+  }
+  if (typeof window === "undefined") {
+    return false;
   }
   return Boolean(window.localStorage.getItem(TOKEN_KEY_FALLBACK));
 }

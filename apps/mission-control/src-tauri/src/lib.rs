@@ -8,39 +8,51 @@ fn keyring_entry() -> Result<Entry, String> {
 }
 
 #[tauri::command]
-fn set_gateway_token(token: String) -> Result<(), String> {
-    let value = token.trim();
-    if value.is_empty() {
-        return Err("token cannot be empty".to_string());
-    }
-    let entry = keyring_entry()?;
-    entry
-        .set_password(value)
-        .map_err(|error| format!("failed to store token in keychain: {error}"))
+async fn set_gateway_token(token: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let value = token.trim().to_string();
+        if value.is_empty() {
+            return Err("token cannot be empty".to_string());
+        }
+        let entry = keyring_entry()?;
+        entry
+            .set_password(&value)
+            .map_err(|error| format!("failed to store token in keychain: {error}"))
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
-fn clear_gateway_token() -> Result<(), String> {
-    let entry = keyring_entry()?;
-    match entry.delete_password() {
-        Ok(()) | Err(KeyringError::NoEntry) => Ok(()),
-        Err(error) => Err(format!("failed to clear token from keychain: {error}")),
-    }
+async fn clear_gateway_token() -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let entry = keyring_entry()?;
+        match entry.delete_password() {
+            Ok(()) | Err(KeyringError::NoEntry) => Ok(()),
+            Err(error) => Err(format!("failed to clear token from keychain: {error}")),
+        }
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
-fn get_gateway_token() -> Result<Option<String>, String> {
-    let entry = keyring_entry()?;
-    match entry.get_password() {
-        Ok(value) => Ok(Some(value)),
-        Err(KeyringError::NoEntry) => Ok(None),
-        Err(error) => Err(format!("failed to read token from keychain: {error}")),
-    }
+async fn get_gateway_token() -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let entry = keyring_entry()?;
+        match entry.get_password() {
+            Ok(value) => Ok(Some(value)),
+            Err(KeyringError::NoEntry) => Ok(None),
+            Err(error) => Err(format!("failed to read token from keychain: {error}")),
+        }
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
-fn gateway_token_present() -> Result<bool, String> {
-    get_gateway_token().map(|value| value.is_some())
+async fn gateway_token_present() -> Result<bool, String> {
+    get_gateway_token().await.map(|value| value.is_some())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
