@@ -264,18 +264,18 @@ Execution checklist derived from `PLAN.md`. IDs are stable and must be used by `
 
 ## Phase X - MC Slick P1 (PR-C)
 
-- [ ] `X1` `MC-SLICK-BE-101` Add stable mission-control read model APIs for calendar week view and operator focus queue.
-- [ ] `X2` `MC-SLICK-APP-101` Implement Mission Control Calendar tab with week board, always-running lane, next-up queue, and run/pause/resume actions.
-- [ ] `X3` `MC-SLICK-APP-102` Implement Operator Focus tab with actionable queue (approvals, failures, channel health, breaker alerts).
-- [ ] `X4` `MC-SLICK-APP-103` Implement Event Stream tab backed by websocket feed with default noise filtering and raw toggle.
-- [ ] `X5` Run PR-C regression + benchmark + security gates and complete PR workflow (open, CR loop, merge, post-merge checkpoint).
+- [x] `X1` `MC-SLICK-BE-101` Add stable mission-control read model APIs for calendar week view and operator focus queue.
+- [x] `X2` `MC-SLICK-APP-101` Implement Mission Control Calendar tab with week board, always-running lane, next-up queue, and run/pause/resume actions.
+- [x] `X3` `MC-SLICK-APP-102` Implement Operator Focus tab with actionable queue (approvals, failures, channel health, breaker alerts).
+- [x] `X4` `MC-SLICK-APP-103` Implement Event Stream tab backed by websocket feed with default noise filtering and raw toggle.
+- [x] `X5` Run PR-C regression + benchmark + security gates and complete PR workflow (open, CR loop, merge, post-merge checkpoint).
 
 ## Phase Y - MC Slick P2 Cockpit (PR-D)
 
-- [ ] `Y1` `MC-SLICK-APP-201` Implement cockpit widget registry/palette/grid with save/load pages and import/export JSON.
-- [ ] `Y2` `MC-SLICK-APP-202` Implement pinned health strip with incident-mode filtering and top-priority break/fail indicators.
-- [ ] `Y3` `MC-SLICK-APP-203` Implement multi-agent/provider control surfaces (profile order, channel ops, skill/plugin toggles).
-- [ ] `Y4` Run PR-D regression + benchmark + security gates and complete PR workflow (open, CR loop, merge, post-merge checkpoint).
+- [x] `Y1` `MC-SLICK-APP-201` Implement cockpit widget registry/palette/grid with save/load pages and import/export JSON.
+- [x] `Y2` `MC-SLICK-APP-202` Implement pinned health strip with incident-mode filtering and top-priority break/fail indicators.
+- [x] `Y3` `MC-SLICK-APP-203` Implement multi-agent/provider control surfaces (profile order, channel ops, skill/plugin toggles).
+- [x] `Y4` Run PR-D regression + benchmark + security gates and complete PR workflow (open, CR loop, merge, post-merge checkpoint).
 
 ## Phase Z - Agent Mail P3 (PR-E)
 

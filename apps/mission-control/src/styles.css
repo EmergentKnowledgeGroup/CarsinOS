@@ -236,6 +236,187 @@ button.danger {
   gap: 0.8rem;
 }
 
+.mc-pinned-health {
+  border: 1px solid #dbceb8;
+  background: linear-gradient(135deg, #fff6e7 0%, #f7ecdc 100%);
+  box-shadow: var(--shadow);
+  border-radius: 14px;
+  padding: 0.52rem 0.72rem;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.mc-pinned-health.incident-mode {
+  border-color: rgba(170, 43, 53, 0.35);
+  background: linear-gradient(135deg, #fce9eb 0%, #f9dce0 100%);
+}
+
+.mc-pinned-stat {
+  border: 1px solid #dfd0ba;
+  background: #fff;
+  border-radius: 10px;
+  padding: 0.32rem 0.55rem;
+  min-width: 130px;
+}
+
+.mc-pinned-stat strong {
+  font-size: 0.67rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6d6256;
+}
+
+.mc-pinned-stat span {
+  display: block;
+  margin-top: 0.18rem;
+  font-weight: 700;
+  font-size: 0.86rem;
+}
+
+.mc-cockpit-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(290px, 0.35fr) minmax(0, 0.65fr);
+  gap: 0.8rem;
+}
+
+.mc-cockpit-sidebar {
+  padding: 0.75rem;
+  gap: 0.7rem;
+}
+
+.mc-cockpit-palette {
+  display: flex;
+  flex-direction: column;
+  gap: 0.52rem;
+  overflow: auto;
+  padding-right: 0.1rem;
+}
+
+.mc-palette-item {
+  border: 1px solid #dfd0ba;
+  border-radius: 12px;
+  background: #fff;
+  padding: 0.5rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.mc-palette-item h3 {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.mc-palette-item p {
+  margin: 0.2rem 0 0;
+  font-size: 0.72rem;
+  color: #6e6457;
+}
+
+.mc-cockpit-canvas {
+  padding: 0.78rem;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.62rem;
+}
+
+.mc-cockpit-widget {
+  border: 1px solid #dfd0ba;
+  border-radius: 12px;
+  background: #fffdf8;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+}
+
+.mc-cockpit-widget-head {
+  border-bottom: 1px solid #e7dbc7;
+  padding: 0.46rem 0.52rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mc-cockpit-widget-head h3 {
+  margin: 0;
+  font-size: 0.78rem;
+  font-family: Unbounded, sans-serif;
+}
+
+.mc-cockpit-widget-body {
+  padding: 0.52rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow: auto;
+}
+
+.mc-cockpit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.42rem;
+}
+
+.mc-cockpit-list li {
+  border: 1px solid #e2d5c3;
+  border-radius: 10px;
+  background: #fff;
+  padding: 0.4rem 0.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.42rem;
+}
+
+.mc-cockpit-list li p {
+  margin: 0.17rem 0 0;
+  font-size: 0.71rem;
+  color: #6f6559;
+}
+
+.mc-cockpit-list.compact li {
+  padding: 0.34rem 0.42rem;
+}
+
+.mc-health-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.mc-health-grid > div {
+  border: 1px solid #e0d2be;
+  border-radius: 10px;
+  background: #fff;
+  padding: 0.35rem 0.45rem;
+}
+
+.mc-health-grid strong {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6d6459;
+}
+
+.mc-health-grid p {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+}
+
+.mc-events.compact {
+  padding: 0;
+}
+
 .mc-surface {
   border: 1px solid var(--line);
   background: var(--surface);
@@ -763,6 +944,14 @@ button.danger {
     grid-template-columns: 1fr;
   }
 
+  .mc-cockpit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mc-cockpit-canvas {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .mc-drawer {
     min-height: 460px;
   }
@@ -784,5 +973,17 @@ button.danger {
 
   .mc-board-column-wrap {
     width: 286px;
+  }
+
+  .mc-pinned-health {
+    gap: 0.42rem;
+  }
+
+  .mc-pinned-stat {
+    min-width: 112px;
+  }
+
+  .mc-cockpit-canvas {
+    grid-template-columns: 1fr;
   }
 }
