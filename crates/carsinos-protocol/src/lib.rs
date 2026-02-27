@@ -1,9 +1,55 @@
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
+use std::path::Path;
 
 pub const JOB_MODE_HEARTBEAT_RUN: &str = "heartbeat.run";
 pub const HEARTBEAT_OUTPUT_OK: &str = "HEARTBEAT_OK";
 pub const HEARTBEAT_OUTPUT_ALERT_PREFIX: &str = "ALERT:";
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SanitizedPath(String);
+
+impl SanitizedPath {
+    pub fn from_raw(raw: impl AsRef<str>) -> Self {
+        let value = raw.as_ref().trim();
+        if value.is_empty() {
+            return Self("<unset>".to_string());
+        }
+        let path = Path::new(value);
+        if path.is_absolute() {
+            if let Some(name) = path.file_name().and_then(|item| item.to_str()) {
+                return Self(format!("<redacted>/{name}"));
+            }
+            return Self("<redacted>".to_string());
+        }
+        Self(value.to_string())
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl From<String> for SanitizedPath {
+    fn from(value: String) -> Self {
+        Self::from_raw(value)
+    }
+}
+
+impl From<&str> for SanitizedPath {
+    fn from(value: &str) -> Self {
+        Self::from_raw(value)
+    }
+}
+
+impl Serialize for SanitizedPath {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.0)
+    }
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct HealthResponse {
@@ -296,7 +342,7 @@ pub struct ListSkillsResponse {
 pub struct AgentResponse {
     pub agent_id: String,
     pub name: String,
-    pub workspace_root: String,
+    pub workspace_root: SanitizedPath,
     pub model_provider: String,
     pub model_id: String,
     pub tool_profile: String,
@@ -379,7 +425,7 @@ pub struct BoardCardAssetResponse {
     pub mime: String,
     pub sha256: String,
     pub bytes: i64,
-    pub local_path: String,
+    pub local_path: SanitizedPath,
     pub created_at: i64,
 }
 

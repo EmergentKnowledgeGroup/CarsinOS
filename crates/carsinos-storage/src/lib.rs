@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -901,6 +901,44 @@ impl Storage {
             .optional()?)
     }
 
+    pub fn get_board_card_in_board(
+        &self,
+        board_id: &str,
+        card_id: &str,
+    ) -> Result<Option<BoardCardRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              card_id, board_id, column_id, title, description, owner_kind, owner_agent_id, owner_human_id,
+              due_at, tags_json, script_markdown, linked_session_id, latest_run_id, position, created_at, updated_at, archived_at
+            FROM board_cards
+            WHERE card_id = ?1
+              AND board_id = ?2
+              AND archived_at IS NULL
+            "#,
+        )?;
+        Ok(stmt
+            .query_row(params![card_id, board_id], map_board_card_row)
+            .optional()?)
+    }
+
+    fn get_board_card_tx(tx: &Transaction<'_>, card_id: &str) -> Result<Option<BoardCardRecord>> {
+        let mut stmt = tx.prepare(
+            r#"
+            SELECT
+              card_id, board_id, column_id, title, description, owner_kind, owner_agent_id, owner_human_id,
+              due_at, tags_json, script_markdown, linked_session_id, latest_run_id, position, created_at, updated_at, archived_at
+            FROM board_cards
+            WHERE card_id = ?1
+              AND archived_at IS NULL
+            "#,
+        )?;
+        Ok(stmt
+            .query_row(params![card_id], map_board_card_row)
+            .optional()?)
+    }
+
     pub fn create_board_card(&self, new_card: NewBoardCard) -> Result<BoardCardRecord> {
         let mut conn = self.connect()?;
         let tx = conn.transaction()?;
@@ -913,19 +951,17 @@ impl Storage {
                 anyhow::bail!("owner_agent_id is required when owner_kind=agent");
             }
         }
-        let max_position: i64 = tx
-            .query_row(
-                r#"
+        let max_position: i64 = tx.query_row(
+            r#"
                 SELECT COALESCE(MAX(position), -1)
                 FROM board_cards
                 WHERE board_id = ?1
                   AND column_id = ?2
                   AND archived_at IS NULL
                 "#,
-                params![new_card.board_id, new_card.column_id],
-                |row| row.get(0),
-            )
-            .unwrap_or(-1);
+            params![new_card.board_id, new_card.column_id],
+            |row| row.get(0),
+        )?;
         let position = max_position.saturating_add(1);
         let now = now_ms();
         let card_id = uuid::Uuid::new_v4().to_string();
@@ -974,7 +1010,7 @@ impl Storage {
     ) -> Result<Option<BoardCardRecord>> {
         let mut conn = self.connect()?;
         let tx = conn.transaction()?;
-        let current = match self.get_board_card(card_id)? {
+        let current = match Self::get_board_card_tx(&tx, card_id)? {
             Some(card) => card,
             None => return Ok(None),
         };
@@ -997,12 +1033,13 @@ impl Storage {
             }
         }
         let now = now_ms();
-        tx.execute(
+        let updated_rows = tx.execute(
             r#"
             UPDATE board_cards
             SET title = ?1, description = ?2, owner_kind = ?3, owner_agent_id = ?4, owner_human_id = ?5,
                 due_at = ?6, tags_json = ?7, script_markdown = ?8, updated_at = ?9
             WHERE card_id = ?10
+              AND board_id = ?11
             "#,
             params![
                 next_title,
@@ -1014,15 +1051,19 @@ impl Storage {
                 next_tags_json,
                 next_script_markdown,
                 now,
-                card_id
+                card_id,
+                board_id
             ],
         )?;
+        if updated_rows == 0 {
+            return Ok(None);
+        }
         tx.execute(
             "UPDATE boards SET updated_at = ?1 WHERE board_id = ?2",
             params![now, board_id],
         )?;
         tx.commit()?;
-        self.get_board_card(card_id)
+        self.get_board_card_in_board(board_id, card_id)
     }
 
     pub fn move_board_card(
@@ -1034,12 +1075,16 @@ impl Storage {
     ) -> Result<Option<BoardCardRecord>> {
         let mut conn = self.connect()?;
         let tx = conn.transaction()?;
-        let current = match self.get_board_card(card_id)? {
+        let current = match Self::get_board_card_tx(&tx, card_id)? {
             Some(card) => card,
             None => return Ok(None),
         };
         if current.board_id != board_id {
             anyhow::bail!("card does not belong to board");
+        }
+        if before_card_id == Some(card_id) {
+            tx.commit()?;
+            return Ok(Some(current));
         }
         self.ensure_column_in_board(&tx, board_id, target_column_id)?;
         let now = now_ms();
@@ -1075,9 +1120,8 @@ impl Storage {
             )?;
             position
         } else {
-            let max_position: i64 = tx
-                .query_row(
-                    r#"
+            let max_position: i64 = tx.query_row(
+                r#"
                     SELECT COALESCE(MAX(position), -1)
                     FROM board_cards
                     WHERE board_id = ?1
@@ -1085,27 +1129,30 @@ impl Storage {
                       AND archived_at IS NULL
                       AND card_id != ?3
                     "#,
-                    params![board_id, target_column_id, card_id],
-                    |row| row.get(0),
-                )
-                .unwrap_or(-1);
+                params![board_id, target_column_id, card_id],
+                |row| row.get(0),
+            )?;
             max_position.saturating_add(1)
         };
 
-        tx.execute(
+        let updated_rows = tx.execute(
             r#"
             UPDATE board_cards
             SET column_id = ?1, position = ?2, updated_at = ?3
             WHERE card_id = ?4
+              AND board_id = ?5
             "#,
-            params![target_column_id, target_position, now, card_id],
+            params![target_column_id, target_position, now, card_id, board_id],
         )?;
+        if updated_rows == 0 {
+            return Ok(None);
+        }
         tx.execute(
             "UPDATE boards SET updated_at = ?1 WHERE board_id = ?2",
             params![now, board_id],
         )?;
         tx.commit()?;
-        self.get_board_card(card_id)
+        self.get_board_card_in_board(board_id, card_id)
     }
 
     pub fn update_board_card_run_link(
@@ -1117,7 +1164,7 @@ impl Storage {
     ) -> Result<Option<BoardCardRecord>> {
         let conn = self.connect()?;
         let now = now_ms();
-        conn.execute(
+        let updated_rows = conn.execute(
             r#"
             UPDATE board_cards
             SET linked_session_id = ?1, latest_run_id = ?2, updated_at = ?3
@@ -1126,11 +1173,14 @@ impl Storage {
             "#,
             params![linked_session_id, latest_run_id, now, card_id, board_id],
         )?;
+        if updated_rows == 0 {
+            return Ok(None);
+        }
         conn.execute(
             "UPDATE boards SET updated_at = ?1 WHERE board_id = ?2",
             params![now, board_id],
         )?;
-        self.get_board_card(card_id)
+        self.get_board_card_in_board(board_id, card_id)
     }
 
     pub fn create_board_card_asset(

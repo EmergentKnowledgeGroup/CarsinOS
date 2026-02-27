@@ -56,9 +56,9 @@ use carsinos_protocol::{
     RuntimeConfigResponse, RuntimeDiscordDeploymentConfig, RuntimeExtensionsConfig,
     RuntimeGlobalConfig, RuntimeMemoryConfig, RuntimeNumquamConfig, RuntimeProviderPolicyConfig,
     RuntimeSecurityOpsConfig, RuntimeTelegramDeploymentConfig, RuntimeTrustContractLockResponse,
-    RuntimeTrustContractLockSummaryResponse, SchedulerLockStateResponse, SearchMemoryRequest,
-    SearchMemoryResponse, SearchMemoryResult, SessionDetailResponse, SessionSummary,
-    SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse,
+    RuntimeTrustContractLockSummaryResponse, SanitizedPath, SchedulerLockStateResponse,
+    SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult, SessionDetailResponse,
+    SessionSummary, SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse,
     SetBoardAutomationRuleStateRequest, SetBoardAutomationRuleStateResponse, SkillResponse,
     StatusResponse, SyncMemorySourceItemResponse, SyncMemorySourcesRequest,
     SyncMemorySourcesResponse, TelegramChannelConfig, ToolCapabilityResponse,
@@ -5674,7 +5674,7 @@ fn to_agent_response(record: AgentRecord) -> AgentResponse {
     AgentResponse {
         agent_id: record.agent_id,
         name: record.name,
-        workspace_root: record.workspace_root,
+        workspace_root: SanitizedPath::from(record.workspace_root),
         model_provider: record.model_provider,
         model_id: record.model_id,
         tool_profile: record.tool_profile,
@@ -5720,7 +5720,7 @@ fn to_board_card_asset_response(record: BoardCardAssetRecord) -> BoardCardAssetR
         mime: record.mime,
         sha256: record.sha256,
         bytes: record.bytes,
-        local_path: record.local_path,
+        local_path: SanitizedPath::from(record.local_path),
         created_at: record.created_at,
     }
 }

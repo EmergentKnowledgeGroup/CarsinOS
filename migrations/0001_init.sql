@@ -312,7 +312,8 @@ CREATE TABLE IF NOT EXISTS board_columns (
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   archived_at INTEGER,
-  UNIQUE(board_id, column_key)
+  UNIQUE(board_id, column_key),
+  UNIQUE(board_id, column_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_board_columns_position
@@ -321,7 +322,7 @@ ON board_columns(board_id, position, updated_at DESC);
 CREATE TABLE IF NOT EXISTS board_cards (
   card_id TEXT PRIMARY KEY,
   board_id TEXT NOT NULL REFERENCES boards(board_id),
-  column_id TEXT NOT NULL REFERENCES board_columns(column_id),
+  column_id TEXT NOT NULL,
   title TEXT NOT NULL,
   description TEXT,
   owner_kind TEXT NOT NULL,
@@ -335,7 +336,8 @@ CREATE TABLE IF NOT EXISTS board_cards (
   position INTEGER NOT NULL,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
-  archived_at INTEGER
+  archived_at INTEGER,
+  FOREIGN KEY (board_id, column_id) REFERENCES board_columns(board_id, column_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_board_cards_column_position
