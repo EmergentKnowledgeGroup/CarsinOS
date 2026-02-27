@@ -345,7 +345,7 @@ Each PR follows:
 2. implementation,
 3. green regression/security gates,
 4. checkpoint update (post-green),
-5. PR open,
+5. PR open (target `main`; include a one-line summary + exact verification steps/commands run; add UI screenshots for UI changes; link issue IDs when applicable),
 6. CodeRabbit review loop,
 7. merge,
 8. checkpoint update (post-merge).
