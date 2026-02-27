@@ -1,20 +1,31 @@
 import { getGatewayToken } from "./runtime";
 import type {
+  AgentProviderProfileOrderResponse,
+  AuthProfileResponse,
   BoardDetail,
   BoardDetailResponse,
   GetChannelRuntimeStatusResponse,
   HealthResponse,
+  JobStatusResponse,
+  ListAuthProfilesResponse,
   ListApprovalsResponse,
   ListJobsResponse,
+  ListPluginRuntimeStatusResponse,
+  ListPluginsResponse,
+  ListSkillsResponse,
   ListAgentsResponse,
   ListBoardsResponse,
   MissionControlCalendarWeekResponse,
   MissionControlFocusResponse,
   MoveBoardCardResponse,
+  PluginManifestResponse,
   ResolveApprovalResponse,
   RuntimeConnectionSettings,
   RunJobNowResponse,
   RunBoardCardResponse,
+  StatusResponse,
+  UpdatePluginResponse,
+  UpdateSkillStateResponse,
   UpdateJobResponse,
   UpdateBoardCardResponse,
   UploadBoardCardAssetResponse,
@@ -101,6 +112,12 @@ export async function getGatewayHealth(
   return requestJson<HealthResponse>(settings, "/api/v1/health");
 }
 
+export async function getGatewayStatus(
+  settings: RuntimeConnectionSettings
+): Promise<StatusResponse> {
+  return requestJson<StatusResponse>(settings, "/api/v1/status");
+}
+
 export async function listBoards(
   settings: RuntimeConnectionSettings
 ): Promise<ListBoardsResponse> {
@@ -157,6 +174,12 @@ export async function listJobs(
   );
 }
 
+export async function getJobsStatus(
+  settings: RuntimeConnectionSettings
+): Promise<JobStatusResponse> {
+  return requestJson<JobStatusResponse>(settings, "/api/v1/jobs/status");
+}
+
 export async function runJobNow(
   settings: RuntimeConnectionSettings,
   jobId: string
@@ -209,6 +232,124 @@ export async function resolveApproval(
       method: "POST",
       body: {
         decision,
+      },
+    }
+  );
+}
+
+export async function listAuthProfiles(
+  settings: RuntimeConnectionSettings,
+  options: {
+    provider?: string;
+    includeDisabled?: boolean;
+  } = {}
+): Promise<AuthProfileResponse[]> {
+  const search = new URLSearchParams();
+  if (options.provider?.trim()) {
+    search.set("provider", options.provider.trim());
+  }
+  if (options.includeDisabled !== undefined) {
+    search.set("include_disabled", String(options.includeDisabled));
+  }
+  const suffix = search.size > 0 ? `?${search.toString()}` : "";
+  const response = await requestJson<ListAuthProfilesResponse>(
+    settings,
+    `/api/v1/auth/profiles${suffix}`
+  );
+  return response.items;
+}
+
+export async function getAgentProviderProfileOrder(
+  settings: RuntimeConnectionSettings,
+  agentId: string,
+  provider: string
+): Promise<AgentProviderProfileOrderResponse> {
+  return requestJson<AgentProviderProfileOrderResponse>(
+    settings,
+    `/api/v1/auth/agents/${encodeURIComponent(agentId)}/providers/${encodeURIComponent(provider)}/profile-order`
+  );
+}
+
+export async function setAgentProviderProfileOrder(
+  settings: RuntimeConnectionSettings,
+  agentId: string,
+  provider: string,
+  profileIds: string[]
+): Promise<AgentProviderProfileOrderResponse> {
+  return requestJson<AgentProviderProfileOrderResponse>(
+    settings,
+    `/api/v1/auth/agents/${encodeURIComponent(agentId)}/providers/${encodeURIComponent(provider)}/profile-order`,
+    {
+      method: "POST",
+      body: {
+        profile_ids: profileIds,
+      },
+    }
+  );
+}
+
+export async function listSkills(
+  settings: RuntimeConnectionSettings,
+  includeDisabled = true
+): Promise<ListSkillsResponse> {
+  return requestJson<ListSkillsResponse>(
+    settings,
+    `/api/v1/extensions/skills?include_disabled=${encodeURIComponent(String(includeDisabled))}`
+  );
+}
+
+export async function setSkillEnabled(
+  settings: RuntimeConnectionSettings,
+  skillId: string,
+  enabled: boolean
+): Promise<UpdateSkillStateResponse> {
+  return requestJson<UpdateSkillStateResponse>(
+    settings,
+    `/api/v1/extensions/skills/${encodeURIComponent(skillId)}/state`,
+    {
+      method: "POST",
+      body: { enabled },
+    }
+  );
+}
+
+export async function listPlugins(
+  settings: RuntimeConnectionSettings,
+  includeDisabled = true
+): Promise<ListPluginsResponse> {
+  return requestJson<ListPluginsResponse>(
+    settings,
+    `/api/v1/extensions/plugins?include_disabled=${encodeURIComponent(String(includeDisabled))}`
+  );
+}
+
+export async function listPluginRuntimeStatus(
+  settings: RuntimeConnectionSettings,
+  includeDisabled = true
+): Promise<ListPluginRuntimeStatusResponse> {
+  return requestJson<ListPluginRuntimeStatusResponse>(
+    settings,
+    `/api/v1/extensions/plugins/status?include_disabled=${encodeURIComponent(String(includeDisabled))}`
+  );
+}
+
+export async function setPluginEnabled(
+  settings: RuntimeConnectionSettings,
+  plugin: PluginManifestResponse,
+  enabled: boolean,
+  reason?: string
+): Promise<UpdatePluginResponse> {
+  return requestJson<UpdatePluginResponse>(
+    settings,
+    `/api/v1/extensions/plugins/${encodeURIComponent(plugin.plugin_id)}/update`,
+    {
+      method: "POST",
+      body: {
+        manifest: {
+          ...plugin,
+          enabled,
+        },
+        reason: reason ?? null,
       },
     }
   );

@@ -226,3 +226,176 @@ export interface GetChannelRuntimeStatusResponse {
   updated_at: number;
   items: ChannelRuntimeAdapterStatusResponse[];
 }
+
+export interface SchedulerLockStateResponse {
+  enabled: boolean;
+  lock_path: string;
+  owner: string;
+  detail: string | null;
+}
+
+export interface CircuitBreakerStateResponse {
+  scope: string;
+  target_id: string;
+  state: string;
+  consecutive_failures: number;
+  cooldown_until: number | null;
+  last_error_code: string | null;
+  updated_at: number;
+}
+
+export interface FailureReasonCountResponse {
+  code: string;
+  count: number;
+}
+
+export interface RuntimeTrustContractLockSummaryResponse {
+  enforced: boolean;
+  lock_path: string;
+  trust_hash: string;
+  locked_at: number;
+  drift_detected: boolean;
+}
+
+export interface PluginRuntimeStatusResponse {
+  plugin_id: string;
+  enabled: boolean;
+  faulted: boolean;
+  disabled_until_ms: number | null;
+  consecutive_failures: number;
+  last_error_code: string | null;
+  last_error: string | null;
+  last_success_ms: number | null;
+  last_invoked_ms: number | null;
+}
+
+export interface StatusResponse {
+  service: string;
+  version: string;
+  started_at_utc: string;
+  uptime_ms: number;
+  db_path: string;
+  attachments_path: string;
+  trust_contract_lock: RuntimeTrustContractLockSummaryResponse;
+  scheduler_lock: SchedulerLockStateResponse;
+  open_circuit_breakers: number;
+  circuit_breakers: CircuitBreakerStateResponse[];
+  open_plugin_breakers: number;
+  plugin_breakers: PluginRuntimeStatusResponse[];
+  top_stop_reasons: FailureReasonCountResponse[];
+}
+
+export interface JobStatusResponse {
+  scheduler_running: boolean;
+  scheduler_lock: SchedulerLockStateResponse;
+  jobs_total: number;
+  jobs_enabled: number;
+  jobs_due: number;
+  open_circuit_breakers: number;
+  circuit_breakers: CircuitBreakerStateResponse[];
+  top_stop_reasons: FailureReasonCountResponse[];
+  now_utc: string;
+}
+
+export interface AuthProfileResponse {
+  auth_profile_id: string;
+  provider: string;
+  display_name: string;
+  auth_mode: string;
+  risk_level: string;
+  enabled: boolean;
+  kill_switch_scope: string;
+  api_base_url: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ListAuthProfilesResponse {
+  items: AuthProfileResponse[];
+}
+
+export interface AgentProviderProfileOrderResponse {
+  agent_id: string;
+  provider: string;
+  profile_ids: string[];
+}
+
+export interface SkillResponse {
+  skill_id: string;
+  title: string;
+  source_path: string;
+  enabled: boolean;
+  content_chars: number;
+  preview: string;
+}
+
+export interface ListSkillsResponse {
+  contract_version: string;
+  items: SkillResponse[];
+}
+
+export interface UpdateSkillStateResponse {
+  skill: SkillResponse;
+}
+
+export interface PluginCapabilityResponse {
+  name: string;
+  description: string | null;
+}
+
+export interface PluginArtifactResponse {
+  exec_kind: string;
+  local_path: string;
+  command: string;
+  args: string[];
+  sha256: string;
+}
+
+export interface PluginCompatibilityResponse {
+  min_gateway_version: string | null;
+}
+
+export interface PluginPermissionsResponse {
+  allowed_roots: string[];
+  network_policy: string;
+  network_allowlist: string[];
+}
+
+export interface PluginLimitsResponse {
+  timeout_ms: number | null;
+  max_output_chars: number | null;
+}
+
+export interface PluginManifestResponse {
+  schema_version: string;
+  plugin_id: string;
+  display_name: string;
+  plugin_version: string;
+  api_version: string;
+  enabled: boolean;
+  artifact: PluginArtifactResponse;
+  compatibility: PluginCompatibilityResponse;
+  permissions: PluginPermissionsResponse;
+  limits: PluginLimitsResponse;
+  tools: PluginCapabilityResponse[];
+  hooks: PluginCapabilityResponse[];
+  providers: PluginCapabilityResponse[];
+  channels: PluginCapabilityResponse[];
+}
+
+export interface ListPluginsResponse {
+  contract_version: string;
+  plugin_api_version: string;
+  items: PluginManifestResponse[];
+}
+
+export interface ListPluginRuntimeStatusResponse {
+  contract_version: string;
+  items: PluginRuntimeStatusResponse[];
+}
+
+export interface UpdatePluginResponse {
+  plugin: PluginManifestResponse;
+  rollback_available: boolean;
+  hook_policy_denials: number;
+}

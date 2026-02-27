@@ -4,14 +4,21 @@ import clsx from "clsx";
 import {
   createBoardCard,
   fetchBoardCardAssetBlob,
+  getAgentProviderProfileOrder,
   getChannelRuntimeStatus,
   getBoard,
   getMissionControlCalendarWeek,
   getMissionControlFocus,
   getGatewayHealth,
+  getGatewayStatus,
+  getJobsStatus,
+  listAuthProfiles,
   listAgents,
   listBoards,
   listJobs,
+  listPluginRuntimeStatus,
+  listPlugins,
+  listSkills,
   listApprovals,
   moveBoardCard,
   reconnectChannelRuntime,
@@ -19,6 +26,9 @@ import {
   runJobNow,
   runBoardCard,
   setJobEnabledState,
+  setPluginEnabled,
+  setSkillEnabled,
+  setAgentProviderProfileOrder,
   updateBoardCard,
   uploadBoardCardAsset,
 } from "./lib/api";
@@ -32,14 +42,21 @@ import {
 import { connectGatewayEvents, type WsLifecycleState } from "./lib/ws";
 import type {
   Agent,
+  AuthProfileResponse,
   BoardCard,
   BoardColumn,
   BoardDetail,
+  CircuitBreakerStateResponse,
   ChannelRuntimeAdapterStatusResponse,
+  JobStatusResponse,
   MissionControlCalendarJob,
   MissionControlCalendarWeekResponse,
   MissionControlFocusItem,
+  PluginManifestResponse,
+  PluginRuntimeStatusResponse,
   RuntimeConnectionSettings,
+  SkillResponse,
+  StatusResponse,
   WsEventFrame,
 } from "./types";
 import "./styles.css";
@@ -49,7 +66,7 @@ interface Notice {
   message: string;
 }
 
-type MissionControlTab = "boards" | "calendar" | "focus" | "events";
+type MissionControlTab = "boards" | "calendar" | "focus" | "events" | "cockpit";
 
 interface EventStreamItem {
   event_id: string;
@@ -69,6 +86,231 @@ interface CardEditorDraft {
   tagsCsv: string;
   scriptMarkdown: string;
 }
+
+type CockpitWidgetKind =
+  | "health"
+  | "focus"
+  | "breakers"
+  | "jobs"
+  | "channels"
+  | "profiles"
+  | "skills"
+  | "plugins"
+  | "events";
+
+interface CockpitWidgetLayout {
+  instance_id: string;
+  widget: CockpitWidgetKind;
+  title: string;
+  span: number;
+}
+
+interface CockpitPageLayout {
+  page_id: string;
+  name: string;
+  widgets: CockpitWidgetLayout[];
+}
+
+const COCKPIT_LAYOUT_STORAGE_KEY = "mission_control.cockpit.pages.v1";
+
+function defaultCockpitPages(): CockpitPageLayout[] {
+  return [
+    {
+      page_id: "ops-default",
+      name: "Ops Default",
+      widgets: [
+        {
+          instance_id: "health-default",
+          widget: "health",
+          title: "Pinned Health Strip",
+          span: 4,
+        },
+        {
+          instance_id: "focus-default",
+          widget: "focus",
+          title: "Incident Queue",
+          span: 2,
+        },
+        {
+          instance_id: "breakers-default",
+          widget: "breakers",
+          title: "Breaker Radar",
+          span: 2,
+        },
+        {
+          instance_id: "jobs-default",
+          widget: "jobs",
+          title: "Scheduler Matrix",
+          span: 2,
+        },
+        {
+          instance_id: "channels-default",
+          widget: "channels",
+          title: "Channel Control",
+          span: 2,
+        },
+        {
+          instance_id: "profiles-default",
+          widget: "profiles",
+          title: "Agent Provider Routing",
+          span: 3,
+        },
+        {
+          instance_id: "skills-default",
+          widget: "skills",
+          title: "Skills Control",
+          span: 3,
+        },
+        {
+          instance_id: "plugins-default",
+          widget: "plugins",
+          title: "Plugins Control",
+          span: 3,
+        },
+        {
+          instance_id: "events-default",
+          widget: "events",
+          title: "Event Tail",
+          span: 3,
+        },
+      ],
+    },
+  ];
+}
+
+function normalizeWidgetSpan(span: number): number {
+  return Math.max(1, Math.min(4, Math.round(span)));
+}
+
+function sanitizeCockpitPages(input: unknown): CockpitPageLayout[] {
+  if (!Array.isArray(input)) {
+    return defaultCockpitPages();
+  }
+  const pages = input
+    .map((item) => {
+      const raw = item as Partial<CockpitPageLayout>;
+      if (typeof raw.page_id !== "string" || !raw.page_id.trim()) {
+        return null;
+      }
+      const pageName =
+        typeof raw.name === "string" && raw.name.trim()
+          ? raw.name.trim()
+          : "Custom Page";
+      const widgets = Array.isArray(raw.widgets)
+        ? raw.widgets
+            .map((widget) => {
+              const entry = widget as Partial<CockpitWidgetLayout>;
+              if (
+                typeof entry.instance_id !== "string" ||
+                !entry.instance_id.trim() ||
+                typeof entry.widget !== "string" ||
+                typeof entry.title !== "string"
+              ) {
+                return null;
+              }
+              return {
+                instance_id: entry.instance_id.trim(),
+                widget: entry.widget as CockpitWidgetKind,
+                title: entry.title.trim() || "Widget",
+                span: normalizeWidgetSpan(Number(entry.span ?? 2)),
+              } satisfies CockpitWidgetLayout;
+            })
+            .filter((widget): widget is CockpitWidgetLayout => widget !== null)
+        : [];
+      return {
+        page_id: raw.page_id.trim(),
+        name: pageName,
+        widgets: widgets.length > 0 ? widgets : defaultCockpitPages()[0].widgets,
+      } satisfies CockpitPageLayout;
+    })
+    .filter((page): page is CockpitPageLayout => page !== null);
+  return pages.length > 0 ? pages : defaultCockpitPages();
+}
+
+function loadCockpitPagesFromStorage(): CockpitPageLayout[] {
+  if (typeof window === "undefined") {
+    return defaultCockpitPages();
+  }
+  const raw = window.localStorage.getItem(COCKPIT_LAYOUT_STORAGE_KEY);
+  if (!raw) {
+    return defaultCockpitPages();
+  }
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return sanitizeCockpitPages(parsed);
+  } catch {
+    return defaultCockpitPages();
+  }
+}
+
+function persistCockpitPagesToStorage(pages: CockpitPageLayout[]): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.setItem(COCKPIT_LAYOUT_STORAGE_KEY, JSON.stringify(pages));
+}
+
+const COCKPIT_WIDGET_PALETTE: Array<{
+  widget: CockpitWidgetKind;
+  title: string;
+  description: string;
+  defaultSpan: number;
+}> = [
+  {
+    widget: "health",
+    title: "Pinned Health Strip",
+    description: "Gateway status, approvals, channels, and scheduler safety posture.",
+    defaultSpan: 4,
+  },
+  {
+    widget: "focus",
+    title: "Focus Queue",
+    description: "Operator attention queue with approvals, failures, and incident actions.",
+    defaultSpan: 2,
+  },
+  {
+    widget: "breakers",
+    title: "Breaker Radar",
+    description: "Circuit breaker and plugin breaker state with cooldown windows.",
+    defaultSpan: 2,
+  },
+  {
+    widget: "jobs",
+    title: "Scheduler Matrix",
+    description: "Upcoming jobs and direct run/pause controls.",
+    defaultSpan: 2,
+  },
+  {
+    widget: "channels",
+    title: "Channel Ops",
+    description: "Adapter health and one-click reconnect operations.",
+    defaultSpan: 2,
+  },
+  {
+    widget: "profiles",
+    title: "Agent Routing",
+    description: "Edit per-agent provider profile order without shell access.",
+    defaultSpan: 3,
+  },
+  {
+    widget: "skills",
+    title: "Skills",
+    description: "Toggle skills and inspect source paths/status.",
+    defaultSpan: 3,
+  },
+  {
+    widget: "plugins",
+    title: "Plugins",
+    description: "Inspect plugin runtime health and enable/disable safely.",
+    defaultSpan: 3,
+  },
+  {
+    widget: "events",
+    title: "Event Tail",
+    description: "Live operational event stream with noise control.",
+    defaultSpan: 3,
+  },
+];
 
 function emptyEditorDraft(): CardEditorDraft {
   return {
@@ -373,6 +615,25 @@ export default function App() {
   );
   const [jobsById, setJobsById] = useState<Map<string, MissionControlCalendarJob>>(new Map());
   const [approvalsById, setApprovalsById] = useState<Set<string>>(new Set());
+  const [gatewayStatus, setGatewayStatus] = useState<StatusResponse | null>(null);
+  const [jobsStatus, setJobsStatus] = useState<JobStatusResponse | null>(null);
+  const [authProfiles, setAuthProfiles] = useState<AuthProfileResponse[]>([]);
+  const [skills, setSkills] = useState<SkillResponse[]>([]);
+  const [plugins, setPlugins] = useState<PluginManifestResponse[]>([]);
+  const [pluginRuntimeById, setPluginRuntimeById] = useState<
+    Map<string, PluginRuntimeStatusResponse>
+  >(new Map());
+  const [incidentMode, setIncidentMode] = useState(false);
+  const [cockpitPages, setCockpitPages] = useState<CockpitPageLayout[]>(
+    loadCockpitPagesFromStorage()
+  );
+  const [activeCockpitPageId, setActiveCockpitPageId] = useState(
+    loadCockpitPagesFromStorage()[0]?.page_id ?? "ops-default"
+  );
+  const [selectedProviderControlAgentId, setSelectedProviderControlAgentId] = useState("");
+  const [selectedProviderControlProvider, setSelectedProviderControlProvider] = useState("");
+  const [providerProfileOrder, setProviderProfileOrder] = useState<string[]>([]);
+  const [providerProfileOrderDirty, setProviderProfileOrderDirty] = useState(false);
 
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [cardEditor, setCardEditor] = useState<CardEditorDraft>(emptyEditorDraft());
@@ -391,6 +652,48 @@ export default function App() {
     return board.cards.find((card) => card.card_id === selectedCardId) ?? null;
   }, [board, selectedCardId]);
 
+  const activeCockpitPage = useMemo(() => {
+    return (
+      cockpitPages.find((page) => page.page_id === activeCockpitPageId) ??
+      cockpitPages[0] ??
+      defaultCockpitPages()[0]
+    );
+  }, [activeCockpitPageId, cockpitPages]);
+
+  const providerOptions = useMemo(() => {
+    return [...new Set(authProfiles.map((profile) => profile.provider))].sort((a, b) =>
+      a.localeCompare(b)
+    );
+  }, [authProfiles]);
+
+  const providerProfiles = useMemo(() => {
+    if (!selectedProviderControlProvider) {
+      return [] as AuthProfileResponse[];
+    }
+    return authProfiles
+      .filter((profile) => profile.provider === selectedProviderControlProvider)
+      .sort((left, right) => left.display_name.localeCompare(right.display_name));
+  }, [authProfiles, selectedProviderControlProvider]);
+
+  const orderedProviderProfiles = useMemo(() => {
+    if (providerProfiles.length === 0) {
+      return [] as AuthProfileResponse[];
+    }
+    const byId = new Map(providerProfiles.map((profile) => [profile.auth_profile_id, profile]));
+    const ordered: AuthProfileResponse[] = [];
+    for (const profileId of providerProfileOrder) {
+      const match = byId.get(profileId);
+      if (match) {
+        ordered.push(match);
+        byId.delete(profileId);
+      }
+    }
+    const remaining = [...byId.values()].sort((left, right) =>
+      left.display_name.localeCompare(right.display_name)
+    );
+    return [...ordered, ...remaining];
+  }, [providerProfiles, providerProfileOrder]);
+
   useEffect(() => {
     if (!selectedCard) {
       setCardEditor(emptyEditorDraft());
@@ -407,6 +710,13 @@ export default function App() {
       scriptMarkdown: selectedCard.script_markdown ?? "",
     });
   }, [selectedCard]);
+
+  useEffect(() => {
+    persistCockpitPagesToStorage(cockpitPages);
+    if (!cockpitPages.some((page) => page.page_id === activeCockpitPageId)) {
+      setActiveCockpitPageId(cockpitPages[0]?.page_id ?? "ops-default");
+    }
+  }, [activeCockpitPageId, cockpitPages]);
 
   const refreshBoard = useCallback(
     async (boardId: string, runtimeSettings: RuntimeConnectionSettings = settings) => {
@@ -435,12 +745,30 @@ export default function App() {
 
   const loadMissionControlReadModels = useCallback(
     async (runtimeSettings: RuntimeConnectionSettings = settings) => {
-      const [calendar, focus, jobs, approvals, channelRuntime] = await Promise.all([
+      const [
+        calendar,
+        focus,
+        jobs,
+        approvals,
+        channelRuntime,
+        status,
+        jobsStatusResponse,
+        profiles,
+        skillResponse,
+        pluginResponse,
+        pluginRuntimeResponse,
+      ] = await Promise.all([
         getMissionControlCalendarWeek(runtimeSettings),
         getMissionControlFocus(runtimeSettings, 100),
         listJobs(runtimeSettings, 200),
         listApprovals(runtimeSettings, "requested", 200),
         getChannelRuntimeStatus(runtimeSettings),
+        getGatewayStatus(runtimeSettings),
+        getJobsStatus(runtimeSettings),
+        listAuthProfiles(runtimeSettings, { includeDisabled: true }),
+        listSkills(runtimeSettings, true),
+        listPlugins(runtimeSettings, true),
+        listPluginRuntimeStatus(runtimeSettings, true),
       ]);
       setCalendarWeek(calendar);
       setFocusItems(focus.items);
@@ -473,6 +801,14 @@ export default function App() {
       );
       setApprovalsById(new Set(approvals.items.map((item) => item.approval_id)));
       setChannelStatuses(channelRuntime.items);
+      setGatewayStatus(status);
+      setJobsStatus(jobsStatusResponse);
+      setAuthProfiles(profiles);
+      setSkills(skillResponse.items);
+      setPlugins(pluginResponse.items);
+      setPluginRuntimeById(
+        new Map(pluginRuntimeResponse.items.map((item) => [item.plugin_id, item]))
+      );
     },
     [settings]
   );
@@ -528,6 +864,67 @@ export default function App() {
   );
 
   useEffect(() => {
+    if (agents.length === 0) {
+      setSelectedProviderControlAgentId("");
+      return;
+    }
+    if (
+      !selectedProviderControlAgentId ||
+      !agents.some((agent) => agent.agent_id === selectedProviderControlAgentId)
+    ) {
+      setSelectedProviderControlAgentId(agents[0].agent_id);
+    }
+  }, [agents, selectedProviderControlAgentId]);
+
+  useEffect(() => {
+    if (providerOptions.length === 0) {
+      setSelectedProviderControlProvider("");
+      return;
+    }
+    if (
+      !selectedProviderControlProvider ||
+      !providerOptions.includes(selectedProviderControlProvider)
+    ) {
+      setSelectedProviderControlProvider(providerOptions[0]);
+    }
+  }, [providerOptions, selectedProviderControlProvider]);
+
+  const reloadProviderProfileOrder = useCallback(
+    async (
+      runtimeSettings: RuntimeConnectionSettings = settings,
+      agentId: string = selectedProviderControlAgentId,
+      provider: string = selectedProviderControlProvider
+    ) => {
+      if (!agentId || !provider) {
+        setProviderProfileOrder([]);
+        setProviderProfileOrderDirty(false);
+        return;
+      }
+      const response = await getAgentProviderProfileOrder(runtimeSettings, agentId, provider);
+      setProviderProfileOrder(response.profile_ids);
+      setProviderProfileOrderDirty(false);
+    },
+    [selectedProviderControlAgentId, selectedProviderControlProvider, settings]
+  );
+
+  useEffect(() => {
+    if (!settings.gateway_url.trim() || !selectedProviderControlAgentId || !selectedProviderControlProvider) {
+      return;
+    }
+    void reloadProviderProfileOrder(settings).catch((error: unknown) => {
+      setNotice({
+        tone: "error",
+        message: `Profile order load failed: ${String(error)}`,
+      });
+    });
+  }, [
+    reloadProviderProfileOrder,
+    selectedProviderControlAgentId,
+    selectedProviderControlProvider,
+    settings,
+  ]);
+
+  useEffect(() => {
     void isGatewayTokenConfigured().then(setTokenConfigured);
   }, []);
 
@@ -556,7 +953,9 @@ export default function App() {
         if (
           frame.event_type.startsWith("job.") ||
           frame.event_type.startsWith("approval.") ||
-          frame.event_type.startsWith("channel.")
+          frame.event_type.startsWith("channel.") ||
+          frame.event_type.startsWith("extension.") ||
+          frame.event_type.startsWith("agent_mail.")
         ) {
           queueMissionControlRefresh(settings);
         }
@@ -943,12 +1342,249 @@ export default function App() {
     }
   };
 
+  const addCockpitWidget = (widgetKind: CockpitWidgetKind) => {
+    const palette = COCKPIT_WIDGET_PALETTE.find((item) => item.widget === widgetKind);
+    if (!palette) {
+      return;
+    }
+    setCockpitPages((previous) =>
+      previous.map((page) => {
+        if (page.page_id !== activeCockpitPage.page_id) {
+          return page;
+        }
+        const instanceId = `${widgetKind}-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}`;
+        return {
+          ...page,
+          widgets: [
+            ...page.widgets,
+            {
+              instance_id: instanceId,
+              widget: widgetKind,
+              title: palette.title,
+              span: palette.defaultSpan,
+            },
+          ],
+        };
+      })
+    );
+  };
+
+  const removeCockpitWidget = (instanceId: string) => {
+    setCockpitPages((previous) =>
+      previous.map((page) =>
+        page.page_id === activeCockpitPage.page_id
+          ? {
+              ...page,
+              widgets: page.widgets.filter((widget) => widget.instance_id !== instanceId),
+            }
+          : page
+      )
+    );
+  };
+
+  const moveCockpitWidget = (instanceId: string, delta: number) => {
+    setCockpitPages((previous) =>
+      previous.map((page) => {
+        if (page.page_id !== activeCockpitPage.page_id) {
+          return page;
+        }
+        const index = page.widgets.findIndex((widget) => widget.instance_id === instanceId);
+        if (index < 0) {
+          return page;
+        }
+        const target = Math.max(0, Math.min(page.widgets.length - 1, index + delta));
+        if (target === index) {
+          return page;
+        }
+        const nextWidgets = [...page.widgets];
+        const [entry] = nextWidgets.splice(index, 1);
+        nextWidgets.splice(target, 0, entry);
+        return { ...page, widgets: nextWidgets };
+      })
+    );
+  };
+
+  const resizeCockpitWidget = (instanceId: string, delta: number) => {
+    setCockpitPages((previous) =>
+      previous.map((page) => {
+        if (page.page_id !== activeCockpitPage.page_id) {
+          return page;
+        }
+        return {
+          ...page,
+          widgets: page.widgets.map((widget) =>
+            widget.instance_id === instanceId
+              ? { ...widget, span: normalizeWidgetSpan(widget.span + delta) }
+              : widget
+          ),
+        };
+      })
+    );
+  };
+
+  const resetCockpitLayout = () => {
+    const defaults = defaultCockpitPages();
+    setCockpitPages(defaults);
+    setActiveCockpitPageId(defaults[0].page_id);
+  };
+
+  const addCockpitPage = () => {
+    const nextPageId = `custom-${Date.now()}`;
+    setCockpitPages((previous) => [
+      ...previous,
+      {
+        page_id: nextPageId,
+        name: `Custom ${previous.length + 1}`,
+        widgets: [],
+      },
+    ]);
+    setActiveCockpitPageId(nextPageId);
+  };
+
+  const exportCockpitLayout = () => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const payload = JSON.stringify(cockpitPages, null, 2);
+    const blob = new Blob([payload], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `mission-control-cockpit-${Date.now()}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  };
+
+  const importCockpitLayout = async (file: File) => {
+    const raw = await file.text();
+    const parsed = JSON.parse(raw) as unknown;
+    const sanitized = sanitizeCockpitPages(parsed);
+    setCockpitPages(sanitized);
+    setActiveCockpitPageId(sanitized[0].page_id);
+  };
+
+  const moveProviderProfile = (profileId: string, delta: number) => {
+    setProviderProfileOrder((previous) => {
+      const baseOrder = previous.length > 0 ? [...previous] : orderedProviderProfiles.map((item) => item.auth_profile_id);
+      const index = baseOrder.findIndex((item) => item === profileId);
+      if (index < 0) {
+        return previous;
+      }
+      const target = Math.max(0, Math.min(baseOrder.length - 1, index + delta));
+      if (target === index) {
+        return previous;
+      }
+      const [entry] = baseOrder.splice(index, 1);
+      baseOrder.splice(target, 0, entry);
+      setProviderProfileOrderDirty(true);
+      return baseOrder;
+    });
+  };
+
+  const saveProviderOrder = async () => {
+    if (!selectedProviderControlAgentId || !selectedProviderControlProvider) {
+      return;
+    }
+    try {
+      const response = await setAgentProviderProfileOrder(
+        settings,
+        selectedProviderControlAgentId,
+        selectedProviderControlProvider,
+        providerProfileOrder
+      );
+      setProviderProfileOrder(response.profile_ids);
+      setProviderProfileOrderDirty(false);
+      setNotice({
+        tone: "info",
+        message: `Saved provider order for ${response.agent_id}/${response.provider}.`,
+      });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message: `Saving provider order failed: ${String(error)}`,
+      });
+    }
+  };
+
+  const toggleSkillState = async (skillId: string, enabled: boolean) => {
+    try {
+      const response = await setSkillEnabled(settings, skillId, enabled);
+      setSkills((previous) =>
+        previous.map((item) => (item.skill_id === skillId ? response.skill : item))
+      );
+      setNotice({
+        tone: "info",
+        message: enabled ? `Skill enabled: ${skillId}` : `Skill disabled: ${skillId}`,
+      });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message: `Skill update failed: ${String(error)}`,
+      });
+    }
+  };
+
+  const togglePluginState = async (pluginId: string, enabled: boolean) => {
+    const target = plugins.find((item) => item.plugin_id === pluginId);
+    if (!target) {
+      return;
+    }
+    try {
+      const response = await setPluginEnabled(
+        settings,
+        target,
+        enabled,
+        enabled ? "mission-control-enable" : "mission-control-disable"
+      );
+      setPlugins((previous) =>
+        previous.map((item) => (item.plugin_id === pluginId ? response.plugin : item))
+      );
+      setNotice({
+        tone: "info",
+        message: enabled ? `Plugin enabled: ${pluginId}` : `Plugin disabled: ${pluginId}`,
+      });
+      queueMissionControlRefresh(settings);
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message: `Plugin update failed: ${String(error)}`,
+      });
+    }
+  };
+
   const visibleEvents = useMemo(() => {
     if (showRawEvents) {
       return eventStream;
     }
     return eventStream.filter((event) => !event.event_type.startsWith("heartbeat."));
   }, [eventStream, showRawEvents]);
+
+  const incidentFocusItems = useMemo(() => {
+    return focusItems.filter((item) =>
+      incidentMode
+        ? ["critical", "high", "error"].includes(item.severity.toLowerCase())
+        : true
+    );
+  }, [focusItems, incidentMode]);
+
+  const openBreakers = useMemo(() => {
+    const fromStatus = gatewayStatus?.circuit_breakers ?? [];
+    const fromJobs = jobsStatus?.circuit_breakers ?? [];
+    const merged = new Map<string, CircuitBreakerStateResponse>();
+    for (const item of [...fromStatus, ...fromJobs]) {
+      const key = `${item.scope}:${item.target_id}`;
+      merged.set(key, item);
+    }
+    return [...merged.values()].filter((item) => item.state.toLowerCase() === "open");
+  }, [gatewayStatus, jobsStatus]);
+
+  const openPluginBreakers = useMemo(() => {
+    return [...pluginRuntimeById.values()].filter((item) => item.faulted);
+  }, [pluginRuntimeById]);
 
   const columns = board?.columns ?? [];
   const boardScrollerRef = useRef<HTMLDivElement | null>(null);
@@ -978,6 +1614,303 @@ export default function App() {
     };
   }, [selectedPreviewUrl]);
 
+  const renderCockpitWidget = (widget: CockpitWidgetLayout) => {
+    if (widget.widget === "health") {
+      return (
+        <article className="mc-cockpit-widget-body">
+          <div className="mc-health-grid">
+            <div>
+              <strong>Gateway</strong>
+              <p>{gatewayStatus?.service ?? "offline"}</p>
+            </div>
+            <div>
+              <strong>Scheduler</strong>
+              <p>{jobsStatus?.scheduler_running ? "running" : "paused"}</p>
+            </div>
+            <div>
+              <strong>Approvals</strong>
+              <p>{approvalsById.size}</p>
+            </div>
+            <div>
+              <strong>Open Breakers</strong>
+              <p>{openBreakers.length + openPluginBreakers.length}</p>
+            </div>
+            <div>
+              <strong>Degraded Channels</strong>
+              <p>
+                {
+                  channelStatuses.filter(
+                    (item) => !item.healthy || item.lifecycle_state !== "running"
+                  ).length
+                }
+              </p>
+            </div>
+          </div>
+          <div className="mc-inline-actions">
+            <label className="mc-checkbox">
+              <input
+                type="checkbox"
+                checked={incidentMode}
+                onChange={(event) => setIncidentMode(event.target.checked)}
+              />
+              Incident mode
+            </label>
+            <button type="button" onClick={() => queueMissionControlRefresh(settings)}>
+              Refresh all
+            </button>
+          </div>
+        </article>
+      );
+    }
+
+    if (widget.widget === "focus") {
+      return (
+        <article className="mc-cockpit-widget-body">
+          <ul className="mc-cockpit-list">
+            {incidentFocusItems.slice(0, 8).map((item) => (
+              <li key={item.item_id}>
+                <div>
+                  <strong>{item.title}</strong>
+                  <p>{item.detail}</p>
+                </div>
+                <span className={clsx("chip", `chip-${item.severity}`)}>{item.severity}</span>
+              </li>
+            ))}
+            {incidentFocusItems.length === 0 ? <li>No active items.</li> : null}
+          </ul>
+        </article>
+      );
+    }
+
+    if (widget.widget === "breakers") {
+      return (
+        <article className="mc-cockpit-widget-body">
+          <h4>Core Breakers</h4>
+          <ul className="mc-cockpit-list compact">
+            {openBreakers.slice(0, 6).map((breaker) => (
+              <li key={`${breaker.scope}:${breaker.target_id}`}>
+                <div>
+                  <strong>{breaker.scope}</strong>
+                  <p>{breaker.target_id}</p>
+                </div>
+                <span>{breaker.last_error_code ?? breaker.state}</span>
+              </li>
+            ))}
+            {openBreakers.length === 0 ? <li>No open core breakers.</li> : null}
+          </ul>
+          <h4>Plugin Breakers</h4>
+          <ul className="mc-cockpit-list compact">
+            {openPluginBreakers.slice(0, 6).map((breaker) => (
+              <li key={breaker.plugin_id}>
+                <div>
+                  <strong>{breaker.plugin_id}</strong>
+                  <p>{breaker.last_error ?? "faulted"}</p>
+                </div>
+                <span>{breaker.last_error_code ?? "faulted"}</span>
+              </li>
+            ))}
+            {openPluginBreakers.length === 0 ? <li>No plugin breakers.</li> : null}
+          </ul>
+        </article>
+      );
+    }
+
+    if (widget.widget === "jobs") {
+      return (
+        <article className="mc-cockpit-widget-body">
+          <ul className="mc-cockpit-list">
+            {calendarJobs.slice(0, 10).map((job) => (
+              <li key={job.job_id}>
+                <div>
+                  <strong>{job.name}</strong>
+                  <p>{formatDateTime(job.next_run_at)}</p>
+                </div>
+                <div className="mc-inline-actions">
+                  <button type="button" onClick={() => void runCalendarJobNow(job.job_id)}>
+                    Run
+                  </button>
+                  <button
+                    type="button"
+                    className={job.enabled ? "danger" : ""}
+                    onClick={() => void toggleCalendarJob(job.job_id, !job.enabled)}
+                  >
+                    {job.enabled ? "Pause" : "Resume"}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </article>
+      );
+    }
+
+    if (widget.widget === "channels") {
+      return (
+        <article className="mc-cockpit-widget-body">
+          <ul className="mc-cockpit-list">
+            {channelStatuses.map((item) => (
+              <li key={item.provider}>
+                <div>
+                  <strong>{item.provider}</strong>
+                  <p>{item.last_error ?? item.detail ?? item.lifecycle_state}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void reconnectFocusChannel(item.provider)}
+                >
+                  Reconnect
+                </button>
+              </li>
+            ))}
+          </ul>
+        </article>
+      );
+    }
+
+    if (widget.widget === "profiles") {
+      return (
+        <article className="mc-cockpit-widget-body">
+          <div className="mc-field-grid">
+            <label>
+              Agent
+              <select
+                value={selectedProviderControlAgentId}
+                onChange={(event) => setSelectedProviderControlAgentId(event.target.value)}
+              >
+                {agents.map((agent) => (
+                  <option key={agent.agent_id} value={agent.agent_id}>
+                    {agent.name} ({agent.agent_id})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Provider
+              <select
+                value={selectedProviderControlProvider}
+                onChange={(event) => setSelectedProviderControlProvider(event.target.value)}
+              >
+                {providerOptions.map((provider) => (
+                  <option key={provider} value={provider}>
+                    {provider}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <ul className="mc-cockpit-list">
+            {orderedProviderProfiles.map((profile) => (
+              <li key={profile.auth_profile_id}>
+                <div>
+                  <strong>{profile.display_name}</strong>
+                  <p>
+                    {profile.auth_mode} / {profile.risk_level} /{" "}
+                    {profile.enabled ? "enabled" : "disabled"}
+                  </p>
+                </div>
+                <div className="mc-inline-actions">
+                  <button
+                    type="button"
+                    onClick={() => moveProviderProfile(profile.auth_profile_id, -1)}
+                  >
+                    Up
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveProviderProfile(profile.auth_profile_id, 1)}
+                  >
+                    Down
+                  </button>
+                </div>
+              </li>
+            ))}
+            {orderedProviderProfiles.length === 0 ? <li>No profiles for provider.</li> : null}
+          </ul>
+          <div className="mc-inline-actions">
+            <button type="button" onClick={() => void saveProviderOrder()}>
+              Save Order
+            </button>
+            <button type="button" onClick={() => void reloadProviderProfileOrder(settings)}>
+              Reload
+            </button>
+            {providerProfileOrderDirty ? <span className="chip chip-error">unsaved</span> : null}
+          </div>
+        </article>
+      );
+    }
+
+    if (widget.widget === "skills") {
+      return (
+        <article className="mc-cockpit-widget-body">
+          <ul className="mc-cockpit-list">
+            {skills.map((skill) => (
+              <li key={skill.skill_id}>
+                <div>
+                  <strong>{skill.title}</strong>
+                  <p>{skill.skill_id}</p>
+                </div>
+                <button
+                  type="button"
+                  className={skill.enabled ? "danger" : ""}
+                  onClick={() => void toggleSkillState(skill.skill_id, !skill.enabled)}
+                >
+                  {skill.enabled ? "Disable" : "Enable"}
+                </button>
+              </li>
+            ))}
+            {skills.length === 0 ? <li>No skills loaded.</li> : null}
+          </ul>
+        </article>
+      );
+    }
+
+    if (widget.widget === "plugins") {
+      return (
+        <article className="mc-cockpit-widget-body">
+          <ul className="mc-cockpit-list">
+            {plugins.map((plugin) => {
+              const runtime = pluginRuntimeById.get(plugin.plugin_id);
+              return (
+                <li key={plugin.plugin_id}>
+                  <div>
+                    <strong>{plugin.display_name}</strong>
+                    <p>
+                      {plugin.plugin_id} / {runtime?.faulted ? "faulted" : "ok"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className={plugin.enabled ? "danger" : ""}
+                    onClick={() => void togglePluginState(plugin.plugin_id, !plugin.enabled)}
+                  >
+                    {plugin.enabled ? "Disable" : "Enable"}
+                  </button>
+                </li>
+              );
+            })}
+            {plugins.length === 0 ? <li>No plugins installed.</li> : null}
+          </ul>
+        </article>
+      );
+    }
+
+    return (
+      <article className="mc-cockpit-widget-body">
+        <div className="mc-events compact">
+          {visibleEvents.slice(0, 24).map((event) => (
+            <article key={event.event_id} className="mc-event-item">
+              <div className="mc-event-head">
+                <span>{event.event_type}</span>
+                <span>{formatDateTime(event.ts_unix_ms)}</span>
+              </div>
+            </article>
+          ))}
+          {visibleEvents.length === 0 ? <p className="mc-empty-events">No events captured.</p> : null}
+        </div>
+      </article>
+    );
+  };
+
   return (
     <main className="mc-shell">
       <header className="mc-topbar">
@@ -991,6 +1924,37 @@ export default function App() {
           <span className="chip">token: {tokenConfigured ? "set" : "missing"}</span>
         </div>
       </header>
+
+      <section className={clsx("mc-pinned-health", incidentMode && "incident-mode")}>
+        <div className="mc-pinned-stat">
+          <strong>Incident</strong>
+          <span>{incidentMode ? "ON" : "OFF"}</span>
+        </div>
+        <div className="mc-pinned-stat">
+          <strong>Open breakers</strong>
+          <span>{openBreakers.length + openPluginBreakers.length}</span>
+        </div>
+        <div className="mc-pinned-stat">
+          <strong>Pending approvals</strong>
+          <span>{approvalsById.size}</span>
+        </div>
+        <div className="mc-pinned-stat">
+          <strong>Jobs due</strong>
+          <span>{jobsStatus?.jobs_due ?? 0}</span>
+        </div>
+        <div className="mc-pinned-stat">
+          <strong>Scheduler</strong>
+          <span>{jobsStatus?.scheduler_running ? "running" : "paused"}</span>
+        </div>
+        <label className="mc-checkbox">
+          <input
+            type="checkbox"
+            checked={incidentMode}
+            onChange={(event) => setIncidentMode(event.target.checked)}
+          />
+          Incident mode filter
+        </label>
+      </section>
 
       <section className="mc-connection">
         <label>
@@ -1055,6 +2019,13 @@ export default function App() {
           onClick={() => setActiveTab("events")}
         >
           Event Stream
+        </button>
+        <button
+          type="button"
+          className={clsx("mc-tab", activeTab === "cockpit" && "mc-tab-active")}
+          onClick={() => setActiveTab("cockpit")}
+        >
+          Cockpit
         </button>
       </section>
 
@@ -1557,6 +2528,137 @@ export default function App() {
               ) : null}
             </div>
           </article>
+        </section>
+      ) : null}
+
+      {activeTab === "cockpit" ? (
+        <section className="mc-cockpit-grid">
+          <aside className="mc-surface mc-cockpit-sidebar">
+            <header className="mc-surface-header">
+              <h2>Layout Studio</h2>
+              <p>Widget palette + saved pages</p>
+            </header>
+            <div className="mc-field-grid">
+              <label>
+                Active Page
+                <select
+                  value={activeCockpitPage.page_id}
+                  onChange={(event) => setActiveCockpitPageId(event.target.value)}
+                >
+                  {cockpitPages.map((page) => (
+                    <option key={page.page_id} value={page.page_id}>
+                      {page.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Rename Page
+                <input
+                  value={activeCockpitPage.name}
+                  onChange={(event) =>
+                    setCockpitPages((previous) =>
+                      previous.map((page) =>
+                        page.page_id === activeCockpitPage.page_id
+                          ? { ...page, name: event.target.value || "Custom Page" }
+                          : page
+                      )
+                    )
+                  }
+                />
+              </label>
+            </div>
+            <div className="mc-inline-actions">
+              <button type="button" onClick={addCockpitPage}>
+                Add Page
+              </button>
+              <button type="button" onClick={exportCockpitLayout}>
+                Export JSON
+              </button>
+              <label className="upload-pill">
+                <input
+                  type="file"
+                  accept="application/json"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) {
+                      return;
+                    }
+                    void importCockpitLayout(file).catch((error: unknown) =>
+                      setNotice({
+                        tone: "error",
+                        message: `Cockpit import failed: ${String(error)}`,
+                      })
+                    );
+                    event.currentTarget.value = "";
+                  }}
+                />
+                Import JSON
+              </label>
+              <button type="button" className="danger" onClick={resetCockpitLayout}>
+                Restore Defaults
+              </button>
+            </div>
+            <div className="mc-cockpit-palette">
+              {COCKPIT_WIDGET_PALETTE.map((entry) => (
+                <article key={entry.widget} className="mc-palette-item">
+                  <div>
+                    <h3>{entry.title}</h3>
+                    <p>{entry.description}</p>
+                  </div>
+                  <button type="button" onClick={() => addCockpitWidget(entry.widget)}>
+                    Add
+                  </button>
+                </article>
+              ))}
+            </div>
+          </aside>
+          <section className="mc-surface">
+            <header className="mc-surface-header">
+              <h2>{activeCockpitPage.name}</h2>
+              <p>{activeCockpitPage.widgets.length} widgets</p>
+            </header>
+            <div className="mc-cockpit-canvas">
+              {activeCockpitPage.widgets.map((widget) => (
+                <article
+                  key={widget.instance_id}
+                  className="mc-cockpit-widget"
+                  style={{ gridColumn: `span ${normalizeWidgetSpan(widget.span)}` }}
+                >
+                  <header className="mc-cockpit-widget-head">
+                    <h3>{widget.title}</h3>
+                    <div className="mc-inline-actions">
+                      <button type="button" onClick={() => moveCockpitWidget(widget.instance_id, -1)}>
+                        Up
+                      </button>
+                      <button type="button" onClick={() => moveCockpitWidget(widget.instance_id, 1)}>
+                        Down
+                      </button>
+                      <button type="button" onClick={() => resizeCockpitWidget(widget.instance_id, -1)}>
+                        -
+                      </button>
+                      <button type="button" onClick={() => resizeCockpitWidget(widget.instance_id, 1)}>
+                        +
+                      </button>
+                      <button
+                        type="button"
+                        className="danger"
+                        onClick={() => removeCockpitWidget(widget.instance_id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </header>
+                  {renderCockpitWidget(widget)}
+                </article>
+              ))}
+              {activeCockpitPage.widgets.length === 0 ? (
+                <div className="mc-empty-drawer">
+                  Add widgets from the palette to build this page.
+                </div>
+              ) : null}
+            </div>
+          </section>
         </section>
       ) : null}
     </main>
