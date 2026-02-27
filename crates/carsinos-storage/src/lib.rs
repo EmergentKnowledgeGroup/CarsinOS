@@ -868,12 +868,16 @@ impl Storage {
         let mut stmt = conn.prepare(
             r#"
             SELECT
-              card_id, board_id, column_id, title, description, owner_kind, owner_agent_id, owner_human_id,
-              due_at, tags_json, script_markdown, linked_session_id, latest_run_id, position, created_at, updated_at, archived_at
-            FROM board_cards
-            WHERE board_id = ?1
-              AND archived_at IS NULL
-            ORDER BY column_id ASC, position ASC, updated_at DESC
+              c.card_id, c.board_id, c.column_id, c.title, c.description, c.owner_kind, c.owner_agent_id, c.owner_human_id,
+              c.due_at, c.tags_json, c.script_markdown, c.linked_session_id, c.latest_run_id, c.position, c.created_at, c.updated_at, c.archived_at
+            FROM board_cards c
+            JOIN board_columns bc
+              ON bc.column_id = c.column_id
+             AND bc.board_id = c.board_id
+             AND bc.archived_at IS NULL
+            WHERE c.board_id = ?1
+              AND c.archived_at IS NULL
+            ORDER BY bc.position ASC, c.position ASC, c.updated_at DESC
             "#,
         )?;
         let rows = stmt.query_map(params![board_id], map_board_card_row)?;
@@ -1188,24 +1192,18 @@ impl Storage {
         new_asset: NewBoardCardAsset,
     ) -> Result<Option<BoardCardAssetRecord>> {
         let conn = self.connect()?;
-        let card_exists = conn
-            .query_row(
-                "SELECT 1 FROM board_cards WHERE card_id = ?1 AND archived_at IS NULL LIMIT 1",
-                params![new_asset.card_id],
-                |_| Ok(()),
-            )
-            .optional()?
-            .is_some();
-        if !card_exists {
-            return Ok(None);
-        }
         let card_asset_id = uuid::Uuid::new_v4().to_string();
         let now = now_ms();
-        conn.execute(
+        let inserted_rows = conn.execute(
             r#"
             INSERT INTO board_card_assets (
               card_asset_id, card_id, filename, mime, sha256, bytes, local_path, created_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+            )
+            SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8
+            FROM board_cards
+            WHERE card_id = ?9
+              AND archived_at IS NULL
+            LIMIT 1
             "#,
             params![
                 card_asset_id,
@@ -1215,9 +1213,13 @@ impl Storage {
                 new_asset.sha256,
                 new_asset.bytes,
                 new_asset.local_path,
-                now
+                now,
+                new_asset.card_id
             ],
         )?;
+        if inserted_rows == 0 {
+            return Ok(None);
+        }
         self.get_board_card_asset(&card_asset_id)
     }
 

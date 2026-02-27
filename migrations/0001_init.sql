@@ -346,6 +346,9 @@ ON board_cards(column_id, position, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_board_cards_board_updated
 ON board_cards(board_id, updated_at DESC);
 
+CREATE INDEX IF NOT EXISTS idx_board_cards_board_column_position
+ON board_cards(board_id, column_id, position, updated_at DESC);
+
 CREATE TABLE IF NOT EXISTS board_card_assets (
   card_asset_id TEXT PRIMARY KEY,
   card_id TEXT NOT NULL REFERENCES board_cards(card_id),
