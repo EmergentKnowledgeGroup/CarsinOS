@@ -530,6 +530,78 @@ pub struct RunBoardCardResponse {
     pub run: RunResponse,
 }
 
+pub const WS_EVENT_SCHEMA_VERSION_V1: &str = "carsinos.ws.event.v1";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WsEventFrame {
+    #[serde(default = "default_ws_event_legacy_version")]
+    pub v: u32,
+    #[serde(default = "default_ws_event_legacy_type")]
+    pub r#type: String,
+    pub event: String,
+    pub seq: u64,
+    pub data: serde_json::Value,
+    pub schema_version: String,
+    pub event_id: String,
+    pub event_type: String,
+    pub ts_unix_ms: i64,
+    pub request_id: Option<String>,
+    pub entity: String,
+    pub payload: serde_json::Value,
+}
+
+impl WsEventFrame {
+    pub fn new(seq: u64, event_type: impl Into<String>, payload: serde_json::Value) -> Self {
+        let event_type = event_type.into();
+        let request_id = payload
+            .get("request_id")
+            .and_then(|value| value.as_str())
+            .map(|value| value.to_string());
+        Self {
+            v: default_ws_event_legacy_version(),
+            r#type: default_ws_event_legacy_type(),
+            event: event_type.clone(),
+            seq,
+            data: payload.clone(),
+            schema_version: WS_EVENT_SCHEMA_VERSION_V1.to_string(),
+            event_id: format!("evt-{seq}"),
+            event_type: event_type.clone(),
+            ts_unix_ms: Utc::now().timestamp_millis(),
+            request_id,
+            entity: ws_event_entity_from_type(&event_type),
+            payload,
+        }
+    }
+}
+
+fn default_ws_event_legacy_version() -> u32 {
+    1
+}
+
+fn default_ws_event_legacy_type() -> String {
+    "event".to_string()
+}
+
+pub fn ws_event_entity_from_type(event_type: &str) -> String {
+    let parts = event_type
+        .split('.')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>();
+    match parts.as_slice() {
+        ["board", "card", ..] => "board.card".to_string(),
+        ["board", "asset", ..] => "board.asset".to_string(),
+        ["board", "automation", ..] => "board.automation".to_string(),
+        ["run", ..] => "run".to_string(),
+        ["approval", ..] => "approval".to_string(),
+        ["job", ..] => "job".to_string(),
+        ["channel", ..] => "channel".to_string(),
+        ["agent_mail", "thread", ..] => "agent_mail.thread".to_string(),
+        ["agent_mail", "message", ..] => "agent_mail.message".to_string(),
+        [head, ..] => (*head).to_string(),
+        [] => "system".to_string(),
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct BoardAutomationRuleResponse {
     pub rule_id: String,
@@ -1663,4 +1735,46 @@ pub struct JobRunResponse {
     pub error_text: Option<String>,
     pub output_json: Option<String>,
     pub created_at: i64,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ws_event_entity_from_type, WsEventFrame, WS_EVENT_SCHEMA_VERSION_V1};
+
+    #[test]
+    fn ws_event_frame_populates_legacy_and_v1_fields() {
+        let frame = WsEventFrame::new(
+            42,
+            "board.card.moved",
+            serde_json::json!({
+                "request_id": "req_123",
+                "board_id": "board_1",
+                "card_id": "card_1"
+            }),
+        );
+        assert_eq!(frame.v, 1);
+        assert_eq!(frame.r#type, "event");
+        assert_eq!(frame.event, "board.card.moved");
+        assert_eq!(frame.data["card_id"], "card_1");
+        assert_eq!(frame.schema_version, WS_EVENT_SCHEMA_VERSION_V1);
+        assert_eq!(frame.event_id, "evt-42");
+        assert_eq!(frame.event_type, "board.card.moved");
+        assert_eq!(frame.request_id.as_deref(), Some("req_123"));
+        assert_eq!(frame.entity, "board.card");
+        assert_eq!(frame.payload["board_id"], "board_1");
+    }
+
+    #[test]
+    fn ws_event_entity_mapper_covers_primary_domains() {
+        assert_eq!(
+            ws_event_entity_from_type("board.asset.uploaded"),
+            "board.asset"
+        );
+        assert_eq!(ws_event_entity_from_type("approval.requested"), "approval");
+        assert_eq!(
+            ws_event_entity_from_type("agent_mail.message.created"),
+            "agent_mail.message"
+        );
+        assert_eq!(ws_event_entity_from_type("gateway.status"), "gateway");
+    }
 }

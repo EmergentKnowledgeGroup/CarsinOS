@@ -1,10 +1,11 @@
 use anyhow::{Context, Result as AnyResult};
+use axum::body::Body;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::State;
 use axum::extract::{Path, Query};
 use axum::http::Request;
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
-use axum::response::IntoResponse;
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -70,7 +71,7 @@ use carsinos_protocol::{
     UpdateRuntimeConfigResponse, UpdateSkillStateRequest, UpdateSkillStateResponse,
     UploadBoardCardAssetRequest, UploadBoardCardAssetResponse, UpsertBoardAutomationRuleRequest,
     UpsertBoardAutomationRuleResponse, UpsertRuntimeSecretRequest, UpsertRuntimeSecretResponse,
-    HEARTBEAT_OUTPUT_ALERT_PREFIX, HEARTBEAT_OUTPUT_OK, JOB_MODE_HEARTBEAT_RUN,
+    WsEventFrame, HEARTBEAT_OUTPUT_ALERT_PREFIX, HEARTBEAT_OUTPUT_OK, JOB_MODE_HEARTBEAT_RUN,
 };
 use carsinos_providers::{
     parse_provider_error_class as parse_provider_error_class_normalized,
@@ -107,6 +108,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{broadcast, Mutex, RwLock, Semaphore};
 use tokio::time::sleep;
+use tokio_util::io::ReaderStream;
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 use tower_http::trace::{DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer};
 use tracing::{debug, error, info, warn, Level};
@@ -4821,29 +4823,38 @@ async fn ws_handler(
     .map_err(|err| err.status)?;
     info!("websocket client connected");
     let rx = state.event_tx.subscribe();
-    Ok(ws.on_upgrade(move |socket| handle_socket(socket, rx, state.started_at)))
+    let event_seq = state.event_seq.clone();
+    Ok(ws.on_upgrade(move |socket| handle_socket(socket, rx, state.started_at, event_seq)))
 }
 
 async fn handle_socket(
     mut socket: WebSocket,
     mut event_rx: broadcast::Receiver<String>,
     started_at: DateTime<Utc>,
+    event_seq: Arc<AtomicU64>,
 ) {
-    let event = serde_json::json!({
-        "v": 1,
-        "type": "event",
-        "event": "gateway.status",
-        "seq": 1,
-        "data": {
+    let seq = event_seq.fetch_add(1, Ordering::Relaxed);
+    let event = WsEventFrame::new(
+        seq,
+        "gateway.status",
+        serde_json::json!({
             "service": "carsinos-gateway",
             "started_at_utc": started_at,
             "now_utc": Utc::now(),
             "status": "ok"
+        }),
+    );
+
+    let initial_frame = match serde_json::to_string(&event) {
+        Ok(frame) => frame,
+        Err(err) => {
+            warn!(error = %err, "failed to serialize websocket gateway.status frame");
+            return;
         }
-    });
+    };
 
     if socket
-        .send(Message::Text(event.to_string().into()))
+        .send(Message::Text(initial_frame.into()))
         .await
         .is_err()
     {
@@ -5456,6 +5467,10 @@ fn build_app(state: AppState) -> Router {
         .route(
             "/api/v1/boards/{board_id}/cards/{card_id}/assets/upload",
             post(upload_board_card_asset),
+        )
+        .route(
+            "/api/v1/boards/{board_id}/cards/{card_id}/assets/{card_asset_id}",
+            get(download_board_card_asset),
         )
         .route(
             "/api/v1/boards/{board_id}/cards/{card_id}/run",
@@ -6183,10 +6198,7 @@ async fn upload_board_card_asset(
         .map_err(|err| internal_err_with_error("loading board card failed", err))?
         .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "board card not found"))?;
     if card.board_id != board_id {
-        return Err(api_error(
-            StatusCode::BAD_REQUEST,
-            "board card does not belong to board",
-        ));
+        return Err(api_error(StatusCode::NOT_FOUND, "board card not found"));
     }
     let mime = request.mime.trim().to_ascii_lowercase();
     if !board_asset_mime_allowed(&mime) {
@@ -6296,6 +6308,103 @@ async fn upload_board_card_asset(
             asset: asset_response,
         }),
     ))
+}
+
+async fn download_board_card_asset(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path((board_id, card_id, card_asset_id)): Path<(String, String, String)>,
+) -> std::result::Result<Response, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(
+        &auth,
+        &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_OPERATOR_READONLY,
+            ROLE_AUTOMATION_RUNNER,
+        ],
+    )?;
+
+    let board_id = board_id.trim().to_string();
+    let card_id = card_id.trim().to_string();
+    let card_asset_id = card_asset_id.trim().to_string();
+
+    let card = state
+        .storage
+        .get_board_card(&card_id)
+        .map_err(|err| internal_err_with_error("loading board card failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "board card not found"))?;
+    if card.board_id != board_id {
+        return Err(api_error(StatusCode::NOT_FOUND, "board card not found"));
+    }
+
+    let asset = state
+        .storage
+        .get_board_card_asset(&card_asset_id)
+        .map_err(|err| internal_err_with_error("loading board card asset failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "board card asset not found"))?;
+    if asset.card_id != card_id {
+        return Err(api_error(
+            StatusCode::NOT_FOUND,
+            "board card asset not found",
+        ));
+    }
+
+    let attachments_root = tokio::fs::canonicalize(state.attachments_path.as_str())
+        .await
+        .map_err(|err| {
+            internal_err_with_error("canonicalizing attachments root failed", err.into())
+        })?;
+    let resolved_path = tokio::fs::canonicalize(PathBuf::from(&asset.local_path))
+        .await
+        .map_err(|err| {
+            if err.kind() == ErrorKind::NotFound {
+                api_error(StatusCode::NOT_FOUND, "board card asset file not found")
+            } else {
+                internal_err_with_error("resolving board card asset path failed", err.into())
+            }
+        })?;
+    if !resolved_path.starts_with(&attachments_root) {
+        return Err(api_error(
+            StatusCode::FORBIDDEN,
+            "board card asset path is outside attachments root",
+        ));
+    }
+
+    let file = tokio::fs::File::open(&resolved_path).await.map_err(|err| {
+        if err.kind() == ErrorKind::NotFound {
+            api_error(StatusCode::NOT_FOUND, "board card asset file not found")
+        } else {
+            internal_err_with_error("opening board card asset file failed", err.into())
+        }
+    })?;
+    let stream = ReaderStream::new(file);
+    let mut response = Response::new(Body::from_stream(stream));
+    *response.status_mut() = StatusCode::OK;
+
+    let mime_header = HeaderValue::from_str(&asset.mime)
+        .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream"));
+    response
+        .headers_mut()
+        .insert(header::CONTENT_TYPE, mime_header);
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    if asset.bytes >= 0 {
+        if let Ok(content_length) = HeaderValue::from_str(&asset.bytes.to_string()) {
+            response
+                .headers_mut()
+                .insert(header::CONTENT_LENGTH, content_length);
+        }
+    }
+    let safe_filename = sanitize_filename(&asset.filename);
+    if let Ok(disposition) = HeaderValue::from_str(&format!("inline; filename=\"{safe_filename}\""))
+    {
+        response
+            .headers_mut()
+            .insert(header::CONTENT_DISPOSITION, disposition);
+    }
+    Ok(response)
 }
 
 async fn run_board_card(
@@ -20775,14 +20884,20 @@ fn build_hook_bus_from_registry(
 
 fn emit_event(state: &AppState, event_name: &str, data: serde_json::Value) {
     let seq = state.event_seq.fetch_add(1, Ordering::Relaxed);
-    let frame = serde_json::json!({
-        "v": 1,
-        "type": "event",
-        "event": event_name,
-        "seq": seq,
-        "data": data
-    });
-    let _ = state.event_tx.send(frame.to_string());
+    let frame = WsEventFrame::new(seq, event_name, data);
+    match serde_json::to_string(&frame) {
+        Ok(serialized) => {
+            let _ = state.event_tx.send(serialized);
+        }
+        Err(err) => {
+            error!(
+                error = %err,
+                event_name = event_name,
+                seq = seq,
+                "failed to serialize websocket event frame"
+            );
+        }
+    }
 }
 
 fn load_operator_allowlist_from_env() -> Vec<String> {
@@ -31434,6 +31549,9 @@ sys.stdout.write(json.dumps(response))
         assert_eq!(upload_response.status(), StatusCode::CREATED);
         let upload_json = parse_json(upload_response).await;
         assert_eq!(upload_json["asset"]["mime"], "text/plain");
+        let asset_id = upload_json["asset"]["card_asset_id"]
+            .as_str()
+            .expect("asset id");
         assert_eq!(
             upload_json["card"]["assets"]
                 .as_array()
@@ -31441,6 +31559,196 @@ sys.stdout.write(json.dumps(response))
                 .len(),
             1
         );
+
+        let download_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/boards/{tasks_board_id}/cards/{card_id}/assets/{asset_id}"),
+                Body::empty(),
+            ))
+            .await
+            .expect("asset download response");
+        assert_eq!(download_response.status(), StatusCode::OK);
+        assert_eq!(
+            download_response
+                .headers()
+                .get(header::CONTENT_TYPE)
+                .and_then(|value| value.to_str().ok()),
+            Some("text/plain")
+        );
+        assert_eq!(
+            download_response
+                .headers()
+                .get(header::CACHE_CONTROL)
+                .and_then(|value| value.to_str().ok()),
+            Some("no-store")
+        );
+        let body = to_bytes(download_response.into_body(), usize::MAX)
+            .await
+            .expect("asset download body");
+        assert_eq!(body.as_ref(), b"hello world");
+    }
+
+    #[tokio::test]
+    async fn board_card_asset_download_enforces_auth_and_not_found_paths() {
+        let ctx = test_context();
+
+        let boards_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request("GET", "/api/v1/boards", Body::empty()))
+            .await
+            .expect("boards response");
+        assert_eq!(boards_response.status(), StatusCode::OK);
+        let boards_json = parse_json(boards_response).await;
+        let tasks_board_id = boards_json["items"]
+            .as_array()
+            .expect("boards items")
+            .iter()
+            .find(|item| item["board_key"] == "tasks")
+            .and_then(|item| item["board_id"].as_str())
+            .expect("tasks board_id")
+            .to_string();
+
+        let board_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/boards/{tasks_board_id}"),
+                Body::empty(),
+            ))
+            .await
+            .expect("board detail response");
+        assert_eq!(board_response.status(), StatusCode::OK);
+        let board_json = parse_json(board_response).await;
+        let backlog_column_id = board_json["columns"]
+            .as_array()
+            .expect("columns")
+            .iter()
+            .find(|item| item["column_key"] == "backlog")
+            .and_then(|item| item["column_id"].as_str())
+            .expect("backlog column_id")
+            .to_string();
+
+        let create_card_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/boards/{tasks_board_id}/cards/create"),
+                Body::from(format!(
+                    r#"{{
+                    "column_id":"{}",
+                    "title":"Asset policy checks"
+                }}"#,
+                    backlog_column_id
+                )),
+            ))
+            .await
+            .expect("create board card response");
+        assert_eq!(create_card_response.status(), StatusCode::CREATED);
+        let create_card_json = parse_json(create_card_response).await;
+        let card_id = create_card_json["card"]["card_id"]
+            .as_str()
+            .expect("card_id")
+            .to_string();
+
+        let upload_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/boards/{tasks_board_id}/cards/{card_id}/assets/upload"),
+                Body::from(
+                    r#"{
+                    "filename":"policy.txt",
+                    "mime":"text/plain",
+                    "content_base64":"cG9saWN5"
+                }"#,
+                ),
+            ))
+            .await
+            .expect("asset upload response");
+        assert_eq!(upload_response.status(), StatusCode::CREATED);
+        let upload_json = parse_json(upload_response).await;
+        let asset_id = upload_json["asset"]["card_asset_id"]
+            .as_str()
+            .expect("asset id")
+            .to_string();
+
+        let asset_uri =
+            format!("/api/v1/boards/{tasks_board_id}/cards/{card_id}/assets/{asset_id}");
+
+        let unauthorized_response = ctx
+            .app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(asset_uri.as_str())
+                    .body(Body::empty())
+                    .expect("unauthorized request"),
+            )
+            .await
+            .expect("unauthorized response");
+        assert_eq!(unauthorized_response.status(), StatusCode::UNAUTHORIZED);
+
+        let missing_asset_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/boards/{tasks_board_id}/cards/{card_id}/assets/missing-asset"),
+                Body::empty(),
+            ))
+            .await
+            .expect("missing asset response");
+        assert_eq!(missing_asset_response.status(), StatusCode::NOT_FOUND);
+
+        let board_mismatch_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/boards/not-this-board/cards/{card_id}/assets/{asset_id}"),
+                Body::empty(),
+            ))
+            .await
+            .expect("board mismatch response");
+        assert_eq!(board_mismatch_response.status(), StatusCode::NOT_FOUND);
+
+        let outside_root_file = tempfile::NamedTempFile::new().expect("outside root file");
+        std::fs::write(outside_root_file.path(), b"outside-root").expect("write outside root file");
+        let outside_asset = ctx
+            .storage
+            .create_board_card_asset(NewBoardCardAsset {
+                card_id: card_id.clone(),
+                filename: "outside.txt".to_string(),
+                mime: "text/plain".to_string(),
+                sha256: "outside-sha".to_string(),
+                bytes: 12,
+                local_path: outside_root_file.path().to_string_lossy().to_string(),
+            })
+            .expect("create outside root asset")
+            .expect("outside root asset record");
+
+        let forbidden_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!(
+                    "/api/v1/boards/{tasks_board_id}/cards/{card_id}/assets/{}",
+                    outside_asset.card_asset_id
+                ),
+                Body::empty(),
+            ))
+            .await
+            .expect("outside root forbidden response");
+        assert_eq!(forbidden_response.status(), StatusCode::FORBIDDEN);
     }
 
     #[tokio::test]
