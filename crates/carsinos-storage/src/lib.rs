@@ -778,33 +778,33 @@ impl Storage {
         }
 
         let conn = self.connect()?;
-        let current = match self.get_agent(agent_id)? {
-            Some(record) => record,
-            None => return Ok(None),
-        };
-        let next_name = patch.name.unwrap_or(current.name);
-        let next_workspace_root = patch.workspace_root.unwrap_or(current.workspace_root);
-        let next_model_provider = patch.model_provider.unwrap_or(current.model_provider);
-        let next_model_id = patch.model_id.unwrap_or(current.model_id);
-        let next_tool_profile = patch.tool_profile.unwrap_or(current.tool_profile);
         let now = now_ms();
-        conn.execute(
-            r#"
+        let updated_rows = conn
+            .execute(
+                r#"
             UPDATE agents
-            SET name = ?1, workspace_root = ?2, model_provider = ?3, model_id = ?4, tool_profile = ?5, updated_at = ?6
+            SET name = COALESCE(?1, name),
+                workspace_root = COALESCE(?2, workspace_root),
+                model_provider = COALESCE(?3, model_provider),
+                model_id = COALESCE(?4, model_id),
+                tool_profile = COALESCE(?5, tool_profile),
+                updated_at = ?6
             WHERE agent_id = ?7
             "#,
-            params![
-                next_name,
-                next_workspace_root,
-                next_model_provider,
-                next_model_id,
-                next_tool_profile,
-                now,
-                agent_id
-            ],
-        )
-        .context("failed to update agent")?;
+                params![
+                    patch.name,
+                    patch.workspace_root,
+                    patch.model_provider,
+                    patch.model_id,
+                    patch.tool_profile,
+                    now,
+                    agent_id
+                ],
+            )
+            .context("failed to update agent")?;
+        if updated_rows == 0 {
+            return Ok(None);
+        }
         self.get_agent(agent_id)
     }
 
