@@ -284,7 +284,7 @@ Execution checklist derived from `PLAN.md`. IDs are stable and must be used by `
 - [x] `Z3` `AM-APP-001` Implement Mission Control Mail page (inbox/outbox/thread/compose/search/summarize).
 - [x] `Z4` `AM-APP-002` Implement Mission Control Chatrooms page with realtime stream + moderation controls.
 - [x] `Z5` `AM-OPT-001` Implement optional advisory file leases (TTL/exclusive/conflict visibility).
-- [ ] `Z6` Run PR-E regression + benchmark + security gates and complete PR workflow (open, CR loop, merge, post-merge checkpoint).
+- [x] `Z6` Run PR-E regression + benchmark + security gates and complete PR workflow (open, CR loop, merge, post-merge checkpoint).
 
 ## Phase AA - Agent Mail MCP Facade (PR-F Optional)
 
