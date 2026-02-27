@@ -1,37 +1,29 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-27T05:15:47.700936+00:00",
+  "captured_at": "2026-02-27T05:16:41.699017+00:00",
   "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
   "branch": "codex/pr42-coderabbit-followup",
-  "head_short": "031a0c2",
-  "step": "pr42-post-green-tests",
-  "note": "Warning cleanup patch validated; e2e and benchmark suites green before PR open",
-  "next_cmd": "git -C '/Users/domusanimae/Documents/openclaw replacement/carsinos' status --short --branch",
+  "head_short": "452b977",
+  "step": "pr42-open",
+  "note": "Opened PR #42 for CodeRabbit review loop after warning cleanup patch",
+  "next_cmd": "gh pr view 42 --json state,mergeStateStatus,comments,reviews,url",
   "status": {
     "staged": [],
-    "modified": [
-      "crates/carsinos-gateway/src/main.rs",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
+    "modified": [],
     "untracked": [],
     "conflicted": [],
-    "dirty": true
+    "dirty": false
   },
   "changed_files": {
-    "working_tree": [
-      "crates/carsinos-gateway/src/main.rs",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
+    "working_tree": [],
     "staged": []
   },
   "recent_commits": [
+    "452b977 chore(gateway): remove dead numquam/plugin fields and checkpoint state",
     "031a0c2 Merge pull request #41 from ProfessahX/codex/sync-local-sot-20260226-230214",
     "4d14144 docs: checkpoint repo sync PR #41 open state",
     "bd431bd sync: publish local source-of-truth runtime and ticket-pack updates",
-    "fc01dfb docs: checkpoint hard-blocker owner-input state",
-    "dada1f5 docs: checkpoint PR #40 post-merge status"
+    "fc01dfb docs: checkpoint hard-blocker owner-input state"
   ],
   "checklist": [
     "Run git status -sb and verify branch/head.",
