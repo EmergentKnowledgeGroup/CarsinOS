@@ -1,46 +1,14 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-27T05:22:57.562878+00:00",
-  "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/pr42-coderabbit-followup",
-  "head_short": "0215a5c",
-  "step": "pr42-cr-fixes-post-green",
-  "note": "Applied CodeRabbit suggestions for checkpoint consistency and reran validation gates",
-  "next_cmd": "git status --short --branch",
+  "captured_at": "2026-02-27T11:01:00Z",
+  "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui",
+  "branch": "codex/mc3-pr2-gui",
+  "head": "49d5b3969023877f65a0d5f239d9681c32f9e94f",
+  "head_short": "49d5b39",
+  "step": "mc3-pr44-post-green",
+  "note": "Applied PR44 remediation (UI run model resolution + MC3 refresh errors + clippy/CI fixes) and passed full security gate locally",
+  "next_cmd": "git add .github/workflows/pr-gate.yml crates/carsinos-core/src/lib.rs crates/carsinos-gateway/src/main.rs crates/carsinos-gui/src/main.rs CHECKPOINT.md runtime/checkpoints/LATEST.md runtime/checkpoints/LATEST.json && git commit -m \"fix(gui): harden MC3 refresh and run-card model resolution\" && git push origin codex/mc3-pr2-gui",
   "validations": [
-    "cargo check -p carsinos-gateway --bin carsinos-gateway",
-    "cargo test -p carsinos-gateway --test e2e_process",
-    "cargo test -p carsinos-gateway --test benchmark_process -- --nocapture"
-  ],
-  "status": {
-    "staged": [],
-    "modified": [
-      "CHECKPOINT.md",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
-    "untracked": [],
-    "conflicted": [],
-    "dirty": true
-  },
-  "changed_files": {
-    "working_tree": [
-      "CHECKPOINT.md",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
-    "staged": []
-  },
-  "recent_commits": [
-    "0215a5c docs: checkpoint PR #42 open state",
-    "452b977 chore(gateway): remove dead numquam/plugin fields and checkpoint state",
-    "031a0c2 Merge pull request #41 from ProfessahX/codex/sync-local-sot-20260226-230214",
-    "4d14144 docs: checkpoint repo sync PR #41 open state",
-    "bd431bd sync: publish local source-of-truth runtime and ticket-pack updates"
-  ],
-  "checklist": [
-    "Run git status -sb and verify branch/head.",
-    "Open diff for changed files listed in checkpoint.",
-    "Resume from step + next_cmd, then write a new checkpoint after each major edit block."
+    "scripts/security_pr_gate.sh"
   ]
 }

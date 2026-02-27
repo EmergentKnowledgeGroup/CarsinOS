@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use eframe::egui;
 use eframe::egui::{Color32, RichText};
 use rand::rngs::OsRng;
@@ -691,8 +693,7 @@ impl GuiApp {
         match fetch_gateway_snapshots(&self.gateway_base_url, &self.gateway_token) {
             Ok(snapshots) => {
                 self.apply_snapshots(snapshots);
-                let _ = self.refresh_mc3_state();
-                self.set_info("Gateway state refreshed");
+                self.set_mc3_refresh_status("Gateway state refreshed");
             }
             Err(err) => {
                 if !self.auto_launch_attempted && auto_launch_gateway_enabled() {
@@ -708,8 +709,7 @@ impl GuiApp {
                     match fetch_gateway_snapshots(&self.gateway_base_url, &self.gateway_token) {
                         Ok(snapshots) => {
                             self.apply_snapshots(snapshots);
-                            let _ = self.refresh_mc3_state();
-                            self.set_info("Gateway auto-launched and connected");
+                            self.set_mc3_refresh_status("Gateway auto-launched and connected");
                         }
                         Err(retry_err) => self.set_error(format!(
                             "{}; gateway auto-launch retry failed: {}",
@@ -720,6 +720,14 @@ impl GuiApp {
                     self.set_error(err);
                 }
             }
+        }
+    }
+
+    fn set_mc3_refresh_status(&mut self, success_message: &str) {
+        if let Err(mc3_err) = self.refresh_mc3_state() {
+            self.set_info(format!("{success_message}; MC3 sync failed: {mc3_err}"));
+        } else {
+            self.set_info(success_message);
         }
     }
 
@@ -1632,18 +1640,64 @@ impl GuiApp {
         let board_id = self
             .board_id_by_key(board_key)
             .ok_or_else(|| format!("board '{}' not found", board_key))?;
+        let (model_provider, model_id) = self.resolve_card_run_model(board_key, card_id)?;
+        let mut payload = json!({
+            "model_provider": model_provider,
+            "model_id": model_id
+        });
+        let auth_profile_id = self.run_auth_profile_id.trim();
+        if !auth_profile_id.is_empty() {
+            payload["auth_profile_id"] = Value::String(auth_profile_id.to_string());
+        }
         send_json(
             &self.gateway_base_url,
             &format!("/api/v1/boards/{board_id}/cards/{card_id}/run"),
             "POST",
             &self.gateway_token,
-            Some(&json!({
-                "model_provider": "mock",
-                "model_id": "mock-echo-v1"
-            })),
+            Some(&payload),
         )?;
         self.refresh_mc3_state()?;
         Ok(())
+    }
+
+    fn resolve_card_run_model(
+        &self,
+        board_key: &str,
+        card_id: &str,
+    ) -> Result<(String, String), String> {
+        let board = match board_key {
+            "tasks" => &self.tasks_board,
+            "content" => &self.content_board,
+            _ => return Err(format!("board '{}' not supported for card runs", board_key)),
+        };
+        let owner_agent_id = board
+            .cards
+            .iter()
+            .find(|card| card.card_id == card_id)
+            .and_then(|card| card.owner_agent_id.as_deref());
+        if let Some(owner_agent_id) = owner_agent_id {
+            if let Some(agent) = self
+                .team_agents
+                .iter()
+                .find(|candidate| candidate.agent_id == owner_agent_id)
+            {
+                let model_provider = agent.model_provider.trim();
+                let model_id = agent.model_id.trim();
+                if !model_provider.is_empty() && !model_id.is_empty() {
+                    return Ok((model_provider.to_string(), model_id.to_string()));
+                }
+            }
+        }
+
+        let fallback_provider = self.run_model_provider.trim();
+        let fallback_model_id = self.run_model_id.trim();
+        if fallback_provider.is_empty() || fallback_model_id.is_empty() {
+            return Err(
+                "card run model is not configured (set session run provider/model or assign an owner agent with model settings)"
+                    .to_string(),
+            );
+        }
+        Ok((fallback_provider.to_string(), fallback_model_id.to_string()))
     }
 
     fn update_card_script(
@@ -1897,7 +1951,9 @@ impl GuiApp {
                                 }
                                 ui.small(format!(
                                     "owner: {}",
-                                    card_item.owner_agent_id.unwrap_or_else(|| "unassigned".to_string())
+                                    card_item
+                                        .owner_agent_id
+                                        .unwrap_or_else(|| "unassigned".to_string())
                                 ));
                                 ui.horizontal(|ui| {
                                     if ui.button("Run").clicked() {
@@ -1910,7 +1966,9 @@ impl GuiApp {
                                         .min_by_key(|candidate| candidate.position)
                                         .cloned();
                                     if let Some(next_column) = next_column {
-                                        if ui.button(format!("Move -> {}", next_column.name)).clicked()
+                                        if ui
+                                            .button(format!("Move -> {}", next_column.name))
+                                            .clicked()
                                         {
                                             pending_move = Some((
                                                 card_item.card_id.clone(),
@@ -2071,13 +2129,18 @@ impl GuiApp {
                                 ui.label(RichText::new(&card_item.title).strong());
                                 ui.small(format!(
                                     "owner: {}",
-                                    card_item.owner_agent_id.clone().unwrap_or_else(|| "unassigned".to_string())
+                                    card_item
+                                        .owner_agent_id
+                                        .clone()
+                                        .unwrap_or_else(|| "unassigned".to_string())
                                 ));
-                                let mut script = card_item.script_markdown.clone().unwrap_or_default();
+                                let mut script =
+                                    card_item.script_markdown.clone().unwrap_or_default();
                                 ui.add(egui::TextEdit::multiline(&mut script).desired_rows(3));
                                 ui.horizontal(|ui| {
                                     if ui.button("Save Script").clicked() {
-                                        pending_script_update = Some((card_item.card_id.clone(), script.clone()));
+                                        pending_script_update =
+                                            Some((card_item.card_id.clone(), script.clone()));
                                     }
                                     if ui.button("Run").clicked() {
                                         pending_run = Some(card_item.card_id.clone());
@@ -2099,9 +2162,14 @@ impl GuiApp {
                                     .min_by_key(|candidate| candidate.position)
                                     .cloned();
                                 if let Some(next_column) = next_column {
-                                    if ui.button(format!("Advance -> {}", next_column.name)).clicked()
+                                    if ui
+                                        .button(format!("Advance -> {}", next_column.name))
+                                        .clicked()
                                     {
-                                        pending_move = Some((card_item.card_id.clone(), next_column.column_id));
+                                        pending_move = Some((
+                                            card_item.card_id.clone(),
+                                            next_column.column_id,
+                                        ));
                                     }
                                 }
                             });
@@ -2232,15 +2300,11 @@ impl GuiApp {
                     .unwrap_or(false)
                     || note.body_preview.to_ascii_lowercase().contains(&query)
             }) {
-                card(
-                    ui,
-                    note.title.as_deref().unwrap_or("Untitled note"),
-                    |ui| {
-                        ui.label(format!("note_id: {}", note.note_id));
-                        ui.label(format!("updated_at_ms: {}", note.updated_at));
-                        ui.small(&note.body_preview);
-                    },
-                );
+                card(ui, note.title.as_deref().unwrap_or("Untitled note"), |ui| {
+                    ui.label(format!("note_id: {}", note.note_id));
+                    ui.label(format!("updated_at_ms: {}", note.updated_at));
+                    ui.small(&note.body_preview);
+                });
             }
         });
     }
@@ -4987,9 +5051,11 @@ mod tests {
 
     #[test]
     fn runtime_wizard_completeness_requires_bot_secret_refs_in_transport_mode() {
-        let mut config = RuntimeConfigWizardSnapshot::default();
-        config.discord_operation_mode = "transport".to_string();
-        config.telegram_operation_mode = "transport".to_string();
+        let config = RuntimeConfigWizardSnapshot {
+            discord_operation_mode: "transport".to_string(),
+            telegram_operation_mode: "transport".to_string(),
+            ..RuntimeConfigWizardSnapshot::default()
+        };
         let issues = runtime_wizard_completeness_issues(&config);
         assert!(issues.iter().any(|entry| {
             entry.contains("channels.discord.bot_token_secret_ref is empty (transport mode)")

@@ -5770,3 +5770,30 @@ Tracks execution continuity across context compactions.
 - `/Users/domusanimae/Documents/openclaw replacement/carsinos/runtime/checkpoints/LATEST.md`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.json`
 - `/Users/domusanimae/Documents/openclaw replacement/runtime/checkpoints/LATEST.md`
+
+### 2026-02-27 - Entry 273
+
+- checklist refs: `Q4` `Q7`
+- past action:
+- Resumed PR #44 (`codex/mc3-pr2-gui`) with failed Security PR Gate and one CodeRabbit review set.
+- present action:
+- Implemented PR44 remediation batch:
+- surfaced MC3 refresh failures in gateway-connect status messaging (`set_mc3_refresh_status`)
+- removed hardcoded card-run model payload; now resolves model from card owner agent and falls back to operator-configured run model fields
+- added optional `auth_profile_id` forwarding for card-run payload when configured
+- updated PR gate cargo-audit pin to `0.22.1` for CVSS4 advisory compatibility
+- applied strict clippy parity fixes already validated in backend PR branch (`carsinos-core` default derive + gateway lint cleanups)
+- validation outcomes:
+- `scripts/security_pr_gate.sh` passed end-to-end (fmt, clippy, tests-core, tests-workspace, hardcoded guard, cargo-audit).
+- Checkpoint SOP:
+- phase-start snapshot recorded and post-green `runtime/checkpoints/LATEST.md` + `LATEST.json` updated with required fields.
+- future action:
+- commit/push PR44 remediation batch, poll checks + CodeRabbit status, and merge once green.
+- changed files:
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/.github/workflows/pr-gate.yml`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/crates/carsinos-core/src/lib.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/crates/carsinos-gateway/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/crates/carsinos-gui/src/main.rs`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/runtime/checkpoints/LATEST.md`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/runtime/checkpoints/LATEST.json`
+- `/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr2-gui/CHECKPOINT.md`

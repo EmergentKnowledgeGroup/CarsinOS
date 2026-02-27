@@ -14,9 +14,9 @@ use carsinos_channels_telegram as telegram_channel;
 use carsinos_core::{
     ChannelAdapterHealth, ChannelAdapterLifecycle, ChannelAdapterLifecycleState, GatewayConfig,
     HookBus, HookEvent, HookPoint, HookRegistration, PluginCapability as CorePluginCapability,
-    PluginExecKind as CorePluginExecKind,
-    PluginManifest as CorePluginManifest, PluginRegistry, SkillDocument as CoreSkillDocument,
-    SkillRegistry, TokenSource, PLUGIN_API_VERSION_V1, PLUGIN_MANIFEST_SCHEMA_VERSION_V2,
+    PluginExecKind as CorePluginExecKind, PluginManifest as CorePluginManifest, PluginRegistry,
+    SkillDocument as CoreSkillDocument, SkillRegistry, TokenSource, PLUGIN_API_VERSION_V1,
+    PLUGIN_MANIFEST_SCHEMA_VERSION_V2,
 };
 use carsinos_protocol::{
     AnthropicSetupTokenIngestRequest, AnthropicSetupTokenIngestResponse, ApprovalResponse,
@@ -37,35 +37,31 @@ use carsinos_protocol::{
     ListPluginsQuery, ListPluginsResponse, ListProviderCapabilitiesQuery,
     ListProviderCapabilitiesResponse, ListSessionsQuery, ListSessionsResponse, ListSkillsQuery,
     ListSkillsResponse, ListToolCapabilitiesQuery, ListToolCapabilitiesResponse, MessageResponse,
-    MetricsResponse, NoteResponse, OpenAiOauthFinishRequest, OpenAiOauthFinishResponse,
-    NumquamIntegrationStatusResponse, OpenAiOauthStartRequest, OpenAiOauthStartResponse,
-    PluginArtifactResponse,
-    PluginCapabilityResponse,
-    PluginCompatibilityResponse, PluginLimitsResponse, PluginManifestResponse,
-    PluginPermissionsResponse, PluginRuntimeStatusResponse, ToolCapabilityResponse,
-    ToolCapabilitySandboxResponse,
-    ProviderCapabilityResponse, ReconnectChannelRuntimeRequest, ReconnectChannelRuntimeResponse,
-    RefreshRuntimeTrustContractLockRequest, RefreshRuntimeTrustContractLockResponse,
-    RemoveJobResponse, ResolveApprovalRequest, ResolveApprovalResponse,
-    ResolveChannelApprovalActionRequest, RollbackPluginRequest, RollbackPluginResponse,
-    RollbackRuntimeConfigRequest, RollbackRuntimeConfigResponse, RunJobNowResponse, RunResponse,
-    RunMemoryWhyRequest, RunMemoryWhyResponse,
+    MetricsResponse, NoteResponse, NumquamIntegrationStatusResponse, OpenAiOauthFinishRequest,
+    OpenAiOauthFinishResponse, OpenAiOauthStartRequest, OpenAiOauthStartResponse,
+    PluginArtifactResponse, PluginCapabilityResponse, PluginCompatibilityResponse,
+    PluginLimitsResponse, PluginManifestResponse, PluginPermissionsResponse,
+    PluginRuntimeStatusResponse, ProviderCapabilityResponse, ReconnectChannelRuntimeRequest,
+    ReconnectChannelRuntimeResponse, RefreshRuntimeTrustContractLockRequest,
+    RefreshRuntimeTrustContractLockResponse, RemoveJobResponse, ResolveApprovalRequest,
+    ResolveApprovalResponse, ResolveChannelApprovalActionRequest, RollbackPluginRequest,
+    RollbackPluginResponse, RollbackRuntimeConfigRequest, RollbackRuntimeConfigResponse,
+    RunJobNowResponse, RunMemoryWhyRequest, RunMemoryWhyResponse, RunResponse,
     RuntimeAutonomyGuardrailsConfig, RuntimeChannelsConfig, RuntimeConfigResponse,
-    RuntimeDiscordDeploymentConfig, RuntimeGlobalConfig, RuntimeMemoryConfig,
-    RuntimeNumquamConfig, RuntimeProviderPolicyConfig, RuntimeExtensionsConfig,
-    RuntimeSecurityOpsConfig, RuntimeTelegramDeploymentConfig,
-    RuntimeTrustContractLockResponse, RuntimeTrustContractLockSummaryResponse,
-    SchedulerLockStateResponse, SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult,
-    SessionDetailResponse, SessionSummary,
+    RuntimeDiscordDeploymentConfig, RuntimeExtensionsConfig, RuntimeGlobalConfig,
+    RuntimeMemoryConfig, RuntimeNumquamConfig, RuntimeProviderPolicyConfig,
+    RuntimeSecurityOpsConfig, RuntimeTelegramDeploymentConfig, RuntimeTrustContractLockResponse,
+    RuntimeTrustContractLockSummaryResponse, SchedulerLockStateResponse, SearchMemoryRequest,
+    SearchMemoryResponse, SearchMemoryResult, SessionDetailResponse, SessionSummary,
     SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse, SkillResponse,
     StatusResponse, SyncMemorySourceItemResponse, SyncMemorySourcesRequest,
-    SyncMemorySourcesResponse, TelegramChannelConfig, UpdateAuthProfileStateRequest,
-    UpdateAuthProfileStateResponse, UpdateChannelConfigRequest, UpdateChannelConfigResponse,
-    UpdateJobRequest, UpdateJobResponse, UpdateNoteRequest, UpdateNoteResponse,
-    UpdatePluginRequest, UpdatePluginResponse, UpdateRuntimeConfigRequest,
-    UpdateRuntimeConfigResponse, UpdateSkillStateRequest, UpdateSkillStateResponse,
-    UpsertRuntimeSecretRequest, UpsertRuntimeSecretResponse, HEARTBEAT_OUTPUT_ALERT_PREFIX,
-    HEARTBEAT_OUTPUT_OK, JOB_MODE_HEARTBEAT_RUN,
+    SyncMemorySourcesResponse, TelegramChannelConfig, ToolCapabilityResponse,
+    ToolCapabilitySandboxResponse, UpdateAuthProfileStateRequest, UpdateAuthProfileStateResponse,
+    UpdateChannelConfigRequest, UpdateChannelConfigResponse, UpdateJobRequest, UpdateJobResponse,
+    UpdateNoteRequest, UpdateNoteResponse, UpdatePluginRequest, UpdatePluginResponse,
+    UpdateRuntimeConfigRequest, UpdateRuntimeConfigResponse, UpdateSkillStateRequest,
+    UpdateSkillStateResponse, UpsertRuntimeSecretRequest, UpsertRuntimeSecretResponse,
+    HEARTBEAT_OUTPUT_ALERT_PREFIX, HEARTBEAT_OUTPUT_OK, JOB_MODE_HEARTBEAT_RUN,
 };
 use carsinos_providers::{
     parse_provider_error_class as parse_provider_error_class_normalized,
@@ -203,7 +199,8 @@ impl PluginDaemonSupervisor {
         plugin_id: &str,
         kind: &str,
     ) -> std::result::Result<(), PluginInvokeError> {
-        let mut needs_restart = self.child.is_none() || self.stdin.is_none() || self.stdout.is_none();
+        let mut needs_restart =
+            self.child.is_none() || self.stdin.is_none() || self.stdout.is_none();
         if let Some(child) = self.child.as_mut() {
             match child.try_wait() {
                 Ok(Some(_)) => needs_restart = true,
@@ -386,6 +383,7 @@ fn acquire_scheduler_instance_lock(state_dir: &FsPath) -> AnyResult<SchedulerIns
     let lock_path = lock_dir.join("scheduler.instance.lock");
     let mut file = std::fs::OpenOptions::new()
         .create(true)
+        .truncate(false)
         .read(true)
         .write(true)
         .open(&lock_path)
@@ -2658,7 +2656,11 @@ async fn status(
     let plugin_breakers = plugin_runtime_status_items(&state, true).await;
     let open_plugin_breakers = plugin_breakers
         .iter()
-        .filter(|item| item.disabled_until_ms.map(|value| value > current_time_ms()).unwrap_or(false))
+        .filter(|item| {
+            item.disabled_until_ms
+                .map(|value| value > current_time_ms())
+                .unwrap_or(false)
+        })
         .count() as u64;
 
     let response = StatusResponse {
@@ -3143,7 +3145,11 @@ fn plugin_storage_root_from_runtime(
     Ok(state.state_dir.join("plugins"))
 }
 
-fn plugin_bundle_dir(plugin_storage_root: &FsPath, plugin_id: &str, plugin_version: &str) -> PathBuf {
+fn plugin_bundle_dir(
+    plugin_storage_root: &FsPath,
+    plugin_id: &str,
+    plugin_version: &str,
+) -> PathBuf {
     plugin_storage_root
         .join("bundles")
         .join(plugin_id)
@@ -3187,12 +3193,8 @@ fn persist_json_atomic(path: &FsPath, payload: &str, context_label: &str) -> Any
             tmp_path.display()
         )
     })?;
-    std::fs::rename(&tmp_path, path).with_context(|| {
-        format!(
-            "failed replacing {context_label} file {}",
-            path.display()
-        )
-    })?;
+    std::fs::rename(&tmp_path, path)
+        .with_context(|| format!("failed replacing {context_label} file {}", path.display()))?;
     Ok(())
 }
 
@@ -3559,48 +3561,49 @@ async fn invoke_plugin_runner_subprocess_impl(
         let _ = stdin.shutdown().await;
     }
 
-    let output = match tokio::time::timeout(Duration::from_millis(timeout_ms), child.wait_with_output())
-        .await
-    {
-        Ok(Ok(output)) => output,
-        Ok(Err(err)) => {
-            let message = format!("plugin subprocess wait failed: {err}");
-            let tripped = record_plugin_invoke_failure(
-                state,
-                &manifest.plugin_id,
-                current_time_ms(),
-                Some(EXT_PLUGIN_EXEC_FAILED.to_string()),
-                Some(message.clone()),
-                breaker_limit,
-            );
-            return Err(PluginInvokeError {
-                code: EXT_PLUGIN_EXEC_FAILED.to_string(),
-                message,
-                duration_ms: started.elapsed().as_millis() as u64,
-                breaker_open: tripped,
-            });
-        }
-        Err(_) => {
-            let message = format!(
-                "plugin subprocess timed out after {}ms for '{}'",
-                timeout_ms, manifest.plugin_id
-            );
-            let tripped = record_plugin_invoke_failure(
-                state,
-                &manifest.plugin_id,
-                current_time_ms(),
-                Some(EXT_PLUGIN_TIMEOUT.to_string()),
-                Some(message.clone()),
-                breaker_limit,
-            );
-            return Err(PluginInvokeError {
-                code: EXT_PLUGIN_TIMEOUT.to_string(),
-                message,
-                duration_ms: started.elapsed().as_millis() as u64,
-                breaker_open: tripped,
-            });
-        }
-    };
+    let output =
+        match tokio::time::timeout(Duration::from_millis(timeout_ms), child.wait_with_output())
+            .await
+        {
+            Ok(Ok(output)) => output,
+            Ok(Err(err)) => {
+                let message = format!("plugin subprocess wait failed: {err}");
+                let tripped = record_plugin_invoke_failure(
+                    state,
+                    &manifest.plugin_id,
+                    current_time_ms(),
+                    Some(EXT_PLUGIN_EXEC_FAILED.to_string()),
+                    Some(message.clone()),
+                    breaker_limit,
+                );
+                return Err(PluginInvokeError {
+                    code: EXT_PLUGIN_EXEC_FAILED.to_string(),
+                    message,
+                    duration_ms: started.elapsed().as_millis() as u64,
+                    breaker_open: tripped,
+                });
+            }
+            Err(_) => {
+                let message = format!(
+                    "plugin subprocess timed out after {}ms for '{}'",
+                    timeout_ms, manifest.plugin_id
+                );
+                let tripped = record_plugin_invoke_failure(
+                    state,
+                    &manifest.plugin_id,
+                    current_time_ms(),
+                    Some(EXT_PLUGIN_TIMEOUT.to_string()),
+                    Some(message.clone()),
+                    breaker_limit,
+                );
+                return Err(PluginInvokeError {
+                    code: EXT_PLUGIN_TIMEOUT.to_string(),
+                    message,
+                    duration_ms: started.elapsed().as_millis() as u64,
+                    breaker_open: tripped,
+                });
+            }
+        };
 
     if output.stdout.len() > max_output_chars {
         let message = format!(
@@ -3650,7 +3653,12 @@ async fn invoke_plugin_runner_subprocess_impl(
             let message = if stderr_text.trim().is_empty() {
                 format!("{}: {}", EXT_PLUGIN_OUTPUT_INVALID, err)
             } else {
-                format!("{}: {}; stderr={}", EXT_PLUGIN_OUTPUT_INVALID, err, stderr_text.trim())
+                format!(
+                    "{}: {}; stderr={}",
+                    EXT_PLUGIN_OUTPUT_INVALID,
+                    err,
+                    stderr_text.trim()
+                )
             };
             let tripped = record_plugin_invoke_failure(
                 state,
@@ -3795,12 +3803,13 @@ async fn invoke_plugin_runner_daemon(
         },
         payload,
     };
-    let request_json = serde_json::to_string(&request_envelope).map_err(|err| PluginInvokeError {
-        code: EXT_PLUGIN_SCHEMA_INVALID.to_string(),
-        message: format!("failed serializing plugin daemon request: {err}"),
-        duration_ms: 0,
-        breaker_open: false,
-    })?;
+    let request_json =
+        serde_json::to_string(&request_envelope).map_err(|err| PluginInvokeError {
+            code: EXT_PLUGIN_SCHEMA_INVALID.to_string(),
+            message: format!("failed serializing plugin daemon request: {err}"),
+            duration_ms: 0,
+            breaker_open: false,
+        })?;
 
     let supervisor = daemon_supervisor_for_plugin(state, manifest).await;
     let started = Instant::now();
@@ -3898,7 +3907,11 @@ async fn invoke_plugin_runner_daemon(
                 breaker_open: tripped,
             });
         };
-        tokio::time::timeout(Duration::from_millis(timeout_ms), stdout.read_line(&mut line)).await
+        tokio::time::timeout(
+            Duration::from_millis(timeout_ms),
+            stdout.read_line(&mut line),
+        )
+        .await
     };
     let bytes = match read_result {
         Ok(Ok(bytes)) => bytes,
@@ -4074,7 +4087,9 @@ async fn invoke_plugin_runner(
         CorePluginExecKind::Subprocess => {
             invoke_plugin_runner_subprocess_impl(state, manifest, kind, payload).await
         }
-        CorePluginExecKind::Daemon => invoke_plugin_runner_daemon(state, manifest, kind, payload).await,
+        CorePluginExecKind::Daemon => {
+            invoke_plugin_runner_daemon(state, manifest, kind, payload).await
+        }
     }
 }
 
@@ -4275,10 +4290,20 @@ async fn install_plugin(
     let plugin_storage_root = plugin_storage_root_from_runtime(&state, &runtime_config)
         .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
 
-    ensure_plugin_tool_names_do_not_collide(&manifest)
-        .map_err(|err| api_error_with_code(StatusCode::BAD_REQUEST, EXT_PLUGIN_TOOL_NAME_COLLISION, &err.to_string()))?;
-    ensure_daemon_allowlist(&runtime_config, &manifest)
-        .map_err(|err| api_error_with_code(StatusCode::BAD_REQUEST, EXT_PLUGIN_DAEMON_NOT_ALLOWLISTED, &err.to_string()))?;
+    ensure_plugin_tool_names_do_not_collide(&manifest).map_err(|err| {
+        api_error_with_code(
+            StatusCode::BAD_REQUEST,
+            EXT_PLUGIN_TOOL_NAME_COLLISION,
+            &err.to_string(),
+        )
+    })?;
+    ensure_daemon_allowlist(&runtime_config, &manifest).map_err(|err| {
+        api_error_with_code(
+            StatusCode::BAD_REQUEST,
+            EXT_PLUGIN_DAEMON_NOT_ALLOWLISTED,
+            &err.to_string(),
+        )
+    })?;
 
     let (installed_manifest, plugin_registry_snapshot, active_manifest_path, pointer_path) = {
         let mut registry = state.plugin_registry.write().await;
@@ -4311,8 +4336,9 @@ async fn install_plugin(
             )
         })?;
         let active_path = plugin_active_manifest_path(&plugin_storage_root, &plugin_id);
-        persist_plugin_manifest(&active_path, &installed)
-            .map_err(|err| internal_err_with_error("persisting active plugin manifest failed", err))?;
+        persist_plugin_manifest(&active_path, &installed).map_err(|err| {
+            internal_err_with_error("persisting active plugin manifest failed", err)
+        })?;
         let pointer_path = plugin_pointer_path(&plugin_storage_root, &plugin_id);
         let pointer = PluginVersionPointersRecord {
             schema_version: PLUGIN_POINTER_SCHEMA_VERSION.to_string(),
@@ -4411,12 +4437,28 @@ async fn update_plugin(
         .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
     let plugin_storage_root = plugin_storage_root_from_runtime(&state, &runtime_config)
         .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
-    ensure_plugin_tool_names_do_not_collide(&manifest)
-        .map_err(|err| api_error_with_code(StatusCode::BAD_REQUEST, EXT_PLUGIN_TOOL_NAME_COLLISION, &err.to_string()))?;
-    ensure_daemon_allowlist(&runtime_config, &manifest)
-        .map_err(|err| api_error_with_code(StatusCode::BAD_REQUEST, EXT_PLUGIN_DAEMON_NOT_ALLOWLISTED, &err.to_string()))?;
+    ensure_plugin_tool_names_do_not_collide(&manifest).map_err(|err| {
+        api_error_with_code(
+            StatusCode::BAD_REQUEST,
+            EXT_PLUGIN_TOOL_NAME_COLLISION,
+            &err.to_string(),
+        )
+    })?;
+    ensure_daemon_allowlist(&runtime_config, &manifest).map_err(|err| {
+        api_error_with_code(
+            StatusCode::BAD_REQUEST,
+            EXT_PLUGIN_DAEMON_NOT_ALLOWLISTED,
+            &err.to_string(),
+        )
+    })?;
 
-    let (updated_manifest, previous_manifest, plugin_registry_snapshot, active_manifest_path, pointer_path) = {
+    let (
+        updated_manifest,
+        previous_manifest,
+        plugin_registry_snapshot,
+        active_manifest_path,
+        pointer_path,
+    ) = {
         let mut registry = state.plugin_registry.write().await;
         let mut candidate = registry.clone();
         let previous = candidate
@@ -4431,18 +4473,29 @@ async fn update_plugin(
                 "plugin manifest missing after update validation",
             )
         })?;
-        ensure_plugin_tool_names_do_not_collide(&normalized)
-            .map_err(|err| api_error_with_code(StatusCode::BAD_REQUEST, EXT_PLUGIN_TOOL_NAME_COLLISION, &err.to_string()))?;
-        ensure_daemon_allowlist(&runtime_config, &normalized)
-            .map_err(|err| api_error_with_code(StatusCode::BAD_REQUEST, EXT_PLUGIN_DAEMON_NOT_ALLOWLISTED, &err.to_string()))?;
+        ensure_plugin_tool_names_do_not_collide(&normalized).map_err(|err| {
+            api_error_with_code(
+                StatusCode::BAD_REQUEST,
+                EXT_PLUGIN_TOOL_NAME_COLLISION,
+                &err.to_string(),
+            )
+        })?;
+        ensure_daemon_allowlist(&runtime_config, &normalized).map_err(|err| {
+            api_error_with_code(
+                StatusCode::BAD_REQUEST,
+                EXT_PLUGIN_DAEMON_NOT_ALLOWLISTED,
+                &err.to_string(),
+            )
+        })?;
         let materialized = materialize_plugin_bundle(&plugin_storage_root, &normalized)
             .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
         let updated = candidate
             .replace_manifest(materialized)
             .map_err(|err| internal_err_with_error("materializing plugin manifest failed", err))?;
         let active_path = plugin_active_manifest_path(&plugin_storage_root, &plugin_id);
-        persist_plugin_manifest(&active_path, &updated)
-            .map_err(|err| internal_err_with_error("persisting active plugin manifest failed", err))?;
+        persist_plugin_manifest(&active_path, &updated).map_err(|err| {
+            internal_err_with_error("persisting active plugin manifest failed", err)
+        })?;
         let pointer_path = plugin_pointer_path(&plugin_storage_root, &plugin_id);
         let pointer = PluginVersionPointersRecord {
             schema_version: PLUGIN_POINTER_SCHEMA_VERSION.to_string(),
@@ -4454,7 +4507,13 @@ async fn update_plugin(
         persist_plugin_pointer(&pointer_path, &pointer)
             .map_err(|err| internal_err_with_error("persisting plugin pointer failed", err))?;
         *registry = candidate;
-        (updated, previous, registry.clone(), active_path, pointer_path)
+        (
+            updated,
+            previous,
+            registry.clone(),
+            active_path,
+            pointer_path,
+        )
     };
     reset_plugin_daemon_supervisor(&state, &plugin_id).await;
     let hook_policy_denials = refresh_plugin_hook_runtime(&state, &plugin_registry_snapshot)
@@ -4521,17 +4580,34 @@ async fn rollback_plugin(
     let pointer_path = plugin_pointer_path(&plugin_storage_root, &plugin_id);
     let pointer = load_plugin_pointer(&pointer_path)
         .map_err(|err| internal_err_with_error("loading plugin pointer failed", err))?
-        .ok_or_else(|| api_error(StatusCode::BAD_REQUEST, "plugin rollback pointer is missing"))?;
+        .ok_or_else(|| {
+            api_error(
+                StatusCode::BAD_REQUEST,
+                "plugin rollback pointer is missing",
+            )
+        })?;
     let rollback_version = pointer
         .previous_version
         .clone()
         .ok_or_else(|| api_error(StatusCode::BAD_REQUEST, "plugin rollback target is missing"))?;
-    let rollback_manifest = load_bundle_manifest(&plugin_storage_root, &plugin_id, &rollback_version)
-        .map_err(|err| internal_err_with_error("loading rollback bundle manifest failed", err))?;
-    ensure_plugin_tool_names_do_not_collide(&rollback_manifest)
-        .map_err(|err| api_error_with_code(StatusCode::BAD_REQUEST, EXT_PLUGIN_TOOL_NAME_COLLISION, &err.to_string()))?;
-    ensure_daemon_allowlist(&runtime_config, &rollback_manifest)
-        .map_err(|err| api_error_with_code(StatusCode::BAD_REQUEST, EXT_PLUGIN_DAEMON_NOT_ALLOWLISTED, &err.to_string()))?;
+    let rollback_manifest =
+        load_bundle_manifest(&plugin_storage_root, &plugin_id, &rollback_version).map_err(
+            |err| internal_err_with_error("loading rollback bundle manifest failed", err),
+        )?;
+    ensure_plugin_tool_names_do_not_collide(&rollback_manifest).map_err(|err| {
+        api_error_with_code(
+            StatusCode::BAD_REQUEST,
+            EXT_PLUGIN_TOOL_NAME_COLLISION,
+            &err.to_string(),
+        )
+    })?;
+    ensure_daemon_allowlist(&runtime_config, &rollback_manifest).map_err(|err| {
+        api_error_with_code(
+            StatusCode::BAD_REQUEST,
+            EXT_PLUGIN_DAEMON_NOT_ALLOWLISTED,
+            &err.to_string(),
+        )
+    })?;
 
     let (current_manifest, rolled_back_manifest, plugin_registry_snapshot, active_manifest_path) = {
         let mut registry = state.plugin_registry.write().await;
@@ -4543,8 +4619,9 @@ async fn rollback_plugin(
             .replace_manifest(rollback_manifest)
             .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
         let active_path = plugin_active_manifest_path(&plugin_storage_root, &plugin_id);
-        persist_plugin_manifest(&active_path, &rolled_back)
-            .map_err(|err| internal_err_with_error("persisting active plugin manifest failed", err))?;
+        persist_plugin_manifest(&active_path, &rolled_back).map_err(|err| {
+            internal_err_with_error("persisting active plugin manifest failed", err)
+        })?;
         let next_pointer = PluginVersionPointersRecord {
             schema_version: PLUGIN_POINTER_SCHEMA_VERSION.to_string(),
             plugin_id: plugin_id.clone(),
@@ -5882,7 +5959,12 @@ fn sync_memory_sources_internal(
             .ok()
             .flatten()
             .and_then(|(json, _)| serde_json::from_str::<serde_json::Value>(&json).ok())
-            .and_then(|value| value.get("note_id").and_then(|item| item.as_str()).map(str::to_string));
+            .and_then(|value| {
+                value
+                    .get("note_id")
+                    .and_then(|item| item.as_str())
+                    .map(str::to_string)
+            });
         let mut note_id = None;
         let mut created = false;
         let result = if let Some(existing_note_id) = mapped_note_id.as_ref() {
@@ -5908,10 +5990,10 @@ fn sync_memory_sources_internal(
                             created = true;
                             persist_note_embeddings(state, &note)
                         }
-                        Err(err) => Err(err.into()),
+                        Err(err) => Err(err),
                     }
                 }
-                Err(err) => Err(err.into()),
+                Err(err) => Err(err),
             }
         } else {
             let created_note = state.storage.create_note(NewNote {
@@ -5925,7 +6007,7 @@ fn sync_memory_sources_internal(
                     created = true;
                     persist_note_embeddings(state, &note)
                 }
-                Err(err) => Err(err.into()),
+                Err(err) => Err(err),
             }
         };
 
@@ -6003,10 +6085,7 @@ async fn sync_memory_sources(
         ));
     }
     let items = sync_memory_sources_internal(&state, &sources);
-    let failed = items
-        .iter()
-        .filter(|item| item.status == "failed")
-        .count() as u64;
+    let failed = items.iter().filter(|item| item.status == "failed").count() as u64;
     let synced = (items.len() as u64).saturating_sub(failed);
     record_security_audit(
         &headers,
@@ -8483,8 +8562,8 @@ async fn job_status(
         .storage
         .jobs_due_count(now_ms)
         .map_err(|err| internal_err_with_error("loading due jobs count failed", err))?;
-    let runtime_config =
-        load_runtime_config(&state).map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
+    let runtime_config = load_runtime_config(&state)
+        .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
     let numquam = current_numquam_status(&state, Some(&runtime_config)).await;
     let (circuit_breakers, open_circuit_breakers) = collect_breaker_summary(&state, 64, None)
         .map_err(|err| internal_err_with_error("loading circuit breaker summary failed", err))?;
@@ -9309,15 +9388,13 @@ async fn resolve_approval(
             let runtime_config = load_runtime_config(&state)
                 .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
             let client = resolve_numquam_client(&state, &runtime_config)
-                .map_err(|err| {
-                    internal_err_with_error("resolving numquam client failed", err)
-                })?
+                .map_err(|err| internal_err_with_error("resolving numquam client failed", err))?
                 .ok_or_else(|| {
-                api_error(
-                    StatusCode::FAILED_DEPENDENCY,
-                    "numquam integration is disabled for memory writeback resolve",
-                )
-            })?;
+                    api_error(
+                        StatusCode::FAILED_DEPENDENCY,
+                        "numquam integration is disabled for memory writeback resolve",
+                    )
+                })?;
             let run = state
                 .storage
                 .get_run(&existing_record.run_id)
@@ -9849,16 +9926,20 @@ async fn current_numquam_status(
         supported_schema_versions: runtime.supported_schema_versions,
         degrade_mode: runtime.degrade_mode || breaker_open,
         breaker_open,
-        breaker_cooldown_until: breaker_record.as_ref().and_then(|record| record.cooldown_until),
+        breaker_cooldown_until: breaker_record
+            .as_ref()
+            .and_then(|record| record.cooldown_until),
         breaker_consecutive_failures: breaker_record
             .as_ref()
             .map(|record| record.consecutive_failures)
             .unwrap_or(0),
         required_operations_missing: runtime.required_operations_missing,
         last_check_at: runtime.last_check_at,
-        last_error_code: runtime
-            .last_error_code
-            .or_else(|| breaker_record.as_ref().and_then(|record| record.last_error_code.clone())),
+        last_error_code: runtime.last_error_code.or_else(|| {
+            breaker_record
+                .as_ref()
+                .and_then(|record| record.last_error_code.clone())
+        }),
         last_error: runtime.last_error,
     }
 }
@@ -9911,7 +9992,7 @@ fn collect_top_stop_reasons_from_jobs(
 
 fn effective_tool_fanout_cap(max_tool_calls_per_run: u64) -> u64 {
     const TOOL_FANOUT_HARD_CAP: u64 = 8;
-    max_tool_calls_per_run.min(TOOL_FANOUT_HARD_CAP).max(1)
+    max_tool_calls_per_run.clamp(1, TOOL_FANOUT_HARD_CAP)
 }
 
 fn normalize_tool_error_text(error_text: &str) -> String {
@@ -10082,7 +10163,7 @@ fn apply_daily_auth_profile_budget_accounting(
 }
 
 fn guardrail_reason_code(error_text: &str) -> Option<&'static str> {
-    for code in [
+    [
         REASON_BUDGET_MAX_RUN_MS,
         REASON_BUDGET_MAX_TOOL_CALLS,
         REASON_BUDGET_MAX_PROVIDER_INPUT_CHARS,
@@ -10094,12 +10175,10 @@ fn guardrail_reason_code(error_text: &str) -> Option<&'static str> {
         REASON_BREAKER_TOOL_FANOUT_CAP,
         REASON_BREAKER_REPEATED_TOOL_ERROR,
         REASON_BREAKER_NUMQUAM_OPEN,
-    ] {
-        if error_text.starts_with(code) {
-            return Some(code);
-        }
-    }
-    None
+    ]
+    .iter()
+    .find(|&&code| error_text.starts_with(code))
+    .copied()
 }
 
 fn enforce_run_wall_time_budget(started: Instant, max_run_ms: u64) -> AnyResult<()> {
@@ -10651,8 +10730,10 @@ async fn execute_run(
     };
     let runtime_config = load_runtime_config(state)?;
     let memory_blend_mode = runtime_config.memory.blend_mode.clone();
-    let mut memory_metadata = RunMemoryMetadata::default();
-    memory_metadata.blend_mode = Some(memory_blend_mode.clone());
+    let mut memory_metadata = RunMemoryMetadata {
+        blend_mode: Some(memory_blend_mode.clone()),
+        ..RunMemoryMetadata::default()
+    };
     let mut memory_context_text = None;
     let use_numquam = memory_blend_mode != "local_fallback_only";
     if use_numquam {
@@ -10697,14 +10778,19 @@ async fn execute_run(
                         .last_error_code
                         .clone()
                         .or_else(|| Some("DEPENDENCY_UNAVAILABLE".to_string()));
-                    memory_metadata.context_error_message = handshake_status.last_error.clone().or_else(|| {
-                        Some("Numquam handshake is degraded; using fallback context".to_string())
-                    });
+                    memory_metadata.context_error_message =
+                        handshake_status.last_error.clone().or_else(|| {
+                            Some(
+                                "Numquam handshake is degraded; using fallback context".to_string(),
+                            )
+                        });
                     append_system_security_audit(
                         state,
                         "numquam.fallback",
                         "allow",
-                        Some("run skipped Numquam context because handshake is degraded".to_string()),
+                        Some(
+                            "run skipped Numquam context because handshake is degraded".to_string(),
+                        ),
                         memory_metadata.context_error_code.clone(),
                         Some(serde_json::json!({
                             "run_id": &run.run_id,
@@ -10717,7 +10803,8 @@ async fn execute_run(
                     CIRCUIT_BREAKER_SCOPE_NUMQUAM,
                     NUMQUAM_BREAKER_TARGET,
                 )? {
-                    memory_metadata.context_error_code = Some(REASON_BREAKER_NUMQUAM_OPEN.to_string());
+                    memory_metadata.context_error_code =
+                        Some(REASON_BREAKER_NUMQUAM_OPEN.to_string());
                     memory_metadata.context_error_message = Some(format!(
                         "Numquam breaker open until {}",
                         active_breaker.cooldown_until.unwrap_or(0)
@@ -10816,14 +10903,18 @@ async fn execute_run(
                                         .into_iter()
                                         .map(|row| RunMemoryEvidence {
                                             evidence_id: row.evidence_id.clone(),
-                                            provenance_handle: if row.evidence_id.trim().is_empty() {
+                                            provenance_handle: if row.evidence_id.trim().is_empty()
+                                            {
                                                 "evidence:unknown".to_string()
                                             } else {
                                                 format!("evidence:{}", row.evidence_id)
                                             },
                                             citation_refs: row.citations,
                                             confidence: row.confidence,
-                                            conflict_flag: is_conflict_evidence(&row.kind, &row.section),
+                                            conflict_flag: is_conflict_evidence(
+                                                &row.kind,
+                                                &row.section,
+                                            ),
                                         })
                                         .collect();
                                     if !trimmed_context.trim().is_empty() {
@@ -10965,10 +11056,12 @@ async fn execute_run(
     let include_local_context = match memory_blend_mode.as_str() {
         "local_augment" => true,
         "local_fallback_only" => true,
-        _ => memory_metadata.context_degrade_mode
-            || memory_metadata.context_error_code.is_some()
-            || !memory_metadata.enabled
-            || context_sections.is_empty(),
+        _ => {
+            memory_metadata.context_degrade_mode
+                || memory_metadata.context_error_code.is_some()
+                || !memory_metadata.enabled
+                || context_sections.is_empty()
+        }
     };
     if include_local_context {
         if let Some(local_context) = local_memory_context {
@@ -11336,7 +11429,8 @@ async fn execute_run(
                         writeback_metadata.degrade_mode = envelope.degrade_mode;
                         writeback_metadata.fallback_recommendation =
                             envelope.fallback_recommendation.clone();
-                        writeback_metadata.warning_codes = numquam_warning_codes(&envelope.warnings);
+                        writeback_metadata.warning_codes =
+                            numquam_warning_codes(&envelope.warnings);
 
                         if envelope.ok {
                             if let Some(data) = envelope.data {
@@ -11694,22 +11788,14 @@ impl NumquamClient {
             ),
         };
 
-        let context_build_timeout = Duration::from_millis(
-            config
-                .context_build_timeout_ms
-                .clamp(200, 120_000),
-        );
-        let writeback_propose_timeout = Duration::from_millis(
-            config
-                .writeback_propose_timeout_ms
-                .clamp(200, 120_000),
-        );
-        let writeback_resolve_timeout = Duration::from_millis(
-            config
-                .writeback_resolve_timeout_ms
-                .clamp(200, 120_000),
-        );
-        let handshake_timeout = Duration::from_millis(config.handshake_timeout_ms.clamp(200, 120_000));
+        let context_build_timeout =
+            Duration::from_millis(config.context_build_timeout_ms.clamp(200, 120_000));
+        let writeback_propose_timeout =
+            Duration::from_millis(config.writeback_propose_timeout_ms.clamp(200, 120_000));
+        let writeback_resolve_timeout =
+            Duration::from_millis(config.writeback_resolve_timeout_ms.clamp(200, 120_000));
+        let handshake_timeout =
+            Duration::from_millis(config.handshake_timeout_ms.clamp(200, 120_000));
         let request_timeout = [
             context_build_timeout,
             writeback_propose_timeout,
@@ -11729,15 +11815,15 @@ impl NumquamClient {
             let secret_key = secret_key_from_secret_ref(secret_ref)?;
             Some(
                 secret_store
-                .get_raw(&secret_key)?
-                .map(|value| value.trim().to_string())
-                .filter(|value| !value.is_empty())
-                .ok_or_else(|| {
-                    anyhow::anyhow!(
-                        "memory.numquam.token_secret_ref points to missing/empty secret: {}",
-                        secret_ref
-                    )
-                })?,
+                    .get_raw(&secret_key)?
+                    .map(|value| value.trim().to_string())
+                    .filter(|value| !value.is_empty())
+                    .ok_or_else(|| {
+                        anyhow::anyhow!(
+                            "memory.numquam.token_secret_ref points to missing/empty secret: {}",
+                            secret_ref
+                        )
+                    })?,
             )
         } else {
             std::env::var("CARSINOS_NUMQUAM_TOKEN")
@@ -12116,7 +12202,8 @@ impl NumquamClient {
                     "evidence_ids": evidence_ids,
                     "expand_citations": expand_citations
                 });
-                self.post_integration_mcp("integration.context.why", args).await
+                self.post_integration_mcp("integration.context.why", args)
+                    .await
             }
             NumquamTransport::Dual => {
                 let http_result = self
@@ -12135,7 +12222,9 @@ impl NumquamClient {
                     "evidence_ids": evidence_ids,
                     "expand_citations": expand_citations
                 });
-                let mcp_result = self.post_integration_mcp("integration.context.why", args).await;
+                let mcp_result = self
+                    .post_integration_mcp("integration.context.why", args)
+                    .await;
                 merge_numquam_dual_result("context.why", http_result, mcp_result, |_, _| true)
             }
         }
@@ -12150,14 +12239,17 @@ impl NumquamClient {
             }
             NumquamTransport::Mcp => {
                 let args = serde_json::json!({ "request_id": request_id });
-                self.post_integration_mcp("integration.health.get", args).await
+                self.post_integration_mcp("integration.health.get", args)
+                    .await
             }
             NumquamTransport::Dual => {
                 let http_result = self
                     .get_integration_http("/api/integration/v1/health", self.handshake_timeout)
                     .await;
                 let args = serde_json::json!({ "request_id": request_id });
-                let mcp_result = self.post_integration_mcp("integration.health.get", args).await;
+                let mcp_result = self
+                    .post_integration_mcp("integration.health.get", args)
+                    .await;
                 merge_numquam_dual_result("health.get", http_result, mcp_result, |http, mcp| {
                     http.data.as_ref().map(|value| value.status.as_str())
                         == mcp.data.as_ref().map(|value| value.status.as_str())
@@ -12614,13 +12706,17 @@ fn validate_numquam_writeback_propose_payload(payload: &serde_json::Value) -> An
                 .filter(|value| !value.is_empty())
                 .is_some();
             if !valid {
-                anyhow::bail!("numquam writeback evidence[{index}] missing required field '{field}'");
+                anyhow::bail!(
+                    "numquam writeback evidence[{index}] missing required field '{field}'"
+                );
             }
         }
         let citation = object
             .get("citation")
             .and_then(|value| value.as_object())
-            .ok_or_else(|| anyhow::anyhow!("numquam writeback evidence[{index}] missing citation object"))?;
+            .ok_or_else(|| {
+                anyhow::anyhow!("numquam writeback evidence[{index}] missing citation object")
+            })?;
         for field in ["type", "ref"] {
             let valid = citation
                 .get(field)
@@ -12726,10 +12822,12 @@ async fn refresh_numquam_handshake_state(state: &AppState) {
             return;
         }
     };
-    let mut next = NumquamRuntimeStatus::default();
-    next.enabled = runtime_config.memory.numquam.enabled || state.numquam_client.is_some();
-    next.transport = runtime_config.memory.numquam.transport.clone();
-    next.last_check_at = Some(current_time_ms());
+    let mut next = NumquamRuntimeStatus {
+        enabled: runtime_config.memory.numquam.enabled || state.numquam_client.is_some(),
+        transport: runtime_config.memory.numquam.transport.clone(),
+        last_check_at: Some(current_time_ms()),
+        ..NumquamRuntimeStatus::default()
+    };
     if !next.enabled {
         next.health_status = "disabled".to_string();
         let mut write = state.numquam_runtime_status.write().await;
@@ -12822,7 +12920,8 @@ async fn refresh_numquam_handshake_state(state: &AppState) {
                 next.required_operations_missing = numquam_required_ops_missing(&cap_data);
                 let transport_supported =
                     numquam_transport_supported_by_capabilities(client.transport, &cap_data);
-                let contract_version_ok = cap_data.contract_version.trim() == NUMQUAM_CONTRACT_VERSION;
+                let contract_version_ok =
+                    cap_data.contract_version.trim() == NUMQUAM_CONTRACT_VERSION;
                 let schema_supported = cap_data
                     .supported_schema_versions
                     .iter()
@@ -12861,10 +12960,8 @@ async fn refresh_numquam_handshake_state(state: &AppState) {
                     if next.health_status != "ok" {
                         reasons.push("health_not_ok");
                     }
-                    next.last_error = Some(format!(
-                        "numquam handshake mismatch: {}",
-                        reasons.join(",")
-                    ));
+                    next.last_error =
+                        Some(format!("numquam handshake mismatch: {}", reasons.join(",")));
                 }
             } else {
                 next.health_status = "degraded".to_string();
@@ -12924,12 +13021,8 @@ async fn refresh_numquam_handshake_state(state: &AppState) {
             next.last_error_code = Some("DEPENDENCY_UNAVAILABLE".to_string());
             next.last_error = Some(format!(
                 "Numquam handshake failed: capabilities={} health={}",
-                cap_err
-                    .as_deref()
-                    .unwrap_or("ok"),
-                health_err
-                    .as_deref()
-                    .unwrap_or("ok")
+                cap_err.as_deref().unwrap_or("ok"),
+                health_err.as_deref().unwrap_or("ok")
             ));
             let breaker_state = record_circuit_breaker_failure(
                 state,
@@ -12962,7 +13055,13 @@ async fn numquam_handshake_loop(state: AppState) {
     loop {
         refresh_numquam_handshake_state(&state).await;
         let interval_ms = load_runtime_config(&state)
-            .map(|config| config.memory.numquam.handshake_interval_ms.clamp(1_000, 3_600_000))
+            .map(|config| {
+                config
+                    .memory
+                    .numquam
+                    .handshake_interval_ms
+                    .clamp(1_000, 3_600_000)
+            })
             .unwrap_or(30_000);
         sleep(Duration::from_millis(interval_ms)).await;
     }
@@ -13107,13 +13206,12 @@ async fn poll_telegram_channel_listener_once(
     {
         return Ok((false, 0));
     }
-    if runtime_config
+    if !runtime_config
         .channels
         .telegram
         .webhook_mode
         .trim()
-        .to_ascii_lowercase()
-        != "long_poll"
+        .eq_ignore_ascii_case("long_poll")
     {
         return Ok((false, 0));
     }
@@ -13144,7 +13242,11 @@ async fn poll_telegram_channel_listener_once(
         }
 
         let text = message.text.unwrap_or_default();
-        let is_group_chat = message.chat.chat_type.trim().to_ascii_lowercase() != "private";
+        let is_group_chat = !message
+            .chat
+            .chat_type
+            .trim()
+            .eq_ignore_ascii_case("private");
         let user_id = message
             .from
             .as_ref()
@@ -14904,7 +15006,13 @@ fn normalize_runtime_config(mut config: RuntimeConfigResponse) -> RuntimeConfigR
     if config.providers.is_empty() {
         config.providers = default_runtime_provider_policies();
     }
-    config.memory.blend_mode = match config.memory.blend_mode.trim().to_ascii_lowercase().as_str() {
+    config.memory.blend_mode = match config
+        .memory
+        .blend_mode
+        .trim()
+        .to_ascii_lowercase()
+        .as_str()
+    {
         "local_fallback_only" => "local_fallback_only".to_string(),
         "local_augment" => "local_augment".to_string(),
         _ => "mno_primary".to_string(),
@@ -14946,8 +15054,7 @@ fn normalize_runtime_config(mut config: RuntimeConfigResponse) -> RuntimeConfigR
         .as_ref()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
-    config.memory.numquam.transport =
-        config.memory.numquam.transport.trim().to_ascii_lowercase();
+    config.memory.numquam.transport = config.memory.numquam.transport.trim().to_ascii_lowercase();
     if config.memory.numquam.transport.is_empty() {
         config.memory.numquam.transport = "dual".to_string();
     }
@@ -15442,10 +15549,7 @@ fn validate_runtime_config(config: &RuntimeConfigResponse) -> AnyResult<()> {
             );
         }
     }
-    validate_secret_ref(
-        &numquam.token_secret_ref,
-        "memory.numquam.token_secret_ref",
-    )?;
+    validate_secret_ref(&numquam.token_secret_ref, "memory.numquam.token_secret_ref")?;
     let timeout_fields = [
         (
             "memory.numquam.context_build_timeout_ms",
@@ -15459,7 +15563,10 @@ fn validate_runtime_config(config: &RuntimeConfigResponse) -> AnyResult<()> {
             "memory.numquam.writeback_resolve_timeout_ms",
             numquam.writeback_resolve_timeout_ms,
         ),
-        ("memory.numquam.handshake_timeout_ms", numquam.handshake_timeout_ms),
+        (
+            "memory.numquam.handshake_timeout_ms",
+            numquam.handshake_timeout_ms,
+        ),
     ];
     for (field, value) in timeout_fields {
         if value < 200 {
@@ -16495,10 +16602,9 @@ async fn execute_plugin_tool_invocation(
     tool_metadata: &ToolExecutionMetadata,
     args_json: &str,
 ) -> Result<ToolResult, ToolError> {
-    let plugin_id = tool_metadata
-        .plugin_id
-        .as_ref()
-        .ok_or_else(|| ToolError::InvalidRequest("plugin tool metadata missing plugin_id".to_string()))?;
+    let plugin_id = tool_metadata.plugin_id.as_ref().ok_or_else(|| {
+        ToolError::InvalidRequest("plugin tool metadata missing plugin_id".to_string())
+    })?;
     let manifest = state
         .plugin_registry
         .read()
@@ -16571,11 +16677,11 @@ async fn execute_plugin_tool_invocation(
                 .error_message
                 .unwrap_or_else(|| "plugin tool invocation denied".to_string()),
         )),
-        _ => Err(ToolError::Failed(
-            result
-                .error_message
-                .unwrap_or_else(|| "plugin tool invocation failed".to_string()),
-        )),
+        _ => {
+            Err(ToolError::Failed(result.error_message.unwrap_or_else(
+                || "plugin tool invocation failed".to_string(),
+            )))
+        }
     }
 }
 
@@ -17274,7 +17380,10 @@ fn truncate_text_to_chars(input: &str, max_chars: usize) -> (String, bool, usize
 }
 
 fn infer_run_memory_mode(state: &AppState, session_id: &str) -> String {
-    let messages = state.storage.list_messages(session_id, 32).unwrap_or_default();
+    let messages = state
+        .storage
+        .list_messages(session_id, 32)
+        .unwrap_or_default();
     messages
         .into_iter()
         .rev()
@@ -17320,7 +17429,9 @@ fn build_numquam_context_policy(
         }
     }
     let lowered = input.to_ascii_lowercase();
-    let high_risk_markers = ["urgent", "critical", "incident", "outage", "security", "breach"];
+    let high_risk_markers = [
+        "urgent", "critical", "incident", "outage", "security", "breach",
+    ];
     if input.chars().count() > 1_800
         || high_risk_markers
             .iter()
@@ -18624,7 +18735,8 @@ fn directory_has_json_manifests(path: &FsPath) -> bool {
     };
     entries.flatten().any(|entry| {
         let entry_path = entry.path();
-        entry_path.is_file() && entry_path.extension().and_then(|value| value.to_str()) == Some("json")
+        entry_path.is_file()
+            && entry_path.extension().and_then(|value| value.to_str()) == Some("json")
     })
 }
 
@@ -19319,7 +19431,10 @@ mod tests {
                 "/api/integration/v1/context/build",
                 post(numquam_stub_context_build),
             )
-            .route("/api/integration/v1/context/why", post(numquam_stub_context_why))
+            .route(
+                "/api/integration/v1/context/why",
+                post(numquam_stub_context_why),
+            )
             .route(
                 "/api/integration/v1/writeback/propose",
                 post(numquam_stub_writeback_propose),
@@ -28042,7 +28157,9 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         let body = parse_json(response).await;
         assert_eq!(body["contract_version"], "tool.capabilities.v1");
         let items = body["items"].as_array().expect("capability items");
-        assert!(items.iter().any(|item| item["origin"] == "core" && item["tool_name"] == "exec"));
+        assert!(items
+            .iter()
+            .any(|item| item["origin"] == "core" && item["tool_name"] == "exec"));
         assert!(items.iter().any(|item| {
             item["origin"] == "plugin:plugin.alpha"
                 && item["tool_name"] == "tool.plugin.alpha"
@@ -28142,8 +28259,12 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         artifact_sha256: String,
         hook_name: &str,
     ) -> CorePluginManifest {
-        let mut manifest =
-            sample_plugin_manifest_v2(plugin_id, true, artifact_local_path.clone(), artifact_sha256);
+        let mut manifest = sample_plugin_manifest_v2(
+            plugin_id,
+            true,
+            artifact_local_path.clone(),
+            artifact_sha256,
+        );
         manifest.plugin_version = plugin_version.to_string();
         manifest.artifact.command = "python3".to_string();
         manifest.artifact.args = vec![artifact_local_path];
@@ -28179,8 +28300,12 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         artifact_sha256: String,
         tool_name: &str,
     ) -> CorePluginManifest {
-        let mut manifest =
-            sample_plugin_manifest_v2(plugin_id, true, artifact_local_path.clone(), artifact_sha256);
+        let mut manifest = sample_plugin_manifest_v2(
+            plugin_id,
+            true,
+            artifact_local_path.clone(),
+            artifact_sha256,
+        );
         manifest.plugin_version = plugin_version.to_string();
         manifest.artifact.command = "python3".to_string();
         manifest.artifact.args = vec![artifact_local_path];
@@ -28523,7 +28648,12 @@ sys.stdout.write("not-json")
             .iter()
             .find(|item| item["plugin_id"] == "plugin.runner.fail")
             .expect("runner fail plugin status");
-        assert!(plugin_entry["consecutive_failures"].as_u64().unwrap_or_default() >= 3);
+        assert!(
+            plugin_entry["consecutive_failures"]
+                .as_u64()
+                .unwrap_or_default()
+                >= 3
+        );
         assert!(plugin_entry["disabled_until_ms"].as_i64().is_some());
         assert_eq!(plugin_entry["faulted"], true);
 
@@ -28535,10 +28665,12 @@ sys.stdout.write("not-json")
             .expect("status response");
         assert_eq!(status_response.status(), StatusCode::OK);
         let status_json = parse_json(status_response).await;
-        assert!(status_json["open_plugin_breakers"]
-            .as_u64()
-            .unwrap_or_default()
-            >= 1);
+        assert!(
+            status_json["open_plugin_breakers"]
+                .as_u64()
+                .unwrap_or_default()
+                >= 1
+        );
     }
 
     #[tokio::test]
