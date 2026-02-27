@@ -3550,9 +3550,11 @@ mod tests {
 
     #[test]
     fn runtime_wizard_completeness_requires_bot_secret_refs_in_transport_mode() {
-        let mut config = RuntimeConfigWizardSnapshot::default();
-        config.discord_operation_mode = "transport".to_string();
-        config.telegram_operation_mode = "transport".to_string();
+        let config = RuntimeConfigWizardSnapshot {
+            discord_operation_mode: "transport".to_string(),
+            telegram_operation_mode: "transport".to_string(),
+            ..Default::default()
+        };
         let issues = runtime_wizard_completeness_issues(&config);
         assert!(issues.iter().any(|entry| {
             entry.contains("channels.discord.bot_token_secret_ref is empty (transport mode)")

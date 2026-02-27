@@ -1,46 +1,17 @@
 {
   "schema": "impressio.context_checkpoint.v1",
-  "captured_at": "2026-02-27T05:22:57.562878+00:00",
-  "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos",
-  "branch": "codex/pr42-coderabbit-followup",
-  "head_short": "0215a5c",
-  "step": "pr42-cr-fixes-post-green",
-  "note": "Applied CodeRabbit suggestions for checkpoint consistency and reran validation gates",
-  "next_cmd": "git status --short --branch",
+  "captured_at": "2026-02-27T10:22:00Z",
+  "repo_root": "/Users/domusanimae/Documents/openclaw replacement/carsinos_worktrees/mc3-pr1-backend",
+  "branch": "codex/mc3-pr1-backend",
+  "head": "9933a877ab8a8ec2dba13b54a60f019ebed12f6f",
+  "head_short": "9933a87",
+  "step": "mc3-pr43-post-green",
+  "note": "Clippy gate and regression suites green after gateway lint fixes",
+  "next_cmd": "git add crates/carsinos-gateway/src/main.rs crates/carsinos-gui/src/main.rs runtime/checkpoints/LATEST.md runtime/checkpoints/LATEST.json CHECKPOINT.md && git commit -m \"fix(gateway): clear clippy gate warnings for pr43\"",
   "validations": [
-    "cargo check -p carsinos-gateway --bin carsinos-gateway",
-    "cargo test -p carsinos-gateway --test e2e_process",
-    "cargo test -p carsinos-gateway --test benchmark_process -- --nocapture"
-  ],
-  "status": {
-    "staged": [],
-    "modified": [
-      "CHECKPOINT.md",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
-    "untracked": [],
-    "conflicted": [],
-    "dirty": true
-  },
-  "changed_files": {
-    "working_tree": [
-      "CHECKPOINT.md",
-      "runtime/checkpoints/LATEST.json",
-      "runtime/checkpoints/LATEST.md"
-    ],
-    "staged": []
-  },
-  "recent_commits": [
-    "0215a5c docs: checkpoint PR #42 open state",
-    "452b977 chore(gateway): remove dead numquam/plugin fields and checkpoint state",
-    "031a0c2 Merge pull request #41 from ProfessahX/codex/sync-local-sot-20260226-230214",
-    "4d14144 docs: checkpoint repo sync PR #41 open state",
-    "bd431bd sync: publish local source-of-truth runtime and ticket-pack updates"
-  ],
-  "checklist": [
-    "Run git status -sb and verify branch/head.",
-    "Open diff for changed files listed in checkpoint.",
-    "Resume from step + next_cmd, then write a new checkpoint after each major edit block."
+    "cargo clippy -p carsinos-gateway -p carsinos-storage -p carsinos-protocol -p carsinos-gui -p carsinos-cli --all-targets -- -D warnings",
+    "cargo test -p carsinos-storage",
+    "cargo test -p carsinos-protocol",
+    "cargo test -p carsinos-gateway"
   ]
 }

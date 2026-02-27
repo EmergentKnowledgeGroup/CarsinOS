@@ -394,6 +394,7 @@ fn acquire_scheduler_instance_lock(state_dir: &FsPath) -> AnyResult<SchedulerIns
     let lock_path = lock_dir.join("scheduler.instance.lock");
     let mut file = std::fs::OpenOptions::new()
         .create(true)
+        .truncate(false)
         .read(true)
         .write(true)
         .open(&lock_path)
@@ -7400,10 +7401,10 @@ fn sync_memory_sources_internal(
                             created = true;
                             persist_note_embeddings(state, &note)
                         }
-                        Err(err) => Err(err.into()),
+                        Err(err) => Err(err),
                     }
                 }
-                Err(err) => Err(err.into()),
+                Err(err) => Err(err),
             }
         } else {
             let created_note = state.storage.create_note(NewNote {
@@ -7417,7 +7418,7 @@ fn sync_memory_sources_internal(
                     created = true;
                     persist_note_embeddings(state, &note)
                 }
-                Err(err) => Err(err.into()),
+                Err(err) => Err(err),
             }
         };
 
@@ -11420,7 +11421,7 @@ fn collect_top_stop_reasons_from_jobs(
 
 fn effective_tool_fanout_cap(max_tool_calls_per_run: u64) -> u64 {
     const TOOL_FANOUT_HARD_CAP: u64 = 8;
-    max_tool_calls_per_run.min(TOOL_FANOUT_HARD_CAP).max(1)
+    max_tool_calls_per_run.clamp(1, TOOL_FANOUT_HARD_CAP)
 }
 
 fn normalize_tool_error_text(error_text: &str) -> String {
@@ -11591,7 +11592,7 @@ fn apply_daily_auth_profile_budget_accounting(
 }
 
 fn guardrail_reason_code(error_text: &str) -> Option<&'static str> {
-    for code in [
+    [
         REASON_BUDGET_MAX_RUN_MS,
         REASON_BUDGET_MAX_TOOL_CALLS,
         REASON_BUDGET_MAX_PROVIDER_INPUT_CHARS,
@@ -11603,12 +11604,10 @@ fn guardrail_reason_code(error_text: &str) -> Option<&'static str> {
         REASON_BREAKER_TOOL_FANOUT_CAP,
         REASON_BREAKER_REPEATED_TOOL_ERROR,
         REASON_BREAKER_NUMQUAM_OPEN,
-    ] {
-        if error_text.starts_with(code) {
-            return Some(code);
-        }
-    }
-    None
+    ]
+    .iter()
+    .find(|&&code| error_text.starts_with(code))
+    .copied()
 }
 
 fn enforce_run_wall_time_budget(started: Instant, max_run_ms: u64) -> AnyResult<()> {
@@ -12160,8 +12159,10 @@ async fn execute_run(
     };
     let runtime_config = load_runtime_config(state)?;
     let memory_blend_mode = runtime_config.memory.blend_mode.clone();
-    let mut memory_metadata = RunMemoryMetadata::default();
-    memory_metadata.blend_mode = Some(memory_blend_mode.clone());
+    let mut memory_metadata = RunMemoryMetadata {
+        blend_mode: Some(memory_blend_mode.clone()),
+        ..RunMemoryMetadata::default()
+    };
     let mut memory_context_text = None;
     let use_numquam = memory_blend_mode != "local_fallback_only";
     if use_numquam {
@@ -14250,10 +14251,12 @@ async fn refresh_numquam_handshake_state(state: &AppState) {
             return;
         }
     };
-    let mut next = NumquamRuntimeStatus::default();
-    next.enabled = runtime_config.memory.numquam.enabled || state.numquam_client.is_some();
-    next.transport = runtime_config.memory.numquam.transport.clone();
-    next.last_check_at = Some(current_time_ms());
+    let mut next = NumquamRuntimeStatus {
+        enabled: runtime_config.memory.numquam.enabled || state.numquam_client.is_some(),
+        transport: runtime_config.memory.numquam.transport.clone(),
+        last_check_at: Some(current_time_ms()),
+        ..NumquamRuntimeStatus::default()
+    };
     if !next.enabled {
         next.health_status = "disabled".to_string();
         let mut write = state.numquam_runtime_status.write().await;
@@ -14632,13 +14635,12 @@ async fn poll_telegram_channel_listener_once(
     {
         return Ok((false, 0));
     }
-    if runtime_config
+    if !runtime_config
         .channels
         .telegram
         .webhook_mode
         .trim()
-        .to_ascii_lowercase()
-        != "long_poll"
+        .eq_ignore_ascii_case("long_poll")
     {
         return Ok((false, 0));
     }
@@ -14669,7 +14671,11 @@ async fn poll_telegram_channel_listener_once(
         }
 
         let text = message.text.unwrap_or_default();
-        let is_group_chat = message.chat.chat_type.trim().to_ascii_lowercase() != "private";
+        let is_group_chat = !message
+            .chat
+            .chat_type
+            .trim()
+            .eq_ignore_ascii_case("private");
         let user_id = message
             .from
             .as_ref()
@@ -31694,7 +31700,7 @@ sys.stdout.write(json.dumps(response))
         assert_eq!(card["column_id"], thumbnail_column_id);
         assert!(card["latest_run_id"].is_string());
         assert!(
-            card["assets"].as_array().expect("assets").len() >= 1,
+            !card["assets"].as_array().expect("assets").is_empty(),
             "expected generated thumbnail draft asset",
         );
     }
