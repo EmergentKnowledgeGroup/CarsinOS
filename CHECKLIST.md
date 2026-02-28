@@ -288,5 +288,16 @@ Execution checklist derived from `PLAN.md`. IDs are stable and must be used by `
 
 ## Phase AA - Agent Mail MCP Facade (PR-F Optional)
 
-- [ ] `AA1` `AM-MCP-001` Implement MCP-compatible facade endpoints for agent-mail send/fetch/ack/leases.
-- [ ] `AA2` Run PR-F regression + benchmark + security gates and complete PR workflow (open, CR loop, merge, post-merge checkpoint).
+- [x] `AA1` `AM-MCP-001` Implement MCP-compatible facade endpoints for agent-mail send/fetch/ack/leases.
+- [x] `AA2` Run PR-F regression + benchmark + security gates and complete PR workflow (open, CR loop, merge, post-merge checkpoint).
+
+## Phase AB - Mission Control App.tsx Refactor + Modularization
+
+- [x] `AB0` Validate baseline gates (`npm run typecheck`, `npm run lint`, `npm run build`, `cargo check`) before structural extraction.
+- [x] `AB1` Extract pure helper modules (`utils/*`, `features/boards/boardModel.ts`, `features/cockpit/cockpitLayout.ts`, `features/agentMail/agentMailSummary.ts`) and keep behavior stable.
+- [x] `AB2` Extract `BoardLane` into `features/boards/BoardLane.tsx` with localized lint suppression for `useVirtualizer`.
+- [x] `AB3` Split tab JSX into page components (`boards`, `calendar`, `focus`, `events`, `agentMail`, `chatrooms`, `cockpit`) without moving controller logic yet.
+- [x] `AB4` Add feature controllers + app controller (`app/useAppController.ts`, `features/*/use*Controller.ts`) and thin `App.tsx`.
+- [x] `AB4a` Extract app-shell state (`activeTab`, connection drafts, token/ws/notice, event stream) into `app/useAppController.ts`.
+- [x] `AB5` Move websocket wiring to `app/useGatewayEvents.ts` with stable callback handling and cleanup guarantees.
+- [x] `AB6` Add shared UI primitives in `src/ui/*`, run full regression gates, and execute PR chunk workflow.
