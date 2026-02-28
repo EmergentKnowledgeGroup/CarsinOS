@@ -5792,6 +5792,14 @@ mod tests {
             note: None,
         });
         assert!(conflict.is_err());
+        let conflict_message = conflict
+            .err()
+            .map(|err| err.to_string())
+            .unwrap_or_default();
+        assert!(
+            conflict_message.contains("active lease conflict"),
+            "conflict error should preserve stable message; got: {conflict_message}"
+        );
 
         let non_conflict = storage
             .create_agent_mail_file_lease(NewAgentMailFileLease {

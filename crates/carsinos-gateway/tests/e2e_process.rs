@@ -1820,7 +1820,7 @@ async fn agent_mail_mcp_facade_supports_identity_send_fetch_ack_and_leases() -> 
     assert_eq!(registered_recipient.status(), StatusCode::OK);
 
     let fetched_recipient_inbox = call_mcp(
-        51,
+        6,
         "tools/call",
         json!({
             "name": "agent_mail.inbox.fetch",
@@ -1859,7 +1859,7 @@ async fn agent_mail_mcp_facade_supports_identity_send_fetch_ack_and_leases() -> 
     );
 
     let acknowledged = call_mcp(
-        6,
+        7,
         "tools/call",
         json!({
             "name": "agent_mail.message.ack",
@@ -1881,7 +1881,7 @@ async fn agent_mail_mcp_facade_supports_identity_send_fetch_ack_and_leases() -> 
     assert!(acknowledged_json["result"]["structuredContent"]["acked_at"].is_number());
 
     let reserved = call_mcp(
-        7,
+        8,
         "tools/call",
         json!({
             "name": "agent_mail.files.reserve",
@@ -1903,7 +1903,7 @@ async fn agent_mail_mcp_facade_supports_identity_send_fetch_ack_and_leases() -> 
         .to_string();
 
     let listed_leases = call_mcp(
-        8,
+        9,
         "tools/call",
         json!({
             "name": "agent_mail.files.list",
@@ -1924,7 +1924,7 @@ async fn agent_mail_mcp_facade_supports_identity_send_fetch_ack_and_leases() -> 
     assert!(lease_items.iter().any(|item| item["lease_id"] == lease_id));
 
     let released = call_mcp(
-        9,
+        10,
         "tools/call",
         json!({
             "name": "agent_mail.files.release",

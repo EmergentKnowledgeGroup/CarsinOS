@@ -2107,7 +2107,6 @@ struct NumquamMcpRpcError {
 
 #[derive(Debug, Clone, Deserialize)]
 struct AgentMailMcpRpcRequest {
-    #[allow(dead_code)]
     #[serde(default)]
     jsonrpc: Option<String>,
     #[serde(default)]
@@ -11060,7 +11059,7 @@ fn agent_mail_mcp_tools() -> &'static Vec<serde_json::Value> {
                         "glob_pattern": {"type": "string"},
                         "holder_principal": {"type": "string"},
                         "exclusive": {"type": "boolean"},
-                        "ttl_ms": {"type": "integer"},
+                        "ttl_ms": {"type": "integer", "minimum": 1},
                         "note": {"type": "string"}
                     },
                     "additionalProperties": false
@@ -11277,6 +11276,14 @@ async fn execute_agent_mail_mcp_tool(
                     continue;
                 }
                 if !ensure_agent_mail_thread_membership(state, &summary.thread_id, &principal)? {
+                    emit_event(
+                        state,
+                        "agent_mail.mcp.inbox.membership_skipped",
+                        serde_json::json!({
+                            "thread_id": summary.thread_id,
+                            "principal_id": principal
+                        }),
+                    );
                     continue;
                 }
                 let mut messages = Vec::new();
