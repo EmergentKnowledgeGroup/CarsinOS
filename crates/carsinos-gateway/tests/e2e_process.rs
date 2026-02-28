@@ -1683,6 +1683,268 @@ async fn agent_mail_flow_supports_threads_messages_attachments_and_leases() -> R
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn agent_mail_mcp_facade_supports_identity_send_fetch_ack_and_leases() -> Result<()> {
+    let state_dir = TempDir::new().context("failed to create temp state directory")?;
+    let gateway = GatewayProcess::spawn_with_env(
+        state_dir.path(),
+        "e2e-token-agent-mail-mcp",
+        Some("op-1"),
+        &[("CARSINOS_AGENT_MAIL_MCP_DEFAULT_LEASE_TTL_MS", "180000")],
+    )
+    .await?;
+
+    let created_thread = gateway
+        .request_with_operator(Method::POST, "/api/v1/agent-mail/threads", "op-1")
+        .json(&json!({
+            "kind": "direct",
+            "subject": "mcp-thread",
+            "participants": ["lyra", "claude"]
+        }))
+        .send()
+        .await
+        .context("create thread for mcp test failed")?;
+    assert_eq!(created_thread.status(), StatusCode::CREATED);
+    let created_thread_json = json_body(created_thread).await?;
+    let thread_id = created_thread_json["thread"]["thread_id"]
+        .as_str()
+        .context("missing thread_id")?
+        .to_string();
+
+    let call_mcp = |id: i64, method: &str, params: serde_json::Value| {
+        gateway
+            .request_with_operator(Method::POST, "/api/v1/agent-mail/mcp", "op-1")
+            .json(&json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "method": method,
+                "params": params
+            }))
+    };
+
+    let initialized = call_mcp(
+        1,
+        "initialize",
+        json!({
+            "protocolVersion": "2024-11-05",
+            "clientInfo": {"name": "e2e", "version": "1.0.0"}
+        }),
+    )
+    .send()
+    .await
+    .context("mcp initialize request failed")?;
+    assert_eq!(initialized.status(), StatusCode::OK);
+    let initialized_json = json_body(initialized).await?;
+    assert_eq!(initialized_json["result"]["protocolVersion"], "2024-11-05");
+
+    let listed_tools = call_mcp(2, "tools/list", json!({}))
+        .send()
+        .await
+        .context("mcp tools/list request failed")?;
+    assert_eq!(listed_tools.status(), StatusCode::OK);
+    let listed_tools_json = json_body(listed_tools).await?;
+    let tools = listed_tools_json["result"]["tools"]
+        .as_array()
+        .context("tools/list missing tools array")?;
+    assert!(tools.iter().any(|tool| {
+        tool["name"]
+            .as_str()
+            .map(|name| name == "agent_mail.message.send")
+            .unwrap_or(false)
+    }));
+
+    let registered_identity = call_mcp(
+        3,
+        "tools/call",
+        json!({
+            "name": "agent_mail.identity.register",
+            "arguments": {
+                "principal_id": "claude",
+                "display_name": "Claude",
+                "kind": "agent"
+            }
+        }),
+    )
+    .send()
+    .await
+    .context("mcp identity.register request failed")?;
+    assert_eq!(registered_identity.status(), StatusCode::OK);
+    let registered_identity_json = json_body(registered_identity).await?;
+    assert_eq!(
+        registered_identity_json["result"]["structuredContent"]["principal_id"],
+        "claude"
+    );
+
+    let sent_message = call_mcp(
+        4,
+        "tools/call",
+        json!({
+            "name": "agent_mail.message.send",
+            "arguments": {
+                "thread_id": thread_id,
+                "sender_principal": "claude",
+                "sender_kind": "agent",
+                "body_text": "mcp-send payload",
+                "recipients": ["lyra"],
+                "metadata_json": {
+                    "mode": "mcp",
+                    "priority": "high"
+                }
+            }
+        }),
+    )
+    .send()
+    .await
+    .context("mcp message.send request failed")?;
+    assert_eq!(sent_message.status(), StatusCode::OK);
+    let sent_message_json = json_body(sent_message).await?;
+    let message_id = sent_message_json["result"]["structuredContent"]["message"]["message_id"]
+        .as_str()
+        .context("mcp message.send missing message_id")?
+        .to_string();
+
+    let registered_recipient = call_mcp(
+        5,
+        "tools/call",
+        json!({
+            "name": "agent_mail.identity.register",
+            "arguments": {
+                "principal_id": "lyra",
+                "display_name": "Lyra",
+                "kind": "agent"
+            }
+        }),
+    )
+    .send()
+    .await
+    .context("mcp identity.register recipient request failed")?;
+    assert_eq!(registered_recipient.status(), StatusCode::OK);
+
+    let fetched_recipient_inbox = call_mcp(
+        6,
+        "tools/call",
+        json!({
+            "name": "agent_mail.inbox.fetch",
+            "arguments": {
+                "principal_id": "lyra",
+                "mailbox": "all",
+                "limit": 20,
+                "include_messages": true,
+                "message_limit": 20
+            }
+        }),
+    )
+    .send()
+    .await
+    .context("mcp inbox.fetch request failed")?;
+    assert_eq!(fetched_recipient_inbox.status(), StatusCode::OK);
+    let fetched_recipient_inbox_json = json_body(fetched_recipient_inbox).await?;
+    let recipient_inbox_items = fetched_recipient_inbox_json["result"]["structuredContent"]
+        ["items"]
+        .as_array()
+        .context("mcp inbox.fetch missing items")?;
+    assert!(!recipient_inbox_items.is_empty());
+    let has_message = recipient_inbox_items.iter().any(|item| {
+        item["messages"]
+            .as_array()
+            .map(|messages| {
+                messages
+                    .iter()
+                    .any(|message| message["message_id"] == message_id)
+            })
+            .unwrap_or(false)
+    });
+    assert!(
+        has_message,
+        "mcp inbox.fetch should include recipient message"
+    );
+
+    let acknowledged = call_mcp(
+        7,
+        "tools/call",
+        json!({
+            "name": "agent_mail.message.ack",
+            "arguments": {
+                "message_id": message_id,
+                "recipient_principal": "lyra"
+            }
+        }),
+    )
+    .send()
+    .await
+    .context("mcp message.ack request failed")?;
+    assert_eq!(acknowledged.status(), StatusCode::OK);
+    let acknowledged_json = json_body(acknowledged).await?;
+    assert_eq!(
+        acknowledged_json["result"]["structuredContent"]["recipient_principal"],
+        "lyra"
+    );
+    assert!(acknowledged_json["result"]["structuredContent"]["acked_at"].is_number());
+
+    let reserved = call_mcp(
+        8,
+        "tools/call",
+        json!({
+            "name": "agent_mail.files.reserve",
+            "arguments": {
+                "holder_principal": "claude",
+                "glob_pattern": "src/**/*.rs",
+                "exclusive": true
+            }
+        }),
+    )
+    .send()
+    .await
+    .context("mcp files.reserve request failed")?;
+    assert_eq!(reserved.status(), StatusCode::OK);
+    let reserved_json = json_body(reserved).await?;
+    let lease_id = reserved_json["result"]["structuredContent"]["lease"]["lease_id"]
+        .as_str()
+        .context("mcp files.reserve missing lease_id")?
+        .to_string();
+
+    let listed_leases = call_mcp(
+        9,
+        "tools/call",
+        json!({
+            "name": "agent_mail.files.list",
+            "arguments": {
+                "holder_principal": "claude",
+                "include_released": false
+            }
+        }),
+    )
+    .send()
+    .await
+    .context("mcp files.list request failed")?;
+    assert_eq!(listed_leases.status(), StatusCode::OK);
+    let listed_leases_json = json_body(listed_leases).await?;
+    let lease_items = listed_leases_json["result"]["structuredContent"]["items"]
+        .as_array()
+        .context("mcp files.list missing items")?;
+    assert!(lease_items.iter().any(|item| item["lease_id"] == lease_id));
+
+    let released = call_mcp(
+        10,
+        "tools/call",
+        json!({
+            "name": "agent_mail.files.release",
+            "arguments": {
+                "lease_id": lease_id,
+                "holder_principal": "claude"
+            }
+        }),
+    )
+    .send()
+    .await
+    .context("mcp files.release request failed")?;
+    assert_eq!(released.status(), StatusCode::OK);
+    let released_json = json_body(released).await?;
+    assert!(released_json["result"]["structuredContent"]["lease"]["released_at"].is_number());
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn request_logs_are_written_to_state_log_directory() -> Result<()> {
     let state_dir = TempDir::new().context("failed to create temp state directory")?;
     let gateway = GatewayProcess::spawn(state_dir.path(), "e2e-token-logs", None).await?;
