@@ -1802,13 +1802,30 @@ async fn agent_mail_mcp_facade_supports_identity_send_fetch_ack_and_leases() -> 
         .context("mcp message.send missing message_id")?
         .to_string();
 
-    let fetched_inbox = call_mcp(
+    let registered_recipient = call_mcp(
         5,
+        "tools/call",
+        json!({
+            "name": "agent_mail.identity.register",
+            "arguments": {
+                "principal_id": "lyra",
+                "display_name": "Lyra",
+                "kind": "agent"
+            }
+        }),
+    )
+    .send()
+    .await
+    .context("mcp identity.register recipient request failed")?;
+    assert_eq!(registered_recipient.status(), StatusCode::OK);
+
+    let fetched_recipient_inbox = call_mcp(
+        51,
         "tools/call",
         json!({
             "name": "agent_mail.inbox.fetch",
             "arguments": {
-                "principal_id": "claude",
+                "principal_id": "lyra",
                 "mailbox": "all",
                 "limit": 20,
                 "include_messages": true,
@@ -1819,13 +1836,14 @@ async fn agent_mail_mcp_facade_supports_identity_send_fetch_ack_and_leases() -> 
     .send()
     .await
     .context("mcp inbox.fetch request failed")?;
-    assert_eq!(fetched_inbox.status(), StatusCode::OK);
-    let fetched_inbox_json = json_body(fetched_inbox).await?;
-    let inbox_items = fetched_inbox_json["result"]["structuredContent"]["items"]
+    assert_eq!(fetched_recipient_inbox.status(), StatusCode::OK);
+    let fetched_recipient_inbox_json = json_body(fetched_recipient_inbox).await?;
+    let recipient_inbox_items = fetched_recipient_inbox_json["result"]["structuredContent"]
+        ["items"]
         .as_array()
         .context("mcp inbox.fetch missing items")?;
-    assert!(!inbox_items.is_empty());
-    let has_message = inbox_items.iter().any(|item| {
+    assert!(!recipient_inbox_items.is_empty());
+    let has_message = recipient_inbox_items.iter().any(|item| {
         item["messages"]
             .as_array()
             .map(|messages| {
@@ -1835,7 +1853,10 @@ async fn agent_mail_mcp_facade_supports_identity_send_fetch_ack_and_leases() -> 
             })
             .unwrap_or(false)
     });
-    assert!(has_message, "mcp inbox.fetch should include sent message");
+    assert!(
+        has_message,
+        "mcp inbox.fetch should include recipient message"
+    );
 
     let acknowledged = call_mcp(
         6,

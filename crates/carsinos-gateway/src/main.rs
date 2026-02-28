@@ -11559,15 +11559,23 @@ async fn execute_agent_mail_mcp_tool(
                 ));
             }
             let holder_principal = resolve_agent_mail_principal(args.holder_principal, auth);
+            let ttl_ms = match args.ttl_ms {
+                Some(value) if value <= 0 => {
+                    return Err(api_error(
+                        StatusCode::BAD_REQUEST,
+                        "ttl_ms must be greater than zero",
+                    ));
+                }
+                Some(value) => value,
+                None => agent_mail_mcp_default_lease_ttl_ms(),
+            };
             let lease = state
                 .storage
                 .create_agent_mail_file_lease(NewAgentMailFileLease {
                     holder_principal,
                     glob_pattern,
                     exclusive: args.exclusive.unwrap_or(false),
-                    ttl_ms: args
-                        .ttl_ms
-                        .unwrap_or_else(agent_mail_mcp_default_lease_ttl_ms),
+                    ttl_ms,
                     note: args.note,
                 })
                 .map_err(|err| {
@@ -11701,6 +11709,19 @@ async fn agent_mail_mcp(
         }
     };
     let id = request.id.unwrap_or(serde_json::Value::Null);
+    let jsonrpc_version = request
+        .jsonrpc
+        .as_ref()
+        .map(|value| value.trim())
+        .unwrap_or_default();
+    if jsonrpc_version != "2.0" {
+        return Ok(agent_mail_mcp_response_error(
+            id,
+            -32600,
+            "invalid or missing JSON-RPC version",
+            None,
+        ));
+    }
     let method = request
         .method
         .as_ref()
@@ -11758,17 +11779,26 @@ async fn agent_mail_mcp(
                 .unwrap_or_else(|| serde_json::json!({}));
             match execute_agent_mail_mcp_tool(&headers, &state, &auth, &tool_name, arguments).await
             {
-                Ok(structured_content) => Ok(agent_mail_mcp_response_result(
-                    id,
-                    serde_json::json!({
-                        "structuredContent": structured_content,
-                        "content": [{
-                            "type": "text",
-                            "text": structured_content.to_string()
-                        }],
-                        "isError": false
-                    }),
-                )),
+                Ok(structured_content) => {
+                    let content_text = structured_content
+                        .get("summary")
+                        .and_then(|value| value.as_str())
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                        .map(|value| value.chars().take(200).collect::<String>())
+                        .unwrap_or_else(|| format!("tool {} completed", tool_name));
+                    Ok(agent_mail_mcp_response_result(
+                        id,
+                        serde_json::json!({
+                            "structuredContent": structured_content,
+                            "content": [{
+                                "type": "text",
+                                "text": content_text
+                            }],
+                            "isError": false
+                        }),
+                    ))
+                }
                 Err((status, Json(api_error))) => {
                     let rpc_error = agent_mail_mcp_rpc_error_from_api(status, api_error);
                     Ok(agent_mail_mcp_response_error(
