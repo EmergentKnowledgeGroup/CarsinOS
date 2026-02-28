@@ -55,7 +55,7 @@ const ONBOARDING_STEPS = [
 ] as const;
 
 function parseHttpStatusCode(error: unknown): number | null {
-  const match = String(error).match(/^(\d{3})\b/);
+  const match = String(error).match(/(\d{3})\b/);
   if (!match) {
     return null;
   }
@@ -178,6 +178,9 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     const first = existingProviderProfiles[0]?.auth_profile_id ?? "";
     setSelectedExistingProfileId(first);
     setUseExistingProfile(existingProviderProfiles.length > 0);
+  }, [existingProviderProfiles]);
+
+  useEffect(() => {
     setProviderProfileId(null);
     setProviderReady(false);
     setRoutingReady(false);
@@ -187,7 +190,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     setOpenAiCallbackUrl("");
     setOpenAiCode("");
     setOpenAiState("");
-  }, [existingProviderProfiles, providerPath]);
+  }, [providerPath]);
 
   useEffect(() => {
     const shouldOpen = shouldAutoOpenWizard(
