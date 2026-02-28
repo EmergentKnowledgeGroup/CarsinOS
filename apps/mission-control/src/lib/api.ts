@@ -386,6 +386,15 @@ export async function startOpenAiOauth(
   });
 }
 
+/**
+ * Completes the OpenAI OAuth flow and returns `OpenAiOauthFinishResponse`.
+ * Use exactly one completion mode:
+ * 1) Preferred: provide `callback_url`.
+ * 2) Fallback: provide both `code` and `state`.
+ *
+ * `oauth_session_id` is always required. `display_name` and `api_base_url` are optional
+ * profile attributes.
+ */
 export async function finishOpenAiOauth(
   settings: RuntimeConnectionSettings,
   payload: {

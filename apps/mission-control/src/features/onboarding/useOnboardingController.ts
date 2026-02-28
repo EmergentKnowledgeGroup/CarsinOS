@@ -245,6 +245,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
           agent_id: "",
           name: "permission-probe",
         });
+        canManageSetup = true;
       } catch (error: unknown) {
         const status = parseHttpStatusCode(error);
         canManageSetup = status !== null && !(status === 401 || status === 403);
@@ -279,7 +280,14 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     clearError();
     setBusy(true);
     try {
+      const hasTokenInput = gatewayTokenInput.trim().length > 0;
       await saveConnectionFromInputs(gatewayUrl, gatewayTokenInput);
+      const tokenAvailable = hasTokenInput || tokenConfigured;
+      if (!tokenAvailable) {
+        setConnected(false);
+        setErrorText("Connection saved, but no gateway token is configured yet.");
+        return;
+      }
       setConnected(true);
       setGatewayTokenInput("");
     } catch (error: unknown) {
@@ -288,7 +296,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     } finally {
       setBusy(false);
     }
-  }, [clearError, gatewayTokenInput, gatewayUrl, saveConnectionFromInputs]);
+  }, [clearError, gatewayTokenInput, gatewayUrl, saveConnectionFromInputs, tokenConfigured]);
 
   const ensureAgent = useCallback(async () => {
     clearError();

@@ -26,7 +26,12 @@ export function StepPreflight(props: StepPreflightProps) {
           <button type="button" className="ghost" onClick={props.onBack}>
             Back
           </button>
-          <button type="button" className="ghost" onClick={() => void props.onRun()}>
+          <button
+            type="button"
+            className="ghost"
+            disabled={props.preflight.running}
+            onClick={() => void props.onRun()}
+          >
             {props.preflight.running ? "Running..." : "Run Checks"}
           </button>
           <button type="button" onClick={props.onNext}>

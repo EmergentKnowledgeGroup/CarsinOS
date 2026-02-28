@@ -32,7 +32,12 @@ export function StepAgent(props: StepAgentProps) {
           <button type="button" className="ghost" onClick={props.onBack}>
             Back
           </button>
-          <button type="button" className="ghost" onClick={() => void props.onEnsureAgent()}>
+          <button
+            type="button"
+            className="ghost"
+            disabled={props.busy}
+            onClick={() => void props.onEnsureAgent()}
+          >
             {props.busy ? "Saving..." : hasExisting ? "Use Selected Agent" : "Create Agent"}
           </button>
           <button type="button" disabled={!props.agentReady} onClick={props.onNext}>

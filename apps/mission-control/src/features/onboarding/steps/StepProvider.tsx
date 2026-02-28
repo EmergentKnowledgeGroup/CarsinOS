@@ -56,7 +56,13 @@ export function StepProvider(props: StepProviderProps) {
           <button type="button" className="ghost" onClick={props.onBack}>
             Back
           </button>
-          <button type="button" className="ghost" onClick={() => void props.onCompleteProvider()}>
+          <button
+            type="button"
+            className="ghost"
+            disabled={props.busy}
+            aria-busy={props.busy}
+            onClick={() => void props.onCompleteProvider()}
+          >
             {props.busy ? "Applying..." : "Apply Provider Setup"}
           </button>
           <button type="button" disabled={!props.providerReady} onClick={props.onNext}>

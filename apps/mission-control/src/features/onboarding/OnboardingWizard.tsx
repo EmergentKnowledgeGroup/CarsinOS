@@ -21,12 +21,17 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
   }
 
   return (
-    <div className="mc-onboarding-overlay" role="dialog" aria-modal="true">
+    <div
+      className="mc-onboarding-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="mc-onboarding-title"
+    >
       <div className="mc-onboarding-modal">
         <header className="mc-onboarding-header">
           <div>
             <p className="mc-overline">Mission Control</p>
-            <h2>Setup Wizard</h2>
+            <h2 id="mc-onboarding-title">Setup Wizard</h2>
           </div>
           <button type="button" className="ghost" onClick={c.dismissWizard}>
             Dismiss (24h)

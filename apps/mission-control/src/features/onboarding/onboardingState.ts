@@ -51,7 +51,13 @@ export function loadDismissedAt(): number | null {
   if (typeof window === "undefined") {
     return null;
   }
-  const raw = window.localStorage.getItem(ONBOARDING_DISMISSED_KEY);
+  let raw: string | null;
+  try {
+    raw = window.localStorage.getItem(ONBOARDING_DISMISSED_KEY);
+  } catch (error) {
+    console.debug("onboarding dismissal read failed", error);
+    return null;
+  }
   if (!raw) {
     return null;
   }

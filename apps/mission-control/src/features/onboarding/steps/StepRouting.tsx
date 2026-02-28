@@ -23,7 +23,12 @@ export function StepRouting(props: StepRoutingProps) {
           <button type="button" className="ghost" onClick={props.onBack}>
             Back
           </button>
-          <button type="button" className="ghost" onClick={() => void props.onApplyRouting()}>
+          <button
+            type="button"
+            className="ghost"
+            disabled={props.busy}
+            onClick={() => void props.onApplyRouting()}
+          >
             {props.busy ? "Applying..." : "Apply Routing"}
           </button>
           <button type="button" disabled={!props.routingReady} onClick={props.onNext}>
