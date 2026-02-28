@@ -95,6 +95,9 @@ export function shouldAutoOpenWizard(
     return true;
   }
   const elapsed = nowMs - dismissedAtMs;
+  if (elapsed < 0) {
+    return true;
+  }
   return elapsed >= ONBOARDING_DISMISS_WINDOW_MS;
 }
 

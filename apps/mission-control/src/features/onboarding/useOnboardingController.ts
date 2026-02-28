@@ -70,10 +70,18 @@ function providerRequiresProfile(path: OnboardingProviderPath): boolean {
 function selectedProviderFromExisting(
   profiles: AuthProfileResponse[]
 ): OnboardingProviderPath {
-  if (profiles.some((profile) => profile.enabled && profile.provider === "anthropic")) {
+  if (
+    profiles.some(
+      (profile) => profile.enabled && profile.provider.toLowerCase() === "anthropic"
+    )
+  ) {
     return "anthropic";
   }
-  if (profiles.some((profile) => profile.enabled && profile.provider === "openai")) {
+  if (
+    profiles.some(
+      (profile) => profile.enabled && profile.provider.toLowerCase() === "openai"
+    )
+  ) {
     return "openai";
   }
   return "local";
@@ -161,7 +169,10 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
 
   const existingProviderProfiles = useMemo(() => {
     return authProfiles
-      .filter((profile) => profile.enabled && profile.provider === providerPath)
+      .filter(
+        (profile) =>
+          profile.enabled && profile.provider.toLowerCase() === providerPath.toLowerCase()
+      )
       .sort((a, b) => a.display_name.localeCompare(b.display_name));
   }, [authProfiles, providerPath]);
 
@@ -252,7 +263,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
         detail:
           canReadCore
             ? "Checks completed. Setup write permissions are validated during setup actions."
-            : "Checks completed. Token can read, but setup actions may require operator_admin.",
+            : "Checks completed. Token cannot read core — setup actions may require operator_admin.",
       });
     } catch (error: unknown) {
       setPreflight({
@@ -267,6 +278,13 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
       setErrorText(`Preflight failed: ${String(error)}`);
     }
   }, [clearError, gatewayUrl, settings.gateway_url]);
+
+  const setSelectedExistingProfileAndInvalidate = useCallback((value: string) => {
+    setSelectedExistingProfileId(value);
+    setProviderProfileId(null);
+    setProviderReady(false);
+    setRoutingReady(false);
+  }, []);
 
   const connectGateway = useCallback(async () => {
     clearError();
@@ -531,7 +549,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     setUseExistingProfile,
     existingProviderProfiles,
     selectedExistingProfileId,
-    setSelectedExistingProfileId,
+    setSelectedExistingProfileId: setSelectedExistingProfileAndInvalidate,
     providerProfileId,
     providerReady,
     localProvider,

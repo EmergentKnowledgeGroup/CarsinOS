@@ -65,7 +65,16 @@ export function StepProvider(props: StepProviderProps) {
           >
             {props.busy ? "Applying..." : "Apply Provider Setup"}
           </button>
-          <button type="button" disabled={!props.providerReady} onClick={props.onNext}>
+          <button
+            type="button"
+            disabled={props.busy || !props.providerReady}
+            onClick={() => {
+              if (props.busy) {
+                return;
+              }
+              props.onNext();
+            }}
+          >
             Continue
           </button>
         </>
