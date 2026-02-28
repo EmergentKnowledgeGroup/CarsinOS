@@ -11648,7 +11648,7 @@ async fn execute_agent_mail_mcp_tool(
                 "agent_mail.mcp.files.release",
                 "agent_mail.mcp",
             )?;
-            require_endpoint_rate_limit_with_error(state, auth, "agent_mail.mcp.files.release")?;
+            require_endpoint_rate_limit_with_error(state, auth, "agent_mail")?;
             let args: AgentMailMcpFileReleaseArgs =
                 serde_json::from_value(arguments).map_err(|err| {
                     api_error_with_code(
