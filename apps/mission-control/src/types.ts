@@ -94,6 +94,14 @@ export interface Agent {
   model_id: string;
 }
 
+export interface CreateAgentResponse {
+  agent: Agent;
+}
+
+export interface UpdateAgentResponse {
+  agent: Agent;
+}
+
 export interface WsEventFrame {
   schema_version: string;
   event_id: string;
@@ -335,6 +343,23 @@ export interface AgentProviderProfileOrderResponse {
   agent_id: string;
   provider: string;
   profile_ids: string[];
+}
+
+export interface OpenAiOauthStartResponse {
+  oauth_session_id: string;
+  authorize_url: string;
+  callback_url: string;
+  expires_in_seconds: number;
+}
+
+export interface OpenAiOauthFinishResponse {
+  profile: AuthProfileResponse;
+  account_id: string | null;
+  expires_at_unix: number | null;
+}
+
+export interface AnthropicSetupTokenIngestResponse {
+  profile: AuthProfileResponse;
 }
 
 export interface SkillResponse {

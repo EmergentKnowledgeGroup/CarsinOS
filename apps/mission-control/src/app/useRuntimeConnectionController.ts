@@ -115,41 +115,46 @@ export function useRuntimeConnectionController(options: UseRuntimeConnectionCont
     void isGatewayTokenConfigured().then(setTokenConfigured);
   }, [setTokenConfigured]);
 
+  const saveConnectionFromInputs = useCallback(
+    async (gatewayUrl: string, tokenInput?: string) => {
+      try {
+        const nextSettings: RuntimeConnectionSettings = {
+          gateway_url: gatewayUrl.trim(),
+        };
+        persistConnectionSettings(nextSettings);
+        setSettings(nextSettings);
+
+        const nextToken = tokenInput?.trim() ?? "";
+        if (nextToken) {
+          await setGatewayToken(nextToken);
+          setTokenDraft("");
+        }
+
+        const hasToken = await isGatewayTokenConfigured();
+        setTokenConfigured(hasToken);
+
+        if (hasToken && nextSettings.gateway_url.trim()) {
+          await loadBaseline(nextSettings);
+          setNotice({ tone: "info", message: "Connection settings saved." });
+        }
+      } catch (error: unknown) {
+        setNotice({
+          tone: "critical",
+          message: `Connection save failed: ${String(error)}`,
+        });
+        throw error;
+      }
+    },
+    [loadBaseline, setNotice, setSettings, setTokenConfigured, setTokenDraft]
+  );
+
   const saveConnection = useCallback(async () => {
     try {
-      const nextSettings: RuntimeConnectionSettings = {
-        gateway_url: gatewayDraft.trim(),
-      };
-      persistConnectionSettings(nextSettings);
-      setSettings(nextSettings);
-
-      if (tokenDraft.trim()) {
-        await setGatewayToken(tokenDraft.trim());
-        setTokenDraft("");
-      }
-
-      const hasToken = await isGatewayTokenConfigured();
-      setTokenConfigured(hasToken);
-
-      if (hasToken && nextSettings.gateway_url.trim()) {
-        await loadBaseline(nextSettings);
-        setNotice({ tone: "info", message: "Connection settings saved." });
-      }
+      await saveConnectionFromInputs(gatewayDraft, tokenDraft);
     } catch (error: unknown) {
-      setNotice({
-        tone: "critical",
-        message: `Connection save failed: ${String(error)}`,
-      });
+      void error;
     }
-  }, [
-    gatewayDraft,
-    loadBaseline,
-    setNotice,
-    setSettings,
-    setTokenConfigured,
-    setTokenDraft,
-    tokenDraft,
-  ]);
+  }, [gatewayDraft, saveConnectionFromInputs, tokenDraft]);
 
   const clearToken = useCallback(async () => {
     await clearGatewayToken();
@@ -173,6 +178,7 @@ export function useRuntimeConnectionController(options: UseRuntimeConnectionCont
   return {
     loadBaseline,
     saveConnection,
+    saveConnectionFromInputs,
     clearToken,
     reconnect,
   };

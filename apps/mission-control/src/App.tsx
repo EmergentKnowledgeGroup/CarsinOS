@@ -14,6 +14,8 @@ import {
 import { useAgentMailController } from "./features/agentMail/useAgentMailController";
 import { useBoardsController } from "./features/boards/useBoardsController";
 import { useCockpitController } from "./features/cockpit/useCockpitController";
+import { OnboardingWizard } from "./features/onboarding/OnboardingWizard";
+import { useOnboardingController } from "./features/onboarding/useOnboardingController";
 import type { Agent, WsEventFrame } from "./types";
 import "./styles.css";
 
@@ -67,7 +69,8 @@ export default function App() {
   const applyGatewayBoardEvent = boardsController.applyGatewayBoardEvent;
   const queueAgentMailRefresh = mailController.queueAgentMailRefresh;
 
-  const { saveConnection, clearToken, reconnect } = useRuntimeConnectionController({
+  const { loadBaseline, saveConnection, saveConnectionFromInputs, clearToken, reconnect } =
+    useRuntimeConnectionController({
     settings,
     gatewayDraft,
     tokenDraft,
@@ -85,6 +88,16 @@ export default function App() {
     setBoard: boardsController.setBoard,
     loadMissionControlReadModels: missionControl.loadMissionControlReadModels,
     loadAgentMailReadModels: mailController.loadAgentMailReadModels,
+    });
+
+  const onboarding = useOnboardingController({
+    settings,
+    tokenConfigured,
+    agents,
+    authProfiles: missionControl.authProfiles,
+    saveConnectionFromInputs,
+    loadBaseline,
+    setActiveTab,
   });
 
   const visibleEvents = useMemo(
@@ -162,8 +175,10 @@ export default function App() {
       onSaveConnection={saveConnection}
       onReconnect={reconnect}
       onClearToken={clearToken}
+      onOpenSetupWizard={onboarding.openWizard}
       notice={notice}
     >
+      <OnboardingWizard controller={onboarding} agents={agents} />
       <AppContent
         activeTab={activeTab}
         settings={settings}

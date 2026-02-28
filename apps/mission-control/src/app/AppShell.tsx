@@ -23,6 +23,7 @@ interface AppShellProps {
   onSaveConnection: () => Promise<void>;
   onReconnect: () => Promise<void>;
   onClearToken: () => Promise<void>;
+  onOpenSetupWizard: () => void;
   notice: Notice | null;
   children: ReactNode;
 }
@@ -51,6 +52,9 @@ export function AppShell(props: AppShellProps) {
           <Chip label={`health: ${props.healthState}`} tone={props.healthState} />
           <Chip label={`ws: ${props.wsState}`} tone={props.wsState} />
           <Chip label={`token: ${props.tokenConfigured ? "set" : "missing"}`} />
+          <button type="button" className="ghost" onClick={props.onOpenSetupWizard}>
+            Setup Wizard
+          </button>
         </div>
       </header>
 
