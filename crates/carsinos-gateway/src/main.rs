@@ -5816,6 +5816,7 @@ const BOARD_CARD_TOTAL_UPLOAD_MAX_BYTES: i64 = 100 * 1024 * 1024;
 const AGENT_MAIL_DEFAULT_ATTACHMENT_MAX_BYTES: usize = 10 * 1024 * 1024;
 const AGENT_MAIL_DEFAULT_THREAD_LIMIT: u32 = 200;
 const AGENT_MAIL_DEFAULT_MESSAGE_LIMIT: u32 = 400;
+const AGENT_MAIL_MAX_BODY_CHARS: usize = 16_000;
 const AGENT_MAIL_DEFAULT_THREAD_RATE_LIMIT: usize = 80;
 const AGENT_MAIL_MCP_PROTOCOL_VERSION: &str = "2024-11-05";
 const AGENT_MAIL_MCP_TOOL_IDENTITY_REGISTER: &str = "agent_mail.identity.register";
@@ -11375,7 +11376,7 @@ async fn execute_agent_mail_mcp_tool(
                     "agent-mail message body cannot be empty",
                 ));
             }
-            if body_text.chars().count() > 16_000 {
+            if body_text.chars().count() > AGENT_MAIL_MAX_BODY_CHARS {
                 return Err(api_error(
                     StatusCode::BAD_REQUEST,
                     "agent-mail message body exceeds maximum length",
@@ -11647,6 +11648,7 @@ async fn execute_agent_mail_mcp_tool(
                 "agent_mail.mcp.files.release",
                 "agent_mail.mcp",
             )?;
+            require_endpoint_rate_limit_with_error(state, auth, "agent_mail.mcp.files.release")?;
             let args: AgentMailMcpFileReleaseArgs =
                 serde_json::from_value(arguments).map_err(|err| {
                     api_error_with_code(
@@ -12194,7 +12196,7 @@ async fn send_agent_mail_message(
             "agent-mail message body cannot be empty",
         ));
     }
-    if body_text.chars().count() > 16_000 {
+    if body_text.chars().count() > AGENT_MAIL_MAX_BODY_CHARS {
         return Err(api_error(
             StatusCode::BAD_REQUEST,
             "agent-mail message body exceeds maximum length",
