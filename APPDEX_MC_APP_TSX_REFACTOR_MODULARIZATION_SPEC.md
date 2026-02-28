@@ -108,7 +108,7 @@ Move these UI blocks into tab pages (minimize behavior change):
 
 Move these “action clusters” into controllers:
 - Boards actions (`handleBoardChange`, `handleDropCard`, `handleCreateCard`, `saveCardDraft`, `runCard`, `uploadAsset`, `previewAsset`, plus `refreshBoard`/`queueBoardRefresh`) -> `features/boards/useBoardsController.ts`.
-- Mission-control read models (`loadMissionControlReadModels`, `queueMissionControlRefresh`, `runCalendarJobNow`, `toggleCalendarJob`, `resolveFocusApproval`, `reconnectFocusChannel`, provider ordering, plugin/skill toggles) -> `app/useAppController.ts` or split across `useCalendarController`, `useFocusController`.
+- Mission-control read models (`loadMissionControlReadModels`, `queueMissionControlRefresh`, `runCalendarJobNow`, `toggleCalendarJob`, `resolveFocusApproval`, `reconnectFocusChannel`, provider ordering, plugin/skill toggles) -> `app/useMissionControlController.ts` or split across `useCalendarController`, `useFocusController`.
 - Agent mail actions (`loadAgentMailReadModels`, `queueAgentMailRefresh`, `loadMailThreadById`, `createMailThread`, `sendThreadMessage`, `acknowledgeMessage`, `acknowledgeRoomUnread`, `postRoomReaction`, `summarizeSelectedMailThread`, `downloadMailAttachment`, leases APIs) -> `features/agentMail/useAgentMailController.ts`.
 - Cockpit actions (`addCockpitWidget`, `removeCockpitWidget`, `moveCockpitWidget`, `resizeCockpitWidget`, `resetCockpitLayout`, `addCockpitPage`, `exportCockpitLayout`, `importCockpitLayout`, `renderCockpitWidget`) -> `features/cockpit/*` (renderer split into widget components).
 

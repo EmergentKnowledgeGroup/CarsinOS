@@ -274,7 +274,7 @@ export function BoardsPage({
                   <li key={asset.card_asset_id}>
                     <button
                       type="button"
-                      onClick={() => void onPreviewAsset(selectedCard!.card_id, asset.card_asset_id)}
+                      onClick={() => void onPreviewAsset(selectedCard.card_id, asset.card_asset_id)}
                     >
                       {asset.filename}
                     </button>

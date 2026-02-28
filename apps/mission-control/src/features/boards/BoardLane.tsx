@@ -115,6 +115,12 @@ export function BoardLane(props: BoardLaneProps) {
         <input
           value={newCardTitle}
           onChange={(event) => setNewCardTitle(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              void submitCreate();
+            }
+          }}
           placeholder="Add card"
         />
         <button type="button" onClick={submitCreate}>

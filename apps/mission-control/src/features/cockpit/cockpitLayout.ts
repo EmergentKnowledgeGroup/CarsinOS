@@ -11,6 +11,18 @@ export type CockpitWidgetKind =
   | "plugins"
   | "events";
 
+const COCKPIT_WIDGET_KINDS: CockpitWidgetKind[] = [
+  "health",
+  "focus",
+  "breakers",
+  "jobs",
+  "channels",
+  "profiles",
+  "skills",
+  "plugins",
+  "events",
+];
+
 export interface CockpitWidgetLayout {
   instance_id: string;
   widget: CockpitWidgetKind;
@@ -100,6 +112,10 @@ export function normalizeWidgetSpan(span: number): number {
   return Math.max(1, Math.min(4, Math.round(span)));
 }
 
+function isCockpitWidgetKind(value: string): value is CockpitWidgetKind {
+  return COCKPIT_WIDGET_KINDS.includes(value as CockpitWidgetKind);
+}
+
 export function sanitizeCockpitPages(input: unknown): CockpitPageLayout[] {
   if (!Array.isArray(input)) {
     return defaultCockpitPages();
@@ -126,9 +142,12 @@ export function sanitizeCockpitPages(input: unknown): CockpitPageLayout[] {
               ) {
                 return null;
               }
+              if (!isCockpitWidgetKind(entry.widget)) {
+                return null;
+              }
               return {
                 instance_id: entry.instance_id.trim(),
-                widget: entry.widget as CockpitWidgetKind,
+                widget: entry.widget,
                 title: entry.title.trim() || "Widget",
                 span: normalizeWidgetSpan(Number(entry.span ?? 2)),
               } satisfies CockpitWidgetLayout;

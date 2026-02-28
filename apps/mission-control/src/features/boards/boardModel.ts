@@ -61,6 +61,9 @@ export function withOptimisticMove(
   beforeCardId?: string
 ): BoardDetail {
   const columns = board.columns.map((column) => column.column_id);
+  if (!columns.includes(targetColumnId)) {
+    columns.push(targetColumnId);
+  }
   const grouped = toCardsByColumn(board);
   const movingCard = board.cards.find((card) => card.card_id === cardId);
   if (!movingCard) {

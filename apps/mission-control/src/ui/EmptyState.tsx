@@ -6,5 +6,5 @@ interface EmptyStateProps {
 }
 
 export function EmptyState(props: EmptyStateProps) {
-  return <p className={clsx("mc-empty-events", props.className)}>{props.message}</p>;
+  return <p className={clsx("mc-empty-state", props.className)}>{props.message}</p>;
 }

@@ -43,6 +43,8 @@ interface ChatroomsPageProps {
 }
 
 export function ChatroomsPage(props: ChatroomsPageProps) {
+  const hasSelectedRoom = Boolean(props.selectedRoomThreadId);
+
   return (
     <section className="mc-mail-grid">
       <article className="mc-surface mc-mail-sidebar">
@@ -54,12 +56,16 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
         </header>
         <div className="mc-mail-create-thread">
           <h3>Create Room</h3>
+          <label htmlFor="new-room-name">Room Name</label>
           <input
+            id="new-room-name"
             value={props.newRoomName}
             onChange={(event) => props.onNewRoomNameChange(event.target.value)}
             placeholder="room name"
           />
+          <label htmlFor="new-room-participants">Participants (CSV)</label>
           <input
+            id="new-room-participants"
             value={props.newRoomParticipants}
             onChange={(event) => props.onNewRoomParticipantsChange(event.target.value)}
             placeholder="participants csv (lyra, claude)"
@@ -97,14 +103,26 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
         <header className="mc-surface-header">
           <h2>{props.roomThreadDetail?.thread.subject ?? "Select a room"}</h2>
           <div className="mc-inline-actions">
-            <button type="button" onClick={() => void props.onPostRoomReaction(":+1:")}>
+            <button
+              type="button"
+              disabled={!hasSelectedRoom}
+              aria-disabled={!hasSelectedRoom}
+              onClick={() => void props.onPostRoomReaction(":+1:")}
+            >
               +1
             </button>
-            <button type="button" onClick={() => void props.onPostRoomReaction(":eyes:")}>
+            <button
+              type="button"
+              disabled={!hasSelectedRoom}
+              aria-disabled={!hasSelectedRoom}
+              onClick={() => void props.onPostRoomReaction(":eyes:")}
+            >
               eyes
             </button>
             <button
               type="button"
+              disabled={!hasSelectedRoom}
+              aria-disabled={!hasSelectedRoom}
               onClick={() => void props.onPostRoomReaction(":white_check_mark:")}
             >
               done

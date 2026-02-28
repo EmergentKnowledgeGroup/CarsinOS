@@ -53,6 +53,9 @@ export function CalendarPage(props: CalendarPageProps) {
                   </InlineActions>
                 </li>
               ))}
+              {props.calendarAlwaysRunning.length === 0 ? (
+                <li>No always-running jobs.</li>
+              ) : null}
             </ul>
           </section>
           <section className="mc-lane-panel">
@@ -69,6 +72,7 @@ export function CalendarPage(props: CalendarPageProps) {
                   </button>
                 </li>
               ))}
+              {props.calendarNextUp.length === 0 ? <li>No upcoming jobs.</li> : null}
             </ul>
           </section>
         </div>

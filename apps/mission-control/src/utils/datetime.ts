@@ -16,7 +16,7 @@ export function fromInputDateTimeValue(value: string): number | null {
 }
 
 export function formatDateTime(unixMs: number | null | undefined): string {
-  if (!unixMs) {
+  if (unixMs === null || unixMs === undefined) {
     return "n/a";
   }
   return new Date(unixMs).toLocaleString();

@@ -180,6 +180,7 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
               </InlineActions>
             </li>
           ))}
+          {props.calendarJobs.length === 0 ? <li>No scheduled jobs.</li> : null}
         </ul>
       </article>
     );
@@ -313,7 +314,8 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
                 <div>
                   <strong>{plugin.display_name}</strong>
                   <p>
-                    {plugin.plugin_id} / {runtime?.faulted ? "faulted" : "ok"}
+                    {plugin.plugin_id} /{" "}
+                    {runtime ? (runtime.faulted ? "faulted" : "ok") : "unknown"}
                   </p>
                 </div>
                 <button

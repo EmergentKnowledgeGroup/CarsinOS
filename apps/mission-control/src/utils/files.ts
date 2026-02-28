@@ -21,6 +21,9 @@ export function fileToBase64(file: File): Promise<string> {
 }
 
 export function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) {
+    return "0B";
+  }
   if (bytes < 1024) {
     return `${bytes}B`;
   }

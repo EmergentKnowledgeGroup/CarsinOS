@@ -27,6 +27,18 @@ interface CockpitPageProps {
 }
 
 export function CockpitPage(props: CockpitPageProps) {
+  const handleResetCockpitLayout = () => {
+    if (typeof window !== "undefined") {
+      const confirmed = window.confirm(
+        "Restore cockpit layout defaults for all pages?"
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
+    props.onResetCockpitLayout();
+  };
+
   return (
     <section className="mc-cockpit-grid">
       <Surface className="mc-cockpit-sidebar" title="Layout Studio" subtitle="Widget palette + saved pages">
@@ -74,7 +86,7 @@ export function CockpitPage(props: CockpitPageProps) {
             />
             Import JSON
           </label>
-          <button type="button" className="danger" onClick={props.onResetCockpitLayout}>
+          <button type="button" className="danger" onClick={handleResetCockpitLayout}>
             Restore Defaults
           </button>
         </InlineActions>

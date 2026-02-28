@@ -26,66 +26,75 @@ export function FocusPage(props: FocusPageProps) {
       >
         <div className="mc-focus-list">
           {props.focusItems.map((item) => (
-            <article key={item.item_id} className={clsx("mc-focus-item", item.severity)}>
-              <div className="mc-focus-head">
-                <Chip label={item.severity} tone={item.severity} />
-                <span>{item.category}</span>
-                <span>{formatDateTime(item.created_at)}</span>
-              </div>
-              <h3>{item.title}</h3>
-              <p>{item.detail}</p>
-              <InlineActions>
-                {item.category === "approval" ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void props.onResolveFocusApproval(
-                          String(item.action_payload.approval_id ?? ""),
-                          "approve"
-                        )
-                      }
-                    >
-                      Approve
-                    </button>
-                    <button
-                      type="button"
-                      className="danger"
-                      onClick={() =>
-                        void props.onResolveFocusApproval(
-                          String(item.action_payload.approval_id ?? ""),
-                          "deny"
-                        )
-                      }
-                    >
-                      Deny
-                    </button>
-                  </>
-                ) : null}
-                {item.category === "run_failure" ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void props.onRunCalendarJobNow(String(item.action_payload.job_id ?? ""))
-                    }
-                  >
-                    Retry Job
-                  </button>
-                ) : null}
-                {item.category === "channel_health" ? (
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void props.onReconnectFocusChannel(
-                        String(item.action_payload.provider ?? "")
-                      )
-                    }
-                  >
-                    Reconnect Channel
-                  </button>
-                ) : null}
-              </InlineActions>
-            </article>
+            (() => {
+              const approvalId = String(item.action_payload.approval_id ?? "").trim();
+              const jobId = String(item.action_payload.job_id ?? "").trim();
+              const provider = String(item.action_payload.provider ?? "").trim();
+              return (
+                <article key={item.item_id} className={clsx("mc-focus-item", item.severity)}>
+                  <div className="mc-focus-head">
+                    <Chip label={item.severity} tone={item.severity} />
+                    <span>{item.category}</span>
+                    <span>{formatDateTime(item.created_at)}</span>
+                  </div>
+                  <h3>{item.title}</h3>
+                  <p>{item.detail}</p>
+                  <InlineActions>
+                    {item.category === "approval" ? (
+                      <>
+                        <button
+                          type="button"
+                          disabled={!approvalId}
+                          aria-disabled={!approvalId}
+                          onClick={() =>
+                            approvalId
+                              ? void props.onResolveFocusApproval(approvalId, "approve")
+                              : undefined
+                          }
+                        >
+                          Approve
+                        </button>
+                        <button
+                          type="button"
+                          className="danger"
+                          disabled={!approvalId}
+                          aria-disabled={!approvalId}
+                          onClick={() =>
+                            approvalId
+                              ? void props.onResolveFocusApproval(approvalId, "deny")
+                              : undefined
+                          }
+                        >
+                          Deny
+                        </button>
+                      </>
+                    ) : null}
+                    {item.category === "run_failure" ? (
+                      <button
+                        type="button"
+                        disabled={!jobId}
+                        aria-disabled={!jobId}
+                        onClick={() => (jobId ? void props.onRunCalendarJobNow(jobId) : undefined)}
+                      >
+                        Retry Job
+                      </button>
+                    ) : null}
+                    {item.category === "channel_health" ? (
+                      <button
+                        type="button"
+                        disabled={!provider}
+                        aria-disabled={!provider}
+                        onClick={() =>
+                          provider ? void props.onReconnectFocusChannel(provider) : undefined
+                        }
+                      >
+                        Reconnect Channel
+                      </button>
+                    ) : null}
+                  </InlineActions>
+                </article>
+              );
+            })()
           ))}
         </div>
       </Surface>

@@ -11,9 +11,11 @@ interface SurfaceProps {
 }
 
 export function Surface(props: SurfaceProps) {
+  const hasHeader =
+    props.title != null || props.subtitle != null || props.headerRight != null;
   return (
     <article className={clsx("mc-surface", props.className)}>
-      {props.title || props.subtitle || props.headerRight ? (
+      {hasHeader ? (
         <header className={clsx("mc-surface-header", props.headerClassName)}>
           <div>
             {props.title ? <h2>{props.title}</h2> : null}

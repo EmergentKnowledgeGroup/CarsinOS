@@ -190,6 +190,7 @@ export function useAgentMailController(options: UseAgentMailControllerOptions) {
 
   useEffect(() => {
     if (!selectedMailThreadIdEffective || !settings.gateway_url.trim() || !tokenConfigured) {
+      mailThreadLoadSeq.current += 1;
       return;
     }
     const requestSeq = ++mailThreadLoadSeq.current;
@@ -223,6 +224,7 @@ export function useAgentMailController(options: UseAgentMailControllerOptions) {
 
   useEffect(() => {
     if (!selectedRoomThreadIdEffective || !settings.gateway_url.trim() || !tokenConfigured) {
+      roomThreadLoadSeq.current += 1;
       return;
     }
     const requestSeq = ++roomThreadLoadSeq.current;
@@ -610,6 +612,44 @@ export function useAgentMailController(options: UseAgentMailControllerOptions) {
     settings,
   ]);
 
+  const effectiveMailThreadDetail = useMemo(() => {
+    if (!selectedMailThreadIdEffective || !settings.gateway_url.trim() || !tokenConfigured) {
+      return null;
+    }
+    return mailThreadDetail;
+  }, [
+    mailThreadDetail,
+    selectedMailThreadIdEffective,
+    settings,
+    tokenConfigured,
+  ]);
+
+  const effectiveMailMessages = useMemo(() => {
+    if (!selectedMailThreadIdEffective || !settings.gateway_url.trim() || !tokenConfigured) {
+      return [] as AgentMailMessageResponse[];
+    }
+    return mailMessages;
+  }, [mailMessages, selectedMailThreadIdEffective, settings, tokenConfigured]);
+
+  const effectiveRoomThreadDetail = useMemo(() => {
+    if (!selectedRoomThreadIdEffective || !settings.gateway_url.trim() || !tokenConfigured) {
+      return null;
+    }
+    return roomThreadDetail;
+  }, [
+    roomThreadDetail,
+    selectedRoomThreadIdEffective,
+    settings,
+    tokenConfigured,
+  ]);
+
+  const effectiveRoomMessages = useMemo(() => {
+    if (!selectedRoomThreadIdEffective || !settings.gateway_url.trim() || !tokenConfigured) {
+      return [] as AgentMailMessageResponse[];
+    }
+    return roomMessages;
+  }, [roomMessages, selectedRoomThreadIdEffective, settings, tokenConfigured]);
+
   return {
     mailboxFilter,
     setMailboxFilter,
@@ -623,10 +663,10 @@ export function useAgentMailController(options: UseAgentMailControllerOptions) {
     setSelectedMailThreadId,
     selectedRoomThreadId: selectedRoomThreadIdEffective,
     setSelectedRoomThreadId,
-    mailThreadDetail,
-    roomThreadDetail,
-    mailMessages,
-    roomMessages,
+    mailThreadDetail: effectiveMailThreadDetail,
+    roomThreadDetail: effectiveRoomThreadDetail,
+    mailMessages: effectiveMailMessages,
+    roomMessages: effectiveRoomMessages,
     newMailThreadSubject,
     setNewMailThreadSubject,
     newMailThreadParticipants,

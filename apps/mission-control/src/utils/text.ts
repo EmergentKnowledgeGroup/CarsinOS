@@ -7,5 +7,8 @@ export function truncateText(value: string, maxChars: number): string {
   if (trimmed.length <= maxChars) {
     return trimmed;
   }
-  return `${trimmed.slice(0, maxChars - 1)}...`;
+  if (maxChars <= 3) {
+    return trimmed.slice(0, maxChars);
+  }
+  return `${trimmed.slice(0, maxChars - 3)}...`;
 }

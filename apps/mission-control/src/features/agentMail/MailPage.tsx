@@ -58,6 +58,12 @@ interface MailPageProps {
 }
 
 export function MailPage(props: MailPageProps) {
+  const handleMailboxFilterChange = (raw: string) => {
+    if (raw === "all" || raw === "inbox" || raw === "outbox") {
+      props.onMailboxFilterChange(raw);
+    }
+  };
+
   return (
     <section className="mc-mail-grid">
       <article className="mc-surface mc-mail-sidebar">
@@ -72,9 +78,7 @@ export function MailPage(props: MailPageProps) {
             Mailbox
             <select
               value={props.mailboxFilter}
-              onChange={(event) =>
-                props.onMailboxFilterChange(event.target.value as "all" | "inbox" | "outbox")
-              }
+              onChange={(event) => handleMailboxFilterChange(event.target.value)}
             >
               <option value="inbox">inbox</option>
               <option value="outbox">outbox</option>

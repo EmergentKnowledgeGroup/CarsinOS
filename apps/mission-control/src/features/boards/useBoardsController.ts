@@ -86,6 +86,11 @@ export function useBoardsController(options: UseBoardsControllerOptions) {
       if (boardRefreshTimer.current) {
         globalThis.clearTimeout(boardRefreshTimer.current);
       }
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
       if (selectedPreviewUrl) {
         URL.revokeObjectURL(selectedPreviewUrl);
       }

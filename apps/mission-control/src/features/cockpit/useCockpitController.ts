@@ -11,12 +11,11 @@ import {
 } from "./cockpitLayout";
 
 export function useCockpitController() {
+  const [initialPages] = useState<CockpitPageLayout[]>(() => loadCockpitPagesFromStorage());
   const [incidentMode, setIncidentMode] = useState(false);
-  const [cockpitPages, setCockpitPages] = useState<CockpitPageLayout[]>(
-    loadCockpitPagesFromStorage()
-  );
+  const [cockpitPages, setCockpitPages] = useState<CockpitPageLayout[]>(initialPages);
   const [activeCockpitPageId, setActiveCockpitPageId] = useState(
-    loadCockpitPagesFromStorage()[0]?.page_id ?? "ops-default"
+    initialPages[0]?.page_id ?? "ops-default"
   );
 
   const activeCockpitPage = useMemo(() => {
@@ -150,7 +149,12 @@ export function useCockpitController() {
 
   const importCockpitLayout = async (file: File) => {
     const raw = await file.text();
-    const parsed = JSON.parse(raw) as unknown;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw) as unknown;
+    } catch {
+      throw new Error("invalid cockpit layout JSON");
+    }
     const sanitized = sanitizeCockpitPages(parsed);
     setCockpitPages(sanitized);
     setActiveCockpitPageId(sanitized[0].page_id);

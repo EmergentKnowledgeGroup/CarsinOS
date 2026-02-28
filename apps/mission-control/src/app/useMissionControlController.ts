@@ -78,6 +78,7 @@ export function useMissionControlController(options: UseMissionControlController
   const [providerProfileOrderDirty, setProviderProfileOrderDirty] = useState(false);
 
   const missionControlRefreshTimer = useRef<number | null>(null);
+  const providerOrderRequestIdRef = useRef(0);
 
   const providerOptions = useMemo(() => {
     return [...new Set(authProfiles.map((profile) => profile.provider))].sort((a, b) =>
@@ -232,12 +233,17 @@ export function useMissionControlController(options: UseMissionControlController
       agentId: string = selectedProviderControlAgentIdEffective,
       provider: string = selectedProviderControlProviderEffective
     ) => {
+      const requestId = providerOrderRequestIdRef.current + 1;
+      providerOrderRequestIdRef.current = requestId;
       if (!agentId || !provider) {
         setProviderProfileOrder([]);
         setProviderProfileOrderDirty(false);
         return;
       }
       const response = await getAgentProviderProfileOrder(runtimeSettings, agentId, provider);
+      if (requestId !== providerOrderRequestIdRef.current) {
+        return;
+      }
       setProviderProfileOrder(response.profile_ids);
       setProviderProfileOrderDirty(false);
     },
@@ -348,7 +354,7 @@ export function useMissionControlController(options: UseMissionControlController
         });
         setNotice({
           tone: "info",
-          message: `Approval ${decision}d.`,
+          message: `Approval ${decision === "deny" ? "denied" : "approved"}.`,
         });
         queueMissionControlRefresh(settings);
       } catch (error) {

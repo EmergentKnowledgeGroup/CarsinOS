@@ -28,6 +28,18 @@ interface AppShellProps {
 }
 
 export function AppShell(props: AppShellProps) {
+  const handleClearToken = () => {
+    if (typeof window !== "undefined") {
+      const confirmed = window.confirm(
+        "Clear the stored gateway token from keychain and disconnect websocket?"
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
+    void props.onClearToken();
+  };
+
   return (
     <main className="mc-shell">
       <header className="mc-topbar">
@@ -98,7 +110,7 @@ export function AppShell(props: AppShellProps) {
           <button type="button" onClick={() => void props.onReconnect()}>
             Reconnect
           </button>
-          <button type="button" className="danger" onClick={() => void props.onClearToken()}>
+          <button type="button" className="danger" onClick={handleClearToken}>
             Clear Token
           </button>
         </div>
