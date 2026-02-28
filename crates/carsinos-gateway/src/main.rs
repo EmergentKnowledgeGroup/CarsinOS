@@ -11667,9 +11667,14 @@ async fn execute_agent_mail_mcp_tool(
                     "lease_id must not be empty",
                 ));
             }
+            let holder_principal = args
+                .holder_principal
+                .as_ref()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty());
             let lease = state
                 .storage
-                .release_agent_mail_file_lease(&lease_id, args.holder_principal.as_deref())
+                .release_agent_mail_file_lease(&lease_id, holder_principal.as_deref())
                 .map_err(|err| internal_err_with_error("releasing agent-mail lease failed", err))?
                 .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "agent-mail lease not found"))?;
             Ok(serde_json::json!({
@@ -11718,6 +11723,18 @@ async fn agent_mail_mcp(
         }
     };
     let id = request.id.unwrap_or(serde_json::Value::Null);
+    let id_is_valid = matches!(
+        &id,
+        serde_json::Value::Null | serde_json::Value::String(_) | serde_json::Value::Number(_)
+    );
+    if !id_is_valid {
+        return Ok(agent_mail_mcp_response_error(
+            serde_json::Value::Null,
+            -32600,
+            "invalid JSON-RPC id",
+            None,
+        ));
+    }
     let jsonrpc_version = request
         .jsonrpc
         .as_ref()
