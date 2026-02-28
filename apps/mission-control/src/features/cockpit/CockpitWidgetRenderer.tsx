@@ -201,6 +201,7 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
               </button>
             </li>
           ))}
+          {props.channelStatuses.length === 0 ? <li>No channels configured.</li> : null}
         </ul>
       </article>
     );
@@ -214,8 +215,12 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
             Agent
             <select
               value={props.selectedProviderControlAgentId}
+              disabled={props.agents.length === 0}
               onChange={(event) => props.setSelectedProviderControlAgentId(event.target.value)}
             >
+              {props.agents.length === 0 ? (
+                <option value="">Select an agent</option>
+              ) : null}
               {props.agents.map((agent) => (
                 <option key={agent.agent_id} value={agent.agent_id}>
                   {agent.name} ({agent.agent_id})
@@ -227,8 +232,12 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
             Provider
             <select
               value={props.selectedProviderControlProvider}
+              disabled={props.providerOptions.length === 0}
               onChange={(event) => props.setSelectedProviderControlProvider(event.target.value)}
             >
+              {props.providerOptions.length === 0 ? (
+                <option value="">Select a provider</option>
+              ) : null}
               {props.providerOptions.map((provider) => (
                 <option key={provider} value={provider}>
                   {provider}

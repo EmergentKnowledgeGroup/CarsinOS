@@ -421,27 +421,20 @@ export function useAgentMailController(options: UseAgentMailControllerOptions) {
       });
       return;
     }
-    try {
-      const results = await Promise.allSettled(
-        pending.map((message) => ackAgentMailMessage(settings, message.message_id, principal))
-      );
-      const failedCount = results.filter((result) => result.status === "rejected").length;
-      const successCount = pending.length - failedCount;
-      setNotice({
-        tone: failedCount > 0 ? "error" : "info",
-        message:
-          failedCount > 0
-            ? `Acknowledged ${successCount}/${pending.length} room message(s).`
-            : `Acknowledged ${pending.length} room message(s).`,
-      });
-      if (successCount > 0) {
-        queueAgentMailRefresh(settings);
-      }
-    } catch (error) {
-      setNotice({
-        tone: "error",
-        message: `Bulk acknowledge failed: ${String(error)}`,
-      });
+    const results = await Promise.allSettled(
+      pending.map((message) => ackAgentMailMessage(settings, message.message_id, principal))
+    );
+    const failedCount = results.filter((result) => result.status === "rejected").length;
+    const successCount = pending.length - failedCount;
+    setNotice({
+      tone: failedCount > 0 ? "error" : "info",
+      message:
+        failedCount > 0
+          ? `Acknowledged ${successCount}/${pending.length} room message(s).`
+          : `Acknowledged ${pending.length} room message(s).`,
+    });
+    if (successCount > 0) {
+      queueAgentMailRefresh(settings);
     }
   }, [mailPrincipalOverride, queueAgentMailRefresh, roomMessages, setNotice, settings]);
 

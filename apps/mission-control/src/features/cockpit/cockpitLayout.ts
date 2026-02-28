@@ -157,7 +157,7 @@ export function sanitizeCockpitPages(input: unknown): CockpitPageLayout[] {
       return {
         page_id: raw.page_id.trim(),
         name: pageName,
-        widgets: widgets.length > 0 ? widgets : defaultCockpitPages()[0].widgets,
+        widgets,
       } satisfies CockpitPageLayout;
     })
     .filter((page): page is CockpitPageLayout => page !== null);

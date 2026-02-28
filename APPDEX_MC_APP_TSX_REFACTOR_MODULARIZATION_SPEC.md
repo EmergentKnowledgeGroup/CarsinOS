@@ -84,6 +84,8 @@ Notes:
 
 ## Architecture Rules (Keep It Clean)
 - Controllers (hooks) own side effects (API calls, timers, WS refresh triggers) and expose “state + actions”.
+- `useAppController` remains the top-level app-shell controller (tabs + connection/session shell state) and composes feature controllers.
+- `useMissionControlController` is the chosen single controller for Mission Control read models and actions in this refactor wave (calendar + focus + provider/plugin controls) to keep cross-surface orchestration centralized.
 - Pages are mostly presentational: they render UI, call actions, and keep only tiny UI-local state (input drafts).
 - Shared UI primitives go in `src/ui/` (buttons can stay as plain `<button>` for now; focus on structure).
 - Pure helpers go in `src/utils/` or feature-local `*Model.ts` modules.
@@ -110,7 +112,7 @@ Move these “action clusters” into controllers:
 - Boards actions (`handleBoardChange`, `handleDropCard`, `handleCreateCard`, `saveCardDraft`, `runCard`, `uploadAsset`, `previewAsset`, plus `refreshBoard`/`queueBoardRefresh`) -> `features/boards/useBoardsController.ts`.
 - Mission-control read models (`loadMissionControlReadModels`, `queueMissionControlRefresh`, `runCalendarJobNow`, `toggleCalendarJob`, `resolveFocusApproval`, `reconnectFocusChannel`, provider ordering, plugin/skill toggles) -> `app/useMissionControlController.ts` or split across `useCalendarController`, `useFocusController`.
 - Agent mail actions (`loadAgentMailReadModels`, `queueAgentMailRefresh`, `loadMailThreadById`, `createMailThread`, `sendThreadMessage`, `acknowledgeMessage`, `acknowledgeRoomUnread`, `postRoomReaction`, `summarizeSelectedMailThread`, `downloadMailAttachment`, leases APIs) -> `features/agentMail/useAgentMailController.ts`.
-- Cockpit actions (`addCockpitWidget`, `removeCockpitWidget`, `moveCockpitWidget`, `resizeCockpitWidget`, `resetCockpitLayout`, `addCockpitPage`, `exportCockpitLayout`, `importCockpitLayout`, `renderCockpitWidget`) -> `features/cockpit/*` (renderer split into widget components).
+- Cockpit actions (`addCockpitWidget`, `removeCockpitWidget`, `moveCockpitWidget`, `resizeCockpitWidget`, `resetCockpitLayout`, `addCockpitPage`, `exportCockpitLayout`, `importCockpitLayout`) -> `features/cockpit/useCockpitController.ts` (renderer remains split into widget components).
 
 Move WebSocket wiring to a dedicated hook:
 - The `connectGatewayEvents(...)` `useEffect` -> `app/useGatewayEvents.ts`.
@@ -160,7 +162,7 @@ Acceptance:
 - Introduce `app/useAppController.ts` that composes feature controllers.
 - Move feature state and actions from `App.tsx` into `useBoardsController`.
 - Move feature state and actions from `App.tsx` into `useAgentMailController`.
-- Move feature state and actions from `App.tsx` into `useCockpitLayout` (optional).
+- Move feature state and actions from `App.tsx` into `useCockpitController` (optional).
 - Keep `App.tsx` as a thin wrapper: `const { state, actions } = useAppController()`.
 - Keep `App.tsx` as a thin wrapper: `return <AppShell ...>`.
 

@@ -104,12 +104,16 @@ export function MailPage(props: MailPageProps) {
         </div>
         <div className="mc-mail-create-thread">
           <h3>New Direct Thread</h3>
+          <label htmlFor="new-direct-thread-subject">Thread subject</label>
           <input
+            id="new-direct-thread-subject"
             value={props.newMailThreadSubject}
             onChange={(event) => props.onNewMailThreadSubjectChange(event.target.value)}
             placeholder="Thread subject"
           />
+          <label htmlFor="new-direct-thread-participants">Participants (comma-separated)</label>
           <input
+            id="new-direct-thread-participants"
             value={props.newMailThreadParticipants}
             onChange={(event) => props.onNewMailThreadParticipantsChange(event.target.value)}
             placeholder="participants csv (lyra, claude)"
@@ -272,22 +276,30 @@ export function MailPage(props: MailPageProps) {
         <section className="mc-mail-lease-panel">
           <h3>Advisory File Leases</h3>
           <div className="mc-mail-lease-form">
+            <label htmlFor="lease-holder-principal">Holder principal</label>
             <input
+              id="lease-holder-principal"
               value={props.leaseHolderPrincipal}
               onChange={(event) => props.onLeaseHolderPrincipalChange(event.target.value)}
               placeholder="holder principal (optional)"
             />
+            <label htmlFor="lease-glob-pattern">Glob pattern</label>
             <input
+              id="lease-glob-pattern"
               value={props.leaseGlobPattern}
               onChange={(event) => props.onLeaseGlobPatternChange(event.target.value)}
               placeholder="glob pattern"
             />
+            <label htmlFor="lease-ttl-ms">TTL (ms)</label>
             <input
+              id="lease-ttl-ms"
               value={props.leaseTtlMs}
               onChange={(event) => props.onLeaseTtlMsChange(event.target.value)}
               placeholder="ttl ms"
             />
+            <label htmlFor="lease-note">Note</label>
             <input
+              id="lease-note"
               value={props.leaseNote}
               onChange={(event) => props.onLeaseNoteChange(event.target.value)}
               placeholder="note (optional)"

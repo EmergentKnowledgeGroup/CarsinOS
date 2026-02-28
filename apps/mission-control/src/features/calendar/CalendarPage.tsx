@@ -98,16 +98,22 @@ export function CalendarPage(props: CalendarPageProps) {
                   </td>
                   <td>
                     {job.schedule_kind}
-                    {job.interval_seconds ? ` / ${job.interval_seconds}s` : ""}
+                    {job.interval_seconds !== null ? ` / ${job.interval_seconds}s` : ""}
                     {job.cron_expr ? ` / ${job.cron_expr}` : ""}
                   </td>
                   <td>{formatDateTime(job.next_run_at)}</td>
                   <td>
-                    <Chip label={job.enabled ? "enabled" : "paused"} tone={job.enabled ? "up" : "down"} />
+                    <Chip
+                      label={job.enabled ? "enabled" : "paused"}
+                      tone={job.enabled ? "up" : "down"}
+                    />
                   </td>
                   <td>
                     <InlineActions>
-                      <button type="button" onClick={() => void props.onRunCalendarJobNow(job.job_id)}>
+                      <button
+                        type="button"
+                        onClick={() => void props.onRunCalendarJobNow(job.job_id)}
+                      >
                         Run
                       </button>
                       <button
@@ -121,6 +127,11 @@ export function CalendarPage(props: CalendarPageProps) {
                   </td>
                 </tr>
               ))}
+              {props.calendarJobs.length === 0 ? (
+                <tr>
+                  <td colSpan={5}>No scheduled jobs.</td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>

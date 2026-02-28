@@ -242,10 +242,20 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
           <section>
             <h3>Moderation Actions</h3>
             <div className="mc-inline-actions">
-              <button type="button" onClick={() => void props.onAcknowledgeRoomUnread()}>
+              <button
+                type="button"
+                disabled={!hasSelectedRoom}
+                aria-disabled={!hasSelectedRoom}
+                onClick={() => void props.onAcknowledgeRoomUnread()}
+              >
                 Ack All Unread (principal)
               </button>
-              <button type="button" onClick={() => void props.onReserveSelectedRoomWorkspace()}>
+              <button
+                type="button"
+                disabled={!hasSelectedRoom}
+                aria-disabled={!hasSelectedRoom}
+                onClick={() => void props.onReserveSelectedRoomWorkspace()}
+              >
                 Reserve Room Workspace
               </button>
             </div>

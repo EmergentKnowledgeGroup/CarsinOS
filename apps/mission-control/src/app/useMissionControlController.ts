@@ -388,26 +388,25 @@ export function useMissionControlController(options: UseMissionControlController
 
   const moveProviderProfile = useCallback(
     (profileId: string, delta: number) => {
-      setProviderProfileOrder((previous) => {
-        const baseOrder =
-          previous.length > 0
-            ? [...previous]
-            : orderedProviderProfiles.map((item) => item.auth_profile_id);
-        const index = baseOrder.findIndex((item) => item === profileId);
-        if (index < 0) {
-          return previous;
-        }
-        const target = Math.max(0, Math.min(baseOrder.length - 1, index + delta));
-        if (target === index) {
-          return previous;
-        }
-        const [entry] = baseOrder.splice(index, 1);
-        baseOrder.splice(target, 0, entry);
-        setProviderProfileOrderDirty(true);
-        return baseOrder;
-      });
+      const currentOrder =
+        providerProfileOrder.length > 0
+          ? providerProfileOrder
+          : orderedProviderProfiles.map((item) => item.auth_profile_id);
+      const nextOrder = [...currentOrder];
+      const index = nextOrder.findIndex((item) => item === profileId);
+      if (index < 0) {
+        return;
+      }
+      const target = Math.max(0, Math.min(nextOrder.length - 1, index + delta));
+      if (target === index) {
+        return;
+      }
+      const [entry] = nextOrder.splice(index, 1);
+      nextOrder.splice(target, 0, entry);
+      setProviderProfileOrder(nextOrder);
+      setProviderProfileOrderDirty(true);
     },
-    [orderedProviderProfiles]
+    [orderedProviderProfiles, providerProfileOrder]
   );
 
   const saveProviderOrder = useCallback(async () => {
@@ -469,6 +468,10 @@ export function useMissionControlController(options: UseMissionControlController
     async (pluginId: string, enabled: boolean) => {
       const target = plugins.find((item) => item.plugin_id === pluginId);
       if (!target) {
+        setNotice({
+          tone: "error",
+          message: `Plugin not found: ${pluginId}`,
+        });
         return;
       }
       try {
