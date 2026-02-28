@@ -162,9 +162,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   }, [agents, selectedAgentId]);
 
   useEffect(() => {
-    if (tokenConfigured && settings.gateway_url.trim().length > 0) {
-      setConnected(true);
-    }
+    setConnected(tokenConfigured && settings.gateway_url.trim().length > 0);
   }, [settings.gateway_url, tokenConfigured]);
 
   const existingProviderProfiles = useMemo(() => {
@@ -281,6 +279,13 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
 
   const setSelectedExistingProfileAndInvalidate = useCallback((value: string) => {
     setSelectedExistingProfileId(value);
+    setProviderProfileId(null);
+    setProviderReady(false);
+    setRoutingReady(false);
+  }, []);
+
+  const setUseExistingProfileAndInvalidate = useCallback((value: boolean) => {
+    setUseExistingProfile(value);
     setProviderProfileId(null);
     setProviderReady(false);
     setRoutingReady(false);
@@ -546,7 +551,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     providerPath,
     setProviderPath,
     useExistingProfile,
-    setUseExistingProfile,
+    setUseExistingProfile: setUseExistingProfileAndInvalidate,
     existingProviderProfiles,
     selectedExistingProfileId,
     setSelectedExistingProfileId: setSelectedExistingProfileAndInvalidate,

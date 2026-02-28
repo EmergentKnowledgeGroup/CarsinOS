@@ -80,224 +80,226 @@ export function StepProvider(props: StepProviderProps) {
         </>
       }
     >
-      <div className="mc-onboarding-choice-grid">
-        <label className="mc-onboarding-choice">
-          <input
-            type="radio"
-            name="provider-path"
-            checked={props.providerPath === "anthropic"}
-            onChange={() => props.onProviderPathChange("anthropic")}
-          />
-          <div>
-            <strong>Anthropic (Claude)</strong>
-            <p>Setup-token ingest flow.</p>
-          </div>
-        </label>
-        <label className="mc-onboarding-choice">
-          <input
-            type="radio"
-            name="provider-path"
-            checked={props.providerPath === "openai"}
-            onChange={() => props.onProviderPathChange("openai")}
-          />
-          <div>
-            <strong>OpenAI</strong>
-            <p>OAuth PKCE flow.</p>
-          </div>
-        </label>
-        <label className="mc-onboarding-choice">
-          <input
-            type="radio"
-            name="provider-path"
-            checked={props.providerPath === "local"}
-            onChange={() => props.onProviderPathChange("local")}
-          />
-          <div>
-            <strong>Local connector</strong>
-            <p>No OAuth; sets local provider on selected agent.</p>
-          </div>
-        </label>
-      </div>
-
-      {props.providerPath === "local" ? (
-        <div className="mc-onboarding-field-grid">
-          <label>
-            Local provider
-            <select
-              value={props.localProvider}
-              onChange={(event) => props.onLocalProviderChange(event.target.value)}
-            >
-              <option value="ollama">ollama</option>
-              <option value="vllm">vllm</option>
-              <option value="mock">mock</option>
-            </select>
-          </label>
-          <label>
-            Model ID
+      <fieldset disabled={props.busy} style={{ border: "none", margin: 0, minWidth: 0, padding: 0 }}>
+        <div className="mc-onboarding-choice-grid">
+          <label className="mc-onboarding-choice">
             <input
-              value={props.localModelId}
-              onChange={(event) => props.onLocalModelIdChange(event.target.value)}
-              placeholder="local-default"
+              type="radio"
+              name="provider-path"
+              checked={props.providerPath === "anthropic"}
+              onChange={() => props.onProviderPathChange("anthropic")}
             />
+            <div>
+              <strong>Anthropic (Claude)</strong>
+              <p>Setup-token ingest flow.</p>
+            </div>
+          </label>
+          <label className="mc-onboarding-choice">
+            <input
+              type="radio"
+              name="provider-path"
+              checked={props.providerPath === "openai"}
+              onChange={() => props.onProviderPathChange("openai")}
+            />
+            <div>
+              <strong>OpenAI</strong>
+              <p>OAuth PKCE flow.</p>
+            </div>
+          </label>
+          <label className="mc-onboarding-choice">
+            <input
+              type="radio"
+              name="provider-path"
+              checked={props.providerPath === "local"}
+              onChange={() => props.onProviderPathChange("local")}
+            />
+            <div>
+              <strong>Local connector</strong>
+              <p>No OAuth; sets local provider on selected agent.</p>
+            </div>
           </label>
         </div>
-      ) : (
-        <>
-          {hasExistingProfiles ? (
-            <label className="mc-checkbox">
-              <input
-                type="checkbox"
-                checked={props.useExistingProfile}
-                onChange={(event) => props.onUseExistingProfileChange(event.target.checked)}
-              />
-              Use existing enabled profile
-            </label>
-          ) : null}
 
-          {props.useExistingProfile && hasExistingProfiles ? (
+        {props.providerPath === "local" ? (
+          <div className="mc-onboarding-field-grid">
             <label>
-              Existing profile
+              Local provider
               <select
-                value={props.selectedExistingProfileId}
-                onChange={(event) => props.onSelectedExistingProfileIdChange(event.target.value)}
+                value={props.localProvider}
+                onChange={(event) => props.onLocalProviderChange(event.target.value)}
               >
-                {props.existingProviderProfiles.map((profile) => (
-                  <option key={profile.auth_profile_id} value={profile.auth_profile_id}>
-                    {profile.display_name}
-                  </option>
-                ))}
+                <option value="ollama">ollama</option>
+                <option value="vllm">vllm</option>
+                <option value="mock">mock</option>
               </select>
             </label>
-          ) : null}
+            <label>
+              Model ID
+              <input
+                value={props.localModelId}
+                onChange={(event) => props.onLocalModelIdChange(event.target.value)}
+                placeholder="local-default"
+              />
+            </label>
+          </div>
+        ) : (
+          <>
+            {hasExistingProfiles ? (
+              <label className="mc-checkbox">
+                <input
+                  type="checkbox"
+                  checked={props.useExistingProfile}
+                  onChange={(event) => props.onUseExistingProfileChange(event.target.checked)}
+                />
+                Use existing enabled profile
+              </label>
+            ) : null}
 
-          {!props.useExistingProfile || !hasExistingProfiles ? (
-            <>
-              {props.providerPath === "anthropic" ? (
-                <div className="mc-onboarding-field-grid">
-                  <label>
-                    Profile name
-                    <input
-                      value={props.anthropicDisplayName}
-                      onChange={(event) => props.onAnthropicDisplayNameChange(event.target.value)}
-                      placeholder="claude-primary"
-                    />
-                  </label>
-                  <label>
-                    Setup token
-                    <input
-                      type="password"
-                      value={props.anthropicSetupToken}
-                      onChange={(event) => props.onAnthropicSetupTokenChange(event.target.value)}
-                      placeholder="Paste setup token"
-                    />
-                  </label>
-                  <label>
-                    API base URL (optional)
-                    <input
-                      value={props.anthropicApiBaseUrl}
-                      onChange={(event) => props.onAnthropicApiBaseUrlChange(event.target.value)}
-                      placeholder="https://api.anthropic.com"
-                    />
-                  </label>
-                </div>
-              ) : null}
+            {props.useExistingProfile && hasExistingProfiles ? (
+              <label>
+                Existing profile
+                <select
+                  value={props.selectedExistingProfileId}
+                  onChange={(event) => props.onSelectedExistingProfileIdChange(event.target.value)}
+                >
+                  {props.existingProviderProfiles.map((profile) => (
+                    <option key={profile.auth_profile_id} value={profile.auth_profile_id}>
+                      {profile.display_name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
 
-              {props.providerPath === "openai" ? (
-                <div className="mc-onboarding-openai-block">
+            {!props.useExistingProfile || !hasExistingProfiles ? (
+              <>
+                {props.providerPath === "anthropic" ? (
                   <div className="mc-onboarding-field-grid">
                     <label>
                       Profile name
                       <input
-                        value={props.openAiDisplayName}
-                        onChange={(event) => props.onOpenAiDisplayNameChange(event.target.value)}
-                        placeholder="openai-primary"
+                        value={props.anthropicDisplayName}
+                        onChange={(event) => props.onAnthropicDisplayNameChange(event.target.value)}
+                        placeholder="claude-primary"
                       />
                     </label>
                     <label>
-                      Client ID (optional)
+                      Setup token
                       <input
-                        value={props.openAiClientId}
-                        onChange={(event) => props.onOpenAiClientIdChange(event.target.value)}
-                        placeholder="Optional override"
+                        type="password"
+                        value={props.anthropicSetupToken}
+                        onChange={(event) => props.onAnthropicSetupTokenChange(event.target.value)}
+                        placeholder="Paste setup token"
                       />
                     </label>
                     <label>
                       API base URL (optional)
                       <input
-                        value={props.openAiApiBaseUrl}
-                        onChange={(event) => props.onOpenAiApiBaseUrlChange(event.target.value)}
-                        placeholder="https://api.openai.com"
+                        value={props.anthropicApiBaseUrl}
+                        onChange={(event) => props.onAnthropicApiBaseUrlChange(event.target.value)}
+                        placeholder="https://api.anthropic.com"
                       />
                     </label>
                   </div>
-                  <div className="mc-onboarding-inline-actions">
-                    <button
-                      type="button"
-                      className="ghost"
-                      disabled={props.busy}
-                      onClick={() => {
-                        if (props.busy) {
-                          return;
-                        }
-                        void props.onStartOpenAiOauthFlow();
-                      }}
-                    >
-                      Start OAuth
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost"
-                      disabled={props.busy || !props.openAiSessionId}
-                      onClick={() => {
-                        if (props.busy) {
-                          return;
-                        }
-                        void props.onFinishOpenAiOauthFlow();
-                      }}
-                    >
-                      Finish OAuth
-                    </button>
+                ) : null}
+
+                {props.providerPath === "openai" ? (
+                  <div className="mc-onboarding-openai-block">
+                    <div className="mc-onboarding-field-grid">
+                      <label>
+                        Profile name
+                        <input
+                          value={props.openAiDisplayName}
+                          onChange={(event) => props.onOpenAiDisplayNameChange(event.target.value)}
+                          placeholder="openai-primary"
+                        />
+                      </label>
+                      <label>
+                        Client ID (optional)
+                        <input
+                          value={props.openAiClientId}
+                          onChange={(event) => props.onOpenAiClientIdChange(event.target.value)}
+                          placeholder="Optional override"
+                        />
+                      </label>
+                      <label>
+                        API base URL (optional)
+                        <input
+                          value={props.openAiApiBaseUrl}
+                          onChange={(event) => props.onOpenAiApiBaseUrlChange(event.target.value)}
+                          placeholder="https://api.openai.com"
+                        />
+                      </label>
+                    </div>
+                    <div className="mc-onboarding-inline-actions">
+                      <button
+                        type="button"
+                        className="ghost"
+                        disabled={props.busy}
+                        onClick={() => {
+                          if (props.busy) {
+                            return;
+                          }
+                          void props.onStartOpenAiOauthFlow();
+                        }}
+                      >
+                        Start OAuth
+                      </button>
+                      <button
+                        type="button"
+                        className="ghost"
+                        disabled={props.busy || !props.openAiSessionId}
+                        onClick={() => {
+                          if (props.busy) {
+                            return;
+                          }
+                          void props.onFinishOpenAiOauthFlow();
+                        }}
+                      >
+                        Finish OAuth
+                      </button>
+                    </div>
+                    {props.openAiAuthorizeUrl ? (
+                      <p className="mc-onboarding-note">
+                        Authorize URL: <a href={props.openAiAuthorizeUrl}>{props.openAiAuthorizeUrl}</a>
+                      </p>
+                    ) : null}
+                    {props.openAiCallbackUrlHint ? (
+                      <p className="mc-onboarding-note">Callback hint: {props.openAiCallbackUrlHint}</p>
+                    ) : null}
+                    <div className="mc-onboarding-field-grid">
+                      <label>
+                        Callback URL (preferred)
+                        <input
+                          value={props.openAiCallbackUrl}
+                          onChange={(event) => props.onOpenAiCallbackUrlChange(event.target.value)}
+                          placeholder="https://.../auth/callback?code=...&state=..."
+                        />
+                      </label>
+                      <label>
+                        Code (fallback)
+                        <input
+                          value={props.openAiCode}
+                          onChange={(event) => props.onOpenAiCodeChange(event.target.value)}
+                          placeholder="OAuth code"
+                        />
+                      </label>
+                      <label>
+                        State (fallback)
+                        <input
+                          value={props.openAiState}
+                          onChange={(event) => props.onOpenAiStateChange(event.target.value)}
+                          placeholder="OAuth state"
+                        />
+                      </label>
+                    </div>
                   </div>
-                  {props.openAiAuthorizeUrl ? (
-                    <p className="mc-onboarding-note">
-                      Authorize URL: <a href={props.openAiAuthorizeUrl}>{props.openAiAuthorizeUrl}</a>
-                    </p>
-                  ) : null}
-                  {props.openAiCallbackUrlHint ? (
-                    <p className="mc-onboarding-note">Callback hint: {props.openAiCallbackUrlHint}</p>
-                  ) : null}
-                  <div className="mc-onboarding-field-grid">
-                    <label>
-                      Callback URL (preferred)
-                      <input
-                        value={props.openAiCallbackUrl}
-                        onChange={(event) => props.onOpenAiCallbackUrlChange(event.target.value)}
-                        placeholder="https://.../auth/callback?code=...&state=..."
-                      />
-                    </label>
-                    <label>
-                      Code (fallback)
-                      <input
-                        value={props.openAiCode}
-                        onChange={(event) => props.onOpenAiCodeChange(event.target.value)}
-                        placeholder="OAuth code"
-                      />
-                    </label>
-                    <label>
-                      State (fallback)
-                      <input
-                        value={props.openAiState}
-                        onChange={(event) => props.onOpenAiStateChange(event.target.value)}
-                        placeholder="OAuth state"
-                      />
-                    </label>
-                  </div>
-                </div>
-              ) : null}
-            </>
-          ) : null}
-        </>
-      )}
+                ) : null}
+              </>
+            ) : null}
+          </>
+        )}
+      </fieldset>
 
       <p className="mc-onboarding-status-row">
         Provider status: <strong>{props.providerReady ? "Ready" : "Not ready"}</strong>
