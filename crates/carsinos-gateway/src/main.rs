@@ -2105,6 +2105,104 @@ struct NumquamMcpRpcError {
     data: Option<serde_json::Value>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+struct AgentMailMcpRpcRequest {
+    #[allow(dead_code)]
+    #[serde(default)]
+    jsonrpc: Option<String>,
+    #[serde(default)]
+    id: Option<serde_json::Value>,
+    #[serde(default)]
+    method: Option<String>,
+    #[serde(default)]
+    params: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct AgentMailMcpRpcError {
+    code: i64,
+    message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AgentMailMcpRegisterIdentityArgs {
+    #[serde(default)]
+    principal_id: Option<String>,
+    #[serde(default)]
+    display_name: Option<String>,
+    #[serde(default)]
+    kind: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AgentMailMcpInboxFetchArgs {
+    #[serde(default)]
+    principal_id: Option<String>,
+    #[serde(default)]
+    kind: Option<String>,
+    #[serde(default)]
+    mailbox: Option<String>,
+    #[serde(default)]
+    search: Option<String>,
+    #[serde(default)]
+    limit: Option<u32>,
+    #[serde(default)]
+    include_messages: Option<bool>,
+    #[serde(default)]
+    message_limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AgentMailMcpSendArgs {
+    thread_id: String,
+    body_text: String,
+    #[serde(default)]
+    sender_principal: Option<String>,
+    #[serde(default)]
+    sender_kind: Option<String>,
+    #[serde(default)]
+    metadata_json: Option<serde_json::Value>,
+    #[serde(default)]
+    recipients: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AgentMailMcpAckArgs {
+    message_id: String,
+    #[serde(default)]
+    recipient_principal: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AgentMailMcpFileReserveArgs {
+    glob_pattern: String,
+    #[serde(default)]
+    holder_principal: Option<String>,
+    #[serde(default)]
+    exclusive: Option<bool>,
+    #[serde(default)]
+    ttl_ms: Option<i64>,
+    #[serde(default)]
+    note: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AgentMailMcpFileListArgs {
+    #[serde(default)]
+    holder_principal: Option<String>,
+    #[serde(default)]
+    include_released: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AgentMailMcpFileReleaseArgs {
+    lease_id: String,
+    #[serde(default)]
+    holder_principal: Option<String>,
+}
+
 #[derive(Debug, Clone, Default, Serialize)]
 struct RunMemoryMetadata {
     enabled: bool,
@@ -5670,6 +5768,7 @@ fn build_app(state: AppState) -> Router {
             "/api/v1/agent-mail/leases/{lease_id}/release",
             post(release_agent_mail_file_lease),
         )
+        .route("/api/v1/agent-mail/mcp", post(agent_mail_mcp))
         .route("/api/v1/approvals", get(list_approvals))
         .route("/api/v1/approvals/request", post(create_approval_request))
         .route(
@@ -5719,6 +5818,14 @@ const AGENT_MAIL_DEFAULT_ATTACHMENT_MAX_BYTES: usize = 10 * 1024 * 1024;
 const AGENT_MAIL_DEFAULT_THREAD_LIMIT: u32 = 200;
 const AGENT_MAIL_DEFAULT_MESSAGE_LIMIT: u32 = 400;
 const AGENT_MAIL_DEFAULT_THREAD_RATE_LIMIT: usize = 80;
+const AGENT_MAIL_MCP_PROTOCOL_VERSION: &str = "2024-11-05";
+const AGENT_MAIL_MCP_TOOL_IDENTITY_REGISTER: &str = "agent_mail.identity.register";
+const AGENT_MAIL_MCP_TOOL_INBOX_FETCH: &str = "agent_mail.inbox.fetch";
+const AGENT_MAIL_MCP_TOOL_MESSAGE_SEND: &str = "agent_mail.message.send";
+const AGENT_MAIL_MCP_TOOL_MESSAGE_ACK: &str = "agent_mail.message.ack";
+const AGENT_MAIL_MCP_TOOL_FILE_RESERVE: &str = "agent_mail.files.reserve";
+const AGENT_MAIL_MCP_TOOL_FILE_LIST: &str = "agent_mail.files.list";
+const AGENT_MAIL_MCP_TOOL_FILE_RELEASE: &str = "agent_mail.files.release";
 
 fn agent_mail_attachment_max_bytes() -> usize {
     std::env::var("CARSINOS_AGENT_MAIL_ATTACHMENT_MAX_BYTES")
@@ -5726,6 +5833,14 @@ fn agent_mail_attachment_max_bytes() -> usize {
         .and_then(|value| value.trim().parse::<usize>().ok())
         .filter(|value| *value > 0)
         .unwrap_or(AGENT_MAIL_DEFAULT_ATTACHMENT_MAX_BYTES)
+}
+
+fn agent_mail_mcp_default_lease_ttl_ms() -> i64 {
+    std::env::var("CARSINOS_AGENT_MAIL_MCP_DEFAULT_LEASE_TTL_MS")
+        .ok()
+        .and_then(|value| value.trim().parse::<i64>().ok())
+        .filter(|value| *value > 0)
+        .unwrap_or(300_000)
 }
 
 fn agent_mail_allowed_mimes() -> &'static HashSet<String> {
@@ -10869,6 +10984,811 @@ fn ensure_agent_mail_thread_membership(
     Ok(participants
         .iter()
         .any(|participant| participant.principal_id == principal_id))
+}
+
+fn agent_mail_mcp_tools() -> &'static Vec<serde_json::Value> {
+    static TOOLS: std::sync::OnceLock<Vec<serde_json::Value>> = std::sync::OnceLock::new();
+    TOOLS.get_or_init(|| {
+        vec![
+            serde_json::json!({
+                "name": AGENT_MAIL_MCP_TOOL_IDENTITY_REGISTER,
+                "description": "Register or resolve a principal identity for agent-mail operations.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "principal_id": {"type": "string"},
+                        "display_name": {"type": "string"},
+                        "kind": {"type": "string"}
+                    },
+                    "additionalProperties": false
+                }
+            }),
+            serde_json::json!({
+                "name": AGENT_MAIL_MCP_TOOL_INBOX_FETCH,
+                "description": "Fetch agent-mail inbox threads (with optional message payloads).",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "principal_id": {"type": "string"},
+                        "kind": {"type": "string"},
+                        "mailbox": {"type": "string"},
+                        "search": {"type": "string"},
+                        "limit": {"type": "integer", "minimum": 1, "maximum": 500},
+                        "include_messages": {"type": "boolean"},
+                        "message_limit": {"type": "integer", "minimum": 1, "maximum": 400}
+                    },
+                    "additionalProperties": false
+                }
+            }),
+            serde_json::json!({
+                "name": AGENT_MAIL_MCP_TOOL_MESSAGE_SEND,
+                "description": "Send an agent-mail message to a thread.",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["thread_id", "body_text"],
+                    "properties": {
+                        "thread_id": {"type": "string"},
+                        "body_text": {"type": "string"},
+                        "sender_principal": {"type": "string"},
+                        "sender_kind": {"type": "string"},
+                        "metadata_json": {"type": "object"},
+                        "recipients": {"type": "array", "items": {"type": "string"}}
+                    },
+                    "additionalProperties": false
+                }
+            }),
+            serde_json::json!({
+                "name": AGENT_MAIL_MCP_TOOL_MESSAGE_ACK,
+                "description": "Acknowledge an agent-mail message for a recipient principal.",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["message_id"],
+                    "properties": {
+                        "message_id": {"type": "string"},
+                        "recipient_principal": {"type": "string"}
+                    },
+                    "additionalProperties": false
+                }
+            }),
+            serde_json::json!({
+                "name": AGENT_MAIL_MCP_TOOL_FILE_RESERVE,
+                "description": "Reserve file globs with optional exclusivity and TTL.",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["glob_pattern"],
+                    "properties": {
+                        "glob_pattern": {"type": "string"},
+                        "holder_principal": {"type": "string"},
+                        "exclusive": {"type": "boolean"},
+                        "ttl_ms": {"type": "integer"},
+                        "note": {"type": "string"}
+                    },
+                    "additionalProperties": false
+                }
+            }),
+            serde_json::json!({
+                "name": AGENT_MAIL_MCP_TOOL_FILE_LIST,
+                "description": "List active or historical file reservations.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "holder_principal": {"type": "string"},
+                        "include_released": {"type": "boolean"}
+                    },
+                    "additionalProperties": false
+                }
+            }),
+            serde_json::json!({
+                "name": AGENT_MAIL_MCP_TOOL_FILE_RELEASE,
+                "description": "Release a previously created file reservation lease.",
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["lease_id"],
+                    "properties": {
+                        "lease_id": {"type": "string"},
+                        "holder_principal": {"type": "string"}
+                    },
+                    "additionalProperties": false
+                }
+            }),
+        ]
+    })
+}
+
+fn agent_mail_mcp_response_result(
+    id: serde_json::Value,
+    result: serde_json::Value,
+) -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": result
+    }))
+}
+
+fn agent_mail_mcp_response_error(
+    id: serde_json::Value,
+    code: i64,
+    message: impl Into<String>,
+    data: Option<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let error = AgentMailMcpRpcError {
+        code,
+        message: message.into(),
+        data,
+    };
+    Json(serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "error": error
+    }))
+}
+
+fn agent_mail_mcp_rpc_error_from_api(status: StatusCode, error: ApiError) -> AgentMailMcpRpcError {
+    let code = match status {
+        StatusCode::BAD_REQUEST => -32602,
+        StatusCode::UNAUTHORIZED => -32001,
+        StatusCode::FORBIDDEN => -32003,
+        StatusCode::NOT_FOUND => -32004,
+        StatusCode::CONFLICT => -32009,
+        StatusCode::TOO_MANY_REQUESTS => -32029,
+        StatusCode::SERVICE_UNAVAILABLE => -32007,
+        StatusCode::GATEWAY_TIMEOUT => -32008,
+        _ => -32603,
+    };
+    AgentMailMcpRpcError {
+        code,
+        message: error.error,
+        data: Some(serde_json::json!({
+            "status": status.as_u16(),
+            "error_code": error.error_code,
+            "retry_after_seconds": error.retry_after_seconds,
+            "rate_limit_scope": error.rate_limit_scope
+        })),
+    }
+}
+
+async fn execute_agent_mail_mcp_tool(
+    headers: &HeaderMap,
+    state: &AppState,
+    auth: &AuthContext,
+    tool_name: &str,
+    arguments: serde_json::Value,
+) -> std::result::Result<serde_json::Value, (StatusCode, Json<ApiError>)> {
+    match tool_name {
+        AGENT_MAIL_MCP_TOOL_IDENTITY_REGISTER => {
+            require_roles_with_audit(
+                headers,
+                state,
+                auth,
+                &[
+                    ROLE_OPERATOR_ADMIN,
+                    ROLE_OPERATOR_READONLY,
+                    ROLE_AUTOMATION_RUNNER,
+                    ROLE_CHANNEL_ADAPTER,
+                ],
+                "agent_mail.mcp.identity.register",
+                "agent_mail.mcp",
+            )?;
+            let args: AgentMailMcpRegisterIdentityArgs = serde_json::from_value(arguments)
+                .map_err(|err| {
+                    api_error_with_code(
+                        StatusCode::BAD_REQUEST,
+                        "INVALID_INPUT",
+                        &format!(
+                            "invalid args for {}: {}",
+                            AGENT_MAIL_MCP_TOOL_IDENTITY_REGISTER, err
+                        ),
+                    )
+                })?;
+            let principal_id = resolve_agent_mail_principal(args.principal_id, auth);
+            if !agent_mail_is_operator_role(auth) && principal_id != auth.principal_id {
+                return Err(api_error(
+                    StatusCode::FORBIDDEN,
+                    "identity register access denied",
+                ));
+            }
+            let display_name = args
+                .display_name
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| principal_id.clone());
+            let kind = args
+                .kind
+                .map(|value| value.trim().to_ascii_lowercase())
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| "agent".to_string());
+            Ok(serde_json::json!({
+                "principal_id": principal_id,
+                "display_name": display_name,
+                "kind": kind,
+                "registered_at": Utc::now().timestamp_millis()
+            }))
+        }
+        AGENT_MAIL_MCP_TOOL_INBOX_FETCH => {
+            require_roles_with_audit(
+                headers,
+                state,
+                auth,
+                &[
+                    ROLE_OPERATOR_ADMIN,
+                    ROLE_OPERATOR_READONLY,
+                    ROLE_AUTOMATION_RUNNER,
+                    ROLE_CHANNEL_ADAPTER,
+                ],
+                "agent_mail.mcp.inbox.fetch",
+                "agent_mail.mcp",
+            )?;
+            let args: AgentMailMcpInboxFetchArgs =
+                serde_json::from_value(arguments).map_err(|err| {
+                    api_error_with_code(
+                        StatusCode::BAD_REQUEST,
+                        "INVALID_INPUT",
+                        &format!(
+                            "invalid args for {}: {}",
+                            AGENT_MAIL_MCP_TOOL_INBOX_FETCH, err
+                        ),
+                    )
+                })?;
+            let principal = resolve_agent_mail_principal(args.principal_id, auth);
+            if !agent_mail_is_operator_role(auth) && principal != auth.principal_id {
+                return Err(api_error(
+                    StatusCode::FORBIDDEN,
+                    "inbox fetch access denied",
+                ));
+            }
+            let limit = args
+                .limit
+                .unwrap_or(AGENT_MAIL_DEFAULT_THREAD_LIMIT)
+                .clamp(1, 500);
+            let include_messages = args.include_messages.unwrap_or(true);
+            let message_limit = args
+                .message_limit
+                .unwrap_or(AGENT_MAIL_DEFAULT_MESSAGE_LIMIT)
+                .clamp(1, AGENT_MAIL_DEFAULT_MESSAGE_LIMIT);
+            let filter = AgentMailThreadListFilter {
+                kind: args
+                    .kind
+                    .as_ref()
+                    .map(|value| value.trim().to_ascii_lowercase())
+                    .filter(|value| !value.is_empty()),
+                principal_id: Some(principal.clone()),
+                mailbox: args
+                    .mailbox
+                    .as_ref()
+                    .map(|value| value.trim().to_ascii_lowercase())
+                    .filter(|value| !value.is_empty()),
+                search_text: args.search.map(|value| value.trim().to_string()),
+                limit,
+            };
+            let mut items = Vec::new();
+            for entry in state
+                .storage
+                .list_agent_mail_threads(&filter)
+                .map_err(|err| internal_err_with_error("listing agent-mail threads failed", err))?
+            {
+                let summary = to_agent_mail_thread_summary_response(&entry);
+                let thread_value =
+                    serde_json::to_value(&summary).unwrap_or_else(|_| serde_json::json!({}));
+                if !include_messages {
+                    items.push(serde_json::json!({
+                        "thread": thread_value
+                    }));
+                    continue;
+                }
+                if !ensure_agent_mail_thread_membership(state, &summary.thread_id, &principal)? {
+                    continue;
+                }
+                let mut messages = Vec::new();
+                let message_records = state
+                    .storage
+                    .list_agent_mail_messages(&summary.thread_id, message_limit)
+                    .map_err(|err| {
+                        internal_err_with_error("listing agent-mail messages failed", err)
+                    })?;
+                for record in message_records {
+                    let response = load_agent_mail_message_response(state, record)?;
+                    messages.push(
+                        serde_json::to_value(response).unwrap_or_else(|_| serde_json::json!({})),
+                    );
+                }
+                items.push(serde_json::json!({
+                    "thread": thread_value,
+                    "messages": messages
+                }));
+            }
+            Ok(serde_json::json!({
+                "principal_id": principal,
+                "count": items.len(),
+                "items": items
+            }))
+        }
+        AGENT_MAIL_MCP_TOOL_MESSAGE_SEND => {
+            require_roles_with_audit(
+                headers,
+                state,
+                auth,
+                &[
+                    ROLE_OPERATOR_ADMIN,
+                    ROLE_AUTOMATION_RUNNER,
+                    ROLE_CHANNEL_ADAPTER,
+                ],
+                "agent_mail.mcp.message.send",
+                "agent_mail.mcp",
+            )?;
+            require_endpoint_rate_limit_with_error(state, auth, "agent_mail")?;
+            let args: AgentMailMcpSendArgs = serde_json::from_value(arguments).map_err(|err| {
+                api_error_with_code(
+                    StatusCode::BAD_REQUEST,
+                    "INVALID_INPUT",
+                    &format!(
+                        "invalid args for {}: {}",
+                        AGENT_MAIL_MCP_TOOL_MESSAGE_SEND, err
+                    ),
+                )
+            })?;
+            let thread_id = args.thread_id.trim().to_string();
+            if thread_id.is_empty() {
+                return Err(api_error(
+                    StatusCode::BAD_REQUEST,
+                    "thread_id must not be empty",
+                ));
+            }
+            let thread_exists = state
+                .storage
+                .get_agent_mail_thread(&thread_id)
+                .map_err(|err| internal_err_with_error("loading thread before send failed", err))?
+                .is_some();
+            if !thread_exists {
+                return Err(api_error(
+                    StatusCode::NOT_FOUND,
+                    "agent-mail thread not found",
+                ));
+            }
+            let sender_principal = resolve_agent_mail_principal(args.sender_principal, auth);
+            if !agent_mail_is_operator_role(auth) {
+                let caller_is_member =
+                    ensure_agent_mail_thread_membership(state, &thread_id, &auth.principal_id)?;
+                let sender_is_member = if sender_principal == auth.principal_id {
+                    caller_is_member
+                } else {
+                    ensure_agent_mail_thread_membership(state, &thread_id, &sender_principal)?
+                };
+                if !caller_is_member || !sender_is_member {
+                    return Err(api_error(
+                        StatusCode::FORBIDDEN,
+                        "thread send access denied",
+                    ));
+                }
+            }
+            let body_text = args.body_text.trim().to_string();
+            if body_text.is_empty() {
+                return Err(api_error(
+                    StatusCode::BAD_REQUEST,
+                    "agent-mail message body cannot be empty",
+                ));
+            }
+            if body_text.chars().count() > 16_000 {
+                return Err(api_error(
+                    StatusCode::BAD_REQUEST,
+                    "agent-mail message body exceeds maximum length",
+                ));
+            }
+            let sender_kind = args
+                .sender_kind
+                .as_ref()
+                .map(|value| value.trim().to_ascii_lowercase())
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| "agent".to_string());
+            let metadata_json = args
+                .metadata_json
+                .as_ref()
+                .and_then(|value| serde_json::to_string(value).ok());
+            let message = state
+                .storage
+                .create_agent_mail_message(NewAgentMailMessage {
+                    thread_id: thread_id.clone(),
+                    sender_principal: sender_principal.clone(),
+                    sender_kind,
+                    body_text,
+                    metadata_json,
+                    recipients: args.recipients,
+                })
+                .map_err(|err| internal_err_with_error("sending agent-mail message failed", err))?
+                .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "agent-mail thread not found"))?;
+            let message_response = load_agent_mail_message_response(state, message)?;
+            emit_event(
+                state,
+                "agent_mail.message.created",
+                serde_json::json!({
+                    "thread_id": message_response.thread_id,
+                    "message_id": message_response.message_id,
+                    "sender_principal": message_response.sender_principal,
+                    "recipient_count": message_response.recipients.len()
+                }),
+            );
+            record_security_audit(
+                headers,
+                state,
+                auth,
+                "agent_mail.mcp.message.send",
+                &format!("agent_mail_thread:{}", thread_id),
+                "allow",
+                Some("agent-mail message sent via mcp".to_string()),
+                StatusCode::CREATED,
+                None,
+                None,
+                None,
+                Some(serde_json::json!({
+                    "message_id": message_response.message_id,
+                    "recipient_count": message_response.recipients.len()
+                })),
+            );
+            Ok(serde_json::json!({
+                "message": message_response
+            }))
+        }
+        AGENT_MAIL_MCP_TOOL_MESSAGE_ACK => {
+            require_roles_with_audit(
+                headers,
+                state,
+                auth,
+                &[
+                    ROLE_OPERATOR_ADMIN,
+                    ROLE_AUTOMATION_RUNNER,
+                    ROLE_CHANNEL_ADAPTER,
+                ],
+                "agent_mail.mcp.message.ack",
+                "agent_mail.mcp",
+            )?;
+            require_endpoint_rate_limit_with_error(state, auth, "agent_mail")?;
+            let args: AgentMailMcpAckArgs = serde_json::from_value(arguments).map_err(|err| {
+                api_error_with_code(
+                    StatusCode::BAD_REQUEST,
+                    "INVALID_INPUT",
+                    &format!(
+                        "invalid args for {}: {}",
+                        AGENT_MAIL_MCP_TOOL_MESSAGE_ACK, err
+                    ),
+                )
+            })?;
+            let message_id = args.message_id.trim().to_string();
+            if message_id.is_empty() {
+                return Err(api_error(
+                    StatusCode::BAD_REQUEST,
+                    "message_id must not be empty",
+                ));
+            }
+            let recipient_principal = resolve_agent_mail_principal(args.recipient_principal, auth);
+            let message = state
+                .storage
+                .get_agent_mail_message(&message_id)
+                .map_err(|err| internal_err_with_error("loading agent-mail message failed", err))?
+                .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "agent-mail message not found"))?;
+            if !agent_mail_is_operator_role(auth) {
+                if !ensure_agent_mail_thread_membership(
+                    state,
+                    &message.thread_id,
+                    &auth.principal_id,
+                )? {
+                    return Err(api_error(
+                        StatusCode::FORBIDDEN,
+                        "acknowledge access denied",
+                    ));
+                }
+                if recipient_principal != auth.principal_id
+                    && !ensure_agent_mail_thread_membership(
+                        state,
+                        &message.thread_id,
+                        &recipient_principal,
+                    )?
+                {
+                    return Err(api_error(
+                        StatusCode::FORBIDDEN,
+                        "acknowledge access denied",
+                    ));
+                }
+            }
+            let ack = state
+                .storage
+                .acknowledge_agent_mail_message(&message_id, &recipient_principal)
+                .map_err(|err| {
+                    internal_err_with_error("acknowledging agent-mail message failed", err)
+                })?
+                .ok_or_else(|| {
+                    api_error(
+                        StatusCode::NOT_FOUND,
+                        "agent-mail message recipient not found",
+                    )
+                })?;
+            emit_event(
+                state,
+                "agent_mail.message.ack",
+                serde_json::json!({
+                    "message_id": message_id,
+                    "recipient_principal": recipient_principal,
+                    "acked_at": ack.acked_at
+                }),
+            );
+            record_security_audit(
+                headers,
+                state,
+                auth,
+                "agent_mail.mcp.message.ack",
+                &format!("agent_mail_message:{}", message_id),
+                "allow",
+                Some("agent-mail message acknowledged via mcp".to_string()),
+                StatusCode::OK,
+                None,
+                None,
+                None,
+                None,
+            );
+            Ok(serde_json::json!({
+                "message_id": message_id,
+                "recipient_principal": recipient_principal,
+                "acked_at": ack.acked_at
+            }))
+        }
+        AGENT_MAIL_MCP_TOOL_FILE_RESERVE => {
+            require_roles_with_audit(
+                headers,
+                state,
+                auth,
+                &[ROLE_OPERATOR_ADMIN, ROLE_AUTOMATION_RUNNER],
+                "agent_mail.mcp.files.reserve",
+                "agent_mail.mcp",
+            )?;
+            require_endpoint_rate_limit_with_error(state, auth, "agent_mail")?;
+            let args: AgentMailMcpFileReserveArgs =
+                serde_json::from_value(arguments).map_err(|err| {
+                    api_error_with_code(
+                        StatusCode::BAD_REQUEST,
+                        "INVALID_INPUT",
+                        &format!(
+                            "invalid args for {}: {}",
+                            AGENT_MAIL_MCP_TOOL_FILE_RESERVE, err
+                        ),
+                    )
+                })?;
+            let glob_pattern = args.glob_pattern.trim().to_string();
+            if glob_pattern.is_empty() {
+                return Err(api_error(
+                    StatusCode::BAD_REQUEST,
+                    "glob_pattern must not be empty",
+                ));
+            }
+            let holder_principal = resolve_agent_mail_principal(args.holder_principal, auth);
+            let lease = state
+                .storage
+                .create_agent_mail_file_lease(NewAgentMailFileLease {
+                    holder_principal,
+                    glob_pattern,
+                    exclusive: args.exclusive.unwrap_or(false),
+                    ttl_ms: args
+                        .ttl_ms
+                        .unwrap_or_else(agent_mail_mcp_default_lease_ttl_ms),
+                    note: args.note,
+                })
+                .map_err(|err| {
+                    let message = err.to_string();
+                    if message.contains("active lease conflict") {
+                        api_error_with_code(StatusCode::CONFLICT, "CONFLICT", &message)
+                    } else {
+                        internal_err_with_error("creating agent-mail lease failed", err)
+                    }
+                })?;
+            Ok(serde_json::json!({
+                "lease": to_agent_mail_file_lease_response(lease)
+            }))
+        }
+        AGENT_MAIL_MCP_TOOL_FILE_LIST => {
+            require_roles_with_audit(
+                headers,
+                state,
+                auth,
+                &[
+                    ROLE_OPERATOR_ADMIN,
+                    ROLE_OPERATOR_READONLY,
+                    ROLE_AUTOMATION_RUNNER,
+                ],
+                "agent_mail.mcp.files.list",
+                "agent_mail.mcp",
+            )?;
+            let args: AgentMailMcpFileListArgs =
+                serde_json::from_value(arguments).map_err(|err| {
+                    api_error_with_code(
+                        StatusCode::BAD_REQUEST,
+                        "INVALID_INPUT",
+                        &format!(
+                            "invalid args for {}: {}",
+                            AGENT_MAIL_MCP_TOOL_FILE_LIST, err
+                        ),
+                    )
+                })?;
+            let holder = args
+                .holder_principal
+                .as_ref()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty());
+            let items = state
+                .storage
+                .list_agent_mail_file_leases(
+                    holder.as_deref(),
+                    args.include_released.unwrap_or(false),
+                )
+                .map_err(|err| internal_err_with_error("listing agent-mail leases failed", err))?
+                .into_iter()
+                .map(to_agent_mail_file_lease_response)
+                .collect::<Vec<_>>();
+            Ok(serde_json::json!({ "items": items }))
+        }
+        AGENT_MAIL_MCP_TOOL_FILE_RELEASE => {
+            require_roles_with_audit(
+                headers,
+                state,
+                auth,
+                &[ROLE_OPERATOR_ADMIN, ROLE_AUTOMATION_RUNNER],
+                "agent_mail.mcp.files.release",
+                "agent_mail.mcp",
+            )?;
+            let args: AgentMailMcpFileReleaseArgs =
+                serde_json::from_value(arguments).map_err(|err| {
+                    api_error_with_code(
+                        StatusCode::BAD_REQUEST,
+                        "INVALID_INPUT",
+                        &format!(
+                            "invalid args for {}: {}",
+                            AGENT_MAIL_MCP_TOOL_FILE_RELEASE, err
+                        ),
+                    )
+                })?;
+            let lease_id = args.lease_id.trim().to_string();
+            if lease_id.is_empty() {
+                return Err(api_error(
+                    StatusCode::BAD_REQUEST,
+                    "lease_id must not be empty",
+                ));
+            }
+            let lease = state
+                .storage
+                .release_agent_mail_file_lease(&lease_id, args.holder_principal.as_deref())
+                .map_err(|err| internal_err_with_error("releasing agent-mail lease failed", err))?
+                .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "agent-mail lease not found"))?;
+            Ok(serde_json::json!({
+                "lease": to_agent_mail_file_lease_response(lease)
+            }))
+        }
+        _ => Err(api_error_with_code(
+            StatusCode::BAD_REQUEST,
+            "INVALID_INPUT",
+            "unsupported agent-mail MCP tool",
+        )),
+    }
+}
+
+async fn agent_mail_mcp(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(payload): Json<serde_json::Value>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_OPERATOR_READONLY,
+            ROLE_AUTOMATION_RUNNER,
+            ROLE_CHANNEL_ADAPTER,
+        ],
+        "agent_mail.mcp.call",
+        "agent_mail.mcp",
+    )?;
+
+    let request: AgentMailMcpRpcRequest = match serde_json::from_value(payload) {
+        Ok(request) => request,
+        Err(err) => {
+            return Ok(agent_mail_mcp_response_error(
+                serde_json::Value::Null,
+                -32600,
+                "invalid JSON-RPC request",
+                Some(serde_json::json!({
+                    "detail": err.to_string()
+                })),
+            ));
+        }
+    };
+    let id = request.id.unwrap_or(serde_json::Value::Null);
+    let method = request
+        .method
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_default();
+    if method.is_empty() {
+        return Ok(agent_mail_mcp_response_error(
+            id,
+            -32600,
+            "missing JSON-RPC method",
+            None,
+        ));
+    }
+
+    match method.as_str() {
+        "initialize" => Ok(agent_mail_mcp_response_result(
+            id,
+            serde_json::json!({
+                "protocolVersion": AGENT_MAIL_MCP_PROTOCOL_VERSION,
+                "serverInfo": {
+                    "name": "carsinos-agent-mail-mcp",
+                    "version": env!("CARGO_PKG_VERSION")
+                },
+                "capabilities": {
+                    "tools": {}
+                }
+            }),
+        )),
+        "tools/list" => Ok(agent_mail_mcp_response_result(
+            id,
+            serde_json::json!({
+                "tools": agent_mail_mcp_tools()
+            }),
+        )),
+        "tools/call" => {
+            let params = request.params.unwrap_or_else(|| serde_json::json!({}));
+            let tool_name = params
+                .get("name")
+                .and_then(|value| value.as_str())
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .unwrap_or_default();
+            if tool_name.is_empty() {
+                return Ok(agent_mail_mcp_response_error(
+                    id,
+                    -32602,
+                    "tools/call requires params.name",
+                    None,
+                ));
+            }
+            let arguments = params
+                .get("arguments")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!({}));
+            match execute_agent_mail_mcp_tool(&headers, &state, &auth, &tool_name, arguments).await
+            {
+                Ok(structured_content) => Ok(agent_mail_mcp_response_result(
+                    id,
+                    serde_json::json!({
+                        "structuredContent": structured_content,
+                        "content": [{
+                            "type": "text",
+                            "text": structured_content.to_string()
+                        }],
+                        "isError": false
+                    }),
+                )),
+                Err((status, Json(api_error))) => {
+                    let rpc_error = agent_mail_mcp_rpc_error_from_api(status, api_error);
+                    Ok(agent_mail_mcp_response_error(
+                        id,
+                        rpc_error.code,
+                        rpc_error.message,
+                        rpc_error.data,
+                    ))
+                }
+            }
+        }
+        _ => Ok(agent_mail_mcp_response_error(
+            id,
+            -32601,
+            "method not found",
+            Some(serde_json::json!({
+                "method": method
+            })),
+        )),
+    }
 }
 
 async fn list_agent_mail_threads(
