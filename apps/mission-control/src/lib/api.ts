@@ -4,9 +4,11 @@ import type {
   AgentMailFileLeaseResponse,
   AgentMailThreadDetailResponse,
   AgentProviderProfileOrderResponse,
+  AnthropicSetupTokenIngestResponse,
   AuthProfileResponse,
   BoardDetail,
   BoardDetailResponse,
+  CreateAgentResponse,
   CreateAgentMailFileLeaseResponse,
   CreateAgentMailThreadResponse,
   CreateMemoryNoteResponse,
@@ -28,6 +30,8 @@ import type {
   MissionControlCalendarWeekResponse,
   MissionControlFocusResponse,
   MoveBoardCardResponse,
+  OpenAiOauthFinishResponse,
+  OpenAiOauthStartResponse,
   PluginManifestResponse,
   ReleaseAgentMailFileLeaseResponse,
   ResolveApprovalResponse,
@@ -40,6 +44,7 @@ import type {
   UpdateSkillStateResponse,
   UpdateJobResponse,
   UpdateBoardCardResponse,
+  UpdateAgentResponse,
   UploadAgentMailAttachmentResponse,
   UploadBoardCardAssetResponse,
 } from "../types";
@@ -156,6 +161,44 @@ export async function listAgents(
   settings: RuntimeConnectionSettings
 ): Promise<ListAgentsResponse> {
   return requestJson<ListAgentsResponse>(settings, "/api/v1/agents");
+}
+
+export async function createAgent(
+  settings: RuntimeConnectionSettings,
+  payload: {
+    agent_id: string;
+    name: string;
+    workspace_root?: string;
+    model_provider?: string;
+    model_id?: string;
+    tool_profile?: string;
+  }
+): Promise<CreateAgentResponse> {
+  return requestJson<CreateAgentResponse>(settings, "/api/v1/agents", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export async function updateAgent(
+  settings: RuntimeConnectionSettings,
+  agentId: string,
+  payload: {
+    name?: string;
+    workspace_root?: string;
+    model_provider?: string;
+    model_id?: string;
+    tool_profile?: string;
+  }
+): Promise<UpdateAgentResponse> {
+  return requestJson<UpdateAgentResponse>(
+    settings,
+    `/api/v1/agents/${encodeURIComponent(agentId)}/update`,
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
 }
 
 export async function getMissionControlCalendarWeek(
@@ -321,6 +364,65 @@ export async function setAgentProviderProfileOrder(
       body: {
         profile_ids: profileIds,
       },
+    }
+  );
+}
+
+export async function startOpenAiOauth(
+  settings: RuntimeConnectionSettings,
+  payload: {
+    display_name?: string;
+    redirect_uri?: string;
+    client_id?: string;
+    scope?: string;
+    authorize_url?: string;
+    token_url?: string;
+    api_base_url?: string;
+  } = {}
+): Promise<OpenAiOauthStartResponse> {
+  return requestJson<OpenAiOauthStartResponse>(settings, "/api/v1/auth/openai/oauth/start", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export async function finishOpenAiOauth(
+  settings: RuntimeConnectionSettings,
+  payload: {
+    oauth_session_id: string;
+    callback_url?: string;
+    code?: string;
+    state?: string;
+    display_name?: string;
+    api_base_url?: string;
+  }
+): Promise<OpenAiOauthFinishResponse> {
+  return requestJson<OpenAiOauthFinishResponse>(
+    settings,
+    "/api/v1/auth/openai/oauth/finish",
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
+export async function ingestAnthropicSetupToken(
+  settings: RuntimeConnectionSettings,
+  payload: {
+    display_name: string;
+    setup_token: string;
+    api_base_url?: string;
+    enabled?: boolean;
+    kill_switch_scope?: string;
+  }
+): Promise<AnthropicSetupTokenIngestResponse> {
+  return requestJson<AnthropicSetupTokenIngestResponse>(
+    settings,
+    "/api/v1/auth/anthropic/setup-token/ingest",
+    {
+      method: "POST",
+      body: payload,
     }
   );
 }

@@ -1,73 +1,41 @@
-# React + TypeScript + Vite
+# Mission Control (CarsinOS)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Mission Control is the CarsinOS operator UI built with React + TypeScript + Vite and packaged with Tauri.
 
-Currently, two official plugins are available:
+## Scripts
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- `npm run dev` - run Vite dev server
+- `npm run build` - typecheck + production bundle
+- `npm run typecheck` - TypeScript project check
+- `npm run lint` - ESLint
+- `npm run tauri:dev` - run desktop app in Tauri dev mode
 
-## React Compiler
+## Onboarding Wizard
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Mission Control includes a first-run onboarding wizard to help new users configure setup without editing files.
 
-## Expanding the ESLint configuration
+### Auto-open behavior
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+Wizard auto-opens when setup is incomplete, including cases like:
+- missing gateway URL
+- missing gateway token
+- no agents
+- no usable provider path configured
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+Dismiss state is stored locally for 24 hours:
+- key: `mission_control.onboarding.dismissed_at_ms`
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### Reopen behavior
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+Users can reopen onboarding at any time using `Setup Wizard` in the top bar.
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### V1 provider paths
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- Anthropic setup token ingest
+- OpenAI OAuth (start + finish)
+- Local connector mode (no OAuth)
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+### Secret handling
+
+- Gateway token and provider secrets are never persisted in browser localStorage by the wizard logic.
+- Secrets are sent to gateway/keychain paths and draft inputs are cleared after successful setup actions.
