@@ -406,12 +406,31 @@ export async function finishOpenAiOauth(
     api_base_url?: string;
   }
 ): Promise<OpenAiOauthFinishResponse> {
+  const callbackUrl = payload.callback_url?.trim() || undefined;
+  const code = payload.code?.trim() || undefined;
+  const state = payload.state?.trim() || undefined;
+  const hasCallbackUrl = Boolean(callbackUrl);
+  const hasCode = Boolean(code);
+  const hasState = Boolean(state);
+
+  if (hasCallbackUrl && (hasCode || hasState)) {
+    throw new Error("Provide either callback_url or code+state, not both.");
+  }
+  if (!hasCallbackUrl && !(hasCode && hasState)) {
+    throw new Error("Provide callback_url, or provide both code and state.");
+  }
+
   return requestJson<OpenAiOauthFinishResponse>(
     settings,
     "/api/v1/auth/openai/oauth/finish",
     {
       method: "POST",
-      body: payload,
+      body: {
+        ...payload,
+        callback_url: callbackUrl,
+        code,
+        state,
+      },
     }
   );
 }

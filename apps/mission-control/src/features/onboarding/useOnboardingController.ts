@@ -239,17 +239,8 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
       const canReadCore =
         agentsResult.status === "fulfilled" && profilesResult.status === "fulfilled";
 
-      let canManageSetup = false;
-      try {
-        await createAgent(effectiveSettings, {
-          agent_id: "",
-          name: "permission-probe",
-        });
-        canManageSetup = true;
-      } catch (error: unknown) {
-        const status = parseHttpStatusCode(error);
-        canManageSetup = status !== null && !(status === 401 || status === 403);
-      }
+      // Keep preflight non-mutating: write permissions are validated when setup actions execute.
+      const canManageSetup: boolean | null = null;
 
       setPreflight({
         running: false,
@@ -258,9 +249,10 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
         authValidated,
         canReadCore,
         canManageSetup,
-        detail: canManageSetup
-          ? "Checks completed. Setup permissions available."
-          : "Checks completed. Token can read, but setup actions may require operator_admin.",
+        detail:
+          canReadCore
+            ? "Checks completed. Setup write permissions are validated during setup actions."
+            : "Checks completed. Token can read, but setup actions may require operator_admin.",
       });
     } catch (error: unknown) {
       setPreflight({

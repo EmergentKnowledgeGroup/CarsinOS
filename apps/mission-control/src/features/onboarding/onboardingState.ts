@@ -72,7 +72,11 @@ export function setDismissedNow(): void {
   if (typeof window === "undefined") {
     return;
   }
-  window.localStorage.setItem(ONBOARDING_DISMISSED_KEY, String(Date.now()));
+  try {
+    window.localStorage.setItem(ONBOARDING_DISMISSED_KEY, String(Date.now()));
+  } catch (error) {
+    console.debug("onboarding dismissal write failed", error);
+  }
 }
 
 export function shouldAutoOpenWizard(

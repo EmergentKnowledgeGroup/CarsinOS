@@ -222,14 +222,29 @@ export function StepProvider(props: StepProviderProps) {
                     </label>
                   </div>
                   <div className="mc-onboarding-inline-actions">
-                    <button type="button" className="ghost" onClick={() => void props.onStartOpenAiOauthFlow()}>
+                    <button
+                      type="button"
+                      className="ghost"
+                      disabled={props.busy}
+                      onClick={() => {
+                        if (props.busy) {
+                          return;
+                        }
+                        void props.onStartOpenAiOauthFlow();
+                      }}
+                    >
                       Start OAuth
                     </button>
                     <button
                       type="button"
                       className="ghost"
-                      disabled={!props.openAiSessionId}
-                      onClick={() => void props.onFinishOpenAiOauthFlow()}
+                      disabled={props.busy || !props.openAiSessionId}
+                      onClick={() => {
+                        if (props.busy) {
+                          return;
+                        }
+                        void props.onFinishOpenAiOauthFlow();
+                      }}
                     >
                       Finish OAuth
                     </button>
