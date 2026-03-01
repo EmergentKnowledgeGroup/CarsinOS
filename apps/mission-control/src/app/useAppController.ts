@@ -8,6 +8,9 @@ export interface Notice {
   message: string;
 }
 
+/** Callback to push a toast notification (replaces legacy Dispatch<SetStateAction<Notice | null>>) */
+export type NotifyFn = (notice: Notice | null) => void;
+
 export type MissionControlTab =
   | "boards"
   | "calendar"
@@ -15,6 +18,7 @@ export type MissionControlTab =
   | "events"
   | "mail"
   | "chatrooms"
+  | "team"
   | "cockpit";
 
 export interface EventStreamItem {
@@ -36,7 +40,6 @@ export function useAppController() {
 
   const [healthState, setHealthState] = useState("idle");
   const [wsState, setWsState] = useState<WsLifecycleState>("idle");
-  const [notice, setNotice] = useState<Notice | null>(null);
   const [eventStream, setEventStream] = useState<EventStreamItem[]>([]);
   const [showRawEvents, setShowRawEvents] = useState(false);
 
@@ -55,8 +58,6 @@ export function useAppController() {
     setHealthState,
     wsState,
     setWsState,
-    notice,
-    setNotice,
     eventStream,
     setEventStream,
     showRawEvents,

@@ -4,8 +4,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type Dispatch,
-  type SetStateAction,
 } from "react";
 import {
   ackAgentMailMessage,
@@ -21,7 +19,7 @@ import {
   sendAgentMailMessage,
   uploadAgentMailAttachment,
 } from "../../lib/api";
-import type { Notice } from "../../app/useAppController";
+import type { NotifyFn } from "../../app/useAppController";
 import type {
   AgentMailFileLeaseResponse,
   AgentMailMessageResponse,
@@ -36,7 +34,7 @@ import { buildThreadSummaryNote } from "./agentMailSummary";
 interface UseAgentMailControllerOptions {
   settings: RuntimeConnectionSettings;
   tokenConfigured: boolean;
-  setNotice: Dispatch<SetStateAction<Notice | null>>;
+  setNotice: NotifyFn;
 }
 
 export function useAgentMailController(options: UseAgentMailControllerOptions) {
@@ -275,7 +273,7 @@ export function useAgentMailController(options: UseAgentMailControllerOptions) {
           tone: "error",
           message: kind === "room" ? "Room name is required." : "Thread subject is required.",
         });
-        return;
+        return false;
       }
       try {
         const created = await createAgentMailThread(settings, {
@@ -297,11 +295,13 @@ export function useAgentMailController(options: UseAgentMailControllerOptions) {
           message: `${kind === "room" ? "Room" : "Thread"} created: ${created.thread.subject}`,
         });
         queueAgentMailRefresh(settings);
+        return true;
       } catch (error) {
         setNotice({
           tone: "error",
           message: `${kind === "room" ? "Room" : "Thread"} create failed: ${String(error)}`,
         });
+        return false;
       }
     },
     [
@@ -510,7 +510,7 @@ export function useAgentMailController(options: UseAgentMailControllerOptions) {
         tone: "error",
         message: "Lease TTL must be a positive integer number of milliseconds.",
       });
-      return;
+      return false;
     }
     const globPattern = leaseGlobPattern.trim();
     if (!globPattern) {
@@ -518,7 +518,7 @@ export function useAgentMailController(options: UseAgentMailControllerOptions) {
         tone: "error",
         message: "Lease glob pattern is required.",
       });
-      return;
+      return false;
     }
     try {
       const created = await createAgentMailFileLease(settings, {
@@ -534,11 +534,13 @@ export function useAgentMailController(options: UseAgentMailControllerOptions) {
       });
       setLeaseNote("");
       queueAgentMailRefresh(settings);
+      return true;
     } catch (error) {
       setNotice({
         tone: "error",
         message: `Lease create failed: ${String(error)}`,
       });
+      return false;
     }
   }, [
     leaseExclusive,
@@ -564,11 +566,13 @@ export function useAgentMailController(options: UseAgentMailControllerOptions) {
           message: "Lease released.",
         });
         queueAgentMailRefresh(settings);
+        return true;
       } catch (error) {
         setNotice({
           tone: "error",
           message: `Lease release failed: ${String(error)}`,
         });
+        return false;
       }
     },
     [leaseHolderPrincipal, queueAgentMailRefresh, setNotice, settings]

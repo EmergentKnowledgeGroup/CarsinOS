@@ -4,8 +4,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type Dispatch,
-  type SetStateAction,
 } from "react";
 import {
   createBoardCard,
@@ -16,7 +14,7 @@ import {
   updateBoardCard,
   uploadBoardCardAsset,
 } from "../../lib/api";
-import type { Notice } from "../../app/useAppController";
+import type { NotifyFn } from "../../app/useAppController";
 import type { BoardDetail, RuntimeConnectionSettings, WsEventFrame } from "../../types";
 import { toInputDateTimeValue, fromInputDateTimeValue } from "../../utils/datetime";
 import { fileToBase64 } from "../../utils/files";
@@ -30,7 +28,7 @@ import {
 
 interface UseBoardsControllerOptions {
   settings: RuntimeConnectionSettings;
-  setNotice: Dispatch<SetStateAction<Notice | null>>;
+  setNotice: NotifyFn;
 }
 
 export function useBoardsController(options: UseBoardsControllerOptions) {
@@ -161,7 +159,7 @@ export function useBoardsController(options: UseBoardsControllerOptions) {
   );
 
   const handleCreateCard = useCallback(
-    async (columnId: string, title: string) => {
+    async (columnId: string, title: string, opts?: { owner_kind?: string; owner_agent_id?: string; owner_human_id?: string }) => {
       if (!activeBoardId) {
         return;
       }
@@ -169,6 +167,7 @@ export function useBoardsController(options: UseBoardsControllerOptions) {
         const created = await createBoardCard(settings, activeBoardId, {
           column_id: columnId,
           title,
+          ...opts,
         });
         setBoard((previous) => (previous ? withUpsertCard(previous, created.card) : previous));
         setNotice({ tone: "info", message: `Card created: ${created.card.title}` });

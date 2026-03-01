@@ -1,10 +1,16 @@
-import { useRef, type Dispatch, type SetStateAction } from "react";
+import { useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { Agent, BoardCard, BoardColumn } from "../../types";
 import { formatBytes } from "../../utils/files";
-import { EmptyState } from "../../ui/EmptyState";
+import { Modal } from "../../ui/Modal";
+import { Pagination } from "../../ui/Pagination";
+import { Tabs } from "../../ui/Tabs";
+import { TagPicker } from "../../ui/TagPicker";
+import { usePagination } from "../../ui/usePagination";
 import { BoardLane } from "./BoardLane";
 import type { CardEditorDraft } from "./boardModel";
+
+const ASSETS_PAGE_SIZE = 6;
 
 interface BoardsPageProps {
   boards: Array<{ board_id: string; name: string }>;
@@ -15,9 +21,9 @@ interface BoardsPageProps {
   selectedCardId: string | null;
   dragCardId: string | null;
   setDragCardId: (value: string | null) => void;
-  onSelectCard: (cardId: string) => void;
+  onSelectCard: (cardId: string | null) => void;
   onDropCard: (cardId: string, columnId: string, beforeCardId?: string) => void;
-  onCreateCard: (columnId: string, title: string) => Promise<void>;
+  onCreateCard: (columnId: string, title: string, opts?: { owner_kind?: string; owner_agent_id?: string; owner_human_id?: string }) => Promise<void>;
   selectedCard: BoardCard | null;
   cardEditor: CardEditorDraft;
   setCardEditor: Dispatch<SetStateAction<CardEditorDraft>>;
@@ -28,6 +34,8 @@ interface BoardsPageProps {
   onPreviewAsset: (cardId: string, cardAssetId: string) => Promise<void>;
   selectedPreviewUrl: string | null;
 }
+
+type OwnerFilter = "all" | "unassigned" | string;
 
 export function BoardsPage({
   boards,
@@ -51,6 +59,109 @@ export function BoardsPage({
   onPreviewAsset,
   selectedPreviewUrl,
 }: BoardsPageProps) {
+  const [editorTab, setEditorTab] = useState<"details" | "script" | "assets">("details");
+  const [assetsPage, setAssetsPage] = useState(1);
+  const [ownerFilter, setOwnerFilter] = useState<OwnerFilter>("all");
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [newCardTitle, setNewCardTitle] = useState("");
+  const [newCardColumnId, setNewCardColumnId] = useState("");
+  const [newCardOwnerKind, setNewCardOwnerKind] = useState("unassigned");
+  const [newCardOwnerAgentId, setNewCardOwnerAgentId] = useState("");
+  const [newCardOwnerHumanId, setNewCardOwnerHumanId] = useState("");
+
+  const knownTags = useMemo(() => {
+    const tags = new Set<string>();
+    for (const cards of cardsByColumn.values()) {
+      for (const card of cards) {
+        for (const tag of card.tags) {
+          if (tag) tags.add(tag);
+        }
+      }
+    }
+    return Array.from(tags).sort();
+  }, [cardsByColumn]);
+
+  /* ── All cards flattened (for stats + agent filter list) ── */
+  const allCards = useMemo(() => {
+    const result: BoardCard[] = [];
+    for (const cards of cardsByColumn.values()) result.push(...cards);
+    return result;
+  }, [cardsByColumn]);
+
+  const agentOwners = useMemo(() => {
+    const set = new Set<string>();
+    for (const card of allCards) {
+      if (card.owner_kind === "agent" && card.owner_agent_id) set.add(card.owner_agent_id);
+    }
+    return Array.from(set).sort();
+  }, [allCards]);
+
+  /* ── Filter cardsByColumn based on ownerFilter ── */
+  const filteredCardsByColumn = useMemo(() => {
+    if (ownerFilter === "all") return cardsByColumn;
+    const filtered = new Map<string, BoardCard[]>();
+    for (const [colId, cards] of cardsByColumn) {
+      filtered.set(
+        colId,
+        cards.filter((c) =>
+          ownerFilter === "unassigned"
+            ? c.owner_kind === "unassigned"
+            : c.owner_agent_id === ownerFilter
+        ),
+      );
+    }
+    return filtered;
+  }, [cardsByColumn, ownerFilter]);
+
+  /* ── Per-page stats ── */
+  const totalCards = allCards.length;
+  const inProgressCount = useMemo(() => {
+    const inProgressCols = new Set(
+      columns.filter((c) => /progress|doing|active/i.test(c.name)).map((c) => c.column_id),
+    );
+    return allCards.filter((c) => inProgressCols.has(c.column_id)).length;
+  }, [allCards, columns]);
+  const doneCount = useMemo(() => {
+    const doneCols = new Set(
+      columns.filter((c) => /done|complete|finished/i.test(c.name)).map((c) => c.column_id),
+    );
+    return allCards.filter((c) => doneCols.has(c.column_id)).length;
+  }, [allCards, columns]);
+
+  const handleOpenCreateModal = () => {
+    setNewCardTitle("");
+    setNewCardColumnId(columns[0]?.column_id ?? "");
+    setNewCardOwnerKind("unassigned");
+    setNewCardOwnerAgentId("");
+    setNewCardOwnerHumanId("");
+    setCreateModalOpen(true);
+  };
+
+  const handleSubmitCreate = async () => {
+    const title = newCardTitle.trim();
+    if (!title || !newCardColumnId) return;
+    if (newCardOwnerKind === "human" && !newCardOwnerHumanId.trim()) return;
+    const opts: { owner_kind?: string; owner_agent_id?: string; owner_human_id?: string } = {};
+    if (newCardOwnerKind !== "unassigned") {
+      opts.owner_kind = newCardOwnerKind;
+      if (newCardOwnerKind === "agent" && newCardOwnerAgentId) {
+        opts.owner_agent_id = newCardOwnerAgentId;
+      }
+      if (newCardOwnerKind === "human" && newCardOwnerHumanId.trim()) {
+        opts.owner_human_id = newCardOwnerHumanId.trim();
+      }
+    }
+    await onCreateCard(newCardColumnId, title, Object.keys(opts).length > 0 ? opts : undefined);
+    setCreateModalOpen(false);
+  };
+
+  const assetsPagination = usePagination(selectedCard?.assets ?? [], ASSETS_PAGE_SIZE);
+  const visibleAssets = assetsPagination.getPage(assetsPage);
+  const canCreateCard =
+    newCardTitle.trim().length > 0 &&
+    newCardColumnId.length > 0 &&
+    (newCardOwnerKind !== "human" || newCardOwnerHumanId.trim().length > 0);
+
   const boardScrollerRef = useRef<HTMLDivElement | null>(null);
   // eslint-disable-next-line react-hooks/incompatible-library
   const columnVirtualizer = useVirtualizer({
@@ -61,10 +172,12 @@ export function BoardsPage({
     overscan: 2,
   });
 
+  const cardEditorOpen = selectedCard !== null;
+
   return (
-    <section className="mc-main-grid">
-      <section className="mc-board-panel">
-        <div className="mc-board-toolbar">
+    <section className="mc-board-full">
+      <div className="mc-board-toolbar">
+        <div className="mc-board-toolbar-left">
           <label>
             Board
             <select
@@ -78,52 +191,101 @@ export function BoardsPage({
               ))}
             </select>
           </label>
+          <button type="button" onClick={handleOpenCreateModal}>+ New Card</button>
         </div>
+        <div className="mc-board-stats">
+          <span>Cards: {totalCards}</span>
+          <span>In Progress: {inProgressCount}</span>
+          <span>Done: {doneCount}</span>
+        </div>
+      </div>
 
-        <div className="mc-board-scroll" ref={boardScrollerRef}>
-          <div
-            className="mc-board-canvas"
-            style={{ width: `${columnVirtualizer.getTotalSize()}px` }}
+      {/* ── Owner filter dropdown ── */}
+      <div className="mc-board-filter-bar">
+        <label>
+          Owner
+          <select
+            value={ownerFilter}
+            onChange={(event) => setOwnerFilter(event.target.value as OwnerFilter)}
           >
-            {columnVirtualizer.getVirtualItems().map((virtualColumn: { index: number; start: number }) => {
-              const column = columns[virtualColumn.index];
-              const cards = cardsByColumn.get(column.column_id) ?? [];
-              return (
-                <div
-                  key={column.column_id}
-                  className="mc-board-column-wrap"
-                  style={{ transform: `translateX(${virtualColumn.start}px)` }}
-                >
-                  <BoardLane
-                    column={column}
-                    cards={cards}
-                    selectedCardId={selectedCardId}
-                    dragCardId={dragCardId}
-                    setDragCardId={setDragCardId}
-                    onSelectCard={onSelectCard}
-                    onDropCard={onDropCard}
-                    onCreateCard={onCreateCard}
-                  />
-                </div>
-              );
-            })}
-          </div>
+            <option value="all">All</option>
+            <option value="unassigned">Unassigned</option>
+            {agentOwners.map((agentId) => (
+              <option key={agentId} value={agentId}>
+                {agents.find((a) => a.agent_id === agentId)?.name ?? agentId}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="mc-board-scroll" ref={boardScrollerRef}>
+        <div
+          className="mc-board-canvas"
+          style={{ width: `${columnVirtualizer.getTotalSize()}px` }}
+        >
+          {columnVirtualizer.getVirtualItems().map((virtualColumn: { index: number; start: number }) => {
+            const column = columns[virtualColumn.index];
+            const cards = filteredCardsByColumn.get(column.column_id) ?? [];
+            return (
+              <div
+                key={column.column_id}
+                className="mc-board-column-wrap"
+                style={{ transform: `translateX(${virtualColumn.start}px)` }}
+              >
+                <BoardLane
+                  column={column}
+                  cards={cards}
+                  selectedCardId={selectedCardId}
+                  dragCardId={dragCardId}
+                  setDragCardId={setDragCardId}
+                  onSelectCard={(cardId) => {
+                    setAssetsPage(1);
+                    onSelectCard(cardId);
+                  }}
+                  onDropCard={onDropCard}
+                  onCreateCard={onCreateCard}
+                />
+              </div>
+            );
+          })}
         </div>
-      </section>
+      </div>
 
-      <aside className="mc-drawer">
-        {!selectedCard ? (
-          <EmptyState className="mc-empty-drawer" message="Select a card to edit and run." />
-        ) : (
+      {/* ── Card editor modal with sub-tabs ── */}
+      <Modal
+        open={cardEditorOpen}
+        onClose={() => onSelectCard(null)}
+        title={selectedCard?.title ?? "Card Editor"}
+        subtitle={selectedCard?.latest_run_id ? `run: ${selectedCard.latest_run_id}` : undefined}
+        width="680px"
+        footer={
           <>
-            <header className="mc-drawer-header">
-              <h2>Card Drawer</h2>
-              {selectedCard.latest_run_id ? (
-                <span className="run-pill">latest run: {selectedCard.latest_run_id}</span>
-              ) : null}
-            </header>
+            <button type="button" className="ghost" onClick={() => onSelectCard(null)}>
+              Close
+            </button>
+            <button type="button" onClick={() => void onRunCard()}>
+              Run Card
+            </button>
+            <button type="button" onClick={() => void onSaveCardDraft()}>
+              Save Card
+            </button>
+          </>
+        }
+      >
+        <Tabs
+          tabs={[
+            { id: "details", label: "Details" },
+            { id: "script", label: "Script" },
+            { id: "assets", label: "Assets", count: selectedCard?.assets.length },
+          ]}
+          activeTab={editorTab}
+          onTabChange={(id) => setEditorTab(id as "details" | "script" | "assets")}
+        />
 
-            <label>
+        {editorTab === "details" ? (
+          <div className="mc-card-editor-details">
+            <label className="mc-modal-field">
               Title
               <input
                 value={cardEditor.title}
@@ -136,7 +298,7 @@ export function BoardsPage({
               />
             </label>
 
-            <label>
+            <label className="mc-modal-field">
               Description
               <textarea
                 value={cardEditor.description}
@@ -146,51 +308,54 @@ export function BoardsPage({
                     description: event.target.value,
                   }))
                 }
+                rows={3}
               />
             </label>
 
-            <div className="mc-field-grid">
-              <label>
-                Owner Kind
-                <select
-                  value={cardEditor.ownerKind}
-                  onChange={(event) =>
+            <label className="mc-modal-field">
+              Owner
+              <select
+                value={
+                  cardEditor.ownerKind === "agent" && cardEditor.ownerAgentId
+                    ? `agent:${cardEditor.ownerAgentId}`
+                    : cardEditor.ownerKind
+                }
+                onChange={(event) => {
+                  const val = event.target.value;
+                  if (val.startsWith("agent:")) {
                     setCardEditor((previous) => ({
                       ...previous,
-                      ownerKind: event.target.value,
-                    }))
-                  }
-                >
-                  <option value="unassigned">unassigned</option>
-                  <option value="agent">agent</option>
-                  <option value="human">human</option>
-                </select>
-              </label>
-
-              <label>
-                Owner Agent
-                <select
-                  value={cardEditor.ownerAgentId}
-                  onChange={(event) =>
+                      ownerKind: "agent",
+                      ownerAgentId: val.slice(6),
+                    }));
+                  } else if (val === "human") {
                     setCardEditor((previous) => ({
                       ...previous,
-                      ownerAgentId: event.target.value,
-                    }))
+                      ownerKind: "human",
+                      ownerAgentId: "",
+                    }));
+                  } else {
+                    setCardEditor((previous) => ({
+                      ...previous,
+                      ownerKind: "unassigned",
+                      ownerAgentId: "",
+                      ownerHumanId: "",
+                    }));
                   }
-                >
-                  <option value="">none</option>
-                  {agents.map((agent) => (
-                    <option key={agent.agent_id} value={agent.agent_id}>
-                      {agent.name} ({agent.agent_id})
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <div className="mc-field-grid">
-              <label>
-                Owner Human
+                }}
+              >
+                <option value="unassigned">Unassigned</option>
+                {agents.map((agent) => (
+                  <option key={agent.agent_id} value={`agent:${agent.agent_id}`}>
+                    {agent.name || agent.agent_id}
+                  </option>
+                ))}
+                <option value="human">Human (custom)</option>
+              </select>
+            </label>
+            {cardEditor.ownerKind === "human" ? (
+              <label className="mc-modal-field">
+                Human ID
                 <input
                   value={cardEditor.ownerHumanId}
                   onChange={(event) =>
@@ -201,8 +366,10 @@ export function BoardsPage({
                   }
                 />
               </label>
+            ) : null}
 
-              <label>
+            <div className="mc-field-grid">
+              <label className="mc-modal-field">
                 Due
                 <input
                   type="datetime-local"
@@ -217,80 +384,164 @@ export function BoardsPage({
               </label>
             </div>
 
-            <label>
-              Tags (comma separated)
+            <TagPicker
+              label="Tags"
+              value={cardEditor.tagsCsv}
+              onChange={(next) =>
+                setCardEditor((previous) => ({
+                  ...previous,
+                  tagsCsv: next,
+                }))
+              }
+              suggestions={knownTags}
+            />
+          </div>
+        ) : editorTab === "script" ? (
+          <div className="mc-card-editor-script">
+            <textarea
+              className="mc-script-area"
+              value={cardEditor.scriptMarkdown}
+              onChange={(event) =>
+                setCardEditor((previous) => ({
+                  ...previous,
+                  scriptMarkdown: event.target.value,
+                }))
+              }
+              placeholder="Write agent instructions in markdown..."
+            />
+          </div>
+        ) : (
+          <div className="mc-card-editor-assets">
+            <label className="upload-pill">
               <input
-                value={cardEditor.tagsCsv}
-                onChange={(event) =>
-                  setCardEditor((previous) => ({
-                    ...previous,
-                    tagsCsv: event.target.value,
-                  }))
-                }
+                type="file"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  void onUploadAsset(file);
+                  event.currentTarget.value = "";
+                }}
               />
+              Upload Asset
             </label>
-
-            <label>
-              Script Markdown
-              <textarea
-                className="script-area"
-                value={cardEditor.scriptMarkdown}
-                onChange={(event) =>
-                  setCardEditor((previous) => ({
-                    ...previous,
-                    scriptMarkdown: event.target.value,
-                  }))
-                }
-              />
-            </label>
-
-            <div className="mc-drawer-actions">
-              <button type="button" onClick={() => void onSaveCardDraft()}>
-                Save Card
-              </button>
-              <button type="button" onClick={() => void onRunCard()}>
-                Run Card
-              </button>
-            </div>
-
-            <section className="mc-assets">
-              <h3>Assets</h3>
-              <label className="upload-pill">
-                <input
-                  type="file"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (!file) {
-                      return;
-                    }
-                    void onUploadAsset(file);
-                    event.currentTarget.value = "";
-                  }}
-                />
-                Upload
-              </label>
-              <ul>
-                {selectedCard.assets.map((asset) => (
-                  <li key={asset.card_asset_id}>
-                    <button
-                      type="button"
-                      onClick={() => void onPreviewAsset(selectedCard.card_id, asset.card_asset_id)}
-                    >
-                      {asset.filename}
-                    </button>
-                    <span>{formatBytes(asset.bytes)}</span>
-                  </li>
-                ))}
-              </ul>
-              {selectedPreviewUrl ? (
-                <div className="mc-preview-wrap">
-                  <img src={selectedPreviewUrl} alt="asset preview" />
-                </div>
+            <ul className="mc-asset-list">
+              {visibleAssets.map((asset) => (
+                <li key={asset.card_asset_id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedCard) void onPreviewAsset(selectedCard.card_id, asset.card_asset_id);
+                    }}
+                  >
+                    {asset.filename}
+                  </button>
+                  <span>{formatBytes(asset.bytes)}</span>
+                </li>
+              ))}
+              {(selectedCard?.assets ?? []).length === 0 ? (
+                <li className="mc-empty-drawer">No assets uploaded yet.</li>
               ) : null}
-            </section>
-          </>
+            </ul>
+            <Pagination
+              currentPage={assetsPage}
+              totalPages={assetsPagination.totalPages}
+              onPageChange={setAssetsPage}
+            />
+            {selectedPreviewUrl ? (
+              <div className="mc-preview-wrap">
+                <img src={selectedPreviewUrl} alt="asset preview" />
+              </div>
+            ) : null}
+          </div>
         )}
-      </aside>
+      </Modal>
+
+      {/* ── New Card creation modal ── */}
+      <Modal
+        open={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        title="New Card"
+        subtitle="Create a card in the selected column"
+        footer={
+          <>
+            <button type="button" className="ghost" onClick={() => setCreateModalOpen(false)}>
+              Cancel
+            </button>
+            <button type="button" disabled={!canCreateCard} onClick={() => void handleSubmitCreate()}>
+              Create Card
+            </button>
+          </>
+        }
+      >
+        <label className="mc-modal-field">
+          Title
+          <input
+            value={newCardTitle}
+            onChange={(event) => setNewCardTitle(event.target.value)}
+            placeholder="Card title"
+            autoFocus
+          />
+        </label>
+        <label className="mc-modal-field">
+          Column
+          <select
+            value={newCardColumnId}
+            onChange={(event) => setNewCardColumnId(event.target.value)}
+          >
+            {columns.map((col) => (
+              <option key={col.column_id} value={col.column_id}>
+                {col.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="mc-modal-field">
+          Owner
+          <select
+            value={newCardOwnerKind}
+            onChange={(event) => {
+              const nextKind = event.target.value;
+              setNewCardOwnerKind(nextKind);
+              if (nextKind !== "agent") {
+                setNewCardOwnerAgentId("");
+              }
+              if (nextKind !== "human") {
+                setNewCardOwnerHumanId("");
+              }
+            }}
+          >
+            <option value="unassigned">unassigned</option>
+            <option value="agent">agent</option>
+            <option value="human">human</option>
+          </select>
+        </label>
+        {newCardOwnerKind === "agent" ? (
+          <label className="mc-modal-field">
+            Agent
+            <select
+              value={newCardOwnerAgentId}
+              onChange={(event) => setNewCardOwnerAgentId(event.target.value)}
+            >
+              <option value="">none</option>
+              {agents.map((agent) => (
+                <option key={agent.agent_id} value={agent.agent_id}>
+                  {agent.name || agent.agent_id} ({agent.agent_id})
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        {newCardOwnerKind === "human" ? (
+          <label className="mc-modal-field">
+            Human ID
+            <input
+              value={newCardOwnerHumanId}
+              onChange={(event) => setNewCardOwnerHumanId(event.target.value)}
+              placeholder="human owner id"
+            />
+          </label>
+        ) : null}
+      </Modal>
     </section>
   );
 }

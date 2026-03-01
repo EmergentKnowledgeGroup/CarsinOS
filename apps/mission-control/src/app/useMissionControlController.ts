@@ -4,8 +4,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type Dispatch,
-  type SetStateAction,
 } from "react";
 import {
   getAgentProviderProfileOrder,
@@ -28,7 +26,7 @@ import {
   setPluginEnabled,
   setSkillEnabled,
 } from "../lib/api";
-import type { Notice } from "./useAppController";
+import type { NotifyFn } from "./useAppController";
 import type {
   Agent,
   AuthProfileResponse,
@@ -49,7 +47,7 @@ interface UseMissionControlControllerOptions {
   settings: RuntimeConnectionSettings;
   agents: Agent[];
   incidentMode: boolean;
-  setNotice: Dispatch<SetStateAction<Notice | null>>;
+  setNotice: NotifyFn;
 }
 
 export function useMissionControlController(options: UseMissionControlControllerOptions) {

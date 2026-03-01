@@ -1,15 +1,45 @@
+import { useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import type {
+  Agent,
   AgentMailFileLeaseResponse,
   AgentMailMessageResponse,
   AgentMailThreadDetailResponse,
   AgentMailThreadSummaryResponse,
 } from "../../types";
-import { formatDateTime } from "../../utils/datetime";
+import { formatDateTime, formatRelative } from "../../utils/datetime";
 import { formatBytes } from "../../utils/files";
+import { AgentPicker } from "../../ui/AgentPicker";
+import { Avatar } from "../../ui/Avatar";
+import { Pagination } from "../../ui/Pagination";
+import { Tabs } from "../../ui/Tabs";
+import { Modal } from "../../ui/Modal";
+import { usePagination } from "../../ui/usePagination";
+
+const THREADS_PAGE_SIZE = 8;
+const MESSAGES_PAGE_SIZE = 10;
+const LEASES_PAGE_SIZE = 6;
+
+const TTL_PRESETS = [
+  { label: "5m", ms: "300000" },
+  { label: "15m", ms: "900000" },
+  { label: "1h", ms: "3600000" },
+  { label: "4h", ms: "14400000" },
+  { label: "24h", ms: "86400000" },
+];
+
+const GLOB_PRESETS = [
+  { label: "All files", value: "**/*" },
+  { label: "Source code", value: "src/**/*" },
+  { label: "Config files", value: "*.{json,yaml,toml}" },
+  { label: "Docs", value: "docs/**/*" },
+  { label: "Custom", value: "" },
+];
+const CUSTOM_PRINCIPAL_VALUE = "__custom__";
 
 interface MailPageProps {
   onRefresh: () => void;
+  agents: Agent[];
   mailboxFilter: "all" | "inbox" | "outbox";
   onMailboxFilterChange: (next: "all" | "inbox" | "outbox") => void;
   mailPrincipalOverride: string;
@@ -20,7 +50,7 @@ interface MailPageProps {
   onNewMailThreadSubjectChange: (next: string) => void;
   newMailThreadParticipants: string;
   onNewMailThreadParticipantsChange: (next: string) => void;
-  onCreateDirectThread: () => Promise<void>;
+  onCreateDirectThread: () => Promise<boolean>;
   mailThreads: AgentMailThreadSummaryResponse[];
   selectedMailThreadId: string | null;
   onSelectMailThread: (threadId: string) => void;
@@ -52,288 +82,591 @@ interface MailPageProps {
   onLeaseNoteChange: (next: string) => void;
   leaseExclusive: boolean;
   onLeaseExclusiveChange: (next: boolean) => void;
-  onCreateFileLease: () => Promise<void>;
+  onCreateFileLease: () => Promise<boolean>;
   leases: AgentMailFileLeaseResponse[];
-  onReleaseFileLease: (leaseId: string) => Promise<void>;
+  onReleaseFileLease: (leaseId: string) => Promise<boolean>;
 }
 
 export function MailPage(props: MailPageProps) {
+  const [subTab, setSubTab] = useState<"messages" | "leases">("messages");
+  const [createThreadOpen, setCreateThreadOpen] = useState(false);
+  const [releaseLeaseId, setReleaseLeaseId] = useState<string | null>(null);
+  const [composeOptionsOpen, setComposeOptionsOpen] = useState(false);
+  const [createLeaseOpen, setCreateLeaseOpen] = useState(false);
+  const [useCustomPrincipal, setUseCustomPrincipal] = useState(false);
+  const [threadsPage, setThreadsPage] = useState(1);
+  const [messagesPage, setMessagesPage] = useState(1);
+  const [leasesPage, setLeasesPage] = useState(1);
+  const [sending, setSending] = useState(false);
+  const [createThreadBusy, setCreateThreadBusy] = useState(false);
+  const [createLeaseBusy, setCreateLeaseBusy] = useState(false);
+  const [releaseLeaseBusy, setReleaseLeaseBusy] = useState(false);
+  const [busyActions, setBusyActions] = useState<Set<string>>(new Set());
+  const busyActionRef = useRef<Set<string>>(new Set());
+
+  const handleSend = async () => {
+    setSending(true);
+    try { await props.onSendMessage(); } finally { setSending(false); }
+  };
+
+  const threadsPagination = usePagination(props.mailThreads, THREADS_PAGE_SIZE);
+  const messagesPagination = usePagination(props.mailMessages, MESSAGES_PAGE_SIZE);
+  const leasesPagination = usePagination(props.leases, LEASES_PAGE_SIZE);
+
+  const visibleThreads = threadsPagination.getPage(threadsPage);
+  const visibleMessages = messagesPagination.getPage(messagesPage);
+  const visibleLeases = leasesPagination.getPage(leasesPage);
+
+  const runBusyAction = (key: string, fn: () => Promise<unknown>) => {
+    if (busyActionRef.current.has(key)) {
+      return;
+    }
+    busyActionRef.current.add(key);
+    setBusyActions(new Set(busyActionRef.current));
+    void fn()
+      .catch(() => undefined)
+      .finally(() => {
+        busyActionRef.current.delete(key);
+        setBusyActions(new Set(busyActionRef.current));
+      });
+  };
+
+  const isBusyAction = (key: string) => busyActions.has(key);
+
   const handleMailboxFilterChange = (raw: string) => {
     if (raw === "all" || raw === "inbox" || raw === "outbox") {
+      setThreadsPage(1);
       props.onMailboxFilterChange(raw);
     }
   };
 
-  return (
-    <section className="mc-mail-grid">
-      <article className="mc-surface mc-mail-sidebar">
-        <header className="mc-surface-header">
-          <h2>Mail Threads</h2>
-          <button type="button" onClick={props.onRefresh}>
-            Refresh
-          </button>
-        </header>
-        <div className="mc-mail-filters">
-          <label>
-            Mailbox
-            <select
-              value={props.mailboxFilter}
-              onChange={(event) => handleMailboxFilterChange(event.target.value)}
-            >
-              <option value="inbox">inbox</option>
-              <option value="outbox">outbox</option>
-              <option value="all">all</option>
-            </select>
-          </label>
-          <label>
-            Principal Override
-            <input
-              value={props.mailPrincipalOverride}
-              onChange={(event) => props.onMailPrincipalOverrideChange(event.target.value)}
-              placeholder="optional principal id"
-            />
-          </label>
-          <label>
-            Search
-            <input
-              value={props.mailSearch}
-              onChange={(event) => props.onMailSearchChange(event.target.value)}
-              placeholder="subject/body contains..."
-            />
-          </label>
-        </div>
-        <div className="mc-mail-create-thread">
-          <h3>New Direct Thread</h3>
-          <label htmlFor="new-direct-thread-subject">Thread subject</label>
-          <input
-            id="new-direct-thread-subject"
-            value={props.newMailThreadSubject}
-            onChange={(event) => props.onNewMailThreadSubjectChange(event.target.value)}
-            placeholder="Thread subject"
-          />
-          <label htmlFor="new-direct-thread-participants">Participants (comma-separated)</label>
-          <input
-            id="new-direct-thread-participants"
-            value={props.newMailThreadParticipants}
-            onChange={(event) => props.onNewMailThreadParticipantsChange(event.target.value)}
-            placeholder="participants csv (lyra, claude)"
-          />
-          <button type="button" onClick={() => void props.onCreateDirectThread()}>
-            Create Thread
-          </button>
-        </div>
-        <div className="mc-mail-thread-list">
-          {props.mailThreads.map((thread) => (
-            <button
-              type="button"
-              key={thread.thread_id}
-              className={clsx(
-                "mc-mail-thread-item",
-                props.selectedMailThreadId === thread.thread_id && "active"
-              )}
-              onClick={() => props.onSelectMailThread(thread.thread_id)}
-            >
-              <div className="mc-mail-thread-head">
-                <strong>{thread.subject}</strong>
-                {thread.unread_count > 0 ? (
-                  <span className="chip chip-error">{thread.unread_count} unread</span>
-                ) : null}
-              </div>
-              <p>{thread.latest_message_preview ?? "No messages yet."}</p>
-              <small>
-                {thread.latest_sender_principal ?? "n/a"} • {formatDateTime(thread.latest_message_at)}
-              </small>
-            </button>
-          ))}
-          {props.mailThreads.length === 0 ? (
-            <div className="mc-empty-drawer">No direct threads for current filters.</div>
-          ) : null}
-        </div>
-      </article>
+  const handleCreateThread = async () => {
+    if (createThreadBusy) {
+      return;
+    }
+    setCreateThreadBusy(true);
+    try {
+      const created = await props.onCreateDirectThread();
+      if (created) {
+        setCreateThreadOpen(false);
+      }
+    } catch {
+      // Upstream controller surfaces user-facing errors.
+    } finally {
+      setCreateThreadBusy(false);
+    }
+  };
 
-      <article className="mc-surface mc-mail-thread-view">
-        <header className="mc-surface-header">
-          <h2>{props.mailThreadDetail?.thread.subject ?? "Select a thread"}</h2>
-          <p>{props.mailMessages.length} message(s)</p>
-        </header>
-        <div className="mc-mail-message-stream">
-          {props.mailMessages.map((message) => (
-            <article key={message.message_id} className="mc-mail-message">
-              <div className="mc-mail-message-head">
-                <div>
-                  <strong>{message.sender_principal}</strong>
-                  <span>{formatDateTime(message.created_at)}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    void props.onAcknowledgeMessage(
-                      message.message_id,
-                      props.mailPrincipalOverride || undefined
-                    )
-                  }
-                >
-                  Ack
+  const handleReleaseLease = async () => {
+    if (!releaseLeaseId || releaseLeaseBusy) {
+      return;
+    }
+    setReleaseLeaseBusy(true);
+    try {
+      const released = await props.onReleaseFileLease(releaseLeaseId);
+      if (released) {
+        setReleaseLeaseId(null);
+      }
+    } catch {
+      // Upstream controller surfaces user-facing errors.
+    } finally {
+      setReleaseLeaseBusy(false);
+    }
+  };
+
+  const handleCreateLease = async () => {
+    if (createLeaseBusy) {
+      return;
+    }
+    setCreateLeaseBusy(true);
+    try {
+      const created = await props.onCreateFileLease();
+      if (created) {
+        setCreateLeaseOpen(false);
+      }
+    } catch {
+      // Upstream controller surfaces user-facing errors.
+    } finally {
+      setCreateLeaseBusy(false);
+    }
+  };
+
+  const principalIsKnown = useMemo(
+    () =>
+      props.mailPrincipalOverride === "" ||
+      props.agents.some((agent) => agent.agent_id === props.mailPrincipalOverride),
+    [props.agents, props.mailPrincipalOverride]
+  );
+
+  const principalSelectValue = useCustomPrincipal
+    || !principalIsKnown
+      ? CUSTOM_PRINCIPAL_VALUE
+      : props.mailPrincipalOverride;
+
+  return (
+    <section className="mc-mail-page">
+      <Tabs
+        tabs={[
+          { id: "messages", label: "Messages", count: props.mailThreads.length },
+          { id: "leases", label: "Leases", count: props.leases.length },
+        ]}
+        activeTab={subTab}
+        onTabChange={(id) => setSubTab(id as "messages" | "leases")}
+      />
+
+      {subTab === "messages" ? (
+        <div className="mc-mail-grid mc-mail-grid-2col">
+          {/* ── Thread sidebar ── */}
+          <article className="mc-surface mc-mail-sidebar">
+            <header className="mc-surface-header">
+              <h2>Threads</h2>
+              <div className="mc-inline-actions">
+                <button type="button" onClick={() => setCreateThreadOpen(true)}>
+                  + New Thread
+                </button>
+                <button type="button" onClick={props.onRefresh}>
+                  Refresh
                 </button>
               </div>
-              <pre>{message.body_text}</pre>
-              <div className="mc-mail-message-meta">
-                <span>
-                  to{" "}
-                  {message.recipients
-                    .map((recipient) => recipient.recipient_principal)
-                    .join(", ")}
-                </span>
-                <span>
-                  {
-                    message.recipients.filter(
-                      (recipient) => recipient.acked_at !== null
-                    ).length
+            </header>
+            <div className="mc-mail-filters">
+              <label>
+                Mailbox
+                <select
+                  value={props.mailboxFilter}
+                  onChange={(event) => handleMailboxFilterChange(event.target.value)}
+                >
+                  <option value="inbox">inbox</option>
+                  <option value="outbox">outbox</option>
+                  <option value="all">all</option>
+                </select>
+              </label>
+              <label>
+                Principal
+                <select
+                  value={principalSelectValue}
+                  onChange={(event) => {
+                    const next = event.target.value;
+                    if (next === CUSTOM_PRINCIPAL_VALUE) {
+                      setUseCustomPrincipal(true);
+                      if (principalIsKnown) {
+                        props.onMailPrincipalOverrideChange("");
+                      }
+                      return;
+                    }
+                    setUseCustomPrincipal(false);
+                    setThreadsPage(1);
+                    props.onMailPrincipalOverrideChange(next);
+                  }}
+                >
+                  <option value="">none (default)</option>
+                  {props.agents.map((agent) => (
+                    <option key={agent.agent_id} value={agent.agent_id}>
+                      {agent.name || agent.agent_id}
+                    </option>
+                  ))}
+                  <option value={CUSTOM_PRINCIPAL_VALUE}>Custom...</option>
+                </select>
+                {useCustomPrincipal || !principalIsKnown ? (
+                  <input
+                    value={props.mailPrincipalOverride}
+                    onChange={(event) => {
+                      setThreadsPage(1);
+                      props.onMailPrincipalOverrideChange(event.target.value);
+                    }}
+                    placeholder="custom principal id"
+                  />
+                ) : null}
+              </label>
+              <label>
+                Search
+                <input
+                  value={props.mailSearch}
+                  onChange={(event) => {
+                    setThreadsPage(1);
+                    props.onMailSearchChange(event.target.value);
+                  }}
+                  placeholder="subject/body..."
+                />
+              </label>
+            </div>
+            <div className="mc-mail-thread-list">
+              {visibleThreads.map((thread) => (
+                <button
+                  type="button"
+                  key={thread.thread_id}
+                  className={clsx(
+                    "mc-mail-thread-item",
+                    props.selectedMailThreadId === thread.thread_id && "active"
+                  )}
+                  onClick={() => {
+                    setMessagesPage(1);
+                    props.onSelectMailThread(thread.thread_id);
+                  }}
+                >
+                  <div className="mc-mail-thread-head">
+                    <strong>{thread.subject}</strong>
+                    {thread.unread_count > 0 ? (
+                      <span className="chip chip-error">{thread.unread_count} unread</span>
+                    ) : null}
+                  </div>
+                  <p>{thread.latest_message_preview ?? "No messages yet."}</p>
+                  <small>
+                    {thread.latest_sender_principal ?? "n/a"} • <span title={formatDateTime(thread.latest_message_at)}>{formatRelative(thread.latest_message_at)}</span>
+                  </small>
+                </button>
+              ))}
+              {visibleThreads.length === 0 ? (
+                <div className="mc-empty-drawer">No direct threads for current filters.</div>
+              ) : null}
+            </div>
+            <Pagination currentPage={threadsPage} totalPages={threadsPagination.totalPages} onPageChange={setThreadsPage} />
+          </article>
+
+          {/* ── Conversation + inline compose ── */}
+          <article className="mc-surface mc-mail-thread-view">
+            <header className="mc-surface-header">
+              <h2>{props.mailThreadDetail?.thread.subject ?? "Select a thread"}</h2>
+              <div className="mc-inline-actions">
+                <span className="mc-msg-count">{props.mailMessages.length} message(s)</span>
+                <button
+                  type="button"
+                  disabled={isBusyAction("summarize:mail-thread")}
+                  onClick={() =>
+                    runBusyAction("summarize:mail-thread", () => props.onSummarizeToNote())
                   }
-                  /{message.recipients.length} acked
-                </span>
+                >
+                  {isBusyAction("summarize:mail-thread") ? "Working..." : "Summarize"}
+                </button>
               </div>
-              {message.attachments.length > 0 ? (
-                <div className="mc-mail-attachment-row">
-                  {message.attachments.map((attachment) => (
+            </header>
+            <div className="mc-mail-message-stream">
+              <Pagination currentPage={messagesPage} totalPages={messagesPagination.totalPages} onPageChange={setMessagesPage} />
+              {visibleMessages.map((message) => {
+                const ackKey = `ack:${message.message_id}`;
+                return (
+                <article key={message.message_id} className="mc-mail-message">
+                  <div className="mc-mail-message-head">
+                    <div>
+                      <Avatar name={message.sender_principal} />
+                      <strong>{message.sender_principal}</strong>
+                      <span title={formatDateTime(message.created_at)}>{formatRelative(message.created_at)}</span>
+                    </div>
                     <button
                       type="button"
-                      key={attachment.attachment_id}
+                      disabled={isBusyAction(ackKey)}
                       onClick={() =>
-                        void props.onDownloadAttachment(
-                          message.message_id,
-                          attachment.attachment_id,
-                          attachment.filename
+                        runBusyAction(ackKey, () =>
+                          props.onAcknowledgeMessage(
+                            message.message_id,
+                            props.mailPrincipalOverride || undefined
+                          )
                         )
                       }
                     >
-                      {attachment.filename} ({formatBytes(attachment.bytes)})
+                      {isBusyAction(ackKey) ? "Acking..." : "Ack"}
                     </button>
-                  ))}
+                  </div>
+                  <pre>{message.body_text}</pre>
+                  <div className="mc-mail-message-meta">
+                    <span>
+                      to{" "}
+                      {message.recipients
+                        .map((recipient) => recipient.recipient_principal)
+                        .join(", ")}
+                    </span>
+                    <span>
+                      {
+                        message.recipients.filter(
+                          (recipient) => recipient.acked_at !== null
+                        ).length
+                      }
+                      /{message.recipients.length} acked
+                    </span>
+                  </div>
+                  {message.attachments.length > 0 ? (
+                    <div className="mc-mail-attachment-row">
+                      {message.attachments.map((attachment) => {
+                        const downloadKey = `download:${message.message_id}:${attachment.attachment_id}`;
+                        return (
+                          <button
+                            type="button"
+                            key={attachment.attachment_id}
+                            disabled={isBusyAction(downloadKey)}
+                            onClick={() =>
+                              runBusyAction(downloadKey, () =>
+                                props.onDownloadAttachment(
+                                  message.message_id,
+                                  attachment.attachment_id,
+                                  attachment.filename
+                                )
+                              )
+                            }
+                          >
+                            {isBusyAction(downloadKey) ? "Downloading..." : `${attachment.filename} (${formatBytes(attachment.bytes)})`}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </article>
+                );
+              })}
+              {visibleMessages.length === 0 ? (
+                <div className="mc-empty-drawer">No messages in this thread yet.</div>
+              ) : null}
+            </div>
+            {/* ── Inline compose (3 controls at rest) ── */}
+            <div className="mc-mail-compose mc-mail-compose-inline">
+              <textarea
+                value={props.mailComposeBody}
+                onChange={(event) => props.onMailComposeBodyChange(event.target.value)}
+                placeholder="Write a clear handoff message..."
+                rows={3}
+              />
+              <div className="mc-inline-actions">
+                <label className="upload-pill">
+                  <input
+                    type="file"
+                    multiple
+                    onChange={(event) => {
+                      props.onMailAttachmentFilesChange(Array.from(event.target.files ?? []));
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                  Attach ({props.mailAttachmentFiles.length})
+                </label>
+                <button
+                  type="button"
+                  className={composeOptionsOpen ? "mc-options-active" : "ghost"}
+                  onClick={() => setComposeOptionsOpen(!composeOptionsOpen)}
+                >
+                  Options
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleSend()}
+                  disabled={!props.selectedMailThreadId || sending}
+                >
+                  {sending ? "Sending..." : "Send"}
+                </button>
+              </div>
+              {composeOptionsOpen ? (
+                <div className="mc-mail-compose-options">
+                  <label>
+                    Sender
+                    <select
+                      value={props.mailComposeSender}
+                      onChange={(event) => props.onMailComposeSenderChange(event.target.value)}
+                    >
+                      <option value="">default</option>
+                      {props.agents.map((agent) => (
+                        <option key={agent.agent_id} value={agent.agent_id}>
+                          {agent.name || agent.agent_id}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <AgentPicker
+                    label="Recipients (blank = thread)"
+                    agents={props.agents}
+                    value={props.mailComposeRecipients}
+                    onChange={props.onMailComposeRecipientsChange}
+                  />
                 </div>
               ) : null}
-            </article>
-          ))}
-          {props.mailMessages.length === 0 ? (
-            <div className="mc-empty-drawer">No messages in this thread yet.</div>
-          ) : null}
+            </div>
+          </article>
         </div>
-      </article>
+      ) : (
+        /* ── Leases tab ── */
+        <div className="mc-lease-page">
+          <article className="mc-surface">
+            <header className="mc-surface-header">
+              <h2>Advisory File Leases</h2>
+              <p>{props.leases.length} active lease(s)</p>
+            </header>
+            <button type="button" onClick={() => setCreateLeaseOpen(true)}>
+              + New Lease
+            </button>
+            <ul className="mc-mail-lease-list">
+              {visibleLeases.map((lease) => (
+                <li key={lease.lease_id}>
+                  <div>
+                    <strong>{lease.glob_pattern}</strong>
+                    <p>
+                      {lease.holder_principal} • expires <span title={formatDateTime(lease.expires_at)}>{formatRelative(lease.expires_at)}</span>
+                      {lease.exclusive ? " • exclusive" : ""}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="danger"
+                    onClick={() => setReleaseLeaseId(lease.lease_id)}
+                  >
+                    Release
+                  </button>
+                </li>
+              ))}
+              {visibleLeases.length === 0 ? <li>No active leases.</li> : null}
+            </ul>
+            <Pagination currentPage={leasesPage} totalPages={leasesPagination.totalPages} onPageChange={setLeasesPage} />
+          </article>
+        </div>
+      )}
 
-      <article className="mc-surface mc-mail-compose-panel">
-        <header className="mc-surface-header">
-          <h2>Compose + Leases</h2>
-          <p>Dispatch, summarize, and coordinate safely</p>
-        </header>
-        <div className="mc-mail-compose">
-          <label>
-            Sender Principal
-            <input
-              value={props.mailComposeSender}
-              onChange={(event) => props.onMailComposeSenderChange(event.target.value)}
-              placeholder="optional sender override"
-            />
-          </label>
-          <label>
-            Recipients (CSV)
-            <input
-              value={props.mailComposeRecipients}
-              onChange={(event) => props.onMailComposeRecipientsChange(event.target.value)}
-              placeholder="blank = thread participants"
-            />
-          </label>
-          <label>
-            Body
-            <textarea
-              value={props.mailComposeBody}
-              onChange={(event) => props.onMailComposeBodyChange(event.target.value)}
-              placeholder="Write a clear handoff message..."
-            />
-          </label>
-          <label className="upload-pill">
-            <input
-              type="file"
-              multiple
-              onChange={(event) =>
-                props.onMailAttachmentFilesChange(Array.from(event.target.files ?? []))
-              }
-            />
-            Attach files ({props.mailAttachmentFiles.length})
-          </label>
-          <div className="mc-inline-actions">
+      {/* ── Create thread modal ── */}
+      <Modal
+        open={createThreadOpen}
+        onClose={() => setCreateThreadOpen(false)}
+        title="New Direct Thread"
+        subtitle="Start a new mail conversation"
+        footer={
+          <>
+            <button type="button" className="ghost" onClick={() => setCreateThreadOpen(false)}>
+              Cancel
+            </button>
+            <button type="button" disabled={createThreadBusy} onClick={() => void handleCreateThread()}>
+              {createThreadBusy ? "Creating..." : "Create Thread"}
+            </button>
+          </>
+        }
+      >
+        <label className="mc-modal-field">
+          Subject
+          <input
+            value={props.newMailThreadSubject}
+            onChange={(event) => props.onNewMailThreadSubjectChange(event.target.value)}
+            placeholder="Thread subject"
+            autoFocus
+          />
+        </label>
+        <AgentPicker
+          label="Participants"
+          agents={props.agents}
+          value={props.newMailThreadParticipants}
+          onChange={props.onNewMailThreadParticipantsChange}
+        />
+      </Modal>
+
+      {/* ── Release lease confirmation ── */}
+      <Modal
+        open={releaseLeaseId !== null}
+        onClose={() => setReleaseLeaseId(null)}
+        title="Release Lease?"
+        subtitle="This will release the advisory file lock immediately."
+        footer={
+          <>
+            <button type="button" className="ghost" onClick={() => setReleaseLeaseId(null)}>
+              Cancel
+            </button>
             <button
               type="button"
-              onClick={() => void props.onSendMessage()}
-              disabled={!props.selectedMailThreadId}
+              className="danger"
+              disabled={releaseLeaseBusy}
+              onClick={() => void handleReleaseLease()}
             >
-              Send
+              {releaseLeaseBusy ? "Releasing..." : "Release"}
             </button>
-            <button type="button" onClick={() => void props.onSummarizeToNote()}>
-              Summarize to Note
+          </>
+        }
+      >
+        <p>
+          Are you sure you want to release the lease on{" "}
+          <strong>{props.leases.find((l) => l.lease_id === releaseLeaseId)?.glob_pattern ?? "this file"}</strong>?
+          Other agents may begin writing to these paths.
+        </p>
+      </Modal>
+
+      {/* ── New Lease modal ── */}
+      <Modal
+        open={createLeaseOpen}
+        onClose={() => setCreateLeaseOpen(false)}
+        title="Reserve File Lease"
+        subtitle="Create an advisory file lock for agent coordination."
+        footer={
+          <>
+            <button type="button" className="ghost" onClick={() => setCreateLeaseOpen(false)}>
+              Cancel
             </button>
-          </div>
-        </div>
-        <section className="mc-mail-lease-panel">
-          <h3>Advisory File Leases</h3>
-          <div className="mc-mail-lease-form">
-            <label htmlFor="lease-holder-principal">Holder principal</label>
+            <button
+              type="button"
+              disabled={createLeaseBusy}
+              onClick={() => void handleCreateLease()}
+            >
+              {createLeaseBusy ? "Reserving..." : "Reserve Lease"}
+            </button>
+          </>
+        }
+      >
+        <label className="mc-modal-field">
+          Holder Principal
+          <select
+            value={props.leaseHolderPrincipal}
+            onChange={(event) => props.onLeaseHolderPrincipalChange(event.target.value)}
+          >
+            <option value="">none (optional)</option>
+            {props.agents.map((agent) => (
+              <option key={agent.agent_id} value={agent.agent_id}>
+                {agent.name || agent.agent_id}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="mc-modal-field">
+          Glob Pattern
+          <select
+            value={GLOB_PRESETS.some((p) => p.value === props.leaseGlobPattern) ? props.leaseGlobPattern : ""}
+            onChange={(event) => props.onLeaseGlobPatternChange(event.target.value)}
+          >
+            {GLOB_PRESETS.map((preset) => (
+              <option key={preset.label} value={preset.value}>
+                {preset.label}{preset.value ? ` (${preset.value})` : ""}
+              </option>
+            ))}
+          </select>
+          {(!GLOB_PRESETS.some((p) => p.value === props.leaseGlobPattern) || props.leaseGlobPattern === "") ? (
             <input
-              id="lease-holder-principal"
-              value={props.leaseHolderPrincipal}
-              onChange={(event) => props.onLeaseHolderPrincipalChange(event.target.value)}
-              placeholder="holder principal (optional)"
-            />
-            <label htmlFor="lease-glob-pattern">Glob pattern</label>
-            <input
-              id="lease-glob-pattern"
               value={props.leaseGlobPattern}
               onChange={(event) => props.onLeaseGlobPatternChange(event.target.value)}
-              placeholder="glob pattern"
+              placeholder="custom glob pattern"
             />
-            <label htmlFor="lease-ttl-ms">TTL (ms)</label>
+          ) : null}
+        </label>
+        <label className="mc-modal-field">
+          TTL
+          <div className="mc-ttl-presets">
+            {TTL_PRESETS.map((preset) => (
+              <button
+                key={preset.ms}
+                type="button"
+                className={clsx("mc-ttl-preset", props.leaseTtlMs === preset.ms && "mc-ttl-preset-active")}
+                onClick={() => props.onLeaseTtlMsChange(preset.ms)}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+        </label>
+        <div className="mc-field-grid">
+          <label className="mc-modal-field">
+            Note
             <input
-              id="lease-ttl-ms"
-              value={props.leaseTtlMs}
-              onChange={(event) => props.onLeaseTtlMsChange(event.target.value)}
-              placeholder="ttl ms"
-            />
-            <label htmlFor="lease-note">Note</label>
-            <input
-              id="lease-note"
               value={props.leaseNote}
               onChange={(event) => props.onLeaseNoteChange(event.target.value)}
-              placeholder="note (optional)"
+              placeholder="optional"
             />
-            <label className="mc-checkbox">
-              <input
-                type="checkbox"
-                checked={props.leaseExclusive}
-                onChange={(event) => props.onLeaseExclusiveChange(event.target.checked)}
-              />
-              Exclusive lock
-            </label>
-            <button type="button" onClick={() => void props.onCreateFileLease()}>
-              Reserve
-            </button>
-          </div>
-          <ul className="mc-mail-lease-list">
-            {props.leases.map((lease) => (
-              <li key={lease.lease_id}>
-                <div>
-                  <strong>{lease.glob_pattern}</strong>
-                  <p>
-                    {lease.holder_principal} • expires {formatDateTime(lease.expires_at)}
-                  </p>
-                </div>
-                <button type="button" onClick={() => void props.onReleaseFileLease(lease.lease_id)}>
-                  Release
-                </button>
-              </li>
-            ))}
-            {props.leases.length === 0 ? <li>No active leases.</li> : null}
-          </ul>
-        </section>
-      </article>
+          </label>
+          <label className="mc-checkbox">
+            <input
+              type="checkbox"
+              checked={props.leaseExclusive}
+              onChange={(event) => props.onLeaseExclusiveChange(event.target.checked)}
+            />
+            Exclusive
+          </label>
+        </div>
+      </Modal>
     </section>
   );
 }
