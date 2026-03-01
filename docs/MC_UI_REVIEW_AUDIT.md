@@ -40,11 +40,13 @@
 - `apps/mission-control/src/features/agentMail/ChatroomsPage.tsx:101` + `apps/mission-control/src/features/agentMail/MailPage.tsx:119` Item: async handler wrapping is functionally acceptable due to controller-side handling but can still produce noisy unhandled rejection warnings in dev tooling. Resolution: add local `try/catch` wrapping for cleaner control flow.
 
 ## Summary
+
 | Category | Count |
 | --- | --- |
-| Real bugs to fix | 7 (pagination clamping is 1 systemic fix) |
+| Real bugs to fix | 7 (pagination-clamping is a systemic fix) |
 | Intended design | 4 |
 | Low priority polish | 4 |
+
 
 ## Reviewer Pushback / Priority Nuance
 - `apps/mission-control/src/features/boards/BoardsPage.tsx:245` (`onSelectCard("")`): currently functional but brittle against stricter controller/type contracts; consider promoting from low urgency to structural cleanup priority.

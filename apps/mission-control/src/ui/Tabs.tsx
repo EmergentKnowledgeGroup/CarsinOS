@@ -20,11 +20,13 @@ interface TabsProps {
  */
 export function Tabs({ tabs, activeTab, onTabChange, className }: TabsProps) {
   return (
-    <div className={clsx("mc-sub-tabs", className)}>
+    <div className={clsx("mc-sub-tabs", className)} role="tablist">
       {tabs.map((tab) => (
         <button
           key={tab.id}
           type="button"
+          role="tab"
+          aria-selected={activeTab === tab.id}
           className={clsx("mc-sub-tab", activeTab === tab.id && "mc-sub-tab-active")}
           onClick={() => onTabChange(tab.id)}
         >

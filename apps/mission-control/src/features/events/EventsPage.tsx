@@ -73,6 +73,7 @@ function EventItem({ event }: { event: EventsPageEventItem }) {
   const domain = eventDomain(event.event_type);
   const tone = domainTone(domain);
   const summary = eventSummary(event.event_type, event.payload);
+  const payloadId = `mc-event-payload-${event.event_id}`;
 
   return (
     <article className={`mc-event-item mc-event-domain-${tone}`}>
@@ -85,12 +86,16 @@ function EventItem({ event }: { event: EventsPageEventItem }) {
           type="button"
           className="mc-event-expand ghost"
           onClick={() => setExpanded(!expanded)}
+          aria-expanded={expanded}
+          aria-controls={payloadId}
         >
           {expanded ? "▾ Hide" : "▸ JSON"}
         </button>
       </div>
       {expanded ? (
-        <pre className="mc-event-payload">{JSON.stringify(event.payload, null, 2)}</pre>
+        <pre id={payloadId} className="mc-event-payload" aria-hidden={!expanded}>
+          {JSON.stringify(event.payload, null, 2)}
+        </pre>
       ) : null}
     </article>
   );
@@ -130,6 +135,7 @@ export function EventsPage(props: EventsPageProps) {
               key={f.id}
               type="button"
               className={`mc-filter-chip ${domainFilter === f.id ? "mc-filter-chip-active" : ""}`}
+              aria-pressed={domainFilter === f.id}
               onClick={() => { setDomainFilter(f.id); setEventsPage(1); }}
             >
               {f.label}

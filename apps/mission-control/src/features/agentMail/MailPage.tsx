@@ -105,8 +105,17 @@ export function MailPage(props: MailPageProps) {
   const busyActionRef = useRef<Set<string>>(new Set());
 
   const handleSend = async () => {
+    if (sending) {
+      return;
+    }
     setSending(true);
-    try { await props.onSendMessage(); } finally { setSending(false); }
+    try {
+      await props.onSendMessage();
+    } catch {
+      // Upstream controller surfaces user-facing errors.
+    } finally {
+      setSending(false);
+    }
   };
 
   const threadsPagination = usePagination(props.mailThreads, THREADS_PAGE_SIZE);
@@ -124,7 +133,9 @@ export function MailPage(props: MailPageProps) {
     busyActionRef.current.add(key);
     setBusyActions(new Set(busyActionRef.current));
     void fn()
-      .catch(() => undefined)
+      .catch((error: unknown) => {
+        console.error("mail action failed", { key, error });
+      })
       .finally(() => {
         busyActionRef.current.delete(key);
         setBusyActions(new Set(busyActionRef.current));

@@ -41,6 +41,8 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions) {
 
       // Escape — close overlay
       if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
         onCloseOverlay();
         return;
       }

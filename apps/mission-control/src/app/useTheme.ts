@@ -28,14 +28,23 @@ const THEME_FONT_URLS: Record<ThemeFamily, string> = {
   brutalist: "https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500;600&display=swap",
 };
 
+const THEME_FAMILY_VALUES: ThemeFamily[] = ["obsidian", "phosphor", "arctic", "ember", "brutalist"];
+const THEME_MODE_VALUES: ThemeMode[] = ["dark", "light"];
+
 function getStoredFamily(): ThemeFamily {
   if (typeof window === "undefined") return "obsidian";
-  return (localStorage.getItem("mc-theme-name") as ThemeFamily) || "obsidian";
+  const stored = localStorage.getItem("mc-theme-name");
+  return stored && THEME_FAMILY_VALUES.includes(stored as ThemeFamily)
+    ? (stored as ThemeFamily)
+    : "obsidian";
 }
 
 function getStoredMode(): ThemeMode {
   if (typeof window === "undefined") return "dark";
-  return (localStorage.getItem("mc-theme-mode") as ThemeMode) || "dark";
+  const stored = localStorage.getItem("mc-theme-mode");
+  return stored && THEME_MODE_VALUES.includes(stored as ThemeMode)
+    ? (stored as ThemeMode)
+    : "dark";
 }
 
 let activeFontLink: HTMLLinkElement | null = null;

@@ -13,9 +13,10 @@ function hashCode(str: string): number {
 }
 
 function extractInitials(name: string): string {
-  const parts = name.split(/[\s._-]+/).filter(Boolean);
+  const trimmedName = name.trim();
+  const parts = trimmedName.split(/[\s._-]+/).filter(Boolean);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return (name.slice(0, 2) || "??").toUpperCase();
+  return (trimmedName.slice(0, 2) || "??").toUpperCase();
 }
 
 interface AvatarProps {

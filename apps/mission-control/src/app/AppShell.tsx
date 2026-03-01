@@ -120,6 +120,9 @@ export function AppShell(props: AppShellProps) {
   const toggleIncidentMode = useCallback(() => {
     onIncidentModeChange(!incidentMode);
   }, [incidentMode, onIncidentModeChange]);
+  const toggleCommandPalette = useCallback(() => {
+    setCmdPaletteOpen((open) => !open);
+  }, []);
 
   const handleClearToken = () => {
     setClearTokenConfirmOpen(true);
@@ -138,11 +141,18 @@ export function AppShell(props: AppShellProps) {
     }
   }, [cmdPaletteOpen, settingsOpen]);
 
+  const handleSaveAndConnect = () => {
+    pushGatewayUrlHistory(props.gatewayDraft);
+    setGwUrlHistory(getGatewayUrlHistory());
+    void props.onSaveConnection();
+    setSettingsOpen(false);
+  };
+
   // Keyboard shortcuts
   useKeyboardShortcuts({
     onTabChange: props.onTabChange,
     onToggleIncidentMode: toggleIncidentMode,
-    onOpenCommandPalette: useCallback(() => setCmdPaletteOpen((o) => !o), []),
+    onOpenCommandPalette: toggleCommandPalette,
     onCloseOverlay: closeOverlay,
     overlayOpen: settingsOpen || cmdPaletteOpen,
   });
@@ -299,7 +309,7 @@ export function AppShell(props: AppShellProps) {
                   <Chip label={`token: ${props.tokenConfigured ? "set" : "missing"}`} />
                 </div>
                 <div className="mc-modal-actions">
-                  <button type="button" onClick={() => { pushGatewayUrlHistory(props.gatewayDraft); setGwUrlHistory(getGatewayUrlHistory()); void props.onSaveConnection(); setSettingsOpen(false); }}>
+                  <button type="button" onClick={handleSaveAndConnect}>
                     Save + Connect
                   </button>
                   <button type="button" className="ghost" onClick={() => void props.onReconnect()}>

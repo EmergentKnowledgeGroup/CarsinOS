@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Play, Pause, Zap, Clock, CalendarDays } from "lucide-react";
 import type {
   MissionControlCalendarJob,
@@ -8,6 +8,7 @@ import { Chip } from "../../ui/Chip";
 import { Tabs } from "../../ui/Tabs";
 import { Pagination } from "../../ui/Pagination";
 import { usePagination } from "../../ui/usePagination";
+import { formatRelative } from "../../utils/datetime";
 
 interface CalendarPageProps {
   calendarWeek: MissionControlCalendarWeekResponse | null;
@@ -34,23 +35,6 @@ function formatInterval(seconds: number | null): string {
   if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
   if (seconds < 86400) return `${Math.round(seconds / 3600)}h`;
   return `${Math.round(seconds / 86400)}d`;
-}
-
-/** Format relative time from now */
-function formatRelative(unixMs: number | null): string {
-  if (unixMs === null) return "—";
-  const diff = unixMs - Date.now();
-  if (diff < 0) {
-    const ago = Math.abs(diff);
-    if (ago < 60000) return "just now";
-    if (ago < 3600000) return `${Math.round(ago / 60000)}m ago`;
-    if (ago < 86400000) return `${Math.round(ago / 3600000)}h ago`;
-    return `${Math.round(ago / 86400000)}d ago`;
-  }
-  if (diff < 60000) return "< 1m";
-  if (diff < 3600000) return `in ${Math.round(diff / 60000)}m`;
-  if (diff < 86400000) return `in ${Math.round(diff / 3600000)}h`;
-  return `in ${Math.round(diff / 86400000)}d`;
 }
 
 /** Stable color for a job based on its name hash */
@@ -241,8 +225,26 @@ function ScheduleTable({
   onToggle: (jobId: string, enabled: boolean) => Promise<void>;
 }) {
   const [page, setPage] = useState(1);
+  const [busyJobActions, setBusyJobActions] = useState<Set<string>>(new Set());
+  const busyJobActionsRef = useRef<Set<string>>(new Set());
   const { totalPages, getPage } = usePagination(jobs, SCHEDULE_PAGE_SIZE);
   const visible = getPage(page);
+
+  const runBusyJobAction = (key: string, fn: () => Promise<void>) => {
+    if (busyJobActionsRef.current.has(key)) {
+      return;
+    }
+    busyJobActionsRef.current.add(key);
+    setBusyJobActions(new Set(busyJobActionsRef.current));
+    void fn()
+      .catch((error: unknown) => {
+        console.error("calendar job action failed", { key, error });
+      })
+      .finally(() => {
+        busyJobActionsRef.current.delete(key);
+        setBusyJobActions(new Set(busyJobActionsRef.current));
+      });
+  };
 
   return (
     <div>
@@ -280,22 +282,38 @@ function ScheduleTable({
                 </td>
                 <td>
                   <div className="mc-cal-actions">
-                    <button
-                      type="button"
-                      className="mc-topbar-icon-btn"
-                      onClick={() => void onRunNow(job.job_id)}
-                      title="Run now"
-                    >
-                      <Play size={13} />
-                    </button>
-                    <button
-                      type="button"
-                      className="mc-topbar-icon-btn"
-                      onClick={() => void onToggle(job.job_id, !job.enabled)}
-                      title={job.enabled ? "Pause" : "Resume"}
-                    >
-                      <Pause size={13} />
-                    </button>
+                    {(() => {
+                      const runKey = `run:${job.job_id}`;
+                      const toggleKey = `toggle:${job.job_id}`;
+                      const runBusy = busyJobActions.has(runKey);
+                      const toggleBusy = busyJobActions.has(toggleKey);
+                      return (
+                        <>
+                          <button
+                            type="button"
+                            className="mc-topbar-icon-btn"
+                            disabled={runBusy}
+                            onClick={() =>
+                              runBusyJobAction(runKey, () => onRunNow(job.job_id))
+                            }
+                            title="Run now"
+                          >
+                            <Play size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            className="mc-topbar-icon-btn"
+                            disabled={toggleBusy}
+                            onClick={() =>
+                              runBusyJobAction(toggleKey, () => onToggle(job.job_id, !job.enabled))
+                            }
+                            title={job.enabled ? "Pause" : "Resume"}
+                          >
+                            <Pause size={13} />
+                          </button>
+                        </>
+                      );
+                    })()}
                   </div>
                 </td>
               </tr>
@@ -328,6 +346,25 @@ function ActiveJobsList({
   onRunNow: (jobId: string) => Promise<void>;
   onToggle: (jobId: string, enabled: boolean) => Promise<void>;
 }) {
+  const [busyJobActions, setBusyJobActions] = useState<Set<string>>(new Set());
+  const busyJobActionsRef = useRef<Set<string>>(new Set());
+
+  const runBusyJobAction = (key: string, fn: () => Promise<void>) => {
+    if (busyJobActionsRef.current.has(key)) {
+      return;
+    }
+    busyJobActionsRef.current.add(key);
+    setBusyJobActions(new Set(busyJobActionsRef.current));
+    void fn()
+      .catch((error: unknown) => {
+        console.error("active job action failed", { key, error });
+      })
+      .finally(() => {
+        busyJobActionsRef.current.delete(key);
+        setBusyJobActions(new Set(busyJobActionsRef.current));
+      });
+  };
+
   return (
     <div className="mc-cal-active">
       <div className="mc-cal-active-section">
@@ -353,22 +390,38 @@ function ActiveJobsList({
                   {formatInterval(job.interval_seconds)}
                 </span>
                 <div className="mc-cal-actions">
-                  <button
-                    type="button"
-                    className="mc-topbar-icon-btn"
-                    onClick={() => void onRunNow(job.job_id)}
-                    title="Run now"
-                  >
-                    <Play size={13} />
-                  </button>
-                  <button
-                    type="button"
-                    className="mc-topbar-icon-btn"
-                    onClick={() => void onToggle(job.job_id, !job.enabled)}
-                    title={job.enabled ? "Pause" : "Resume"}
-                  >
-                    <Pause size={13} />
-                  </button>
+                  {(() => {
+                    const runKey = `active:run:${job.job_id}`;
+                    const toggleKey = `active:toggle:${job.job_id}`;
+                    const runBusy = busyJobActions.has(runKey);
+                    const toggleBusy = busyJobActions.has(toggleKey);
+                    return (
+                      <>
+                        <button
+                          type="button"
+                          className="mc-topbar-icon-btn"
+                          disabled={runBusy}
+                          onClick={() =>
+                            runBusyJobAction(runKey, () => onRunNow(job.job_id))
+                          }
+                          title="Run now"
+                        >
+                          <Play size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          className="mc-topbar-icon-btn"
+                          disabled={toggleBusy}
+                          onClick={() =>
+                            runBusyJobAction(toggleKey, () => onToggle(job.job_id, !job.enabled))
+                          }
+                          title={job.enabled ? "Pause" : "Resume"}
+                        >
+                          <Pause size={13} />
+                        </button>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
             ))}
@@ -398,14 +451,23 @@ function ActiveJobsList({
                 <span className="mc-mono mc-cal-active-interval">
                   {formatRelative(job.next_run_at)}
                 </span>
+                {(() => {
+                  const runKey = `next:run:${job.job_id}`;
+                  const runBusy = busyJobActions.has(runKey);
+                  return (
                 <button
                   type="button"
                   className="mc-topbar-icon-btn"
-                  onClick={() => void onRunNow(job.job_id)}
+                  disabled={runBusy}
+                  onClick={() =>
+                    runBusyJobAction(runKey, () => onRunNow(job.job_id))
+                  }
                   title="Run now"
                 >
                   <Play size={13} />
                 </button>
+                  );
+                })()}
               </div>
             ))}
           </div>

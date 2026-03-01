@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { type Dispatch, type SetStateAction } from "react";
 import type { NotifyFn } from "./useAppController";
 import { ChatroomsPage } from "../features/agentMail/ChatroomsPage";
 import { MailPage } from "../features/agentMail/MailPage";
@@ -76,20 +76,14 @@ function renderCockpitWidget(
   );
 }
 
-/**
- * Wrapper that keeps a tab mounted once it has been visited.
- * Active tab is visible; previously-visited tabs are hidden via CSS.
- */
+/** Active tab is visible; inactive tabs are hidden via CSS. */
 function TabPane({
   active,
-  visited,
   children,
 }: {
   active: boolean;
-  visited: boolean;
   children: React.ReactNode;
 }) {
-  if (!visited) return null;
   return (
     <div className="mc-tab-pane" style={{ display: active ? "contents" : "none" }}>
       {children}
@@ -98,21 +92,11 @@ function TabPane({
 }
 
 export function AppContent(props: AppContentProps) {
-  // Track which tabs have been visited so we mount-once and keep-alive
-  const [visited, setVisited] = useState<Set<MissionControlTab>>(
-    () => new Set([props.activeTab])
-  );
-
-  // Mark newly active tabs as visited
-  if (!visited.has(props.activeTab)) {
-    setVisited((prev) => new Set(prev).add(props.activeTab));
-  }
-
   const active = props.activeTab;
 
   return (
     <>
-      <TabPane active={active === "boards"} visited={visited.has("boards")}>
+      <TabPane active={active === "boards"}>
         <BoardsPage
           boards={props.boards}
           activeBoardId={props.boardsController.activeBoardId}
@@ -137,7 +121,7 @@ export function AppContent(props: AppContentProps) {
         />
       </TabPane>
 
-      <TabPane active={active === "calendar"} visited={visited.has("calendar")}>
+      <TabPane active={active === "calendar"}>
         <CalendarPage
           calendarWeek={props.missionControl.calendarWeek}
           calendarAlwaysRunning={props.missionControl.calendarAlwaysRunning}
@@ -148,7 +132,7 @@ export function AppContent(props: AppContentProps) {
         />
       </TabPane>
 
-      <TabPane active={active === "focus"} visited={visited.has("focus")}>
+      <TabPane active={active === "focus"}>
         <FocusPage
           focusItems={props.missionControl.focusItems}
           approvalsCount={props.missionControl.approvalsById.size}
@@ -159,7 +143,7 @@ export function AppContent(props: AppContentProps) {
         />
       </TabPane>
 
-      <TabPane active={active === "events"} visited={visited.has("events")}>
+      <TabPane active={active === "events"}>
         <EventsPage
           showRawEvents={props.showRawEvents}
           onShowRawEventsChange={props.setShowRawEvents}
@@ -167,7 +151,7 @@ export function AppContent(props: AppContentProps) {
         />
       </TabPane>
 
-      <TabPane active={active === "mail"} visited={visited.has("mail")}>
+      <TabPane active={active === "mail"}>
         <MailPage
           agents={props.agents}
           onRefresh={() => props.mailController.queueAgentMailRefresh(props.settings)}
@@ -226,7 +210,7 @@ export function AppContent(props: AppContentProps) {
         />
       </TabPane>
 
-      <TabPane active={active === "chatrooms"} visited={visited.has("chatrooms")}>
+      <TabPane active={active === "chatrooms"}>
         <ChatroomsPage
           agents={props.agents}
           onRefresh={() => props.mailController.queueAgentMailRefresh(props.settings)}
@@ -271,7 +255,7 @@ export function AppContent(props: AppContentProps) {
         />
       </TabPane>
 
-      <TabPane active={active === "team"} visited={visited.has("team")}>
+      <TabPane active={active === "team"}>
         <TeamPage
           agents={props.agents}
           activeJobCount={props.missionControl.calendarJobs.filter((j) => j.enabled).length}
@@ -280,7 +264,7 @@ export function AppContent(props: AppContentProps) {
         />
       </TabPane>
 
-      <TabPane active={active === "cockpit"} visited={visited.has("cockpit")}>
+      <TabPane active={active === "cockpit"}>
         <CockpitPage
           cockpitPages={props.cockpitController.cockpitPages}
           activeCockpitPage={props.cockpitController.activeCockpitPage}

@@ -41,6 +41,7 @@ export function AgentPicker({ agents, value, onChange, label }: AgentPickerProps
             key={agent.agent_id}
             type="button"
             className={clsx("chip", "mc-agent-chip", selected.has(agent.agent_id) && "mc-agent-chip-selected")}
+            aria-pressed={selected.has(agent.agent_id)}
             onClick={() => toggle(agent.agent_id)}
           >
             {agent.name || agent.agent_id}

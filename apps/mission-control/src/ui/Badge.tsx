@@ -13,11 +13,13 @@ interface BadgeProps {
  * Shows nothing when count is 0.
  */
 export function Badge({ count, tone = "accent", className }: BadgeProps) {
-  if (count <= 0) return null;
+  if (!Number.isFinite(count) || count <= 0) return null;
+  const normalized = Math.floor(count);
+  if (normalized <= 0) return null;
 
   return (
     <span className={clsx("mc-badge", `mc-badge-${tone}`, className)}>
-      {count > 99 ? "99+" : count}
+      {normalized > 99 ? "99+" : normalized}
     </span>
   );
 }

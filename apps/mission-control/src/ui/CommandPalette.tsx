@@ -65,6 +65,18 @@ function fuzzyMatch(query: string, target: string): boolean {
 }
 
 export function CommandPalette(props: CommandPaletteProps) {
+  const {
+    currentThemeMode,
+    density,
+    onClose,
+    onOpenSettings,
+    onRefresh,
+    onTabChange,
+    onToggleDensity,
+    onToggleIncidentMode,
+    onToggleThemeMode,
+    open,
+  } = props;
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -77,7 +89,7 @@ export function CommandPalette(props: CommandPaletteProps) {
       label: `Go to ${tab.label}`,
       hint: tab.shortcut,
       icon: TAB_ICONS[tab.icon] ?? Activity,
-      onSelect: () => props.onTabChange(tab.tab),
+      onSelect: () => onTabChange(tab.tab),
       section: "navigate" as const,
     }));
 
@@ -87,21 +99,21 @@ export function CommandPalette(props: CommandPaletteProps) {
         label: "Toggle Incident Mode",
         hint: "\u2318\u21e7I",
         icon: AlertTriangle,
-        onSelect: props.onToggleIncidentMode,
+        onSelect: onToggleIncidentMode,
         section: "actions",
       },
       {
         id: "refresh",
         label: "Refresh Data",
         icon: RefreshCw,
-        onSelect: props.onRefresh,
+        onSelect: onRefresh,
         section: "actions",
       },
       {
         id: "settings",
         label: "Open Settings",
         icon: Settings,
-        onSelect: props.onOpenSettings,
+        onSelect: onOpenSettings,
         section: "actions",
       },
     ];
@@ -109,22 +121,31 @@ export function CommandPalette(props: CommandPaletteProps) {
     const themeItems: CommandAction[] = [
       {
         id: "theme-toggle",
-        label: props.currentThemeMode === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode",
-        icon: props.currentThemeMode === "dark" ? Sun : Moon,
-        onSelect: props.onToggleThemeMode,
+        label: currentThemeMode === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode",
+        icon: currentThemeMode === "dark" ? Sun : Moon,
+        onSelect: onToggleThemeMode,
         section: "theme",
       },
       {
         id: "density-toggle",
-        label: props.density === "comfortable" ? "Switch to Compact Density" : "Switch to Comfortable Density",
-        icon: props.density === "comfortable" ? Minimize2 : Maximize2,
-        onSelect: props.onToggleDensity,
+        label: density === "comfortable" ? "Switch to Compact Density" : "Switch to Comfortable Density",
+        icon: density === "comfortable" ? Minimize2 : Maximize2,
+        onSelect: onToggleDensity,
         section: "theme",
       },
     ];
 
     return [...navActions, ...actionItems, ...themeItems];
-  }, [props]);
+  }, [
+    currentThemeMode,
+    density,
+    onOpenSettings,
+    onRefresh,
+    onTabChange,
+    onToggleDensity,
+    onToggleIncidentMode,
+    onToggleThemeMode,
+  ]);
 
   const filtered = useMemo(() => {
     if (!query.trim()) return actions;
@@ -134,16 +155,16 @@ export function CommandPalette(props: CommandPaletteProps) {
   // Reset selection on filter change
   useEffect(() => {
     setSelectedIndex(0);
-  }, [filtered.length]);
+  }, [query]);
 
   // Focus input on open
   useEffect(() => {
-    if (props.open) {
+    if (open) {
       setQuery("");
       setSelectedIndex(0);
       requestAnimationFrame(() => inputRef.current?.focus());
     }
-  }, [props.open]);
+  }, [open]);
 
   // Scroll selected item into view
   useEffect(() => {
@@ -155,9 +176,9 @@ export function CommandPalette(props: CommandPaletteProps) {
   const selectAction = useCallback(
     (action: CommandAction) => {
       action.onSelect();
-      props.onClose();
+      onClose();
     },
-    [props]
+    [onClose]
   );
 
   const handleKeyDown = useCallback(
@@ -176,7 +197,7 @@ export function CommandPalette(props: CommandPaletteProps) {
     [filtered, selectedIndex, selectAction]
   );
 
-  if (!props.open) return null;
+  if (!open) return null;
 
   // Group by section
   const sections: { key: string; label: string; items: CommandAction[] }[] = [];
@@ -197,7 +218,7 @@ export function CommandPalette(props: CommandPaletteProps) {
   let flatIndex = -1;
 
   return (
-    <div className="mc-cmd-overlay" onClick={props.onClose}>
+    <div className="mc-cmd-overlay" onClick={onClose}>
       <div className="mc-cmd-palette" onClick={(e) => e.stopPropagation()} onKeyDown={handleKeyDown}>
         <div className="mc-cmd-input-wrap">
           <Search size={16} className="mc-cmd-search-icon" />

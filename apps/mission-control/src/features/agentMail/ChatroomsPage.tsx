@@ -109,7 +109,9 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
     busyActionRef.current.add(key);
     setBusyActions(new Set(busyActionRef.current));
     void fn()
-      .catch(() => undefined)
+      .catch((error: unknown) => {
+        console.error("chatroom action failed", { key, error });
+      })
       .finally(() => {
         busyActionRef.current.delete(key);
         setBusyActions(new Set(busyActionRef.current));
@@ -149,6 +151,20 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
       // Upstream controller surfaces user-facing errors.
     } finally {
       setReleaseLeaseBusy(false);
+    }
+  };
+
+  const handleSendRoomMessage = async () => {
+    if (!props.selectedRoomThreadId || sending) {
+      return;
+    }
+    setSending(true);
+    try {
+      await props.onSendRoomMessage();
+    } catch {
+      // Upstream controller surfaces user-facing errors.
+    } finally {
+      setSending(false);
     }
   };
 
@@ -309,10 +325,7 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
             </button>
             <button
               type="button"
-              onClick={() => {
-                setSending(true);
-                props.onSendRoomMessage().finally(() => setSending(false));
-              }}
+              onClick={() => void handleSendRoomMessage()}
               disabled={!props.selectedRoomThreadId || sending}
             >
               {sending ? "Sending..." : "Send"}

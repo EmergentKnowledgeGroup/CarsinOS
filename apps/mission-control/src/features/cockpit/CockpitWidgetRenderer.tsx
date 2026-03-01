@@ -66,7 +66,9 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
     busyActionsRef.current.add(key);
     setBusyActions(new Set(busyActionsRef.current));
     void fn()
-      .catch(() => undefined)
+      .catch((error: unknown) => {
+        console.error("cockpit widget action failed", { key, error });
+      })
       .finally(() => {
         busyActionsRef.current.delete(key);
         setBusyActions(new Set(busyActionsRef.current));
@@ -120,7 +122,7 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
             disabled={isBusyAction("health:refresh-all")}
             onClick={() =>
               runBusyAction("health:refresh-all", async () => {
-                props.onRefreshAll();
+                await Promise.resolve(props.onRefreshAll());
               })
             }
           >
