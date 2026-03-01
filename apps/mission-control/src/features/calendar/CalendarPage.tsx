@@ -1,11 +1,14 @@
+import { useMemo, useRef, useState } from "react";
+import { Play, Pause, Zap, Clock, CalendarDays } from "lucide-react";
 import type {
   MissionControlCalendarJob,
   MissionControlCalendarWeekResponse,
 } from "../../types";
 import { Chip } from "../../ui/Chip";
-import { InlineActions } from "../../ui/InlineActions";
-import { Surface } from "../../ui/Surface";
-import { formatDateTime } from "../../utils/datetime";
+import { Tabs } from "../../ui/Tabs";
+import { Pagination } from "../../ui/Pagination";
+import { usePagination } from "../../ui/usePagination";
+import { formatRelative } from "../../utils/datetime";
 
 interface CalendarPageProps {
   calendarWeek: MissionControlCalendarWeekResponse | null;
@@ -16,126 +19,510 @@ interface CalendarPageProps {
   onToggleCalendarJob: (jobId: string, enabled: boolean) => Promise<void>;
 }
 
-export function CalendarPage(props: CalendarPageProps) {
-  return (
-    <section className="mc-alt-grid">
-      <Surface
-        title="Week Planning"
-        subtitle={
-          props.calendarWeek
-            ? `${formatDateTime(props.calendarWeek.week_start_ms)} - ${formatDateTime(
-                props.calendarWeek.week_end_ms
-              )}`
-            : "No week data loaded"
+const TABS = [
+  { id: "week", label: "Week View" },
+  { id: "schedule", label: "Schedule" },
+  { id: "active", label: "Active Jobs" },
+];
+
+const SCHEDULE_PAGE_SIZE = 6;
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** Convert ms interval to human-readable duration */
+function formatInterval(seconds: number | null): string {
+  if (seconds === null) return "";
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+  if (seconds < 86400) return `${Math.round(seconds / 3600)}h`;
+  return `${Math.round(seconds / 86400)}d`;
+}
+
+/** Stable color for a job based on its name hash */
+function jobColor(name: string): string {
+  const colors = [
+    "var(--accent)",
+    "var(--info)",
+    "var(--ok)",
+    "var(--warn)",
+    "var(--danger)",
+    "var(--accent-hover)",
+    "var(--info-border, var(--info))",
+    "var(--ok-border, var(--ok))",
+  ];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash * 31 + name.charCodeAt(i)) | 0;
+  }
+  return colors[Math.abs(hash) % colors.length];
+}
+
+/* ── Week Grid ──────────────────────────────────────────────────────────── */
+
+function WeekGrid({
+  calendarWeek,
+  onRunNow,
+}: {
+  calendarWeek: MissionControlCalendarWeekResponse | null;
+  onRunNow: (jobId: string) => Promise<void>;
+}) {
+  const { daySlots, alwaysRunning, nextUp } = useMemo(() => {
+    if (!calendarWeek)
+      return { daySlots: [] as MissionControlCalendarJob[][], alwaysRunning: [] as MissionControlCalendarJob[], nextUp: [] as MissionControlCalendarJob[] };
+
+    const weekStart = calendarWeek.week_start_ms;
+    const slots: MissionControlCalendarJob[][] = Array.from({ length: 7 }, () => []);
+
+    // Place each job with a next_run_at into the correct day slot
+    for (const job of calendarWeek.jobs) {
+      if (job.next_run_at !== null) {
+        const dayIndex = Math.floor((job.next_run_at - weekStart) / 86400000);
+        if (dayIndex >= 0 && dayIndex < 7) {
+          slots[dayIndex].push(job);
         }
-      >
-        <div className="mc-lane-grid">
-          <section className="mc-lane-panel">
-            <h3>Always Running</h3>
-            <ul>
-              {props.calendarAlwaysRunning.map((job) => (
-                <li key={job.job_id}>
-                  <div>
-                    <strong>{job.name}</strong>
-                    <p>{job.agent_id}</p>
-                  </div>
-                  <InlineActions>
-                    <button type="button" onClick={() => void props.onRunCalendarJobNow(job.job_id)}>
-                      Run now
-                    </button>
-                    <button
-                      type="button"
-                      className={job.enabled ? "danger" : ""}
-                      onClick={() => void props.onToggleCalendarJob(job.job_id, !job.enabled)}
-                    >
-                      {job.enabled ? "Pause" : "Resume"}
-                    </button>
-                  </InlineActions>
-                </li>
-              ))}
-              {props.calendarAlwaysRunning.length === 0 ? (
-                <li>No always-running jobs.</li>
-              ) : null}
-            </ul>
-          </section>
-          <section className="mc-lane-panel">
-            <h3>Next Up</h3>
-            <ul>
-              {props.calendarNextUp.map((job) => (
-                <li key={job.job_id}>
-                  <div>
-                    <strong>{job.name}</strong>
-                    <p>{formatDateTime(job.next_run_at)}</p>
-                  </div>
-                  <button type="button" onClick={() => void props.onRunCalendarJobNow(job.job_id)}>
-                    Run now
+      }
+      // Jobs with interval that run every day get placed in each day
+      if (
+        job.interval_seconds !== null &&
+        job.interval_seconds > 0 &&
+        job.interval_seconds <= 86400 &&
+        job.lane === "always_running"
+      ) {
+        for (let d = 0; d < 7; d++) {
+          if (!slots[d].some((j) => j.job_id === job.job_id)) {
+            slots[d].push(job);
+          }
+        }
+      }
+    }
+
+    return {
+      daySlots: slots,
+      alwaysRunning: calendarWeek.always_running,
+      nextUp: calendarWeek.next_up,
+    };
+  }, [calendarWeek]);
+
+  if (!calendarWeek) {
+    return (
+      <div className="mc-team-empty">
+        <CalendarDays size={40} />
+        <p>No calendar data available</p>
+        <p className="mc-team-empty-sub">Connect to a gateway to see your schedule.</p>
+      </div>
+    );
+  }
+
+  const weekStart = new Date(calendarWeek.week_start_ms);
+
+  return (
+    <div className="mc-cal-week">
+      {/* Always Running strip */}
+      {alwaysRunning.length > 0 ? (
+        <div className="mc-cal-always">
+          <div className="mc-cal-always-label">
+            <Zap size={12} />
+            Always Running
+          </div>
+          <div className="mc-cal-always-items">
+            {alwaysRunning.map((job) => (
+              <button
+                key={job.job_id}
+                type="button"
+                className="mc-cal-always-chip"
+                onClick={() => void onRunNow(job.job_id)}
+                title={`Run ${job.name} now`}
+                style={{ "--job-color": jobColor(job.name) } as React.CSSProperties}
+              >
+                <span className="mc-cal-job-dot" />
+                {job.name}
+                {job.interval_seconds ? (
+                  <span className="mc-cal-interval">
+                    every {formatInterval(job.interval_seconds)}
+                  </span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Day columns */}
+      <div className="mc-cal-grid">
+        {DAY_NAMES.map((dayName, i) => {
+          const dayDate = new Date(weekStart);
+          dayDate.setDate(dayDate.getDate() + i);
+          const isToday = new Date().toDateString() === dayDate.toDateString();
+          const dayJobs = daySlots[i] ?? [];
+
+          return (
+            <div
+              key={dayName}
+              className={`mc-cal-day ${isToday ? "mc-cal-day-today" : ""}`}
+            >
+              <div className="mc-cal-day-header">
+                <span className="mc-cal-day-name">{dayName}</span>
+                <span className="mc-cal-day-date">{dayDate.getDate()}</span>
+              </div>
+              <div className="mc-cal-day-body">
+                {dayJobs.map((job) => (
+                  <button
+                    key={job.job_id}
+                    type="button"
+                    className="mc-cal-job-block"
+                    onClick={() => void onRunNow(job.job_id)}
+                    title={`${job.name} — ${job.agent_id}\nClick to run now`}
+                    style={{ "--job-color": jobColor(job.name) } as React.CSSProperties}
+                  >
+                    <span className="mc-cal-job-dot" />
+                    <span className="mc-cal-job-name">{job.name}</span>
                   </button>
-                </li>
-              ))}
-              {props.calendarNextUp.length === 0 ? <li>No upcoming jobs.</li> : null}
-            </ul>
-          </section>
+                ))}
+                {dayJobs.length === 0 ? (
+                  <span className="mc-cal-day-empty">—</span>
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Next Up strip */}
+      {nextUp.length > 0 ? (
+        <div className="mc-cal-next-up">
+          <div className="mc-cal-always-label">
+            <Clock size={12} />
+            Next Up
+          </div>
+          <div className="mc-cal-next-items">
+            {nextUp.slice(0, 5).map((job) => (
+              <div key={job.job_id} className="mc-cal-next-item">
+                <span
+                  className="mc-cal-job-dot"
+                  style={{ "--job-color": jobColor(job.name) } as React.CSSProperties}
+                />
+                <span className="mc-cal-next-name">{job.name}</span>
+                <span className="mc-cal-next-time">
+                  {formatRelative(job.next_run_at)}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
-      </Surface>
-      <Surface title="Scheduler Matrix" subtitle={`${props.calendarJobs.length} jobs`}>
-        <div className="mc-table-wrap">
-          <table className="mc-table">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Schedule</th>
-                <th>Next Run</th>
-                <th>Status</th>
-                <th>Actions</th>
+      ) : null}
+    </div>
+  );
+}
+
+/* ── Schedule Table ─────────────────────────────────────────────────────── */
+
+function ScheduleTable({
+  jobs,
+  onRunNow,
+  onToggle,
+}: {
+  jobs: MissionControlCalendarJob[];
+  onRunNow: (jobId: string) => Promise<void>;
+  onToggle: (jobId: string, enabled: boolean) => Promise<void>;
+}) {
+  const [page, setPage] = useState(1);
+  const [busyJobActions, setBusyJobActions] = useState<Set<string>>(new Set());
+  const busyJobActionsRef = useRef<Set<string>>(new Set());
+  const { totalPages, getPage } = usePagination(jobs, SCHEDULE_PAGE_SIZE);
+  const visible = getPage(page);
+
+  const runBusyJobAction = (key: string, fn: () => Promise<void>) => {
+    if (busyJobActionsRef.current.has(key)) {
+      return;
+    }
+    busyJobActionsRef.current.add(key);
+    setBusyJobActions(new Set(busyJobActionsRef.current));
+    void fn()
+      .catch((error: unknown) => {
+        console.error("calendar job action failed", { key, error });
+      })
+      .finally(() => {
+        busyJobActionsRef.current.delete(key);
+        setBusyJobActions(new Set(busyJobActionsRef.current));
+      });
+  };
+
+  return (
+    <div>
+      <div className="mc-table-wrap">
+        <table className="mc-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Schedule</th>
+              <th>Next Run</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((job) => (
+              <tr key={job.job_id}>
+                <td>
+                  <strong>{job.name}</strong>
+                  <p className="mc-table-sub">{job.agent_id}</p>
+                </td>
+                <td className="mc-mono">
+                  {job.schedule_kind}
+                  {job.interval_seconds !== null
+                    ? ` / ${formatInterval(job.interval_seconds)}`
+                    : ""}
+                  {job.cron_expr ? ` / ${job.cron_expr}` : ""}
+                </td>
+                <td className="mc-mono">{formatRelative(job.next_run_at)}</td>
+                <td>
+                  <Chip
+                    label={job.enabled ? "enabled" : "paused"}
+                    tone={job.enabled ? "up" : "down"}
+                  />
+                </td>
+                <td>
+                  <div className="mc-cal-actions">
+                    {(() => {
+                      const runKey = `run:${job.job_id}`;
+                      const toggleKey = `toggle:${job.job_id}`;
+                      const runBusy = busyJobActions.has(runKey);
+                      const toggleBusy = busyJobActions.has(toggleKey);
+                      return (
+                        <>
+                          <button
+                            type="button"
+                            className="mc-topbar-icon-btn"
+                            disabled={runBusy}
+                            onClick={() =>
+                              runBusyJobAction(runKey, () => onRunNow(job.job_id))
+                            }
+                            title="Run now"
+                          >
+                            <Play size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            className="mc-topbar-icon-btn"
+                            disabled={toggleBusy}
+                            onClick={() =>
+                              runBusyJobAction(toggleKey, () => onToggle(job.job_id, !job.enabled))
+                            }
+                            title={job.enabled ? "Pause" : "Resume"}
+                          >
+                            <Pause size={13} />
+                          </button>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {props.calendarJobs.map((job) => (
-                <tr key={job.job_id}>
-                  <td>
-                    <strong>{job.name}</strong>
-                    <p>{job.agent_id}</p>
-                  </td>
-                  <td>
-                    {job.schedule_kind}
-                    {job.interval_seconds !== null ? ` / ${job.interval_seconds}s` : ""}
-                    {job.cron_expr ? ` / ${job.cron_expr}` : ""}
-                  </td>
-                  <td>{formatDateTime(job.next_run_at)}</td>
-                  <td>
-                    <Chip
-                      label={job.enabled ? "enabled" : "paused"}
-                      tone={job.enabled ? "up" : "down"}
-                    />
-                  </td>
-                  <td>
-                    <InlineActions>
-                      <button
-                        type="button"
-                        onClick={() => void props.onRunCalendarJobNow(job.job_id)}
-                      >
-                        Run
-                      </button>
-                      <button
-                        type="button"
-                        className={job.enabled ? "danger" : ""}
-                        onClick={() => void props.onToggleCalendarJob(job.job_id, !job.enabled)}
-                      >
-                        {job.enabled ? "Pause" : "Resume"}
-                      </button>
-                    </InlineActions>
-                  </td>
-                </tr>
-              ))}
-              {props.calendarJobs.length === 0 ? (
-                <tr>
-                  <td colSpan={5}>No scheduled jobs.</td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </Surface>
-    </section>
+            ))}
+            {jobs.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="mc-table-empty">
+                  No scheduled jobs.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+      <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+    </div>
+  );
+}
+
+/* ── Active Jobs ────────────────────────────────────────────────────────── */
+
+function ActiveJobsList({
+  alwaysRunning,
+  nextUp,
+  onRunNow,
+  onToggle,
+}: {
+  alwaysRunning: MissionControlCalendarJob[];
+  nextUp: MissionControlCalendarJob[];
+  onRunNow: (jobId: string) => Promise<void>;
+  onToggle: (jobId: string, enabled: boolean) => Promise<void>;
+}) {
+  const [busyJobActions, setBusyJobActions] = useState<Set<string>>(new Set());
+  const busyJobActionsRef = useRef<Set<string>>(new Set());
+
+  const runBusyJobAction = (key: string, fn: () => Promise<void>) => {
+    if (busyJobActionsRef.current.has(key)) {
+      return;
+    }
+    busyJobActionsRef.current.add(key);
+    setBusyJobActions(new Set(busyJobActionsRef.current));
+    void fn()
+      .catch((error: unknown) => {
+        console.error("active job action failed", { key, error });
+      })
+      .finally(() => {
+        busyJobActionsRef.current.delete(key);
+        setBusyJobActions(new Set(busyJobActionsRef.current));
+      });
+  };
+
+  return (
+    <div className="mc-cal-active">
+      <div className="mc-cal-active-section">
+        <h3>
+          <Zap size={14} />
+          Always Running
+        </h3>
+        {alwaysRunning.length === 0 ? (
+          <p className="mc-cal-active-empty">No always-running jobs.</p>
+        ) : (
+          <div className="mc-cal-active-list">
+            {alwaysRunning.map((job) => (
+              <div key={job.job_id} className="mc-cal-active-item">
+                <span
+                  className="mc-cal-job-dot"
+                  style={{ "--job-color": jobColor(job.name) } as React.CSSProperties}
+                />
+                <div className="mc-cal-active-info">
+                  <strong>{job.name}</strong>
+                  <span className="mc-mono">{job.agent_id}</span>
+                </div>
+                <span className="mc-mono mc-cal-active-interval">
+                  {formatInterval(job.interval_seconds)}
+                </span>
+                <div className="mc-cal-actions">
+                  {(() => {
+                    const runKey = `active:run:${job.job_id}`;
+                    const toggleKey = `active:toggle:${job.job_id}`;
+                    const runBusy = busyJobActions.has(runKey);
+                    const toggleBusy = busyJobActions.has(toggleKey);
+                    return (
+                      <>
+                        <button
+                          type="button"
+                          className="mc-topbar-icon-btn"
+                          disabled={runBusy}
+                          onClick={() =>
+                            runBusyJobAction(runKey, () => onRunNow(job.job_id))
+                          }
+                          title="Run now"
+                        >
+                          <Play size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          className="mc-topbar-icon-btn"
+                          disabled={toggleBusy}
+                          onClick={() =>
+                            runBusyJobAction(toggleKey, () => onToggle(job.job_id, !job.enabled))
+                          }
+                          title={job.enabled ? "Pause" : "Resume"}
+                        >
+                          <Pause size={13} />
+                        </button>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="mc-cal-active-section">
+        <h3>
+          <Clock size={14} />
+          Next Up
+        </h3>
+        {nextUp.length === 0 ? (
+          <p className="mc-cal-active-empty">No upcoming jobs.</p>
+        ) : (
+          <div className="mc-cal-active-list">
+            {nextUp.map((job) => (
+              <div key={job.job_id} className="mc-cal-active-item">
+                <span
+                  className="mc-cal-job-dot"
+                  style={{ "--job-color": jobColor(job.name) } as React.CSSProperties}
+                />
+                <div className="mc-cal-active-info">
+                  <strong>{job.name}</strong>
+                  <span className="mc-mono">{job.agent_id}</span>
+                </div>
+                <span className="mc-mono mc-cal-active-interval">
+                  {formatRelative(job.next_run_at)}
+                </span>
+                {(() => {
+                  const runKey = `next:run:${job.job_id}`;
+                  const runBusy = busyJobActions.has(runKey);
+                  return (
+                <button
+                  type="button"
+                  className="mc-topbar-icon-btn"
+                  disabled={runBusy}
+                  onClick={() =>
+                    runBusyJobAction(runKey, () => onRunNow(job.job_id))
+                  }
+                  title="Run now"
+                >
+                  <Play size={13} />
+                </button>
+                  );
+                })()}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Main Calendar Page ─────────────────────────────────────────────────── */
+
+export function CalendarPage(props: CalendarPageProps) {
+  const [activeTab, setActiveTab] = useState("week");
+
+  const tabsWithCounts = useMemo(
+    () =>
+      TABS.map((tab) => {
+        if (tab.id === "schedule") return { ...tab, count: props.calendarJobs.length };
+        if (tab.id === "active")
+          return {
+            ...tab,
+            count: props.calendarAlwaysRunning.length + props.calendarNextUp.length,
+          };
+        return tab;
+      }),
+    [props.calendarJobs.length, props.calendarAlwaysRunning.length, props.calendarNextUp.length]
+  );
+
+  return (
+    <div className="mc-calendar-page">
+      <Tabs tabs={tabsWithCounts} activeTab={activeTab} onTabChange={setActiveTab} />
+
+      {activeTab === "week" ? (
+        <WeekGrid
+          calendarWeek={props.calendarWeek}
+          onRunNow={props.onRunCalendarJobNow}
+        />
+      ) : null}
+
+      {activeTab === "schedule" ? (
+        <ScheduleTable
+          jobs={props.calendarJobs}
+          onRunNow={props.onRunCalendarJobNow}
+          onToggle={props.onToggleCalendarJob}
+        />
+      ) : null}
+
+      {activeTab === "active" ? (
+        <ActiveJobsList
+          alwaysRunning={props.calendarAlwaysRunning}
+          nextUp={props.calendarNextUp}
+          onRunNow={props.onRunCalendarJobNow}
+          onToggle={props.onToggleCalendarJob}
+        />
+      ) : null}
+    </div>
   );
 }

@@ -1,7 +1,19 @@
-import { useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useState } from "react";
 import clsx from "clsx";
+import { Bot, User, HelpCircle } from "lucide-react";
 import type { BoardCard, BoardColumn } from "../../types";
+import { Pagination } from "../../ui/Pagination";
+import { usePagination } from "../../ui/usePagination";
+
+function OwnerIcon({ kind }: { kind: string }) {
+  switch (kind) {
+    case "agent": return <Bot size={12} />;
+    case "human": return <User size={12} />;
+    default: return <HelpCircle size={12} />;
+  }
+}
+
+const LANE_PAGE_SIZE = 8;
 
 export interface BoardLaneProps {
   column: BoardColumn;
@@ -9,22 +21,17 @@ export interface BoardLaneProps {
   selectedCardId: string | null;
   dragCardId: string | null;
   setDragCardId: (value: string | null) => void;
-  onSelectCard: (cardId: string) => void;
+  onSelectCard: (cardId: string | null) => void;
   onDropCard: (cardId: string, columnId: string, beforeCardId?: string) => void;
   onCreateCard: (columnId: string, title: string) => Promise<void>;
 }
 
 export function BoardLane(props: BoardLaneProps) {
   const [newCardTitle, setNewCardTitle] = useState("");
-  const listRef = useRef<HTMLDivElement | null>(null);
+  const [page, setPage] = useState(1);
 
-  // eslint-disable-next-line react-hooks/incompatible-library
-  const cardVirtualizer = useVirtualizer({
-    count: props.cards.length,
-    getScrollElement: () => listRef.current,
-    estimateSize: () => 132,
-    overscan: 5,
-  });
+  const { totalPages, getPage } = usePagination(props.cards, LANE_PAGE_SIZE);
+  const visibleCards = getPage(page);
 
   const submitCreate = async () => {
     const title = newCardTitle.trim();
@@ -44,7 +51,6 @@ export function BoardLane(props: BoardLaneProps) {
 
       <div
         className="mc-lane-body"
-        ref={listRef}
         onDragOver={(event) => event.preventDefault()}
         onDrop={(event) => {
           event.preventDefault();
@@ -56,60 +62,54 @@ export function BoardLane(props: BoardLaneProps) {
           props.setDragCardId(null);
         }}
       >
-        <div
-          style={{
-            height: `${cardVirtualizer.getTotalSize()}px`,
-            position: "relative",
-          }}
-        >
-          {cardVirtualizer.getVirtualItems().map((virtualRow) => {
-            const card = props.cards[virtualRow.index];
-            return (
-              <article
-                key={card.card_id}
-                className={clsx("mc-card", {
-                  "mc-card-selected": props.selectedCardId === card.card_id,
-                })}
-                style={{
-                  transform: `translateY(${virtualRow.start}px)`,
-                  height: `${virtualRow.size}px`,
-                  position: "absolute",
-                  width: "100%",
-                }}
-                draggable
-                onClick={() => props.onSelectCard(card.card_id)}
-                onDragStart={(event) => {
-                  props.setDragCardId(card.card_id);
-                  event.dataTransfer.setData("text/plain", card.card_id);
-                  event.dataTransfer.effectAllowed = "move";
-                }}
-                onDragEnd={() => props.setDragCardId(null)}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  const cardId =
-                    event.dataTransfer.getData("text/plain") || props.dragCardId;
-                  if (!cardId || cardId === card.card_id) {
-                    return;
-                  }
-                  props.onDropCard(cardId, props.column.column_id, card.card_id);
-                  props.setDragCardId(null);
-                }}
-              >
-                <div className="mc-card-title">{card.title}</div>
-                <div className="mc-card-meta">
-                  <span>{card.owner_kind}</span>
-                  {card.latest_run_id ? <span>run: {card.latest_run_id}</span> : null}
-                </div>
-              </article>
-            );
-          })}
-        </div>
+        {visibleCards.map((card) => (
+          <article
+            key={card.card_id}
+            className={clsx("mc-card", {
+              "mc-card-selected": props.selectedCardId === card.card_id,
+            })}
+            draggable
+            onClick={() => props.onSelectCard(card.card_id)}
+            onDragStart={(event) => {
+              props.setDragCardId(card.card_id);
+              event.dataTransfer.setData("text/plain", card.card_id);
+              event.dataTransfer.effectAllowed = "move";
+            }}
+            onDragEnd={() => props.setDragCardId(null)}
+            onDragOver={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              const cardId =
+                event.dataTransfer.getData("text/plain") || props.dragCardId;
+              if (!cardId || cardId === card.card_id) {
+                return;
+              }
+              props.onDropCard(cardId, props.column.column_id, card.card_id);
+              props.setDragCardId(null);
+            }}
+          >
+            <div className={clsx("mc-card-bar", `mc-card-bar-${card.owner_kind}`)} />
+            <div className="mc-card-body">
+              <div className="mc-card-title">{card.title}</div>
+              <div className="mc-card-meta">
+                <span><OwnerIcon kind={card.owner_kind} /> {card.owner_kind}</span>
+                {card.latest_run_id ? <span className="mc-card-run">run: {card.latest_run_id}</span> : null}
+              </div>
+            </div>
+          </article>
+        ))}
+        {visibleCards.length === 0 ? (
+          <div className="mc-lane-empty">No cards</div>
+        ) : null}
       </div>
+
+      {totalPages > 1 ? (
+        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+      ) : null}
 
       <div className="mc-lane-create">
         <input

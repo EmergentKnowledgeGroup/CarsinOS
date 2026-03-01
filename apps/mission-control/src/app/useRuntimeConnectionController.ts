@@ -8,7 +8,7 @@ import {
 } from "../lib/runtime";
 import type { WsLifecycleState } from "../lib/ws";
 import type { RuntimeConnectionSettings, Agent, BoardDetail } from "../types";
-import type { Notice } from "./useAppController";
+import type { NotifyFn } from "./useAppController";
 
 export interface BoardSummary {
   board_id: string;
@@ -24,7 +24,7 @@ interface UseRuntimeConnectionControllerOptions {
   setTokenConfigured: Dispatch<SetStateAction<boolean>>;
   setHealthState: Dispatch<SetStateAction<string>>;
   setWsState: Dispatch<SetStateAction<WsLifecycleState>>;
-  setNotice: Dispatch<SetStateAction<Notice | null>>;
+  setNotice: NotifyFn;
   setBoards: Dispatch<SetStateAction<BoardSummary[]>>;
   setAgents: Dispatch<SetStateAction<Agent[]>>;
   activeBoardId: string | null;

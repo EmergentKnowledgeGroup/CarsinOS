@@ -92,6 +92,8 @@ export interface Agent {
   name: string;
   model_provider: string;
   model_id: string;
+  workspace_root?: string;
+  tool_profile?: string;
 }
 
 export interface CreateAgentResponse {

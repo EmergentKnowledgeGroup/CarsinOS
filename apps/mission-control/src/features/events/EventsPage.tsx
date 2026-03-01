@@ -1,6 +1,9 @@
-import { formatDateTime } from "../../utils/datetime";
+import { useState, useMemo } from "react";
+import { formatDateTime, formatRelative } from "../../utils/datetime";
 import { EmptyState } from "../../ui/EmptyState";
+import { Pagination } from "../../ui/Pagination";
 import { Surface } from "../../ui/Surface";
+import { usePagination } from "../../ui/usePagination";
 
 export interface EventsPageEventItem {
   event_id: string;
@@ -16,11 +19,105 @@ interface EventsPageProps {
   visibleEvents: EventsPageEventItem[];
 }
 
+const EVENTS_PAGE_SIZE = 12;
+
+type DomainFilter = "all" | "board" | "job" | "approval" | "channel" | "agent_mail" | "heartbeat";
+
+const DOMAIN_FILTERS: { id: DomainFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "board", label: "Board" },
+  { id: "job", label: "Job" },
+  { id: "approval", label: "Approval" },
+  { id: "channel", label: "Channel" },
+  { id: "agent_mail", label: "Mail" },
+];
+
+function eventDomain(eventType: string): string {
+  const dot = eventType.indexOf(".");
+  return dot > 0 ? eventType.slice(0, dot) : eventType;
+}
+
+/** Color-code left border by event domain */
+function domainTone(domain: string): string {
+  switch (domain) {
+    case "board": return "accent";
+    case "job": return "info";
+    case "approval": return "warn";
+    case "channel": return "purple";
+    case "agent_mail": return "ok";
+    case "heartbeat": return "muted";
+    default: return "";
+  }
+}
+
+/** Extract a human-readable summary from the event payload */
+function eventSummary(eventType: string, payload: Record<string, unknown>): string | null {
+  if (eventType.startsWith("board.card.")) {
+    const action = eventType.split(".").pop();
+    const title = payload.title ?? payload.card_id ?? "";
+    return `Card ${action}: ${title}`;
+  }
+  if (eventType.startsWith("job.")) {
+    const jobId = payload.job_id ?? payload.agent_id ?? "";
+    return `${jobId}`;
+  }
+  if (eventType.startsWith("approval.")) {
+    const decision = payload.decision ?? payload.status ?? "";
+    return `${decision}`;
+  }
+  return null;
+}
+
+function EventItem({ event }: { event: EventsPageEventItem }) {
+  const [expanded, setExpanded] = useState(false);
+  const domain = eventDomain(event.event_type);
+  const tone = domainTone(domain);
+  const summary = eventSummary(event.event_type, event.payload);
+  const payloadId = `mc-event-payload-${event.event_id}`;
+
+  return (
+    <article className={`mc-event-item mc-event-domain-${tone}`}>
+      <div className="mc-event-head">
+        <span className="mc-event-type">{event.event_type}</span>
+        {summary ? <span className="mc-event-summary">{summary}</span> : null}
+        <span className="mc-event-entity">{event.entity}</span>
+        <span className="mc-event-time" title={formatDateTime(event.ts_unix_ms)}>{formatRelative(event.ts_unix_ms)}</span>
+        <button
+          type="button"
+          className="mc-event-expand ghost"
+          onClick={() => setExpanded(!expanded)}
+          aria-expanded={expanded}
+          aria-controls={payloadId}
+        >
+          {expanded ? "▾ Hide" : "▸ JSON"}
+        </button>
+      </div>
+      {expanded ? (
+        <pre id={payloadId} className="mc-event-payload" aria-hidden={!expanded}>
+          {JSON.stringify(event.payload, null, 2)}
+        </pre>
+      ) : null}
+    </article>
+  );
+}
+
 export function EventsPage(props: EventsPageProps) {
+  const [domainFilter, setDomainFilter] = useState<DomainFilter>("all");
+  const [eventsPage, setEventsPage] = useState(1);
+
+  const filtered = useMemo(() => {
+    if (domainFilter === "all") return props.visibleEvents;
+    return props.visibleEvents.filter((e) => eventDomain(e.event_type) === domainFilter);
+  }, [props.visibleEvents, domainFilter]);
+
+  const pagination = usePagination(filtered, EVENTS_PAGE_SIZE);
+  const pageItems = pagination.getPage(eventsPage);
+
   return (
     <section className="mc-alt-grid">
       <Surface
         title="Realtime Event Stream"
+        subtitle={`${filtered.length} events`}
         headerRight={
           <label className="mc-checkbox">
             <input
@@ -28,25 +125,32 @@ export function EventsPage(props: EventsPageProps) {
               checked={props.showRawEvents}
               onChange={(event) => props.onShowRawEventsChange(event.target.checked)}
             />
-            Show raw heartbeat events
+            Show heartbeats
           </label>
         }
       >
-        <div className="mc-events">
-          {props.visibleEvents.map((event) => (
-            <article key={event.event_id} className="mc-event-item">
-              <div className="mc-event-head">
-                <span>{event.event_type}</span>
-                <span>{event.entity}</span>
-                <span>{formatDateTime(event.ts_unix_ms)}</span>
-              </div>
-              <pre>{JSON.stringify(event.payload, null, 2)}</pre>
-            </article>
+        <div className="mc-event-filters">
+          {DOMAIN_FILTERS.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              className={`mc-filter-chip ${domainFilter === f.id ? "mc-filter-chip-active" : ""}`}
+              aria-pressed={domainFilter === f.id}
+              onClick={() => { setDomainFilter(f.id); setEventsPage(1); }}
+            >
+              {f.label}
+            </button>
           ))}
-          {props.visibleEvents.length === 0 ? (
+        </div>
+        <div className="mc-events">
+          {pageItems.map((event) => (
+            <EventItem key={event.event_id} event={event} />
+          ))}
+          {filtered.length === 0 ? (
             <EmptyState message="No events captured yet." />
           ) : null}
         </div>
+        <Pagination currentPage={eventsPage} totalPages={pagination.totalPages} onPageChange={setEventsPage} />
       </Surface>
     </section>
   );

@@ -1,4 +1,5 @@
-import { formatDateTime } from "../../utils/datetime";
+import { useRef, useState } from "react";
+import { formatDateTime, formatRelative } from "../../utils/datetime";
 import { Chip } from "../../ui/Chip";
 import { EmptyState } from "../../ui/EmptyState";
 import { InlineActions } from "../../ui/InlineActions";
@@ -55,6 +56,26 @@ interface CockpitWidgetRendererProps {
 
 export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
   const { widget } = props;
+  const [busyActions, setBusyActions] = useState<Set<string>>(new Set());
+  const busyActionsRef = useRef<Set<string>>(new Set());
+
+  const runBusyAction = (key: string, fn: () => Promise<unknown>) => {
+    if (busyActionsRef.current.has(key)) {
+      return;
+    }
+    busyActionsRef.current.add(key);
+    setBusyActions(new Set(busyActionsRef.current));
+    void fn()
+      .catch((error: unknown) => {
+        console.error("cockpit widget action failed", { key, error });
+      })
+      .finally(() => {
+        busyActionsRef.current.delete(key);
+        setBusyActions(new Set(busyActionsRef.current));
+      });
+  };
+
+  const isBusyAction = (key: string) => busyActions.has(key);
 
   if (widget.widget === "health") {
     return (
@@ -96,8 +117,16 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
             />
             Incident mode
           </label>
-          <button type="button" onClick={props.onRefreshAll}>
-            Refresh all
+          <button
+            type="button"
+            disabled={isBusyAction("health:refresh-all")}
+            onClick={() =>
+              runBusyAction("health:refresh-all", async () => {
+                await Promise.resolve(props.onRefreshAll());
+              })
+            }
+          >
+            {isBusyAction("health:refresh-all") ? "Refreshing..." : "Refresh all"}
           </button>
         </InlineActions>
       </article>
@@ -164,18 +193,35 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
             <li key={job.job_id}>
               <div>
                 <strong>{job.name}</strong>
-                <p>{formatDateTime(job.next_run_at)}</p>
+                <p title={formatDateTime(job.next_run_at)}>{formatRelative(job.next_run_at)}</p>
               </div>
               <InlineActions>
-                <button type="button" onClick={() => void props.onRunCalendarJobNow(job.job_id)}>
-                  Run
+                <button
+                  type="button"
+                  disabled={isBusyAction(`job:run:${job.job_id}`)}
+                  onClick={() =>
+                    runBusyAction(`job:run:${job.job_id}`, () =>
+                      props.onRunCalendarJobNow(job.job_id)
+                    )
+                  }
+                >
+                  {isBusyAction(`job:run:${job.job_id}`) ? "Working..." : "Run"}
                 </button>
                 <button
                   type="button"
                   className={job.enabled ? "danger" : ""}
-                  onClick={() => void props.onToggleCalendarJob(job.job_id, !job.enabled)}
+                  disabled={isBusyAction(`job:toggle:${job.job_id}`)}
+                  onClick={() =>
+                    runBusyAction(`job:toggle:${job.job_id}`, () =>
+                      props.onToggleCalendarJob(job.job_id, !job.enabled)
+                    )
+                  }
                 >
-                  {job.enabled ? "Pause" : "Resume"}
+                  {isBusyAction(`job:toggle:${job.job_id}`)
+                    ? "Working..."
+                    : job.enabled
+                      ? "Pause"
+                      : "Resume"}
                 </button>
               </InlineActions>
             </li>
@@ -196,8 +242,16 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
                 <strong>{item.provider}</strong>
                 <p>{item.last_error ?? item.detail ?? item.lifecycle_state}</p>
               </div>
-              <button type="button" onClick={() => void props.onReconnectFocusChannel(item.provider)}>
-                Reconnect
+              <button
+                type="button"
+                disabled={isBusyAction(`channel:reconnect:${item.provider}`)}
+                onClick={() =>
+                  runBusyAction(`channel:reconnect:${item.provider}`, () =>
+                    props.onReconnectFocusChannel(item.provider)
+                  )
+                }
+              >
+                {isBusyAction(`channel:reconnect:${item.provider}`) ? "Working..." : "Reconnect"}
               </button>
             </li>
           ))}
@@ -275,11 +329,23 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
           {props.orderedProviderProfiles.length === 0 ? <li>No profiles for provider.</li> : null}
         </ul>
         <InlineActions>
-          <button type="button" onClick={() => void props.onSaveProviderOrder()}>
-            Save Order
+          <button
+            type="button"
+            disabled={isBusyAction("profile:save-order")}
+            onClick={() =>
+              runBusyAction("profile:save-order", () => props.onSaveProviderOrder())
+            }
+          >
+            {isBusyAction("profile:save-order") ? "Saving..." : "Save Order"}
           </button>
-          <button type="button" onClick={() => void props.onReloadProviderProfileOrder()}>
-            Reload
+          <button
+            type="button"
+            disabled={isBusyAction("profile:reload-order")}
+            onClick={() =>
+              runBusyAction("profile:reload-order", () => props.onReloadProviderProfileOrder())
+            }
+          >
+            {isBusyAction("profile:reload-order") ? "Reloading..." : "Reload"}
           </button>
           {props.providerProfileOrderDirty ? <Chip label="unsaved" tone="error" /> : null}
         </InlineActions>
@@ -300,9 +366,18 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
               <button
                 type="button"
                 className={skill.enabled ? "danger" : ""}
-                onClick={() => void props.onToggleSkillState(skill.skill_id, !skill.enabled)}
+                disabled={isBusyAction(`skill:toggle:${skill.skill_id}`)}
+                onClick={() =>
+                  runBusyAction(`skill:toggle:${skill.skill_id}`, () =>
+                    props.onToggleSkillState(skill.skill_id, !skill.enabled)
+                  )
+                }
               >
-                {skill.enabled ? "Disable" : "Enable"}
+                {isBusyAction(`skill:toggle:${skill.skill_id}`)
+                  ? "Working..."
+                  : skill.enabled
+                    ? "Disable"
+                    : "Enable"}
               </button>
             </li>
           ))}
@@ -330,9 +405,18 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
                 <button
                   type="button"
                   className={plugin.enabled ? "danger" : ""}
-                  onClick={() => void props.onTogglePluginState(plugin.plugin_id, !plugin.enabled)}
+                  disabled={isBusyAction(`plugin:toggle:${plugin.plugin_id}`)}
+                  onClick={() =>
+                    runBusyAction(`plugin:toggle:${plugin.plugin_id}`, () =>
+                      props.onTogglePluginState(plugin.plugin_id, !plugin.enabled)
+                    )
+                  }
                 >
-                  {plugin.enabled ? "Disable" : "Enable"}
+                  {isBusyAction(`plugin:toggle:${plugin.plugin_id}`)
+                    ? "Working..."
+                    : plugin.enabled
+                      ? "Disable"
+                      : "Enable"}
                 </button>
               </li>
             );
@@ -350,7 +434,7 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
           <article key={event.event_id} className="mc-event-item">
             <div className="mc-event-head">
               <span>{event.event_type}</span>
-              <span>{formatDateTime(event.ts_unix_ms)}</span>
+              <span title={formatDateTime(event.ts_unix_ms)}>{formatRelative(event.ts_unix_ms)}</span>
             </div>
           </article>
         ))}

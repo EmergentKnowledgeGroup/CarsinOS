@@ -16,6 +16,8 @@ import { useBoardsController } from "./features/boards/useBoardsController";
 import { useCockpitController } from "./features/cockpit/useCockpitController";
 import { OnboardingWizard } from "./features/onboarding/OnboardingWizard";
 import { useOnboardingController } from "./features/onboarding/useOnboardingController";
+import { ToastStack } from "./ui/Toast";
+import { useToasts } from "./ui/useToasts";
 import type { Agent, WsEventFrame } from "./types";
 import "./styles.css";
 
@@ -35,13 +37,20 @@ export default function App() {
     setHealthState,
     wsState,
     setWsState,
-    notice,
-    setNotice,
     eventStream,
     setEventStream,
     showRawEvents,
     setShowRawEvents,
   } = useAppController();
+
+  /* Toast system — adapts legacy setNotice({tone,message}) calls to toast stack */
+  const { toasts, addToast, dismissToast } = useToasts();
+  const setNotice = useCallback(
+    (n: { tone: "info" | "error" | "critical"; message: string } | null) => {
+      if (n) addToast(n.message, n.tone);
+    },
+    [addToast],
+  );
 
   const [boards, setBoards] = useState<BoardSummary[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -154,6 +163,7 @@ export default function App() {
   });
 
   return (
+    <>
     <AppShell
       activeTab={activeTab}
       onTabChange={setActiveTab}
@@ -176,7 +186,11 @@ export default function App() {
       onReconnect={reconnect}
       onClearToken={clearToken}
       onOpenSetupWizard={onboarding.openWizard}
-      notice={notice}
+      onRefresh={() => missionControl.queueMissionControlRefresh(settings)}
+      navBadges={{
+        focus: missionControl.approvalsById.size,
+        mail: mailController.mailThreads.reduce((sum, t) => sum + (t.unread_count ?? 0), 0),
+      }}
     >
       <OnboardingWizard controller={onboarding} agents={agents} />
       <AppContent
@@ -194,5 +208,7 @@ export default function App() {
         setNotice={setNotice}
       />
     </AppShell>
+    <ToastStack toasts={toasts} onDismiss={dismissToast} />
+    </>
   );
 }
