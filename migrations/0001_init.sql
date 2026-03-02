@@ -141,6 +141,73 @@ CREATE TABLE IF NOT EXISTS approvals (
   decided_by_peer_id TEXT
 );
 
+CREATE TABLE IF NOT EXISTS assistant_workers (
+  boss_key TEXT NOT NULL,
+  root_session_id TEXT NOT NULL,
+  worker_key TEXT NOT NULL,
+  worker_kind TEXT NOT NULL,
+  status TEXT NOT NULL,
+  agent_id TEXT REFERENCES agents(agent_id),
+  session_id TEXT REFERENCES sessions(session_id),
+  template_key TEXT NOT NULL,
+  display_name TEXT NOT NULL,
+  instructions TEXT,
+  run_defaults_json TEXT NOT NULL,
+  session_mode TEXT NOT NULL DEFAULT 'persistent',
+  last_run_id TEXT REFERENCES runs(run_id),
+  last_run_status TEXT,
+  last_stop_reason TEXT,
+  pending_approval_id TEXT REFERENCES approvals(approval_id),
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  archived_at INTEGER,
+  PRIMARY KEY (boss_key, worker_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_assistant_workers_boss_status
+ON assistant_workers(boss_key, status, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_assistant_workers_root_session
+ON assistant_workers(root_session_id, updated_at DESC);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_assistant_workers_pending_approval
+ON assistant_workers(pending_approval_id)
+WHERE pending_approval_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS assistant_task_links (
+  boss_key TEXT NOT NULL,
+  worker_key TEXT NOT NULL,
+  run_id TEXT NOT NULL REFERENCES runs(run_id),
+  session_id TEXT NOT NULL REFERENCES sessions(session_id),
+  linked_at INTEGER NOT NULL,
+  PRIMARY KEY (boss_key, worker_key, run_id),
+  FOREIGN KEY (boss_key, worker_key) REFERENCES assistant_workers(boss_key, worker_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_assistant_task_links_worker_recent
+ON assistant_task_links(boss_key, worker_key, linked_at DESC);
+
+CREATE TABLE IF NOT EXISTS assistant_tool_calls_audit (
+  event_id TEXT PRIMARY KEY,
+  request_id TEXT NOT NULL,
+  boss_key TEXT NOT NULL,
+  root_session_id TEXT NOT NULL,
+  root_run_id TEXT,
+  caller_agent_id TEXT NOT NULL,
+  tool_name TEXT NOT NULL,
+  decision TEXT NOT NULL,
+  reason_code TEXT,
+  audit_ref TEXT,
+  metadata_json TEXT,
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_assistant_tool_calls_audit_created
+ON assistant_tool_calls_audit(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_assistant_tool_calls_audit_boss
+ON assistant_tool_calls_audit(boss_key, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS security_audit_events (
   event_id TEXT PRIMARY KEY,
   request_id TEXT NOT NULL,

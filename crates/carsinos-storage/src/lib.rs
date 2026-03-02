@@ -357,6 +357,77 @@ pub struct NewRun {
 }
 
 #[derive(Debug, Clone)]
+pub struct AssistantWorkerRecord {
+    pub boss_key: String,
+    pub root_session_id: String,
+    pub worker_key: String,
+    pub worker_kind: String,
+    pub status: String,
+    pub agent_id: Option<String>,
+    pub session_id: Option<String>,
+    pub template_key: String,
+    pub display_name: String,
+    pub instructions: Option<String>,
+    pub run_defaults_json: String,
+    pub session_mode: String,
+    pub last_run_id: Option<String>,
+    pub last_run_status: Option<String>,
+    pub last_stop_reason: Option<String>,
+    pub pending_approval_id: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub archived_at: Option<i64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewAssistantWorker {
+    pub boss_key: String,
+    pub root_session_id: String,
+    pub worker_key: String,
+    pub worker_kind: String,
+    pub status: String,
+    pub agent_id: Option<String>,
+    pub session_id: Option<String>,
+    pub template_key: String,
+    pub display_name: String,
+    pub instructions: Option<String>,
+    pub run_defaults_json: String,
+    pub session_mode: String,
+    pub pending_approval_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct AssistantWorkerPatch {
+    pub status: Option<String>,
+    pub agent_id: Option<Option<String>>,
+    pub session_id: Option<Option<String>>,
+    pub template_key: Option<String>,
+    pub display_name: Option<String>,
+    pub instructions: Option<Option<String>>,
+    pub run_defaults_json: Option<String>,
+    pub session_mode: Option<String>,
+    pub last_run_id: Option<Option<String>>,
+    pub last_run_status: Option<Option<String>>,
+    pub last_stop_reason: Option<Option<String>>,
+    pub pending_approval_id: Option<Option<String>>,
+    pub archived_at: Option<Option<i64>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewAssistantToolCallAudit {
+    pub request_id: String,
+    pub boss_key: String,
+    pub root_session_id: String,
+    pub root_run_id: Option<String>,
+    pub caller_agent_id: String,
+    pub tool_name: String,
+    pub decision: String,
+    pub reason_code: Option<String>,
+    pub audit_ref: Option<String>,
+    pub metadata_json: Option<String>,
+}
+
+#[derive(Debug, Clone)]
 pub struct JobRecord {
     pub job_id: String,
     pub agent_id: String,
@@ -2406,6 +2477,543 @@ impl Storage {
         Ok(record)
     }
 
+    pub fn latest_run_for_session(&self, session_id: &str) -> Result<Option<RunRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              run_id,
+              session_id,
+              status,
+              model_provider,
+              model_id,
+              started_at,
+              ended_at,
+              error_text,
+              usage_json,
+              created_at
+            FROM runs
+            WHERE session_id = ?1
+            ORDER BY created_at DESC, rowid DESC
+            LIMIT 1
+            "#,
+        )?;
+        let record = stmt
+            .query_row(params![session_id], map_run_row)
+            .optional()?;
+        Ok(record)
+    }
+
+    pub fn create_assistant_worker(
+        &self,
+        new_worker: NewAssistantWorker,
+    ) -> Result<AssistantWorkerRecord> {
+        let conn = self.connect()?;
+        let now = now_ms();
+        conn.execute(
+            r#"
+            INSERT INTO assistant_workers (
+              boss_key,
+              root_session_id,
+              worker_key,
+              worker_kind,
+              status,
+              agent_id,
+              session_id,
+              template_key,
+              display_name,
+              instructions,
+              run_defaults_json,
+              session_mode,
+              last_run_id,
+              last_run_status,
+              last_stop_reason,
+              pending_approval_id,
+              created_at,
+              updated_at,
+              archived_at
+            ) VALUES (
+              ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, NULL, NULL, NULL, ?13, ?14, ?15, NULL
+            )
+            "#,
+            params![
+                new_worker.boss_key,
+                new_worker.root_session_id,
+                new_worker.worker_key,
+                new_worker.worker_kind,
+                new_worker.status,
+                new_worker.agent_id,
+                new_worker.session_id,
+                new_worker.template_key,
+                new_worker.display_name,
+                new_worker.instructions,
+                new_worker.run_defaults_json,
+                new_worker.session_mode,
+                new_worker.pending_approval_id,
+                now,
+                now
+            ],
+        )
+        .context("failed to create assistant worker")?;
+
+        self.get_assistant_worker(&new_worker.boss_key, &new_worker.worker_key)?
+            .context("created assistant worker could not be reloaded")
+    }
+
+    pub fn get_assistant_worker(
+        &self,
+        boss_key: &str,
+        worker_key: &str,
+    ) -> Result<Option<AssistantWorkerRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              boss_key,
+              root_session_id,
+              worker_key,
+              worker_kind,
+              status,
+              agent_id,
+              session_id,
+              template_key,
+              display_name,
+              instructions,
+              run_defaults_json,
+              session_mode,
+              last_run_id,
+              last_run_status,
+              last_stop_reason,
+              pending_approval_id,
+              created_at,
+              updated_at,
+              archived_at
+            FROM assistant_workers
+            WHERE boss_key = ?1 AND worker_key = ?2
+            "#,
+        )?;
+        let record = stmt
+            .query_row(params![boss_key, worker_key], map_assistant_worker_row)
+            .optional()?;
+        Ok(record)
+    }
+
+    pub fn get_assistant_worker_by_pending_approval(
+        &self,
+        approval_id: &str,
+    ) -> Result<Option<AssistantWorkerRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              boss_key,
+              root_session_id,
+              worker_key,
+              worker_kind,
+              status,
+              agent_id,
+              session_id,
+              template_key,
+              display_name,
+              instructions,
+              run_defaults_json,
+              session_mode,
+              last_run_id,
+              last_run_status,
+              last_stop_reason,
+              pending_approval_id,
+              created_at,
+              updated_at,
+              archived_at
+            FROM assistant_workers
+            WHERE pending_approval_id = ?1
+              AND archived_at IS NULL
+            ORDER BY updated_at DESC
+            LIMIT 1
+            "#,
+        )?;
+        let record = stmt
+            .query_row(params![approval_id], map_assistant_worker_row)
+            .optional()?;
+        Ok(record)
+    }
+
+    pub fn list_assistant_workers(
+        &self,
+        boss_key: &str,
+        include_archived: bool,
+        limit: u32,
+    ) -> Result<Vec<AssistantWorkerRecord>> {
+        let conn = self.connect()?;
+        let mut out = Vec::new();
+        let mut stmt = if include_archived {
+            conn.prepare(
+                r#"
+                SELECT
+                  boss_key,
+                  root_session_id,
+                  worker_key,
+                  worker_kind,
+                  status,
+                  agent_id,
+                  session_id,
+                  template_key,
+                  display_name,
+                  instructions,
+                  run_defaults_json,
+                  session_mode,
+                  last_run_id,
+                  last_run_status,
+                  last_stop_reason,
+                  pending_approval_id,
+                  created_at,
+                  updated_at,
+                  archived_at
+                FROM assistant_workers
+                WHERE boss_key = ?1
+                ORDER BY updated_at DESC
+                LIMIT ?2
+                "#,
+            )?
+        } else {
+            conn.prepare(
+                r#"
+                SELECT
+                  boss_key,
+                  root_session_id,
+                  worker_key,
+                  worker_kind,
+                  status,
+                  agent_id,
+                  session_id,
+                  template_key,
+                  display_name,
+                  instructions,
+                  run_defaults_json,
+                  session_mode,
+                  last_run_id,
+                  last_run_status,
+                  last_stop_reason,
+                  pending_approval_id,
+                  created_at,
+                  updated_at,
+                  archived_at
+                FROM assistant_workers
+                WHERE boss_key = ?1
+                  AND archived_at IS NULL
+                ORDER BY updated_at DESC
+                LIMIT ?2
+                "#,
+            )?
+        };
+        let rows = stmt.query_map(
+            params![boss_key, i64::from(limit.max(1))],
+            map_assistant_worker_row,
+        )?;
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    pub fn update_assistant_worker(
+        &self,
+        boss_key: &str,
+        worker_key: &str,
+        patch: AssistantWorkerPatch,
+    ) -> Result<Option<AssistantWorkerRecord>> {
+        let now = now_ms();
+        let mut conn = self.connect()?;
+        let tx = conn
+            .transaction()
+            .context("failed to start assistant worker update transaction")?;
+
+        let status = patch.status;
+        let template_key = patch.template_key;
+        let display_name = patch.display_name;
+        let run_defaults_json = patch.run_defaults_json;
+        let session_mode = patch.session_mode;
+
+        let apply_agent_id = patch.agent_id.is_some();
+        let agent_id = patch.agent_id.flatten();
+        let apply_session_id = patch.session_id.is_some();
+        let session_id = patch.session_id.flatten();
+        let apply_instructions = patch.instructions.is_some();
+        let instructions = patch.instructions.flatten();
+        let apply_last_run_id = patch.last_run_id.is_some();
+        let last_run_id = patch.last_run_id.flatten();
+        let apply_last_run_status = patch.last_run_status.is_some();
+        let last_run_status = patch.last_run_status.flatten();
+        let apply_last_stop_reason = patch.last_stop_reason.is_some();
+        let last_stop_reason = patch.last_stop_reason.flatten();
+        let apply_pending_approval_id = patch.pending_approval_id.is_some();
+        let pending_approval_id = patch.pending_approval_id.flatten();
+        let apply_archived_at = patch.archived_at.is_some();
+        let archived_at = patch.archived_at.flatten();
+
+        let rows_updated = tx
+            .execute(
+                r#"
+                UPDATE assistant_workers
+                SET
+                  status = COALESCE(?1, status),
+                  agent_id = CASE WHEN ?2 = 1 THEN ?3 ELSE agent_id END,
+                  session_id = CASE WHEN ?4 = 1 THEN ?5 ELSE session_id END,
+                  template_key = COALESCE(?6, template_key),
+                  display_name = COALESCE(?7, display_name),
+                  instructions = CASE WHEN ?8 = 1 THEN ?9 ELSE instructions END,
+                  run_defaults_json = COALESCE(?10, run_defaults_json),
+                  session_mode = COALESCE(?11, session_mode),
+                  last_run_id = CASE WHEN ?12 = 1 THEN ?13 ELSE last_run_id END,
+                  last_run_status = CASE WHEN ?14 = 1 THEN ?15 ELSE last_run_status END,
+                  last_stop_reason = CASE WHEN ?16 = 1 THEN ?17 ELSE last_stop_reason END,
+                  pending_approval_id = CASE WHEN ?18 = 1 THEN ?19 ELSE pending_approval_id END,
+                  archived_at = CASE WHEN ?20 = 1 THEN ?21 ELSE archived_at END,
+                  updated_at = ?22
+                WHERE boss_key = ?23 AND worker_key = ?24
+                "#,
+                params![
+                    status,
+                    if apply_agent_id { 1_i64 } else { 0_i64 },
+                    agent_id,
+                    if apply_session_id { 1_i64 } else { 0_i64 },
+                    session_id,
+                    template_key,
+                    display_name,
+                    if apply_instructions { 1_i64 } else { 0_i64 },
+                    instructions,
+                    run_defaults_json,
+                    session_mode,
+                    if apply_last_run_id { 1_i64 } else { 0_i64 },
+                    last_run_id,
+                    if apply_last_run_status { 1_i64 } else { 0_i64 },
+                    last_run_status,
+                    if apply_last_stop_reason { 1_i64 } else { 0_i64 },
+                    last_stop_reason,
+                    if apply_pending_approval_id {
+                        1_i64
+                    } else {
+                        0_i64
+                    },
+                    pending_approval_id,
+                    if apply_archived_at { 1_i64 } else { 0_i64 },
+                    archived_at,
+                    now,
+                    boss_key,
+                    worker_key
+                ],
+            )
+            .context("failed to update assistant worker")?;
+        if rows_updated == 0 {
+            tx.commit()
+                .context("failed to commit assistant worker update transaction")?;
+            return Ok(None);
+        }
+
+        let record = {
+            let mut stmt = tx
+                .prepare(
+                    r#"
+                    SELECT
+                      boss_key,
+                      root_session_id,
+                      worker_key,
+                      worker_kind,
+                      status,
+                      agent_id,
+                      session_id,
+                      template_key,
+                      display_name,
+                      instructions,
+                      run_defaults_json,
+                      session_mode,
+                      last_run_id,
+                      last_run_status,
+                      last_stop_reason,
+                      pending_approval_id,
+                      created_at,
+                      updated_at,
+                      archived_at
+                    FROM assistant_workers
+                    WHERE boss_key = ?1 AND worker_key = ?2
+                    "#,
+                )
+                .context("failed to prepare assistant worker reload query")?;
+            stmt.query_row(params![boss_key, worker_key], map_assistant_worker_row)
+                .optional()
+                .context("failed to reload assistant worker after update")?
+        };
+        tx.commit()
+            .context("failed to commit assistant worker update transaction")?;
+        Ok(record)
+    }
+
+    pub fn create_assistant_task_link(
+        &self,
+        boss_key: &str,
+        worker_key: &str,
+        run_id: &str,
+        session_id: &str,
+    ) -> Result<()> {
+        let mut conn = self.connect()?;
+        let tx = conn
+            .transaction()
+            .context("failed to start assistant task-link transaction")?;
+        let run_session_id: Option<String> = tx
+            .query_row(
+                "SELECT session_id FROM runs WHERE run_id = ?1",
+                params![run_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .context("failed to validate run session for assistant task link")?;
+        match run_session_id.as_deref() {
+            Some(value) if value == session_id => {}
+            Some(_) => anyhow::bail!("run_id does not belong to session_id"),
+            None => anyhow::bail!("run does not exist"),
+        }
+
+        let conflict_exists = tx
+            .query_row(
+                r#"
+                SELECT 1
+                FROM assistant_task_links
+                WHERE (run_id = ?1 OR session_id = ?2)
+                  AND NOT (run_id = ?1 AND session_id = ?2)
+                LIMIT 1
+                "#,
+                params![run_id, session_id],
+                |_| Ok(()),
+            )
+            .optional()
+            .context("failed to validate assistant task-link consistency")?
+            .is_some();
+        if conflict_exists {
+            anyhow::bail!("assistant task-link conflict for run/session pair");
+        }
+
+        let worker_active = tx
+            .query_row(
+                r#"
+                SELECT 1
+                FROM assistant_workers
+                WHERE boss_key = ?1
+                  AND worker_key = ?2
+                  AND archived_at IS NULL
+                  AND status != 'archived'
+                LIMIT 1
+                "#,
+                params![boss_key, worker_key],
+                |_| Ok(()),
+            )
+            .optional()
+            .context("failed to validate assistant worker before task-link create")?
+            .is_some();
+        if !worker_active {
+            anyhow::bail!("assistant worker missing or inactive");
+        }
+
+        let duplicate_exists = tx
+            .query_row(
+                r#"
+                SELECT 1
+                FROM assistant_task_links
+                WHERE boss_key = ?1
+                  AND worker_key = ?2
+                  AND run_id = ?3
+                  AND session_id = ?4
+                LIMIT 1
+                "#,
+                params![boss_key, worker_key, run_id, session_id],
+                |_| Ok(()),
+            )
+            .optional()
+            .context("failed to validate assistant task-link duplicate state")?
+            .is_some();
+        if duplicate_exists {
+            anyhow::bail!("assistant task-link already exists");
+        }
+
+        let now = now_ms();
+        tx.execute(
+            r#"
+            INSERT INTO assistant_task_links (
+              boss_key, worker_key, run_id, session_id, linked_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5)
+            "#,
+            params![boss_key, worker_key, run_id, session_id, now],
+        )
+        .context("failed to create assistant task link")?;
+        tx.commit()
+            .context("failed to commit assistant task-link transaction")?;
+        Ok(())
+    }
+
+    pub fn assistant_task_link_exists(
+        &self,
+        boss_key: &str,
+        worker_key: &str,
+        run_id: &str,
+    ) -> Result<bool> {
+        let conn = self.connect()?;
+        let exists = conn
+            .query_row(
+                r#"
+                SELECT 1
+                FROM assistant_task_links
+                WHERE boss_key = ?1
+                  AND worker_key = ?2
+                  AND run_id = ?3
+                LIMIT 1
+                "#,
+                params![boss_key, worker_key, run_id],
+                |_| Ok(()),
+            )
+            .optional()?
+            .is_some();
+        Ok(exists)
+    }
+
+    pub fn create_assistant_tool_call_audit(&self, event: NewAssistantToolCallAudit) -> Result<()> {
+        let conn = self.connect()?;
+        let now = now_ms();
+        let event_id = uuid::Uuid::new_v4().to_string();
+        conn.execute(
+            r#"
+            INSERT INTO assistant_tool_calls_audit (
+              event_id,
+              request_id,
+              boss_key,
+              root_session_id,
+              root_run_id,
+              caller_agent_id,
+              tool_name,
+              decision,
+              reason_code,
+              audit_ref,
+              metadata_json,
+              created_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+            "#,
+            params![
+                event_id,
+                event.request_id,
+                event.boss_key,
+                event.root_session_id,
+                event.root_run_id,
+                event.caller_agent_id,
+                event.tool_name,
+                event.decision,
+                event.reason_code,
+                event.audit_ref,
+                event.metadata_json,
+                now
+            ],
+        )
+        .context("failed to create assistant tool call audit event")?;
+        Ok(())
+    }
+
     pub fn latest_user_message_text(&self, session_id: &str) -> Result<Option<String>> {
         let conn = self.connect()?;
         let text = conn
@@ -4356,6 +4964,30 @@ fn map_run_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<RunRecord> {
     })
 }
 
+fn map_assistant_worker_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<AssistantWorkerRecord> {
+    Ok(AssistantWorkerRecord {
+        boss_key: row.get(0)?,
+        root_session_id: row.get(1)?,
+        worker_key: row.get(2)?,
+        worker_kind: row.get(3)?,
+        status: row.get(4)?,
+        agent_id: row.get(5)?,
+        session_id: row.get(6)?,
+        template_key: row.get(7)?,
+        display_name: row.get(8)?,
+        instructions: row.get(9)?,
+        run_defaults_json: row.get(10)?,
+        session_mode: row.get(11)?,
+        last_run_id: row.get(12)?,
+        last_run_status: row.get(13)?,
+        last_stop_reason: row.get(14)?,
+        pending_approval_id: row.get(15)?,
+        created_at: row.get(16)?,
+        updated_at: row.get(17)?,
+        archived_at: row.get(18)?,
+    })
+}
+
 fn map_approval_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<ApprovalRecord> {
     Ok(ApprovalRecord {
         approval_id: row.get(0)?,
@@ -5838,5 +6470,207 @@ mod tests {
             })
             .expect("create lease after release");
         assert_eq!(recreated.glob_pattern, "src/**");
+    }
+
+    #[test]
+    fn assistant_worker_lifecycle_supports_pending_and_active_updates() {
+        let (_temp_dir, storage) = test_storage();
+        let root_session = storage
+            .create_session(NewSession {
+                session_key: Some("assistant-root-session".to_string()),
+                agent_id: "default".to_string(),
+                title: Some("Assistant Root".to_string()),
+            })
+            .expect("create root session");
+        let root_run = storage
+            .create_run(NewRun {
+                session_id: root_session.session_id.clone(),
+                model_provider: "mock".to_string(),
+                model_id: "mock-echo-v1".to_string(),
+            })
+            .expect("create root run")
+            .expect("root run inserted");
+        let approval = storage
+            .create_approval(NewApproval {
+                run_id: root_run.run_id.clone(),
+                tool_call_id: None,
+                kind: "assistant.worker.spawn".to_string(),
+                request_summary: "Hire worker".to_string(),
+                request_json: r#"{"worker_key":"research_1"}"#.to_string(),
+            })
+            .expect("create approval")
+            .expect("approval inserted");
+        let worker = storage
+            .create_assistant_worker(NewAssistantWorker {
+                boss_key: "default".to_string(),
+                root_session_id: root_session.session_id.clone(),
+                worker_key: "research_1".to_string(),
+                worker_kind: "employee".to_string(),
+                status: "pending_approval".to_string(),
+                agent_id: None,
+                session_id: None,
+                template_key: "researcher".to_string(),
+                display_name: "Researcher".to_string(),
+                instructions: Some("Find relevant context".to_string()),
+                run_defaults_json: r#"{"model_provider":"openai","model_id":"gpt-4.1"}"#
+                    .to_string(),
+                session_mode: "persistent".to_string(),
+                pending_approval_id: Some(approval.approval_id.clone()),
+            })
+            .expect("create assistant worker");
+        assert_eq!(worker.status, "pending_approval");
+        assert!(worker.agent_id.is_none());
+
+        let loaded = storage
+            .get_assistant_worker_by_pending_approval(&approval.approval_id)
+            .expect("lookup by pending approval")
+            .expect("worker by pending approval");
+        assert_eq!(loaded.worker_key, "research_1");
+
+        let worker_agent = storage
+            .create_agent(NewAgent {
+                agent_id: "worker-research-1".to_string(),
+                name: "Research Worker".to_string(),
+                workspace_root: ".".to_string(),
+                model_provider: "openai".to_string(),
+                model_id: "gpt-4.1".to_string(),
+                tool_profile: "default".to_string(),
+            })
+            .expect("create worker agent");
+        let worker_session = storage
+            .create_session(NewSession {
+                session_key: Some("assistant-worker-session-1".to_string()),
+                agent_id: worker_agent.agent_id.clone(),
+                title: Some("Worker Session".to_string()),
+            })
+            .expect("create worker session");
+
+        let updated = storage
+            .update_assistant_worker(
+                "default",
+                "research_1",
+                AssistantWorkerPatch {
+                    status: Some("active".to_string()),
+                    agent_id: Some(Some(worker_agent.agent_id.clone())),
+                    session_id: Some(Some(worker_session.session_id.clone())),
+                    pending_approval_id: Some(None),
+                    ..AssistantWorkerPatch::default()
+                },
+            )
+            .expect("update assistant worker")
+            .expect("updated worker");
+        assert_eq!(updated.status, "active");
+        assert_eq!(
+            updated.agent_id.as_deref(),
+            Some(worker_agent.agent_id.as_str())
+        );
+        assert_eq!(
+            updated.session_id.as_deref(),
+            Some(worker_session.session_id.as_str())
+        );
+        assert!(updated.pending_approval_id.is_none());
+
+        let listed = storage
+            .list_assistant_workers("default", false, 20)
+            .expect("list assistant workers");
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].worker_key, "research_1");
+
+        storage
+            .create_assistant_task_link(
+                "default",
+                "research_1",
+                &root_run.run_id,
+                &root_session.session_id,
+            )
+            .expect("create assistant task link");
+        let link_exists = storage
+            .assistant_task_link_exists("default", "research_1", &root_run.run_id)
+            .expect("query assistant task link");
+        assert!(link_exists);
+
+        let duplicate_link = storage.create_assistant_task_link(
+            "default",
+            "research_1",
+            &root_run.run_id,
+            &root_session.session_id,
+        );
+        assert!(duplicate_link.is_err());
+
+        let mismatch_link = storage.create_assistant_task_link(
+            "default",
+            "research_1",
+            &root_run.run_id,
+            &worker_session.session_id,
+        );
+        assert!(mismatch_link.is_err());
+
+        let second_run = storage
+            .create_run(NewRun {
+                session_id: root_session.session_id.clone(),
+                model_provider: "mock".to_string(),
+                model_id: "mock-echo-v1".to_string(),
+            })
+            .expect("create second root run")
+            .expect("second run inserted");
+        let conflicting_pair = storage.create_assistant_task_link(
+            "default",
+            "research_1",
+            &second_run.run_id,
+            &root_session.session_id,
+        );
+        assert!(conflicting_pair.is_err());
+
+        let missing_worker_link = storage.create_assistant_task_link(
+            "default",
+            "missing-worker",
+            &root_run.run_id,
+            &root_session.session_id,
+        );
+        assert!(missing_worker_link.is_err());
+
+        storage
+            .update_assistant_worker(
+                "default",
+                "research_1",
+                AssistantWorkerPatch {
+                    status: Some("archived".to_string()),
+                    archived_at: Some(Some(now_ms())),
+                    ..AssistantWorkerPatch::default()
+                },
+            )
+            .expect("archive assistant worker")
+            .expect("archived worker row");
+        let archived_worker_link = storage.create_assistant_task_link(
+            "default",
+            "research_1",
+            &second_run.run_id,
+            &root_session.session_id,
+        );
+        assert!(archived_worker_link.is_err());
+
+        storage
+            .create_assistant_tool_call_audit(NewAssistantToolCallAudit {
+                request_id: "req-assistant-audit-1".to_string(),
+                boss_key: "default".to_string(),
+                root_session_id: root_session.session_id.clone(),
+                root_run_id: Some(root_run.run_id.clone()),
+                caller_agent_id: "default".to_string(),
+                tool_name: "assistant.worker.spawn".to_string(),
+                decision: "allow".to_string(),
+                reason_code: Some("APPROVED".to_string()),
+                audit_ref: Some("approval:assistant-worker".to_string()),
+                metadata_json: Some(r#"{"worker_key":"research_1"}"#.to_string()),
+            })
+            .expect("create assistant audit event");
+        let conn = storage.connect().expect("open storage connection");
+        let audit_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM assistant_tool_calls_audit WHERE request_id = ?1",
+                params!["req-assistant-audit-1"],
+                |row| row.get(0),
+            )
+            .expect("query assistant audit events");
+        assert_eq!(audit_count, 1);
     }
 }

@@ -5,6 +5,7 @@ use std::path::Path;
 pub const JOB_MODE_HEARTBEAT_RUN: &str = "heartbeat.run";
 pub const HEARTBEAT_OUTPUT_OK: &str = "HEARTBEAT_OK";
 pub const HEARTBEAT_OUTPUT_ALERT_PREFIX: &str = "ALERT:";
+pub const ASSISTANT_TOOL_CONTRACT_VERSION: &str = "assistant.tools.v1";
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SanitizedPath(String);
@@ -150,6 +151,14 @@ pub struct ListProviderCapabilitiesQuery {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct ListProviderModelsQuery {
+    pub provider: String,
+    pub agent_id: Option<String>,
+    pub auth_profile_id: Option<String>,
+    pub refresh: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct ListToolCapabilitiesQuery {
     pub include_disabled: Option<bool>,
     pub origin: Option<String>,
@@ -195,6 +204,20 @@ pub struct ProviderCapabilityResponse {
 pub struct ListProviderCapabilitiesResponse {
     pub contract_version: String,
     pub items: Vec<ProviderCapabilityResponse>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ProviderModelResponse {
+    pub model_id: String,
+    pub label: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListProviderModelsResponse {
+    pub contract_version: String,
+    pub provider: String,
+    pub auth_profile_id: Option<String>,
+    pub items: Vec<ProviderModelResponse>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -968,6 +991,136 @@ pub struct ApprovalResponse {
     pub decided_by_peer_id: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssistantMemoryScope {
+    #[serde(default)]
+    pub tenant_key: Option<String>,
+    #[serde(default)]
+    pub namespace: Option<String>,
+    #[serde(default)]
+    pub db_hint: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AssistantToolRpcRequest {
+    #[serde(default)]
+    pub contract_version: Option<String>,
+    #[serde(default)]
+    pub request_id: Option<String>,
+    #[serde(default)]
+    pub root_session_id: Option<String>,
+    #[serde(default)]
+    pub root_run_id: Option<String>,
+    #[serde(default)]
+    pub caller_agent_id: Option<String>,
+    #[serde(default)]
+    pub memory_scope: Option<AssistantMemoryScope>,
+    #[serde(default)]
+    pub tool_name: Option<String>,
+    #[serde(default)]
+    pub arguments: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AssistantToolError {
+    pub code: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AssistantToolRpcResponse {
+    pub contract_version: String,
+    pub request_id: String,
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason_code: Option<String>,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<AssistantToolError>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audit_ref: Option<String>,
+    pub timing_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AssistantToolEnvelope {
+    pub contract_version: String,
+    pub request_id: String,
+    pub root_session_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub root_run_id: Option<String>,
+    pub caller_agent_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memory_scope: Option<AssistantMemoryScope>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AssistantWorkerSummary {
+    pub worker_key: String,
+    pub worker_kind: String,
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    pub template_key: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_run_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_run_status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_stop_reason: Option<String>,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AssistantTaskHandle {
+    pub worker_key: String,
+    pub session_id: String,
+    pub run_id: String,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AssistantToolCapabilityItem {
+    pub tool_name: String,
+    pub risk_level: String,
+    pub requires_approval: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AssistantToolLimitsResponse {
+    pub max_spawn_depth: u32,
+    pub max_children_per_root_run: u32,
+    pub max_active_workers_total: u32,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AssistantWorkerTemplateRunDefaults {
+    #[serde(default)]
+    pub model_provider: Option<String>,
+    #[serde(default)]
+    pub model_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AssistantWorkerTemplateResponse {
+    pub template_key: String,
+    pub display_name: String,
+    pub instructions: String,
+    pub run_defaults: AssistantWorkerTemplateRunDefaults,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AssistantToolCapabilitiesResponse {
+    pub contract_version: String,
+    pub tools: Vec<AssistantToolCapabilityItem>,
+    pub limits: AssistantToolLimitsResponse,
+    pub templates: Vec<AssistantWorkerTemplateResponse>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct ListAuthProfilesQuery {
     pub provider: Option<String>,
@@ -1231,6 +1384,100 @@ pub struct RuntimeExtensionsConfig {
     pub plugin_daemon_allowlist: Vec<String>,
     #[serde(default)]
     pub plugin_bundle_root: Option<String>,
+    #[serde(default)]
+    pub assistant_tools: RuntimeAssistantToolsConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeAssistantToolLimitsConfig {
+    #[serde(default = "default_runtime_assistant_max_spawn_depth")]
+    pub max_spawn_depth: u32,
+    #[serde(default = "default_runtime_assistant_max_children_per_root_run")]
+    pub max_children_per_root_run: u32,
+    #[serde(default = "default_runtime_assistant_max_active_workers_total")]
+    pub max_active_workers_total: u32,
+}
+
+fn default_runtime_assistant_max_spawn_depth() -> u32 {
+    2
+}
+
+fn default_runtime_assistant_max_children_per_root_run() -> u32 {
+    8
+}
+
+fn default_runtime_assistant_max_active_workers_total() -> u32 {
+    16
+}
+
+impl Default for RuntimeAssistantToolLimitsConfig {
+    fn default() -> Self {
+        Self {
+            max_spawn_depth: default_runtime_assistant_max_spawn_depth(),
+            max_children_per_root_run: default_runtime_assistant_max_children_per_root_run(),
+            max_active_workers_total: default_runtime_assistant_max_active_workers_total(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeAssistantWorkerTemplateConfig {
+    pub template_key: String,
+    pub display_name: String,
+    #[serde(default)]
+    pub instructions: String,
+    #[serde(default)]
+    pub run_defaults: AssistantWorkerTemplateRunDefaults,
+}
+
+fn default_runtime_assistant_worker_templates() -> Vec<RuntimeAssistantWorkerTemplateConfig> {
+    vec![
+        RuntimeAssistantWorkerTemplateConfig {
+            template_key: "general".to_string(),
+            display_name: "General Worker".to_string(),
+            instructions: "General purpose helper worker.".to_string(),
+            run_defaults: AssistantWorkerTemplateRunDefaults {
+                model_provider: Some("mock".to_string()),
+                model_id: Some("mock-echo-v1".to_string()),
+            },
+        },
+        RuntimeAssistantWorkerTemplateConfig {
+            template_key: "researcher".to_string(),
+            display_name: "Research Worker".to_string(),
+            instructions: "Research and summarize relevant information with citations.".to_string(),
+            run_defaults: AssistantWorkerTemplateRunDefaults {
+                model_provider: Some("openai".to_string()),
+                model_id: Some("gpt-4.1-mini".to_string()),
+            },
+        },
+        RuntimeAssistantWorkerTemplateConfig {
+            template_key: "archivist".to_string(),
+            display_name: "Archivist Worker".to_string(),
+            instructions: "Maintain project artifacts and produce concise structured notes."
+                .to_string(),
+            run_defaults: AssistantWorkerTemplateRunDefaults {
+                model_provider: Some("anthropic".to_string()),
+                model_id: Some("claude-3-5-sonnet-latest".to_string()),
+            },
+        },
+    ]
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeAssistantToolsConfig {
+    #[serde(default)]
+    pub limits: RuntimeAssistantToolLimitsConfig,
+    #[serde(default = "default_runtime_assistant_worker_templates")]
+    pub templates: Vec<RuntimeAssistantWorkerTemplateConfig>,
+}
+
+impl Default for RuntimeAssistantToolsConfig {
+    fn default() -> Self {
+        Self {
+            limits: RuntimeAssistantToolLimitsConfig::default(),
+            templates: default_runtime_assistant_worker_templates(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

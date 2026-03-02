@@ -24,7 +24,10 @@ use carsinos_protocol::{
     AgentMailFileLeaseResponse, AgentMailMessageRecipientResponse, AgentMailMessageResponse,
     AgentMailThreadDetailResponse, AgentMailThreadParticipantResponse,
     AgentMailThreadSummaryResponse, AgentResponse, AnthropicSetupTokenIngestRequest,
-    AnthropicSetupTokenIngestResponse, ApprovalResponse, AuthProfileResponse,
+    AnthropicSetupTokenIngestResponse, ApprovalResponse, AssistantMemoryScope, AssistantTaskHandle,
+    AssistantToolCapabilitiesResponse, AssistantToolCapabilityItem, AssistantToolLimitsResponse,
+    AssistantToolRpcRequest, AssistantToolRpcResponse, AssistantWorkerSummary,
+    AssistantWorkerTemplateResponse, AssistantWorkerTemplateRunDefaults, AuthProfileResponse,
     BoardAutomationRuleResponse, BoardCardAssetResponse, BoardCardResponse, BoardColumnResponse,
     BoardDetailResponse, BoardSummaryResponse, ChannelRuntimeAdapterStatusResponse,
     CircuitBreakerStateResponse, CreateAgentMailFileLeaseRequest, CreateAgentMailFileLeaseResponse,
@@ -47,31 +50,31 @@ use carsinos_protocol::{
     ListJobHistoryQuery, ListJobHistoryResponse, ListJobsQuery, ListJobsResponse,
     ListMessagesQuery, ListMessagesResponse, ListNotesQuery, ListNotesResponse,
     ListPluginRuntimeStatusResponse, ListPluginsQuery, ListPluginsResponse,
-    ListProviderCapabilitiesQuery, ListProviderCapabilitiesResponse, ListSessionsQuery,
-    ListSessionsResponse, ListSkillsQuery, ListSkillsResponse, ListToolCapabilitiesQuery,
-    ListToolCapabilitiesResponse, MessageResponse, MetricsResponse,
-    MissionControlCalendarWeekJobResponse, MissionControlCalendarWeekQuery,
+    ListProviderCapabilitiesQuery, ListProviderCapabilitiesResponse, ListProviderModelsQuery,
+    ListProviderModelsResponse, ListSessionsQuery, ListSessionsResponse, ListSkillsQuery,
+    ListSkillsResponse, ListToolCapabilitiesQuery, ListToolCapabilitiesResponse, MessageResponse,
+    MetricsResponse, MissionControlCalendarWeekJobResponse, MissionControlCalendarWeekQuery,
     MissionControlCalendarWeekResponse, MissionControlFocusItemResponse, MissionControlFocusQuery,
     MissionControlFocusResponse, MoveBoardCardRequest, MoveBoardCardResponse, NoteResponse,
     NumquamIntegrationStatusResponse, OpenAiOauthFinishRequest, OpenAiOauthFinishResponse,
     OpenAiOauthStartRequest, OpenAiOauthStartResponse, PluginArtifactResponse,
     PluginCapabilityResponse, PluginCompatibilityResponse, PluginLimitsResponse,
     PluginManifestResponse, PluginPermissionsResponse, PluginRuntimeStatusResponse,
-    ProviderCapabilityResponse, ReconnectChannelRuntimeRequest, ReconnectChannelRuntimeResponse,
-    RefreshRuntimeTrustContractLockRequest, RefreshRuntimeTrustContractLockResponse,
-    ReleaseAgentMailFileLeaseRequest, ReleaseAgentMailFileLeaseResponse, RemoveJobResponse,
-    ResolveApprovalRequest, ResolveApprovalResponse, ResolveChannelApprovalActionRequest,
-    RollbackPluginRequest, RollbackPluginResponse, RollbackRuntimeConfigRequest,
-    RollbackRuntimeConfigResponse, RunBoardAutomationRuleResponse, RunBoardCardRequest,
-    RunBoardCardResponse, RunJobNowResponse, RunMemoryWhyRequest, RunMemoryWhyResponse,
-    RunResponse, RuntimeAutonomyGuardrailsConfig, RuntimeChannelsConfig, RuntimeConfigResponse,
-    RuntimeDiscordDeploymentConfig, RuntimeExtensionsConfig, RuntimeGlobalConfig,
-    RuntimeMemoryConfig, RuntimeNumquamConfig, RuntimeProviderPolicyConfig,
-    RuntimeSecurityOpsConfig, RuntimeTelegramDeploymentConfig, RuntimeTrustContractLockResponse,
-    RuntimeTrustContractLockSummaryResponse, SanitizedPath, SchedulerLockStateResponse,
-    SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult, SendAgentMailMessageRequest,
-    SendAgentMailMessageResponse, SessionDetailResponse, SessionSummary,
-    SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse,
+    ProviderCapabilityResponse, ProviderModelResponse, ReconnectChannelRuntimeRequest,
+    ReconnectChannelRuntimeResponse, RefreshRuntimeTrustContractLockRequest,
+    RefreshRuntimeTrustContractLockResponse, ReleaseAgentMailFileLeaseRequest,
+    ReleaseAgentMailFileLeaseResponse, RemoveJobResponse, ResolveApprovalRequest,
+    ResolveApprovalResponse, ResolveChannelApprovalActionRequest, RollbackPluginRequest,
+    RollbackPluginResponse, RollbackRuntimeConfigRequest, RollbackRuntimeConfigResponse,
+    RunBoardAutomationRuleResponse, RunBoardCardRequest, RunBoardCardResponse, RunJobNowResponse,
+    RunMemoryWhyRequest, RunMemoryWhyResponse, RunResponse, RuntimeAutonomyGuardrailsConfig,
+    RuntimeChannelsConfig, RuntimeConfigResponse, RuntimeDiscordDeploymentConfig,
+    RuntimeExtensionsConfig, RuntimeGlobalConfig, RuntimeMemoryConfig, RuntimeNumquamConfig,
+    RuntimeProviderPolicyConfig, RuntimeSecurityOpsConfig, RuntimeTelegramDeploymentConfig,
+    RuntimeTrustContractLockResponse, RuntimeTrustContractLockSummaryResponse, SanitizedPath,
+    SchedulerLockStateResponse, SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult,
+    SendAgentMailMessageRequest, SendAgentMailMessageResponse, SessionDetailResponse,
+    SessionSummary, SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse,
     SetBoardAutomationRuleStateRequest, SetBoardAutomationRuleStateResponse, SkillResponse,
     StatusResponse, SyncMemorySourceItemResponse, SyncMemorySourcesRequest,
     SyncMemorySourcesResponse, TelegramChannelConfig, ToolCapabilityResponse,
@@ -84,7 +87,8 @@ use carsinos_protocol::{
     UploadAgentMailAttachmentRequest, UploadAgentMailAttachmentResponse,
     UploadBoardCardAssetRequest, UploadBoardCardAssetResponse, UpsertBoardAutomationRuleRequest,
     UpsertBoardAutomationRuleResponse, UpsertRuntimeSecretRequest, UpsertRuntimeSecretResponse,
-    WsEventFrame, HEARTBEAT_OUTPUT_ALERT_PREFIX, HEARTBEAT_OUTPUT_OK, JOB_MODE_HEARTBEAT_RUN,
+    WsEventFrame, ASSISTANT_TOOL_CONTRACT_VERSION, HEARTBEAT_OUTPUT_ALERT_PREFIX,
+    HEARTBEAT_OUTPUT_OK, JOB_MODE_HEARTBEAT_RUN,
 };
 use carsinos_providers::{
     parse_provider_error_class as parse_provider_error_class_normalized,
@@ -93,14 +97,14 @@ use carsinos_providers::{
 };
 use carsinos_storage::{
     AgentMailThreadListFilter, AgentRecord, AgentUpdatePatch, AppPaths, ApprovalRecord,
-    ApprovalResolveResult, AuthProfileRecord, BoardCardAssetRecord, BoardCardRecord,
-    BoardCardUpdatePatch, BoardColumnRecord, BoardRecord, CircuitBreakerStateRecord,
-    CircuitBreakerStateUpsert, DailyAuthProfileUsageIncrement, JobRecord, JobRunRecord,
-    JobUpdatePatch, MessageRecord, NewAgent, NewAgentMailAttachment, NewAgentMailFileLease,
-    NewAgentMailMessage, NewAgentMailThread, NewApproval, NewAuthProfile, NewBoardCard,
-    NewBoardCardAsset, NewJob, NewMessage, NewNote, NewRun, NewSecurityAuditEvent, NewSession,
-    NoteRecord, RunRecord, SecurityAuditEventListFilter, SecurityAuditEventRecord, SessionRecord,
-    Storage,
+    ApprovalResolveResult, AssistantWorkerPatch, AssistantWorkerRecord, AuthProfileRecord,
+    BoardCardAssetRecord, BoardCardRecord, BoardCardUpdatePatch, BoardColumnRecord, BoardRecord,
+    CircuitBreakerStateRecord, CircuitBreakerStateUpsert, DailyAuthProfileUsageIncrement,
+    JobRecord, JobRunRecord, JobUpdatePatch, MessageRecord, NewAgent, NewAgentMailAttachment,
+    NewAgentMailFileLease, NewAgentMailMessage, NewAgentMailThread, NewApproval,
+    NewAssistantToolCallAudit, NewAssistantWorker, NewAuthProfile, NewBoardCard, NewBoardCardAsset,
+    NewJob, NewMessage, NewNote, NewRun, NewSecurityAuditEvent, NewSession, NoteRecord, RunRecord,
+    SecurityAuditEventListFilter, SecurityAuditEventRecord, SessionRecord, Storage,
 };
 use carsinos_tools::{
     ChannelActionRequest, ExecRequest, FsReadRequest, FsWriteMode, FsWriteRequest, LocalToolRunner,
@@ -142,6 +146,8 @@ struct AppState {
     trusted_proxy_headers: bool,
     trusted_proxy_allowlist: Arc<HashSet<String>>,
     operator_allowlist: Arc<Vec<String>>,
+    provider_models_http_client: reqwest::Client,
+    provider_models_cache: Arc<RwLock<HashMap<String, ProviderModelsCacheEntry>>>,
     providers: ProviderRegistry,
     tool_registry: Arc<ToolRegistry>,
     tool_concurrency: Arc<Semaphore>,
@@ -173,6 +179,13 @@ struct AppState {
     trust_contract_lock: Arc<RwLock<RuntimeTrustContractLockRecord>>,
     trust_contract_lock_path: Arc<String>,
     state_dir: Arc<PathBuf>,
+}
+
+#[derive(Debug, Clone)]
+struct ProviderModelsCacheEntry {
+    auth_profile_id: Option<String>,
+    items: Vec<ProviderModelResponse>,
+    expires_at_ms: i64,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -1653,6 +1666,11 @@ const OAUTH_OPENAI_DEFAULT_AUTHORIZE_URL: &str = "https://auth.openai.com/oauth/
 const OAUTH_OPENAI_DEFAULT_TOKEN_URL: &str = "https://auth.openai.com/oauth/token";
 const OPENAI_DEFAULT_API_BASE: &str = "https://api.openai.com";
 const ANTHROPIC_DEFAULT_API_BASE: &str = "https://api.anthropic.com";
+const OPENROUTER_DEFAULT_API_BASE: &str = "https://openrouter.ai/api";
+const OLLAMA_DEFAULT_API_BASE: &str = "http://127.0.0.1:11434";
+const VLLM_DEFAULT_API_BASE: &str = "http://127.0.0.1:8000";
+const PROVIDER_MODELS_CONTRACT_VERSION: &str = "v1";
+const PROVIDER_MODELS_CACHE_TTL_MS: i64 = 5 * 60 * 1000;
 const SECRET_FIELD_NAMES: &[&str] = &[
     "api_key",
     "token",
@@ -2202,6 +2220,157 @@ struct AgentMailMcpFileReleaseArgs {
     holder_principal: Option<String>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+struct AssistantToolsMcpRpcRequest {
+    #[serde(default)]
+    jsonrpc: Option<String>,
+    #[serde(default)]
+    id: Option<serde_json::Value>,
+    #[serde(default)]
+    method: Option<String>,
+    #[serde(default)]
+    params: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct AssistantToolsMcpRpcError {
+    code: i64,
+    message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    data: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AssistantWorkerSpawnArgs {
+    worker_key: String,
+    worker_kind: String,
+    template_key: String,
+    #[serde(default)]
+    display_name: Option<String>,
+    #[serde(default)]
+    instructions: Option<String>,
+    #[serde(default)]
+    run_defaults: Option<AssistantWorkerTemplateRunDefaults>,
+    #[serde(default)]
+    session_mode: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AssistantWorkerUpdateArgs {
+    worker_key: String,
+    #[serde(default)]
+    display_name: Option<String>,
+    #[serde(default)]
+    instructions: Option<String>,
+    #[serde(default)]
+    template_key: Option<String>,
+    #[serde(default)]
+    run_defaults: Option<AssistantWorkerTemplateRunDefaults>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AssistantWorkerListArgs {
+    #[serde(default)]
+    include_archived: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AssistantWorkerStatusArgs {
+    worker_key: String,
+    #[serde(default)]
+    include_last_messages: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AssistantWorkerAssignArgs {
+    worker_key: String,
+    task: String,
+    #[serde(default)]
+    run_overrides: Option<AssistantWorkerTemplateRunDefaults>,
+    #[serde(default)]
+    session_mode: Option<String>,
+    #[serde(default)]
+    priority: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AssistantWorkerJoinArgs {
+    worker_key: String,
+    run_id: String,
+    #[serde(default)]
+    wait_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AssistantWorkerCloseArgs {
+    worker_key: String,
+    #[serde(default)]
+    reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AssistantApprovalsListArgs {
+    #[serde(default)]
+    status: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AssistantMailThreadCreateArgs {
+    subject: String,
+    participants: Vec<String>,
+    #[serde(default)]
+    kind: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AssistantMailSendArgs {
+    thread_id: String,
+    body_text: String,
+    recipients: Vec<String>,
+    #[serde(default)]
+    sender_principal: Option<String>,
+    #[serde(default)]
+    sender_kind: Option<String>,
+    #[serde(default)]
+    metadata_json: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct AssistantMailInboxFetchArgs {
+    #[serde(default)]
+    principal_id: Option<String>,
+    #[serde(default)]
+    thread_limit: Option<u32>,
+    #[serde(default)]
+    message_limit: Option<u32>,
+}
+
+#[derive(Debug, Clone)]
+struct AssistantToolExecutionContext {
+    request_id: String,
+    root_session_id: String,
+    root_run_id: Option<String>,
+    caller_agent_id: String,
+    memory_scope: Option<AssistantMemoryScope>,
+    boss_key: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct AssistantWorkerApprovalPayload {
+    action: String,
+    boss_key: String,
+    root_session_id: String,
+    caller_agent_id: String,
+    worker_key: String,
+    worker_kind: String,
+    template_key: String,
+    display_name: String,
+    instructions: Option<String>,
+    run_defaults: AssistantWorkerTemplateRunDefaults,
+    session_mode: String,
+    requested_at: i64,
+}
+
 #[derive(Debug, Clone, Default, Serialize)]
 struct RunMemoryMetadata {
     enabled: bool,
@@ -2548,6 +2717,10 @@ async fn main() -> AnyResult<()> {
     enforce_runtime_global_against_trust_lock(&runtime_config.global, &trust_contract_lock_record)
         .context("runtime config trust contract mismatch at startup")?;
     let providers = ProviderRegistry::new();
+    let provider_models_http_client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .context("failed to build provider models http client")?;
     let plugin_manifest_dirs = load_plugin_manifest_dirs_from_env(&config.state_dir);
     let plugin_registry =
         PluginRegistry::load_from_dirs(&plugin_manifest_dirs).with_context(|| {
@@ -2624,6 +2797,8 @@ async fn main() -> AnyResult<()> {
         trusted_proxy_headers,
         trusted_proxy_allowlist: Arc::new(trusted_proxy_allowlist),
         operator_allowlist: Arc::new(operator_allowlist),
+        provider_models_http_client,
+        provider_models_cache: Arc::new(RwLock::new(HashMap::new())),
         providers,
         tool_registry: tool_registry.clone(),
         tool_concurrency: tool_concurrency.clone(),
@@ -2888,6 +3063,484 @@ async fn list_provider_capabilities(
         contract_version: "v2".to_string(),
         items,
     }))
+}
+
+async fn list_provider_models(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Query(query): Query<ListProviderModelsQuery>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    let provider = query.provider.trim().to_ascii_lowercase();
+    if provider.is_empty() {
+        return Err(api_error_with_code(
+            StatusCode::BAD_REQUEST,
+            "INVALID_INPUT",
+            "provider is required",
+        ));
+    }
+    if !provider_models_supported(&provider) {
+        return Err(api_error_with_code(
+            StatusCode::BAD_REQUEST,
+            "INVALID_INPUT",
+            "unsupported provider for model catalog",
+        ));
+    }
+
+    let requested_auth_profile_id = query
+        .auth_profile_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string());
+    let resource = requested_auth_profile_id
+        .as_ref()
+        .map(|id| format!("provider:{provider}:auth_profile:{id}"))
+        .unwrap_or_else(|| format!("provider:{provider}"));
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "provider.models.list",
+        &resource,
+    )?;
+    require_endpoint_rate_limit_with_error(&state, &auth, "run")?;
+
+    let requested_agent_id = query
+        .agent_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string());
+    let refresh = query.refresh.unwrap_or(false);
+
+    let resolved_auth_record = resolve_provider_models_auth_profile(
+        &state,
+        &provider,
+        requested_agent_id.as_deref(),
+        requested_auth_profile_id.as_deref(),
+    )
+    .await
+    .map_err(map_provider_models_auth_resolution_error)?;
+    let resolved_auth_profile_id = resolved_auth_record
+        .as_ref()
+        .map(|profile| profile.auth_profile_id.clone());
+    let resolved_auth_profile = match resolved_auth_record.as_ref() {
+        Some(profile) => Some(to_provider_auth_profile(&state, profile).map_err(|err| {
+            internal_err_with_error("hydrating auth profile for model catalog failed", err)
+        })?),
+        None => None,
+    };
+
+    let base_url = provider_models_base_url(&provider, resolved_auth_profile.as_ref());
+    let cache_key =
+        provider_models_cache_key(&provider, &base_url, resolved_auth_profile_id.as_deref());
+    let now = current_time_ms();
+    if !refresh {
+        if let Some(entry) = state
+            .provider_models_cache
+            .read()
+            .await
+            .get(&cache_key)
+            .cloned()
+        {
+            if entry.expires_at_ms > now {
+                return Ok(Json(ListProviderModelsResponse {
+                    contract_version: PROVIDER_MODELS_CONTRACT_VERSION.to_string(),
+                    provider,
+                    auth_profile_id: entry.auth_profile_id,
+                    items: entry.items,
+                }));
+            }
+        }
+    }
+
+    let items = fetch_provider_models_from_upstream(
+        &state,
+        &provider,
+        &base_url,
+        resolved_auth_profile.as_ref(),
+    )
+    .await?;
+    state.provider_models_cache.write().await.insert(
+        cache_key,
+        ProviderModelsCacheEntry {
+            auth_profile_id: resolved_auth_profile_id.clone(),
+            items: items.clone(),
+            expires_at_ms: now.saturating_add(PROVIDER_MODELS_CACHE_TTL_MS),
+        },
+    );
+
+    Ok(Json(ListProviderModelsResponse {
+        contract_version: PROVIDER_MODELS_CONTRACT_VERSION.to_string(),
+        provider,
+        auth_profile_id: resolved_auth_profile_id,
+        items,
+    }))
+}
+
+async fn resolve_provider_models_auth_profile(
+    state: &AppState,
+    provider: &str,
+    requested_agent_id: Option<&str>,
+    requested_auth_profile_id: Option<&str>,
+) -> AnyResult<Option<AuthProfileRecord>> {
+    if provider_requires_auth(provider) {
+        let candidates = resolve_run_auth_profiles(
+            state,
+            provider,
+            requested_agent_id.unwrap_or_default(),
+            requested_auth_profile_id,
+        )
+        .await?;
+        return Ok(candidates.into_iter().flatten().next());
+    }
+
+    let Some(profile_id) = requested_auth_profile_id else {
+        return Ok(None);
+    };
+    if state.storage.global_kill_switch_active()? {
+        anyhow::bail!("AUTH_FORBIDDEN:global kill-switch active");
+    }
+    if state.storage.provider_kill_switch_active(provider)? {
+        anyhow::bail!("AUTH_FORBIDDEN:provider kill-switch active");
+    }
+
+    let profile = state
+        .storage
+        .get_auth_profile(profile_id)?
+        .with_context(|| format!("requested auth profile not found: {profile_id}"))?;
+    if profile.provider != provider {
+        anyhow::bail!(
+            "requested auth profile provider mismatch: expected '{}' got '{}'",
+            provider,
+            profile.provider
+        );
+    }
+    if !profile.enabled {
+        anyhow::bail!("requested auth profile is disabled: {profile_id}");
+    }
+    if profile.kill_switch_scope == KILL_SWITCH_SCOPE_PROFILE {
+        anyhow::bail!("requested auth profile is kill-switched at profile scope");
+    }
+    if !provider_auth_mode_allowed(provider, &profile.auth_mode) {
+        anyhow::bail!(
+            "requested auth profile mode '{}' not allowed for provider '{}'",
+            profile.auth_mode,
+            provider
+        );
+    }
+    let policy = auth_mode_policy(&profile.auth_mode)
+        .with_context(|| format!("unsupported auth_mode in profile: {}", profile.auth_mode))?;
+    if profile.risk_level != policy.risk_level {
+        anyhow::bail!(
+            "requested auth profile risk_level '{}' mismatches registry '{}'",
+            profile.risk_level,
+            policy.risk_level
+        );
+    }
+    if policy.requires_kill_switch && profile.kill_switch_scope == KILL_SWITCH_SCOPE_NONE {
+        anyhow::bail!("requested high-risk auth profile is missing kill-switch scope");
+    }
+    let profile = maybe_refresh_expired_auth_profile(state, profile).await?;
+    if auth_profile_credentials_expired(&profile)? {
+        anyhow::bail!("requested auth profile credentials expired");
+    }
+    Ok(Some(profile))
+}
+
+fn map_provider_models_auth_resolution_error(err: anyhow::Error) -> (StatusCode, Json<ApiError>) {
+    let message = err.to_string();
+    let normalized = message.to_ascii_lowercase();
+    if message.starts_with("AUTH_FORBIDDEN:")
+        || normalized.contains("kill-switch")
+        || normalized.contains("kill switch")
+    {
+        return api_error_with_code(
+            StatusCode::FORBIDDEN,
+            "AUTH_FORBIDDEN",
+            &format!("provider auth policy denied model catalog request: {message}"),
+        );
+    }
+    api_error_with_code(
+        StatusCode::BAD_GATEWAY,
+        "AUTH_REQUIRED",
+        &format!("provider auth unavailable for model catalog request: {message}"),
+    )
+}
+
+fn provider_models_supported(provider: &str) -> bool {
+    matches!(
+        provider,
+        "openai" | "anthropic" | "openrouter" | "ollama" | "vllm" | "mock"
+    )
+}
+
+fn provider_models_default_base_url(provider: &str) -> &'static str {
+    match provider {
+        "openai" => OPENAI_DEFAULT_API_BASE,
+        "anthropic" => ANTHROPIC_DEFAULT_API_BASE,
+        "openrouter" => OPENROUTER_DEFAULT_API_BASE,
+        "ollama" => OLLAMA_DEFAULT_API_BASE,
+        "vllm" => VLLM_DEFAULT_API_BASE,
+        "mock" => "mock://local",
+        _ => "mock://local",
+    }
+}
+
+fn provider_models_base_url(provider: &str, profile: Option<&ProviderAuthProfile>) -> String {
+    profile
+        .and_then(|item| item.api_base_url.as_ref())
+        .map(|value| value.trim().trim_end_matches('/').to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| provider_models_default_base_url(provider).to_string())
+}
+
+fn provider_models_cache_key(
+    provider: &str,
+    base_url: &str,
+    auth_profile_id: Option<&str>,
+) -> String {
+    format!(
+        "{}|{}|{}",
+        provider.to_ascii_lowercase(),
+        base_url.to_ascii_lowercase(),
+        auth_profile_id.unwrap_or("<none>")
+    )
+}
+
+fn truncate_provider_error_body(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        "<empty>".to_string()
+    } else if trimmed.len() > 240 {
+        trimmed.chars().take(240).collect::<String>()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn extract_provider_auth_token(profile: &ProviderAuthProfile) -> AnyResult<Option<String>> {
+    let payload: serde_json::Value = serde_json::from_str(&profile.credentials_json)
+        .context("failed to parse provider credentials for model catalog")?;
+    for key in ["api_key", "token", "access_token", "bearer_token"] {
+        if let Some(value) = payload.get(key).and_then(|value| value.as_str()) {
+            let trimmed = value.trim();
+            if !trimmed.is_empty() {
+                return Ok(Some(trimmed.to_string()));
+            }
+        }
+    }
+    Ok(None)
+}
+
+fn parse_openai_models_payload(payload: &serde_json::Value) -> AnyResult<Vec<String>> {
+    let Some(items) = payload.get("data").and_then(|value| value.as_array()) else {
+        anyhow::bail!("missing data array in provider models response");
+    };
+    let mut model_ids = Vec::new();
+    for item in items {
+        let candidate = item
+            .get("id")
+            .and_then(|value| value.as_str())
+            .or_else(|| item.get("name").and_then(|value| value.as_str()))
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        if !candidate.is_empty() {
+            model_ids.push(candidate);
+        }
+    }
+    Ok(model_ids)
+}
+
+fn parse_ollama_models_payload(payload: &serde_json::Value) -> AnyResult<Vec<String>> {
+    let Some(items) = payload.get("models").and_then(|value| value.as_array()) else {
+        anyhow::bail!("missing models array in ollama tags response");
+    };
+    let mut model_ids = Vec::new();
+    for item in items {
+        let candidate = item
+            .get("name")
+            .and_then(|value| value.as_str())
+            .or_else(|| item.get("model").and_then(|value| value.as_str()))
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        if !candidate.is_empty() {
+            model_ids.push(candidate);
+        }
+    }
+    Ok(model_ids)
+}
+
+fn normalize_provider_models(raw: Vec<String>) -> Vec<ProviderModelResponse> {
+    let mut seen = HashSet::new();
+    let mut items = Vec::new();
+    for model_id in raw {
+        let trimmed = model_id.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if !seen.insert(trimmed.to_string()) {
+            continue;
+        }
+        items.push(ProviderModelResponse {
+            model_id: trimmed.to_string(),
+            label: trimmed.to_string(),
+        });
+    }
+    items
+}
+
+async fn fetch_provider_models_from_upstream(
+    state: &AppState,
+    provider: &str,
+    base_url: &str,
+    auth_profile: Option<&ProviderAuthProfile>,
+) -> std::result::Result<Vec<ProviderModelResponse>, (StatusCode, Json<ApiError>)> {
+    if provider == "mock" {
+        return Ok(vec![ProviderModelResponse {
+            model_id: "mock-echo-v1".to_string(),
+            label: "mock-echo-v1".to_string(),
+        }]);
+    }
+
+    let token = match auth_profile {
+        Some(profile) => extract_provider_auth_token(profile).map_err(|err| {
+            internal_err_with_error(
+                "extracting provider auth token for model catalog failed",
+                err,
+            )
+        })?,
+        None => None,
+    };
+    let provider_requires_token = matches!(provider, "openai" | "anthropic" | "openrouter");
+    if provider_requires_token && token.is_none() {
+        return Err(api_error_with_code(
+            StatusCode::BAD_GATEWAY,
+            "AUTH_REQUIRED",
+            "provider auth profile is missing API token",
+        ));
+    }
+
+    let normalized_base = base_url.trim_end_matches('/');
+    let mut request = match provider {
+        "openai" | "openrouter" | "vllm" => state
+            .provider_models_http_client
+            .get(format!("{normalized_base}/v1/models")),
+        "anthropic" => state
+            .provider_models_http_client
+            .get(format!("{normalized_base}/v1/models"))
+            .header("anthropic-version", "2023-06-01"),
+        "ollama" => state
+            .provider_models_http_client
+            .get(format!("{normalized_base}/api/tags")),
+        _ => {
+            return Err(api_error_with_code(
+                StatusCode::BAD_REQUEST,
+                "INVALID_INPUT",
+                "unsupported provider for model catalog",
+            ));
+        }
+    };
+    if let Some(token) = token {
+        if provider == "anthropic" {
+            request = request.header("x-api-key", token);
+        } else {
+            request = request.bearer_auth(token);
+        }
+    }
+
+    let response = request.send().await.map_err(|err| {
+        if err.is_timeout() {
+            api_error_with_code(
+                StatusCode::GATEWAY_TIMEOUT,
+                "TIMEOUT",
+                "provider model catalog request timed out",
+            )
+        } else {
+            api_error_with_code(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "DEPENDENCY_UNAVAILABLE",
+                "provider model catalog request failed",
+            )
+        }
+    })?;
+    let status = response.status();
+    if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        let body = truncate_provider_error_body(&body);
+        if matches!(status, StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN) {
+            return Err(api_error_with_code(
+                StatusCode::BAD_GATEWAY,
+                "AUTH_REQUIRED",
+                &format!(
+                    "provider auth rejected model catalog request (status={} body={body})",
+                    status.as_u16()
+                ),
+            ));
+        }
+        if status == StatusCode::TOO_MANY_REQUESTS {
+            return Err(api_error_with_code(
+                StatusCode::TOO_MANY_REQUESTS,
+                "RATE_LIMITED",
+                &format!(
+                    "provider model catalog request was rate limited (status={} body={body})",
+                    status.as_u16()
+                ),
+            ));
+        }
+        if matches!(
+            status,
+            StatusCode::REQUEST_TIMEOUT | StatusCode::GATEWAY_TIMEOUT
+        ) {
+            return Err(api_error_with_code(
+                StatusCode::GATEWAY_TIMEOUT,
+                "TIMEOUT",
+                &format!(
+                    "provider model catalog request timed out (status={} body={body})",
+                    status.as_u16()
+                ),
+            ));
+        }
+        return Err(api_error_with_code(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "DEPENDENCY_UNAVAILABLE",
+            &format!(
+                "provider model catalog request failed (status={} body={body})",
+                status.as_u16()
+            ),
+        ));
+    }
+
+    let payload: serde_json::Value = response.json().await.map_err(|err| {
+        api_error_with_code(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "DEPENDENCY_UNAVAILABLE",
+            &format!("failed to parse provider model catalog response: {err}"),
+        )
+    })?;
+    let raw_models = match provider {
+        "openai" | "openrouter" | "anthropic" | "vllm" => parse_openai_models_payload(&payload)
+            .map_err(|err| {
+                api_error_with_code(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "DEPENDENCY_UNAVAILABLE",
+                    &format!("invalid provider model catalog payload: {err}"),
+                )
+            })?,
+        "ollama" => parse_ollama_models_payload(&payload).map_err(|err| {
+            api_error_with_code(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "DEPENDENCY_UNAVAILABLE",
+                &format!("invalid provider model catalog payload: {err}"),
+            )
+        })?,
+        _ => unreachable!(),
+    };
+    Ok(normalize_provider_models(raw_models))
 }
 
 async fn list_tool_capabilities(
@@ -5566,6 +6219,7 @@ fn build_app(state: AppState) -> Router {
             "/api/v1/providers/capabilities",
             get(list_provider_capabilities),
         )
+        .route("/api/v1/providers/models", get(list_provider_models))
         .route("/api/v1/tools/capabilities", get(list_tool_capabilities))
         .route("/api/v1/extensions/plugins", get(list_plugins))
         .route(
@@ -5768,6 +6422,12 @@ fn build_app(state: AppState) -> Router {
             post(release_agent_mail_file_lease),
         )
         .route("/api/v1/agent-mail/mcp", post(agent_mail_mcp))
+        .route(
+            "/api/v1/assistant-tools/capabilities",
+            get(get_assistant_tool_capabilities),
+        )
+        .route("/api/v1/assistant-tools/call", post(assistant_tools_call))
+        .route("/api/v1/assistant-tools/mcp", post(assistant_tools_mcp))
         .route("/api/v1/approvals", get(list_approvals))
         .route("/api/v1/approvals/request", post(create_approval_request))
         .route(
@@ -5826,6 +6486,28 @@ const AGENT_MAIL_MCP_TOOL_MESSAGE_ACK: &str = "agent_mail.message.ack";
 const AGENT_MAIL_MCP_TOOL_FILE_RESERVE: &str = "agent_mail.files.reserve";
 const AGENT_MAIL_MCP_TOOL_FILE_LIST: &str = "agent_mail.files.list";
 const AGENT_MAIL_MCP_TOOL_FILE_RELEASE: &str = "agent_mail.files.release";
+const ASSISTANT_TOOLS_MCP_PROTOCOL_VERSION: &str = "2024-11-05";
+const ASSISTANT_TOOL_CAPABILITIES_GET: &str = "assistant.capabilities.get";
+const ASSISTANT_TOOL_WORKER_SPAWN: &str = "assistant.worker.spawn";
+const ASSISTANT_TOOL_WORKER_UPDATE: &str = "assistant.worker.update";
+const ASSISTANT_TOOL_WORKER_LIST: &str = "assistant.worker.list";
+const ASSISTANT_TOOL_WORKER_STATUS: &str = "assistant.worker.status";
+const ASSISTANT_TOOL_WORKER_ASSIGN: &str = "assistant.worker.assign";
+const ASSISTANT_TOOL_WORKER_JOIN: &str = "assistant.worker.join";
+const ASSISTANT_TOOL_WORKER_CLOSE: &str = "assistant.worker.close";
+const ASSISTANT_TOOL_APPROVALS_LIST: &str = "assistant.approvals.list";
+const ASSISTANT_TOOL_MAIL_THREAD_CREATE: &str = "assistant.mail.thread.create";
+const ASSISTANT_TOOL_MAIL_SEND: &str = "assistant.mail.send";
+const ASSISTANT_TOOL_MAIL_INBOX_FETCH: &str = "assistant.mail.inbox.fetch";
+const ASSISTANT_TOOL_WORKER_SESSION_PERSISTENT: &str = "persistent";
+const ASSISTANT_TOOL_WORKER_SESSION_FRESH_PER_TASK: &str = "fresh_per_task";
+const ASSISTANT_TOOL_WORKER_KIND_EMPLOYEE: &str = "employee";
+const ASSISTANT_TOOL_WORKER_KIND_CONTRACT: &str = "contract";
+const ASSISTANT_TOOL_WORKER_STATUS_ACTIVE: &str = "active";
+const ASSISTANT_TOOL_WORKER_STATUS_ARCHIVED: &str = "archived";
+const ASSISTANT_TOOL_WORKER_STATUS_PENDING_APPROVAL: &str = "pending_approval";
+const ASSISTANT_TOOL_WORKER_UPDATE_KIND: &str = "assistant.worker.update";
+const ASSISTANT_TOOL_WORKER_SPAWN_KIND: &str = "assistant.worker.spawn";
 
 fn agent_mail_attachment_max_bytes() -> usize {
     std::env::var("CARSINOS_AGENT_MAIL_ATTACHMENT_MAX_BYTES")
@@ -10986,6 +11668,318 @@ fn ensure_agent_mail_thread_membership(
         .any(|participant| participant.principal_id == principal_id))
 }
 
+fn assistant_tool_limits(runtime_config: &RuntimeConfigResponse) -> AssistantToolLimitsResponse {
+    let limits = &runtime_config.extensions.assistant_tools.limits;
+    AssistantToolLimitsResponse {
+        max_spawn_depth: limits.max_spawn_depth,
+        max_children_per_root_run: limits.max_children_per_root_run,
+        max_active_workers_total: limits.max_active_workers_total,
+    }
+}
+
+fn assistant_tool_templates(
+    runtime_config: &RuntimeConfigResponse,
+) -> Vec<AssistantWorkerTemplateResponse> {
+    let mut out = Vec::new();
+    for item in &runtime_config.extensions.assistant_tools.templates {
+        let template_key = item.template_key.trim().to_ascii_lowercase();
+        if template_key.is_empty() {
+            continue;
+        }
+        let display_name = item.display_name.trim().to_string();
+        let instructions = item.instructions.trim().to_string();
+        let run_defaults = AssistantWorkerTemplateRunDefaults {
+            model_provider: item
+                .run_defaults
+                .model_provider
+                .as_ref()
+                .map(|value| value.trim().to_ascii_lowercase())
+                .filter(|value| !value.is_empty()),
+            model_id: item
+                .run_defaults
+                .model_id
+                .as_ref()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty()),
+        };
+        out.push(AssistantWorkerTemplateResponse {
+            template_key: template_key.clone(),
+            display_name: if display_name.is_empty() {
+                template_key.clone()
+            } else {
+                display_name
+            },
+            instructions,
+            run_defaults,
+        });
+    }
+    out.sort_by(|left, right| left.template_key.cmp(&right.template_key));
+    out.dedup_by(|left, right| left.template_key == right.template_key);
+    out
+}
+
+fn assistant_tool_find_template(
+    runtime_config: &RuntimeConfigResponse,
+    template_key: &str,
+) -> Option<AssistantWorkerTemplateResponse> {
+    let wanted = template_key.trim().to_ascii_lowercase();
+    assistant_tool_templates(runtime_config)
+        .into_iter()
+        .find(|item| item.template_key == wanted)
+}
+
+fn assistant_tool_capabilities_payload(
+    runtime_config: &RuntimeConfigResponse,
+) -> AssistantToolCapabilitiesResponse {
+    AssistantToolCapabilitiesResponse {
+        contract_version: ASSISTANT_TOOL_CONTRACT_VERSION.to_string(),
+        tools: vec![
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CAPABILITIES_GET.to_string(),
+                risk_level: "low".to_string(),
+                requires_approval: false,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_WORKER_SPAWN.to_string(),
+                risk_level: "high".to_string(),
+                requires_approval: true,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_WORKER_UPDATE.to_string(),
+                risk_level: "high".to_string(),
+                requires_approval: true,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_WORKER_LIST.to_string(),
+                risk_level: "low".to_string(),
+                requires_approval: false,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_WORKER_STATUS.to_string(),
+                risk_level: "low".to_string(),
+                requires_approval: false,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_WORKER_ASSIGN.to_string(),
+                risk_level: "medium".to_string(),
+                requires_approval: false,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_WORKER_JOIN.to_string(),
+                risk_level: "low".to_string(),
+                requires_approval: false,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_WORKER_CLOSE.to_string(),
+                risk_level: "medium".to_string(),
+                requires_approval: false,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_APPROVALS_LIST.to_string(),
+                risk_level: "low".to_string(),
+                requires_approval: false,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_MAIL_THREAD_CREATE.to_string(),
+                risk_level: "low".to_string(),
+                requires_approval: false,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_MAIL_SEND.to_string(),
+                risk_level: "medium".to_string(),
+                requires_approval: false,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_MAIL_INBOX_FETCH.to_string(),
+                risk_level: "low".to_string(),
+                requires_approval: false,
+            },
+        ],
+        limits: assistant_tool_limits(runtime_config),
+        templates: assistant_tool_templates(runtime_config),
+    }
+}
+
+fn assistant_tools_mcp_tools() -> &'static Vec<serde_json::Value> {
+    static TOOLS: std::sync::OnceLock<Vec<serde_json::Value>> = std::sync::OnceLock::new();
+    TOOLS.get_or_init(|| {
+        [
+            ASSISTANT_TOOL_CAPABILITIES_GET,
+            ASSISTANT_TOOL_WORKER_SPAWN,
+            ASSISTANT_TOOL_WORKER_UPDATE,
+            ASSISTANT_TOOL_WORKER_LIST,
+            ASSISTANT_TOOL_WORKER_STATUS,
+            ASSISTANT_TOOL_WORKER_ASSIGN,
+            ASSISTANT_TOOL_WORKER_JOIN,
+            ASSISTANT_TOOL_WORKER_CLOSE,
+            ASSISTANT_TOOL_APPROVALS_LIST,
+            ASSISTANT_TOOL_MAIL_THREAD_CREATE,
+            ASSISTANT_TOOL_MAIL_SEND,
+            ASSISTANT_TOOL_MAIL_INBOX_FETCH,
+        ]
+        .into_iter()
+        .map(|tool_name| {
+            serde_json::json!({
+                "name": tool_name,
+                "description": "Assistant orchestration tool",
+                "inputSchema": {
+                    "type": "object",
+                    "additionalProperties": true
+                }
+            })
+        })
+        .collect::<Vec<_>>()
+    })
+}
+
+fn assistant_tool_mcp_response_result(
+    id: serde_json::Value,
+    result: serde_json::Value,
+) -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": result
+    }))
+}
+
+fn assistant_tool_mcp_response_error(
+    id: serde_json::Value,
+    code: i64,
+    message: impl Into<String>,
+    data: Option<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let error = AssistantToolsMcpRpcError {
+        code,
+        message: message.into(),
+        data,
+    };
+    Json(serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "error": error
+    }))
+}
+
+fn assistant_tool_mcp_rpc_error_from_api(
+    status: StatusCode,
+    error: ApiError,
+) -> AssistantToolsMcpRpcError {
+    let code = match status {
+        StatusCode::UNAUTHORIZED => -32001,
+        StatusCode::FORBIDDEN => -32003,
+        StatusCode::NOT_FOUND => -32004,
+        StatusCode::CONFLICT => -32009,
+        StatusCode::TOO_MANY_REQUESTS => -32029,
+        StatusCode::BAD_REQUEST => -32602,
+        StatusCode::GATEWAY_TIMEOUT => -32008,
+        _ => -32000,
+    };
+    AssistantToolsMcpRpcError {
+        code,
+        message: error.error,
+        data: serde_json::json!({
+            "status": status.as_u16(),
+            "error_code": error.error_code,
+            "retry_after_seconds": error.retry_after_seconds,
+            "rate_limit_scope": error.rate_limit_scope
+        })
+        .as_object()
+        .and_then(|obj| {
+            if obj.is_empty() {
+                None
+            } else {
+                Some(serde_json::Value::Object(obj.clone()))
+            }
+        }),
+    }
+}
+
+fn normalize_assistant_worker_key(
+    raw: &str,
+) -> std::result::Result<String, (StatusCode, Json<ApiError>)> {
+    let value = raw.trim().to_ascii_lowercase();
+    if value.is_empty()
+        || value.len() > 64
+        || !value
+            .chars()
+            .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_' || ch == '-')
+    {
+        return Err(api_error_with_code(
+            StatusCode::BAD_REQUEST,
+            "INVALID_INPUT",
+            "worker_key must match ^[a-z0-9][a-z0-9_-]{0,63}$",
+        ));
+    }
+    Ok(value)
+}
+
+fn normalize_assistant_session_mode(
+    raw: Option<&str>,
+) -> std::result::Result<String, (StatusCode, Json<ApiError>)> {
+    let value = raw
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(ASSISTANT_TOOL_WORKER_SESSION_PERSISTENT)
+        .to_ascii_lowercase();
+    if matches!(
+        value.as_str(),
+        ASSISTANT_TOOL_WORKER_SESSION_PERSISTENT | ASSISTANT_TOOL_WORKER_SESSION_FRESH_PER_TASK
+    ) {
+        Ok(value)
+    } else {
+        Err(api_error_with_code(
+            StatusCode::BAD_REQUEST,
+            "INVALID_INPUT",
+            "session_mode must be one of: persistent, fresh_per_task",
+        ))
+    }
+}
+
+fn normalize_assistant_worker_kind(
+    raw: &str,
+) -> std::result::Result<String, (StatusCode, Json<ApiError>)> {
+    let value = raw.trim().to_ascii_lowercase();
+    if matches!(
+        value.as_str(),
+        ASSISTANT_TOOL_WORKER_KIND_EMPLOYEE | ASSISTANT_TOOL_WORKER_KIND_CONTRACT
+    ) {
+        Ok(value)
+    } else {
+        Err(api_error_with_code(
+            StatusCode::BAD_REQUEST,
+            "INVALID_INPUT",
+            "worker_kind must be one of: employee, contract",
+        ))
+    }
+}
+
+fn merge_assistant_run_defaults(
+    base: &AssistantWorkerTemplateRunDefaults,
+    override_defaults: Option<&AssistantWorkerTemplateRunDefaults>,
+) -> AssistantWorkerTemplateRunDefaults {
+    let mut next = base.clone();
+    if let Some(override_defaults) = override_defaults {
+        if let Some(provider) = override_defaults
+            .model_provider
+            .as_ref()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+        {
+            next.model_provider = Some(provider);
+        }
+        if let Some(model_id) = override_defaults
+            .model_id
+            .as_ref()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+        {
+            next.model_id = Some(model_id);
+        }
+    }
+    next
+}
+
 fn agent_mail_mcp_tools() -> &'static Vec<serde_json::Value> {
     static TOOLS: std::sync::OnceLock<Vec<serde_json::Value>> = std::sync::OnceLock::new();
     TOOLS.get_or_init(|| {
@@ -11843,6 +12837,1666 @@ async fn agent_mail_mcp(
             Some(serde_json::json!({
                 "method": method
             })),
+        )),
+    }
+}
+
+fn assistant_worker_summary_from_record(record: AssistantWorkerRecord) -> AssistantWorkerSummary {
+    AssistantWorkerSummary {
+        worker_key: record.worker_key,
+        worker_kind: record.worker_kind,
+        status: record.status,
+        agent_id: record.agent_id,
+        session_id: record.session_id,
+        template_key: record.template_key,
+        last_run_id: record.last_run_id,
+        last_run_status: record.last_run_status,
+        last_stop_reason: record.last_stop_reason,
+        updated_at: record.updated_at,
+    }
+}
+
+fn parse_assistant_tool_request(
+    state: &AppState,
+    request: AssistantToolRpcRequest,
+) -> std::result::Result<
+    (AssistantToolExecutionContext, String, serde_json::Value),
+    (StatusCode, Json<ApiError>),
+> {
+    let contract_version = request
+        .contract_version
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(ASSISTANT_TOOL_CONTRACT_VERSION);
+    if contract_version != ASSISTANT_TOOL_CONTRACT_VERSION {
+        return Err(api_error_with_code(
+            StatusCode::BAD_REQUEST,
+            "INVALID_INPUT",
+            "unsupported contract_version",
+        ));
+    }
+    let request_id = request
+        .request_id
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let root_session_id = request
+        .root_session_id
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            api_error_with_code(
+                StatusCode::BAD_REQUEST,
+                "INVALID_INPUT",
+                "root_session_id is required",
+            )
+        })?;
+    let caller_agent_id = request
+        .caller_agent_id
+        .as_ref()
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty());
+    let tool_name = request
+        .tool_name
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            api_error_with_code(
+                StatusCode::BAD_REQUEST,
+                "INVALID_INPUT",
+                "tool_name is required",
+            )
+        })?;
+    let arguments = request.arguments.unwrap_or_else(|| serde_json::json!({}));
+    if !arguments.is_object() {
+        return Err(api_error_with_code(
+            StatusCode::BAD_REQUEST,
+            "INVALID_INPUT",
+            "arguments must be a JSON object",
+        ));
+    }
+    let session = state
+        .storage
+        .get_session(&root_session_id)
+        .map_err(|err| internal_err_with_error("loading root session failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "root session not found"))?;
+    let boss_key = session.agent_id.trim().to_ascii_lowercase();
+    if boss_key.is_empty() {
+        return Err(api_error_with_code(
+            StatusCode::FAILED_DEPENDENCY,
+            "DEPENDENCY_UNAVAILABLE",
+            "root session is missing owner agent",
+        ));
+    }
+    let caller_agent_id = caller_agent_id.unwrap_or_else(|| boss_key.clone());
+    if caller_agent_id != boss_key {
+        return Err(api_error_with_code(
+            StatusCode::FORBIDDEN,
+            "AUTH_FORBIDDEN",
+            "caller_agent_id does not own root_session_id",
+        ));
+    }
+
+    let root_run_id = request
+        .root_run_id
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    if let Some(run_id) = root_run_id.as_deref() {
+        let run = state
+            .storage
+            .get_run(run_id)
+            .map_err(|err| internal_err_with_error("loading root run failed", err))?
+            .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "root run not found"))?;
+        if run.session_id != root_session_id {
+            return Err(api_error_with_code(
+                StatusCode::BAD_REQUEST,
+                "INVALID_INPUT",
+                "root_run_id does not belong to root_session_id",
+            ));
+        }
+    }
+
+    Ok((
+        AssistantToolExecutionContext {
+            request_id,
+            root_session_id: root_session_id.clone(),
+            root_run_id,
+            caller_agent_id: boss_key.clone(),
+            memory_scope: request.memory_scope,
+            boss_key,
+        },
+        tool_name,
+        arguments,
+    ))
+}
+
+fn require_assistant_tool_roles(
+    auth: &AuthContext,
+    tool_name: &str,
+) -> std::result::Result<(), (StatusCode, Json<ApiError>)> {
+    let allowed_roles: &[&str] = match tool_name {
+        ASSISTANT_TOOL_CAPABILITIES_GET
+        | ASSISTANT_TOOL_WORKER_LIST
+        | ASSISTANT_TOOL_WORKER_STATUS => &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_OPERATOR_READONLY,
+            ROLE_AUTOMATION_RUNNER,
+        ],
+        ASSISTANT_TOOL_WORKER_SPAWN
+        | ASSISTANT_TOOL_WORKER_UPDATE
+        | ASSISTANT_TOOL_WORKER_ASSIGN
+        | ASSISTANT_TOOL_WORKER_JOIN
+        | ASSISTANT_TOOL_WORKER_CLOSE => &[ROLE_OPERATOR_ADMIN, ROLE_AUTOMATION_RUNNER],
+        ASSISTANT_TOOL_APPROVALS_LIST => &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        ASSISTANT_TOOL_MAIL_THREAD_CREATE
+        | ASSISTANT_TOOL_MAIL_SEND
+        | ASSISTANT_TOOL_MAIL_INBOX_FETCH => &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_OPERATOR_READONLY,
+            ROLE_AUTOMATION_RUNNER,
+        ],
+        _ => {
+            return Err(api_error_with_code(
+                StatusCode::BAD_REQUEST,
+                "INVALID_INPUT",
+                "unsupported assistant tool",
+            ))
+        }
+    };
+    require_roles_raw(auth, allowed_roles)
+        .map_err(|err| api_error_with_code(err.status, err.code, &err.message))
+}
+
+fn resolve_assistant_anchor_run_id(
+    state: &AppState,
+    context: &AssistantToolExecutionContext,
+) -> std::result::Result<String, (StatusCode, Json<ApiError>)> {
+    if let Some(run_id) = context.root_run_id.as_ref() {
+        return Ok(run_id.clone());
+    }
+    if let Some(existing) = state
+        .storage
+        .latest_run_for_session(&context.root_session_id)
+        .map_err(|err| internal_err_with_error("loading latest run for root session failed", err))?
+    {
+        return Ok(existing.run_id);
+    }
+    let created = state
+        .storage
+        .create_run(NewRun {
+            session_id: context.root_session_id.clone(),
+            model_provider: "mock".to_string(),
+            model_id: "mock-echo-v1".to_string(),
+        })
+        .map_err(|err| internal_err_with_error("creating anchor run for approval failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "root session not found"))?;
+    Ok(created.run_id)
+}
+
+fn parse_worker_run_defaults_from_json(raw: &str) -> AssistantWorkerTemplateRunDefaults {
+    serde_json::from_str::<AssistantWorkerTemplateRunDefaults>(raw).unwrap_or(
+        AssistantWorkerTemplateRunDefaults {
+            model_provider: Some("mock".to_string()),
+            model_id: Some("mock-echo-v1".to_string()),
+        },
+    )
+}
+
+fn normalize_worker_model_provider_and_id(
+    defaults: &AssistantWorkerTemplateRunDefaults,
+) -> std::result::Result<(String, String), (StatusCode, Json<ApiError>)> {
+    let model_provider = defaults
+        .model_provider
+        .as_ref()
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "mock".to_string());
+    let model_id = defaults
+        .model_id
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "mock-echo-v1".to_string());
+    if !provider_supported(&model_provider) {
+        return Err(api_error_with_code(
+            StatusCode::BAD_REQUEST,
+            "INVALID_INPUT",
+            "unsupported model_provider",
+        ));
+    }
+    Ok((model_provider, model_id))
+}
+
+fn generate_worker_agent_id(worker_key: &str) -> String {
+    let suffix = uuid::Uuid::new_v4()
+        .simple()
+        .to_string()
+        .chars()
+        .take(10)
+        .collect::<String>();
+    format!("worker-{worker_key}-{suffix}")
+}
+
+fn record_assistant_tool_audit(
+    headers: &HeaderMap,
+    state: &AppState,
+    auth: &AuthContext,
+    context: &AssistantToolExecutionContext,
+    tool_name: &str,
+    response: &AssistantToolRpcResponse,
+) {
+    let decision = if response.status == "ok" {
+        "allow"
+    } else {
+        "deny"
+    };
+    let status = if response.status == "ok" {
+        StatusCode::OK
+    } else if response.status == "blocked" {
+        StatusCode::CONFLICT
+    } else {
+        StatusCode::BAD_REQUEST
+    };
+    record_security_audit(
+        headers,
+        state,
+        auth,
+        "assistant.tool.call",
+        &format!("assistant_tool:{tool_name}"),
+        decision,
+        Some(response.message.clone()),
+        status,
+        response.reason_code.as_deref(),
+        Some(&context.root_session_id),
+        context.root_run_id.as_deref(),
+        Some(serde_json::json!({
+            "request_id": &context.request_id,
+            "status": &response.status,
+            "tool_name": tool_name,
+            "memory_scope": &context.memory_scope
+        })),
+    );
+
+    let metadata_json = serde_json::json!({
+        "request_id": &context.request_id,
+        "tool_name": tool_name,
+        "status": &response.status,
+        "reason_code": &response.reason_code,
+        "message": &response.message,
+        "memory_scope": &context.memory_scope
+    })
+    .to_string();
+    if let Err(err) = state
+        .storage
+        .create_assistant_tool_call_audit(NewAssistantToolCallAudit {
+            request_id: context.request_id.clone(),
+            boss_key: context.boss_key.clone(),
+            root_session_id: context.root_session_id.clone(),
+            root_run_id: context.root_run_id.clone(),
+            caller_agent_id: context.caller_agent_id.clone(),
+            tool_name: tool_name.to_string(),
+            decision: decision.to_string(),
+            reason_code: response.reason_code.clone(),
+            audit_ref: response.audit_ref.clone(),
+            metadata_json: Some(metadata_json),
+        })
+    {
+        warn!(error = %err, tool = tool_name, "assistant tool audit insert failed");
+    }
+}
+
+async fn apply_assistant_worker_approval_action(
+    state: &AppState,
+    approval: &ApprovalRecord,
+    decision: &str,
+) -> std::result::Result<Option<serde_json::Value>, (StatusCode, Json<ApiError>)> {
+    if approval.kind != ASSISTANT_TOOL_WORKER_SPAWN_KIND
+        && approval.kind != ASSISTANT_TOOL_WORKER_UPDATE_KIND
+    {
+        return Ok(None);
+    }
+    let payload: AssistantWorkerApprovalPayload = serde_json::from_str(&approval.request_json)
+        .map_err(|_| {
+            api_error_with_code(
+                StatusCode::BAD_REQUEST,
+                "INVALID_INPUT",
+                "assistant worker approval payload is invalid",
+            )
+        })?;
+
+    let worker = state
+        .storage
+        .get_assistant_worker_by_pending_approval(&approval.approval_id)
+        .map_err(|err| internal_err_with_error("loading pending assistant worker failed", err))?;
+
+    if decision == "deny" {
+        if let Some(worker) = worker {
+            let patch = if payload.action == "update_employee" {
+                AssistantWorkerPatch {
+                    status: Some(ASSISTANT_TOOL_WORKER_STATUS_ACTIVE.to_string()),
+                    pending_approval_id: Some(None),
+                    ..AssistantWorkerPatch::default()
+                }
+            } else {
+                AssistantWorkerPatch {
+                    status: Some(ASSISTANT_TOOL_WORKER_STATUS_ARCHIVED.to_string()),
+                    pending_approval_id: Some(None),
+                    archived_at: Some(Some(current_time_ms())),
+                    ..AssistantWorkerPatch::default()
+                }
+            };
+            let _ = state
+                .storage
+                .update_assistant_worker(&worker.boss_key, &worker.worker_key, patch)
+                .map_err(|err| {
+                    internal_err_with_error(
+                        "updating assistant worker on denied approval failed",
+                        err,
+                    )
+                })?;
+        }
+        return Ok(Some(serde_json::json!({
+            "assistant_worker_action": "denied",
+            "worker_key": payload.worker_key
+        })));
+    }
+
+    if payload.action == "hire_employee" {
+        let worker = worker.ok_or_else(|| {
+            api_error(
+                StatusCode::NOT_FOUND,
+                "assistant worker pending record not found for approval",
+            )
+        })?;
+        let (model_provider, model_id) =
+            normalize_worker_model_provider_and_id(&payload.run_defaults)?;
+        let agent = state
+            .storage
+            .create_agent(NewAgent {
+                agent_id: generate_worker_agent_id(&worker.worker_key),
+                name: payload.display_name.clone(),
+                workspace_root: ".".to_string(),
+                model_provider,
+                model_id,
+                tool_profile: "default".to_string(),
+            })
+            .map_err(|err| {
+                internal_err_with_error("creating assistant worker agent failed", err)
+            })?;
+        let session = state
+            .storage
+            .create_session(NewSession {
+                session_key: Some(format!(
+                    "assistant-worker:{}:{}",
+                    worker.boss_key, worker.worker_key
+                )),
+                agent_id: agent.agent_id.clone(),
+                title: Some(format!("Worker {}", payload.display_name)),
+            })
+            .map_err(|err| {
+                internal_err_with_error("creating assistant worker primary session failed", err)
+            })?;
+        let run_defaults_json = serde_json::to_string(&payload.run_defaults).map_err(|err| {
+            internal_err_with_error("serializing run defaults failed", err.into())
+        })?;
+        let _ = state
+            .storage
+            .update_assistant_worker(
+                &worker.boss_key,
+                &worker.worker_key,
+                AssistantWorkerPatch {
+                    status: Some(ASSISTANT_TOOL_WORKER_STATUS_ACTIVE.to_string()),
+                    agent_id: Some(Some(agent.agent_id.clone())),
+                    session_id: Some(Some(session.session_id.clone())),
+                    template_key: Some(payload.template_key.clone()),
+                    display_name: Some(payload.display_name.clone()),
+                    instructions: Some(payload.instructions.clone()),
+                    run_defaults_json: Some(run_defaults_json),
+                    session_mode: Some(payload.session_mode.clone()),
+                    pending_approval_id: Some(None),
+                    archived_at: Some(None),
+                    ..AssistantWorkerPatch::default()
+                },
+            )
+            .map_err(|err| internal_err_with_error("activating assistant worker failed", err))?;
+
+        return Ok(Some(serde_json::json!({
+            "assistant_worker_action": "hired",
+            "worker_key": worker.worker_key,
+            "agent_id": agent.agent_id,
+            "session_id": session.session_id
+        })));
+    }
+
+    if payload.action == "update_employee" {
+        let worker = worker.ok_or_else(|| {
+            api_error(
+                StatusCode::NOT_FOUND,
+                "assistant worker pending record not found for approval",
+            )
+        })?;
+        let (model_provider, model_id) =
+            normalize_worker_model_provider_and_id(&payload.run_defaults)?;
+        if let Some(agent_id) = worker.agent_id.as_ref() {
+            let _ = state
+                .storage
+                .update_agent(
+                    agent_id,
+                    AgentUpdatePatch {
+                        name: Some(payload.display_name.clone()),
+                        workspace_root: None,
+                        model_provider: Some(model_provider),
+                        model_id: Some(model_id),
+                        tool_profile: None,
+                    },
+                )
+                .map_err(|err| {
+                    internal_err_with_error("updating assistant worker agent failed", err)
+                })?;
+        }
+        let run_defaults_json = serde_json::to_string(&payload.run_defaults).map_err(|err| {
+            internal_err_with_error("serializing run defaults failed", err.into())
+        })?;
+        let _ = state
+            .storage
+            .update_assistant_worker(
+                &worker.boss_key,
+                &worker.worker_key,
+                AssistantWorkerPatch {
+                    status: Some(ASSISTANT_TOOL_WORKER_STATUS_ACTIVE.to_string()),
+                    template_key: Some(payload.template_key.clone()),
+                    display_name: Some(payload.display_name.clone()),
+                    instructions: Some(payload.instructions.clone()),
+                    run_defaults_json: Some(run_defaults_json),
+                    session_mode: Some(payload.session_mode.clone()),
+                    pending_approval_id: Some(None),
+                    ..AssistantWorkerPatch::default()
+                },
+            )
+            .map_err(|err| internal_err_with_error("updating assistant worker failed", err))?;
+        return Ok(Some(serde_json::json!({
+            "assistant_worker_action": "updated",
+            "worker_key": worker.worker_key
+        })));
+    }
+
+    Ok(None)
+}
+
+async fn list_assistant_tool_approvals(
+    state: &AppState,
+    context: &AssistantToolExecutionContext,
+    status: Option<String>,
+) -> std::result::Result<Vec<serde_json::Value>, (StatusCode, Json<ApiError>)> {
+    let normalized = status
+        .as_ref()
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty());
+    let approvals = match normalized.as_deref() {
+        Some("open") => state
+            .storage
+            .list_approvals(Some("requested"), 200)
+            .map_err(|err| internal_err_with_error("listing requested approvals failed", err))?,
+        Some("resolved") => state
+            .storage
+            .list_approvals(None, 400)
+            .map_err(|err| internal_err_with_error("listing approvals failed", err))?
+            .into_iter()
+            .filter(|item| item.status != "requested")
+            .collect::<Vec<_>>(),
+        _ => state
+            .storage
+            .list_approvals(None, 400)
+            .map_err(|err| internal_err_with_error("listing approvals failed", err))?,
+    };
+    let mut items = Vec::new();
+    for approval in approvals {
+        if approval.kind != ASSISTANT_TOOL_WORKER_SPAWN_KIND
+            && approval.kind != ASSISTANT_TOOL_WORKER_UPDATE_KIND
+        {
+            continue;
+        }
+        let request_json: serde_json::Value = match serde_json::from_str(&approval.request_json) {
+            Ok(value) => value,
+            Err(_) => continue,
+        };
+        let belongs_to_root = request_json
+            .get("root_session_id")
+            .and_then(|value| value.as_str())
+            .map(|value| value == context.root_session_id)
+            .unwrap_or(false);
+        if !belongs_to_root {
+            continue;
+        }
+        items.push(serde_json::json!({
+            "approval_id": approval.approval_id,
+            "status": approval.status,
+            "kind": approval.kind,
+            "summary": approval.request_summary,
+            "created_at": approval.requested_at,
+            "resolved_at": approval.decided_at
+        }));
+    }
+    Ok(items)
+}
+
+async fn execute_assistant_tool(
+    state: &AppState,
+    auth: &AuthContext,
+    context: &AssistantToolExecutionContext,
+    tool_name: &str,
+    arguments: serde_json::Value,
+) -> std::result::Result<
+    (String, Option<String>, String, Option<serde_json::Value>),
+    (StatusCode, Json<ApiError>),
+> {
+    let runtime_config = load_runtime_config(state)
+        .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
+    require_assistant_tool_roles(auth, tool_name)?;
+    match tool_name {
+        ASSISTANT_TOOL_CAPABILITIES_GET => {
+            let payload = assistant_tool_capabilities_payload(&runtime_config);
+            let data = serde_json::to_value(payload).map_err(|err| {
+                internal_err_with_error("serializing assistant capabilities failed", err.into())
+            })?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "assistant capabilities loaded".to_string(),
+                Some(data),
+            ))
+        }
+        ASSISTANT_TOOL_WORKER_LIST => {
+            let args: AssistantWorkerListArgs =
+                serde_json::from_value(arguments).map_err(|err| {
+                    api_error_with_code(
+                        StatusCode::BAD_REQUEST,
+                        "INVALID_INPUT",
+                        &format!("invalid args for {ASSISTANT_TOOL_WORKER_LIST}: {err}"),
+                    )
+                })?;
+            let workers = state
+                .storage
+                .list_assistant_workers(
+                    &context.boss_key,
+                    args.include_archived.unwrap_or(false),
+                    200,
+                )
+                .map_err(|err| internal_err_with_error("listing assistant workers failed", err))?;
+            let summaries = workers
+                .into_iter()
+                .map(assistant_worker_summary_from_record)
+                .collect::<Vec<_>>();
+            Ok((
+                "ok".to_string(),
+                None,
+                "assistant workers listed".to_string(),
+                Some(serde_json::json!({ "items": summaries })),
+            ))
+        }
+        ASSISTANT_TOOL_WORKER_STATUS => {
+            let args: AssistantWorkerStatusArgs =
+                serde_json::from_value(arguments).map_err(|err| {
+                    api_error_with_code(
+                        StatusCode::BAD_REQUEST,
+                        "INVALID_INPUT",
+                        &format!("invalid args for {ASSISTANT_TOOL_WORKER_STATUS}: {err}"),
+                    )
+                })?;
+            let _ = args.include_last_messages;
+            let worker_key = normalize_assistant_worker_key(&args.worker_key)?;
+            let worker = state
+                .storage
+                .get_assistant_worker(&context.boss_key, &worker_key)
+                .map_err(|err| internal_err_with_error("loading assistant worker failed", err))?
+                .ok_or_else(|| {
+                    api_error_with_code(
+                        StatusCode::NOT_FOUND,
+                        "WORKER_NOT_FOUND",
+                        "worker not found",
+                    )
+                })?;
+            let summary = assistant_worker_summary_from_record(worker);
+            Ok((
+                "ok".to_string(),
+                None,
+                "assistant worker status loaded".to_string(),
+                Some(serde_json::to_value(summary).map_err(|err| {
+                    internal_err_with_error("serializing worker summary failed", err.into())
+                })?),
+            ))
+        }
+        ASSISTANT_TOOL_WORKER_SPAWN => {
+            let args: AssistantWorkerSpawnArgs =
+                serde_json::from_value(arguments).map_err(|err| {
+                    api_error_with_code(
+                        StatusCode::BAD_REQUEST,
+                        "INVALID_INPUT",
+                        &format!("invalid args for {ASSISTANT_TOOL_WORKER_SPAWN}: {err}"),
+                    )
+                })?;
+            let worker_key = normalize_assistant_worker_key(&args.worker_key)?;
+            let worker_kind = normalize_assistant_worker_kind(&args.worker_kind)?;
+            let session_mode = normalize_assistant_session_mode(args.session_mode.as_deref())?;
+            if state
+                .storage
+                .get_assistant_worker(&context.boss_key, &worker_key)
+                .map_err(|err| {
+                    internal_err_with_error("loading existing assistant worker failed", err)
+                })?
+                .is_some()
+            {
+                return Ok((
+                    "error".to_string(),
+                    Some("POLICY_DENY".to_string()),
+                    "worker_key already exists".to_string(),
+                    None,
+                ));
+            }
+            let limits = assistant_tool_limits(&runtime_config);
+            let active_count = state
+                .storage
+                .list_assistant_workers(&context.boss_key, false, 500)
+                .map_err(|err| internal_err_with_error("counting assistant workers failed", err))?
+                .into_iter()
+                .filter(|item| item.status == ASSISTANT_TOOL_WORKER_STATUS_ACTIVE)
+                .count() as u32;
+            if active_count >= limits.max_active_workers_total {
+                return Ok((
+                    "error".to_string(),
+                    Some("POLICY_DENY".to_string()),
+                    "max_active_workers_total reached".to_string(),
+                    None,
+                ));
+            }
+            let template = assistant_tool_find_template(&runtime_config, &args.template_key)
+                .ok_or_else(|| {
+                    api_error_with_code(
+                        StatusCode::BAD_REQUEST,
+                        "INVALID_INPUT",
+                        "unknown template_key",
+                    )
+                })?;
+            let run_defaults =
+                merge_assistant_run_defaults(&template.run_defaults, args.run_defaults.as_ref());
+            let display_name = args
+                .display_name
+                .as_ref()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| template.display_name.clone());
+            let instructions = args
+                .instructions
+                .as_ref()
+                .map(|value| value.trim().to_string())
+                .or_else(|| {
+                    if template.instructions.is_empty() {
+                        None
+                    } else {
+                        Some(template.instructions.clone())
+                    }
+                });
+
+            if worker_kind == ASSISTANT_TOOL_WORKER_KIND_CONTRACT {
+                let session = state
+                    .storage
+                    .create_session(NewSession {
+                        session_key: None,
+                        agent_id: context.boss_key.clone(),
+                        title: Some(format!("Contractor {worker_key}")),
+                    })
+                    .map_err(|err| {
+                        internal_err_with_error("creating contractor session failed", err)
+                    })?;
+                let run_defaults_json = serde_json::to_string(&run_defaults).map_err(|err| {
+                    internal_err_with_error("serializing worker run defaults failed", err.into())
+                })?;
+                let worker = state
+                    .storage
+                    .create_assistant_worker(NewAssistantWorker {
+                        boss_key: context.boss_key.clone(),
+                        root_session_id: context.root_session_id.clone(),
+                        worker_key: worker_key.clone(),
+                        worker_kind: worker_kind.clone(),
+                        status: ASSISTANT_TOOL_WORKER_STATUS_ACTIVE.to_string(),
+                        agent_id: None,
+                        session_id: Some(session.session_id.clone()),
+                        template_key: template.template_key.clone(),
+                        display_name: display_name.clone(),
+                        instructions,
+                        run_defaults_json,
+                        session_mode,
+                        pending_approval_id: None,
+                    })
+                    .map_err(|err| {
+                        internal_err_with_error("creating contractor worker failed", err)
+                    })?;
+                return Ok((
+                    "ok".to_string(),
+                    None,
+                    "contract worker spawned".to_string(),
+                    Some(serde_json::json!({
+                        "worker_key": worker.worker_key,
+                        "worker_kind": worker.worker_kind,
+                        "status": worker.status,
+                        "session_id": worker.session_id,
+                        "template_key": worker.template_key
+                    })),
+                ));
+            }
+
+            let anchor_run_id = resolve_assistant_anchor_run_id(state, context)?;
+            let run_defaults_json = serde_json::to_string(&run_defaults).map_err(|err| {
+                internal_err_with_error("serializing worker run defaults failed", err.into())
+            })?;
+            let approval_payload = AssistantWorkerApprovalPayload {
+                action: "hire_employee".to_string(),
+                boss_key: context.boss_key.clone(),
+                root_session_id: context.root_session_id.clone(),
+                caller_agent_id: context.caller_agent_id.clone(),
+                worker_key: worker_key.clone(),
+                worker_kind: worker_kind.clone(),
+                template_key: template.template_key.clone(),
+                display_name: display_name.clone(),
+                instructions: instructions.clone(),
+                run_defaults: run_defaults.clone(),
+                session_mode: session_mode.clone(),
+                requested_at: current_time_ms(),
+            };
+            let approval_request_json =
+                serde_json::to_string(&approval_payload).map_err(|err| {
+                    internal_err_with_error(
+                        "serializing assistant approval payload failed",
+                        err.into(),
+                    )
+                })?;
+            let approval = state
+                .storage
+                .create_approval(NewApproval {
+                    run_id: anchor_run_id,
+                    tool_call_id: None,
+                    kind: ASSISTANT_TOOL_WORKER_SPAWN_KIND.to_string(),
+                    request_summary: format!("Hire worker {worker_key} ({display_name})"),
+                    request_json: approval_request_json,
+                })
+                .map_err(|err| {
+                    internal_err_with_error("creating assistant worker approval failed", err)
+                })?
+                .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "run not found for approval"))?;
+
+            let _ = state
+                .storage
+                .create_assistant_worker(NewAssistantWorker {
+                    boss_key: context.boss_key.clone(),
+                    root_session_id: context.root_session_id.clone(),
+                    worker_key: worker_key.clone(),
+                    worker_kind: worker_kind.clone(),
+                    status: ASSISTANT_TOOL_WORKER_STATUS_PENDING_APPROVAL.to_string(),
+                    agent_id: None,
+                    session_id: None,
+                    template_key: template.template_key.clone(),
+                    display_name: display_name.clone(),
+                    instructions,
+                    run_defaults_json,
+                    session_mode,
+                    pending_approval_id: Some(approval.approval_id.clone()),
+                })
+                .map_err(|err| {
+                    internal_err_with_error("creating pending assistant worker failed", err)
+                })?;
+
+            Ok((
+                "blocked".to_string(),
+                Some("APPROVAL_REQUIRED".to_string()),
+                "employee worker hire requires approval".to_string(),
+                Some(serde_json::json!({
+                    "worker_key": worker_key,
+                    "approval_id": approval.approval_id,
+                    "requested_action": "hire_employee"
+                })),
+            ))
+        }
+        ASSISTANT_TOOL_WORKER_UPDATE => {
+            let args: AssistantWorkerUpdateArgs =
+                serde_json::from_value(arguments).map_err(|err| {
+                    api_error_with_code(
+                        StatusCode::BAD_REQUEST,
+                        "INVALID_INPUT",
+                        &format!("invalid args for {ASSISTANT_TOOL_WORKER_UPDATE}: {err}"),
+                    )
+                })?;
+            let worker_key = normalize_assistant_worker_key(&args.worker_key)?;
+            let worker = state
+                .storage
+                .get_assistant_worker(&context.boss_key, &worker_key)
+                .map_err(|err| internal_err_with_error("loading assistant worker failed", err))?
+                .ok_or_else(|| {
+                    api_error_with_code(
+                        StatusCode::NOT_FOUND,
+                        "WORKER_NOT_FOUND",
+                        "worker not found",
+                    )
+                })?;
+            if worker.worker_kind == ASSISTANT_TOOL_WORKER_KIND_CONTRACT {
+                return Ok((
+                    "error".to_string(),
+                    Some("POLICY_DENY".to_string()),
+                    "contractors are immutable; spawn a new contractor instead".to_string(),
+                    None,
+                ));
+            }
+            let target_template_key = args
+                .template_key
+                .as_ref()
+                .map(|value| value.trim().to_ascii_lowercase())
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| worker.template_key.clone());
+            let template = assistant_tool_find_template(&runtime_config, &target_template_key)
+                .ok_or_else(|| {
+                    api_error_with_code(
+                        StatusCode::BAD_REQUEST,
+                        "INVALID_INPUT",
+                        "unknown template_key",
+                    )
+                })?;
+            let existing_defaults = parse_worker_run_defaults_from_json(&worker.run_defaults_json);
+            let template_defaults =
+                merge_assistant_run_defaults(&template.run_defaults, Some(&existing_defaults));
+            let run_defaults =
+                merge_assistant_run_defaults(&template_defaults, args.run_defaults.as_ref());
+            let display_name = args
+                .display_name
+                .as_ref()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| worker.display_name.clone());
+            let instructions = args
+                .instructions
+                .as_ref()
+                .map(|value| value.trim().to_string())
+                .or_else(|| worker.instructions.clone());
+            let anchor_run_id = resolve_assistant_anchor_run_id(state, context)?;
+            let approval_payload = AssistantWorkerApprovalPayload {
+                action: "update_employee".to_string(),
+                boss_key: context.boss_key.clone(),
+                root_session_id: context.root_session_id.clone(),
+                caller_agent_id: context.caller_agent_id.clone(),
+                worker_key: worker_key.clone(),
+                worker_kind: worker.worker_kind.clone(),
+                template_key: template.template_key.clone(),
+                display_name,
+                instructions,
+                run_defaults,
+                session_mode: worker.session_mode.clone(),
+                requested_at: current_time_ms(),
+            };
+            let approval_request_json =
+                serde_json::to_string(&approval_payload).map_err(|err| {
+                    internal_err_with_error(
+                        "serializing assistant update approval payload failed",
+                        err.into(),
+                    )
+                })?;
+            let approval = state
+                .storage
+                .create_approval(NewApproval {
+                    run_id: anchor_run_id,
+                    tool_call_id: None,
+                    kind: ASSISTANT_TOOL_WORKER_UPDATE_KIND.to_string(),
+                    request_summary: format!("Update worker {worker_key}"),
+                    request_json: approval_request_json,
+                })
+                .map_err(|err| {
+                    internal_err_with_error("creating assistant worker update approval failed", err)
+                })?
+                .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "run not found for approval"))?;
+            let _ = state
+                .storage
+                .update_assistant_worker(
+                    &context.boss_key,
+                    &worker_key,
+                    AssistantWorkerPatch {
+                        status: Some(ASSISTANT_TOOL_WORKER_STATUS_PENDING_APPROVAL.to_string()),
+                        pending_approval_id: Some(Some(approval.approval_id.clone())),
+                        ..AssistantWorkerPatch::default()
+                    },
+                )
+                .map_err(|err| {
+                    internal_err_with_error("marking assistant worker pending failed", err)
+                })?;
+            Ok((
+                "blocked".to_string(),
+                Some("APPROVAL_REQUIRED".to_string()),
+                "worker update requires approval".to_string(),
+                Some(serde_json::json!({
+                    "worker_key": worker_key,
+                    "approval_id": approval.approval_id,
+                    "requested_action": "update_employee"
+                })),
+            ))
+        }
+        ASSISTANT_TOOL_WORKER_ASSIGN => {
+            let args: AssistantWorkerAssignArgs =
+                serde_json::from_value(arguments).map_err(|err| {
+                    api_error_with_code(
+                        StatusCode::BAD_REQUEST,
+                        "INVALID_INPUT",
+                        &format!("invalid args for {ASSISTANT_TOOL_WORKER_ASSIGN}: {err}"),
+                    )
+                })?;
+            let _ = args.priority.as_ref();
+            let worker_key = normalize_assistant_worker_key(&args.worker_key)?;
+            let task = args.task.trim().to_string();
+            if task.is_empty() {
+                return Ok((
+                    "error".to_string(),
+                    Some("INVALID_INPUT".to_string()),
+                    "task must not be empty".to_string(),
+                    None,
+                ));
+            }
+            let worker = state
+                .storage
+                .get_assistant_worker(&context.boss_key, &worker_key)
+                .map_err(|err| internal_err_with_error("loading assistant worker failed", err))?
+                .ok_or_else(|| {
+                    api_error_with_code(
+                        StatusCode::NOT_FOUND,
+                        "WORKER_NOT_FOUND",
+                        "worker not found",
+                    )
+                })?;
+            if worker.status == ASSISTANT_TOOL_WORKER_STATUS_ARCHIVED {
+                return Ok((
+                    "error".to_string(),
+                    Some("WORKER_ARCHIVED".to_string()),
+                    "worker is archived".to_string(),
+                    None,
+                ));
+            }
+            if worker.status == ASSISTANT_TOOL_WORKER_STATUS_PENDING_APPROVAL {
+                return Ok((
+                    "blocked".to_string(),
+                    Some("WORKER_PENDING_APPROVAL".to_string()),
+                    "worker is pending approval".to_string(),
+                    None,
+                ));
+            }
+            let mode = normalize_assistant_session_mode(
+                args.session_mode
+                    .as_deref()
+                    .or(Some(worker.session_mode.as_str())),
+            )?;
+            if worker.worker_kind == ASSISTANT_TOOL_WORKER_KIND_CONTRACT
+                && mode == ASSISTANT_TOOL_WORKER_SESSION_FRESH_PER_TASK
+            {
+                return Ok((
+                    "error".to_string(),
+                    Some("INVALID_INPUT".to_string()),
+                    "contract workers do not support fresh_per_task session_mode".to_string(),
+                    None,
+                ));
+            }
+
+            let target_session_id = if worker.worker_kind == ASSISTANT_TOOL_WORKER_KIND_EMPLOYEE
+                && mode == ASSISTANT_TOOL_WORKER_SESSION_FRESH_PER_TASK
+            {
+                let agent_id = worker.agent_id.clone().ok_or_else(|| {
+                    api_error_with_code(
+                        StatusCode::FAILED_DEPENDENCY,
+                        "DEPENDENCY_UNAVAILABLE",
+                        "employee worker missing agent_id",
+                    )
+                })?;
+                state
+                    .storage
+                    .create_session(NewSession {
+                        session_key: None,
+                        agent_id,
+                        title: Some(format!("Worker {} task session", worker.worker_key)),
+                    })
+                    .map_err(|err| {
+                        internal_err_with_error("creating fresh worker session failed", err)
+                    })?
+                    .session_id
+            } else {
+                worker.session_id.clone().ok_or_else(|| {
+                    api_error_with_code(
+                        StatusCode::FAILED_DEPENDENCY,
+                        "DEPENDENCY_UNAVAILABLE",
+                        "worker session is not available",
+                    )
+                })?
+            };
+
+            let _ = state
+                .storage
+                .create_message(NewMessage {
+                    session_id: target_session_id.clone(),
+                    source_channel: "assistant.tool".to_string(),
+                    source_peer_id: None,
+                    source_message_id: None,
+                    role: "user".to_string(),
+                    content_text: task,
+                    content_format: "markdown".to_string(),
+                })
+                .map_err(|err| internal_err_with_error("creating worker task message failed", err))?
+                .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "worker session not found"))?;
+
+            let defaults = parse_worker_run_defaults_from_json(&worker.run_defaults_json);
+            let merged_defaults =
+                merge_assistant_run_defaults(&defaults, args.run_overrides.as_ref());
+            let (model_provider, model_id) =
+                normalize_worker_model_provider_and_id(&merged_defaults)?;
+            let created_run = state
+                .storage
+                .create_run(NewRun {
+                    session_id: target_session_id.clone(),
+                    model_provider,
+                    model_id,
+                })
+                .map_err(|err| internal_err_with_error("creating worker run failed", err))?
+                .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "worker session not found"))?;
+            let session = state
+                .storage
+                .get_session(&target_session_id)
+                .map_err(|err| internal_err_with_error("loading worker session failed", err))?
+                .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "worker session not found"))?;
+            let run = match execute_run_with_lane_control(
+                state,
+                &created_run,
+                &session.agent_id,
+                None,
+                RunLaneConflictPolicy::RejectIfBusy,
+            )
+            .await
+            {
+                Ok(run) => run,
+                Err(RunLaneExecutionError::Busy) => {
+                    return Ok((
+                        "error".to_string(),
+                        Some("RUN_LANE_CONFLICT".to_string()),
+                        "worker session already has an active run".to_string(),
+                        None,
+                    ))
+                }
+                Err(RunLaneExecutionError::Execute(err)) => {
+                    return Err(internal_err_with_error("executing worker run failed", err))
+                }
+            };
+
+            state
+                .storage
+                .create_assistant_task_link(
+                    &context.boss_key,
+                    &worker.worker_key,
+                    &run.run_id,
+                    &run.session_id,
+                )
+                .map_err(|err| {
+                    internal_err_with_error("creating assistant task link failed", err)
+                })?;
+            let _ = state
+                .storage
+                .update_assistant_worker(
+                    &context.boss_key,
+                    &worker.worker_key,
+                    AssistantWorkerPatch {
+                        last_run_id: Some(Some(run.run_id.clone())),
+                        last_run_status: Some(Some(run.status.clone())),
+                        last_stop_reason: Some(run.error_text.as_ref().map(|text| {
+                            extract_reason_code_from_error_text(text)
+                                .unwrap_or_else(|| "INTERNAL_ERROR".to_string())
+                        })),
+                        ..AssistantWorkerPatch::default()
+                    },
+                )
+                .map_err(|err| {
+                    internal_err_with_error("updating assistant worker run metadata failed", err)
+                })?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "worker assignment started".to_string(),
+                Some(
+                    serde_json::to_value(AssistantTaskHandle {
+                        worker_key: worker.worker_key,
+                        session_id: run.session_id,
+                        run_id: run.run_id,
+                        status: run.status,
+                    })
+                    .map_err(|err| {
+                        internal_err_with_error(
+                            "serializing assistant task handle failed",
+                            err.into(),
+                        )
+                    })?,
+                ),
+            ))
+        }
+        ASSISTANT_TOOL_WORKER_JOIN => {
+            let args: AssistantWorkerJoinArgs =
+                serde_json::from_value(arguments).map_err(|err| {
+                    api_error_with_code(
+                        StatusCode::BAD_REQUEST,
+                        "INVALID_INPUT",
+                        &format!("invalid args for {ASSISTANT_TOOL_WORKER_JOIN}: {err}"),
+                    )
+                })?;
+            let worker_key = normalize_assistant_worker_key(&args.worker_key)?;
+            if !state
+                .storage
+                .assistant_task_link_exists(&context.boss_key, &worker_key, args.run_id.trim())
+                .map_err(|err| {
+                    internal_err_with_error("checking assistant task link failed", err)
+                })?
+            {
+                return Ok((
+                    "error".to_string(),
+                    Some("POLICY_DENY".to_string()),
+                    "run is not linked to this worker".to_string(),
+                    None,
+                ));
+            }
+            let wait_ms = args.wait_ms.unwrap_or(0).min(30_000);
+            let started = Instant::now();
+            let run_id = args.run_id.trim().to_string();
+            loop {
+                let run = state
+                    .storage
+                    .get_run(&run_id)
+                    .map_err(|err| internal_err_with_error("loading worker run failed", err))?
+                    .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "run not found"))?;
+                let mapped_status = match run.status.as_str() {
+                    "succeeded" => "completed",
+                    "failed" => "failed",
+                    _ => "running",
+                };
+                if mapped_status != "running" || started.elapsed() >= Duration::from_millis(wait_ms)
+                {
+                    return Ok((
+                        "ok".to_string(),
+                        None,
+                        "worker join completed".to_string(),
+                        Some(serde_json::json!({
+                            "run_id": run.run_id,
+                            "status": mapped_status,
+                            "poll_after_ms": if mapped_status == "running" { 500 } else { 0 },
+                            "result_summary": run.error_text
+                        })),
+                    ));
+                }
+                sleep(Duration::from_millis(100)).await;
+            }
+        }
+        ASSISTANT_TOOL_WORKER_CLOSE => {
+            let args: AssistantWorkerCloseArgs =
+                serde_json::from_value(arguments).map_err(|err| {
+                    api_error_with_code(
+                        StatusCode::BAD_REQUEST,
+                        "INVALID_INPUT",
+                        &format!("invalid args for {ASSISTANT_TOOL_WORKER_CLOSE}: {err}"),
+                    )
+                })?;
+            let _ = args.reason.as_ref();
+            let worker_key = normalize_assistant_worker_key(&args.worker_key)?;
+            let worker = state
+                .storage
+                .get_assistant_worker(&context.boss_key, &worker_key)
+                .map_err(|err| internal_err_with_error("loading assistant worker failed", err))?
+                .ok_or_else(|| {
+                    api_error_with_code(
+                        StatusCode::NOT_FOUND,
+                        "WORKER_NOT_FOUND",
+                        "worker not found",
+                    )
+                })?;
+            let _ = state
+                .storage
+                .update_assistant_worker(
+                    &worker.boss_key,
+                    &worker.worker_key,
+                    AssistantWorkerPatch {
+                        status: Some(ASSISTANT_TOOL_WORKER_STATUS_ARCHIVED.to_string()),
+                        pending_approval_id: Some(None),
+                        archived_at: Some(Some(current_time_ms())),
+                        ..AssistantWorkerPatch::default()
+                    },
+                )
+                .map_err(|err| internal_err_with_error("archiving assistant worker failed", err))?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "worker archived".to_string(),
+                Some(serde_json::json!({
+                    "worker_key": worker.worker_key,
+                    "status": ASSISTANT_TOOL_WORKER_STATUS_ARCHIVED
+                })),
+            ))
+        }
+        ASSISTANT_TOOL_APPROVALS_LIST => {
+            let args: AssistantApprovalsListArgs =
+                serde_json::from_value(arguments).map_err(|err| {
+                    api_error_with_code(
+                        StatusCode::BAD_REQUEST,
+                        "INVALID_INPUT",
+                        &format!("invalid args for {ASSISTANT_TOOL_APPROVALS_LIST}: {err}"),
+                    )
+                })?;
+            let items = list_assistant_tool_approvals(state, context, args.status).await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "assistant approvals listed".to_string(),
+                Some(serde_json::json!({ "items": items })),
+            ))
+        }
+        ASSISTANT_TOOL_MAIL_THREAD_CREATE => {
+            let args: AssistantMailThreadCreateArgs =
+                serde_json::from_value(arguments).map_err(|err| {
+                    api_error_with_code(
+                        StatusCode::BAD_REQUEST,
+                        "INVALID_INPUT",
+                        &format!("invalid args for {ASSISTANT_TOOL_MAIL_THREAD_CREATE}: {err}"),
+                    )
+                })?;
+            let subject = args.subject.trim().to_string();
+            if subject.is_empty() {
+                return Ok((
+                    "error".to_string(),
+                    Some("INVALID_INPUT".to_string()),
+                    "subject is required".to_string(),
+                    None,
+                ));
+            }
+            let participants = args
+                .participants
+                .into_iter()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .map(|principal| (principal, "member".to_string()))
+                .collect::<Vec<_>>();
+            let thread = state
+                .storage
+                .create_agent_mail_thread(NewAgentMailThread {
+                    kind: args
+                        .kind
+                        .as_ref()
+                        .map(|value| value.trim().to_ascii_lowercase())
+                        .filter(|value| !value.is_empty())
+                        .unwrap_or_else(|| "direct".to_string()),
+                    subject,
+                    created_by_principal: auth.principal_id.clone(),
+                    participants,
+                })
+                .map_err(|err| {
+                    internal_err_with_error("creating assistant mail thread failed", err)
+                })?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "assistant mail thread created".to_string(),
+                Some(serde_json::json!({ "thread_id": thread.thread_id })),
+            ))
+        }
+        ASSISTANT_TOOL_MAIL_SEND => {
+            let args: AssistantMailSendArgs = serde_json::from_value(arguments).map_err(|err| {
+                api_error_with_code(
+                    StatusCode::BAD_REQUEST,
+                    "INVALID_INPUT",
+                    &format!("invalid args for {ASSISTANT_TOOL_MAIL_SEND}: {err}"),
+                )
+            })?;
+            let thread_id = args.thread_id.trim().to_string();
+            if thread_id.is_empty() {
+                return Ok((
+                    "error".to_string(),
+                    Some("INVALID_INPUT".to_string()),
+                    "thread_id is required".to_string(),
+                    None,
+                ));
+            }
+            let message = state
+                .storage
+                .create_agent_mail_message(NewAgentMailMessage {
+                    thread_id,
+                    sender_principal: args
+                        .sender_principal
+                        .as_ref()
+                        .map(|value| value.trim().to_string())
+                        .filter(|value| !value.is_empty())
+                        .unwrap_or_else(|| auth.principal_id.clone()),
+                    sender_kind: args
+                        .sender_kind
+                        .as_ref()
+                        .map(|value| value.trim().to_string())
+                        .filter(|value| !value.is_empty())
+                        .unwrap_or_else(|| "assistant".to_string()),
+                    body_text: args.body_text,
+                    metadata_json: args.metadata_json.map(|value| value.to_string()),
+                    recipients: args.recipients,
+                })
+                .map_err(|err| {
+                    internal_err_with_error("sending assistant mail message failed", err)
+                })?
+                .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "agent-mail thread not found"))?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "assistant mail message sent".to_string(),
+                Some(serde_json::json!({ "message_id": message.message_id })),
+            ))
+        }
+        ASSISTANT_TOOL_MAIL_INBOX_FETCH => {
+            let args: AssistantMailInboxFetchArgs =
+                serde_json::from_value(arguments).map_err(|err| {
+                    api_error_with_code(
+                        StatusCode::BAD_REQUEST,
+                        "INVALID_INPUT",
+                        &format!("invalid args for {ASSISTANT_TOOL_MAIL_INBOX_FETCH}: {err}"),
+                    )
+                })?;
+            let principal = resolve_agent_mail_principal(args.principal_id, auth);
+            let threads = state
+                .storage
+                .list_agent_mail_threads(&AgentMailThreadListFilter {
+                    kind: None,
+                    principal_id: Some(principal),
+                    mailbox: Some("inbox".to_string()),
+                    search_text: None,
+                    limit: args.thread_limit.unwrap_or(20).clamp(1, 50),
+                })
+                .map_err(|err| {
+                    internal_err_with_error("listing assistant mail inbox failed", err)
+                })?;
+            let message_limit = args.message_limit.unwrap_or(20).clamp(1, 50);
+            let mut items = Vec::new();
+            for entry in threads {
+                let summary = to_agent_mail_thread_summary_response(&entry);
+                let messages = state
+                    .storage
+                    .list_agent_mail_messages(&summary.thread_id, message_limit)
+                    .map_err(|err| {
+                        internal_err_with_error(
+                            "listing assistant mail thread messages failed",
+                            err,
+                        )
+                    })?
+                    .into_iter()
+                    .map(|record| load_agent_mail_message_response(state, record))
+                    .collect::<std::result::Result<Vec<_>, _>>()?;
+                items.push(serde_json::json!({
+                    "thread_id": summary.thread_id,
+                    "subject": summary.subject,
+                    "messages": messages
+                }));
+            }
+            Ok((
+                "ok".to_string(),
+                None,
+                "assistant inbox fetched".to_string(),
+                Some(serde_json::json!({ "threads": items })),
+            ))
+        }
+        _ => Ok((
+            "error".to_string(),
+            Some("INVALID_INPUT".to_string()),
+            "unsupported assistant tool".to_string(),
+            None,
+        )),
+    }
+}
+
+async fn get_assistant_tool_capabilities(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_OPERATOR_READONLY,
+            ROLE_AUTOMATION_RUNNER,
+        ],
+        "assistant.tool.capabilities",
+        "assistant_tools",
+    )?;
+    let runtime_config = load_runtime_config(&state)
+        .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
+    Ok(Json(assistant_tool_capabilities_payload(&runtime_config)))
+}
+
+async fn assistant_tools_call(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<AssistantToolRpcRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let started = Instant::now();
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    let (context, tool_name, arguments) = parse_assistant_tool_request(&state, request)?;
+    let (status, reason_code, message, data) =
+        execute_assistant_tool(&state, &auth, &context, &tool_name, arguments).await?;
+    let response = AssistantToolRpcResponse {
+        contract_version: ASSISTANT_TOOL_CONTRACT_VERSION.to_string(),
+        request_id: context.request_id.clone(),
+        status,
+        reason_code,
+        message,
+        data,
+        error: None,
+        audit_ref: None,
+        timing_ms: started.elapsed().as_millis() as u64,
+    };
+    record_assistant_tool_audit(&headers, &state, &auth, &context, &tool_name, &response);
+    Ok((StatusCode::OK, Json(response)))
+}
+
+async fn assistant_tools_mcp(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(payload): Json<serde_json::Value>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_OPERATOR_READONLY,
+            ROLE_AUTOMATION_RUNNER,
+            ROLE_CHANNEL_ADAPTER,
+        ],
+        "assistant.tool.mcp.call",
+        "assistant_tools",
+    )?;
+
+    let request: AssistantToolsMcpRpcRequest = match serde_json::from_value(payload) {
+        Ok(request) => request,
+        Err(err) => {
+            return Ok(assistant_tool_mcp_response_error(
+                serde_json::Value::Null,
+                -32600,
+                "invalid JSON-RPC request",
+                Some(serde_json::json!({ "detail": err.to_string() })),
+            ));
+        }
+    };
+    let id = request.id.unwrap_or(serde_json::Value::Null);
+    let id_is_valid = matches!(
+        &id,
+        serde_json::Value::Null | serde_json::Value::String(_) | serde_json::Value::Number(_)
+    );
+    if !id_is_valid {
+        return Ok(assistant_tool_mcp_response_error(
+            serde_json::Value::Null,
+            -32600,
+            "invalid JSON-RPC id",
+            None,
+        ));
+    }
+    let jsonrpc_version = request
+        .jsonrpc
+        .as_ref()
+        .map(|value| value.trim())
+        .unwrap_or_default();
+    if jsonrpc_version != "2.0" {
+        return Ok(assistant_tool_mcp_response_error(
+            id,
+            -32600,
+            "invalid or missing JSON-RPC version",
+            None,
+        ));
+    }
+    let method = request
+        .method
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_default();
+    if method.is_empty() {
+        return Ok(assistant_tool_mcp_response_error(
+            id,
+            -32600,
+            "missing JSON-RPC method",
+            None,
+        ));
+    }
+
+    match method.as_str() {
+        "initialize" => Ok(assistant_tool_mcp_response_result(
+            id,
+            serde_json::json!({
+                "protocolVersion": ASSISTANT_TOOLS_MCP_PROTOCOL_VERSION,
+                "serverInfo": {
+                    "name": "carsinos-assistant-tools-mcp",
+                    "version": env!("CARGO_PKG_VERSION")
+                },
+                "capabilities": {
+                    "tools": {}
+                }
+            }),
+        )),
+        "tools/list" => Ok(assistant_tool_mcp_response_result(
+            id,
+            serde_json::json!({
+                "tools": assistant_tools_mcp_tools()
+            }),
+        )),
+        "tools/call" => {
+            let params = request.params.unwrap_or_else(|| serde_json::json!({}));
+            let tool_name = params
+                .get("name")
+                .and_then(|value| value.as_str())
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .unwrap_or_default();
+            if tool_name.is_empty() {
+                return Ok(assistant_tool_mcp_response_error(
+                    id,
+                    -32602,
+                    "tools/call requires params.name",
+                    None,
+                ));
+            }
+            let request_payload = AssistantToolRpcRequest {
+                contract_version: Some(ASSISTANT_TOOL_CONTRACT_VERSION.to_string()),
+                request_id: params
+                    .get("request_id")
+                    .and_then(|value| value.as_str())
+                    .map(|value| value.to_string()),
+                root_session_id: params
+                    .get("root_session_id")
+                    .and_then(|value| value.as_str())
+                    .map(|value| value.to_string()),
+                root_run_id: params
+                    .get("root_run_id")
+                    .and_then(|value| value.as_str())
+                    .map(|value| value.to_string()),
+                caller_agent_id: params
+                    .get("caller_agent_id")
+                    .and_then(|value| value.as_str())
+                    .map(|value| value.to_string()),
+                memory_scope: params
+                    .get("memory_scope")
+                    .cloned()
+                    .and_then(|value| serde_json::from_value(value).ok()),
+                tool_name: Some(tool_name.clone()),
+                arguments: Some(
+                    params
+                        .get("arguments")
+                        .cloned()
+                        .unwrap_or_else(|| serde_json::json!({})),
+                ),
+            };
+            let started = Instant::now();
+            let (context, tool_name, arguments) =
+                match parse_assistant_tool_request(&state, request_payload) {
+                    Ok(value) => value,
+                    Err((status, Json(error))) => {
+                        let rpc_error = assistant_tool_mcp_rpc_error_from_api(status, error);
+                        return Ok(assistant_tool_mcp_response_error(
+                            id,
+                            rpc_error.code,
+                            rpc_error.message,
+                            rpc_error.data,
+                        ));
+                    }
+                };
+            let result =
+                execute_assistant_tool(&state, &auth, &context, &tool_name, arguments).await;
+            match result {
+                Ok((status, reason_code, message, data)) => {
+                    let response = AssistantToolRpcResponse {
+                        contract_version: ASSISTANT_TOOL_CONTRACT_VERSION.to_string(),
+                        request_id: context.request_id.clone(),
+                        status,
+                        reason_code,
+                        message,
+                        data,
+                        error: None,
+                        audit_ref: None,
+                        timing_ms: started.elapsed().as_millis() as u64,
+                    };
+                    record_assistant_tool_audit(
+                        &headers, &state, &auth, &context, &tool_name, &response,
+                    );
+                    Ok(assistant_tool_mcp_response_result(
+                        id,
+                        serde_json::json!({
+                            "structuredContent": response,
+                            "content": [{
+                                "type": "text",
+                                "text": "assistant tool call completed"
+                            }],
+                            "isError": false
+                        }),
+                    ))
+                }
+                Err((status, Json(error))) => {
+                    let rpc_error = assistant_tool_mcp_rpc_error_from_api(status, error);
+                    Ok(assistant_tool_mcp_response_error(
+                        id,
+                        rpc_error.code,
+                        rpc_error.message,
+                        rpc_error.data,
+                    ))
+                }
+            }
+        }
+        _ => Ok(assistant_tool_mcp_response_error(
+            id,
+            -32601,
+            "method not found",
+            Some(serde_json::json!({ "method": method })),
         )),
     }
 }
@@ -13210,6 +15864,7 @@ async fn resolve_approval(
         .storage
         .get_approval(&approval_id)
         .map_err(|err| internal_err_with_error("loading approval before resolve failed", err))?;
+    let mut assistant_approval_metadata: Option<serde_json::Value> = None;
 
     if let Some(existing_record) = existing.as_ref() {
         if existing_record.kind == NUMQUAM_APPROVAL_KIND_WRITEBACK
@@ -13305,6 +15960,14 @@ async fn resolve_approval(
                 ));
             }
         }
+        if existing_record.status == "requested"
+            && (existing_record.kind == ASSISTANT_TOOL_WORKER_SPAWN_KIND
+                || existing_record.kind == ASSISTANT_TOOL_WORKER_UPDATE_KIND)
+        {
+            assistant_approval_metadata =
+                apply_assistant_worker_approval_action(&state, existing_record, &request.decision)
+                    .await?;
+        }
     }
 
     let resolved = state
@@ -13326,6 +15989,16 @@ async fn resolve_approval(
                 decided_via = ?record.decided_via,
                 "approval resolved"
             );
+            let mut metadata = serde_json::json!({
+                "status": &record.status,
+                "kind": &record.kind,
+                "decision": &request.decision
+            });
+            if let Some(extra) = assistant_approval_metadata {
+                if let Some(object) = metadata.as_object_mut() {
+                    object.insert("assistant".to_string(), extra);
+                }
+            }
             record_security_audit(
                 &headers,
                 &state,
@@ -13338,11 +16011,7 @@ async fn resolve_approval(
                 None,
                 None,
                 Some(&record.run_id),
-                Some(serde_json::json!({
-                    "status": &record.status,
-                    "kind": &record.kind,
-                    "decision": &request.decision
-                })),
+                Some(metadata),
             );
             emit_event(
                 &state,
@@ -19360,6 +22029,7 @@ fn default_runtime_config() -> RuntimeConfigResponse {
         extensions: RuntimeExtensionsConfig {
             plugin_daemon_allowlist: Vec::new(),
             plugin_bundle_root: None,
+            assistant_tools: Default::default(),
         },
         security: RuntimeSecurityOpsConfig {
             threat_model_approver: None,
@@ -19450,6 +22120,61 @@ fn normalize_runtime_config(mut config: RuntimeConfigResponse) -> RuntimeConfigR
         .as_ref()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
+    config.extensions.assistant_tools.limits.max_spawn_depth = config
+        .extensions
+        .assistant_tools
+        .limits
+        .max_spawn_depth
+        .clamp(1, 8);
+    config
+        .extensions
+        .assistant_tools
+        .limits
+        .max_children_per_root_run = config
+        .extensions
+        .assistant_tools
+        .limits
+        .max_children_per_root_run
+        .clamp(1, 128);
+    config
+        .extensions
+        .assistant_tools
+        .limits
+        .max_active_workers_total = config
+        .extensions
+        .assistant_tools
+        .limits
+        .max_active_workers_total
+        .clamp(1, 256);
+
+    let mut templates = config.extensions.assistant_tools.templates.clone();
+    for template in &mut templates {
+        template.template_key = template.template_key.trim().to_ascii_lowercase();
+        template.display_name = template.display_name.trim().to_string();
+        template.instructions = template.instructions.trim().to_string();
+        template.run_defaults.model_provider = template
+            .run_defaults
+            .model_provider
+            .as_ref()
+            .map(|value| value.trim().to_ascii_lowercase())
+            .filter(|value| !value.is_empty());
+        template.run_defaults.model_id = template
+            .run_defaults
+            .model_id
+            .as_ref()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+        if template.display_name.is_empty() {
+            template.display_name = template.template_key.clone();
+        }
+    }
+    templates.retain(|template| !template.template_key.is_empty());
+    if templates.is_empty() {
+        templates = RuntimeExtensionsConfig::default().assistant_tools.templates;
+    }
+    templates.sort_by(|left, right| left.template_key.cmp(&right.template_key));
+    templates.dedup_by(|left, right| left.template_key == right.template_key);
+    config.extensions.assistant_tools.templates = templates;
     if config.updated_at < 0 {
         config.updated_at = 0;
     }
@@ -19970,6 +22695,93 @@ fn validate_runtime_config(config: &RuntimeConfigResponse) -> AnyResult<()> {
     if let Some(bundle_root) = &config.extensions.plugin_bundle_root {
         if bundle_root.contains("://") {
             anyhow::bail!("extensions.plugin_bundle_root must be a local filesystem path");
+        }
+    }
+
+    let assistant_limits = &config.extensions.assistant_tools.limits;
+    if assistant_limits.max_spawn_depth == 0 || assistant_limits.max_spawn_depth > 8 {
+        anyhow::bail!("extensions.assistant_tools.limits.max_spawn_depth must be between 1 and 8");
+    }
+    if assistant_limits.max_children_per_root_run == 0
+        || assistant_limits.max_children_per_root_run > 128
+    {
+        anyhow::bail!(
+            "extensions.assistant_tools.limits.max_children_per_root_run must be between 1 and 128"
+        );
+    }
+    if assistant_limits.max_active_workers_total == 0
+        || assistant_limits.max_active_workers_total > 256
+    {
+        anyhow::bail!(
+            "extensions.assistant_tools.limits.max_active_workers_total must be between 1 and 256"
+        );
+    }
+    if assistant_limits.max_children_per_root_run > assistant_limits.max_active_workers_total {
+        anyhow::bail!(
+            "extensions.assistant_tools.limits.max_children_per_root_run must be <= max_active_workers_total"
+        );
+    }
+
+    let mut seen_assistant_templates = HashSet::new();
+    for template in &config.extensions.assistant_tools.templates {
+        let key = template.template_key.trim().to_ascii_lowercase();
+        if key.is_empty() {
+            anyhow::bail!("extensions.assistant_tools.templates contains an empty template_key");
+        }
+        if key.len() > 64 {
+            anyhow::bail!(
+                "extensions.assistant_tools.templates template_key '{}' exceeds 64 chars",
+                key
+            );
+        }
+        let key_is_valid = key.chars().enumerate().all(|(index, ch)| match ch {
+            'a'..='z' | '0'..='9' | '_' | '-' => index != 0 || ch.is_ascii_alphanumeric(),
+            _ => false,
+        });
+        if !key_is_valid {
+            anyhow::bail!(
+                "extensions.assistant_tools.templates template_key '{}' contains invalid chars",
+                key
+            );
+        }
+        if !seen_assistant_templates.insert(key.clone()) {
+            anyhow::bail!(
+                "extensions.assistant_tools.templates duplicate template_key '{}'",
+                key
+            );
+        }
+        if template.display_name.trim().is_empty() {
+            anyhow::bail!(
+                "extensions.assistant_tools.templates '{}' display_name must not be empty",
+                key
+            );
+        }
+        let provider = template
+            .run_defaults
+            .model_provider
+            .as_ref()
+            .map(|value| value.trim().to_ascii_lowercase())
+            .filter(|value| !value.is_empty());
+        let model_id = template
+            .run_defaults
+            .model_id
+            .as_ref()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+        if provider.is_some() != model_id.is_some() {
+            anyhow::bail!(
+                "extensions.assistant_tools.templates '{}' must set both run_defaults.model_provider and run_defaults.model_id together",
+                key
+            );
+        }
+        if let Some(provider_id) = provider {
+            if !provider_supported(&provider_id) {
+                anyhow::bail!(
+                    "extensions.assistant_tools.templates '{}' has unsupported run_defaults.model_provider '{}'",
+                    key,
+                    provider_id
+                );
+            }
         }
     }
 
@@ -23719,6 +26531,11 @@ mod tests {
             trusted_proxy_headers,
             trusted_proxy_allowlist: Arc::new(trusted_proxy_allowlist),
             operator_allowlist: Arc::new(allowlist),
+            provider_models_http_client: reqwest::Client::builder()
+                .timeout(Duration::from_secs(15))
+                .build()
+                .expect("provider models http client"),
+            provider_models_cache: Arc::new(RwLock::new(HashMap::new())),
             providers: ProviderRegistry::new(),
             tool_registry,
             tool_concurrency,
@@ -24642,6 +27459,44 @@ mod tests {
         assert_eq!(create_message_response.status(), StatusCode::CREATED);
 
         session_id
+    }
+
+    async fn assistant_tool_call(
+        ctx: &TestContext,
+        payload: serde_json::Value,
+    ) -> (StatusCode, serde_json::Value) {
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/assistant-tools/call",
+                Body::from(payload.to_string()),
+            ))
+            .await
+            .expect("assistant tool call");
+        let status = response.status();
+        let json = parse_json(response).await;
+        (status, json)
+    }
+
+    async fn assistant_tool_mcp_call(
+        ctx: &TestContext,
+        payload: serde_json::Value,
+    ) -> (StatusCode, serde_json::Value) {
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/assistant-tools/mcp",
+                Body::from(payload.to_string()),
+            ))
+            .await
+            .expect("assistant tool mcp call");
+        let status = response.status();
+        let json = parse_json(response).await;
+        (status, json)
     }
 
     #[derive(Debug, Serialize)]
@@ -28367,6 +31222,20 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         assert_eq!(
             default_json["config"]["security"]["audit_hot_retention_days"],
             90
+        );
+        assert_eq!(
+            default_json["config"]["extensions"]["assistant_tools"]["limits"]["max_spawn_depth"],
+            2
+        );
+        assert_eq!(
+            default_json["config"]["extensions"]["assistant_tools"]["limits"]
+                ["max_children_per_root_run"],
+            8
+        );
+        assert_eq!(
+            default_json["config"]["extensions"]["assistant_tools"]["limits"]
+                ["max_active_workers_total"],
+            16
         );
         assert_eq!(
             default_json["config"]["autonomy_guardrails"]["max_run_ms"],
@@ -32687,6 +35556,222 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     }
 
     #[tokio::test]
+    async fn provider_models_mock_returns_contract_v1() {
+        let ctx = test_context();
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/providers/models?provider=mock",
+                Body::empty(),
+            ))
+            .await
+            .expect("provider models response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = parse_json(response).await;
+        assert_eq!(body["contract_version"], "v1");
+        assert_eq!(body["provider"], "mock");
+        let items = body["items"].as_array().expect("model items");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["model_id"], "mock-echo-v1");
+    }
+
+    #[tokio::test]
+    async fn provider_models_rejects_unknown_provider() {
+        let ctx = test_context();
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/providers/models?provider=unknown",
+                Body::empty(),
+            ))
+            .await
+            .expect("provider models unknown response");
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = parse_json(response).await;
+        assert_eq!(body["error_code"], "INVALID_INPUT");
+    }
+
+    #[tokio::test]
+    async fn provider_models_openai_requires_auth_profile() {
+        let ctx = test_context();
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/providers/models?provider=openai",
+                Body::empty(),
+            ))
+            .await
+            .expect("provider models missing auth response");
+        assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+        let body = parse_json(response).await;
+        assert_eq!(body["error_code"], "AUTH_REQUIRED");
+    }
+
+    #[tokio::test]
+    async fn provider_models_openai_uses_cache_until_refresh() {
+        let ctx = test_context();
+        let server = MockServer::start_async().await;
+        let models_mock = server
+            .mock_async(|when, then| {
+                when.method(GET)
+                    .path("/v1/models")
+                    .header("authorization", "Bearer catalog-key");
+                then.status(200).json_body(serde_json::json!({
+                    "data": [
+                        {"id":"gpt-4o"},
+                        {"id":"o3-mini"}
+                    ]
+                }));
+            })
+            .await;
+
+        let create_profile_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(format!(
+                    r#"{{
+                        "provider":"openai",
+                        "display_name":"openai-catalog",
+                        "auth_mode":"api_key",
+                        "risk_level":"low",
+                        "enabled":true,
+                        "kill_switch_scope":"none",
+                        "api_base_url":"{}",
+                        "credentials_json":{{"api_key":"catalog-key"}}
+                    }}"#,
+                    server.base_url()
+                )),
+            ))
+            .await
+            .expect("create profile response");
+        assert_eq!(create_profile_response.status(), StatusCode::CREATED);
+        let create_profile_json = parse_json(create_profile_response).await;
+        let auth_profile_id = create_profile_json["profile"]["auth_profile_id"]
+            .as_str()
+            .expect("auth profile id")
+            .to_string();
+
+        let first = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!(
+                    "/api/v1/providers/models?provider=openai&auth_profile_id={auth_profile_id}"
+                ),
+                Body::empty(),
+            ))
+            .await
+            .expect("first provider models response");
+        assert_eq!(first.status(), StatusCode::OK);
+        let first_json = parse_json(first).await;
+        assert_eq!(first_json["auth_profile_id"], auth_profile_id);
+        assert!(first_json["items"]
+            .as_array()
+            .expect("first models array")
+            .iter()
+            .any(|item| item["model_id"] == "gpt-4o"));
+
+        let second = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!(
+                    "/api/v1/providers/models?provider=openai&auth_profile_id={auth_profile_id}"
+                ),
+                Body::empty(),
+            ))
+            .await
+            .expect("second provider models response");
+        assert_eq!(second.status(), StatusCode::OK);
+        assert_eq!(models_mock.hits_async().await, 1);
+
+        let refresh = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!(
+                    "/api/v1/providers/models?provider=openai&auth_profile_id={auth_profile_id}&refresh=true"
+                ),
+                Body::empty(),
+            ))
+            .await
+            .expect("refresh provider models response");
+        assert_eq!(refresh.status(), StatusCode::OK);
+        assert_eq!(models_mock.hits_async().await, 2);
+    }
+
+    #[tokio::test]
+    async fn provider_models_openai_maps_upstream_auth_failure() {
+        let ctx = test_context();
+        let server = MockServer::start_async().await;
+        let _models_mock = server
+            .mock_async(|when, then| {
+                when.method(GET).path("/v1/models");
+                then.status(401).json_body(serde_json::json!({
+                    "error": { "message": "bad key" }
+                }));
+            })
+            .await;
+
+        let create_profile_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(format!(
+                    r#"{{
+                        "provider":"openai",
+                        "display_name":"openai-bad-catalog",
+                        "auth_mode":"api_key",
+                        "risk_level":"low",
+                        "enabled":true,
+                        "kill_switch_scope":"none",
+                        "api_base_url":"{}",
+                        "credentials_json":{{"api_key":"bad-key"}}
+                    }}"#,
+                    server.base_url()
+                )),
+            ))
+            .await
+            .expect("create profile response");
+        assert_eq!(create_profile_response.status(), StatusCode::CREATED);
+        let create_profile_json = parse_json(create_profile_response).await;
+        let auth_profile_id = create_profile_json["profile"]["auth_profile_id"]
+            .as_str()
+            .expect("auth profile id")
+            .to_string();
+
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!(
+                    "/api/v1/providers/models?provider=openai&auth_profile_id={auth_profile_id}"
+                ),
+                Body::empty(),
+            ))
+            .await
+            .expect("provider models auth failure response");
+        assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+        let body = parse_json(response).await;
+        assert_eq!(body["error_code"], "AUTH_REQUIRED");
+    }
+
+    #[tokio::test]
     async fn tool_capabilities_endpoint_includes_core_and_plugin_tools() {
         let ctx = test_context_with_plugins(vec![
             sample_plugin_manifest("plugin.alpha", true),
@@ -34621,5 +37706,253 @@ sys.stdout.write(json.dumps(response))
             .as_str()
             .unwrap_or_default()
             .contains(REASON_AUTOMATION_DAILY_RUN_LIMIT));
+    }
+
+    #[tokio::test]
+    async fn assistant_tools_employee_spawn_is_approval_gated_and_auto_finishes() {
+        let ctx = test_context();
+        let session_id =
+            create_session_with_user_message(&ctx, "assistant-tools-root", "start worker flow")
+                .await;
+
+        let (spawn_status, spawn_json) = assistant_tool_call(
+            &ctx,
+            serde_json::json!({
+                "contract_version": ASSISTANT_TOOL_CONTRACT_VERSION,
+                "request_id": "req_spawn_employee",
+                "root_session_id": session_id,
+                "tool_name": "assistant.worker.spawn",
+                "arguments": {
+                    "worker_key": "research_worker_1",
+                    "worker_kind": "employee",
+                    "template_key": "researcher"
+                }
+            }),
+        )
+        .await;
+        assert_eq!(spawn_status, StatusCode::OK);
+        assert_eq!(spawn_json["status"], "blocked");
+        assert_eq!(spawn_json["reason_code"], "APPROVAL_REQUIRED");
+        let approval_id = spawn_json["data"]["approval_id"]
+            .as_str()
+            .expect("approval id")
+            .to_string();
+
+        let (_, pending_status_json) = assistant_tool_call(
+            &ctx,
+            serde_json::json!({
+                "contract_version": ASSISTANT_TOOL_CONTRACT_VERSION,
+                "request_id": "req_worker_pending_status",
+                "root_session_id": session_id,
+                "tool_name": "assistant.worker.status",
+                "arguments": {
+                    "worker_key": "research_worker_1"
+                }
+            }),
+        )
+        .await;
+        assert_eq!(pending_status_json["status"], "ok");
+        assert_eq!(pending_status_json["data"]["status"], "pending_approval");
+
+        let resolve_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/approvals/{approval_id}/resolve"),
+                Body::from(r#"{"decision":"approve","decided_via":"gui"}"#),
+            ))
+            .await
+            .expect("resolve assistant worker approval");
+        assert_eq!(resolve_response.status(), StatusCode::OK);
+        let resolve_json = parse_json(resolve_response).await;
+        assert_eq!(resolve_json["approval"]["status"], "approved");
+
+        let (_, active_status_json) = assistant_tool_call(
+            &ctx,
+            serde_json::json!({
+                "contract_version": ASSISTANT_TOOL_CONTRACT_VERSION,
+                "request_id": "req_worker_active_status",
+                "root_session_id": session_id,
+                "tool_name": "assistant.worker.status",
+                "arguments": {
+                    "worker_key": "research_worker_1"
+                }
+            }),
+        )
+        .await;
+        assert_eq!(active_status_json["status"], "ok");
+        assert_eq!(active_status_json["data"]["status"], "active");
+        assert!(active_status_json["data"]["agent_id"].is_string());
+        assert!(active_status_json["data"]["session_id"].is_string());
+    }
+
+    #[tokio::test]
+    async fn assistant_tools_reject_cross_boss_context() {
+        let ctx = test_context();
+        let session_id =
+            create_session_with_user_message(&ctx, "assistant-cross-boss", "context check").await;
+
+        let (status, json) = assistant_tool_call(
+            &ctx,
+            serde_json::json!({
+                "contract_version": ASSISTANT_TOOL_CONTRACT_VERSION,
+                "request_id": "req_cross_boss",
+                "root_session_id": session_id,
+                "caller_agent_id": "lyra",
+                "tool_name": "assistant.capabilities.get",
+                "arguments": {}
+            }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        assert_eq!(json["error_code"], "AUTH_FORBIDDEN");
+    }
+
+    #[tokio::test]
+    async fn assistant_tools_http_and_mcp_capabilities_are_parity_equivalent() {
+        let ctx = test_context();
+        let session_id =
+            create_session_with_user_message(&ctx, "assistant-parity", "capability parity request")
+                .await;
+
+        let (http_status, http_json) = assistant_tool_call(
+            &ctx,
+            serde_json::json!({
+                "contract_version": ASSISTANT_TOOL_CONTRACT_VERSION,
+                "request_id": "req_http_caps",
+                "root_session_id": session_id,
+                "tool_name": "assistant.capabilities.get",
+                "arguments": {}
+            }),
+        )
+        .await;
+        assert_eq!(http_status, StatusCode::OK);
+        assert_eq!(http_json["status"], "ok");
+
+        let (mcp_status, mcp_json) = assistant_tool_mcp_call(
+            &ctx,
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {
+                    "name": "assistant.capabilities.get",
+                    "root_session_id": session_id,
+                    "arguments": {}
+                }
+            }),
+        )
+        .await;
+        assert_eq!(mcp_status, StatusCode::OK);
+        let structured = &mcp_json["result"]["structuredContent"];
+        assert_eq!(structured["status"], http_json["status"]);
+        assert_eq!(structured["reason_code"], http_json["reason_code"]);
+        assert_eq!(structured["data"]["limits"], http_json["data"]["limits"]);
+        assert_eq!(
+            structured["data"]["tools"]
+                .as_array()
+                .expect("mcp tools")
+                .len(),
+            http_json["data"]["tools"]
+                .as_array()
+                .expect("http tools")
+                .len()
+        );
+    }
+
+    #[tokio::test]
+    async fn assistant_tools_are_security_audited_for_blocked_and_denied_calls() {
+        let ctx = test_context();
+        let session_id = create_session_with_user_message(
+            &ctx,
+            "assistant-audit",
+            "audit assistant tool call behavior",
+        )
+        .await;
+
+        let (_blocked_status, blocked_json) = assistant_tool_call(
+            &ctx,
+            serde_json::json!({
+                "contract_version": ASSISTANT_TOOL_CONTRACT_VERSION,
+                "request_id": "req_audit_blocked",
+                "root_session_id": session_id,
+                "tool_name": "assistant.worker.spawn",
+                "memory_scope": {
+                    "tenant_key": "tenant-a",
+                    "namespace": "project-x",
+                    "db_hint": "db-01"
+                },
+                "arguments": {
+                    "worker_key": "employee_blocked",
+                    "worker_kind": "employee",
+                    "template_key": "researcher"
+                }
+            }),
+        )
+        .await;
+        assert_eq!(blocked_json["status"], "blocked");
+        assert_eq!(blocked_json["reason_code"], "APPROVAL_REQUIRED");
+
+        let (_contract_status, contract_json) = assistant_tool_call(
+            &ctx,
+            serde_json::json!({
+                "contract_version": ASSISTANT_TOOL_CONTRACT_VERSION,
+                "request_id": "req_audit_contract",
+                "root_session_id": session_id,
+                "tool_name": "assistant.worker.spawn",
+                "arguments": {
+                    "worker_key": "contract_1",
+                    "worker_kind": "contract",
+                    "template_key": "general"
+                }
+            }),
+        )
+        .await;
+        assert_eq!(contract_json["status"], "ok");
+
+        let (_deny_status, deny_json) = assistant_tool_call(
+            &ctx,
+            serde_json::json!({
+                "contract_version": ASSISTANT_TOOL_CONTRACT_VERSION,
+                "request_id": "req_audit_deny",
+                "root_session_id": session_id,
+                "tool_name": "assistant.worker.update",
+                "arguments": {
+                    "worker_key": "contract_1",
+                    "template_key": "researcher"
+                }
+            }),
+        )
+        .await;
+        assert_eq!(deny_json["status"], "error");
+        assert_eq!(deny_json["reason_code"], "POLICY_DENY");
+
+        let audit_list = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/security/audit?action=assistant.tool.call&limit=100",
+                Body::empty(),
+            ))
+            .await
+            .expect("assistant security audit list");
+        assert_eq!(audit_list.status(), StatusCode::OK);
+        let audit_json = parse_json(audit_list).await;
+        let items = audit_json["items"].as_array().expect("audit items");
+        assert!(items.iter().any(|item| {
+            item["error_code"] == "APPROVAL_REQUIRED" && item["decision"] == "deny"
+        }));
+        assert!(items
+            .iter()
+            .any(|item| item["error_code"] == "POLICY_DENY" && item["decision"] == "deny"));
+        assert!(items.iter().any(|item| {
+            item["error_code"] == "APPROVAL_REQUIRED"
+                && item["metadata_json"]
+                    .as_str()
+                    .map(|value| value.contains("memory_scope"))
+                    .unwrap_or(false)
+        }));
     }
 }
