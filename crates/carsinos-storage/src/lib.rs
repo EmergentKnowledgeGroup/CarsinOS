@@ -2855,8 +2855,11 @@ impl Storage {
         run_id: &str,
         session_id: &str,
     ) -> Result<()> {
-        let conn = self.connect()?;
-        let run_session_id: Option<String> = conn
+        let mut conn = self.connect()?;
+        let tx = conn
+            .transaction()
+            .context("failed to start assistant task-link transaction")?;
+        let run_session_id: Option<String> = tx
             .query_row(
                 "SELECT session_id FROM runs WHERE run_id = ?1",
                 params![run_id],
@@ -2870,7 +2873,7 @@ impl Storage {
             None => anyhow::bail!("run does not exist"),
         }
 
-        let conflict_exists = conn
+        let conflict_exists = tx
             .query_row(
                 r#"
                 SELECT 1
@@ -2890,7 +2893,7 @@ impl Storage {
         }
 
         let now = now_ms();
-        conn.execute(
+        tx.execute(
             r#"
             INSERT OR REPLACE INTO assistant_task_links (
               boss_key, worker_key, run_id, session_id, linked_at
@@ -2899,6 +2902,8 @@ impl Storage {
             params![boss_key, worker_key, run_id, session_id, now],
         )
         .context("failed to create assistant task link")?;
+        tx.commit()
+            .context("failed to commit assistant task-link transaction")?;
         Ok(())
     }
 
