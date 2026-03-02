@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useId } from "react";
 import {
   Plus,
   Pencil,
@@ -24,6 +24,7 @@ interface CockpitEditToolbarProps {
 export function CockpitEditToolbar(props: CockpitEditToolbarProps) {
   const [moreOpen, setMoreOpen] = useState(false);
   const moreRef = useRef<HTMLDivElement>(null);
+  const menuId = useId();
 
   const closeMore = useCallback(() => setMoreOpen(false), []);
 
@@ -63,14 +64,23 @@ export function CockpitEditToolbar(props: CockpitEditToolbarProps) {
           type="button"
           className="mc-edit-toolbar-btn"
           onClick={() => setMoreOpen(!moreOpen)}
+          aria-haspopup="menu"
+          aria-expanded={moreOpen}
+          aria-controls={menuId}
         >
           <MoreHorizontal size={14} />
         </button>
 
         {moreOpen ? (
-          <div className="mc-edit-toolbar-dropdown">
+          <div
+            id={menuId}
+            className="mc-edit-toolbar-dropdown"
+            role="menu"
+            aria-hidden={!moreOpen}
+          >
             <button
               type="button"
+              role="menuitem"
               onClick={() => {
                 props.onExportLayout();
                 closeMore();
@@ -100,6 +110,7 @@ export function CockpitEditToolbar(props: CockpitEditToolbarProps) {
 
             <button
               type="button"
+              role="menuitem"
               onClick={() => {
                 props.onLoadTemplate();
                 closeMore();
@@ -111,6 +122,7 @@ export function CockpitEditToolbar(props: CockpitEditToolbarProps) {
 
             <button
               type="button"
+              role="menuitem"
               onClick={() => {
                 props.onResetLayout();
                 closeMore();
@@ -124,6 +136,7 @@ export function CockpitEditToolbar(props: CockpitEditToolbarProps) {
               <button
                 type="button"
                 className="danger"
+                role="menuitem"
                 onClick={() => {
                   props.onDeletePage();
                   closeMore();

@@ -26,7 +26,7 @@ export const COCKPIT_DATA_SOURCES: CockpitDataSource[] = [
     category: "Health",
     description: "Basic health check (status, version, uptime).",
     responseShape: "object",
-    sampleFields: ["status", "version", "uptime_seconds"],
+    sampleFields: ["status", "service", "ok"],
   },
   {
     id: "getGatewayStatus",
@@ -34,7 +34,7 @@ export const COCKPIT_DATA_SOURCES: CockpitDataSource[] = [
     category: "Health",
     description: "Operational summary (service, agents, sessions, channels).",
     responseShape: "object",
-    sampleFields: ["service", "total_agents", "active_sessions", "active_channels"],
+    sampleFields: ["service", "version", "uptime_ms", "open_circuit_breakers"],
   },
   {
     id: "getJobsStatus",
@@ -42,7 +42,7 @@ export const COCKPIT_DATA_SOURCES: CockpitDataSource[] = [
     category: "Health",
     description: "Scheduler running state and job counts.",
     responseShape: "object",
-    sampleFields: ["scheduler_running", "total_jobs", "enabled_jobs"],
+    sampleFields: ["scheduler_running", "jobs_total", "jobs_enabled", "jobs_due"],
   },
   {
     id: "getChannelRuntimeStatus",
@@ -50,7 +50,7 @@ export const COCKPIT_DATA_SOURCES: CockpitDataSource[] = [
     category: "Health",
     description: "All channel adapter health and lifecycle states.",
     responseShape: "object",
-    sampleFields: ["adapters"],
+    sampleFields: ["updated_at", "items"],
   },
 
   /* ── Agents ── */
@@ -60,7 +60,7 @@ export const COCKPIT_DATA_SOURCES: CockpitDataSource[] = [
     category: "Agents",
     description: "All registered agents with their configuration.",
     responseShape: "object",
-    sampleFields: ["agents"],
+    sampleFields: ["items"],
   },
   {
     id: "getAgentProviderProfileOrder",
@@ -94,7 +94,7 @@ export const COCKPIT_DATA_SOURCES: CockpitDataSource[] = [
     category: "Boards",
     description: "All boards with card/column counts.",
     responseShape: "object",
-    sampleFields: ["boards"],
+    sampleFields: ["items"],
   },
   {
     id: "getBoard",
@@ -121,7 +121,7 @@ export const COCKPIT_DATA_SOURCES: CockpitDataSource[] = [
     category: "Jobs",
     description: "Scheduled jobs with next-run times and enabled state.",
     responseShape: "object",
-    sampleFields: ["jobs"],
+    sampleFields: ["items"],
   },
 
   /* ── Focus ── */
@@ -149,7 +149,7 @@ export const COCKPIT_DATA_SOURCES: CockpitDataSource[] = [
     category: "Approvals",
     description: "Pending or resolved approval requests.",
     responseShape: "object",
-    sampleFields: ["approvals"],
+    sampleFields: ["items"],
     params: [
       {
         key: "status",
@@ -176,7 +176,7 @@ export const COCKPIT_DATA_SOURCES: CockpitDataSource[] = [
     category: "Extensions",
     description: "Registered skills with enable/disable state.",
     responseShape: "object",
-    sampleFields: ["skills"],
+    sampleFields: ["contract_version", "items"],
   },
   {
     id: "listPlugins",
@@ -184,7 +184,7 @@ export const COCKPIT_DATA_SOURCES: CockpitDataSource[] = [
     category: "Extensions",
     description: "Installed plugins and runtime configuration.",
     responseShape: "object",
-    sampleFields: ["plugins"],
+    sampleFields: ["contract_version", "plugin_api_version", "items"],
   },
   {
     id: "listPluginRuntimeStatus",
@@ -192,7 +192,7 @@ export const COCKPIT_DATA_SOURCES: CockpitDataSource[] = [
     category: "Extensions",
     description: "Plugin health, faulted state, and error codes.",
     responseShape: "object",
-    sampleFields: ["statuses"],
+    sampleFields: ["contract_version", "items"],
   },
 
   /* ── Memory ── */
@@ -202,7 +202,7 @@ export const COCKPIT_DATA_SOURCES: CockpitDataSource[] = [
     category: "Memory",
     description: "Agent memory notes (key-value pairs).",
     responseShape: "object",
-    sampleFields: ["notes"],
+    sampleFields: ["items"],
   },
 
   /* ── Mail ── */
@@ -212,7 +212,7 @@ export const COCKPIT_DATA_SOURCES: CockpitDataSource[] = [
     category: "Mail",
     description: "Agent mail threads (direct and room).",
     responseShape: "object",
-    sampleFields: ["threads"],
+    sampleFields: ["items"],
   },
   {
     id: "getAgentMailThread",
@@ -237,7 +237,7 @@ export const COCKPIT_DATA_SOURCES: CockpitDataSource[] = [
     category: "Mail",
     description: "Messages in a specific mail thread.",
     responseShape: "object",
-    sampleFields: ["messages"],
+    sampleFields: ["items"],
     params: [
       {
         key: "threadId",

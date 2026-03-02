@@ -75,6 +75,7 @@ function PaginationControls({
         type="button"
         disabled={page <= 0}
         onClick={() => onSetPage(page - 1)}
+        aria-label={`Previous page (${page + 1} of ${totalPages})`}
       >
         <ChevronLeft size={12} />
       </button>
@@ -85,6 +86,7 @@ function PaginationControls({
         type="button"
         disabled={page >= totalPages - 1}
         onClick={() => onSetPage(page + 1)}
+        aria-label={`Next page (${page + 1} of ${totalPages})`}
       >
         <ChevronRight size={12} />
       </button>

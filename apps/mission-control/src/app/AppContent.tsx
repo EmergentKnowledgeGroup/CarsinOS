@@ -273,7 +273,7 @@ export function AppContent(props: AppContentProps) {
           editMode={editMode}
           onSetEditMode={setEditMode}
           onSetActiveCockpitPageId={props.cockpitController.setActiveCockpitPageId}
-          onRenameActiveCockpitPage={props.cockpitController.renameActivePage}
+          onRenameCockpitPage={props.cockpitController.renameCockpitPage}
           onAddCockpitPage={props.cockpitController.addCockpitPage}
           onDeleteCockpitPage={props.cockpitController.deleteCockpitPage}
           onDuplicateCockpitPage={props.cockpitController.duplicateCockpitPage}

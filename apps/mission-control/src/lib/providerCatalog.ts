@@ -17,7 +17,7 @@ export function providerLabel(provider: string): string {
     case "mock":
       return "Mock";
     default:
-      return provider;
+      return provider.trim();
   }
 }
 

@@ -23,8 +23,11 @@ export function CustomWidgetRenderer({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const mountedRef = useRef(true);
+  const requestIdRef = useRef(0);
 
   const fetchData = useCallback(async () => {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
     try {
       setLoading(true);
       const raw = await runCockpitDataSource(
@@ -32,15 +35,17 @@ export function CustomWidgetRenderer({
         settings,
         config.params,
       );
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || requestId !== requestIdRef.current) return;
       const resolved = resolveResponsePath(raw, config.response_path);
       setData(resolved);
       setError(null);
     } catch (err: unknown) {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || requestId !== requestIdRef.current) return;
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      if (mountedRef.current) setLoading(false);
+      if (mountedRef.current && requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [config.data_source, config.params, config.response_path, settings]);
 

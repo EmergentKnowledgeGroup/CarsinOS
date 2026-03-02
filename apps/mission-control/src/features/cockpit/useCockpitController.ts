@@ -115,11 +115,22 @@ export function useCockpitController() {
     }));
   };
 
+  const renameCockpitPage = (pageId: string, name: string) => {
+    const trimmed = name.trim();
+    setCockpitPages((prev) =>
+      prev.map((page) =>
+        page.page_id === pageId
+          ? {
+              ...page,
+              name: trimmed || "Custom Page",
+            }
+          : page,
+      ),
+    );
+  };
+
   const renameActivePage = (name: string) => {
-    updateActivePage((page) => ({
-      ...page,
-      name: name || "Custom Page",
-    }));
+    renameCockpitPage(activeCockpitPageId, name);
   };
 
   const resetCockpitLayout = () => {
@@ -221,6 +232,7 @@ export function useCockpitController() {
     removeCockpitWidget,
     updateWidgetPosition,
     handleLayoutChange,
+    renameCockpitPage,
     renameActivePage,
     resetCockpitLayout,
     addCockpitPage,

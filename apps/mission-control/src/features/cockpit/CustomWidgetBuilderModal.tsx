@@ -1,6 +1,6 @@
 /* ── Custom Widget Builder — 5-step wizard modal ─────────────────────────── */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -56,6 +56,9 @@ export function CustomWidgetBuilderModal({
   const [selectedSource, setSelectedSource] = useState<CockpitDataSource | null>(null);
   const [paramValues, setParamValues] = useState<Record<string, string>>({});
   const [paramOptions, setParamOptions] = useState<Record<string, { label: string; value: string }[]>>({});
+  const [paramResolveErrors, setParamResolveErrors] = useState<Record<string, string | null>>({});
+  const [paramLoading, setParamLoading] = useState<Record<string, boolean>>({});
+  const [paramResolveNonce, setParamResolveNonce] = useState(0);
   const [displayMode, setDisplayMode] = useState<DisplayMode>("table");
   const [title, setTitle] = useState("");
   const [refreshInterval, setRefreshInterval] = useState(0);
@@ -63,6 +66,7 @@ export function CustomWidgetBuilderModal({
   const [previewData, setPreviewData] = useState<unknown>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const resolverRequestIdRef = useRef(0);
 
   // Reset state when modal opens
   useEffect(() => {
@@ -71,6 +75,9 @@ export function CustomWidgetBuilderModal({
       setSelectedSource(null);
       setParamValues({});
       setParamOptions({});
+      setParamResolveErrors({});
+      setParamLoading({});
+      setParamResolveNonce(0);
       setDisplayMode("table");
       setTitle("");
       setRefreshInterval(0);
@@ -82,48 +89,103 @@ export function CustomWidgetBuilderModal({
 
   // Resolve param options when a source with params is selected
   useEffect(() => {
-    if (!selectedSource?.params || selectedSource.params.length === 0) return;
+    if (!selectedSource?.params || selectedSource.params.length === 0) {
+      setParamLoading({});
+      setParamResolveErrors({});
+      return;
+    }
+
+    const requestId = resolverRequestIdRef.current + 1;
+    resolverRequestIdRef.current = requestId;
+    let cancelled = false;
+
+    const allowedKeys = new Set(selectedSource.params.map((param) => param.key));
+    setParamValues((previous) =>
+      Object.fromEntries(
+        Object.entries(previous).filter(([key]) => allowedKeys.has(key)),
+      ),
+    );
+    setParamOptions({});
+    setParamResolveErrors({});
+    setParamLoading({});
 
     for (const param of selectedSource.params) {
+      const paramKey = param.key;
       if (param.resolver.startsWith("_static:")) {
         const values = param.resolver.slice("_static:".length).split(",");
+        const options = values.map((v) => ({ label: v.trim(), value: v.trim() }));
         setParamOptions((prev) => ({
           ...prev,
-          [param.key]: values.map((v) => ({ label: v.trim(), value: v.trim() })),
+          [paramKey]: options,
         }));
+        setParamResolveErrors((prev) => ({ ...prev, [paramKey]: null }));
+        setParamLoading((prev) => ({ ...prev, [paramKey]: false }));
+        setParamValues((prev) => {
+          if (!prev[paramKey] && options.length > 0) {
+            return { ...prev, [paramKey]: options[0]!.value };
+          }
+          return prev;
+        });
         continue;
       }
 
-      // Dynamic resolver: call the API to fetch options
       const resolverSource = COCKPIT_DATA_SOURCES.find((ds) => ds.id === param.resolver);
-      if (!resolverSource) continue;
+      if (!resolverSource) {
+        setParamResolveErrors((prev) => ({
+          ...prev,
+          [paramKey]: `Resolver not found: ${param.resolver}`,
+        }));
+        setParamLoading((prev) => ({ ...prev, [paramKey]: false }));
+        continue;
+      }
 
       const labelField = param.resolverLabelField;
       const valueField = param.resolverValueField;
-      const paramKey = param.key;
+      setParamLoading((prev) => ({ ...prev, [paramKey]: true }));
+      setParamResolveErrors((prev) => ({ ...prev, [paramKey]: null }));
 
       void (async () => {
         try {
           const raw = await runCockpitDataSource(resolverSource.id, settings);
+          if (cancelled || requestId !== resolverRequestIdRef.current) {
+            return;
+          }
           const items = extractArray(raw);
-          const options = items.map((item) => ({
-            label: String((item as Record<string, unknown>)[labelField] ?? "—"),
-            value: String((item as Record<string, unknown>)[valueField] ?? ""),
-          }));
+          const options = items
+            .map((item) => ({
+              label: String((item as Record<string, unknown>)[labelField] ?? "—"),
+              value: String((item as Record<string, unknown>)[valueField] ?? ""),
+            }))
+            .filter((option) => option.value.trim().length > 0);
           setParamOptions((prev) => ({ ...prev, [paramKey]: options }));
-          // Auto-select first option if param is empty
+          setParamResolveErrors((prev) => ({ ...prev, [paramKey]: null }));
           setParamValues((prev) => {
             if (!prev[paramKey] && options.length > 0) {
               return { ...prev, [paramKey]: options[0]!.value };
             }
             return prev;
           });
-        } catch {
+        } catch (error: unknown) {
+          if (cancelled || requestId !== resolverRequestIdRef.current) {
+            return;
+          }
           setParamOptions((prev) => ({ ...prev, [paramKey]: [] }));
+          setParamResolveErrors((prev) => ({
+            ...prev,
+            [paramKey]: error instanceof Error ? error.message : String(error),
+          }));
+        } finally {
+          if (!cancelled && requestId === resolverRequestIdRef.current) {
+            setParamLoading((prev) => ({ ...prev, [paramKey]: false }));
+          }
         }
       })();
     }
-  }, [selectedSource, settings]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSource, settings, paramResolveNonce]);
 
   const hasParams = selectedSource?.params && selectedSource.params.length > 0;
 
@@ -258,6 +320,9 @@ export function CustomWidgetBuilderModal({
             params={selectedSource.params}
             values={paramValues}
             options={paramOptions}
+            loading={paramLoading}
+            errors={paramResolveErrors}
+            onRetry={() => setParamResolveNonce((current) => current + 1)}
             onChange={(key, val) =>
               setParamValues((prev) => ({ ...prev, [key]: val }))
             }
@@ -344,26 +409,39 @@ function ParametersStep({
   params,
   values,
   options,
+  loading,
+  errors,
+  onRetry,
   onChange,
 }: {
   params: { key: string; label: string }[];
   values: Record<string, string>;
   options: Record<string, { label: string; value: string }[]>;
+  loading: Record<string, boolean>;
+  errors: Record<string, string | null>;
+  onRetry: () => void;
   onChange: (key: string, value: string) => void;
 }) {
   return (
     <div className="mc-builder-params">
       {params.map((param) => {
         const opts = options[param.key] ?? [];
+        const isLoading = loading[param.key] ?? false;
+        const errorText = errors[param.key];
         return (
           <label key={param.key} className="mc-builder-param-field">
             {param.label}
             <select
               value={values[param.key] ?? ""}
               onChange={(e) => onChange(param.key, e.target.value)}
+              disabled={isLoading || Boolean(errorText)}
             >
-              {opts.length === 0 ? (
+              {errorText ? (
+                <option value="">Resolver failed</option>
+              ) : isLoading ? (
                 <option value="">Loading...</option>
+              ) : opts.length === 0 ? (
+                <option value="">No options available</option>
               ) : (
                 <>
                   <option value="">Select {param.label}...</option>
@@ -375,6 +453,14 @@ function ParametersStep({
                 </>
               )}
             </select>
+            {errorText ? (
+              <small className="mc-form-error">
+                Failed to load {param.label}.{" "}
+                <button type="button" className="mc-inline-link-btn" onClick={onRetry}>
+                  Retry
+                </button>
+              </small>
+            ) : null}
           </label>
         );
       })}

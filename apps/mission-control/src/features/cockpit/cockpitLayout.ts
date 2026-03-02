@@ -58,6 +58,13 @@ export const WIDGET_SIZE_CONSTRAINTS: Record<CockpitWidgetKind, WidgetSizeConstr
   events:   { minW: 4, minH: 3, defaultW: 6,  defaultH: 5 },
 };
 
+const CUSTOM_WIDGET_SIZE_CONSTRAINTS: WidgetSizeConstraint = {
+  minW: 3,
+  minH: 2,
+  defaultW: 4,
+  defaultH: 3,
+};
+
 /* ── Custom widget config (Phase 5) ───────────────────────────────────────── */
 
 export interface CustomWidgetConfig {
@@ -182,6 +189,7 @@ export function opsDefaultTemplate(): CockpitPageLayoutV2 {
   const widgets: CockpitWidgetLayoutV2[] = [];
   let cursorX = 0;
   let cursorY = 0;
+  let rowMaxH = 0;
 
   const templateItems: { kind: CockpitWidgetKind; title: string }[] = [
     { kind: "health", title: "Pinned Health Strip" },
@@ -202,7 +210,8 @@ export function opsDefaultTemplate(): CockpitPageLayoutV2 {
 
     if (cursorX + w > 12) {
       cursorX = 0;
-      cursorY += h;
+      cursorY += rowMaxH || h;
+      rowMaxH = 0;
     }
 
     widgets.push({
@@ -213,9 +222,11 @@ export function opsDefaultTemplate(): CockpitPageLayoutV2 {
     });
 
     cursorX += w;
+    rowMaxH = Math.max(rowMaxH, h);
     if (cursorX >= 12) {
       cursorX = 0;
-      cursorY += h;
+      cursorY += rowMaxH;
+      rowMaxH = 0;
     }
   }
 
@@ -280,7 +291,7 @@ function isValidWidgetKind(value: string): value is CockpitWidgetKind | "custom"
 
 function clampPosition(pos: Partial<CockpitWidgetPosition>, kind: CockpitWidgetKind | "custom"): CockpitWidgetPosition {
   const constraints = kind === "custom"
-    ? { minW: 3, minH: 2, defaultW: 4, defaultH: 3 }
+    ? CUSTOM_WIDGET_SIZE_CONSTRAINTS
     : WIDGET_SIZE_CONSTRAINTS[kind];
 
   return {
@@ -359,8 +370,8 @@ export function loadCockpitPagesFromStorage(): CockpitPageLayoutV2[] {
   if (v2Raw) {
     try {
       return sanitizeCockpitPages(JSON.parse(v2Raw) as unknown);
-    } catch {
-      // fall through
+    } catch (error) {
+      console.warn("[cockpitLayout] failed to parse v2 cockpit layout", error);
     }
   }
 
@@ -372,10 +383,11 @@ export function loadCockpitPagesFromStorage(): CockpitPageLayoutV2[] {
       if (Array.isArray(v1Parsed) && v1Parsed.length > 0) {
         const migrated = migrateV1ToV2(v1Parsed);
         persistCockpitPagesToStorage(migrated);
+        window.localStorage.removeItem(COCKPIT_V1_KEY);
         return migrated;
       }
-    } catch {
-      // fall through
+    } catch (error) {
+      console.warn("[cockpitLayout] failed to parse v1 cockpit layout", error);
     }
   }
 

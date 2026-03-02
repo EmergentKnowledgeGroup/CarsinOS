@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useId } from "react";
 import { Bell, X, Trash2 } from "lucide-react";
 import clsx from "clsx";
 import { Badge } from "./Badge";
@@ -14,6 +14,8 @@ interface NotificationCenterProps {
 export function NotificationCenter({ notifications, onDismiss, onClearAll }: NotificationCenterProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const panelId = useId();
+  const titleId = useId();
 
   const toggle = useCallback(() => setOpen((o) => !o), []);
 
@@ -46,21 +48,31 @@ export function NotificationCenter({ notifications, onDismiss, onClearAll }: Not
         className="mc-topbar-icon-btn mc-notification-bell"
         onClick={toggle}
         title="Notifications"
+        aria-label="Notifications"
+        aria-expanded={open}
+        aria-controls={panelId}
       >
         <Bell size={16} />
         <Badge count={notifications.length} tone="warn" className="mc-notification-badge" />
       </button>
 
       {open && (
-        <div className="mc-notification-panel">
+        <div
+          id={panelId}
+          className="mc-notification-panel"
+          role="region"
+          aria-labelledby={titleId}
+          aria-hidden={!open}
+        >
           <div className="mc-notification-panel-header">
-            <span className="mc-notification-panel-title">Notifications</span>
+            <span id={titleId} className="mc-notification-panel-title">Notifications</span>
             {notifications.length > 0 && (
               <button
                 type="button"
                 className="mc-notification-clear-btn"
                 onClick={onClearAll}
                 title="Clear all"
+                aria-label="Clear all notifications"
               >
                 <Trash2 size={14} />
               </button>
@@ -81,6 +93,7 @@ export function NotificationCenter({ notifications, onDismiss, onClearAll }: Not
                     className="mc-notification-row-dismiss"
                     onClick={() => onDismiss(n.id)}
                     title="Dismiss"
+                    aria-label={`Dismiss notification: ${n.message}`}
                   >
                     <X size={12} />
                   </button>

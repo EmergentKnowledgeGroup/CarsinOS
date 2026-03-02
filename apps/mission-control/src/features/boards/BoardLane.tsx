@@ -38,9 +38,13 @@ export function BoardLane(props: BoardLaneProps) {
     if (!title) {
       return;
     }
-    const created = await props.onCreateCard(props.column.column_id, title);
-    if (created) {
-      setNewCardTitle("");
+    try {
+      const created = await props.onCreateCard(props.column.column_id, title);
+      if (created) {
+        setNewCardTitle("");
+      }
+    } catch (error: unknown) {
+      console.error("board card create failed", error);
     }
   };
 

@@ -44,7 +44,10 @@ export function WidgetPickerModal({
         <button
           type="button"
           className="mc-widget-picker-card mc-widget-picker-card-custom"
-          onClick={onOpenCustomBuilder}
+          onClick={() => {
+            onClose();
+            onOpenCustomBuilder();
+          }}
         >
           <Wand2 size={20} />
           <h4>Custom Widget</h4>

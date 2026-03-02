@@ -27,7 +27,7 @@ interface CockpitPageProps {
   editMode: boolean;
   onSetEditMode: (editing: boolean) => void;
   onSetActiveCockpitPageId: (pageId: string) => void;
-  onRenameActiveCockpitPage: (name: string) => void;
+  onRenameCockpitPage: (pageId: string, name: string) => void;
   onAddCockpitPage: () => void;
   onDeleteCockpitPage: (pageId: string) => void;
   onDuplicateCockpitPage: (pageId: string) => void;
@@ -76,7 +76,7 @@ export function CockpitPage(props: CockpitPageProps) {
 
   const confirmRename = useCallback(() => {
     if (renamingPageId && renameValue.trim()) {
-      props.onRenameActiveCockpitPage(renameValue.trim());
+      props.onRenameCockpitPage(renamingPageId, renameValue.trim());
     }
     setRenamingPageId(null);
   }, [renamingPageId, renameValue, props]);

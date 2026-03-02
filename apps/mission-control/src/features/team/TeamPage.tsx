@@ -50,6 +50,12 @@ const TOOL_PROFILES = [
   { value: "none", label: "None" },
 ];
 
+const FALLBACK_PROVIDER_OPTIONS = [
+  { value: "openai", label: "OpenAI" },
+  { value: "anthropic", label: "Anthropic" },
+  { value: "other", label: "Other" },
+];
+
 export function TeamPage({ agents, activeJobCount, settings, onRefresh }: TeamPageProps) {
   const [page, setPage] = useState(1);
   const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
@@ -92,17 +98,16 @@ export function TeamPage({ agents, activeJobCount, settings, onRefresh }: TeamPa
         label: providerLabel(item.provider),
       }))
       .sort((left, right) => left.label.localeCompare(right.label));
-    if (
-      form.model_provider &&
-      !mapped.some((item) => item.value === form.model_provider)
-    ) {
-      mapped.push({
+    const useFallback = Boolean(providerCapabilitiesError) || mapped.length === 0;
+    const base = useFallback ? [...FALLBACK_PROVIDER_OPTIONS] : mapped;
+    if (form.model_provider && !base.some((item) => item.value === form.model_provider)) {
+      base.push({
         value: form.model_provider,
         label: providerLabel(form.model_provider),
       });
     }
-    return mapped;
-  }, [form.model_provider, providerCapabilities, showAdvanced]);
+    return base;
+  }, [form.model_provider, providerCapabilities, providerCapabilitiesError, showAdvanced]);
 
   const modelOptions = useMemo(() => {
     const provider = form.model_provider.trim().toLowerCase();
@@ -153,50 +158,55 @@ export function TeamPage({ agents, activeJobCount, settings, onRefresh }: TeamPa
       return;
     }
     const provider = form.model_provider.trim().toLowerCase();
+    const agentId = form.agent_id.trim() || undefined;
     if (!provider) {
+      setModelLoadingProvider(null);
       return;
     }
     let cancelled = false;
     setModelLoadingProvider(provider);
     setModelErrorsByProvider((prev) => ({ ...prev, [provider]: null }));
-    void listProviderModels(settings, {
-      provider,
-      agent_id: form.agent_id || undefined,
-    })
-      .then((response) => {
-        if (cancelled) {
-          return;
-        }
-        const modelIds = response.items.map((item) => item.model_id);
-        setModelsByProvider((prev) => ({ ...prev, [provider]: modelIds }));
-        if (modelIds.length > 0) {
-          setForm((prev) => {
-            if (
-              prev.model_provider.trim().toLowerCase() !== provider ||
-              prev.model_id.trim()
-            ) {
-              return prev;
-            }
-            return {
-              ...prev,
-              model_id: modelIds[0],
-            };
-          });
-        }
+    const timeoutId = window.setTimeout(() => {
+      void listProviderModels(settings, {
+        provider,
+        agent_id: agentId,
       })
-      .catch((err: unknown) => {
-        if (cancelled) {
-          return;
-        }
-        setModelErrorsByProvider((prev) => ({ ...prev, [provider]: String(err) }));
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setModelLoadingProvider((current) => (current === provider ? null : current));
-        }
-      });
+        .then((response) => {
+          if (cancelled) {
+            return;
+          }
+          const modelIds = response.items.map((item) => item.model_id);
+          setModelsByProvider((prev) => ({ ...prev, [provider]: modelIds }));
+          if (modelIds.length > 0) {
+            setForm((prev) => {
+              if (
+                prev.model_provider.trim().toLowerCase() !== provider ||
+                prev.model_id.trim()
+              ) {
+                return prev;
+              }
+              return {
+                ...prev,
+                model_id: modelIds[0],
+              };
+            });
+          }
+        })
+        .catch((err: unknown) => {
+          if (cancelled) {
+            return;
+          }
+          setModelErrorsByProvider((prev) => ({ ...prev, [provider]: String(err) }));
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setModelLoadingProvider((current) => (current === provider ? null : current));
+          }
+        });
+    }, 400);
     return () => {
       cancelled = true;
+      window.clearTimeout(timeoutId);
     };
   }, [form.agent_id, form.model_provider, modalMode, settings]);
 

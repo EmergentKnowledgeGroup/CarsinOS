@@ -24,7 +24,8 @@ export function useWidgetPagination(
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const height = entry.contentRect.height;
-        const computed = Math.max(1, Math.floor(height / itemHeight));
+        const safeItemHeight = itemHeight > 0 ? itemHeight : 1;
+        const computed = Math.max(1, Math.floor(height / safeItemHeight));
         setPageSize(computed);
       }
     });

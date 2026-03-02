@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createAgent,
   finishOpenAiOauth,
@@ -159,6 +159,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   const [openAiState, setOpenAiState] = useState("");
 
   const [routingReady, setRoutingReady] = useState(false);
+  const localProviderRef = useRef(localProvider);
 
   const [preflight, setPreflight] = useState<OnboardingPreflightState>({
     running: false,
@@ -171,6 +172,10 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   });
 
   const step = ONBOARDING_STEPS[Math.max(0, Math.min(stepIndex, ONBOARDING_STEPS.length - 1))];
+
+  useEffect(() => {
+    localProviderRef.current = localProvider;
+  }, [localProvider]);
 
   useEffect(() => {
     if (!selectedAgentId && agents.length > 0) {
@@ -213,6 +218,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     if (!isOpen) {
       return;
     }
+    const fallbackLocalProvider = localProviderRef.current;
     let cancelled = false;
     void listProviderCapabilities(settings)
       .then((response) => {
@@ -243,13 +249,13 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
         setLocalProviderOptions((previous) =>
           previous.length > 0
             ? previous
-            : [{ value: localProvider, label: providerLabel(localProvider) }]
+            : [{ value: fallbackLocalProvider, label: providerLabel(fallbackLocalProvider) }]
         );
       });
     return () => {
       cancelled = true;
     };
-  }, [isOpen, localProvider, settings]);
+  }, [isOpen, settings]);
 
   useEffect(() => {
     if (!isOpen || providerPath !== "local") {
