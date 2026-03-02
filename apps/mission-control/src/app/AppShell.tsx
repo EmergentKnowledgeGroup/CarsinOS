@@ -9,6 +9,8 @@ import { Badge } from "../ui/Badge";
 import { Chip } from "../ui/Chip";
 import { CommandPalette } from "../ui/CommandPalette";
 import { Modal } from "../ui/Modal";
+import { DEFAULT_GATEWAY_URL } from "../constants";
+import { STORAGE_KEYS } from "../storageKeys";
 import {
   Kanban,
   Calendar,
@@ -26,6 +28,8 @@ import {
   Minimize2,
   Maximize2,
 } from "lucide-react";
+import { NotificationCenter } from "../ui/NotificationCenter";
+import type { NotificationItem } from "../ui/useToasts";
 
 const NAV_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
   kanban: Kanban,
@@ -59,6 +63,9 @@ interface AppShellProps {
   onClearToken: () => Promise<void>;
   onOpenSetupWizard: () => void;
   onRefresh?: () => void;
+  notifications?: NotificationItem[];
+  onDismissNotification?: (id: string) => void;
+  onClearAllNotifications?: () => void;
   /** Badge counts keyed by tab id. 0 or missing = no badge. */
   navBadges?: Partial<Record<MissionControlTab, number>>;
   children: ReactNode;
@@ -66,7 +73,7 @@ interface AppShellProps {
 
 /* ── Gateway URL history ──────────────────────────────────────────── */
 
-const GW_HISTORY_KEY = "mc-gateway-url-history";
+const GW_HISTORY_KEY = STORAGE_KEYS.gatewayUrlHistory;
 const GW_HISTORY_MAX = 8;
 
 function getGatewayUrlHistory(): string[] {
@@ -90,12 +97,15 @@ function pushGatewayUrlHistory(url: string) {
 
 function getDensity(): "comfortable" | "compact" {
   if (typeof window === "undefined") return "comfortable";
-  return (localStorage.getItem("mc-density") as "comfortable" | "compact") || "comfortable";
+  return (
+    (localStorage.getItem(STORAGE_KEYS.density) as "comfortable" | "compact") ||
+    "comfortable"
+  );
 }
 
 function applyDensity(density: "comfortable" | "compact") {
   document.documentElement.setAttribute("data-density", density);
-  localStorage.setItem("mc-density", density);
+  localStorage.setItem(STORAGE_KEYS.density, density);
 }
 
 /* ── Component ─────────────────────────────────────────────────────── */
@@ -233,6 +243,11 @@ export function AppShell(props: AppShellProps) {
               />
               <span className={clsx("mc-incident-dot", props.incidentMode && "mc-incident-active")} />
             </label>
+            <NotificationCenter
+              notifications={props.notifications ?? []}
+              onDismiss={props.onDismissNotification ?? (() => {})}
+              onClearAll={props.onClearAllNotifications ?? (() => {})}
+            />
             <button type="button" className="mc-topbar-icon-btn" onClick={toggleDensity} title={density === "comfortable" ? "Compact" : "Comfortable"}>
               {density === "comfortable" ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
             </button>
@@ -286,7 +301,7 @@ export function AppShell(props: AppShellProps) {
                     list="mc-gw-url-history"
                     value={props.gatewayDraft}
                     onChange={(e) => props.onGatewayDraftChange(e.target.value)}
-                    placeholder="http://127.0.0.1:18789"
+                    placeholder={DEFAULT_GATEWAY_URL}
                   />
                   <datalist id="mc-gw-url-history">
                     {gwUrlHistory.map((url) => (
