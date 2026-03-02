@@ -23,7 +23,7 @@ export interface BoardLaneProps {
   setDragCardId: (value: string | null) => void;
   onSelectCard: (cardId: string | null) => void;
   onDropCard: (cardId: string, columnId: string, beforeCardId?: string) => void;
-  onCreateCard: (columnId: string, title: string) => Promise<void>;
+  onCreateCard: (columnId: string, title: string) => Promise<boolean>;
 }
 
 export function BoardLane(props: BoardLaneProps) {
@@ -38,8 +38,14 @@ export function BoardLane(props: BoardLaneProps) {
     if (!title) {
       return;
     }
-    await props.onCreateCard(props.column.column_id, title);
-    setNewCardTitle("");
+    try {
+      const created = await props.onCreateCard(props.column.column_id, title);
+      if (created) {
+        setNewCardTitle("");
+      }
+    } catch (error: unknown) {
+      console.error("board card create failed", error);
+    }
   };
 
   return (
@@ -123,7 +129,7 @@ export function BoardLane(props: BoardLaneProps) {
           }}
           placeholder="Add card"
         />
-        <button type="button" onClick={submitCreate}>
+        <button type="button" onClick={() => void submitCreate()}>
           Add
         </button>
       </div>

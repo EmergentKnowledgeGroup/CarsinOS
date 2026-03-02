@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   createAgent,
   finishOpenAiOauth,
@@ -7,11 +7,17 @@ import {
   getGatewayStatus,
   ingestAnthropicSetupToken,
   listAgents,
+  listProviderCapabilities,
+  listProviderModels,
   listAuthProfiles,
   setAgentProviderProfileOrder,
   startOpenAiOauth,
   updateAgent,
 } from "../../lib/api";
+import {
+  localProviderCapabilities,
+  providerLabel,
+} from "../../lib/providerCatalog";
 import type { MissionControlTab } from "../../app/useAppController";
 import type { Agent, AuthProfileResponse, RuntimeConnectionSettings } from "../../types";
 import {
@@ -22,6 +28,7 @@ import {
   setDismissedNow,
   shouldAutoOpenWizard,
 } from "./onboardingState";
+import { DEFAULT_GATEWAY_URL } from "../../constants";
 
 export interface OnboardingPreflightState {
   running: boolean;
@@ -104,7 +111,8 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   const [errorText, setErrorText] = useState<string | null>(null);
   const [dismissedAtMs, setDismissedAtMs] = useState<number | null>(loadDismissedAt());
 
-  const [gatewayUrl, setGatewayUrl] = useState(settings.gateway_url || "http://127.0.0.1:18789");
+  const initialGatewayUrl = settings.gateway_url.trim() || DEFAULT_GATEWAY_URL;
+  const [gatewayUrl, setGatewayUrl] = useState(initialGatewayUrl);
   const [gatewayTokenInput, setGatewayTokenInput] = useState("");
   const [connected, setConnected] = useState(
     tokenConfigured && settings.gateway_url.trim().length > 0
@@ -126,6 +134,16 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   const [providerReady, setProviderReady] = useState(false);
   const [localProvider, setLocalProvider] = useState("ollama");
   const [localModelId, setLocalModelId] = useState("local-default");
+  const [localProviderOptions, setLocalProviderOptions] = useState<
+    Array<{ value: string; label: string }>
+  >([
+    { value: "ollama", label: providerLabel("ollama") },
+    { value: "vllm", label: providerLabel("vllm") },
+    { value: "mock", label: providerLabel("mock") },
+  ]);
+  const [localModelOptions, setLocalModelOptions] = useState<string[]>([]);
+  const [localModelsLoading, setLocalModelsLoading] = useState(false);
+  const [localModelsError, setLocalModelsError] = useState<string | null>(null);
 
   const [anthropicDisplayName, setAnthropicDisplayName] = useState("claude-primary");
   const [anthropicSetupToken, setAnthropicSetupToken] = useState("");
@@ -142,6 +160,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   const [openAiState, setOpenAiState] = useState("");
 
   const [routingReady, setRoutingReady] = useState(false);
+  const localProviderRef = useRef(localProvider);
 
   const [preflight, setPreflight] = useState<OnboardingPreflightState>({
     running: false,
@@ -154,6 +173,10 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   });
 
   const step = ONBOARDING_STEPS[Math.max(0, Math.min(stepIndex, ONBOARDING_STEPS.length - 1))];
+
+  useEffect(() => {
+    localProviderRef.current = localProvider;
+  }, [localProvider]);
 
   useEffect(() => {
     if (!selectedAgentId && agents.length > 0) {
@@ -191,6 +214,94 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     setOpenAiCode("");
     setOpenAiState("");
   }, [providerPath]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    const fallbackLocalProvider = localProviderRef.current;
+    let cancelled = false;
+    void listProviderCapabilities(settings)
+      .then((response) => {
+        if (cancelled) {
+          return;
+        }
+        const options = localProviderCapabilities(response.items)
+          .map((item) => ({
+            value: item.provider,
+            label: providerLabel(item.provider),
+          }))
+          .sort((left, right) => left.label.localeCompare(right.label));
+        if (options.length === 0) {
+          return;
+        }
+        setLocalProviderOptions(options);
+        setLocalProvider((current) => {
+          if (options.some((item) => item.value === current)) {
+            return current;
+          }
+          return options[0].value;
+        });
+      })
+      .catch(() => {
+        if (cancelled) {
+          return;
+        }
+        setLocalProviderOptions((previous) =>
+          previous.length > 0
+            ? previous
+            : [{ value: fallbackLocalProvider, label: providerLabel(fallbackLocalProvider) }]
+        );
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, settings]);
+
+  useEffect(() => {
+    if (!isOpen || providerPath !== "local") {
+      return;
+    }
+    const provider = localProvider.trim().toLowerCase();
+    if (!provider) {
+      return;
+    }
+    let cancelled = false;
+    setLocalModelsLoading(true);
+    setLocalModelsError(null);
+    void listProviderModels(settings, {
+      provider,
+      agent_id: selectedAgentId || undefined,
+    })
+      .then((response) => {
+        if (cancelled) {
+          return;
+        }
+        const models = response.items.map((item) => item.model_id);
+        setLocalModelOptions(models);
+        setLocalModelId((current) => {
+          if (current && models.includes(current)) {
+            return current;
+          }
+          return models[0] ?? current;
+        });
+      })
+      .catch((err: unknown) => {
+        if (cancelled) {
+          return;
+        }
+        setLocalModelOptions([]);
+        setLocalModelsError(String(err));
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLocalModelsLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, localProvider, providerPath, selectedAgentId, settings]);
 
   useEffect(() => {
     const shouldOpen = shouldAutoOpenWizard(
@@ -564,6 +675,10 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     setLocalProvider,
     localModelId,
     setLocalModelId,
+    localProviderOptions,
+    localModelOptions,
+    localModelsLoading,
+    localModelsError,
     anthropicDisplayName,
     setAnthropicDisplayName,
     anthropicSetupToken,

@@ -1,4 +1,5 @@
 import { getGatewayToken } from "./runtime";
+import { API_REQUEST_TIMEOUT_MS, DEFAULT_GATEWAY_URL } from "../constants";
 import type {
   AckAgentMailMessageResponse,
   AgentMailFileLeaseResponse,
@@ -24,6 +25,8 @@ import type {
   ListJobsResponse,
   ListPluginRuntimeStatusResponse,
   ListPluginsResponse,
+  ListProviderCapabilitiesResponse,
+  ListProviderModelsResponse,
   ListSkillsResponse,
   ListAgentsResponse,
   ListBoardsResponse,
@@ -54,7 +57,20 @@ function normalizeGatewayUrl(gatewayUrl: string): string {
   if (!trimmed) {
     throw new Error("Gateway URL is required.");
   }
-  return trimmed.endsWith("/") ? trimmed : `${trimmed}/`;
+
+  const withScheme =
+    trimmed.startsWith("http://") || trimmed.startsWith("https://")
+      ? trimmed
+      : `http://${trimmed}`;
+
+  try {
+    const parsed = new URL(withScheme);
+    return `${parsed.origin}/`;
+  } catch {
+    throw new Error(
+      `Invalid Gateway URL: "${trimmed}". Expected something like "${DEFAULT_GATEWAY_URL}".`
+    );
+  }
 }
 
 function resolveApiUrl(gatewayUrl: string, path: string): string {
@@ -68,12 +84,10 @@ interface ApiRequestOptions {
   body?: unknown;
 }
 
-const DEFAULT_GATEWAY_TIMEOUT_MS = 15_000;
-
 async function fetchWithTimeout(
   url: string,
   init: RequestInit,
-  timeoutMs = DEFAULT_GATEWAY_TIMEOUT_MS
+  timeoutMs = API_REQUEST_TIMEOUT_MS
 ): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = globalThis.setTimeout(() => {
@@ -134,6 +148,53 @@ export async function getGatewayStatus(
   settings: RuntimeConnectionSettings
 ): Promise<StatusResponse> {
   return requestJson<StatusResponse>(settings, "/api/v1/status");
+}
+
+export async function listProviderCapabilities(
+  settings: RuntimeConnectionSettings,
+  query?: {
+    provider?: string;
+  }
+): Promise<ListProviderCapabilitiesResponse> {
+  const params = new URLSearchParams();
+  if (query?.provider?.trim()) {
+    params.set("provider", query.provider.trim());
+  }
+  const suffix = params.toString();
+  const path = suffix
+    ? `/api/v1/providers/capabilities?${suffix}`
+    : "/api/v1/providers/capabilities";
+  return requestJson<ListProviderCapabilitiesResponse>(settings, path);
+}
+
+export async function listProviderModels(
+  settings: RuntimeConnectionSettings,
+  query: {
+    provider: string;
+    agent_id?: string;
+    auth_profile_id?: string;
+    refresh?: boolean;
+  }
+): Promise<ListProviderModelsResponse> {
+  const provider = query.provider.trim();
+  if (!provider) {
+    throw new Error("provider is required");
+  }
+  const params = new URLSearchParams();
+  params.set("provider", provider);
+  if (query.agent_id?.trim()) {
+    params.set("agent_id", query.agent_id.trim());
+  }
+  if (query.auth_profile_id?.trim()) {
+    params.set("auth_profile_id", query.auth_profile_id.trim());
+  }
+  if (query.refresh === true) {
+    params.set("refresh", "true");
+  }
+  return requestJson<ListProviderModelsResponse>(
+    settings,
+    `/api/v1/providers/models?${params.toString()}`
+  );
 }
 
 export async function listBoards(

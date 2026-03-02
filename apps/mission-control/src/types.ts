@@ -438,6 +438,34 @@ export interface ListPluginRuntimeStatusResponse {
   items: PluginRuntimeStatusResponse[];
 }
 
+export interface ProviderCapabilityResponse {
+  provider: string;
+  supports_streaming: boolean;
+  supports_tools: boolean;
+  supports_json_mode: boolean;
+  supports_vision: boolean;
+  max_context_tokens: number | null;
+  error_classes: string[];
+  retryable_error_classes: string[];
+}
+
+export interface ListProviderCapabilitiesResponse {
+  contract_version: string;
+  items: ProviderCapabilityResponse[];
+}
+
+export interface ProviderModelResponse {
+  model_id: string;
+  label: string;
+}
+
+export interface ListProviderModelsResponse {
+  contract_version: string;
+  provider: string;
+  auth_profile_id: string | null;
+  items: ProviderModelResponse[];
+}
+
 export interface UpdatePluginResponse {
   plugin: PluginManifestResponse;
   rollback_available: boolean;

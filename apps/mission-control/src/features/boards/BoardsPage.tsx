@@ -23,7 +23,7 @@ interface BoardsPageProps {
   setDragCardId: (value: string | null) => void;
   onSelectCard: (cardId: string | null) => void;
   onDropCard: (cardId: string, columnId: string, beforeCardId?: string) => void;
-  onCreateCard: (columnId: string, title: string, opts?: { owner_kind?: string; owner_agent_id?: string; owner_human_id?: string }) => Promise<void>;
+  onCreateCard: (columnId: string, title: string, opts?: { owner_kind?: string; owner_agent_id?: string; owner_human_id?: string }) => Promise<boolean>;
   selectedCard: BoardCard | null;
   cardEditor: CardEditorDraft;
   setCardEditor: Dispatch<SetStateAction<CardEditorDraft>>;
@@ -141,6 +141,7 @@ export function BoardsPage({
     const title = newCardTitle.trim();
     if (!title || !newCardColumnId) return;
     if (newCardOwnerKind === "human" && !newCardOwnerHumanId.trim()) return;
+    if (newCardOwnerKind === "agent" && !newCardOwnerAgentId.trim()) return;
     const opts: { owner_kind?: string; owner_agent_id?: string; owner_human_id?: string } = {};
     if (newCardOwnerKind !== "unassigned") {
       opts.owner_kind = newCardOwnerKind;
@@ -151,8 +152,14 @@ export function BoardsPage({
         opts.owner_human_id = newCardOwnerHumanId.trim();
       }
     }
-    await onCreateCard(newCardColumnId, title, Object.keys(opts).length > 0 ? opts : undefined);
-    setCreateModalOpen(false);
+    const created = await onCreateCard(
+      newCardColumnId,
+      title,
+      Object.keys(opts).length > 0 ? opts : undefined
+    );
+    if (created) {
+      setCreateModalOpen(false);
+    }
   };
 
   const assetsPagination = usePagination(selectedCard?.assets ?? [], ASSETS_PAGE_SIZE);
@@ -160,7 +167,8 @@ export function BoardsPage({
   const canCreateCard =
     newCardTitle.trim().length > 0 &&
     newCardColumnId.length > 0 &&
-    (newCardOwnerKind !== "human" || newCardOwnerHumanId.trim().length > 0);
+    (newCardOwnerKind !== "human" || newCardOwnerHumanId.trim().length > 0) &&
+    (newCardOwnerKind !== "agent" || newCardOwnerAgentId.trim().length > 0);
 
   const boardScrollerRef = useRef<HTMLDivElement | null>(null);
   // eslint-disable-next-line react-hooks/incompatible-library

@@ -1,4 +1,5 @@
 import { OnboardingStepShell } from "../OnboardingStepShell";
+import { DEFAULT_GATEWAY_URL } from "../../../constants";
 
 interface StepConnectProps {
   busy: boolean;
@@ -45,7 +46,7 @@ export function StepConnect(props: StepConnectProps) {
           <input
             value={props.gatewayUrl}
             onChange={(event) => props.onGatewayUrlChange(event.target.value)}
-            placeholder="http://127.0.0.1:18789"
+            placeholder={DEFAULT_GATEWAY_URL}
           />
         </label>
         <label>

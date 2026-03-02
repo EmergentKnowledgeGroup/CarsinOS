@@ -16,7 +16,7 @@ interface ToastStackProps {
 const AUTO_DISMISS_MS: Record<ToastItem["tone"], number> = {
   info: 4000,
   error: 8000,
-  critical: 0, // manual dismiss only
+  critical: 12000,
 };
 
 function ToastEntry({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: string) => void }) {
@@ -46,7 +46,7 @@ function ToastEntry({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: st
 
 /**
  * Toast notification stack. Renders in top-right, max 4 visible.
- * Auto-dismisses info (4s) and error (8s). Critical requires manual dismiss.
+ * Auto-dismisses info (4s), error (8s), and critical (12s).
  */
 export function ToastStack({ toasts, onDismiss }: ToastStackProps) {
   const visible = toasts.slice(0, 4);
@@ -60,4 +60,3 @@ export function ToastStack({ toasts, onDismiss }: ToastStackProps) {
     </div>
   );
 }
-

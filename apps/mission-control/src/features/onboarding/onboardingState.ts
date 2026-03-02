@@ -1,6 +1,8 @@
 import type { Agent, AuthProfileResponse, RuntimeConnectionSettings } from "../../types";
+import { STORAGE_KEYS } from "../../storageKeys";
+import { isLocalProvider } from "../../lib/providerCatalog";
 
-export const ONBOARDING_DISMISSED_KEY = "mission_control.onboarding.dismissed_at_ms";
+export const ONBOARDING_DISMISSED_KEY = STORAGE_KEYS.onboardingDismissedAtMs;
 export const ONBOARDING_DISMISS_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export type OnboardingMode = "quickstart" | "manual";
@@ -23,8 +25,6 @@ export interface OnboardingCompletenessInput {
   authProfiles: AuthProfileResponse[];
 }
 
-const LOCAL_PROVIDER_HINTS = new Set(["ollama", "vllm", "mock"]);
-
 export function hasEnabledCloudProfile(profiles: AuthProfileResponse[]): boolean {
   return profiles.some(
     (profile) =>
@@ -35,7 +35,7 @@ export function hasEnabledCloudProfile(profiles: AuthProfileResponse[]): boolean
 }
 
 export function hasConfiguredLocalAgent(agents: Agent[]): boolean {
-  return agents.some((agent) => LOCAL_PROVIDER_HINTS.has(agent.model_provider.toLowerCase()));
+  return agents.some((agent) => isLocalProvider(agent.model_provider));
 }
 
 export function isOnboardingComplete(input: OnboardingCompletenessInput): boolean {

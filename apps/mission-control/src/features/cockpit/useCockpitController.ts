@@ -1,21 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   COCKPIT_WIDGET_PALETTE,
+  WIDGET_SIZE_CONSTRAINTS,
   defaultCockpitPages,
   loadCockpitPagesFromStorage,
-  normalizeWidgetSpan,
+  opsDefaultTemplate,
   persistCockpitPagesToStorage,
   sanitizeCockpitPages,
-  type CockpitPageLayout,
+  type CockpitPageLayoutV2,
   type CockpitWidgetKind,
+  type CockpitWidgetLayoutV2,
+  type CockpitWidgetPosition,
 } from "./cockpitLayout";
 
 export function useCockpitController() {
-  const [initialPages] = useState<CockpitPageLayout[]>(() => loadCockpitPagesFromStorage());
+  const [initialPages] = useState<CockpitPageLayoutV2[]>(() => loadCockpitPagesFromStorage());
   const [incidentMode, setIncidentMode] = useState(false);
-  const [cockpitPages, setCockpitPages] = useState<CockpitPageLayout[]>(initialPages);
+  const [cockpitPages, setCockpitPages] = useState<CockpitPageLayoutV2[]>(initialPages);
   const [activeCockpitPageId, setActiveCockpitPageId] = useState(
-    initialPages[0]?.page_id ?? "ops-default"
+    initialPages[0]?.page_id ?? "dashboard"
   );
 
   const activeCockpitPage = useMemo(() => {
@@ -30,86 +33,105 @@ export function useCockpitController() {
     persistCockpitPagesToStorage(cockpitPages);
   }, [cockpitPages]);
 
+  /* ── Mutations ──────────────────────────────────────────────────────────── */
+
+  const updateActivePage = (
+    updater: (page: CockpitPageLayoutV2) => CockpitPageLayoutV2,
+  ) => {
+    setCockpitPages((prev) =>
+      prev.map((page) =>
+        page.page_id === activeCockpitPageId ? updater(page) : page,
+      ),
+    );
+  };
+
   const addCockpitWidget = (widgetKind: CockpitWidgetKind) => {
     const palette = COCKPIT_WIDGET_PALETTE.find((item) => item.widget === widgetKind);
-    if (!palette) {
-      return;
-    }
-    setCockpitPages((previous) =>
-      previous.map((page) => {
-        if (page.page_id !== activeCockpitPage.page_id) {
-          return page;
-        }
-        const instanceId = `${widgetKind}-${Date.now()}-${Math.random()
-          .toString(36)
-          .slice(2, 8)}`;
-        return {
-          ...page,
-          widgets: [
-            ...page.widgets,
-            {
-              instance_id: instanceId,
-              widget: widgetKind,
-              title: palette.title,
-              span: palette.defaultSpan,
-            },
-          ],
-        };
-      })
-    );
+    if (!palette) return;
+
+    const constraints = WIDGET_SIZE_CONSTRAINTS[widgetKind];
+    const instanceId = `${widgetKind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    updateActivePage((page) => ({
+      ...page,
+      widgets: [
+        ...page.widgets,
+        {
+          instance_id: instanceId,
+          widget: widgetKind,
+          title: palette.title,
+          position: {
+            x: 0,
+            y: Infinity, // RGL will compact this to the bottom
+            w: constraints.defaultW,
+            h: constraints.defaultH,
+          },
+        },
+      ],
+    }));
+  };
+
+  const addCustomWidget = (widget: CockpitWidgetLayoutV2) => {
+    updateActivePage((page) => ({
+      ...page,
+      widgets: [...page.widgets, widget],
+    }));
   };
 
   const removeCockpitWidget = (instanceId: string) => {
-    setCockpitPages((previous) =>
-      previous.map((page) =>
-        page.page_id === activeCockpitPage.page_id
+    updateActivePage((page) => ({
+      ...page,
+      widgets: page.widgets.filter((w) => w.instance_id !== instanceId),
+    }));
+  };
+
+  const updateWidgetPosition = (
+    instanceId: string,
+    pos: Partial<CockpitWidgetPosition>,
+  ) => {
+    updateActivePage((page) => ({
+      ...page,
+      widgets: page.widgets.map((w) =>
+        w.instance_id === instanceId
+          ? { ...w, position: { ...w.position, ...pos } }
+          : w,
+      ),
+    }));
+  };
+
+  const handleLayoutChange = (
+    rglLayout: Array<{ i: string; x: number; y: number; w: number; h: number }>,
+  ) => {
+    const byId = new Map(rglLayout.map((entry) => [entry.i, entry] as const));
+    updateActivePage((page) => ({
+      ...page,
+      widgets: page.widgets.map((w) => {
+        const match = byId.get(w.instance_id);
+        if (!match) return w;
+        return {
+          ...w,
+          position: { x: match.x, y: match.y, w: match.w, h: match.h },
+        };
+      }),
+    }));
+  };
+
+  const renameCockpitPage = (pageId: string, name: string) => {
+    const trimmed = name.trim();
+    setCockpitPages((prev) =>
+      prev.map((page) =>
+        page.page_id === pageId
           ? {
               ...page,
-              widgets: page.widgets.filter((widget) => widget.instance_id !== instanceId),
+              name: trimmed || "Custom Page",
             }
-          : page
-      )
+          : page,
+      ),
     );
   };
 
-  const moveCockpitWidget = (instanceId: string, delta: number) => {
-    setCockpitPages((previous) =>
-      previous.map((page) => {
-        if (page.page_id !== activeCockpitPage.page_id) {
-          return page;
-        }
-        const index = page.widgets.findIndex((widget) => widget.instance_id === instanceId);
-        if (index < 0) {
-          return page;
-        }
-        const target = Math.max(0, Math.min(page.widgets.length - 1, index + delta));
-        if (target === index) {
-          return page;
-        }
-        const nextWidgets = [...page.widgets];
-        const [entry] = nextWidgets.splice(index, 1);
-        nextWidgets.splice(target, 0, entry);
-        return { ...page, widgets: nextWidgets };
-      })
-    );
-  };
-
-  const resizeCockpitWidget = (instanceId: string, delta: number) => {
-    setCockpitPages((previous) =>
-      previous.map((page) => {
-        if (page.page_id !== activeCockpitPage.page_id) {
-          return page;
-        }
-        return {
-          ...page,
-          widgets: page.widgets.map((widget) =>
-            widget.instance_id === instanceId
-              ? { ...widget, span: normalizeWidgetSpan(widget.span + delta) }
-              : widget
-          ),
-        };
-      })
-    );
+  const renameActivePage = (name: string) => {
+    renameCockpitPage(activeCockpitPageId, name);
   };
 
   const resetCockpitLayout = () => {
@@ -119,22 +141,61 @@ export function useCockpitController() {
   };
 
   const addCockpitPage = () => {
-    const nextPageId = `custom-${Date.now()}`;
-    setCockpitPages((previous) => [
-      ...previous,
+    const nextPageId = `page-${Date.now()}`;
+    setCockpitPages((prev) => [
+      ...prev,
       {
         page_id: nextPageId,
-        name: `Custom ${previous.length + 1}`,
+        name: `Page ${prev.length + 1}`,
         widgets: [],
       },
     ]);
     setActiveCockpitPageId(nextPageId);
   };
 
-  const exportCockpitLayout = () => {
-    if (typeof window === "undefined") {
-      return;
+  const deleteCockpitPage = (pageId: string) => {
+    const fallbackActiveId =
+      cockpitPages.find((page) => page.page_id !== pageId)?.page_id ??
+      defaultCockpitPages()[0].page_id;
+
+    setCockpitPages((prev) => {
+      const next = prev.filter((p) => p.page_id !== pageId);
+      if (next.length === 0) return defaultCockpitPages();
+      return next;
+    });
+    if (activeCockpitPageId === pageId) {
+      setActiveCockpitPageId(fallbackActiveId ?? "dashboard");
     }
+  };
+
+  const duplicateCockpitPage = (pageId: string) => {
+    const source = cockpitPages.find((p) => p.page_id === pageId);
+    if (!source) return;
+    const newPageId = `page-${Date.now()}`;
+    const duplicated: CockpitPageLayoutV2 = {
+      ...source,
+      page_id: newPageId,
+      name: `${source.name} Copy`,
+      widgets: source.widgets.map((w) => ({
+        ...w,
+        instance_id: `${w.widget}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })),
+    };
+    setCockpitPages((prev) => [...prev, duplicated]);
+    setActiveCockpitPageId(newPageId);
+  };
+
+  const loadTemplate = () => {
+    const template = opsDefaultTemplate();
+    updateActivePage(() => ({
+      ...template,
+      page_id: activeCockpitPageId,
+      name: activeCockpitPage.name,
+    }));
+  };
+
+  const exportCockpitLayout = () => {
+    if (typeof window === "undefined") return;
     const payload = JSON.stringify(cockpitPages, null, 2);
     const blob = new Blob([payload], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -169,11 +230,17 @@ export function useCockpitController() {
     setActiveCockpitPageId,
     activeCockpitPage,
     addCockpitWidget,
+    addCustomWidget,
     removeCockpitWidget,
-    moveCockpitWidget,
-    resizeCockpitWidget,
+    updateWidgetPosition,
+    handleLayoutChange,
+    renameCockpitPage,
+    renameActivePage,
     resetCockpitLayout,
     addCockpitPage,
+    deleteCockpitPage,
+    duplicateCockpitPage,
+    loadTemplate,
     exportCockpitLayout,
     importCockpitLayout,
   };

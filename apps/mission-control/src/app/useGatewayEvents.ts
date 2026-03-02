@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { connectGatewayEvents, type WsLifecycleState } from "../lib/ws";
 import type { RuntimeConnectionSettings, WsEventFrame } from "../types";
+import { WS_MAX_RECONNECT_ATTEMPTS } from "../constants";
 
 interface UseGatewayEventsOptions {
   settings: RuntimeConnectionSettings;
@@ -27,7 +28,7 @@ export function useGatewayEvents(options: UseGatewayEventsOptions): void {
 
     const subscription = connectGatewayEvents({
       settings,
-      maxReconnectAttempts: maxReconnectAttempts ?? 40,
+      maxReconnectAttempts: maxReconnectAttempts ?? WS_MAX_RECONNECT_ATTEMPTS,
       onState,
       onEvent,
     });

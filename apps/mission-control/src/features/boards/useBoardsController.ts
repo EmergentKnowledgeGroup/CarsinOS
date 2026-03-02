@@ -161,7 +161,7 @@ export function useBoardsController(options: UseBoardsControllerOptions) {
   const handleCreateCard = useCallback(
     async (columnId: string, title: string, opts?: { owner_kind?: string; owner_agent_id?: string; owner_human_id?: string }) => {
       if (!activeBoardId) {
-        return;
+        return false;
       }
       try {
         const created = await createBoardCard(settings, activeBoardId, {
@@ -171,8 +171,10 @@ export function useBoardsController(options: UseBoardsControllerOptions) {
         });
         setBoard((previous) => (previous ? withUpsertCard(previous, created.card) : previous));
         setNotice({ tone: "info", message: `Card created: ${created.card.title}` });
+        return true;
       } catch (error) {
         setNotice({ tone: "error", message: `Card create failed: ${String(error)}` });
+        return false;
       }
     },
     [activeBoardId, setNotice, settings]
