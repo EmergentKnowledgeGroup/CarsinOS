@@ -1,8 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { RuntimeConnectionSettings } from "../types";
+import { STORAGE_KEYS } from "../storageKeys";
 
-const SETTINGS_KEY = "mission_control.runtime.connection.v1";
-const TOKEN_KEY_FALLBACK = "mission_control.runtime.token.v1";
+const SETTINGS_KEY = STORAGE_KEYS.gatewaySettings;
+const TOKEN_KEY_FALLBACK = STORAGE_KEYS.gatewayTokenFallback;
 
 export function isTauriRuntime(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;

@@ -1,6 +1,7 @@
 import { getGatewayToken } from "./runtime";
 import { websocketUrlFromGateway } from "./api";
 import type { RuntimeConnectionSettings, WsEventFrame } from "../types";
+import { WS_RECONNECT_INITIAL_MS, WS_RECONNECT_MAX_MS } from "../constants";
 
 export type WsLifecycleState =
   | "idle"
@@ -24,7 +25,7 @@ export function connectGatewayEvents(options: ConnectOptions): WsSubscription {
   let closed = false;
   let socket: WebSocket | null = null;
   let reconnectTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
-  let reconnectDelayMs = 750;
+  let reconnectDelayMs = WS_RECONNECT_INITIAL_MS;
   let reconnectAttempts = 0;
 
   const parseWsEventFrame = (raw: string): WsEventFrame | null => {
@@ -70,7 +71,9 @@ export function connectGatewayEvents(options: ConnectOptions): WsSubscription {
       return;
     }
 
-    options.onState(reconnectDelayMs > 750 ? "reconnecting" : "connecting");
+    options.onState(
+      reconnectDelayMs > WS_RECONNECT_INITIAL_MS ? "reconnecting" : "connecting"
+    );
 
     try {
       const wsUrl = websocketUrlFromGateway(options.settings, token);
@@ -86,7 +89,7 @@ export function connectGatewayEvents(options: ConnectOptions): WsSubscription {
         socket?.close();
         return;
       }
-      reconnectDelayMs = 750;
+      reconnectDelayMs = WS_RECONNECT_INITIAL_MS;
       reconnectAttempts = 0;
       options.onState("connected");
     };
@@ -135,7 +138,7 @@ export function connectGatewayEvents(options: ConnectOptions): WsSubscription {
       return;
     }
     const nextDelay = reconnectDelayMs;
-    reconnectDelayMs = Math.min(reconnectDelayMs * 2, 5000);
+    reconnectDelayMs = Math.min(reconnectDelayMs * 2, WS_RECONNECT_MAX_MS);
     if (reconnectTimer !== null) {
       globalThis.clearTimeout(reconnectTimer);
       reconnectTimer = null;

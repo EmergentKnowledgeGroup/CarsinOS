@@ -11,6 +11,10 @@ interface StepProviderProps {
   providerReady: boolean;
   localProvider: string;
   localModelId: string;
+  localProviderOptions: Array<{ value: string; label: string }>;
+  localModelOptions: string[];
+  localModelsLoading: boolean;
+  localModelsError: string | null;
   anthropicDisplayName: string;
   anthropicSetupToken: string;
   anthropicApiBaseUrl: string;
@@ -128,17 +132,41 @@ export function StepProvider(props: StepProviderProps) {
                 value={props.localProvider}
                 onChange={(event) => props.onLocalProviderChange(event.target.value)}
               >
-                <option value="ollama">ollama</option>
-                <option value="vllm">vllm</option>
-                <option value="mock">mock</option>
+                {props.localProviderOptions.length === 0 ? (
+                  <option value={props.localProvider}>{props.localProvider}</option>
+                ) : null}
+                {props.localProviderOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </label>
             <label>
               Model ID
+              <select
+                value={props.localModelId}
+                onChange={(event) => props.onLocalModelIdChange(event.target.value)}
+              >
+                <option value="">Select model...</option>
+                {props.localModelOptions.map((modelId) => (
+                  <option key={modelId} value={modelId}>
+                    {modelId}
+                  </option>
+                ))}
+              </select>
+              {props.localModelsLoading ? (
+                <small className="mc-onboarding-note">Loading model catalog...</small>
+              ) : null}
+              {props.localModelsError ? (
+                <small className="mc-onboarding-note">
+                  Model catalog unavailable, enter a model ID manually.
+                </small>
+              ) : null}
               <input
                 value={props.localModelId}
                 onChange={(event) => props.onLocalModelIdChange(event.target.value)}
-                placeholder="local-default"
+                placeholder="Manual model ID fallback"
               />
             </label>
           </div>
