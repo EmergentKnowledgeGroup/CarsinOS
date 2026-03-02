@@ -2494,7 +2494,7 @@ impl Storage {
               created_at
             FROM runs
             WHERE session_id = ?1
-            ORDER BY created_at DESC, run_id DESC
+            ORDER BY created_at DESC, rowid DESC
             LIMIT 1
             "#,
         )?;
@@ -2892,10 +2892,52 @@ impl Storage {
             anyhow::bail!("assistant task-link conflict for run/session pair");
         }
 
+        let worker_active = tx
+            .query_row(
+                r#"
+                SELECT 1
+                FROM assistant_workers
+                WHERE boss_key = ?1
+                  AND worker_key = ?2
+                  AND archived_at IS NULL
+                  AND status != 'archived'
+                LIMIT 1
+                "#,
+                params![boss_key, worker_key],
+                |_| Ok(()),
+            )
+            .optional()
+            .context("failed to validate assistant worker before task-link create")?
+            .is_some();
+        if !worker_active {
+            anyhow::bail!("assistant worker missing or inactive");
+        }
+
+        let duplicate_exists = tx
+            .query_row(
+                r#"
+                SELECT 1
+                FROM assistant_task_links
+                WHERE boss_key = ?1
+                  AND worker_key = ?2
+                  AND run_id = ?3
+                  AND session_id = ?4
+                LIMIT 1
+                "#,
+                params![boss_key, worker_key, run_id, session_id],
+                |_| Ok(()),
+            )
+            .optional()
+            .context("failed to validate assistant task-link duplicate state")?
+            .is_some();
+        if duplicate_exists {
+            anyhow::bail!("assistant task-link already exists");
+        }
+
         let now = now_ms();
         tx.execute(
             r#"
-            INSERT OR REPLACE INTO assistant_task_links (
+            INSERT INTO assistant_task_links (
               boss_key, worker_key, run_id, session_id, linked_at
             ) VALUES (?1, ?2, ?3, ?4, ?5)
             "#,
@@ -6546,6 +6588,66 @@ mod tests {
             .assistant_task_link_exists("default", "research_1", &root_run.run_id)
             .expect("query assistant task link");
         assert!(link_exists);
+
+        let duplicate_link = storage.create_assistant_task_link(
+            "default",
+            "research_1",
+            &root_run.run_id,
+            &root_session.session_id,
+        );
+        assert!(duplicate_link.is_err());
+
+        let mismatch_link = storage.create_assistant_task_link(
+            "default",
+            "research_1",
+            &root_run.run_id,
+            &worker_session.session_id,
+        );
+        assert!(mismatch_link.is_err());
+
+        let second_run = storage
+            .create_run(NewRun {
+                session_id: root_session.session_id.clone(),
+                model_provider: "mock".to_string(),
+                model_id: "mock-echo-v1".to_string(),
+            })
+            .expect("create second root run")
+            .expect("second run inserted");
+        let conflicting_pair = storage.create_assistant_task_link(
+            "default",
+            "research_1",
+            &second_run.run_id,
+            &root_session.session_id,
+        );
+        assert!(conflicting_pair.is_err());
+
+        let missing_worker_link = storage.create_assistant_task_link(
+            "default",
+            "missing-worker",
+            &root_run.run_id,
+            &root_session.session_id,
+        );
+        assert!(missing_worker_link.is_err());
+
+        storage
+            .update_assistant_worker(
+                "default",
+                "research_1",
+                AssistantWorkerPatch {
+                    status: Some("archived".to_string()),
+                    archived_at: Some(Some(now_ms())),
+                    ..AssistantWorkerPatch::default()
+                },
+            )
+            .expect("archive assistant worker")
+            .expect("archived worker row");
+        let archived_worker_link = storage.create_assistant_task_link(
+            "default",
+            "research_1",
+            &second_run.run_id,
+            &root_session.session_id,
+        );
+        assert!(archived_worker_link.is_err());
 
         storage
             .create_assistant_tool_call_audit(NewAssistantToolCallAudit {
