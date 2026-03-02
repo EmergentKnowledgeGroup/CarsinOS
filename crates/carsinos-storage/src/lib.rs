@@ -2856,6 +2856,39 @@ impl Storage {
         session_id: &str,
     ) -> Result<()> {
         let conn = self.connect()?;
+        let run_session_id: Option<String> = conn
+            .query_row(
+                "SELECT session_id FROM runs WHERE run_id = ?1",
+                params![run_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .context("failed to validate run session for assistant task link")?;
+        match run_session_id.as_deref() {
+            Some(value) if value == session_id => {}
+            Some(_) => anyhow::bail!("run_id does not belong to session_id"),
+            None => anyhow::bail!("run does not exist"),
+        }
+
+        let conflict_exists = conn
+            .query_row(
+                r#"
+                SELECT 1
+                FROM assistant_task_links
+                WHERE (run_id = ?1 OR session_id = ?2)
+                  AND NOT (run_id = ?1 AND session_id = ?2)
+                LIMIT 1
+                "#,
+                params![run_id, session_id],
+                |_| Ok(()),
+            )
+            .optional()
+            .context("failed to validate assistant task-link consistency")?
+            .is_some();
+        if conflict_exists {
+            anyhow::bail!("assistant task-link conflict for run/session pair");
+        }
+
         let now = now_ms();
         conn.execute(
             r#"
@@ -6495,5 +6528,42 @@ mod tests {
             .expect("list assistant workers");
         assert_eq!(listed.len(), 1);
         assert_eq!(listed[0].worker_key, "research_1");
+
+        storage
+            .create_assistant_task_link(
+                "default",
+                "research_1",
+                &root_run.run_id,
+                &root_session.session_id,
+            )
+            .expect("create assistant task link");
+        let link_exists = storage
+            .assistant_task_link_exists("default", "research_1", &root_run.run_id)
+            .expect("query assistant task link");
+        assert!(link_exists);
+
+        storage
+            .create_assistant_tool_call_audit(NewAssistantToolCallAudit {
+                request_id: "req-assistant-audit-1".to_string(),
+                boss_key: "default".to_string(),
+                root_session_id: root_session.session_id.clone(),
+                root_run_id: Some(root_run.run_id.clone()),
+                caller_agent_id: "default".to_string(),
+                tool_name: "assistant.worker.spawn".to_string(),
+                decision: "allow".to_string(),
+                reason_code: Some("APPROVED".to_string()),
+                audit_ref: Some("approval:assistant-worker".to_string()),
+                metadata_json: Some(r#"{"worker_key":"research_1"}"#.to_string()),
+            })
+            .expect("create assistant audit event");
+        let conn = storage.connect().expect("open storage connection");
+        let audit_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM assistant_tool_calls_audit WHERE request_id = ?1",
+                params!["req-assistant-audit-1"],
+                |row| row.get(0),
+            )
+            .expect("query assistant audit events");
+        assert_eq!(audit_count, 1);
     }
 }
