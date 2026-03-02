@@ -102,10 +102,11 @@ export function useCockpitController() {
   const handleLayoutChange = (
     rglLayout: Array<{ i: string; x: number; y: number; w: number; h: number }>,
   ) => {
+    const byId = new Map(rglLayout.map((entry) => [entry.i, entry] as const));
     updateActivePage((page) => ({
       ...page,
       widgets: page.widgets.map((w) => {
-        const match = rglLayout.find((l) => l.i === w.instance_id);
+        const match = byId.get(w.instance_id);
         if (!match) return w;
         return {
           ...w,
@@ -153,16 +154,17 @@ export function useCockpitController() {
   };
 
   const deleteCockpitPage = (pageId: string) => {
+    const fallbackActiveId =
+      cockpitPages.find((page) => page.page_id !== pageId)?.page_id ??
+      defaultCockpitPages()[0].page_id;
+
     setCockpitPages((prev) => {
       const next = prev.filter((p) => p.page_id !== pageId);
       if (next.length === 0) return defaultCockpitPages();
       return next;
     });
     if (activeCockpitPageId === pageId) {
-      setCockpitPages((prev) => {
-        setActiveCockpitPageId(prev[0]?.page_id ?? "dashboard");
-        return prev;
-      });
+      setActiveCockpitPageId(fallbackActiveId ?? "dashboard");
     }
   };
 

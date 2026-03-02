@@ -276,13 +276,23 @@ function PaginationFooter({
   if (totalPages <= 1) return null;
   return (
     <div className="mc-widget-pagination">
-      <button type="button" disabled={page <= 0} onClick={() => onSetPage(page - 1)}>
+      <button
+        type="button"
+        disabled={page <= 0}
+        onClick={() => onSetPage(page - 1)}
+        aria-label={`Previous page (${page + 1} of ${totalPages})`}
+      >
         &lsaquo;
       </button>
       <span className="mc-widget-pagination-label">
         {page + 1}/{totalPages}
       </span>
-      <button type="button" disabled={page >= totalPages - 1} onClick={() => onSetPage(page + 1)}>
+      <button
+        type="button"
+        disabled={page >= totalPages - 1}
+        onClick={() => onSetPage(page + 1)}
+        aria-label={`Next page (${page + 1} of ${totalPages})`}
+      >
         &rsaquo;
       </button>
     </div>

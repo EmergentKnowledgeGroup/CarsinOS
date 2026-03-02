@@ -289,16 +289,35 @@ function isValidWidgetKind(value: string): value is CockpitWidgetKind | "custom"
   return value === "custom" || isCockpitWidgetKind(value);
 }
 
+function finiteNumber(value: unknown, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 function clampPosition(pos: Partial<CockpitWidgetPosition>, kind: CockpitWidgetKind | "custom"): CockpitWidgetPosition {
   const constraints = kind === "custom"
     ? CUSTOM_WIDGET_SIZE_CONSTRAINTS
     : WIDGET_SIZE_CONSTRAINTS[kind];
 
+  const clampedW = Math.max(
+    constraints.minW,
+    Math.min(12, Math.round(finiteNumber(pos.w, constraints.defaultW))),
+  );
+  const clampedH = Math.max(
+    constraints.minH,
+    Math.round(finiteNumber(pos.h, constraints.defaultH)),
+  );
+  let clampedX = Math.max(0, Math.min(11, Math.round(finiteNumber(pos.x, 0))));
+  const clampedY = Math.max(0, Math.round(finiteNumber(pos.y, 0)));
+  if (clampedX + clampedW > 12) {
+    clampedX = Math.max(0, 12 - clampedW);
+  }
+
   return {
-    x: Math.max(0, Math.min(11, Math.round(Number(pos.x ?? 0)))),
-    y: Math.max(0, Math.round(Number(pos.y ?? 0))),
-    w: Math.max(constraints.minW, Math.min(12, Math.round(Number(pos.w ?? constraints.defaultW)))),
-    h: Math.max(constraints.minH, Math.round(Number(pos.h ?? constraints.defaultH))),
+    x: clampedX,
+    y: clampedY,
+    w: clampedW,
+    h: clampedH,
   };
 }
 

@@ -141,6 +141,7 @@ export function TeamPage({ agents, activeJobCount, settings, onRefresh }: TeamPa
         if (cancelled) {
           return;
         }
+        console.error("provider capability catalog load failed", err);
         setProviderCapabilitiesError(String(err));
       })
       .finally(() => {
@@ -214,6 +215,9 @@ export function TeamPage({ agents, activeJobCount, settings, onRefresh }: TeamPa
     setForm(EMPTY_FORM);
     setError(null);
     setProviderCapabilitiesError(null);
+    setModelsByProvider({});
+    setModelErrorsByProvider({});
+    setModelLoadingProvider(null);
     setModalMode("create");
   }, []);
 
@@ -228,6 +232,9 @@ export function TeamPage({ agents, activeJobCount, settings, onRefresh }: TeamPa
     });
     setError(null);
     setProviderCapabilitiesError(null);
+    setModelsByProvider({});
+    setModelErrorsByProvider({});
+    setModelLoadingProvider(null);
     setModalMode("edit");
   }, []);
 
@@ -417,7 +424,7 @@ export function TeamPage({ agents, activeJobCount, settings, onRefresh }: TeamPa
             ) : null}
             {providerCapabilitiesError ? (
               <small className="mc-form-error">
-                Provider catalog unavailable: {providerCapabilitiesError}
+                Provider catalog is currently unavailable. Please try again.
               </small>
             ) : null}
           </label>

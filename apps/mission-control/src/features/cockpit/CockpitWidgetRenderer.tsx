@@ -141,8 +141,15 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
 
   const isBusyAction = (key: string) => busyActions.has(key);
 
-  if (widget.widget === "custom" && widget.custom_config) {
-    return <CustomWidgetRenderer config={widget.custom_config} settings={props.settings} />;
+  if (widget.widget === "custom") {
+    if (widget.custom_config) {
+      return <CustomWidgetRenderer config={widget.custom_config} settings={props.settings} />;
+    }
+    return (
+      <article className="mc-cockpit-widget-body">
+        <span className="mc-custom-widget-empty">Custom widget configuration missing.</span>
+      </article>
+    );
   }
 
   if (widget.widget === "health") {

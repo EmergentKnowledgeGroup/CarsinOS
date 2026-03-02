@@ -133,6 +133,7 @@ export function CockpitPage(props: CockpitPageProps) {
             className="mc-cockpit-sidebar-btn"
             onClick={props.onAddCockpitPage}
             title="Add page"
+            aria-label="Add cockpit page"
           >
             <Plus size={16} />
           </button>
@@ -144,6 +145,8 @@ export function CockpitPage(props: CockpitPageProps) {
             )}
             onClick={() => props.onSetEditMode(!props.editMode)}
             title={props.editMode ? "Done editing" : "Edit layout"}
+            aria-label={props.editMode ? "Exit cockpit edit mode" : "Enter cockpit edit mode"}
+            aria-pressed={props.editMode}
           >
             {props.editMode ? <Check size={16} /> : <Pencil size={16} />}
           </button>

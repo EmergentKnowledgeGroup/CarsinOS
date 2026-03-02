@@ -111,7 +111,8 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   const [errorText, setErrorText] = useState<string | null>(null);
   const [dismissedAtMs, setDismissedAtMs] = useState<number | null>(loadDismissedAt());
 
-  const [gatewayUrl, setGatewayUrl] = useState(settings.gateway_url || DEFAULT_GATEWAY_URL);
+  const initialGatewayUrl = settings.gateway_url.trim() || DEFAULT_GATEWAY_URL;
+  const [gatewayUrl, setGatewayUrl] = useState(initialGatewayUrl);
   const [gatewayTokenInput, setGatewayTokenInput] = useState("");
   const [connected, setConnected] = useState(
     tokenConfigured && settings.gateway_url.trim().length > 0

@@ -129,7 +129,7 @@ export function BoardLane(props: BoardLaneProps) {
           }}
           placeholder="Add card"
         />
-        <button type="button" onClick={submitCreate}>
+        <button type="button" onClick={() => void submitCreate()}>
           Add
         </button>
       </div>
