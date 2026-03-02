@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Plus, Pencil, Bot } from "lucide-react";
 import clsx from "clsx";
 import { Modal } from "../../ui/Modal";
@@ -67,6 +67,8 @@ export function TeamPage({ agents, activeJobCount, settings, onRefresh }: TeamPa
     Record<string, string | null>
   >({});
   const [modelLoadingProvider, setModelLoadingProvider] = useState<string | null>(null);
+  const [refreshingModelProvider, setRefreshingModelProvider] = useState<string | null>(null);
+  const modelFetchSeqRef = useRef(0);
 
   const [roleCardAgentId, setRoleCardAgentId] = useState<string | null>(null);
 
@@ -118,6 +120,56 @@ export function TeamPage({ agents, activeJobCount, settings, onRefresh }: TeamPa
     return modelErrorsByProvider[provider] ?? null;
   }, [form.model_provider, modelErrorsByProvider]);
 
+  const fetchModelsForProvider = useCallback(
+    async (provider: string, refresh: boolean) => {
+      const requestSeq = modelFetchSeqRef.current + 1;
+      modelFetchSeqRef.current = requestSeq;
+      setModelLoadingProvider(provider);
+      if (refresh) {
+        setRefreshingModelProvider(provider);
+      }
+      setModelErrorsByProvider((prev) => ({ ...prev, [provider]: null }));
+
+      try {
+        const response = await listProviderModels(settings, {
+          provider,
+          agent_id: form.agent_id || undefined,
+          refresh,
+        });
+        if (modelFetchSeqRef.current !== requestSeq) {
+          return;
+        }
+        const modelIds = response.items.map((item) => item.model_id);
+        setModelsByProvider((prev) => ({ ...prev, [provider]: modelIds }));
+        if (modelIds.length > 0) {
+          setForm((prev) => {
+            if (
+              prev.model_provider.trim().toLowerCase() !== provider ||
+              prev.model_id.trim()
+            ) {
+              return prev;
+            }
+            return {
+              ...prev,
+              model_id: modelIds[0],
+            };
+          });
+        }
+      } catch (err: unknown) {
+        if (modelFetchSeqRef.current !== requestSeq) {
+          return;
+        }
+        setModelErrorsByProvider((prev) => ({ ...prev, [provider]: String(err) }));
+      } finally {
+        if (modelFetchSeqRef.current === requestSeq) {
+          setModelLoadingProvider((current) => (current === provider ? null : current));
+          setRefreshingModelProvider((current) => (current === provider ? null : current));
+        }
+      }
+    },
+    [form.agent_id, settings]
+  );
+
   useEffect(() => {
     if (modalMode === null) {
       return;
@@ -156,49 +208,13 @@ export function TeamPage({ agents, activeJobCount, settings, onRefresh }: TeamPa
     if (!provider) {
       return;
     }
-    let cancelled = false;
-    setModelLoadingProvider(provider);
-    setModelErrorsByProvider((prev) => ({ ...prev, [provider]: null }));
-    void listProviderModels(settings, {
-      provider,
-      agent_id: form.agent_id || undefined,
-    })
-      .then((response) => {
-        if (cancelled) {
-          return;
-        }
-        const modelIds = response.items.map((item) => item.model_id);
-        setModelsByProvider((prev) => ({ ...prev, [provider]: modelIds }));
-        if (modelIds.length > 0) {
-          setForm((prev) => {
-            if (
-              prev.model_provider.trim().toLowerCase() !== provider ||
-              prev.model_id.trim()
-            ) {
-              return prev;
-            }
-            return {
-              ...prev,
-              model_id: modelIds[0],
-            };
-          });
-        }
-      })
-      .catch((err: unknown) => {
-        if (cancelled) {
-          return;
-        }
-        setModelErrorsByProvider((prev) => ({ ...prev, [provider]: String(err) }));
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setModelLoadingProvider((current) => (current === provider ? null : current));
-        }
-      });
+    const timer = window.setTimeout(() => {
+      void fetchModelsForProvider(provider, false);
+    }, 200);
     return () => {
-      cancelled = true;
+      window.clearTimeout(timer);
     };
-  }, [form.agent_id, form.model_provider, modalMode, settings]);
+  }, [fetchModelsForProvider, form.model_provider, modalMode]);
 
   const openCreate = useCallback(() => {
     setForm(EMPTY_FORM);
@@ -267,6 +283,14 @@ export function TeamPage({ agents, activeJobCount, settings, onRefresh }: TeamPa
     },
     []
   );
+
+  const refreshModelCatalog = useCallback(() => {
+    const provider = form.model_provider.trim().toLowerCase();
+    if (!provider) {
+      return;
+    }
+    void fetchModelsForProvider(provider, true);
+  }, [fetchModelsForProvider, form.model_provider]);
 
   return (
     <div className="mc-team-page">
@@ -450,7 +474,20 @@ export function TeamPage({ agents, activeJobCount, settings, onRefresh }: TeamPa
           {showAdvanced ? (
             <div className="mc-field-grid">
               <label className="mc-modal-field">
-                <span>Tool Profile</span>
+                <span>Provider Catalog</span>
+                <button
+                  type="button"
+                  className={clsx("mc-btn mc-btn-sm", refreshingModelProvider && "mc-btn-loading")}
+                  onClick={refreshModelCatalog}
+                  disabled={!form.model_provider.trim() || Boolean(refreshingModelProvider)}
+                >
+                  {refreshingModelProvider ? "Refreshing..." : "Refresh Models"}
+                </button>
+                <small className="mc-field-help">Fetches latest provider catalog from gateway.</small>
+              </label>
+
+              <label className="mc-modal-field">
+                <span>Tool Profile (Label Only)</span>
                 <select
                   value={form.tool_profile}
                   onChange={(e) => updateField("tool_profile", e.target.value)}
@@ -459,6 +496,7 @@ export function TeamPage({ agents, activeJobCount, settings, onRefresh }: TeamPa
                     <option key={tp.value} value={tp.value}>{tp.label}</option>
                   ))}
                 </select>
+                <small className="mc-field-help">Tool profile is metadata today and is not runtime-enforced yet.</small>
               </label>
 
               <label className="mc-modal-field">

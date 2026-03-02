@@ -152,7 +152,7 @@ pub struct ListProviderCapabilitiesQuery {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ListProviderModelsQuery {
-    pub provider: String,
+    pub provider: Option<String>,
     pub agent_id: Option<String>,
     pub auth_profile_id: Option<String>,
     pub refresh: Option<bool>,

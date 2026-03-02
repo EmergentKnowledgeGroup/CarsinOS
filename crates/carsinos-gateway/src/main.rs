@@ -3073,7 +3073,12 @@ async fn list_provider_models(
     Query(query): Query<ListProviderModelsQuery>,
 ) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
     let auth = require_bearer_auth_with_error(&headers, &state)?;
-    let provider = query.provider.trim().to_ascii_lowercase();
+    let provider = query
+        .provider
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or_default()
+        .to_ascii_lowercase();
     if provider.is_empty() {
         return Err(api_error_with_code(
             StatusCode::BAD_REQUEST,
@@ -35586,6 +35591,40 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
         let body = parse_json(response).await;
         assert_eq!(body["error_code"], "INVALID_INPUT");
+    }
+
+    #[tokio::test]
+    async fn provider_models_rejects_missing_provider_query() {
+        let ctx = test_context();
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request("GET", "/api/v1/providers/models", Body::empty()))
+            .await
+            .expect("provider models missing provider response");
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = parse_json(response).await;
+        assert_eq!(body["error_code"], "INVALID_INPUT");
+        assert_eq!(body["error"], "provider is required");
+    }
+
+    #[tokio::test]
+    async fn provider_models_rejects_blank_provider_query() {
+        let ctx = test_context();
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/providers/models?provider=%20%20",
+                Body::empty(),
+            ))
+            .await
+            .expect("provider models blank provider response");
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = parse_json(response).await;
+        assert_eq!(body["error_code"], "INVALID_INPUT");
+        assert_eq!(body["error"], "provider is required");
     }
 
     #[tokio::test]

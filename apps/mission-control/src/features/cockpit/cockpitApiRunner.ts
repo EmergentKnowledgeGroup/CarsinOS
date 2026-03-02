@@ -8,6 +8,13 @@ type RunnerFn = (
   params: Record<string, string>,
 ) => Promise<unknown>;
 
+const REQUIRED_PARAMS: Record<string, string[]> = {
+  getAgentProviderProfileOrder: ["agentId", "provider"],
+  getBoard: ["boardId"],
+  getAgentMailThread: ["threadId"],
+  listAgentMailMessages: ["threadId"],
+};
+
 const DISPATCH: Record<string, RunnerFn> = {
   /* ── Health ── */
   getGatewayHealth: (s) => api.getGatewayHealth(s),
@@ -66,7 +73,13 @@ export async function runCockpitDataSource(
   if (!runner) {
     throw new Error(`Unknown cockpit data source: "${id}"`);
   }
-  return runner(settings, params ?? {});
+  const normalizedParams = params ?? {};
+  for (const key of REQUIRED_PARAMS[id] ?? []) {
+    if (!normalizedParams[key]?.trim()) {
+      throw new Error(`Missing required parameter "${key}" for data source "${id}".`);
+    }
+  }
+  return runner(settings, normalizedParams);
 }
 
 /**

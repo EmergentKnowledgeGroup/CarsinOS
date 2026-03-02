@@ -142,16 +142,14 @@ export function useCockpitController() {
   };
 
   const deleteCockpitPage = (pageId: string) => {
-    setCockpitPages((prev) => {
-      const next = prev.filter((p) => p.page_id !== pageId);
-      if (next.length === 0) return defaultCockpitPages();
-      return next;
-    });
-    if (activeCockpitPageId === pageId) {
-      setCockpitPages((prev) => {
-        setActiveCockpitPageId(prev[0]?.page_id ?? "dashboard");
-        return prev;
-      });
+    const nextPages = cockpitPages.filter((page) => page.page_id !== pageId);
+    const normalizedPages = nextPages.length > 0 ? nextPages : defaultCockpitPages();
+    setCockpitPages(normalizedPages);
+    if (
+      activeCockpitPageId === pageId ||
+      !normalizedPages.some((page) => page.page_id === activeCockpitPageId)
+    ) {
+      setActiveCockpitPageId(normalizedPages[0]?.page_id ?? "dashboard");
     }
   };
 
