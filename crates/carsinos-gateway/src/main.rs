@@ -53,8 +53,7 @@ use carsinos_protocol::{
     ListProviderCapabilitiesQuery, ListProviderCapabilitiesResponse, ListProviderModelsQuery,
     ListProviderModelsResponse, ListSessionsQuery, ListSessionsResponse, ListSkillsQuery,
     ListSkillsResponse, ListToolCapabilitiesQuery, ListToolCapabilitiesResponse, MessageResponse,
-    MetricsResponse,
-    MissionControlCalendarWeekJobResponse, MissionControlCalendarWeekQuery,
+    MetricsResponse, MissionControlCalendarWeekJobResponse, MissionControlCalendarWeekQuery,
     MissionControlCalendarWeekResponse, MissionControlFocusItemResponse, MissionControlFocusQuery,
     MissionControlFocusResponse, MoveBoardCardRequest, MoveBoardCardResponse, NoteResponse,
     NumquamIntegrationStatusResponse, OpenAiOauthFinishRequest, OpenAiOauthFinishResponse,
@@ -63,20 +62,19 @@ use carsinos_protocol::{
     PluginManifestResponse, PluginPermissionsResponse, PluginRuntimeStatusResponse,
     ProviderCapabilityResponse, ProviderModelResponse, ReconnectChannelRuntimeRequest,
     ReconnectChannelRuntimeResponse, RefreshRuntimeTrustContractLockRequest,
-    RefreshRuntimeTrustContractLockResponse,
-    ReleaseAgentMailFileLeaseRequest, ReleaseAgentMailFileLeaseResponse, RemoveJobResponse,
-    ResolveApprovalRequest, ResolveApprovalResponse, ResolveChannelApprovalActionRequest,
-    RollbackPluginRequest, RollbackPluginResponse, RollbackRuntimeConfigRequest,
-    RollbackRuntimeConfigResponse, RunBoardAutomationRuleResponse, RunBoardCardRequest,
-    RunBoardCardResponse, RunJobNowResponse, RunMemoryWhyRequest, RunMemoryWhyResponse,
-    RunResponse, RuntimeAutonomyGuardrailsConfig, RuntimeChannelsConfig, RuntimeConfigResponse,
-    RuntimeDiscordDeploymentConfig, RuntimeExtensionsConfig, RuntimeGlobalConfig,
-    RuntimeMemoryConfig, RuntimeNumquamConfig, RuntimeProviderPolicyConfig,
-    RuntimeSecurityOpsConfig, RuntimeTelegramDeploymentConfig, RuntimeTrustContractLockResponse,
-    RuntimeTrustContractLockSummaryResponse, SanitizedPath, SchedulerLockStateResponse,
-    SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult, SendAgentMailMessageRequest,
-    SendAgentMailMessageResponse, SessionDetailResponse, SessionSummary,
-    SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse,
+    RefreshRuntimeTrustContractLockResponse, ReleaseAgentMailFileLeaseRequest,
+    ReleaseAgentMailFileLeaseResponse, RemoveJobResponse, ResolveApprovalRequest,
+    ResolveApprovalResponse, ResolveChannelApprovalActionRequest, RollbackPluginRequest,
+    RollbackPluginResponse, RollbackRuntimeConfigRequest, RollbackRuntimeConfigResponse,
+    RunBoardAutomationRuleResponse, RunBoardCardRequest, RunBoardCardResponse, RunJobNowResponse,
+    RunMemoryWhyRequest, RunMemoryWhyResponse, RunResponse, RuntimeAutonomyGuardrailsConfig,
+    RuntimeChannelsConfig, RuntimeConfigResponse, RuntimeDiscordDeploymentConfig,
+    RuntimeExtensionsConfig, RuntimeGlobalConfig, RuntimeMemoryConfig, RuntimeNumquamConfig,
+    RuntimeProviderPolicyConfig, RuntimeSecurityOpsConfig, RuntimeTelegramDeploymentConfig,
+    RuntimeTrustContractLockResponse, RuntimeTrustContractLockSummaryResponse, SanitizedPath,
+    SchedulerLockStateResponse, SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult,
+    SendAgentMailMessageRequest, SendAgentMailMessageResponse, SessionDetailResponse,
+    SessionSummary, SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse,
     SetBoardAutomationRuleStateRequest, SetBoardAutomationRuleStateResponse, SkillResponse,
     StatusResponse, SyncMemorySourceItemResponse, SyncMemorySourcesRequest,
     SyncMemorySourcesResponse, TelegramChannelConfig, ToolCapabilityResponse,
@@ -3136,11 +3134,8 @@ async fn list_provider_models(
     };
 
     let base_url = provider_models_base_url(&provider, resolved_auth_profile.as_ref());
-    let cache_key = provider_models_cache_key(
-        &provider,
-        &base_url,
-        resolved_auth_profile_id.as_deref(),
-    );
+    let cache_key =
+        provider_models_cache_key(&provider, &base_url, resolved_auth_profile_id.as_deref());
     let now = current_time_ms();
     if !refresh {
         if let Some(entry) = state
@@ -3161,9 +3156,13 @@ async fn list_provider_models(
         }
     }
 
-    let items =
-        fetch_provider_models_from_upstream(&state, &provider, &base_url, resolved_auth_profile.as_ref())
-            .await?;
+    let items = fetch_provider_models_from_upstream(
+        &state,
+        &provider,
+        &base_url,
+        resolved_auth_profile.as_ref(),
+    )
+    .await?;
     state.provider_models_cache.write().await.insert(
         cache_key,
         ProviderModelsCacheEntry {
@@ -3251,9 +3250,7 @@ async fn resolve_provider_models_auth_profile(
     Ok(Some(profile))
 }
 
-fn map_provider_models_auth_resolution_error(
-    err: anyhow::Error,
-) -> (StatusCode, Json<ApiError>) {
+fn map_provider_models_auth_resolution_error(err: anyhow::Error) -> (StatusCode, Json<ApiError>) {
     let message = err.to_string();
     let normalized = message.to_ascii_lowercase();
     if message.starts_with("AUTH_FORBIDDEN:")
@@ -3300,7 +3297,11 @@ fn provider_models_base_url(provider: &str, profile: Option<&ProviderAuthProfile
         .unwrap_or_else(|| provider_models_default_base_url(provider).to_string())
 }
 
-fn provider_models_cache_key(provider: &str, base_url: &str, auth_profile_id: Option<&str>) -> String {
+fn provider_models_cache_key(
+    provider: &str,
+    base_url: &str,
+    auth_profile_id: Option<&str>,
+) -> String {
     format!(
         "{}|{}|{}",
         provider.to_ascii_lowercase(),
@@ -3408,7 +3409,10 @@ async fn fetch_provider_models_from_upstream(
 
     let token = match auth_profile {
         Some(profile) => extract_provider_auth_token(profile).map_err(|err| {
-            internal_err_with_error("extracting provider auth token for model catalog failed", err)
+            internal_err_with_error(
+                "extracting provider auth token for model catalog failed",
+                err,
+            )
         })?,
         None => None,
     };
@@ -3488,7 +3492,10 @@ async fn fetch_provider_models_from_upstream(
                 ),
             ));
         }
-        if matches!(status, StatusCode::REQUEST_TIMEOUT | StatusCode::GATEWAY_TIMEOUT) {
+        if matches!(
+            status,
+            StatusCode::REQUEST_TIMEOUT | StatusCode::GATEWAY_TIMEOUT
+        ) {
             return Err(api_error_with_code(
                 StatusCode::GATEWAY_TIMEOUT,
                 "TIMEOUT",

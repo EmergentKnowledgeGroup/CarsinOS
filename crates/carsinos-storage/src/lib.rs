@@ -2494,7 +2494,7 @@ impl Storage {
               created_at
             FROM runs
             WHERE session_id = ?1
-            ORDER BY created_at DESC
+            ORDER BY created_at DESC, run_id DESC
             LIMIT 1
             "#,
         )?;
@@ -2627,6 +2627,7 @@ impl Storage {
               archived_at
             FROM assistant_workers
             WHERE pending_approval_id = ?1
+              AND archived_at IS NULL
             LIMIT 1
             "#,
         )?;
@@ -2720,70 +2721,130 @@ impl Storage {
         worker_key: &str,
         patch: AssistantWorkerPatch,
     ) -> Result<Option<AssistantWorkerRecord>> {
-        let existing = match self.get_assistant_worker(boss_key, worker_key)? {
-            Some(record) => record,
-            None => return Ok(None),
-        };
-        let next_status = patch.status.unwrap_or(existing.status);
-        let next_agent_id = patch.agent_id.unwrap_or(existing.agent_id);
-        let next_session_id = patch.session_id.unwrap_or(existing.session_id);
-        let next_template_key = patch.template_key.unwrap_or(existing.template_key);
-        let next_display_name = patch.display_name.unwrap_or(existing.display_name);
-        let next_instructions = patch.instructions.unwrap_or(existing.instructions);
-        let next_run_defaults_json = patch
-            .run_defaults_json
-            .unwrap_or(existing.run_defaults_json);
-        let next_session_mode = patch.session_mode.unwrap_or(existing.session_mode);
-        let next_last_run_id = patch.last_run_id.unwrap_or(existing.last_run_id);
-        let next_last_run_status = patch.last_run_status.unwrap_or(existing.last_run_status);
-        let next_last_stop_reason = patch.last_stop_reason.unwrap_or(existing.last_stop_reason);
-        let next_pending_approval_id = patch
-            .pending_approval_id
-            .unwrap_or(existing.pending_approval_id);
-        let next_archived_at = patch.archived_at.unwrap_or(existing.archived_at);
         let now = now_ms();
-        let conn = self.connect()?;
-        conn.execute(
-            r#"
-            UPDATE assistant_workers
-            SET
-              status = ?1,
-              agent_id = ?2,
-              session_id = ?3,
-              template_key = ?4,
-              display_name = ?5,
-              instructions = ?6,
-              run_defaults_json = ?7,
-              session_mode = ?8,
-              last_run_id = ?9,
-              last_run_status = ?10,
-              last_stop_reason = ?11,
-              pending_approval_id = ?12,
-              updated_at = ?13,
-              archived_at = ?14
-            WHERE boss_key = ?15 AND worker_key = ?16
-            "#,
-            params![
-                next_status,
-                next_agent_id,
-                next_session_id,
-                next_template_key,
-                next_display_name,
-                next_instructions,
-                next_run_defaults_json,
-                next_session_mode,
-                next_last_run_id,
-                next_last_run_status,
-                next_last_stop_reason,
-                next_pending_approval_id,
-                now,
-                next_archived_at,
-                boss_key,
-                worker_key
-            ],
-        )
-        .context("failed to update assistant worker")?;
-        self.get_assistant_worker(boss_key, worker_key)
+        let mut conn = self.connect()?;
+        let tx = conn
+            .transaction()
+            .context("failed to start assistant worker update transaction")?;
+
+        let status = patch.status;
+        let template_key = patch.template_key;
+        let display_name = patch.display_name;
+        let run_defaults_json = patch.run_defaults_json;
+        let session_mode = patch.session_mode;
+
+        let apply_agent_id = patch.agent_id.is_some();
+        let agent_id = patch.agent_id.flatten();
+        let apply_session_id = patch.session_id.is_some();
+        let session_id = patch.session_id.flatten();
+        let apply_instructions = patch.instructions.is_some();
+        let instructions = patch.instructions.flatten();
+        let apply_last_run_id = patch.last_run_id.is_some();
+        let last_run_id = patch.last_run_id.flatten();
+        let apply_last_run_status = patch.last_run_status.is_some();
+        let last_run_status = patch.last_run_status.flatten();
+        let apply_last_stop_reason = patch.last_stop_reason.is_some();
+        let last_stop_reason = patch.last_stop_reason.flatten();
+        let apply_pending_approval_id = patch.pending_approval_id.is_some();
+        let pending_approval_id = patch.pending_approval_id.flatten();
+        let apply_archived_at = patch.archived_at.is_some();
+        let archived_at = patch.archived_at.flatten();
+
+        let rows_updated = tx
+            .execute(
+                r#"
+                UPDATE assistant_workers
+                SET
+                  status = COALESCE(?1, status),
+                  agent_id = CASE WHEN ?2 = 1 THEN ?3 ELSE agent_id END,
+                  session_id = CASE WHEN ?4 = 1 THEN ?5 ELSE session_id END,
+                  template_key = COALESCE(?6, template_key),
+                  display_name = COALESCE(?7, display_name),
+                  instructions = CASE WHEN ?8 = 1 THEN ?9 ELSE instructions END,
+                  run_defaults_json = COALESCE(?10, run_defaults_json),
+                  session_mode = COALESCE(?11, session_mode),
+                  last_run_id = CASE WHEN ?12 = 1 THEN ?13 ELSE last_run_id END,
+                  last_run_status = CASE WHEN ?14 = 1 THEN ?15 ELSE last_run_status END,
+                  last_stop_reason = CASE WHEN ?16 = 1 THEN ?17 ELSE last_stop_reason END,
+                  pending_approval_id = CASE WHEN ?18 = 1 THEN ?19 ELSE pending_approval_id END,
+                  archived_at = CASE WHEN ?20 = 1 THEN ?21 ELSE archived_at END,
+                  updated_at = ?22
+                WHERE boss_key = ?23 AND worker_key = ?24
+                "#,
+                params![
+                    status,
+                    if apply_agent_id { 1_i64 } else { 0_i64 },
+                    agent_id,
+                    if apply_session_id { 1_i64 } else { 0_i64 },
+                    session_id,
+                    template_key,
+                    display_name,
+                    if apply_instructions { 1_i64 } else { 0_i64 },
+                    instructions,
+                    run_defaults_json,
+                    session_mode,
+                    if apply_last_run_id { 1_i64 } else { 0_i64 },
+                    last_run_id,
+                    if apply_last_run_status { 1_i64 } else { 0_i64 },
+                    last_run_status,
+                    if apply_last_stop_reason { 1_i64 } else { 0_i64 },
+                    last_stop_reason,
+                    if apply_pending_approval_id {
+                        1_i64
+                    } else {
+                        0_i64
+                    },
+                    pending_approval_id,
+                    if apply_archived_at { 1_i64 } else { 0_i64 },
+                    archived_at,
+                    now,
+                    boss_key,
+                    worker_key
+                ],
+            )
+            .context("failed to update assistant worker")?;
+        if rows_updated == 0 {
+            tx.commit()
+                .context("failed to commit assistant worker update transaction")?;
+            return Ok(None);
+        }
+
+        let record = {
+            let mut stmt = tx
+                .prepare(
+                    r#"
+                    SELECT
+                      boss_key,
+                      root_session_id,
+                      worker_key,
+                      worker_kind,
+                      status,
+                      agent_id,
+                      session_id,
+                      template_key,
+                      display_name,
+                      instructions,
+                      run_defaults_json,
+                      session_mode,
+                      last_run_id,
+                      last_run_status,
+                      last_stop_reason,
+                      pending_approval_id,
+                      created_at,
+                      updated_at,
+                      archived_at
+                    FROM assistant_workers
+                    WHERE boss_key = ?1 AND worker_key = ?2
+                    "#,
+                )
+                .context("failed to prepare assistant worker reload query")?;
+            stmt.query_row(params![boss_key, worker_key], map_assistant_worker_row)
+                .optional()
+                .context("failed to reload assistant worker after update")?
+        };
+        tx.commit()
+            .context("failed to commit assistant worker update transaction")?;
+        Ok(record)
     }
 
     pub fn create_assistant_task_link(
@@ -6361,7 +6422,7 @@ mod tests {
         let worker = storage
             .create_assistant_worker(NewAssistantWorker {
                 boss_key: "default".to_string(),
-                root_session_id: "root-session-1".to_string(),
+                root_session_id: root_session.session_id.clone(),
                 worker_key: "research_1".to_string(),
                 worker_kind: "employee".to_string(),
                 status: "pending_approval".to_string(),

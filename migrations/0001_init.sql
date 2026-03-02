@@ -170,6 +170,10 @@ ON assistant_workers(boss_key, status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_assistant_workers_root_session
 ON assistant_workers(root_session_id, updated_at DESC);
 
+CREATE INDEX IF NOT EXISTS idx_assistant_workers_pending_approval
+ON assistant_workers(pending_approval_id, updated_at DESC)
+WHERE pending_approval_id IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS assistant_task_links (
   boss_key TEXT NOT NULL,
   worker_key TEXT NOT NULL,
