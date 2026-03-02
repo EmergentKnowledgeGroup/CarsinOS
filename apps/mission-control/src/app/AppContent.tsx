@@ -1,4 +1,4 @@
-import { type Dispatch, type SetStateAction } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import type { NotifyFn } from "./useAppController";
 import { ChatroomsPage } from "../features/agentMail/ChatroomsPage";
 import { MailPage } from "../features/agentMail/MailPage";
@@ -8,7 +8,7 @@ import { useBoardsController } from "../features/boards/useBoardsController";
 import { CalendarPage } from "../features/calendar/CalendarPage";
 import { CockpitPage } from "../features/cockpit/CockpitPage";
 import { useCockpitController } from "../features/cockpit/useCockpitController";
-import { type CockpitWidgetLayout } from "../features/cockpit/cockpitLayout";
+import { type CockpitWidgetLayoutV2 } from "../features/cockpit/cockpitLayout";
 import { CockpitWidgetRenderer } from "../features/cockpit/CockpitWidgetRenderer";
 import { EventsPage } from "../features/events/EventsPage";
 import { FocusPage } from "../features/focus/FocusPage";
@@ -34,13 +34,14 @@ interface AppContentProps {
 }
 
 function renderCockpitWidget(
-  widget: CockpitWidgetLayout,
+  widget: CockpitWidgetLayoutV2,
   props: Omit<AppContentProps, "activeTab">
 ) {
   const { missionControl, cockpitController, agents, visibleEvents, settings } = props;
   return (
     <CockpitWidgetRenderer
       widget={widget}
+      settings={settings}
       incidentMode={cockpitController.incidentMode}
       setIncidentMode={cockpitController.setIncidentMode}
       gatewayStatus={missionControl.gatewayStatus}
@@ -93,6 +94,7 @@ function TabPane({
 
 export function AppContent(props: AppContentProps) {
   const active = props.activeTab;
+  const [editMode, setEditMode] = useState(false);
 
   return (
     <>
@@ -268,17 +270,13 @@ export function AppContent(props: AppContentProps) {
         <CockpitPage
           cockpitPages={props.cockpitController.cockpitPages}
           activeCockpitPage={props.cockpitController.activeCockpitPage}
+          editMode={editMode}
+          onSetEditMode={setEditMode}
           onSetActiveCockpitPageId={props.cockpitController.setActiveCockpitPageId}
-          onRenameActiveCockpitPage={(name) =>
-            props.cockpitController.setCockpitPages((previous) =>
-              previous.map((page) =>
-                page.page_id === props.cockpitController.activeCockpitPage.page_id
-                  ? { ...page, name: name || "Custom Page" }
-                  : page
-              )
-            )
-          }
+          onRenameActiveCockpitPage={props.cockpitController.renameActivePage}
           onAddCockpitPage={props.cockpitController.addCockpitPage}
+          onDeleteCockpitPage={props.cockpitController.deleteCockpitPage}
+          onDuplicateCockpitPage={props.cockpitController.duplicateCockpitPage}
           onExportCockpitLayout={props.cockpitController.exportCockpitLayout}
           onImportCockpitLayout={async (file) => {
             try {
@@ -291,11 +289,13 @@ export function AppContent(props: AppContentProps) {
             }
           }}
           onResetCockpitLayout={props.cockpitController.resetCockpitLayout}
+          onLoadTemplate={props.cockpitController.loadTemplate}
           onAddCockpitWidget={props.cockpitController.addCockpitWidget}
-          onMoveCockpitWidget={props.cockpitController.moveCockpitWidget}
-          onResizeCockpitWidget={props.cockpitController.resizeCockpitWidget}
+          onAddCustomWidget={props.cockpitController.addCustomWidget}
           onRemoveCockpitWidget={props.cockpitController.removeCockpitWidget}
+          onLayoutChange={props.cockpitController.handleLayoutChange}
           renderCockpitWidget={(widget) => renderCockpitWidget(widget, props)}
+          settings={props.settings}
         />
       </TabPane>
     </>

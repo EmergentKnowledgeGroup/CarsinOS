@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { STORAGE_KEYS } from "../storageKeys";
 
 export type ThemeFamily = "obsidian" | "phosphor" | "arctic" | "ember" | "brutalist";
 export type ThemeMode = "dark" | "light";
@@ -33,7 +34,7 @@ const THEME_MODE_VALUES: ThemeMode[] = ["dark", "light"];
 
 function getStoredFamily(): ThemeFamily {
   if (typeof window === "undefined") return "obsidian";
-  const stored = localStorage.getItem("mc-theme-name");
+  const stored = localStorage.getItem(STORAGE_KEYS.themeName);
   return stored && THEME_FAMILY_VALUES.includes(stored as ThemeFamily)
     ? (stored as ThemeFamily)
     : "obsidian";
@@ -41,7 +42,7 @@ function getStoredFamily(): ThemeFamily {
 
 function getStoredMode(): ThemeMode {
   if (typeof window === "undefined") return "dark";
-  const stored = localStorage.getItem("mc-theme-mode");
+  const stored = localStorage.getItem(STORAGE_KEYS.themeMode);
   return stored && THEME_MODE_VALUES.includes(stored as ThemeMode)
     ? (stored as ThemeMode)
     : "dark";
@@ -74,8 +75,8 @@ function loadThemeFonts(family: ThemeFamily) {
 function applyTheme(family: ThemeFamily, mode: ThemeMode) {
   const themeId: ThemeId = `${family}-${mode}`;
   document.documentElement.setAttribute("data-theme", themeId);
-  localStorage.setItem("mc-theme-name", family);
-  localStorage.setItem("mc-theme-mode", mode);
+  localStorage.setItem(STORAGE_KEYS.themeName, family);
+  localStorage.setItem(STORAGE_KEYS.themeMode, mode);
   loadThemeFonts(family);
 }
 

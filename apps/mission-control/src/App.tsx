@@ -19,6 +19,7 @@ import { useOnboardingController } from "./features/onboarding/useOnboardingCont
 import { ToastStack } from "./ui/Toast";
 import { useToasts } from "./ui/useToasts";
 import type { Agent, WsEventFrame } from "./types";
+import { EVENT_STREAM_BUFFER_CAP, WS_MAX_RECONNECT_ATTEMPTS } from "./constants";
 import "./styles.css";
 
 export default function App() {
@@ -44,7 +45,7 @@ export default function App() {
   } = useAppController();
 
   /* Toast system — adapts legacy setNotice({tone,message}) calls to toast stack */
-  const { toasts, addToast, dismissToast } = useToasts();
+  const { toasts, addToast, dismissToast, notifications, dismissNotification, clearAllNotifications } = useToasts();
   const setNotice = useCallback(
     (n: { tone: "info" | "error" | "critical"; message: string } | null) => {
       if (n) addToast(n.message, n.tone);
@@ -127,7 +128,7 @@ export default function App() {
           ts_unix_ms: frame.ts_unix_ms,
           payload: frame.payload,
         };
-        return [next, ...previous].slice(0, 400);
+        return [next, ...previous].slice(0, EVENT_STREAM_BUFFER_CAP);
       });
 
       const isAgentMailEvent = frame.event_type.startsWith("agent_mail.");
@@ -157,7 +158,7 @@ export default function App() {
   useGatewayEvents({
     settings,
     tokenConfigured,
-    maxReconnectAttempts: 40,
+    maxReconnectAttempts: WS_MAX_RECONNECT_ATTEMPTS,
     onState: setWsState,
     onEvent: handleGatewayEvent,
   });
@@ -187,6 +188,9 @@ export default function App() {
       onClearToken={clearToken}
       onOpenSetupWizard={onboarding.openWizard}
       onRefresh={() => missionControl.queueMissionControlRefresh(settings)}
+      notifications={notifications}
+      onDismissNotification={dismissNotification}
+      onClearAllNotifications={clearAllNotifications}
       navBadges={{
         focus: missionControl.approvalsById.size,
         mail: mailController.mailThreads.reduce((sum, t) => sum + (t.unread_count ?? 0), 0),

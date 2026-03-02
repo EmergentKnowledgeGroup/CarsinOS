@@ -16,7 +16,7 @@ interface ToastStackProps {
 const AUTO_DISMISS_MS: Record<ToastItem["tone"], number> = {
   info: 4000,
   error: 8000,
-  critical: 0, // manual dismiss only
+  critical: 12000,
 };
 
 function ToastEntry({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: string) => void }) {
