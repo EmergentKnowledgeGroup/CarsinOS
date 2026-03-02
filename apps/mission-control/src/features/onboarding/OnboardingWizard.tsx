@@ -109,6 +109,10 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
             providerReady={c.providerReady}
             localProvider={c.localProvider}
             localModelId={c.localModelId}
+            localProviderOptions={c.localProviderOptions}
+            localModelOptions={c.localModelOptions}
+            localModelsLoading={c.localModelsLoading}
+            localModelsError={c.localModelsError}
             anthropicDisplayName={c.anthropicDisplayName}
             anthropicSetupToken={c.anthropicSetupToken}
             anthropicApiBaseUrl={c.anthropicApiBaseUrl}

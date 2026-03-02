@@ -1,11 +1,21 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { Plus, Pencil, Bot } from "lucide-react";
 import clsx from "clsx";
 import { Modal } from "../../ui/Modal";
 import { Pagination } from "../../ui/Pagination";
 import { usePagination } from "../../ui/usePagination";
-import { createAgent, updateAgent } from "../../lib/api";
-import type { Agent, RuntimeConnectionSettings } from "../../types";
+import {
+  createAgent,
+  listProviderCapabilities,
+  listProviderModels,
+  updateAgent,
+} from "../../lib/api";
+import { providerLabel } from "../../lib/providerCatalog";
+import type {
+  Agent,
+  ProviderCapabilityResponse,
+  RuntimeConnectionSettings,
+} from "../../types";
 
 const PAGE_SIZE = 5;
 
@@ -34,47 +44,11 @@ const EMPTY_FORM: AgentFormState = {
   workspace_root: "",
 };
 
-const PROVIDER_OPTIONS = [
-  { value: "anthropic", label: "Anthropic" },
-  { value: "openai", label: "OpenAI" },
-  { value: "openrouter", label: "OpenRouter" },
-  { value: "ollama", label: "Ollama" },
-  { value: "vllm", label: "vLLM" },
-  { value: "mock", label: "Mock" },
-];
-
 const TOOL_PROFILES = [
   { value: "standard", label: "Standard" },
   { value: "restricted", label: "Restricted" },
   { value: "none", label: "None" },
 ];
-
-const MODELS_BY_PROVIDER: Record<string, string[]> = {
-  anthropic: [
-    "claude-opus-4-6",
-    "claude-sonnet-4-6",
-    "claude-haiku-4-5-20251001",
-    "claude-sonnet-4-5-20250514",
-    "claude-3-5-haiku-20241022",
-  ],
-  openai: [
-    "gpt-4o",
-    "gpt-4o-mini",
-    "gpt-4-turbo",
-    "o3",
-    "o3-mini",
-    "o4-mini",
-  ],
-  openrouter: [
-    "anthropic/claude-sonnet-4-6",
-    "openai/gpt-4o",
-    "google/gemini-2.5-pro",
-    "meta-llama/llama-3.3-70b-instruct",
-  ],
-  ollama: ["llama3.3", "mistral", "codellama", "deepseek-coder-v2"],
-  vllm: [],
-  mock: ["mock-model"],
-};
 
 export function TeamPage({ agents, activeJobCount, settings, onRefresh }: TeamPageProps) {
   const [page, setPage] = useState(1);
@@ -83,6 +57,16 @@ export function TeamPage({ agents, activeJobCount, settings, onRefresh }: TeamPa
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [providerCapabilities, setProviderCapabilities] = useState<
+    ProviderCapabilityResponse[]
+  >([]);
+  const [providerCapabilitiesLoading, setProviderCapabilitiesLoading] = useState(false);
+  const [providerCapabilitiesError, setProviderCapabilitiesError] = useState<string | null>(null);
+  const [modelsByProvider, setModelsByProvider] = useState<Record<string, string[]>>({});
+  const [modelErrorsByProvider, setModelErrorsByProvider] = useState<
+    Record<string, string | null>
+  >({});
+  const [modelLoadingProvider, setModelLoadingProvider] = useState<string | null>(null);
 
   const [roleCardAgentId, setRoleCardAgentId] = useState<string | null>(null);
 
@@ -99,9 +83,127 @@ export function TeamPage({ agents, activeJobCount, settings, onRefresh }: TeamPa
 
   const roleCardAgent = roleCardAgentId ? agents.find((a) => a.agent_id === roleCardAgentId) : null;
 
+  const providerOptions = useMemo(() => {
+    const mapped = providerCapabilities
+      .filter((item) => item.provider !== "unconfigured")
+      .filter((item) => showAdvanced || item.provider !== "openrouter")
+      .map((item) => ({
+        value: item.provider,
+        label: providerLabel(item.provider),
+      }))
+      .sort((left, right) => left.label.localeCompare(right.label));
+    if (
+      form.model_provider &&
+      !mapped.some((item) => item.value === form.model_provider)
+    ) {
+      mapped.push({
+        value: form.model_provider,
+        label: providerLabel(form.model_provider),
+      });
+    }
+    return mapped;
+  }, [form.model_provider, providerCapabilities, showAdvanced]);
+
+  const modelOptions = useMemo(() => {
+    const provider = form.model_provider.trim().toLowerCase();
+    const options = modelsByProvider[provider] ?? [];
+    if (form.model_id && !options.includes(form.model_id)) {
+      return [form.model_id, ...options];
+    }
+    return options;
+  }, [form.model_id, form.model_provider, modelsByProvider]);
+
+  const modelFetchError = useMemo(() => {
+    const provider = form.model_provider.trim().toLowerCase();
+    return modelErrorsByProvider[provider] ?? null;
+  }, [form.model_provider, modelErrorsByProvider]);
+
+  useEffect(() => {
+    if (modalMode === null) {
+      return;
+    }
+    let cancelled = false;
+    setProviderCapabilitiesLoading(true);
+    setProviderCapabilitiesError(null);
+    void listProviderCapabilities(settings)
+      .then((response) => {
+        if (cancelled) {
+          return;
+        }
+        setProviderCapabilities(response.items);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) {
+          return;
+        }
+        setProviderCapabilitiesError(String(err));
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setProviderCapabilitiesLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [modalMode, settings]);
+
+  useEffect(() => {
+    if (modalMode === null) {
+      return;
+    }
+    const provider = form.model_provider.trim().toLowerCase();
+    if (!provider) {
+      return;
+    }
+    let cancelled = false;
+    setModelLoadingProvider(provider);
+    setModelErrorsByProvider((prev) => ({ ...prev, [provider]: null }));
+    void listProviderModels(settings, {
+      provider,
+      agent_id: form.agent_id || undefined,
+    })
+      .then((response) => {
+        if (cancelled) {
+          return;
+        }
+        const modelIds = response.items.map((item) => item.model_id);
+        setModelsByProvider((prev) => ({ ...prev, [provider]: modelIds }));
+        if (modelIds.length > 0) {
+          setForm((prev) => {
+            if (
+              prev.model_provider.trim().toLowerCase() !== provider ||
+              prev.model_id.trim()
+            ) {
+              return prev;
+            }
+            return {
+              ...prev,
+              model_id: modelIds[0],
+            };
+          });
+        }
+      })
+      .catch((err: unknown) => {
+        if (cancelled) {
+          return;
+        }
+        setModelErrorsByProvider((prev) => ({ ...prev, [provider]: String(err) }));
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setModelLoadingProvider((current) => (current === provider ? null : current));
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [form.agent_id, form.model_provider, modalMode, settings]);
+
   const openCreate = useCallback(() => {
     setForm(EMPTY_FORM);
     setError(null);
+    setProviderCapabilitiesError(null);
     setModalMode("create");
   }, []);
 
@@ -115,6 +217,7 @@ export function TeamPage({ agents, activeJobCount, settings, onRefresh }: TeamPa
       workspace_root: agent.workspace_root ?? "",
     });
     setError(null);
+    setProviderCapabilitiesError(null);
     setModalMode("edit");
   }, []);
 
@@ -293,12 +396,20 @@ export function TeamPage({ agents, activeJobCount, settings, onRefresh }: TeamPa
               }}
             >
               <option value="">Select provider...</option>
-              {PROVIDER_OPTIONS.map((opt) => (
+              {providerOptions.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>
               ))}
             </select>
+            {providerCapabilitiesLoading ? (
+              <small className="mc-field-help">Loading provider catalog...</small>
+            ) : null}
+            {providerCapabilitiesError ? (
+              <small className="mc-form-error">
+                Provider catalog unavailable: {providerCapabilitiesError}
+              </small>
+            ) : null}
           </label>
 
           <label className="mc-modal-field">
@@ -308,10 +419,25 @@ export function TeamPage({ agents, activeJobCount, settings, onRefresh }: TeamPa
               onChange={(e) => updateField("model_id", e.target.value)}
             >
               <option value="">Select model...</option>
-              {(MODELS_BY_PROVIDER[form.model_provider] ?? []).map((m) => (
+              {modelOptions.map((m) => (
                 <option key={m} value={m}>{m}</option>
               ))}
             </select>
+            {modelLoadingProvider === form.model_provider.trim().toLowerCase() ? (
+              <small className="mc-field-help">Loading model catalog...</small>
+            ) : null}
+            {modelFetchError ? (
+              <small className="mc-form-error">
+                Model catalog unavailable for this provider.
+              </small>
+            ) : null}
+            {(showAdvanced || Boolean(modelFetchError)) ? (
+              <input
+                value={form.model_id}
+                onChange={(e) => updateField("model_id", e.target.value)}
+                placeholder="Manual model ID fallback"
+              />
+            ) : null}
           </label>
 
           <button
