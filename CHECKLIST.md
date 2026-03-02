@@ -301,3 +301,10 @@ Execution checklist derived from `PLAN.md`. IDs are stable and must be used by `
 - [x] `AB4a` Extract app-shell state (`activeTab`, connection drafts, token/ws/notice, event stream) into `app/useAppController.ts`.
 - [x] `AB5` Move websocket wiring to `app/useGatewayEvents.ts` with stable callback handling and cleanup guarantees.
 - [x] `AB6` Add shared UI primitives in `src/ui/*`, run full regression gates, and execute PR chunk workflow.
+
+## Phase AC - Mission Control Hardcoded Config Option C
+
+- [x] `AC1` Add shared Mission Control frontend constants/storage-key modules and replace hardcoded connection/runtime literals across runtime, app shell, theme, websocket, cockpit, and onboarding surfaces.
+- [x] `AC2` Add protocol + gateway `GET /api/v1/providers/models` contract (auth/audit/rate-limit/cache/error mapping) plus provider-model endpoint tests.
+- [x] `AC3` Replace Team + onboarding hardcoded provider/model catalogs with server-driven capabilities/models fetch flow and manual fallback UX.
+- [x] `AC4` Run regression gates for this phase (`npm run typecheck`, `npm run lint`, `npm run build`, `cargo test --workspace --locked`).

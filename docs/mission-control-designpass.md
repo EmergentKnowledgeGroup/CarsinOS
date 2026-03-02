@@ -1468,3 +1468,402 @@ Dynamically inject/swap the `<link>` tag when theme changes.
 ---
 
 *End of addendum. Total design pass document now covers: full audit, design direction, extended UX issues, and 5 complete theme systems with dark + light variants each.*
+
+---
+---
+
+# ADDENDUM 2: Operator UX Mandates + New Pages
+
+**Added:** 2026-02-28
+**Context:** Operator feedback session. These requirements are non-negotiable and override any conflicting recommendation in Sections 1–10.
+
+---
+
+## 11. THE LAWS (Non-Negotiable)
+
+These override every other design decision in this document. If a recommendation above conflicts with a Law, the Law wins.
+
+### Law 1: ZERO SCROLL BARS
+
+No page, panel, or view may produce a visible scroll bar. Ever. Content that would overflow must be handled through:
+
+- **Tabs / sub-tabs** within the feature page
+- **Pagination** (numbered or load-more) for lists
+- **Collapsible sections** for secondary content
+- **Modals / drawers** for creation and editing flows
+- **Dropdown menus** for options that would otherwise stack vertically
+- **Fixed-height containers** that show the most recent/relevant N items
+
+The *only* exception is the Kanban board horizontal axis (spatial panning, not scrolling through content).
+
+Scroll bars are forbidden in: thread lists, message streams, event logs, focus queues, widget palettes, drawer forms, calendar tables, lease panels, asset lists, cockpit canvases.
+
+**Current violations:** 17 scrollable regions across the app. Target: 0.
+
+| Page | Scroll Regions | Fix |
+|------|---------------|-----|
+| Boards | 3 (canvas, drawer, assets) | Paginate columns, modal for card editor |
+| Calendar | 3 (2 lanes, table) | Sub-tabs + paginated table |
+| Focus | 1 (focus list) | Paginate |
+| Events | 1 (events container) | Fixed-height, "Load more" button |
+| Mail | 3 (threads, messages, leases) | Paginate all, move leases to sub-tab |
+| Chatrooms | 3 (rooms, messages, moderation) | Paginate, moderation in modal |
+| Cockpit | 3 (palette, canvas, widget bodies) | Palette→dropdown, fixed-height widgets |
+
+### Law 2: CAVEMAN SIMPLICITY
+
+If a page shows more than **5 interactive controls** at rest, it's too complex. Redesign with:
+
+- **Progressive disclosure** — show primary actions, hide the rest behind "More" or a sub-tab
+- **Modals for creation flows** — don't inline forms into already-busy panels
+- **Sensible defaults** — pre-fill what can be pre-filled, auto-select what can be auto-selected
+- **Context-sensitive controls** — only show actions relevant to the current state
+
+Target: a new user with zero training should be able to use every feature within 30 seconds of seeing it.
+
+**Current violations:**
+
+| Page | Controls Visible | Fix |
+|------|-----------------|-----|
+| Boards (drawer) | 15 | Card editor → tabbed modal (Details/Script/Assets) |
+| Mail | 17 | 2-col layout, inline compose, leases in sub-tab |
+| Cockpit | 10+ | Widget palette→dropdown, edit mode toggle |
+| Chatrooms | 8 | Moderation in modal |
+| AppShell | 6 | Connection config in settings modal |
+
+### Law 3: DROPDOWNS OVER TEXT INPUTS
+
+Wherever the user is selecting from a known or enumerable set, use a dropdown/select — never a text field.
+
+| Location | Current | Should Be | Data Source |
+|----------|---------|-----------|-------------|
+| Board card: Owner | text input | Dropdown | `listAgents()` |
+| Board card: Tags | CSV text | Multi-select tag picker | Aggregate from loaded cards |
+| Mail: Principal Override | text input | Dropdown | `listAgents()` + thread participants |
+| Mail: Sender | text input | Dropdown | `listAgents()` |
+| Mail: Recipients | CSV text | Multi-select | `listAgents()` + thread participants |
+| Mail: Lease Holder | text input | Dropdown | `listAgents()` |
+| Mail: Lease Glob | text input | Preset dropdown + custom | Hardcoded common patterns |
+| Mail: Lease TTL | text "ttl ms" | Preset buttons (5m/15m/1h/4h/24h) | Frontend conversion to ms |
+| Chatrooms: Sender | text input | Dropdown | `listAgents()` |
+| Chatrooms: Recipients | CSV text | Multi-select | `listAgents()` |
+| AppShell: Gateway URL | text input | Combo dropdown with history | localStorage |
+
+Free-text inputs are only acceptable for: search queries, message body, card descriptions, card titles, thread subjects, and truly freeform content.
+
+### Law 4: NOTHING BURIED
+
+Every feature and action must be reachable in **2 clicks or fewer** from the main view:
+
+```
+Tab (1 click) → Sub-tab or action (1 click) → done
+```
+
+No hidden menus inside hidden menus. No settings pages inside drawers inside panels. If an operator needs something, it's *right there*.
+
+---
+
+## 12. Page-by-Page Zero-Scroll Architecture
+
+### 12.1 App Shell
+
+**Current:** Topbar + health strip + connection config (3 inputs, 3 buttons) + tab bar = 4 permanent sections eating vertical space.
+
+**Redesign:**
+
+```
+┌─────────────────────────────────────────────────────┐
+│ ☰ CarsinOS        [health chips]    [⚙] [◐] [●]   │  ← single topbar line
+├──┬──────────────────────────────────────────────────┤
+│  │                                                   │
+│N │                                                   │
+│A │          ACTIVE TAB CONTENT                       │
+│V │          (fills all remaining space)              │
+│  │                                                   │
+├──┴──────────────────────────────────────────────────┤
+```
+
+- **Connection config** → **Settings gear icon [⚙]** in topbar. Opens a **modal** with Gateway URL (combo dropdown with history), Token, Connect/Clear. Auto-connect on launch. Connection status = colored dot [●] (green/amber/red). Click dot = open settings modal.
+- **Health strip** → **Inline chips** in topbar. `Agents: 3  Jobs: 2  Approvals: 1  Channels: 4/4`. Click a chip = navigate to relevant tab.
+- **Tab bar** → **Vertical nav rail** on left. Icon + short label. Active = accent left border. Alert badges (red dot on Focus when approvals pending).
+- **Incident mode** → Toggle in topbar. Active = topbar border glows danger-red.
+
+### 12.2 Boards
+
+- **Column cards paginated** — N cards that fit viewport, page indicator per column. No vertical scroll.
+- **"+ New Card"** → **creation modal** (Title, Column dropdown, Owner dropdown, Description). 3 fields + 2 buttons.
+- **Click card** → **Card Detail Modal** with **sub-tabs**: `[Details] [Script] [Assets]`
+  - Details: Title, Column (dropdown), Owner (dropdown), Due (picker), Tags (multi-select chip picker). Max 5 controls.
+  - Script: Full-height markdown editor.
+  - Assets: Upload + paginated grid.
+- **Filter** → inline filter tabs at top: `[All] [agent-alpha] [agent-beta] [▼ By Tag]` (inspired by OpenClaw MC reference).
+- **Per-page stats header**: `Cards: 12  In Progress: 3  Done: 7  This Week: +4`
+
+### 12.3 Calendar
+
+**Sub-tabs:** `[Week View] [Schedule] [Active Jobs]`
+
+**Week View** (NEW — based on OpenClaw MC reference):
+```
+┌─ Always Running ─────────────────────────────────────┐
+│ ⚡ mission-control-check • Every 30 min              │
+└──────────────────────────────────────────────────────┘
+
+┌─────┬─────┬─────┬─────┬─────┬─────┬─────┐
+│ Sun │ Mon │ Tue │ Wed │ Thu │ Fri │ Sat │
+├─────┼─────┼─────┼─────┼─────┼─────┼─────┤
+│░░░░░│░░░░░│░░░░░│░░░░░│░░░░░│░░░░░│░░░░░│  ← color-coded
+│ ai  │ ai  │ ai  │ ai  │ ai  │ ai  │ ai  │     job blocks
+│ res │ res │ res │ res │ res │ res │ res │     positioned
+│─────│─────│─────│─────│─────│─────│─────│     by time
+│ brief│brief│brief│brief│brief│brief│brief│
+│     │     │news │     │     │     │     │
+└─────┴─────┴─────┴─────┴─────┴─────┴─────┘
+
+┌─ Next Up ────────────────────────────────────────────┐
+│ mission-control-check    in 12 min                   │
+│ competitor-scan          in 1 hour                    │
+│ morning-brief            in 20 hours                  │
+└──────────────────────────────────────────────────────┘
+```
+
+Data source: `getMissionControlCalendarWeek()` already returns `always_running`, `next_up`, `jobs` with `next_run_at`, `interval_seconds`, `schedule_kind`. **Pure frontend visualization — no backend changes.**
+
+**Schedule tab**: Paginated table (5-8 rows), relative "Next Run" times, colored status dots.
+**Active Jobs tab**: Always Running + Next Up lists.
+
+### 12.4 Focus
+
+**Sub-tabs:** `[Queue (3)] [System Status]`
+
+- Queue: paginated (5-8 items). Each item has **[Details]** expander showing approval context (parse `request_json` field already in response). Relative timestamps. Colored severity icons.
+- System Status: stats grid + channel status dots.
+
+### 12.5 Events
+
+- Fixed-height container showing last N events that fit viewport.
+- **Structured rendering** per event type (not raw JSON). `[▸ JSON]` expander per event.
+- **Filter dropdown**: All / Board / Job / Approval / Channel / Mail.
+- **"Load more" button** at bottom instead of scroll.
+- Color-coded left border by event domain.
+
+### 12.6 Mail
+
+**2-column layout** (not 3). Thread list left, conversation right. Compose **inline at bottom**.
+
+- Thread list: paginated (8-10 per page).
+- Messages: paginated (most recent N). "Load earlier" at top.
+- **"+ New Thread"** → modal (Subject + Participants multi-select dropdown). 2 fields.
+- Reply: text area + attach + options gear + send. 3 controls at rest.
+- Advanced options (sender/principal override) behind **[⚙ Options]** popover.
+- **Sub-tabs on mail page:** `[Messages] [Leases]` — leases get their own view, not crammed into compose panel.
+- Lease creation → modal with preset TTL buttons + holder/glob dropdowns.
+
+### 12.7 Chatrooms
+
+Same 2-column pattern as Mail. Moderation panel → **[⚙ Room Settings]** button → modal with sub-tabs `[Participants] [Leases] [Settings]`. Reactions → emoji picker, not hardcoded text-message buttons.
+
+### 12.8 Cockpit
+
+- Widget palette → **"+ Add Widget" dropdown** in toolbar.
+- Page selector → **dropdown** in toolbar.
+- **Edit mode toggle** `[✎ Edit]`. View mode = content only. Edit mode = drag handles, resize, remove.
+- Widget bodies fixed-height. Too many widgets → use multiple dashboard pages.
+- Import/Export/Restore → `[⋮ More]` dropdown in edit-mode toolbar.
+
+---
+
+## 13. NEW: Team Page (Agent Roster)
+
+This is a **new tab** added to the nav rail. It replaces API-only agent management with a visual, caveman-friendly interface.
+
+**Inspiration:** OpenClaw MC "Meet the Team" page — avatar cards with roles, descriptions, skill tags, visual hierarchy.
+
+**Data source:** `listAgents()` — already wired in `api.ts`. Returns `agent_id`, `name`, `workspace_root`, `model_provider`, `model_id`, `tool_profile`, `created_at`, `updated_at`. **Pure frontend. No backend changes.**
+
+### Layout
+
+```
+┌──────────────────────────────────────────────────────┐
+│ Meet Your Agents                        [+ New Agent]│
+├──────────────────────────────────────────────────────┤
+│                                                       │
+│  ┌─────────────────────────────────────────────────┐ │
+│  │ 🤖  agent-alpha                                  │ │
+│  │     Model: anthropic / claude-3.5-sonnet         │ │
+│  │     Tools: standard                              │ │
+│  │     Workspace: ~/projects/main                   │ │
+│  │     [provider] [anthropic] [standard]            │ │  ← tag chips
+│  │                            [Edit] [Role Card →]  │ │
+│  └─────────────────────────────────────────────────┘ │
+│                                                       │
+│  ┌─────────────────────────────────────────────────┐ │
+│  │ 🤖  agent-beta                                   │ │
+│  │     Model: openai / gpt-4o                       │ │
+│  │     Tools: restricted                            │ │
+│  │     Workspace: ~/projects/secondary              │ │
+│  │     [provider] [openai] [restricted]             │ │
+│  │                            [Edit] [Role Card →]  │ │
+│  └─────────────────────────────────────────────────┘ │
+│                                                       │
+│  pg 1/1                                              │
+└──────────────────────────────────────────────────────┘
+```
+
+### Interactions
+
+- **Agent cards** are paginated (4-6 per page depending on card height). No scroll.
+- **[+ New Agent]** → creation modal:
+  ```
+  ┌── Create Agent ─────────────────────────┐
+  │ Agent ID:      [___________________]     │
+  │ Name:          [___________________]     │
+  │ Provider:      [▼ anthropic        ]     │  ← dropdown
+  │ Model:         [▼ claude-3.5-sonnet]     │  ← dropdown, filtered by provider
+  │ Tool Profile:  [▼ standard         ]     │  ← dropdown
+  │ Workspace:     [▼ ~/projects/main  ]     │  ← combo dropdown with history
+  │                [Cancel]  [Create Agent]   │
+  └──────────────────────────────────────────┘
+  ```
+  All dropdowns. Caveman proof.
+
+- **[Edit]** → same modal, pre-filled with current values. Uses `update_agent` API (already exists in gateway, needs wrapper added to `api.ts`).
+
+- **[Role Card →]** → expands or opens a detail view showing:
+  - Agent's assigned jobs (from `listJobs` filtered by `agent_id`)
+  - Agent's provider profile order (from `getAgentProviderProfileOrder`)
+  - Recent activity summary
+  - Auth profiles associated with this agent's providers
+
+- **Per-page stats**: `Total Agents: 3  Providers: 2  Active Jobs: 5`
+
+### Nav Rail Addition
+
+```
+Boards:     grid/kanban icon
+Calendar:   calendar icon
+Focus:      eye/target icon
+Events:     pulse/waveform icon
+Mail:       envelope icon
+Chatrooms:  message-bubble icon
+Team:       users/people icon        ← NEW
+Cockpit:    dashboard/gauge icon
+```
+
+Team goes between Chatrooms and Cockpit — it's an infrastructure/config view, not a daily-ops view.
+
+### API Wiring Needed (frontend only)
+
+| Action | Endpoint | Wrapper Status |
+|--------|----------|---------------|
+| List agents | `GET /api/v1/agents` | `listAgents` exists in api.ts |
+| Create agent | `POST /api/v1/agents` | Needs new wrapper in api.ts |
+| Update agent | `POST /api/v1/agents/{agent_id}` | Needs new wrapper in api.ts |
+| List jobs (for agent detail) | `GET /api/v1/jobs` | `listJobs` exists, filter client-side by agent_id |
+| Provider profile order | `GET /api/v1/auth/agents/{agent_id}/providers/{provider}/profile-order` | `getAgentProviderProfileOrder` exists |
+| Auth profiles | `GET /api/v1/auth/profiles` | `listAuthProfiles` exists |
+
+**Backend changes needed: ZERO.** All endpoints exist. Just need 2 new wrappers in `api.ts` + corresponding types in `types.ts`.
+
+---
+
+## 14. FUTURE (v2): Memory / Journal Page
+
+**NOT in scope for the design pass implementation.** Documented here for future planning.
+
+The OpenClaw MC has a rich Memory page — journal-style document viewer with timestamped entries, decisions, issues, and action items on a timeline. CarsinOS has memory notes (`listMemoryNotes`, `createMemoryNote`) and an embeddings system, but no rich journal visualization.
+
+**When NumquamOblita integration lands**, add a Memory tab to the nav rail:
+
+```
+Boards | Calendar | Focus | Events | Mail | Chatrooms | Team | Memory | Cockpit
+```
+
+**Conceptual design:**
+- Left sidebar: timeline navigation by date
+- Main content: rich document view of memory entries with timestamps, tags, source references
+- Search: global memory search with semantic matching (requires new backend endpoint leveraging embeddings)
+- Integration: link from mail thread "Summarize to Memory" action to the Memory page
+
+**This requires backend work:** new endpoints for memory retrieval with filtering, timeline aggregation, and potentially a semantic search endpoint. File backend tickets when ready.
+
+---
+
+## 15. Implementation Guardrails
+
+### Frontend-Only Rule (from API_CONTRACT.md)
+
+- UI/UX tasks touch `src/features/*`, `src/ui/*`, and `src/styles.css` only.
+- `src/lib/api.ts`, `src/lib/ws.ts`, and `src/types.ts` are read-only unless wiring a new screen (Team page needs 2 new wrappers).
+- **Never change `crates/*`** in a frontend task.
+- All HTTP calls go through `api.ts` wrappers. No raw `fetch()` in components.
+- All types come from `types.ts`. No inline type definitions.
+
+### What's Pure Frontend (no backend)
+
+| Category | Examples |
+|----------|---------|
+| CSS/theming | Dark mode, all 5 themes, typography, motion, layout |
+| Component restructure | Nav rail, topbar, sub-tabs, modals, pagination |
+| New pages | Team page (API exists) |
+| Dropdown conversion | All 11 identified text→dropdown conversions |
+| Event rendering | Structured event cards (parse existing JSON) |
+| Approval context | Parse existing `request_json` field |
+| Calendar week grid | Visualize existing `getMissionControlCalendarWeek` data |
+| Board filtering | Client-side filter on already-loaded cards |
+| Relative timestamps | Frontend utility function |
+| Toast system | New React component, replaces notice prop chain |
+| Icons | Lucide npm dependency |
+| Keyboard shortcuts | Frontend event listeners |
+
+### What Needs Backend Tickets (NOT part of this pass)
+
+| Feature | Missing | Priority |
+|---------|---------|----------|
+| List known principals endpoint | No `GET /api/v1/principals` | Low — can fake client-side |
+| Message cursor pagination | Only `limit`, no `offset` | Medium — workaround exists |
+| Memory/Journal integration | New NumquamOblita endpoints | v2 |
+
+---
+
+## 16. Updated Implementation Phasing
+
+```
+Phase 0: THEME TOKENS + DARK MODE
+  CSS only. Highest impact. Unblocks everything.
+  Checkpoint: post-green (typecheck, lint, build)
+
+Phase 1: ZERO-SCROLL + LAYOUT RESTRUCTURE
+  Shell collapse, nav rail, sub-tabs, pagination, modals.
+  Checkpoint: post-green per sub-phase
+
+Phase 2: DROPDOWN-FIRST + CAVEMAN SIMPLIFICATION
+  Text→dropdown conversions, modal creation flows, confirmations.
+  Checkpoint: post-green
+
+Phase 3: UI PRIMITIVES + DESIGN SYSTEM
+  Button, Input, Select, Toast, Modal, Icon, Skeleton, Badge, Pagination.
+  Checkpoint: post-green
+
+Phase 4: TEAM PAGE (NEW)
+  New feature page. 2 new api.ts wrappers. Agent roster + creation modal.
+  Checkpoint: post-green
+
+Phase 5: PER-FEATURE VISUAL POLISH
+  Cockpit → Boards → Focus → Events → Mail → Calendar (priority order).
+  Checkpoint: post-green per feature
+
+Phase 6: CALENDAR WEEK GRID
+  Visual week timeline using existing getMissionControlCalendarWeek data.
+  Checkpoint: post-green
+
+Phase 7: MOTION + MICRO-INTERACTIONS
+  Tab transitions, card drag, event fade-in, toast animations.
+
+Phase 8: POWER-USER FEATURES
+  Command palette, keyboard shortcuts, compact density, remaining themes.
+```
+
+---
+
+*This document is now the complete design system + interaction architecture + implementation specification for Mission Control. The Laws (Section 11) are non-negotiable. Everything else serves them.*

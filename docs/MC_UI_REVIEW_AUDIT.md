@@ -47,6 +47,12 @@
 | Intended design | 4 |
 | Low priority polish | 4 |
 
+## Follow-up Closure Check (2026-03-02)
+
+- Re-verified all seven `Real Bugs (Should Fix)` against current code.
+- Status: all seven are now resolved in code.
+- Remaining notes in this document are intended design or low-priority polish items.
+
 
 ## Reviewer Pushback / Priority Nuance
 - `apps/mission-control/src/features/boards/BoardsPage.tsx:245` (`onSelectCard("")`): currently functional but brittle against stricter controller/type contracts; consider promoting from low urgency to structural cleanup priority.
