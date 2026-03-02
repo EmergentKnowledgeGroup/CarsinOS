@@ -2628,6 +2628,7 @@ impl Storage {
             FROM assistant_workers
             WHERE pending_approval_id = ?1
               AND archived_at IS NULL
+            ORDER BY updated_at DESC
             LIMIT 1
             "#,
         )?;
