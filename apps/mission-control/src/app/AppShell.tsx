@@ -134,7 +134,7 @@ export function AppShell(props: AppShellProps) {
     setDensity((d) => (d === "comfortable" ? "compact" : "comfortable"));
   }, []);
 
-  const { incidentMode, onIncidentModeChange } = props;
+  const { incidentMode, onIncidentModeChange, onOpenGuidedTour } = props;
   const toggleIncidentMode = useCallback(() => {
     onIncidentModeChange(!incidentMode);
   }, [incidentMode, onIncidentModeChange]);
@@ -165,6 +165,13 @@ export function AppShell(props: AppShellProps) {
     void props.onSaveConnection();
     setSettingsOpen(false);
   };
+
+  const handleOpenGuidedTourFromSettings = useCallback(() => {
+    setSettingsOpen(false);
+    window.requestAnimationFrame(() => {
+      onOpenGuidedTour();
+    });
+  }, [onOpenGuidedTour]);
 
   // Keyboard shortcuts
   useKeyboardShortcuts({
@@ -375,7 +382,7 @@ export function AppShell(props: AppShellProps) {
                   <button type="button" className="ghost" onClick={props.onOpenSetupWizard}>
                     Setup Wizard
                   </button>
-                  <button type="button" className="ghost" onClick={props.onOpenGuidedTour}>
+                  <button type="button" className="ghost" onClick={handleOpenGuidedTourFromSettings}>
                     Guided Tour
                   </button>
                   <button type="button" className="danger" onClick={handleClearToken}>

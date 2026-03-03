@@ -55,6 +55,20 @@ export function ThemeDropdown({ family, mode, selectFamily, setMode, toggleMode 
     setMode(m);
   };
 
+  const handleRowKeyDown = (
+    familyId: ThemeFamily,
+    event: React.KeyboardEvent<HTMLDivElement>,
+  ) => {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+    event.preventDefault();
+    handleRowClick(familyId);
+  };
+
   return (
     <div className="mc-theme-dropdown-wrap" ref={wrapRef}>
       <button
@@ -79,7 +93,9 @@ export function ThemeDropdown({ family, mode, selectFamily, setMode, toggleMode 
                 key={t.family}
                 className={clsx("mc-theme-dropdown-row", isActive && "mc-theme-dropdown-row-active")}
                 role="menuitem"
+                tabIndex={0}
                 onClick={() => handleRowClick(t.family)}
+                onKeyDown={(event) => handleRowKeyDown(t.family, event)}
               >
                 <span className="mc-theme-dropdown-swatch" style={{ background: t.accent }} />
                 <span className="mc-theme-dropdown-name">{t.label}</span>

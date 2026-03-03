@@ -135,8 +135,8 @@ export function TabHelpBanner(props: TabHelpBannerProps) {
       </div>
       {examplesOpen ? (
         <ul className="mc-tab-help-examples">
-          {copy.examples.map((example) => (
-            <li key={example}>{example}</li>
+          {copy.examples.map((example, index) => (
+            <li key={`${props.tab}-${index}`}>{example}</li>
           ))}
         </ul>
       ) : null}

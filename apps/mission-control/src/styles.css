@@ -29,6 +29,14 @@
   --ink-tertiary:  #6b7485;
   --ink-muted:     #505868;
 
+  /* Compatibility aliases used by newer UI modules */
+  --line-soft:     var(--line);
+  --surface-1:     var(--surface);
+  --surface-2:     var(--bg-raised);
+  --focus:         var(--info);
+  --muted:         var(--ink-secondary);
+  --success:       var(--ok);
+
   /* Accent — warm amber, kept from original */
   --accent:        #ff6a13;
   --accent-hover:  #ff8040;
@@ -4504,12 +4512,22 @@ button.danger:hover {
   background: var(--surface-hover);
 }
 
+.mc-theme-mode-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--focus) 78%, #ffffff 22%);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--surface) 88%, transparent);
+}
+
 .mc-theme-mode-btn-active {
   color: var(--accent);
 }
 
 .mc-theme-mode-btn-active:hover {
   color: var(--accent-hover);
+}
+
+.mc-theme-mode-btn-active:focus-visible {
+  outline-color: color-mix(in srgb, var(--accent) 78%, #ffffff 22%);
 }
 
 /* ─── UI PRIMITIVES: Modal Subtitle ───────────────────────────────────────── */

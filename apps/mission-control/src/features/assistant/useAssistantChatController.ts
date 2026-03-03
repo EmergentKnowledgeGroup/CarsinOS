@@ -236,13 +236,13 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
     setBusy(true);
     try {
       const board = await getBoard(settings, targetBoardId);
-      const firstColumn = [...board.columns].sort((left, right) => left.position - right.position)[0];
+      const firstColumn = board.columns[0];
       if (!firstColumn) {
         throw new Error("Board has no columns.");
       }
       const normalized = lastAssistantMessage.content_text.trim();
       const firstLine =
-        normalized.split(/\\r?\\n/).map((line) => line.trim()).find((line) => line.length > 0) ??
+        normalized.split(/\r?\n/).map((line) => line.trim()).find((line) => line.length > 0) ??
         "Assistant follow-up";
       const title = firstLine.slice(0, 120);
       await createBoardCard(settings, targetBoardId, {

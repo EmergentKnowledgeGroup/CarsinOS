@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export interface GuidedTourStep {
   id: string;
@@ -29,6 +29,8 @@ function clamp(value: number, min: number, max: number): number {
 
 export function GuidedTourOverlay(props: GuidedTourOverlayProps) {
   const [targetRect, setTargetRect] = useState<RectLike | null>(null);
+  const bubbleRef = useRef<HTMLElement | null>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const step = props.steps[props.stepIndex] ?? null;
 
   useEffect(() => {
@@ -64,6 +66,21 @@ export function GuidedTourOverlay(props: GuidedTourOverlayProps) {
     };
   }, [props.open, step]);
 
+  useEffect(() => {
+    if (!props.open) {
+      return;
+    }
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const rafId = window.requestAnimationFrame(() => {
+      bubbleRef.current?.focus();
+    });
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      previouslyFocusedRef.current?.focus();
+      previouslyFocusedRef.current = null;
+    };
+  }, [props.open]);
+
   const bubbleStyle = useMemo(() => {
     const panelWidth = 360;
     const gutter = 16;
@@ -92,8 +109,23 @@ export function GuidedTourOverlay(props: GuidedTourOverlayProps) {
     return null;
   }
 
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
+    if (event.key !== "Escape") {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    props.onClose();
+  };
+
   return (
-    <div className="mc-tour-overlay" role="dialog" aria-modal="true" aria-label="Mission Control guided tour">
+    <div
+      className="mc-tour-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Mission Control guided tour"
+      onKeyDown={handleKeyDown}
+    >
       <div className="mc-tour-scrim" />
       {targetRect ? (
         <div
@@ -107,8 +139,10 @@ export function GuidedTourOverlay(props: GuidedTourOverlayProps) {
         />
       ) : null}
       <section
+        ref={bubbleRef}
         className="mc-tour-bubble"
         style={{ left: `${bubbleStyle.left}px`, top: `${bubbleStyle.top}px` }}
+        tabIndex={-1}
       >
         <p className="mc-tour-step">Step {props.stepIndex + 1} of {props.steps.length}</p>
         <h3>{step.title}</h3>
