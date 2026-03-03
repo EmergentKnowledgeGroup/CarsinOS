@@ -13,6 +13,10 @@ interface StepProviderProps {
   selectedExistingProfileId: string;
   providerReady: boolean;
   localProvider: string;
+  localUseConnectionProfile: boolean;
+  localConnectionProfileName: string;
+  localApiBaseUrl: string;
+  localApiKey: string;
   localModelId: string;
   localOrchestratorEnabled: boolean;
   localOrchestratorAgentId: string;
@@ -47,6 +51,10 @@ interface StepProviderProps {
   onUseExistingProfileChange: (value: boolean) => void;
   onSelectedExistingProfileIdChange: (value: string) => void;
   onLocalProviderChange: (value: string) => void;
+  onLocalUseConnectionProfileChange: (value: boolean) => void;
+  onLocalConnectionProfileNameChange: (value: string) => void;
+  onLocalApiBaseUrlChange: (value: string) => void;
+  onLocalApiKeyChange: (value: string) => void;
   onLocalModelIdChange: (value: string) => void;
   onLocalOrchestratorEnabledChange: (value: boolean) => void;
   onLocalOrchestratorAgentIdChange: (value: string) => void;
@@ -176,6 +184,49 @@ export function StepProvider(props: StepProviderProps) {
                 </select>
               </label>
             </div>
+
+            <label className="mc-checkbox">
+              <input
+                type="checkbox"
+                checked={props.localUseConnectionProfile}
+                onChange={(event) =>
+                  props.onLocalUseConnectionProfileChange(event.target.checked)
+                }
+              />
+              Save a connection profile for endpoint/token routing
+            </label>
+
+            {props.localUseConnectionProfile ? (
+              <div className="mc-onboarding-field-grid">
+                <label>
+                  Profile name
+                  <input
+                    value={props.localConnectionProfileName}
+                    onChange={(event) =>
+                      props.onLocalConnectionProfileNameChange(event.target.value)
+                    }
+                    placeholder="lmstudio-local"
+                  />
+                </label>
+                <label>
+                  API base URL (optional)
+                  <input
+                    value={props.localApiBaseUrl}
+                    onChange={(event) => props.onLocalApiBaseUrlChange(event.target.value)}
+                    placeholder="http://127.0.0.1:1234"
+                  />
+                </label>
+                <label>
+                  API key (optional)
+                  <input
+                    type="password"
+                    value={props.localApiKey}
+                    onChange={(event) => props.onLocalApiKeyChange(event.target.value)}
+                    placeholder="Bearer token if required"
+                  />
+                </label>
+              </div>
+            ) : null}
 
             <div className="mc-onboarding-inline-actions">
               <button

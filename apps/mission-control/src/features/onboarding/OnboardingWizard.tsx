@@ -109,6 +109,10 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
             selectedExistingProfileId={c.selectedExistingProfileId}
             providerReady={c.providerReady}
             localProvider={c.localProvider}
+            localUseConnectionProfile={c.localUseConnectionProfile}
+            localConnectionProfileName={c.localConnectionProfileName}
+            localApiBaseUrl={c.localApiBaseUrl}
+            localApiKey={c.localApiKey}
             localModelId={c.localModelId}
             localOrchestratorEnabled={c.localOrchestratorEnabled}
             localOrchestratorAgentId={c.localOrchestratorAgentId}
@@ -143,6 +147,10 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
             onUseExistingProfileChange={c.setUseExistingProfile}
             onSelectedExistingProfileIdChange={c.setSelectedExistingProfileId}
             onLocalProviderChange={c.setLocalProvider}
+            onLocalUseConnectionProfileChange={c.setLocalUseConnectionProfile}
+            onLocalConnectionProfileNameChange={c.setLocalConnectionProfileName}
+            onLocalApiBaseUrlChange={c.setLocalApiBaseUrl}
+            onLocalApiKeyChange={c.setLocalApiKey}
             onLocalModelIdChange={c.setLocalModelId}
             onLocalOrchestratorEnabledChange={c.setLocalOrchestratorEnabled}
             onLocalOrchestratorAgentIdChange={c.setLocalOrchestratorAgentId}

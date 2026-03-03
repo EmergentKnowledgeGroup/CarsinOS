@@ -159,6 +159,7 @@ impl ProviderRegistry {
             "openrouter" => complete_openrouter(&self.http_client, request).await,
             "ollama" => complete_ollama(&self.http_client, request).await,
             "vllm" => complete_vllm(&self.http_client, request).await,
+            "lmstudio" => complete_lmstudio(&self.http_client, request).await,
             provider => anyhow::bail!("unsupported model provider: {provider}"),
         }
     }
@@ -172,6 +173,7 @@ impl ProviderRegistry {
             "openrouter",
             "ollama",
             "vllm",
+            "lmstudio",
         ]
         .into_iter()
         .filter_map(provider_capabilities)
@@ -522,6 +524,39 @@ async fn complete_vllm(client: &Client, request: CompletionRequest) -> Result<Co
     .await
 }
 
+async fn complete_lmstudio(
+    client: &Client,
+    request: CompletionRequest,
+) -> Result<CompletionResponse> {
+    let (base_url, bearer_token) = if let Some(auth) = request.auth_profile.as_ref() {
+        let token = auth.api_key().map_err(|err| {
+            anyhow!(
+                "PROVIDER_ERROR:lmstudio:AUTH_REQUIRED:invalid_credentials:{}",
+                err.to_string().replace(':', "_")
+            )
+        })?;
+        (
+            auth.api_base_url
+                .as_deref()
+                .unwrap_or("http://127.0.0.1:1234")
+                .trim_end_matches('/')
+                .to_string(),
+            Some(token),
+        )
+    } else {
+        ("http://127.0.0.1:1234".to_string(), None)
+    };
+    complete_openai_compatible(
+        client,
+        "lmstudio",
+        &base_url,
+        &request.model_id,
+        &request.input,
+        bearer_token,
+    )
+    .await
+}
+
 async fn complete_ollama(
     client: &Client,
     request: CompletionRequest,
@@ -749,6 +784,16 @@ fn provider_capabilities(provider: &str) -> Option<ProviderCapabilities> {
         }),
         "vllm" => Some(ProviderCapabilities {
             provider: "vllm".to_string(),
+            supports_streaming: true,
+            supports_tools: true,
+            supports_json_mode: true,
+            supports_vision: false,
+            max_context_tokens: Some(32_000),
+            error_classes: all_error_classes,
+            retryable_error_classes,
+        }),
+        "lmstudio" => Some(ProviderCapabilities {
+            provider: "lmstudio".to_string(),
             supports_streaming: true,
             supports_tools: true,
             supports_json_mode: true,
@@ -1127,6 +1172,7 @@ mod tests {
         assert!(all.iter().any(|item| item.provider == "openrouter"));
         assert!(all.iter().any(|item| item.provider == "ollama"));
         assert!(all.iter().any(|item| item.provider == "vllm"));
+        assert!(all.iter().any(|item| item.provider == "lmstudio"));
 
         let openai = registry
             .capabilities("openai")
@@ -1261,5 +1307,44 @@ mod tests {
 
         mock.assert_async().await;
         assert_eq!(response.output_text, "vllm says hi");
+    }
+
+    #[tokio::test]
+    async fn lmstudio_provider_returns_output_with_optional_auth_profile() {
+        let server = MockServer::start_async().await;
+        let mock = server
+            .mock_async(|when, then| {
+                when.method(POST).path("/v1/chat/completions");
+                then.status(200).json_body(json!({
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "lmstudio says hi"
+                            }
+                        }
+                    ]
+                }));
+            })
+            .await;
+
+        let registry = ProviderRegistry::new();
+        let response = registry
+            .complete(CompletionRequest {
+                model_provider: "lmstudio".to_string(),
+                model_id: "lmstudio-model".to_string(),
+                input: "hello".to_string(),
+                auth_profile: Some(ProviderAuthProfile {
+                    auth_profile_id: Some("p6".to_string()),
+                    auth_mode: "api_key".to_string(),
+                    risk_level: "low".to_string(),
+                    api_base_url: Some(server.base_url()),
+                    credentials_json: r#"{"api_key":"test-token"}"#.to_string(),
+                }),
+            })
+            .await
+            .expect("lmstudio completion");
+
+        mock.assert_async().await;
+        assert_eq!(response.output_text, "lmstudio says hi");
     }
 }
