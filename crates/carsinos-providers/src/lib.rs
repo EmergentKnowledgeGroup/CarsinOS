@@ -368,6 +368,7 @@ async fn complete_anthropic_headless(
         .unwrap_or_else(|| {
             vec![
                 "-p".to_string(),
+                "{prompt}".to_string(),
                 "--output-format".to_string(),
                 "text".to_string(),
             ]
