@@ -6,6 +6,7 @@ interface StepConnectProps {
   mode: "quickstart" | "manual";
   gatewayUrl: string;
   gatewayTokenInput: string;
+  tokenConfigured: boolean;
   connected: boolean;
   onGatewayUrlChange: (value: string) => void;
   onGatewayTokenInputChange: (value: string) => void;
@@ -19,7 +20,11 @@ export function StepConnect(props: StepConnectProps) {
     <OnboardingStepShell
       stepLabel="Step 3 of 8"
       title="Connect Gateway"
-      subtitle="Save connection settings and verify access using your bearer token."
+      subtitle={
+        props.tokenConfigured
+          ? "Launcher/keychain token is already configured. Save connection to continue."
+          : "Save connection settings and verify access using your bearer token."
+      }
       actions={
         <>
           <button type="button" className="ghost" onClick={props.onBack}>
@@ -55,7 +60,11 @@ export function StepConnect(props: StepConnectProps) {
             type="password"
             value={props.gatewayTokenInput}
             onChange={(event) => props.onGatewayTokenInputChange(event.target.value)}
-            placeholder="Paste bearer token"
+            placeholder={
+              props.tokenConfigured
+                ? "Token preloaded (optional to override)"
+                : "Paste bearer token"
+            }
           />
         </label>
       </div>

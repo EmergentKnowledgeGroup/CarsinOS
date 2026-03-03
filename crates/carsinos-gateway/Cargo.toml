@@ -28,7 +28,7 @@ sha2 = "0.10"
 jsonwebtoken = "9"
 cron = "0.12"
 tower = { version = "0.5", features = ["util"] }
-tower-http = { workspace = true, features = ["request-id", "trace"] }
+tower-http = { workspace = true, features = ["cors", "request-id", "trace"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
 tracing-appender = "0.2"

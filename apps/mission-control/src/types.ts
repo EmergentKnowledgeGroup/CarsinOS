@@ -341,6 +341,10 @@ export interface ListAuthProfilesResponse {
   items: AuthProfileResponse[];
 }
 
+export interface CreateAuthProfileResponse {
+  profile: AuthProfileResponse;
+}
+
 export interface AgentProviderProfileOrderResponse {
   agent_id: string;
   provider: string;

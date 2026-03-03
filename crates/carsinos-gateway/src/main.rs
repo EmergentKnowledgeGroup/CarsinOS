@@ -4,7 +4,7 @@ use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::State;
 use axum::extract::{Path, Query};
 use axum::http::Request;
-use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
+use axum::http::{header, HeaderMap, HeaderName, HeaderValue, Method, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -128,6 +128,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{broadcast, Mutex, RwLock, Semaphore};
 use tokio::time::sleep;
 use tokio_util::io::ReaderStream;
+use tower_http::cors::{Any, CorsLayer};
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 use tower_http::trace::{DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer};
 use tracing::{debug, error, info, warn, Level};
@@ -6209,6 +6210,53 @@ fn parse_bearer_token(headers: &HeaderMap) -> Option<&str> {
     }
 }
 
+fn cors_env_is_dev() -> bool {
+    std::env::var("CARSINOS_ENV")
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "dev" | "development" | "local"
+            )
+        })
+        .unwrap_or(true)
+}
+
+fn cors_allowed_origins() -> Vec<HeaderValue> {
+    let configured = std::env::var("CARSINOS_CORS_ALLOW_ORIGINS")
+        .unwrap_or_else(|_| "http://127.0.0.1:1420,http://localhost:1420".to_string());
+    configured
+        .split(',')
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .filter_map(|value| HeaderValue::from_str(value).ok())
+        .collect()
+}
+
+fn build_cors_layer() -> CorsLayer {
+    if cors_env_is_dev() {
+        return CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any);
+    }
+
+    let methods = [Method::GET, Method::POST, Method::PUT, Method::DELETE];
+    let headers = [
+        header::AUTHORIZATION,
+        header::CONTENT_TYPE,
+        HeaderName::from_static("x-request-id"),
+    ];
+    let layer = CorsLayer::new()
+        .allow_methods(methods)
+        .allow_headers(headers);
+    let origins = cors_allowed_origins();
+    if origins.is_empty() {
+        layer
+    } else {
+        layer.allow_origin(origins)
+    }
+}
+
 fn build_app(state: AppState) -> Router {
     Router::new()
         .route("/", get(root))
@@ -6450,6 +6498,7 @@ fn build_app(state: AppState) -> Router {
         .with_state(state)
         .layer(PropagateRequestIdLayer::x_request_id())
         .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
+        .layer(build_cors_layer())
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(|request: &Request<_>| {
@@ -6881,6 +6930,7 @@ async fn create_agent(
         .unwrap_or_else(|| "default".to_string())
         .trim()
         .to_string();
+
     let record = state
         .storage
         .create_agent(NewAgent {

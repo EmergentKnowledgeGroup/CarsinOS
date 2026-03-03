@@ -1,6 +1,9 @@
 import type { AuthProfileResponse } from "../../../types";
 import { OnboardingStepShell } from "../OnboardingStepShell";
-import type { OnboardingProviderPath } from "../onboardingState";
+import type {
+  OnboardingAnthropicAuthMode,
+  OnboardingProviderPath,
+} from "../onboardingState";
 
 interface StepProviderProps {
   busy: boolean;
@@ -11,13 +14,26 @@ interface StepProviderProps {
   providerReady: boolean;
   localProvider: string;
   localModelId: string;
+  localOrchestratorEnabled: boolean;
+  localOrchestratorAgentId: string;
+  localOrchestratorAgentName: string;
+  localOrchestratorModelId: string;
+  localModelDiscoveryNote: string | null;
   localProviderOptions: Array<{ value: string; label: string }>;
   localModelOptions: string[];
   localModelsLoading: boolean;
   localModelsError: string | null;
+  anthropicAuthMode: OnboardingAnthropicAuthMode;
   anthropicDisplayName: string;
   anthropicSetupToken: string;
+  anthropicSetupLaunchNote: string | null;
   anthropicApiBaseUrl: string;
+  anthropicAccessToken: string;
+  anthropicRefreshToken: string;
+  anthropicRefreshUrl: string;
+  anthropicExpiresAtUnix: string;
+  anthropicHeadlessCommand: string;
+  anthropicHeadlessArgs: string;
   openAiDisplayName: string;
   openAiClientId: string;
   openAiApiBaseUrl: string;
@@ -32,9 +48,22 @@ interface StepProviderProps {
   onSelectedExistingProfileIdChange: (value: string) => void;
   onLocalProviderChange: (value: string) => void;
   onLocalModelIdChange: (value: string) => void;
+  onLocalOrchestratorEnabledChange: (value: boolean) => void;
+  onLocalOrchestratorAgentIdChange: (value: string) => void;
+  onLocalOrchestratorAgentNameChange: (value: string) => void;
+  onLocalOrchestratorModelIdChange: (value: string) => void;
+  onRefreshLocalModels: () => Promise<void>;
+  onAnthropicAuthModeChange: (value: OnboardingAnthropicAuthMode) => void;
   onAnthropicDisplayNameChange: (value: string) => void;
   onAnthropicSetupTokenChange: (value: string) => void;
+  onLaunchAnthropicSetupTokenFlow: () => Promise<void>;
   onAnthropicApiBaseUrlChange: (value: string) => void;
+  onAnthropicAccessTokenChange: (value: string) => void;
+  onAnthropicRefreshTokenChange: (value: string) => void;
+  onAnthropicRefreshUrlChange: (value: string) => void;
+  onAnthropicExpiresAtUnixChange: (value: string) => void;
+  onAnthropicHeadlessCommandChange: (value: string) => void;
+  onAnthropicHeadlessArgsChange: (value: string) => void;
   onOpenAiDisplayNameChange: (value: string) => void;
   onOpenAiClientIdChange: (value: string) => void;
   onOpenAiApiBaseUrlChange: (value: string) => void;
@@ -50,6 +79,9 @@ interface StepProviderProps {
 
 export function StepProvider(props: StepProviderProps) {
   const hasExistingProfiles = props.existingProviderProfiles.length > 0;
+  const canLaunchAnthropicCliAuth =
+    props.anthropicAuthMode === "api_key" ||
+    props.anthropicAuthMode === "claude_consumer_oauth";
   return (
     <OnboardingStepShell
       stepLabel="Step 5 of 8"
@@ -95,7 +127,7 @@ export function StepProvider(props: StepProviderProps) {
             />
             <div>
               <strong>Anthropic (Claude)</strong>
-              <p>Setup-token ingest flow.</p>
+              <p>Choose API key, consumer OAuth, or Claude Code headless profile mode.</p>
             </div>
           </label>
           <label className="mc-onboarding-choice">
@@ -125,50 +157,131 @@ export function StepProvider(props: StepProviderProps) {
         </div>
 
         {props.providerPath === "local" ? (
-          <div className="mc-onboarding-field-grid">
-            <label>
-              Local provider
-              <select
-                value={props.localProvider}
-                onChange={(event) => props.onLocalProviderChange(event.target.value)}
+          <div className="mc-onboarding-openai-block">
+            <div className="mc-onboarding-field-grid">
+              <label>
+                Local provider
+                <select
+                  value={props.localProvider}
+                  onChange={(event) => props.onLocalProviderChange(event.target.value)}
+                >
+                  {props.localProviderOptions.length === 0 ? (
+                    <option value={props.localProvider}>{props.localProvider}</option>
+                  ) : null}
+                  {props.localProviderOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="mc-onboarding-inline-actions">
+              <button
+                type="button"
+                className="ghost"
+                disabled={props.busy || props.localModelsLoading}
+                onClick={() => {
+                  if (props.busy || props.localModelsLoading) {
+                    return;
+                  }
+                  void props.onRefreshLocalModels();
+                }}
               >
-                {props.localProviderOptions.length === 0 ? (
-                  <option value={props.localProvider}>{props.localProvider}</option>
-                ) : null}
-                {props.localProviderOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Model ID
-              <select
-                value={props.localModelId}
-                onChange={(event) => props.onLocalModelIdChange(event.target.value)}
-              >
-                <option value="">Select model...</option>
-                {props.localModelOptions.map((modelId) => (
-                  <option key={modelId} value={modelId}>
-                    {modelId}
-                  </option>
-                ))}
-              </select>
-              {props.localModelsLoading ? (
-                <small className="mc-onboarding-note">Loading model catalog...</small>
-              ) : null}
-              {props.localModelsError ? (
-                <small className="mc-onboarding-note">
-                  Model catalog unavailable, enter a model ID manually.
-                </small>
-              ) : null}
+                {props.localModelsLoading ? "Scanning..." : "Scan loaded models"}
+              </button>
+            </div>
+
+            {props.localModelDiscoveryNote ? (
+              <p className="mc-onboarding-note">{props.localModelDiscoveryNote}</p>
+            ) : null}
+            {props.localModelsError ? (
+              <p className="mc-onboarding-note">
+                Model discovery is unavailable. You can still paste model IDs manually.
+              </p>
+            ) : null}
+
+            <div className="mc-onboarding-field-grid">
+              <label>
+                Assistant model
+                <select
+                  value={props.localModelId}
+                  onChange={(event) => props.onLocalModelIdChange(event.target.value)}
+                >
+                  <option value="">Select model...</option>
+                  {props.localModelOptions.map((modelId) => (
+                    <option key={modelId} value={modelId}>
+                      {modelId}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={props.localModelId}
+                  onChange={(event) => props.onLocalModelIdChange(event.target.value)}
+                  placeholder="Or paste assistant model ID manually"
+                />
+              </label>
+            </div>
+
+            <label className="mc-checkbox">
               <input
-                value={props.localModelId}
-                onChange={(event) => props.onLocalModelIdChange(event.target.value)}
-                placeholder="Manual model ID fallback"
+                type="checkbox"
+                checked={props.localOrchestratorEnabled}
+                onChange={(event) =>
+                  props.onLocalOrchestratorEnabledChange(event.target.checked)
+                }
               />
+              Also configure a dedicated local orchestrator worker
             </label>
+
+            {props.localOrchestratorEnabled ? (
+              <div className="mc-onboarding-field-grid">
+                <label>
+                  Orchestrator agent ID
+                  <input
+                    value={props.localOrchestratorAgentId}
+                    onChange={(event) =>
+                      props.onLocalOrchestratorAgentIdChange(event.target.value)
+                    }
+                    placeholder="orchestrator"
+                  />
+                </label>
+                <label>
+                  Orchestrator name
+                  <input
+                    value={props.localOrchestratorAgentName}
+                    onChange={(event) =>
+                      props.onLocalOrchestratorAgentNameChange(event.target.value)
+                    }
+                    placeholder="Orchestrator"
+                  />
+                </label>
+                <label>
+                  Orchestrator model
+                  <select
+                    value={props.localOrchestratorModelId}
+                    onChange={(event) =>
+                      props.onLocalOrchestratorModelIdChange(event.target.value)
+                    }
+                  >
+                    <option value="">Use assistant model</option>
+                    {props.localModelOptions.map((modelId) => (
+                      <option key={`orchestrator-${modelId}`} value={modelId}>
+                        {modelId}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    value={props.localOrchestratorModelId}
+                    onChange={(event) =>
+                      props.onLocalOrchestratorModelIdChange(event.target.value)
+                    }
+                    placeholder="Or paste orchestrator model ID manually"
+                  />
+                </label>
+              </div>
+            ) : null}
           </div>
         ) : (
           <>
@@ -202,32 +315,167 @@ export function StepProvider(props: StepProviderProps) {
             {!props.useExistingProfile || !hasExistingProfiles ? (
               <>
                 {props.providerPath === "anthropic" ? (
-                  <div className="mc-onboarding-field-grid">
-                    <label>
-                      Profile name
-                      <input
-                        value={props.anthropicDisplayName}
-                        onChange={(event) => props.onAnthropicDisplayNameChange(event.target.value)}
-                        placeholder="claude-primary"
-                      />
-                    </label>
-                    <label>
-                      Setup token
-                      <input
-                        type="password"
-                        value={props.anthropicSetupToken}
-                        onChange={(event) => props.onAnthropicSetupTokenChange(event.target.value)}
-                        placeholder="Paste setup token"
-                      />
-                    </label>
-                    <label>
-                      API base URL (optional)
-                      <input
-                        value={props.anthropicApiBaseUrl}
-                        onChange={(event) => props.onAnthropicApiBaseUrlChange(event.target.value)}
-                        placeholder="https://api.anthropic.com"
-                      />
-                    </label>
+                  <div className="mc-onboarding-openai-block">
+                    <div className="mc-onboarding-field-grid">
+                      <label>
+                        Profile name
+                        <input
+                          value={props.anthropicDisplayName}
+                          onChange={(event) => props.onAnthropicDisplayNameChange(event.target.value)}
+                          placeholder="claude-primary"
+                        />
+                      </label>
+                      <label>
+                        Auth method
+                        <select
+                          value={props.anthropicAuthMode}
+                          onChange={(event) =>
+                            props.onAnthropicAuthModeChange(
+                              event.target.value as OnboardingAnthropicAuthMode
+                            )
+                          }
+                        >
+                          <option value="api_key">API key (setup token ingest)</option>
+                          <option value="claude_consumer_oauth">
+                            OAuth token (consumer account, high risk)
+                          </option>
+                          <option value="agent_sdk">
+                            Claude Code headless profile (high risk)
+                          </option>
+                        </select>
+                      </label>
+                      <label>
+                        API base URL (optional)
+                        <input
+                          value={props.anthropicApiBaseUrl}
+                          onChange={(event) => props.onAnthropicApiBaseUrlChange(event.target.value)}
+                          placeholder="https://api.anthropic.com"
+                        />
+                      </label>
+                    </div>
+
+                    {canLaunchAnthropicCliAuth ? (
+                      <>
+                        <div className="mc-onboarding-inline-actions">
+                          <button
+                            type="button"
+                            className="ghost"
+                            disabled={props.busy}
+                            onClick={() => {
+                              if (props.busy) {
+                                return;
+                              }
+                              void props.onLaunchAnthropicSetupTokenFlow();
+                            }}
+                          >
+                            {props.busy ? "Opening..." : "Open CLI + auth"}
+                          </button>
+                        </div>
+                        <p className="mc-onboarding-note">
+                          This opens Terminal and runs <code>claude setup-token</code>.
+                          After sign-in, copy the token and paste it into the field below.
+                        </p>
+                        {props.anthropicSetupLaunchNote ? (
+                          <p className="mc-onboarding-note">{props.anthropicSetupLaunchNote}</p>
+                        ) : null}
+                      </>
+                    ) : null}
+
+                    {props.anthropicAuthMode === "api_key" ? (
+                      <>
+                        <div className="mc-onboarding-field-grid">
+                          <label>
+                            Setup token
+                            <input
+                              type="password"
+                              value={props.anthropicSetupToken}
+                              onChange={(event) =>
+                                props.onAnthropicSetupTokenChange(event.target.value)
+                              }
+                              placeholder="Paste setup token"
+                            />
+                          </label>
+                        </div>
+                      </>
+                    ) : null}
+
+                    {props.anthropicAuthMode !== "api_key" ? (
+                      <>
+                        <div className="mc-onboarding-risk-note">
+                          High-risk mode: this path requires audit logs and kill-switch controls.
+                          Use only if you understand provider policy risk.
+                        </div>
+                        <div className="mc-onboarding-field-grid">
+                          <label>
+                            Access token
+                            <input
+                              type="password"
+                              value={props.anthropicAccessToken}
+                              onChange={(event) =>
+                                props.onAnthropicAccessTokenChange(event.target.value)
+                              }
+                              placeholder="Paste access token"
+                            />
+                          </label>
+                          <label>
+                            Refresh token (optional)
+                            <input
+                              type="password"
+                              value={props.anthropicRefreshToken}
+                              onChange={(event) =>
+                                props.onAnthropicRefreshTokenChange(event.target.value)
+                              }
+                              placeholder="Optional refresh token"
+                            />
+                          </label>
+                          <label>
+                            Refresh URL (optional)
+                            <input
+                              value={props.anthropicRefreshUrl}
+                              onChange={(event) =>
+                                props.onAnthropicRefreshUrlChange(event.target.value)
+                              }
+                              placeholder="https://.../oauth/token"
+                            />
+                          </label>
+                          <label>
+                            Expires at (unix seconds, optional)
+                            <input
+                              value={props.anthropicExpiresAtUnix}
+                              onChange={(event) =>
+                                props.onAnthropicExpiresAtUnixChange(event.target.value)
+                              }
+                              placeholder="1735689600"
+                            />
+                          </label>
+                        </div>
+                      </>
+                    ) : null}
+
+                    {props.anthropicAuthMode === "agent_sdk" ? (
+                      <div className="mc-onboarding-field-grid">
+                        <label>
+                          Claude CLI command
+                          <input
+                            value={props.anthropicHeadlessCommand}
+                            onChange={(event) =>
+                              props.onAnthropicHeadlessCommandChange(event.target.value)
+                            }
+                            placeholder="claude"
+                          />
+                        </label>
+                        <label>
+                          CLI args (optional)
+                          <input
+                            value={props.anthropicHeadlessArgs}
+                            onChange={(event) =>
+                              props.onAnthropicHeadlessArgsChange(event.target.value)
+                            }
+                            placeholder="-p --output-format text"
+                          />
+                        </label>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
 
