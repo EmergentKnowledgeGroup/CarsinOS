@@ -274,7 +274,11 @@ async fn complete_anthropic(
     request: CompletionRequest,
 ) -> Result<CompletionResponse> {
     let auth = require_auth_profile("anthropic", &request)?;
-    if auth.auth_mode.trim().eq_ignore_ascii_case(AGENT_SDK_AUTH_MODE) {
+    if auth
+        .auth_mode
+        .trim()
+        .eq_ignore_ascii_case(AGENT_SDK_AUTH_MODE)
+    {
         return complete_anthropic_headless(&request, auth).await;
     }
     let token = auth.api_key().map_err(|err| {
@@ -407,23 +411,22 @@ async fn complete_anthropic_headless(
     if let Some(workdir) = workdir {
         process.current_dir(workdir);
     }
-    let output = match tokio::time::timeout(Duration::from_millis(timeout_ms), process.output())
-        .await
-    {
-        Ok(Ok(output)) => output,
-        Ok(Err(err)) => {
-            return Err(anyhow!(
-                "PROVIDER_ERROR:anthropic:DEPENDENCY_UNAVAILABLE:headless_spawn_failed:{}",
-                err.to_string().replace(':', "_")
-            ));
-        }
-        Err(_) => {
-            return Err(anyhow!(
-                "PROVIDER_ERROR:anthropic:TIMEOUT:headless_timeout_after_{}ms",
-                timeout_ms
-            ));
-        }
-    };
+    let output =
+        match tokio::time::timeout(Duration::from_millis(timeout_ms), process.output()).await {
+            Ok(Ok(output)) => output,
+            Ok(Err(err)) => {
+                return Err(anyhow!(
+                    "PROVIDER_ERROR:anthropic:DEPENDENCY_UNAVAILABLE:headless_spawn_failed:{}",
+                    err.to_string().replace(':', "_")
+                ));
+            }
+            Err(_) => {
+                return Err(anyhow!(
+                    "PROVIDER_ERROR:anthropic:TIMEOUT:headless_timeout_after_{}ms",
+                    timeout_ms
+                ));
+            }
+        };
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stderr = stderr.trim();
