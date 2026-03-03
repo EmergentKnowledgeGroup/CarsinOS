@@ -123,13 +123,18 @@ export function TabHelpBanner(props: TabHelpBannerProps) {
         <p>{copy.summary}</p>
       </div>
       <div className="mc-tab-help-actions">
-        <button type="button" className="ghost" onClick={() => setExamplesOpen((v) => !v)}>
+        <button
+          type="button"
+          className={`mc-tab-help-btn mc-tab-help-btn-examples${examplesOpen ? " is-active" : ""}`}
+          aria-pressed={examplesOpen}
+          onClick={() => setExamplesOpen((v) => !v)}
+        >
           {examplesOpen ? "Hide examples" : "Show examples"}
         </button>
-        <button type="button" className="ghost" onClick={props.onStartTour}>
+        <button type="button" className="mc-tab-help-btn mc-tab-help-btn-tour" onClick={props.onStartTour}>
           <Compass size={14} /> Tour
         </button>
-        <button type="button" onClick={props.onOpenDocs}>
+        <button type="button" className="mc-tab-help-btn mc-tab-help-btn-docs" onClick={props.onOpenDocs}>
           <BookOpen size={14} /> Docs
         </button>
       </div>
