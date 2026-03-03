@@ -5679,6 +5679,44 @@ button.danger:hover {
   gap: 0.35rem;
 }
 
+.mc-tab-help-btn {
+  --help-btn-accent: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--help-btn-accent) 62%, var(--line-soft) 38%);
+  background: color-mix(in srgb, var(--help-btn-accent) 15%, var(--surface-1) 85%);
+  color: color-mix(in srgb, var(--help-btn-accent) 52%, var(--ink-primary) 48%);
+  box-shadow: none;
+}
+
+.mc-tab-help-btn:hover {
+  border-color: var(--help-btn-accent);
+  background: color-mix(in srgb, var(--help-btn-accent) 28%, var(--surface-1) 72%);
+  color: var(--ink-primary);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--help-btn-accent) 26%, transparent), var(--shadow-sm);
+}
+
+.mc-tab-help-btn:focus-visible {
+  border-color: var(--help-btn-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--help-btn-accent) 28%, transparent);
+}
+
+.mc-tab-help-btn.is-active {
+  border-color: var(--help-btn-accent);
+  background: color-mix(in srgb, var(--help-btn-accent) 34%, var(--surface-1) 66%);
+  color: var(--ink-primary);
+}
+
+.mc-tab-help-btn-examples {
+  --help-btn-accent: var(--focus);
+}
+
+.mc-tab-help-btn-tour {
+  --help-btn-accent: var(--channel);
+}
+
+.mc-tab-help-btn-docs {
+  --help-btn-accent: var(--accent);
+}
+
 .mc-tab-help-examples {
   margin: 0;
   padding-left: 1.1rem;

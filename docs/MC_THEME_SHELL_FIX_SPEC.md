@@ -6,6 +6,7 @@ Scope:
 - `apps/mission-control/src/styles.css`
 - `apps/mission-control/src/app/AppShell.tsx`
 - `apps/mission-control/src/ui/ThemeDropdown.tsx`
+- `apps/mission-control/src/app/GuidedTourOverlay.tsx`
 - (supporting) `apps/mission-control/src/app/useTheme.ts`
 
 Source: Claude spot-check findings (baked-in).
@@ -15,6 +16,7 @@ Source: Claude spot-check findings (baked-in).
 2. Use a single, intentional font-loading strategy (avoid double-loading).
 3. Remove sloppy/meaningless CSS classes in the DOM.
 4. Make `ThemeDropdown` keyboard-accessible without lying via ARIA roles.
+5. Keep Guided Tour bubble side-anchored to the highlighted target (right-first), not below it.
 
 ## Non-Goals
 - No theme redesign (keep the current theme families + tokens).
@@ -106,6 +108,26 @@ Source: Claude spot-check findings (baked-in).
 
 ---
 
+## Finding 5 — Guided Tour bubble position should be side-anchored (new UX requirement)
+
+**Problem**
+- Guided Tour bubble currently favors under/above placement relative to the highlighted target.
+- Requested interaction is side-oriented so the bubble sits to the right of the highlighted control instead of under it.
+
+**Fix**
+1. Update `GuidedTourOverlay` bubble placement logic:
+   - Prefer right-side placement (`target right edge + gap`).
+   - If right side does not fit, fallback to left side.
+   - Keep the bubble vertically centered against the highlighted target with viewport clamping.
+2. Do not use under-target placement as primary behavior.
+
+**Acceptance**
+1. On standard desktop layouts, bubble appears to the right of the highlighted target.
+2. If right side has no room, bubble appears to the left (still side-oriented).
+3. Bubble remains fully visible via viewport clamping.
+
+---
+
 ## Validations (must run after fixes)
 
 Mission Control:
@@ -121,4 +143,3 @@ Manual QA:
    - Tab into theme dropdown, select a family via keyboard, switch light/dark.
 3. Verify system-light baseline:
    - With OS set to light and no stored theme keys, the initial paint is usable and does not override explicit light themes.
-

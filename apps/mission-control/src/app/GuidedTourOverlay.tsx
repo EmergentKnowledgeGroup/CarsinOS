@@ -83,26 +83,40 @@ export function GuidedTourOverlay(props: GuidedTourOverlayProps) {
 
   const bubbleStyle = useMemo(() => {
     const panelWidth = 360;
+    const bubbleHeight = 240;
+    const sideGap = 14;
     const gutter = 16;
     const fallbackTop = 110;
+    const maxLeft = Math.max(gutter, window.innerWidth - panelWidth - gutter);
+    const maxTop = Math.max(gutter, window.innerHeight - bubbleHeight - gutter);
+
     if (!targetRect) {
       return {
-        left: clamp((window.innerWidth - panelWidth) / 2, gutter, window.innerWidth - panelWidth - gutter),
+        left: clamp((window.innerWidth - panelWidth) / 2, gutter, maxLeft),
         top: fallbackTop,
       };
     }
 
-    const preferredLeft = targetRect.left + targetRect.width / 2 - panelWidth / 2;
-    const left = clamp(preferredLeft, gutter, window.innerWidth - panelWidth - gutter);
+    const verticalCenterTop = clamp(
+      targetRect.top + targetRect.height / 2 - bubbleHeight / 2,
+      gutter,
+      maxTop,
+    );
+    const preferredRight = targetRect.left + targetRect.width + sideGap;
+    if (preferredRight <= maxLeft) {
+      return { left: preferredRight, top: verticalCenterTop };
+    }
 
-    const preferredBelow = targetRect.top + targetRect.height + 14;
-    const bubbleHeight = 240;
-    const fitsBelow = preferredBelow + bubbleHeight < window.innerHeight - gutter;
-    const top = fitsBelow
-      ? preferredBelow
-      : clamp(targetRect.top - bubbleHeight - 14, gutter, window.innerHeight - bubbleHeight - gutter);
+    const preferredLeft = targetRect.left - panelWidth - sideGap;
+    if (preferredLeft >= gutter) {
+      return { left: preferredLeft, top: verticalCenterTop };
+    }
 
-    return { left, top };
+    // Small viewports: keep side-oriented behavior by nudging into the visible bounds.
+    return {
+      left: clamp(preferredRight, gutter, maxLeft),
+      top: verticalCenterTop,
+    };
   }, [targetRect]);
 
   if (!props.open || !step) {
