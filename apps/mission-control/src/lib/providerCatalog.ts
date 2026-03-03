@@ -1,6 +1,6 @@
 import type { ProviderCapabilityResponse } from "../types";
 
-const LOCAL_PROVIDER_SET = new Set(["ollama", "vllm", "mock"]);
+const LOCAL_PROVIDER_SET = new Set(["ollama", "vllm", "lmstudio", "mock"]);
 
 export function providerLabel(provider: string): string {
   switch (provider.trim().toLowerCase()) {
@@ -14,6 +14,8 @@ export function providerLabel(provider: string): string {
       return "Ollama";
     case "vllm":
       return "vLLM";
+    case "lmstudio":
+      return "LM Studio";
     case "mock":
       return "Mock";
     default:

@@ -1670,6 +1670,7 @@ const ANTHROPIC_DEFAULT_API_BASE: &str = "https://api.anthropic.com";
 const OPENROUTER_DEFAULT_API_BASE: &str = "https://openrouter.ai/api";
 const OLLAMA_DEFAULT_API_BASE: &str = "http://127.0.0.1:11434";
 const VLLM_DEFAULT_API_BASE: &str = "http://127.0.0.1:8000";
+const LMSTUDIO_DEFAULT_API_BASE: &str = "http://127.0.0.1:1234";
 const PROVIDER_MODELS_CONTRACT_VERSION: &str = "v1";
 const PROVIDER_MODELS_CACHE_TTL_MS: i64 = 5 * 60 * 1000;
 const SECRET_FIELD_NAMES: &[&str] = &[
@@ -3198,7 +3199,21 @@ async fn resolve_provider_models_auth_profile(
         return Ok(candidates.into_iter().flatten().next());
     }
 
-    let Some(profile_id) = requested_auth_profile_id else {
+    let resolved_profile_id = requested_auth_profile_id.map(str::to_string).or_else(|| {
+        if !provider_supports_optional_auth(provider) {
+            return None;
+        }
+        let requested_agent_id = requested_agent_id?;
+        let ordered = state
+            .storage
+            .list_agent_provider_profile_order(requested_agent_id, provider)
+            .ok()?;
+        ordered
+            .into_iter()
+            .map(|value| value.trim().to_string())
+            .find(|value| !value.is_empty())
+    });
+    let Some(profile_id) = resolved_profile_id.as_deref() else {
         return Ok(None);
     };
     if state.storage.global_kill_switch_active()? {
@@ -3274,7 +3289,7 @@ fn map_provider_models_auth_resolution_error(err: anyhow::Error) -> (StatusCode,
 fn provider_models_supported(provider: &str) -> bool {
     matches!(
         provider,
-        "openai" | "anthropic" | "openrouter" | "ollama" | "vllm" | "mock"
+        "openai" | "anthropic" | "openrouter" | "ollama" | "vllm" | "lmstudio" | "mock"
     )
 }
 
@@ -3285,6 +3300,7 @@ fn provider_models_default_base_url(provider: &str) -> &'static str {
         "openrouter" => OPENROUTER_DEFAULT_API_BASE,
         "ollama" => OLLAMA_DEFAULT_API_BASE,
         "vllm" => VLLM_DEFAULT_API_BASE,
+        "lmstudio" => LMSTUDIO_DEFAULT_API_BASE,
         "mock" => "mock://local",
         _ => "mock://local",
     }
@@ -3356,24 +3372,149 @@ fn parse_openai_models_payload(payload: &serde_json::Value) -> AnyResult<Vec<Str
     Ok(model_ids)
 }
 
-fn parse_ollama_models_payload(payload: &serde_json::Value) -> AnyResult<Vec<String>> {
+#[derive(Debug, Clone)]
+struct OllamaModelCatalogItem {
+    model_id: String,
+    family: Option<String>,
+}
+
+fn parse_ollama_models_payload(
+    payload: &serde_json::Value,
+) -> AnyResult<Vec<OllamaModelCatalogItem>> {
     let Some(items) = payload.get("models").and_then(|value| value.as_array()) else {
         anyhow::bail!("missing models array in ollama tags response");
     };
     let mut model_ids = Vec::new();
     for item in items {
-        let candidate = item
+        let model_id = item
             .get("name")
             .and_then(|value| value.as_str())
             .or_else(|| item.get("model").and_then(|value| value.as_str()))
             .unwrap_or_default()
             .trim()
             .to_string();
-        if !candidate.is_empty() {
-            model_ids.push(candidate);
+        if model_id.is_empty() {
+            continue;
         }
+        let family = item
+            .get("details")
+            .and_then(|details| {
+                details
+                    .get("family")
+                    .and_then(|value| value.as_str())
+                    .or_else(|| {
+                        details
+                            .get("families")
+                            .and_then(|value| value.as_array())
+                            .and_then(|families| families.first())
+                            .and_then(|value| value.as_str())
+                    })
+            })
+            .map(|value| value.trim().to_ascii_lowercase())
+            .filter(|value| !value.is_empty());
+        model_ids.push(OllamaModelCatalogItem { model_id, family });
     }
     Ok(model_ids)
+}
+
+fn ollama_loadability_error_indicates_incompatible(status: StatusCode, body: &str) -> bool {
+    if !matches!(
+        status,
+        StatusCode::INTERNAL_SERVER_ERROR
+            | StatusCode::BAD_REQUEST
+            | StatusCode::FAILED_DEPENDENCY
+            | StatusCode::SERVICE_UNAVAILABLE
+    ) {
+        return false;
+    }
+    let normalized = body.to_ascii_lowercase();
+    normalized.contains("unknown model architecture")
+        || normalized.contains("unable to load model")
+        || normalized.contains("failed to load model")
+}
+
+async fn probe_ollama_model_loadability(
+    state: &AppState,
+    base_url: &str,
+    auth_token: Option<&str>,
+    model_id: &str,
+) -> std::result::Result<bool, reqwest::Error> {
+    let normalized_base = base_url.trim_end_matches('/');
+    let mut request = state
+        .provider_models_http_client
+        .post(format!("{normalized_base}/api/generate"))
+        .timeout(Duration::from_secs(20))
+        .json(&serde_json::json!({
+            "model": model_id,
+            "prompt": "healthcheck",
+            "stream": false,
+            "keep_alive": "0s",
+            "options": {
+                "num_predict": 0
+            }
+        }));
+    if let Some(token) = auth_token {
+        request = request.bearer_auth(token);
+    }
+    let response = request.send().await?;
+    if response.status().is_success() {
+        return Ok(true);
+    }
+    let status = response.status();
+    let body = response.text().await.unwrap_or_default();
+    let body = truncate_provider_error_body(&body);
+    Ok(!ollama_loadability_error_indicates_incompatible(
+        status, &body,
+    ))
+}
+
+async fn filter_ollama_models_by_runtime_compatibility(
+    state: &AppState,
+    base_url: &str,
+    auth_token: Option<&str>,
+    models: Vec<OllamaModelCatalogItem>,
+) -> Vec<String> {
+    let mut output = Vec::new();
+    let mut family_cache = HashMap::<String, bool>::new();
+    for item in models {
+        if let Some(family) = item.family.as_ref() {
+            if let Some(is_supported) = family_cache.get(family) {
+                if *is_supported {
+                    output.push(item.model_id);
+                }
+                continue;
+            }
+        }
+        match probe_ollama_model_loadability(state, base_url, auth_token, &item.model_id).await {
+            Ok(is_supported) => {
+                if let Some(family) = item.family.as_ref() {
+                    family_cache.insert(family.clone(), is_supported);
+                }
+                if is_supported {
+                    output.push(item.model_id);
+                } else {
+                    warn!(
+                        model_id = %item.model_id,
+                        family = %item.family.clone().unwrap_or_else(|| "unknown".to_string()),
+                        "filtered incompatible ollama model from catalog"
+                    );
+                }
+            }
+            Err(err) => {
+                // Fail-open for transient probe failures so we do not hide valid models.
+                warn!(
+                    model_id = %item.model_id,
+                    error = %err,
+                    "ollama compatibility probe failed; keeping model in catalog"
+                );
+                if let Some(family) = item.family.as_ref() {
+                    family_cache.insert(family.clone(), true);
+                }
+                output.push(item.model_id);
+            }
+        }
+    }
+    output
 }
 
 fn normalize_provider_models(raw: Vec<String>) -> Vec<ProviderModelResponse> {
@@ -3428,7 +3569,7 @@ async fn fetch_provider_models_from_upstream(
 
     let normalized_base = base_url.trim_end_matches('/');
     let mut request = match provider {
-        "openai" | "openrouter" | "vllm" => state
+        "openai" | "openrouter" | "vllm" | "lmstudio" => state
             .provider_models_http_client
             .get(format!("{normalized_base}/v1/models")),
         "anthropic" => state
@@ -3446,7 +3587,7 @@ async fn fetch_provider_models_from_upstream(
             ));
         }
     };
-    if let Some(token) = token {
+    if let Some(token) = token.as_ref() {
         if provider == "anthropic" {
             request = request.header("x-api-key", token);
         } else {
@@ -3524,21 +3665,31 @@ async fn fetch_provider_models_from_upstream(
         )
     })?;
     let raw_models = match provider {
-        "openai" | "openrouter" | "anthropic" | "vllm" => parse_openai_models_payload(&payload)
-            .map_err(|err| {
+        "openai" | "openrouter" | "anthropic" | "vllm" | "lmstudio" => {
+            parse_openai_models_payload(&payload).map_err(|err| {
                 api_error_with_code(
                     StatusCode::SERVICE_UNAVAILABLE,
                     "DEPENDENCY_UNAVAILABLE",
                     &format!("invalid provider model catalog payload: {err}"),
                 )
-            })?,
-        "ollama" => parse_ollama_models_payload(&payload).map_err(|err| {
-            api_error_with_code(
-                StatusCode::SERVICE_UNAVAILABLE,
-                "DEPENDENCY_UNAVAILABLE",
-                &format!("invalid provider model catalog payload: {err}"),
+            })?
+        }
+        "ollama" => {
+            let catalog_items = parse_ollama_models_payload(&payload).map_err(|err| {
+                api_error_with_code(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "DEPENDENCY_UNAVAILABLE",
+                    &format!("invalid provider model catalog payload: {err}"),
+                )
+            })?;
+            filter_ollama_models_by_runtime_compatibility(
+                state,
+                normalized_base,
+                token.as_deref(),
+                catalog_items,
             )
-        })?,
+            .await
+        }
         _ => unreachable!(),
     };
     Ok(normalize_provider_models(raw_models))
@@ -23949,7 +24100,96 @@ async fn resolve_run_auth_profiles(
     requested_auth_profile_id: Option<&str>,
 ) -> AnyResult<Vec<Option<AuthProfileRecord>>> {
     if !provider_requires_auth(provider) {
-        return Ok(vec![None]);
+        if !provider_supports_optional_auth(provider) {
+            return Ok(vec![None]);
+        }
+
+        let mut candidates: Vec<Option<AuthProfileRecord>> = Vec::new();
+        let mut seen = HashSet::new();
+
+        if let Some(profile_id) = requested_auth_profile_id {
+            let profile = state
+                .storage
+                .get_auth_profile(profile_id)?
+                .with_context(|| format!("requested auth profile not found: {profile_id}"))?;
+            if profile.provider != provider {
+                anyhow::bail!(
+                    "requested auth profile provider mismatch: expected '{}' got '{}'",
+                    provider,
+                    profile.provider
+                );
+            }
+            if !profile.enabled {
+                anyhow::bail!("requested auth profile is disabled: {profile_id}");
+            }
+            if profile.kill_switch_scope == KILL_SWITCH_SCOPE_PROFILE {
+                anyhow::bail!("requested auth profile is kill-switched at profile scope");
+            }
+            if !provider_auth_mode_allowed(provider, &profile.auth_mode) {
+                anyhow::bail!(
+                    "requested auth profile mode '{}' not allowed for provider '{}'",
+                    profile.auth_mode,
+                    provider
+                );
+            }
+            let policy = auth_mode_policy(&profile.auth_mode).with_context(|| {
+                format!("unsupported auth_mode in profile: {}", profile.auth_mode)
+            })?;
+            if profile.risk_level != policy.risk_level {
+                anyhow::bail!(
+                    "requested auth profile risk_level '{}' mismatches registry '{}'",
+                    profile.risk_level,
+                    policy.risk_level
+                );
+            }
+            let profile = maybe_refresh_expired_auth_profile(state, profile).await?;
+            if auth_profile_credentials_expired(&profile)? {
+                anyhow::bail!("requested auth profile credentials expired");
+            }
+            seen.insert(profile.auth_profile_id.clone());
+            candidates.push(Some(profile));
+        }
+
+        let ordered_profile_ids = state
+            .storage
+            .list_agent_provider_profile_order(agent_id, provider)?;
+        for profile_id in ordered_profile_ids {
+            if seen.contains(&profile_id) {
+                continue;
+            }
+            let Some(profile) = state.storage.get_auth_profile(&profile_id)? else {
+                continue;
+            };
+            if !profile.enabled
+                || profile.provider != provider
+                || profile.kill_switch_scope == KILL_SWITCH_SCOPE_PROFILE
+            {
+                continue;
+            }
+            if !provider_auth_mode_allowed(provider, &profile.auth_mode) {
+                continue;
+            }
+            let Some(policy) = auth_mode_policy(&profile.auth_mode) else {
+                continue;
+            };
+            if profile.risk_level != policy.risk_level {
+                continue;
+            }
+            let profile = match maybe_refresh_expired_auth_profile(state, profile).await {
+                Ok(profile) => profile,
+                Err(_) => continue,
+            };
+            if auth_profile_credentials_expired(&profile)? {
+                continue;
+            }
+            seen.insert(profile.auth_profile_id.clone());
+            candidates.push(Some(profile));
+        }
+
+        if candidates.is_empty() {
+            candidates.push(None);
+        }
+        return Ok(candidates);
     }
     if state.storage.global_kill_switch_active()? {
         anyhow::bail!("AUTH_FORBIDDEN:global kill-switch active");
@@ -25393,12 +25633,23 @@ fn validate_high_risk_controls(
 fn provider_supported(provider: &str) -> bool {
     matches!(
         provider,
-        "mock" | "openai" | "anthropic" | "openrouter" | "ollama" | "vllm" | "unconfigured"
+        "mock"
+            | "openai"
+            | "anthropic"
+            | "openrouter"
+            | "ollama"
+            | "vllm"
+            | "lmstudio"
+            | "unconfigured"
     )
 }
 
 fn provider_requires_auth(provider: &str) -> bool {
     matches!(provider, "openai" | "anthropic" | "openrouter")
+}
+
+fn provider_supports_optional_auth(provider: &str) -> bool {
+    matches!(provider, "ollama" | "vllm" | "lmstudio")
 }
 
 fn provider_auth_mode_allowed(provider: &str, auth_mode: &str) -> bool {
@@ -25408,7 +25659,7 @@ fn provider_auth_mode_allowed(provider: &str, auth_mode: &str) -> bool {
             auth_mode,
             AUTH_MODE_API_KEY | AUTH_MODE_CLAUDE_CONSUMER_OAUTH | AUTH_MODE_AGENT_SDK
         ),
-        "openrouter" | "ollama" | "vllm" => matches!(auth_mode, AUTH_MODE_API_KEY),
+        "openrouter" | "ollama" | "vllm" | "lmstudio" => matches!(auth_mode, AUTH_MODE_API_KEY),
         "mock" | "unconfigured" => true,
         _ => false,
     }
@@ -35587,6 +35838,7 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         assert!(items.iter().any(|item| item["provider"] == "openrouter"));
         assert!(items.iter().any(|item| item["provider"] == "ollama"));
         assert!(items.iter().any(|item| item["provider"] == "vllm"));
+        assert!(items.iter().any(|item| item["provider"] == "lmstudio"));
     }
 
     #[tokio::test]
@@ -35646,6 +35898,110 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     }
 
     #[tokio::test]
+    async fn provider_models_ollama_filters_incompatible_models_from_catalog() {
+        let ctx = test_context();
+        let server = MockServer::start_async().await;
+        let tags_mock = server
+            .mock_async(|when, then| {
+                when.method(GET)
+                    .path("/api/tags")
+                    .header("authorization", "Bearer ollama-key");
+                then.status(200).json_body(serde_json::json!({
+                    "models": [
+                        {
+                            "name": "hf.co/unsloth/Qwen3.5-9B-GGUF:Qwen3.5-9B-Q4_K_M.gguf",
+                            "details": {
+                                "family": "qwen35"
+                            }
+                        },
+                        {
+                            "name": "qwen2.5:7b",
+                            "details": {
+                                "family": "qwen2"
+                            }
+                        }
+                    ]
+                }));
+            })
+            .await;
+        let incompatible_probe = server
+            .mock_async(|when, then| {
+                when.method(POST)
+                    .path("/api/generate")
+                    .header("authorization", "Bearer ollama-key")
+                    .body_contains(
+                        "\"model\":\"hf.co/unsloth/Qwen3.5-9B-GGUF:Qwen3.5-9B-Q4_K_M.gguf\"",
+                    );
+                then.status(500).json_body(serde_json::json!({
+                    "error": "unable to load model: unknown model architecture: 'qwen35'"
+                }));
+            })
+            .await;
+        let compatible_probe = server
+            .mock_async(|when, then| {
+                when.method(POST)
+                    .path("/api/generate")
+                    .header("authorization", "Bearer ollama-key")
+                    .body_contains("\"model\":\"qwen2.5:7b\"");
+                then.status(200).json_body(serde_json::json!({
+                    "response": "",
+                    "done": true
+                }));
+            })
+            .await;
+
+        let create_profile_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(format!(
+                    r#"{{
+                        "provider":"ollama",
+                        "display_name":"ollama-catalog",
+                        "auth_mode":"api_key",
+                        "risk_level":"low",
+                        "enabled":true,
+                        "kill_switch_scope":"none",
+                        "api_base_url":"{}",
+                        "credentials_json":{{"api_key":"ollama-key"}}
+                    }}"#,
+                    server.base_url()
+                )),
+            ))
+            .await
+            .expect("create ollama profile response");
+        assert_eq!(create_profile_response.status(), StatusCode::CREATED);
+        let create_profile_json = parse_json(create_profile_response).await;
+        let auth_profile_id = create_profile_json["profile"]["auth_profile_id"]
+            .as_str()
+            .expect("auth profile id")
+            .to_string();
+
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!(
+                    "/api/v1/providers/models?provider=ollama&auth_profile_id={auth_profile_id}&refresh=true"
+                ),
+                Body::empty(),
+            ))
+            .await
+            .expect("provider models ollama response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = parse_json(response).await;
+        let items = body["items"].as_array().expect("ollama model items");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["model_id"], "qwen2.5:7b");
+        assert_eq!(tags_mock.hits_async().await, 1);
+        assert_eq!(incompatible_probe.hits_async().await, 1);
+        assert_eq!(compatible_probe.hits_async().await, 1);
+    }
+
+    #[tokio::test]
     async fn provider_models_openai_requires_auth_profile() {
         let ctx = test_context();
         let response = ctx
@@ -35661,6 +36017,78 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
         let body = parse_json(response).await;
         assert_eq!(body["error_code"], "AUTH_REQUIRED");
+    }
+
+    #[tokio::test]
+    async fn provider_models_lmstudio_uses_openai_compatible_catalog_path() {
+        let ctx = test_context();
+        let server = MockServer::start_async().await;
+        let models_mock = server
+            .mock_async(|when, then| {
+                when.method(GET)
+                    .path("/v1/models")
+                    .header("authorization", "Bearer lmstudio-key");
+                then.status(200).json_body(serde_json::json!({
+                    "data": [
+                        {"id":"qwen/qwen3.5-9b"},
+                        {"id":"qwen/qwen3.5-4b"}
+                    ]
+                }));
+            })
+            .await;
+
+        let create_profile_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(format!(
+                    r#"{{
+                        "provider":"lmstudio",
+                        "display_name":"lmstudio-catalog",
+                        "auth_mode":"api_key",
+                        "risk_level":"low",
+                        "enabled":true,
+                        "kill_switch_scope":"none",
+                        "api_base_url":"{}",
+                        "credentials_json":{{"api_key":"lmstudio-key"}}
+                    }}"#,
+                    server.base_url()
+                )),
+            ))
+            .await
+            .expect("create lmstudio profile response");
+        assert_eq!(create_profile_response.status(), StatusCode::CREATED);
+        let create_profile_json = parse_json(create_profile_response).await;
+        let auth_profile_id = create_profile_json["profile"]["auth_profile_id"]
+            .as_str()
+            .expect("auth profile id")
+            .to_string();
+
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!(
+                    "/api/v1/providers/models?provider=lmstudio&auth_profile_id={auth_profile_id}&refresh=true"
+                ),
+                Body::empty(),
+            ))
+            .await
+            .expect("provider models lmstudio response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = parse_json(response).await;
+        let items = body["items"].as_array().expect("lmstudio model items");
+        assert_eq!(items.len(), 2);
+        assert!(items
+            .iter()
+            .any(|item| item["model_id"] == "qwen/qwen3.5-9b"));
+        assert!(items
+            .iter()
+            .any(|item| item["model_id"] == "qwen/qwen3.5-4b"));
+        assert_eq!(models_mock.hits_async().await, 1);
     }
 
     #[tokio::test]

@@ -142,6 +142,11 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   const [providerProfileId, setProviderProfileId] = useState<string | null>(null);
   const [providerReady, setProviderReady] = useState(false);
   const [localProvider, setLocalProvider] = useState("ollama");
+  const [localUseConnectionProfile, setLocalUseConnectionProfile] = useState(false);
+  const [localConnectionProfileName, setLocalConnectionProfileName] = useState("local-primary");
+  const [localApiBaseUrl, setLocalApiBaseUrl] = useState("");
+  const [localApiKey, setLocalApiKey] = useState("");
+  const [localConnectionProfileId, setLocalConnectionProfileId] = useState<string | null>(null);
   const [localModelId, setLocalModelId] = useState("");
   const [localOrchestratorEnabled, setLocalOrchestratorEnabled] = useState(false);
   const [localOrchestratorAgentId, setLocalOrchestratorAgentId] = useState("orchestrator");
@@ -152,6 +157,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     Array<{ value: string; label: string }>
   >([
     { value: "ollama", label: providerLabel("ollama") },
+    { value: "lmstudio", label: providerLabel("lmstudio") },
     { value: "vllm", label: providerLabel("vllm") },
     { value: "mock", label: providerLabel("mock") },
   ]);
@@ -205,6 +211,10 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   }, [localProvider]);
 
   useEffect(() => {
+    setLocalConnectionProfileId(null);
+  }, [localProvider]);
+
+  useEffect(() => {
     localModelIdRef.current = localModelId;
   }, [localModelId]);
 
@@ -238,6 +248,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     setProviderReady(false);
     setRoutingReady(false);
     setLocalModelDiscoveryNote(null);
+    setLocalConnectionProfileId(null);
     setOpenAiSessionId("");
     setOpenAiAuthorizeUrl("");
     setOpenAiCallbackUrlHint("");
@@ -303,6 +314,10 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
       const response = await listProviderModels(settings, {
         provider,
         agent_id: selectedAgentId || undefined,
+        auth_profile_id:
+          localUseConnectionProfile && localConnectionProfileId
+            ? localConnectionProfileId
+            : undefined,
       });
       const models = response.items.map((item) => item.model_id);
       const currentLocalModelId = localModelIdRef.current;
@@ -340,7 +355,13 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     } finally {
       setLocalModelsLoading(false);
     }
-  }, [localProvider, selectedAgentId, settings]);
+  }, [
+    localConnectionProfileId,
+    localProvider,
+    localUseConnectionProfile,
+    selectedAgentId,
+    settings,
+  ]);
 
   useEffect(() => {
     if (!isOpen || providerPath !== "local") {
@@ -622,14 +643,49 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
         if (!targetAgent) {
           throw new Error("Select or create an agent first.");
         }
+        const provider = localProvider.trim();
+        if (!provider) {
+          throw new Error("Select a local provider.");
+        }
+        let resolvedLocalConnectionProfileId: string | null = null;
+        if (localUseConnectionProfile) {
+          const credentialsJson: Record<string, unknown> = {};
+          const token = localApiKey.trim();
+          if (token) {
+            credentialsJson.api_key = token;
+            credentialsJson.token = token;
+            credentialsJson.access_token = token;
+            credentialsJson.bearer_token = token;
+          }
+          const profileResponse = await createAuthProfile(settings, {
+            provider,
+            display_name: localConnectionProfileName.trim() || `${provider}-local`,
+            auth_mode: "api_key",
+            risk_level: "low",
+            enabled: true,
+            kill_switch_scope: "none",
+            api_base_url: localApiBaseUrl.trim() || undefined,
+            credentials_json: credentialsJson,
+          });
+          resolvedLocalConnectionProfileId = profileResponse.profile.auth_profile_id;
+          setLocalConnectionProfileId(resolvedLocalConnectionProfileId);
+        }
         const assistantModel = localModelId.trim();
         if (!assistantModel) {
           throw new Error("Select an assistant model or enter one manually.");
         }
         await updateAgent(settings, targetAgent, {
-          model_provider: localProvider.trim(),
+          model_provider: provider,
           model_id: assistantModel,
         });
+        if (resolvedLocalConnectionProfileId) {
+          const existing = await getAgentProviderProfileOrder(settings, targetAgent, provider);
+          const nextOrder = reorderProfileFirst(
+            existing.profile_ids,
+            resolvedLocalConnectionProfileId
+          );
+          await setAgentProviderProfileOrder(settings, targetAgent, provider, nextOrder);
+        }
         if (localOrchestratorEnabled) {
           const orchestratorAgentId = localOrchestratorAgentId.trim();
           if (!orchestratorAgentId) {
@@ -658,9 +714,26 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
             });
           }
           await updateAgent(settings, orchestratorAgentId, {
-            model_provider: localProvider.trim(),
+            model_provider: provider,
             model_id: orchestratorModel,
           });
+          if (resolvedLocalConnectionProfileId) {
+            const existing = await getAgentProviderProfileOrder(
+              settings,
+              orchestratorAgentId,
+              provider
+            );
+            const nextOrder = reorderProfileFirst(
+              existing.profile_ids,
+              resolvedLocalConnectionProfileId
+            );
+            await setAgentProviderProfileOrder(
+              settings,
+              orchestratorAgentId,
+              provider,
+              nextOrder
+            );
+          }
           setLocalModelDiscoveryNote(
             `Applied local setup: assistant=${targetAgent}, orchestrator=${orchestratorAgentId}.`
           );
@@ -669,7 +742,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
         }
         await loadBaseline(settings);
         setProviderReady(true);
-        setProviderProfileId(null);
+        setProviderProfileId(resolvedLocalConnectionProfileId);
         return;
       }
 
@@ -774,12 +847,16 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     anthropicSetupToken,
     clearError,
     loadBaseline,
+    localApiBaseUrl,
+    localApiKey,
+    localConnectionProfileName,
     localModelId,
     localOrchestratorAgentId,
     localOrchestratorAgentName,
     localOrchestratorEnabled,
     localOrchestratorModelId,
     localProvider,
+    localUseConnectionProfile,
     providerPath,
     providerProfileId,
     selectedAgentId,
@@ -872,6 +949,14 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     providerReady,
     localProvider,
     setLocalProvider,
+    localUseConnectionProfile,
+    setLocalUseConnectionProfile,
+    localConnectionProfileName,
+    setLocalConnectionProfileName,
+    localApiBaseUrl,
+    setLocalApiBaseUrl,
+    localApiKey,
+    setLocalApiKey,
     localModelId,
     setLocalModelId,
     localOrchestratorEnabled,
