@@ -30,9 +30,9 @@ These procedures are mandatory. Violating any of them requires stopping and corr
 ### Context Compaction SOP (Required for long tasks)
 - Treat context compaction as expected, not exceptional.
 - Before major edits and after each meaningful milestone, write a checkpoint:
-  - `python3 /Users/domusanimae/.claude/tools/context_checkpoint.py --repo-root "<repo_root>" snapshot --step "<step>" --note "<progress>" --next-cmd "<next command>" --label "<tag>"`
+  - `python3 "${CODEX_HOME:-$HOME/.codex}/tools/context_checkpoint.py" --repo-root "<repo_root>" snapshot --step "<step>" --note "<progress>" --next-cmd "<next command>" --label "<tag>"`
 - After compaction/interruption, recover state first:
-  - `python3 /Users/domusanimae/.claude/tools/context_checkpoint.py --repo-root "<repo_root>" resume --live`
+  - `python3 "${CODEX_HOME:-$HOME/.codex}/tools/context_checkpoint.py" --repo-root "<repo_root>" resume --live`
 - Resume flow:
   1. Confirm branch/head drift from the checkpoint output.
   2. Open changed-file diffs listed in checkpoint.
@@ -115,7 +115,7 @@ scripts/security_pr_gate.sh  # when security-relevant
 
 ### Data Flow
 
-```
+```text
 Mission Control (React) ──HTTP/WS──▶ Gateway (Axum) ──▶ SQLite
                                          │
                                     ┌────┼────┐

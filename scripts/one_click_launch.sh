@@ -91,14 +91,36 @@ print(secrets.token_hex(24))
 PY
 }
 
+dotenv_quote() {
+  local value="$1"
+  value="${value//$'\\'/\\\\}"
+  value="${value//\"/\\\"}"
+  value="${value//$'\n'/\\n}"
+  value="${value//$'\r'/}"
+  printf '"%s"' "${value}"
+}
+
+mask_secret() {
+  local value="$1"
+  local len=${#value}
+  if (( len <= 8 )); then
+    printf '********'
+    return
+  fi
+  printf '%s******%s' "${value:0:4}" "${value: -4}"
+}
+
 write_mission_control_env_file() {
   if [[ -f "${MC_ENV_FILE}" ]]; then
     MC_ENV_BACKUP="$(mktemp "${STATE_DIR}/mc-env-backup.XXXXXX")"
     cp "${MC_ENV_FILE}" "${MC_ENV_BACKUP}"
   fi
+  local escaped_gateway_url escaped_token
+  escaped_gateway_url="$(dotenv_quote "${GATEWAY_URL}")"
+  escaped_token="$(dotenv_quote "${TOKEN}")"
   cat > "${MC_ENV_FILE}" <<EOF
-VITE_CARSINOS_GATEWAY_URL=${GATEWAY_URL}
-VITE_CARSINOS_GATEWAY_TOKEN=${TOKEN}
+VITE_CARSINOS_GATEWAY_URL=${escaped_gateway_url}
+VITE_CARSINOS_GATEWAY_TOKEN=${escaped_token}
 VITE_CARSINOS_PREFER_ENV_TOKEN=true
 EOF
 }
@@ -230,7 +252,7 @@ if ! curl -fsS -H "Authorization: Bearer ${TOKEN}" "${HEALTH_URL}" >/dev/null 2>
 fi
 
 echo "Gateway ready: ${GATEWAY_URL}"
-echo "Gateway token: ${TOKEN}"
+echo "Gateway token: $(mask_secret "${TOKEN}")"
 echo "Gateway log: ${GATEWAY_LOG}"
 write_mission_control_env_file
 

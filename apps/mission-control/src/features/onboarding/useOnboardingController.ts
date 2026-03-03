@@ -93,6 +93,9 @@ function parseOptionalUnixTimestamp(raw: string): number | undefined {
   if (!trimmed) {
     return undefined;
   }
+  if (!/^\d+$/.test(trimmed)) {
+    throw new Error("Expiry must be a unix timestamp in seconds.");
+  }
   const parsed = Number.parseInt(trimmed, 10);
   if (!Number.isFinite(parsed) || parsed <= 0) {
     throw new Error("Expiry must be a unix timestamp in seconds.");

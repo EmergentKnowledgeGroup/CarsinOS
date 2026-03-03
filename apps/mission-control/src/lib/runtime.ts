@@ -10,8 +10,9 @@ function normalizeGatewayUrlOrEmpty(value: string): string {
   if (!trimmed) {
     return "";
   }
+  const normalized = trimmed.toLowerCase();
   const withScheme =
-    trimmed.startsWith("http://") || trimmed.startsWith("https://")
+    normalized.startsWith("http://") || normalized.startsWith("https://")
       ? trimmed
       : `http://${trimmed}`;
   try {

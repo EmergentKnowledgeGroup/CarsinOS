@@ -3219,9 +3219,9 @@ button.ghost {
 }
 
 .mc-onboarding-risk-note {
-  border: 1px solid color-mix(in srgb, var(--warning, #e09f24) 55%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warn, #e09f24) 55%, transparent);
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--warning, #e09f24) 14%, var(--surface));
+  background: color-mix(in srgb, var(--warn, #e09f24) 14%, var(--surface));
   color: var(--ink-primary);
   font-size: var(--type-body);
   padding: 0.5rem 0.62rem;

@@ -408,11 +408,20 @@ async fn complete_anthropic_headless(
     process.stdin(Stdio::null());
     process.stdout(Stdio::piped());
     process.stderr(Stdio::piped());
+    process.kill_on_drop(true);
     if let Some(workdir) = workdir {
         process.current_dir(workdir);
     }
+    let child = process.spawn().map_err(|err| {
+        anyhow!(
+            "PROVIDER_ERROR:anthropic:DEPENDENCY_UNAVAILABLE:headless_spawn_failed:{}",
+            err.to_string().replace(':', "_")
+        )
+    })?;
     let output =
-        match tokio::time::timeout(Duration::from_millis(timeout_ms), process.output()).await {
+        match tokio::time::timeout(Duration::from_millis(timeout_ms), child.wait_with_output())
+            .await
+        {
             Ok(Ok(output)) => output,
             Ok(Err(err)) => {
                 return Err(anyhow!(
@@ -430,11 +439,7 @@ async fn complete_anthropic_headless(
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stderr = stderr.trim();
-        let stderr = if stderr.len() > 200 {
-            &stderr[..200]
-        } else {
-            stderr
-        };
+        let stderr = stderr.chars().take(200).collect::<String>();
         let status = output.status.code().unwrap_or(-1);
         return Err(anyhow!(
             "PROVIDER_ERROR:anthropic:DEPENDENCY_UNAVAILABLE:headless_exit_status_{}:{}",
@@ -929,6 +934,25 @@ mod tests {
     use httpmock::Method::POST;
     use httpmock::MockServer;
 
+    fn resolve_python_command() -> Option<String> {
+        if let Ok(explicit) = std::env::var("PYTHON") {
+            let trimmed = explicit.trim();
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
+            }
+        }
+        for candidate in ["python3", "python"] {
+            if std::process::Command::new(candidate)
+                .arg("--version")
+                .output()
+                .is_ok()
+            {
+                return Some(candidate.to_string());
+            }
+        }
+        None
+    }
+
     #[tokio::test]
     async fn openai_provider_returns_output_with_auth_profile() {
         let server = MockServer::start_async().await;
@@ -1008,6 +1032,9 @@ mod tests {
 
     #[tokio::test]
     async fn anthropic_agent_sdk_headless_executes_local_command() {
+        let Some(python) = resolve_python_command() else {
+            return;
+        };
         let registry = ProviderRegistry::new();
         let response = registry
             .complete(CompletionRequest {
@@ -1020,7 +1047,7 @@ mod tests {
                     risk_level: "high".to_string(),
                     api_base_url: None,
                     credentials_json: serde_json::json!({
-                        "headless_command": "python3",
+                        "headless_command": python,
                         "headless_args": [
                             "-c",
                             "import sys;print('headless:'+sys.argv[-1])"
@@ -1039,6 +1066,9 @@ mod tests {
 
     #[tokio::test]
     async fn anthropic_agent_sdk_headless_timeout_maps_to_provider_timeout() {
+        let Some(python) = resolve_python_command() else {
+            return;
+        };
         let registry = ProviderRegistry::new();
         let error = registry
             .complete(CompletionRequest {
@@ -1051,7 +1081,7 @@ mod tests {
                     risk_level: "high".to_string(),
                     api_base_url: None,
                     credentials_json: serde_json::json!({
-                        "headless_command": "python3",
+                        "headless_command": python,
                         "headless_args": [
                             "-c",
                             "import time;time.sleep(2);print('done')"

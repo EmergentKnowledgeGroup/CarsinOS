@@ -13,14 +13,14 @@ Ground-up Rust AI gateway inspired by OpenClaw.
 ## Run (after Rust toolchain install)
 
 ```bash
-cd "/Users/domusanimae/Documents/openclaw replacement/carsinos"
+cd "$REPO_DIR" # set to your local carsinos clone path
 CARSINOS_GATEWAY_TOKEN="change-me" cargo run -p carsinos-gateway
 ```
 
 ## One-click local launch (gateway + Mission Control)
 
 ```bash
-cd "/Users/domusanimae/Documents/openclaw replacement/carsinos"
+cd "$REPO_DIR" # set to your local carsinos clone path
 scripts/one_click_launch.sh
 ```
 
@@ -42,7 +42,7 @@ curl -H "Authorization: Bearer change-me" http://127.0.0.1:18789/api/v1/health
 Bundle a local `.app`:
 
 ```bash
-cd "/Users/domusanimae/Documents/openclaw replacement/carsinos"
+cd "$REPO_DIR" # set to your local carsinos clone path
 cargo run -p carsinos-cli -- package-macos --release
 ```
 
@@ -61,7 +61,7 @@ The bundle is created under `target/dist/carsinOS.app` by default. Launcher bina
 Per-PR hard gate run:
 
 ```bash
-cd "/Users/domusanimae/Documents/openclaw replacement/carsinos"
+cd "$REPO_DIR" # set to your local carsinos clone path
 scripts/security_pr_gate.sh
 ```
 
