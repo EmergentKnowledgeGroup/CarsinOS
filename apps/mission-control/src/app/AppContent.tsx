@@ -3,6 +3,8 @@ import type { NotifyFn } from "./useAppController";
 import { ChatroomsPage } from "../features/agentMail/ChatroomsPage";
 import { MailPage } from "../features/agentMail/MailPage";
 import { useAgentMailController } from "../features/agentMail/useAgentMailController";
+import { AssistantChatPage } from "../features/assistant/AssistantChatPage";
+import type { useAssistantChatController } from "../features/assistant/useAssistantChatController";
 import { BoardsPage } from "../features/boards/BoardsPage";
 import { useBoardsController } from "../features/boards/useBoardsController";
 import { CalendarPage } from "../features/calendar/CalendarPage";
@@ -13,19 +15,25 @@ import { CockpitWidgetRenderer } from "../features/cockpit/CockpitWidgetRenderer
 import { EventsPage } from "../features/events/EventsPage";
 import { FocusPage } from "../features/focus/FocusPage";
 import { TeamPage } from "../features/team/TeamPage";
+import { HelpDocsPage } from "../features/help/HelpDocsPage";
 import { useMissionControlController } from "./useMissionControlController";
+import { TabHelpBanner } from "./TabHelpBanner";
 import type { EventStreamItem, MissionControlTab } from "./useAppController";
 import type { Agent, RuntimeConnectionSettings } from "../types";
 import type { BoardSummary } from "./useRuntimeConnectionController";
 
 interface AppContentProps {
   activeTab: MissionControlTab;
+  onTabChange: (tab: MissionControlTab) => void;
+  onOpenHelpDocs: () => void;
+  onStartGuidedTour: () => void;
   settings: RuntimeConnectionSettings;
   boards: BoardSummary[];
   agents: Agent[];
   boardsController: ReturnType<typeof useBoardsController>;
   missionControl: ReturnType<typeof useMissionControlController>;
   mailController: ReturnType<typeof useAgentMailController>;
+  assistantController: ReturnType<typeof useAssistantChatController>;
   cockpitController: ReturnType<typeof useCockpitController>;
   showRawEvents: boolean;
   setShowRawEvents: Dispatch<SetStateAction<boolean>>;
@@ -99,6 +107,11 @@ export function AppContent(props: AppContentProps) {
   return (
     <>
       <TabPane active={active === "boards"}>
+        <TabHelpBanner
+          tab="boards"
+          onOpenDocs={props.onOpenHelpDocs}
+          onStartTour={props.onStartGuidedTour}
+        />
         <BoardsPage
           boards={props.boards}
           activeBoardId={props.boardsController.activeBoardId}
@@ -124,6 +137,11 @@ export function AppContent(props: AppContentProps) {
       </TabPane>
 
       <TabPane active={active === "calendar"}>
+        <TabHelpBanner
+          tab="calendar"
+          onOpenDocs={props.onOpenHelpDocs}
+          onStartTour={props.onStartGuidedTour}
+        />
         <CalendarPage
           calendarWeek={props.missionControl.calendarWeek}
           calendarAlwaysRunning={props.missionControl.calendarAlwaysRunning}
@@ -135,6 +153,11 @@ export function AppContent(props: AppContentProps) {
       </TabPane>
 
       <TabPane active={active === "focus"}>
+        <TabHelpBanner
+          tab="focus"
+          onOpenDocs={props.onOpenHelpDocs}
+          onStartTour={props.onStartGuidedTour}
+        />
         <FocusPage
           focusItems={props.missionControl.focusItems}
           approvalsCount={props.missionControl.approvalsById.size}
@@ -146,6 +169,11 @@ export function AppContent(props: AppContentProps) {
       </TabPane>
 
       <TabPane active={active === "events"}>
+        <TabHelpBanner
+          tab="events"
+          onOpenDocs={props.onOpenHelpDocs}
+          onStartTour={props.onStartGuidedTour}
+        />
         <EventsPage
           showRawEvents={props.showRawEvents}
           onShowRawEventsChange={props.setShowRawEvents}
@@ -154,6 +182,11 @@ export function AppContent(props: AppContentProps) {
       </TabPane>
 
       <TabPane active={active === "mail"}>
+        <TabHelpBanner
+          tab="mail"
+          onOpenDocs={props.onOpenHelpDocs}
+          onStartTour={props.onStartGuidedTour}
+        />
         <MailPage
           agents={props.agents}
           onRefresh={() => props.mailController.queueAgentMailRefresh(props.settings)}
@@ -213,6 +246,11 @@ export function AppContent(props: AppContentProps) {
       </TabPane>
 
       <TabPane active={active === "chatrooms"}>
+        <TabHelpBanner
+          tab="chatrooms"
+          onOpenDocs={props.onOpenHelpDocs}
+          onStartTour={props.onStartGuidedTour}
+        />
         <ChatroomsPage
           agents={props.agents}
           onRefresh={() => props.mailController.queueAgentMailRefresh(props.settings)}
@@ -257,7 +295,26 @@ export function AppContent(props: AppContentProps) {
         />
       </TabPane>
 
+      <TabPane active={active === "assistant"}>
+        <TabHelpBanner
+          tab="assistant"
+          onOpenDocs={props.onOpenHelpDocs}
+          onStartTour={props.onStartGuidedTour}
+        />
+        <AssistantChatPage
+          agents={props.agents}
+          boards={props.boards}
+          onTabChange={props.onTabChange}
+          controller={props.assistantController}
+        />
+      </TabPane>
+
       <TabPane active={active === "team"}>
+        <TabHelpBanner
+          tab="team"
+          onOpenDocs={props.onOpenHelpDocs}
+          onStartTour={props.onStartGuidedTour}
+        />
         <TeamPage
           agents={props.agents}
           activeJobCount={props.missionControl.calendarJobs.filter((j) => j.enabled).length}
@@ -267,6 +324,11 @@ export function AppContent(props: AppContentProps) {
       </TabPane>
 
       <TabPane active={active === "cockpit"}>
+        <TabHelpBanner
+          tab="cockpit"
+          onOpenDocs={props.onOpenHelpDocs}
+          onStartTour={props.onStartGuidedTour}
+        />
         <CockpitPage
           cockpitPages={props.cockpitController.cockpitPages}
           activeCockpitPage={props.cockpitController.activeCockpitPage}
@@ -297,6 +359,10 @@ export function AppContent(props: AppContentProps) {
           renderCockpitWidget={(widget) => renderCockpitWidget(widget, props)}
           settings={props.settings}
         />
+      </TabPane>
+
+      <TabPane active={active === "help"}>
+        <HelpDocsPage onOpenTab={props.onTabChange} onStartTour={props.onStartGuidedTour} />
       </TabPane>
     </>
   );

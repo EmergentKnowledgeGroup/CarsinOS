@@ -16,6 +16,7 @@ export const MISSION_CONTROL_TABS: MissionControlTabItem[] = [
   { tab: "events", label: "Events", icon: "activity", shortcut: "4" },
   { tab: "mail", label: "Mail", icon: "mail", shortcut: "5" },
   { tab: "chatrooms", label: "Rooms", icon: "messages-square", shortcut: "6" },
-  { tab: "team", label: "Team", icon: "users", shortcut: "7" },
-  { tab: "cockpit", label: "Cockpit", icon: "gauge", shortcut: "8" },
+  { tab: "assistant", label: "Assistant", icon: "bot", shortcut: "7" },
+  { tab: "team", label: "Team", icon: "users", shortcut: "8" },
+  { tab: "cockpit", label: "Cockpit", icon: "gauge", shortcut: "9" },
 ];

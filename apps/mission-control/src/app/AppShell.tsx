@@ -19,8 +19,11 @@ import {
   Mail,
   MessagesSquare,
   Users,
+  Bot,
   Gauge,
   Settings,
+  BookOpen,
+  Compass,
   Sun,
   Moon,
   X,
@@ -29,6 +32,7 @@ import {
   Maximize2,
 } from "lucide-react";
 import { NotificationCenter } from "../ui/NotificationCenter";
+import { ThemeDropdown } from "../ui/ThemeDropdown";
 import type { NotificationItem } from "../ui/useToasts";
 
 const NAV_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
@@ -39,7 +43,9 @@ const NAV_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
   mail: Mail,
   "messages-square": MessagesSquare,
   users: Users,
+  bot: Bot,
   gauge: Gauge,
+  "book-open": BookOpen,
 };
 
 interface AppShellProps {
@@ -62,6 +68,8 @@ interface AppShellProps {
   onReconnect: () => Promise<void>;
   onClearToken: () => Promise<void>;
   onOpenSetupWizard: () => void;
+  onOpenHelpDocs: () => void;
+  onOpenGuidedTour: () => void;
   onRefresh?: () => void;
   notifications?: NotificationItem[];
   onDismissNotification?: (id: string) => void;
@@ -126,7 +134,7 @@ export function AppShell(props: AppShellProps) {
     setDensity((d) => (d === "comfortable" ? "compact" : "comfortable"));
   }, []);
 
-  const { incidentMode, onIncidentModeChange } = props;
+  const { incidentMode, onIncidentModeChange, onOpenGuidedTour } = props;
   const toggleIncidentMode = useCallback(() => {
     onIncidentModeChange(!incidentMode);
   }, [incidentMode, onIncidentModeChange]);
@@ -157,6 +165,13 @@ export function AppShell(props: AppShellProps) {
     void props.onSaveConnection();
     setSettingsOpen(false);
   };
+
+  const handleOpenGuidedTourFromSettings = useCallback(() => {
+    setSettingsOpen(false);
+    window.requestAnimationFrame(() => {
+      onOpenGuidedTour();
+    });
+  }, [onOpenGuidedTour]);
 
   // Keyboard shortcuts
   useKeyboardShortcuts({
@@ -193,6 +208,7 @@ export function AppShell(props: AppShellProps) {
               className={clsx("mc-nav-item", props.activeTab === item.tab && "mc-nav-item-active")}
               onClick={() => props.onTabChange(item.tab)}
               title={`${item.label} (${item.shortcut})`}
+              data-tour-id={`nav-${item.tab}`}
             >
               {Icon ? <Icon size={20} /> : null}
               <span className="mc-nav-label">{item.label}</span>
@@ -204,8 +220,19 @@ export function AppShell(props: AppShellProps) {
         <button
           type="button"
           className="mc-nav-item"
+          onClick={props.onOpenHelpDocs}
+          title="Help and Docs"
+          data-tour-id="nav-help-shortcut"
+        >
+          <BookOpen size={20} />
+          <span className="mc-nav-label">Help/Docs</span>
+        </button>
+        <button
+          type="button"
+          className="mc-nav-item"
           onClick={() => setSettingsOpen(true)}
           title="Settings"
+          data-tour-id="nav-config"
         >
           <Settings size={20} />
           <span className="mc-nav-label">Config</span>
@@ -224,6 +251,7 @@ export function AppShell(props: AppShellProps) {
               type="button"
               className="mc-cmd-trigger"
               onClick={() => setCmdPaletteOpen(true)}
+              data-tour-id="topbar-command"
             >
               <Command size={13} />
               <span>Command</span>
@@ -251,9 +279,30 @@ export function AppShell(props: AppShellProps) {
             <button type="button" className="mc-topbar-icon-btn" onClick={toggleDensity} title={density === "comfortable" ? "Compact" : "Comfortable"}>
               {density === "comfortable" ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
             </button>
-            <button type="button" className="mc-topbar-icon-btn" onClick={theme.toggleMode} title="Toggle theme">
-              {theme.mode === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+            <button
+              type="button"
+              className="mc-topbar-icon-btn"
+              onClick={props.onOpenGuidedTour}
+              title="Start guided tour"
+              data-tour-id="topbar-tour"
+            >
+              <Compass size={16} />
             </button>
+            <button
+              type="button"
+              className="mc-topbar-icon-btn"
+              onClick={props.onOpenHelpDocs}
+              title="Help and docs"
+            >
+              <BookOpen size={16} />
+            </button>
+            <ThemeDropdown
+              family={theme.family}
+              mode={theme.mode}
+              selectFamily={theme.selectFamily}
+              setMode={theme.setMode}
+              toggleMode={theme.toggleMode}
+            />
             <button type="button" className="mc-topbar-icon-btn" onClick={() => setSettingsOpen(true)} title="Settings">
               <Settings size={16} />
             </button>
@@ -332,6 +381,9 @@ export function AppShell(props: AppShellProps) {
                   </button>
                   <button type="button" className="ghost" onClick={props.onOpenSetupWizard}>
                     Setup Wizard
+                  </button>
+                  <button type="button" className="ghost" onClick={handleOpenGuidedTourFromSettings}>
+                    Guided Tour
                   </button>
                   <button type="button" className="danger" onClick={handleClearToken}>
                     Clear Token

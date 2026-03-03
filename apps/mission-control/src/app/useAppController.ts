@@ -18,8 +18,10 @@ export type MissionControlTab =
   | "events"
   | "mail"
   | "chatrooms"
+  | "assistant"
   | "team"
-  | "cockpit";
+  | "cockpit"
+  | "help";
 
 export interface EventStreamItem {
   event_id: string;

@@ -29,6 +29,14 @@
   --ink-tertiary:  #6b7485;
   --ink-muted:     #505868;
 
+  /* Compatibility aliases used by newer UI modules */
+  --line-soft:     var(--line);
+  --surface-1:     var(--surface);
+  --surface-2:     var(--bg-raised);
+  --focus:         var(--info);
+  --muted:         var(--ink-secondary);
+  --success:       var(--ok);
+
   /* Accent — warm amber, kept from original */
   --accent:        #ff6a13;
   --accent-hover:  #ff8040;
@@ -765,19 +773,55 @@ button {
   font-weight: 600;
   cursor: pointer;
   transition: transform var(--duration-fast) var(--ease-out),
-              filter var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out),
+              border-color var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out),
               box-shadow var(--duration-fast) var(--ease-out);
 }
 
 button:hover {
   transform: translateY(-1px);
-  filter: brightness(1.08);
+  background: var(--accent-hover);
   box-shadow: var(--shadow-sm);
 }
 
-button:active {
+button:active:not(:disabled) {
   transform: scale(0.97);
-  filter: brightness(0.95);
+  filter: brightness(0.9);
+}
+
+button:disabled,
+button[aria-disabled="true"] {
+  opacity: 0.38;
+  cursor: not-allowed;
+  pointer-events: none;
+  transform: none;
+  filter: none;
+  box-shadow: none;
+}
+
+button.ghost {
+  background: transparent;
+  border-color: var(--line-strong);
+  color: var(--ink-secondary);
+}
+
+button.ghost:hover {
+  background: var(--surface-hover);
+  border-color: var(--ink-muted);
+  color: var(--ink-primary);
+}
+
+button.secondary {
+  background: var(--surface);
+  border-color: var(--line-strong);
+  color: var(--ink-primary);
+}
+
+button.secondary:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 button.danger {
@@ -786,10 +830,9 @@ button.danger {
   color: var(--danger);
 }
 
-button.ghost {
-  background: var(--accent-muted);
-  border-color: var(--line-strong);
-  color: var(--accent-ink);
+button.danger:hover {
+  background: var(--danger);
+  color: #fff;
 }
 
 /* ─── NOTICES ─────────────────────────────────────────────────────────────── */
@@ -4371,6 +4414,122 @@ button.ghost {
   color: var(--ink-muted);
 }
 
+/* ─── THEME DROPDOWN ─────────────────────────────────────────────────────── */
+
+.mc-theme-dropdown-wrap {
+  position: relative;
+}
+
+.mc-theme-dropdown {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  width: 272px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 900;
+  overflow: hidden;
+  animation: mc-dropdown-in var(--duration-normal) var(--ease-out) forwards;
+}
+
+@keyframes mc-dropdown-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.mc-theme-dropdown-header {
+  display: flex;
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-display);
+  font-size: var(--type-micro);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.mc-theme-dropdown-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.mc-theme-dropdown-row:hover {
+  background: var(--surface-hover);
+}
+
+.mc-theme-dropdown-row-active {
+  background: var(--accent-subtle);
+  border-left-color: var(--accent);
+}
+
+.mc-theme-dropdown-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+}
+
+.mc-theme-dropdown-name {
+  flex: 1;
+  font-size: var(--type-body);
+  font-weight: 500;
+  color: var(--ink-primary);
+  line-height: 1;
+}
+
+.mc-theme-dropdown-modes {
+  display: flex;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.mc-theme-mode-btn {
+  all: unset;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-xs);
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out),
+              background var(--duration-fast) var(--ease-out);
+}
+
+.mc-theme-mode-btn:hover {
+  color: var(--ink-primary);
+  background: var(--surface-hover);
+}
+
+.mc-theme-mode-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--focus) 78%, #ffffff 22%);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--surface) 88%, transparent);
+}
+
+.mc-theme-mode-btn-active {
+  color: var(--accent);
+}
+
+.mc-theme-mode-btn-active:hover {
+  color: var(--accent-hover);
+}
+
+.mc-theme-mode-btn-active:focus-visible {
+  outline-color: color-mix(in srgb, var(--accent) 78%, #ffffff 22%);
+}
+
 /* ─── UI PRIMITIVES: Modal Subtitle ───────────────────────────────────────── */
 
 .mc-modal-subtitle {
@@ -5476,5 +5635,336 @@ button.ghost {
 
   .mc-content-area {
     padding: var(--space-3);
+  }
+}
+
+/* ── Guided Tour + Help Docs ───────────────────────────────────────────── */
+.mc-tab-help-banner {
+  margin-bottom: var(--space-3);
+  display: grid;
+  gap: var(--space-2);
+  border: 1px solid var(--line-soft);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--surface-1) 88%, var(--accent) 12%), var(--surface-1));
+}
+
+.mc-tab-help-main h3 {
+  margin: 0;
+  font-size: 1.02rem;
+}
+
+.mc-tab-help-main p {
+  margin: 0;
+}
+
+.mc-tab-help-kicker {
+  margin: 0 0 var(--space-1) 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.mc-tab-help-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.mc-tab-help-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.mc-tab-help-examples {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.36rem;
+}
+
+.mc-help-page {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.mc-help-hero {
+  border: 1px solid var(--line-soft);
+  background: linear-gradient(155deg, color-mix(in srgb, var(--surface-1) 86%, var(--focus) 14%), var(--surface-1));
+}
+
+.mc-help-kicker {
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.mc-help-hero h2 {
+  margin: 0.25rem 0;
+}
+
+.mc-help-hero p {
+  margin: 0;
+}
+
+.mc-help-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+}
+
+.mc-help-hero-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.mc-help-grid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.mc-help-card {
+  border: 1px solid var(--line-soft);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.mc-help-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.mc-help-card h3 {
+  margin: 0;
+}
+
+.mc-help-card p {
+  margin: 0;
+}
+
+.mc-help-card ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.mc-help-caution {
+  padding: var(--space-1) var(--space-2);
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+}
+
+.mc-tour-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+}
+
+.mc-tour-scrim {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, #04070f 76%, transparent);
+}
+
+.mc-tour-highlight {
+  position: fixed;
+  border: 2px solid color-mix(in srgb, var(--accent) 80%, white 20%);
+  border-radius: 12px;
+  box-shadow: 0 0 0 9999px color-mix(in srgb, #04070f 70%, transparent), 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+  pointer-events: none;
+  z-index: 10000;
+}
+
+.mc-tour-bubble {
+  position: fixed;
+  z-index: 10001;
+  width: min(360px, calc(100vw - 2rem));
+  background: var(--surface-2);
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-3);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.mc-tour-bubble h3,
+.mc-tour-bubble p {
+  margin: 0;
+}
+
+.mc-tour-step {
+  margin: 0;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.mc-tour-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+}
+
+.mc-tour-actions-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+@media (max-width: 760px) {
+  .mc-tab-help-banner {
+    margin-bottom: var(--space-2);
+  }
+
+  .mc-help-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mc-tour-bubble {
+    width: calc(100vw - 1rem);
+    left: 0.5rem !important;
+  }
+}
+
+/* ── Assistant Chat ───────────────────────────────────────────────────── */
+.mc-assistant-page {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.mc-assistant-toolbar {
+  border: 1px solid var(--line-soft);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.mc-assistant-toolbar-grid {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.mc-assistant-toolbar-grid label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.mc-assistant-toolbar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.mc-assistant-toolbar-actions label {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 220px;
+}
+
+.mc-assistant-grid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr);
+}
+
+.mc-assistant-prompt,
+.mc-assistant-chat {
+  border: 1px solid var(--line-soft);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.mc-assistant-prompt header h3,
+.mc-assistant-chat header h3,
+.mc-assistant-prompt header p,
+.mc-assistant-chat header p {
+  margin: 0;
+}
+
+.mc-assistant-transcript {
+  min-height: 300px;
+  max-height: 58vh;
+  overflow: auto;
+  display: grid;
+  gap: var(--space-2);
+  padding-right: 0.25rem;
+}
+
+.mc-assistant-msg {
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  padding: var(--space-2);
+  display: grid;
+  gap: 0.35rem;
+}
+
+.mc-assistant-msg p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.mc-assistant-msg-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.mc-assistant-msg-user {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.mc-assistant-msg-assistant {
+  background: color-mix(in srgb, var(--success) 9%, transparent);
+}
+
+.mc-assistant-msg-system {
+  background: color-mix(in srgb, var(--focus) 8%, transparent);
+}
+
+.mc-assistant-compose {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.mc-assistant-compose textarea {
+  min-height: 94px;
+}
+
+.mc-assistant-compose button {
+  justify-self: end;
+}
+
+@media (max-width: 1024px) {
+  .mc-assistant-toolbar-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mc-assistant-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .mc-assistant-toolbar-grid {
+    grid-template-columns: 1fr;
   }
 }

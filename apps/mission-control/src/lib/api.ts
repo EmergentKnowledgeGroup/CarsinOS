@@ -10,6 +10,9 @@ import type {
   BoardDetail,
   BoardDetailResponse,
   CreateAgentResponse,
+  CreateMessageResponse,
+  CreateRunResponse,
+  CreateSessionResponse,
   CreateAgentMailFileLeaseResponse,
   CreateAgentMailThreadResponse,
   CreateAuthProfileResponse,
@@ -21,6 +24,7 @@ import type {
   ListAgentMailMessagesResponse,
   ListAgentMailThreadsResponse,
   ListMemoryNotesResponse,
+  ListMessagesResponse,
   ListAuthProfilesResponse,
   ListApprovalsResponse,
   ListJobsResponse,
@@ -255,7 +259,71 @@ export async function updateAgent(
 ): Promise<UpdateAgentResponse> {
   return requestJson<UpdateAgentResponse>(
     settings,
-    `/api/v1/agents/${encodeURIComponent(agentId)}/update`,
+    `/api/v1/agents/${encodeURIComponent(agentId)}`,
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
+export async function createSession(
+  settings: RuntimeConnectionSettings,
+  payload: {
+    session_key?: string;
+    agent_id?: string;
+    title?: string;
+  }
+): Promise<CreateSessionResponse> {
+  return requestJson<CreateSessionResponse>(settings, "/api/v1/sessions", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export async function createSessionMessage(
+  settings: RuntimeConnectionSettings,
+  sessionId: string,
+  payload: {
+    role: "system" | "user" | "assistant" | "tool";
+    content_text: string;
+    content_format?: string;
+    source_channel?: string;
+  }
+): Promise<CreateMessageResponse> {
+  return requestJson<CreateMessageResponse>(
+    settings,
+    `/api/v1/sessions/${encodeURIComponent(sessionId)}/messages`,
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
+export async function listSessionMessages(
+  settings: RuntimeConnectionSettings,
+  sessionId: string,
+  limit = 200
+): Promise<ListMessagesResponse> {
+  return requestJson<ListMessagesResponse>(
+    settings,
+    `/api/v1/sessions/${encodeURIComponent(sessionId)}/messages?limit=${encodeURIComponent(String(limit))}`
+  );
+}
+
+export async function createSessionRun(
+  settings: RuntimeConnectionSettings,
+  sessionId: string,
+  payload: {
+    model_provider: string;
+    model_id: string;
+    auth_profile_id?: string;
+  }
+): Promise<CreateRunResponse> {
+  return requestJson<CreateRunResponse>(
+    settings,
+    `/api/v1/sessions/${encodeURIComponent(sessionId)}/runs`,
     {
       method: "POST",
       body: payload,
