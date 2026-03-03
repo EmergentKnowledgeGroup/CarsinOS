@@ -12,6 +12,7 @@ import type {
   CreateAgentResponse,
   CreateAgentMailFileLeaseResponse,
   CreateAgentMailThreadResponse,
+  CreateAuthProfileResponse,
   CreateMemoryNoteResponse,
   GetChannelRuntimeStatusResponse,
   HealthResponse,
@@ -398,6 +399,25 @@ export async function listAuthProfiles(
     `/api/v1/auth/profiles${suffix}`
   );
   return response.items;
+}
+
+export async function createAuthProfile(
+  settings: RuntimeConnectionSettings,
+  payload: {
+    provider: string;
+    display_name: string;
+    auth_mode: string;
+    risk_level: string;
+    enabled?: boolean;
+    kill_switch_scope?: string;
+    api_base_url?: string;
+    credentials_json?: Record<string, unknown>;
+  }
+): Promise<CreateAuthProfileResponse> {
+  return requestJson<CreateAuthProfileResponse>(settings, "/api/v1/auth/profiles", {
+    method: "POST",
+    body: payload,
+  });
 }
 
 export async function getAgentProviderProfileOrder(

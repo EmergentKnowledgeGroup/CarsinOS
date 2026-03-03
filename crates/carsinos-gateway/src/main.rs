@@ -130,6 +130,7 @@ use tokio::time::sleep;
 use tokio_util::io::ReaderStream;
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 use tower_http::trace::{DefaultOnFailure, DefaultOnRequest, DefaultOnResponse, TraceLayer};
+use tower_http::cors::{Any, CorsLayer};
 use tracing::{debug, error, info, warn, Level};
 use tracing_appender::non_blocking::WorkerGuard;
 use tracing_subscriber::fmt::writer::{BoxMakeWriter, MakeWriterExt};
@@ -6451,6 +6452,12 @@ fn build_app(state: AppState) -> Router {
         .layer(PropagateRequestIdLayer::x_request_id())
         .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid))
         .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any),
+        )
+        .layer(
             TraceLayer::new_for_http()
                 .make_span_with(|request: &Request<_>| {
                     let request_id = request
@@ -6881,6 +6888,16 @@ async fn create_agent(
         .unwrap_or_else(|| "default".to_string())
         .trim()
         .to_string();
+
+    if state
+        .storage
+        .get_agent(&agent_id)
+        .map_err(|err| internal_err_with_error("loading existing agent failed", err))?
+        .is_some()
+    {
+        return Err(api_error(StatusCode::CONFLICT, "agent_id already exists"));
+    }
+
     let record = state
         .storage
         .create_agent(NewAgent {

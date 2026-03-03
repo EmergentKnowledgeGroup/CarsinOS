@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  createAuthProfile,
   createAgent,
   finishOpenAiOauth,
   getAgentProviderProfileOrder,
@@ -22,6 +23,7 @@ import type { MissionControlTab } from "../../app/useAppController";
 import type { Agent, AuthProfileResponse, RuntimeConnectionSettings } from "../../types";
 import {
   loadDismissedAt,
+  type OnboardingAnthropicAuthMode,
   type OnboardingMode,
   type OnboardingProviderPath,
   reorderProfileFirst,
@@ -29,6 +31,7 @@ import {
   shouldAutoOpenWizard,
 } from "./onboardingState";
 import { DEFAULT_GATEWAY_URL } from "../../constants";
+import { launchAnthropicSetupTokenFlow as launchAnthropicSetupTokenFlowRuntime } from "../../lib/runtime";
 
 export interface OnboardingPreflightState {
   running: boolean;
@@ -61,15 +64,6 @@ const ONBOARDING_STEPS = [
   "done",
 ] as const;
 
-function parseHttpStatusCode(error: unknown): number | null {
-  const match = String(error).match(/(\d{3})\b/);
-  if (!match) {
-    return null;
-  }
-  const value = Number.parseInt(match[1], 10);
-  return Number.isFinite(value) ? value : null;
-}
-
 function providerRequiresProfile(path: OnboardingProviderPath): boolean {
   return path === "anthropic" || path === "openai";
 }
@@ -92,6 +86,18 @@ function selectedProviderFromExisting(
     return "openai";
   }
   return "local";
+}
+
+function parseOptionalUnixTimestamp(raw: string): number | undefined {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  const parsed = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error("Expiry must be a unix timestamp in seconds.");
+  }
+  return parsed;
 }
 
 export function useOnboardingController(options: UseOnboardingControllerOptions) {
@@ -133,7 +139,12 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   const [providerProfileId, setProviderProfileId] = useState<string | null>(null);
   const [providerReady, setProviderReady] = useState(false);
   const [localProvider, setLocalProvider] = useState("ollama");
-  const [localModelId, setLocalModelId] = useState("local-default");
+  const [localModelId, setLocalModelId] = useState("");
+  const [localOrchestratorEnabled, setLocalOrchestratorEnabled] = useState(false);
+  const [localOrchestratorAgentId, setLocalOrchestratorAgentId] = useState("orchestrator");
+  const [localOrchestratorAgentName, setLocalOrchestratorAgentName] = useState("Orchestrator");
+  const [localOrchestratorModelId, setLocalOrchestratorModelId] = useState("");
+  const [localModelDiscoveryNote, setLocalModelDiscoveryNote] = useState<string | null>(null);
   const [localProviderOptions, setLocalProviderOptions] = useState<
     Array<{ value: string; label: string }>
   >([
@@ -145,9 +156,20 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   const [localModelsLoading, setLocalModelsLoading] = useState(false);
   const [localModelsError, setLocalModelsError] = useState<string | null>(null);
 
+  const [anthropicAuthMode, setAnthropicAuthMode] =
+    useState<OnboardingAnthropicAuthMode>("api_key");
   const [anthropicDisplayName, setAnthropicDisplayName] = useState("claude-primary");
   const [anthropicSetupToken, setAnthropicSetupToken] = useState("");
+  const [anthropicSetupLaunchNote, setAnthropicSetupLaunchNote] = useState<string | null>(null);
   const [anthropicApiBaseUrl, setAnthropicApiBaseUrl] = useState("");
+  const [anthropicAccessToken, setAnthropicAccessToken] = useState("");
+  const [anthropicRefreshToken, setAnthropicRefreshToken] = useState("");
+  const [anthropicRefreshUrl, setAnthropicRefreshUrl] = useState("");
+  const [anthropicExpiresAtUnix, setAnthropicExpiresAtUnix] = useState("");
+  const [anthropicHeadlessCommand, setAnthropicHeadlessCommand] = useState("claude");
+  const [anthropicHeadlessArgs, setAnthropicHeadlessArgs] = useState(
+    "-p --output-format text"
+  );
 
   const [openAiDisplayName, setOpenAiDisplayName] = useState("openai-primary");
   const [openAiClientId, setOpenAiClientId] = useState("");
@@ -161,6 +183,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
 
   const [routingReady, setRoutingReady] = useState(false);
   const localProviderRef = useRef(localProvider);
+  const localModelIdRef = useRef(localModelId);
 
   const [preflight, setPreflight] = useState<OnboardingPreflightState>({
     running: false,
@@ -177,6 +200,10 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   useEffect(() => {
     localProviderRef.current = localProvider;
   }, [localProvider]);
+
+  useEffect(() => {
+    localModelIdRef.current = localModelId;
+  }, [localModelId]);
 
   useEffect(() => {
     if (!selectedAgentId && agents.length > 0) {
@@ -207,6 +234,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     setProviderProfileId(null);
     setProviderReady(false);
     setRoutingReady(false);
+    setLocalModelDiscoveryNote(null);
     setOpenAiSessionId("");
     setOpenAiAuthorizeUrl("");
     setOpenAiCallbackUrlHint("");
@@ -258,50 +286,65 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     };
   }, [isOpen, settings]);
 
+  const refreshLocalModels = useCallback(async () => {
+    const provider = localProvider.trim().toLowerCase();
+    if (!provider) {
+      setLocalModelOptions([]);
+      setLocalModelsError("Select a local provider first.");
+      setLocalModelDiscoveryNote("Choose a local provider, then scan for models.");
+      return;
+    }
+    setLocalModelsLoading(true);
+    setLocalModelsError(null);
+    try {
+      const response = await listProviderModels(settings, {
+        provider,
+        agent_id: selectedAgentId || undefined,
+      });
+      const models = response.items.map((item) => item.model_id);
+      const currentLocalModelId = localModelIdRef.current;
+      const assistantModelNext =
+        (currentLocalModelId && models.includes(currentLocalModelId)
+          ? currentLocalModelId
+          : models[0]) ?? "";
+      setLocalModelOptions(models);
+      setLocalModelId(assistantModelNext);
+      setLocalOrchestratorModelId((current) => {
+        if (current && models.includes(current)) {
+          return current;
+        }
+        if (models.length === 0) {
+          return "";
+        }
+        const fallback = models.find((modelId) => modelId !== assistantModelNext);
+        return fallback ?? models[0];
+      });
+      if (models.length === 0) {
+        setLocalModelDiscoveryNote(
+          "No models reported yet. Start your local model server, then click Scan loaded models."
+        );
+      } else {
+        setLocalModelDiscoveryNote(
+          `Found ${models.length} model${models.length === 1 ? "" : "s"} from ${providerLabel(provider)}.`
+        );
+      }
+    } catch (err: unknown) {
+      setLocalModelOptions([]);
+      setLocalModelsError(String(err));
+      setLocalModelDiscoveryNote(
+        "Model discovery failed. Verify the local provider endpoint is running and reachable."
+      );
+    } finally {
+      setLocalModelsLoading(false);
+    }
+  }, [localProvider, selectedAgentId, settings]);
+
   useEffect(() => {
     if (!isOpen || providerPath !== "local") {
       return;
     }
-    const provider = localProvider.trim().toLowerCase();
-    if (!provider) {
-      return;
-    }
-    let cancelled = false;
-    setLocalModelsLoading(true);
-    setLocalModelsError(null);
-    void listProviderModels(settings, {
-      provider,
-      agent_id: selectedAgentId || undefined,
-    })
-      .then((response) => {
-        if (cancelled) {
-          return;
-        }
-        const models = response.items.map((item) => item.model_id);
-        setLocalModelOptions(models);
-        setLocalModelId((current) => {
-          if (current && models.includes(current)) {
-            return current;
-          }
-          return models[0] ?? current;
-        });
-      })
-      .catch((err: unknown) => {
-        if (cancelled) {
-          return;
-        }
-        setLocalModelOptions([]);
-        setLocalModelsError(String(err));
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLocalModelsLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isOpen, localProvider, providerPath, selectedAgentId, settings]);
+    void refreshLocalModels();
+  }, [isOpen, providerPath, refreshLocalModels]);
 
   useEffect(() => {
     const shouldOpen = shouldAutoOpenWizard(
@@ -356,9 +399,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
 
       const gatewayReachable = healthResult.status === "fulfilled" && healthResult.value.ok !== false;
       const authValidated =
-        statusResult.status === "fulfilled" ||
-        (statusResult.status === "rejected" &&
-          ![401, 403].includes(parseHttpStatusCode(statusResult.reason) ?? 0));
+        gatewayReachable && statusResult.status === "fulfilled";
       const canReadCore =
         agentsResult.status === "fulfilled" && profilesResult.status === "fulfilled";
 
@@ -373,9 +414,13 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
         canReadCore,
         canManageSetup,
         detail:
-          canReadCore
-            ? "Checks completed. Setup write permissions are validated during setup actions."
-            : "Checks completed. Token cannot read core — setup actions may require operator_admin.",
+          !gatewayReachable
+            ? "Checks completed. Gateway is not reachable at the configured URL."
+            : !authValidated
+              ? "Checks completed. Gateway rejected token access for status checks."
+              : canReadCore
+                ? "Checks completed. Setup write permissions are validated during setup actions."
+                : "Checks completed. Token cannot read core — setup actions may require operator_admin.",
       });
     } catch (error: unknown) {
       setPreflight({
@@ -404,6 +449,36 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     setProviderReady(false);
     setRoutingReady(false);
   }, []);
+
+  const setAnthropicAuthModeAndInvalidate = useCallback(
+    (value: OnboardingAnthropicAuthMode) => {
+      setAnthropicAuthMode(value);
+      setProviderProfileId(null);
+      setProviderReady(false);
+      setRoutingReady(false);
+      setAnthropicSetupLaunchNote(null);
+    },
+    []
+  );
+
+  const launchAnthropicSetupTokenFlow = useCallback(async () => {
+    clearError();
+    setBusy(true);
+    try {
+      const result = await launchAnthropicSetupTokenFlowRuntime();
+      if (result.launched) {
+        setAnthropicSetupLaunchNote(
+          `${result.detail} Copy the token from Terminal and paste it below.`
+        );
+        return;
+      }
+      setAnthropicSetupLaunchNote(`${result.detail} Command: ${result.command}`);
+    } catch (error: unknown) {
+      setErrorText(`Unable to launch setup-token helper: ${String(error)}`);
+    } finally {
+      setBusy(false);
+    }
+  }, [clearError]);
 
   const connectGateway = useCallback(async () => {
     clearError();
@@ -435,6 +510,21 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
         setAgentReady(true);
         return;
       }
+
+      // If the local read model is stale, bind to an existing agent before creating.
+      const latestAgents = await listAgents(settings);
+      if (latestAgents.items.length > 0) {
+        const desiredAgentId = agentIdDraft.trim().toLowerCase();
+        const matched =
+          latestAgents.items.find(
+            (agent) => agent.agent_id.trim().toLowerCase() === desiredAgentId
+          ) ?? latestAgents.items[0];
+        setSelectedAgentId(matched.agent_id);
+        await loadBaseline(settings);
+        setAgentReady(true);
+        return;
+      }
+
       const created = await createAgent(settings, {
         agent_id: agentIdDraft.trim(),
         name: agentNameDraft.trim(),
@@ -529,10 +619,51 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
         if (!targetAgent) {
           throw new Error("Select or create an agent first.");
         }
+        const assistantModel = localModelId.trim();
+        if (!assistantModel) {
+          throw new Error("Select an assistant model or enter one manually.");
+        }
         await updateAgent(settings, targetAgent, {
           model_provider: localProvider.trim(),
-          model_id: localModelId.trim() || "local-default",
+          model_id: assistantModel,
         });
+        if (localOrchestratorEnabled) {
+          const orchestratorAgentId = localOrchestratorAgentId.trim();
+          if (!orchestratorAgentId) {
+            throw new Error("Enter an orchestrator agent ID.");
+          }
+          if (orchestratorAgentId.toLowerCase() === targetAgent.toLowerCase()) {
+            throw new Error(
+              "Orchestrator agent ID must be different from the assistant agent ID."
+            );
+          }
+          const orchestratorModel = localOrchestratorModelId.trim() || assistantModel;
+          if (!orchestratorModel) {
+            throw new Error("Select an orchestrator model or enter one manually.");
+          }
+          const knownAgents = await listAgents(settings);
+          const existingOrchestrator = knownAgents.items.find(
+            (agent) =>
+              agent.agent_id.trim().toLowerCase() === orchestratorAgentId.toLowerCase()
+          );
+          if (!existingOrchestrator) {
+            await createAgent(settings, {
+              agent_id: orchestratorAgentId,
+              name: localOrchestratorAgentName.trim() || "Orchestrator",
+              workspace_root: workspaceRootDraft.trim() || ".",
+              tool_profile: toolProfileDraft.trim() || "default",
+            });
+          }
+          await updateAgent(settings, orchestratorAgentId, {
+            model_provider: localProvider.trim(),
+            model_id: orchestratorModel,
+          });
+          setLocalModelDiscoveryNote(
+            `Applied local setup: assistant=${targetAgent}, orchestrator=${orchestratorAgentId}.`
+          );
+        } else {
+          setLocalModelDiscoveryNote(`Applied local setup for assistant agent ${targetAgent}.`);
+        }
         await loadBaseline(settings);
         setProviderReady(true);
         setProviderProfileId(null);
@@ -549,15 +680,66 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
       }
 
       if (providerPath === "anthropic") {
-        const response = await ingestAnthropicSetupToken(settings, {
-          display_name: anthropicDisplayName.trim() || "claude-primary",
-          setup_token: anthropicSetupToken.trim(),
-          api_base_url: anthropicApiBaseUrl.trim() || undefined,
+        if (anthropicAuthMode === "api_key") {
+          const response = await ingestAnthropicSetupToken(settings, {
+            display_name: anthropicDisplayName.trim() || "claude-primary",
+            setup_token: anthropicSetupToken.trim(),
+            api_base_url: anthropicApiBaseUrl.trim() || undefined,
+            enabled: true,
+          });
+          setProviderProfileId(response.profile.auth_profile_id);
+          setProviderReady(true);
+          setAnthropicSetupToken("");
+          await loadBaseline(settings);
+          return;
+        }
+
+        const accessToken = anthropicAccessToken.trim();
+        if (anthropicAuthMode === "claude_consumer_oauth" && !accessToken) {
+          throw new Error("Access token is required for Anthropic OAuth mode.");
+        }
+        const expiresAtUnix = parseOptionalUnixTimestamp(anthropicExpiresAtUnix);
+        const credentialsJson: Record<string, unknown> = {};
+        if (accessToken) {
+          credentialsJson.access_token = accessToken;
+          credentialsJson.token = accessToken;
+        }
+        const refreshToken = anthropicRefreshToken.trim();
+        if (refreshToken) {
+          credentialsJson.refresh_token = refreshToken;
+        }
+        const refreshUrl = anthropicRefreshUrl.trim();
+        if (refreshUrl) {
+          credentialsJson.refresh_url = refreshUrl;
+        }
+        if (expiresAtUnix !== undefined) {
+          credentialsJson.expires_at_unix = expiresAtUnix;
+        }
+        if (anthropicAuthMode === "agent_sdk") {
+          credentialsJson.headless_enabled = true;
+          credentialsJson.headless_command =
+            anthropicHeadlessCommand.trim() || "claude";
+          const rawArgs = anthropicHeadlessArgs.trim();
+          credentialsJson.headless_args = rawArgs
+            ? rawArgs.split(/\s+/).filter((part) => part.length > 0)
+            : [];
+        }
+        const response = await createAuthProfile(settings, {
+          provider: "anthropic",
+          display_name:
+            anthropicDisplayName.trim() ||
+            (anthropicAuthMode === "agent_sdk" ? "claude-headless" : "claude-oauth"),
+          auth_mode: anthropicAuthMode,
+          risk_level: "high",
           enabled: true,
+          kill_switch_scope: "profile",
+          api_base_url: anthropicApiBaseUrl.trim() || undefined,
+          credentials_json: credentialsJson,
         });
         setProviderProfileId(response.profile.auth_profile_id);
         setProviderReady(true);
-        setAnthropicSetupToken("");
+        setAnthropicAccessToken("");
+        setAnthropicRefreshToken("");
         await loadBaseline(settings);
         return;
       }
@@ -577,19 +759,32 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
       setBusy(false);
     }
   }, [
+    anthropicAccessToken,
     anthropicApiBaseUrl,
+    anthropicAuthMode,
     anthropicDisplayName,
+    anthropicExpiresAtUnix,
+    anthropicHeadlessArgs,
+    anthropicHeadlessCommand,
+    anthropicRefreshToken,
+    anthropicRefreshUrl,
     anthropicSetupToken,
     clearError,
     loadBaseline,
     localModelId,
+    localOrchestratorAgentId,
+    localOrchestratorAgentName,
+    localOrchestratorEnabled,
+    localOrchestratorModelId,
     localProvider,
     providerPath,
     providerProfileId,
     selectedAgentId,
     selectedExistingProfileId,
     settings,
+    toolProfileDraft,
     useExistingProfile,
+    workspaceRootDraft,
   ]);
 
   const applyRouting = useCallback(async () => {
@@ -648,6 +843,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     setGatewayUrl,
     gatewayTokenInput,
     setGatewayTokenInput,
+    tokenConfigured,
     connected,
     connectGateway,
     selectedAgentId,
@@ -675,16 +871,41 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     setLocalProvider,
     localModelId,
     setLocalModelId,
+    localOrchestratorEnabled,
+    setLocalOrchestratorEnabled,
+    localOrchestratorAgentId,
+    setLocalOrchestratorAgentId,
+    localOrchestratorAgentName,
+    setLocalOrchestratorAgentName,
+    localOrchestratorModelId,
+    setLocalOrchestratorModelId,
+    localModelDiscoveryNote,
     localProviderOptions,
     localModelOptions,
     localModelsLoading,
     localModelsError,
+    refreshLocalModels,
+    anthropicAuthMode,
+    setAnthropicAuthMode: setAnthropicAuthModeAndInvalidate,
     anthropicDisplayName,
     setAnthropicDisplayName,
     anthropicSetupToken,
     setAnthropicSetupToken,
+    anthropicSetupLaunchNote,
     anthropicApiBaseUrl,
     setAnthropicApiBaseUrl,
+    anthropicAccessToken,
+    setAnthropicAccessToken,
+    anthropicRefreshToken,
+    setAnthropicRefreshToken,
+    anthropicRefreshUrl,
+    setAnthropicRefreshUrl,
+    anthropicExpiresAtUnix,
+    setAnthropicExpiresAtUnix,
+    anthropicHeadlessCommand,
+    setAnthropicHeadlessCommand,
+    anthropicHeadlessArgs,
+    setAnthropicHeadlessArgs,
     openAiDisplayName,
     setOpenAiDisplayName,
     openAiClientId,
@@ -700,6 +921,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     setOpenAiCode,
     openAiState,
     setOpenAiState,
+    launchAnthropicSetupTokenFlow,
     startOpenAiOauthFlow,
     finishOpenAiOauthFlow,
     completeProvider,

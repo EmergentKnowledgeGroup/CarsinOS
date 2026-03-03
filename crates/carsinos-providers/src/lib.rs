@@ -3,6 +3,12 @@ use async_trait::async_trait;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::process::Stdio;
+use std::time::Duration;
+
+const AGENT_SDK_AUTH_MODE: &str = "agent_sdk";
+const HEADLESS_DEFAULT_COMMAND: &str = "claude";
+const HEADLESS_DEFAULT_TIMEOUT_MS: u64 = 45_000;
 
 #[derive(Debug, Clone)]
 pub struct ProviderAuthProfile {
@@ -14,9 +20,13 @@ pub struct ProviderAuthProfile {
 }
 
 impl ProviderAuthProfile {
+    fn credentials_payload(&self) -> Result<serde_json::Value> {
+        serde_json::from_str(&self.credentials_json)
+            .context("failed to parse provider credentials_json")
+    }
+
     fn api_key(&self) -> Result<String> {
-        let payload: serde_json::Value = serde_json::from_str(&self.credentials_json)
-            .context("failed to parse provider credentials_json")?;
+        let payload = self.credentials_payload()?;
         for key in ["api_key", "token", "access_token", "bearer_token"] {
             if let Some(value) = payload.get(key).and_then(|value| value.as_str()) {
                 let trimmed = value.trim();
@@ -264,6 +274,9 @@ async fn complete_anthropic(
     request: CompletionRequest,
 ) -> Result<CompletionResponse> {
     let auth = require_auth_profile("anthropic", &request)?;
+    if auth.auth_mode.trim().eq_ignore_ascii_case(AGENT_SDK_AUTH_MODE) {
+        return complete_anthropic_headless(&request, auth).await;
+    }
     let token = auth.api_key().map_err(|err| {
         anyhow!(
             "PROVIDER_ERROR:anthropic:AUTH_REQUIRED:invalid_credentials:{}",
@@ -312,6 +325,129 @@ async fn complete_anthropic(
         .ok_or_else(|| anyhow!("PROVIDER_ERROR:anthropic:INTERNAL_ERROR:missing_output_content"))?;
     let usage = usage_from_anthropic_payload(&payload, &request.input, &output_text);
 
+    Ok(CompletionResponse {
+        deltas: split_word_deltas(&output_text),
+        output_text,
+        usage,
+    })
+}
+
+async fn complete_anthropic_headless(
+    request: &CompletionRequest,
+    auth: &ProviderAuthProfile,
+) -> Result<CompletionResponse> {
+    let credentials = auth.credentials_payload().map_err(|err| {
+        anyhow!(
+            "PROVIDER_ERROR:anthropic:AUTH_REQUIRED:invalid_credentials:{}",
+            err.to_string().replace(':', "_")
+        )
+    })?;
+
+    let command = credentials
+        .get("headless_command")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(HEADLESS_DEFAULT_COMMAND)
+        .to_string();
+    let mut args = credentials
+        .get("headless_args")
+        .and_then(|value| value.as_array())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|value| value.as_str().map(str::trim))
+                .filter(|value| !value.is_empty())
+                .map(|value| value.to_string())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_else(|| {
+            vec![
+                "-p".to_string(),
+                "--output-format".to_string(),
+                "text".to_string(),
+            ]
+        });
+    let timeout_ms = parse_u64_value(credentials.get("headless_timeout_ms"))
+        .unwrap_or(HEADLESS_DEFAULT_TIMEOUT_MS)
+        .clamp(1_000, 300_000);
+    let workdir = credentials
+        .get("headless_workdir")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string());
+
+    let mut prompt_injected = false;
+    let mut has_prompt_flag = false;
+    for arg in &mut args {
+        if arg == "-p" || arg == "--prompt" {
+            has_prompt_flag = true;
+        }
+        if arg.contains("{prompt}") {
+            *arg = arg.replace("{prompt}", request.input.as_str());
+            prompt_injected = true;
+        }
+        if arg.contains("{model}") {
+            *arg = arg.replace("{model}", request.model_id.as_str());
+        }
+    }
+    if !prompt_injected {
+        if !has_prompt_flag {
+            args.push("-p".to_string());
+        }
+        args.push(request.input.clone());
+    }
+
+    let mut process = tokio::process::Command::new(command.as_str());
+    process.args(args.iter());
+    process.stdin(Stdio::null());
+    process.stdout(Stdio::piped());
+    process.stderr(Stdio::piped());
+    if let Some(workdir) = workdir {
+        process.current_dir(workdir);
+    }
+    let output = match tokio::time::timeout(Duration::from_millis(timeout_ms), process.output())
+        .await
+    {
+        Ok(Ok(output)) => output,
+        Ok(Err(err)) => {
+            return Err(anyhow!(
+                "PROVIDER_ERROR:anthropic:DEPENDENCY_UNAVAILABLE:headless_spawn_failed:{}",
+                err.to_string().replace(':', "_")
+            ));
+        }
+        Err(_) => {
+            return Err(anyhow!(
+                "PROVIDER_ERROR:anthropic:TIMEOUT:headless_timeout_after_{}ms",
+                timeout_ms
+            ));
+        }
+    };
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stderr = stderr.trim();
+        let stderr = if stderr.len() > 200 {
+            &stderr[..200]
+        } else {
+            stderr
+        };
+        let status = output.status.code().unwrap_or(-1);
+        return Err(anyhow!(
+            "PROVIDER_ERROR:anthropic:DEPENDENCY_UNAVAILABLE:headless_exit_status_{}:{}",
+            status,
+            stderr.replace(':', "_")
+        ));
+    }
+
+    let output_text = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if output_text.is_empty() {
+        return Err(anyhow!(
+            "PROVIDER_ERROR:anthropic:INTERNAL_ERROR:headless_output_empty"
+        ));
+    }
+
+    let usage = usage_from_token_counts(&request.input, &output_text, None, None, None, None);
     Ok(CompletionResponse {
         deltas: split_word_deltas(&output_text),
         output_text,
@@ -865,6 +1001,69 @@ mod tests {
 
         mock.assert_async().await;
         assert_eq!(response.output_text, "anthropic says hi");
+    }
+
+    #[tokio::test]
+    async fn anthropic_agent_sdk_headless_executes_local_command() {
+        let registry = ProviderRegistry::new();
+        let response = registry
+            .complete(CompletionRequest {
+                model_provider: "anthropic".to_string(),
+                model_id: "claude-sonnet".to_string(),
+                input: "ship patch".to_string(),
+                auth_profile: Some(ProviderAuthProfile {
+                    auth_profile_id: Some("p-headless".to_string()),
+                    auth_mode: AGENT_SDK_AUTH_MODE.to_string(),
+                    risk_level: "high".to_string(),
+                    api_base_url: None,
+                    credentials_json: serde_json::json!({
+                        "headless_command": "python3",
+                        "headless_args": [
+                            "-c",
+                            "import sys;print('headless:'+sys.argv[-1])"
+                        ],
+                        "headless_timeout_ms": 5000
+                    })
+                    .to_string(),
+                }),
+            })
+            .await
+            .expect("anthropic headless completion");
+
+        assert_eq!(response.output_text, "headless:ship patch");
+        assert!(response.usage.total_tokens >= 1);
+    }
+
+    #[tokio::test]
+    async fn anthropic_agent_sdk_headless_timeout_maps_to_provider_timeout() {
+        let registry = ProviderRegistry::new();
+        let error = registry
+            .complete(CompletionRequest {
+                model_provider: "anthropic".to_string(),
+                model_id: "claude-sonnet".to_string(),
+                input: "slow job".to_string(),
+                auth_profile: Some(ProviderAuthProfile {
+                    auth_profile_id: Some("p-headless-timeout".to_string()),
+                    auth_mode: AGENT_SDK_AUTH_MODE.to_string(),
+                    risk_level: "high".to_string(),
+                    api_base_url: None,
+                    credentials_json: serde_json::json!({
+                        "headless_command": "python3",
+                        "headless_args": [
+                            "-c",
+                            "import time;time.sleep(2);print('done')"
+                        ],
+                        "headless_timeout_ms": 1000
+                    })
+                    .to_string(),
+                }),
+            })
+            .await
+            .expect_err("expected headless timeout");
+
+        assert!(error
+            .to_string()
+            .contains("PROVIDER_ERROR:anthropic:TIMEOUT"));
     }
 
     #[tokio::test]

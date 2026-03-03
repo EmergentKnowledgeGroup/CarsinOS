@@ -17,6 +17,20 @@ cd "/Users/domusanimae/Documents/openclaw replacement/carsinos"
 CARSINOS_GATEWAY_TOKEN="change-me" cargo run -p carsinos-gateway
 ```
 
+## One-click local launch (gateway + Mission Control)
+
+```bash
+cd "/Users/domusanimae/Documents/openclaw replacement/carsinos"
+scripts/one_click_launch.sh
+```
+
+Notes:
+- Script prompts for a gateway token; press Enter to auto-generate one.
+- Gateway and UI ports auto-shift when busy in `--web` mode.
+- Use `scripts/one_click_launch.sh --tauri` for desktop mode (requires free port `1420`).
+- Finder double-click launcher: `scripts/one_click_launch.command` (desktop mode by default, with mode prompt).
+- Logs are written to `runtime/oneclick-state/logs/`.
+
 ## Test endpoint
 
 ```bash
