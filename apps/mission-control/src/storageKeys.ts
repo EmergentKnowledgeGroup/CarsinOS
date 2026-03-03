@@ -8,4 +8,6 @@ export const STORAGE_KEYS = {
   cockpitPagesV1: "mc-cockpit-pages-v1",
   cockpitPagesV2: "mc-cockpit-pages-v2",
   onboardingDismissedAtMs: "mc-onboarding-dismissed-at-ms",
+  guidedTourCompletedV1: "mc-guided-tour-completed-v1",
+  assistantCorePromptV1: "mc-assistant-core-prompt-v1",
 } as const;

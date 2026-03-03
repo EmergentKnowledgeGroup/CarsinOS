@@ -104,6 +104,59 @@ export interface UpdateAgentResponse {
   agent: Agent;
 }
 
+export interface SessionSummaryResponse {
+  session_id: string;
+  session_key: string;
+  agent_id: string;
+  title: string | null;
+  created_at: number;
+  updated_at: number;
+  closed_at: number | null;
+  message_count: number;
+  run_count: number;
+}
+
+export interface CreateSessionResponse {
+  session: SessionSummaryResponse;
+}
+
+export interface MessageResponse {
+  message_id: string;
+  session_id: string;
+  source_channel: string;
+  source_peer_id: string | null;
+  source_message_id: string | null;
+  role: string;
+  content_text: string;
+  content_format: string;
+  created_at: number;
+}
+
+export interface CreateMessageResponse {
+  message: MessageResponse;
+}
+
+export interface ListMessagesResponse {
+  items: MessageResponse[];
+}
+
+export interface RunResponse {
+  run_id: string;
+  session_id: string;
+  status: string;
+  model_provider: string;
+  model_id: string;
+  started_at: number | null;
+  ended_at: number | null;
+  error_text: string | null;
+  usage_json: string | null;
+  created_at: number;
+}
+
+export interface CreateRunResponse {
+  run: RunResponse;
+}
+
 export interface WsEventFrame {
   schema_version: string;
   event_id: string;

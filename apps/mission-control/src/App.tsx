@@ -1,6 +1,7 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppContent } from "./app/AppContent";
 import { AppShell } from "./app/AppShell";
+import { GuidedTourOverlay, type GuidedTourStep } from "./app/GuidedTourOverlay";
 import {
   useAppController,
   type EventStreamItem,
@@ -12,6 +13,7 @@ import {
   type BoardSummary,
 } from "./app/useRuntimeConnectionController";
 import { useAgentMailController } from "./features/agentMail/useAgentMailController";
+import { useAssistantChatController } from "./features/assistant/useAssistantChatController";
 import { useBoardsController } from "./features/boards/useBoardsController";
 import { useCockpitController } from "./features/cockpit/useCockpitController";
 import { OnboardingWizard } from "./features/onboarding/OnboardingWizard";
@@ -20,7 +22,84 @@ import { ToastStack } from "./ui/Toast";
 import { useToasts } from "./ui/useToasts";
 import type { Agent, WsEventFrame } from "./types";
 import { EVENT_STREAM_BUFFER_CAP, WS_MAX_RECONNECT_ATTEMPTS } from "./constants";
+import { STORAGE_KEYS } from "./storageKeys";
 import "./styles.css";
+
+interface GuidedTourStepDef extends GuidedTourStep {
+  tab?: ReturnType<typeof useAppController>["activeTab"];
+}
+
+const GUIDED_TOUR_STEPS: GuidedTourStepDef[] = [
+  {
+    id: "boards",
+    tab: "boards",
+    targetId: "nav-boards",
+    title: "Boards = task execution",
+    body: "Create cards, attach context, then click Run Card to execute model work.",
+  },
+  {
+    id: "calendar",
+    tab: "calendar",
+    targetId: "nav-calendar",
+    title: "Calendar = scheduling control",
+    body: "Use Calendar for run-now, pause/resume jobs, and recurring automation timing.",
+  },
+  {
+    id: "focus",
+    tab: "focus",
+    targetId: "nav-focus",
+    title: "Focus = incident triage",
+    body: "Approvals, breakers, and urgent operational items are surfaced here first.",
+  },
+  {
+    id: "mail",
+    tab: "mail",
+    targetId: "nav-mail",
+    title: "Mail = direct thread messaging",
+    body: "Mail supports structured threads, attachments, and acknowledgement flow.",
+  },
+  {
+    id: "rooms",
+    tab: "chatrooms",
+    targetId: "nav-chatrooms",
+    title: "Rooms = group coordination",
+    body: "Rooms are multi-party collaboration channels with shared context and handoffs.",
+  },
+  {
+    id: "assistant",
+    tab: "assistant",
+    targetId: "nav-assistant",
+    title: "Assistant = direct chat",
+    body: "Use this for direct prompt/response execution with selected agent, model, and system prompt.",
+  },
+  {
+    id: "team",
+    tab: "team",
+    targetId: "nav-team",
+    title: "Team = agent roster",
+    body: "Configure each agent's provider/model and tool profile so execution has ownership.",
+  },
+  {
+    id: "cockpit",
+    tab: "cockpit",
+    targetId: "nav-cockpit",
+    title: "Cockpit = custom ops dashboard",
+    body: "Build operation views with widgets for approvals, jobs, channels, and runtime health.",
+  },
+  {
+    id: "help",
+    tab: "help",
+    targetId: "nav-help-shortcut",
+    title: "Help/Docs = in-app knowledge base",
+    body: "This section explains each tab with examples and links back into live workflows.",
+  },
+  {
+    id: "command",
+    targetId: "topbar-command",
+    title: "Command palette",
+    body: "Use Cmd/Ctrl + K for fast navigation and actions without hunting through tabs.",
+  },
+];
 
 export default function App() {
   const {
@@ -55,6 +134,8 @@ export default function App() {
 
   const [boards, setBoards] = useState<BoardSummary[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [guidedTourOpen, setGuidedTourOpen] = useState(false);
+  const [guidedTourStep, setGuidedTourStep] = useState(0);
 
   const boardsController = useBoardsController({
     settings,
@@ -73,6 +154,13 @@ export default function App() {
     settings,
     agents,
     incidentMode: cockpitController.incidentMode,
+    setNotice,
+  });
+  const assistantController = useAssistantChatController({
+    settings,
+    tokenConfigured,
+    agents,
+    boards,
     setNotice,
   });
   const queueMissionControlRefresh = missionControl.queueMissionControlRefresh;
@@ -109,6 +197,52 @@ export default function App() {
     loadBaseline,
     setActiveTab,
   });
+
+  const openHelpDocs = useCallback(() => {
+    setActiveTab("help");
+  }, [setActiveTab]);
+
+  const openGuidedTour = useCallback(() => {
+    setGuidedTourStep(0);
+    setGuidedTourOpen(true);
+  }, []);
+
+  const closeGuidedTour = useCallback(() => {
+    setGuidedTourOpen(false);
+    try {
+      localStorage.setItem(STORAGE_KEYS.guidedTourCompletedV1, "true");
+    } catch {
+      // no-op in constrained environments
+    }
+  }, []);
+
+  useEffect(() => {
+    if (onboarding.isOpen) {
+      return;
+    }
+    let completed = false;
+    try {
+      completed = localStorage.getItem(STORAGE_KEYS.guidedTourCompletedV1) === "true";
+    } catch {
+      completed = false;
+    }
+    if (!completed) {
+      const timer = window.setTimeout(() => {
+        setGuidedTourOpen(true);
+      }, 0);
+      return () => window.clearTimeout(timer);
+    }
+  }, [onboarding.isOpen]);
+
+  useEffect(() => {
+    if (!guidedTourOpen) {
+      return;
+    }
+    const step = GUIDED_TOUR_STEPS[guidedTourStep];
+    if (step?.tab) {
+      setActiveTab(step.tab);
+    }
+  }, [guidedTourOpen, guidedTourStep, setActiveTab]);
 
   const visibleEvents = useMemo(
     () =>
@@ -187,6 +321,8 @@ export default function App() {
       onReconnect={reconnect}
       onClearToken={clearToken}
       onOpenSetupWizard={onboarding.openWizard}
+      onOpenHelpDocs={openHelpDocs}
+      onOpenGuidedTour={openGuidedTour}
       onRefresh={() => missionControl.queueMissionControlRefresh(settings)}
       notifications={notifications}
       onDismissNotification={dismissNotification}
@@ -199,12 +335,16 @@ export default function App() {
       <OnboardingWizard controller={onboarding} agents={agents} />
       <AppContent
         activeTab={activeTab}
+        onTabChange={setActiveTab}
+        onOpenHelpDocs={openHelpDocs}
+        onStartGuidedTour={openGuidedTour}
         settings={settings}
         boards={boards}
         agents={agents}
         boardsController={boardsController}
         missionControl={missionControl}
         mailController={mailController}
+        assistantController={assistantController}
         cockpitController={cockpitController}
         showRawEvents={showRawEvents}
         setShowRawEvents={setShowRawEvents}
@@ -212,6 +352,22 @@ export default function App() {
         setNotice={setNotice}
       />
     </AppShell>
+    <GuidedTourOverlay
+      open={guidedTourOpen}
+      steps={GUIDED_TOUR_STEPS}
+      stepIndex={guidedTourStep}
+      onPrev={() => setGuidedTourStep((value) => Math.max(0, value - 1))}
+      onNext={() => {
+        setGuidedTourStep((value) => {
+          if (value + 1 >= GUIDED_TOUR_STEPS.length) {
+            closeGuidedTour();
+            return value;
+          }
+          return value + 1;
+        });
+      }}
+      onClose={closeGuidedTour}
+    />
     <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </>
   );
