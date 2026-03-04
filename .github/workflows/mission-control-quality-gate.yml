@@ -1,0 +1,66 @@
+name: Mission Control Quality Gate
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/mission-control/**"
+      - "scripts/mission_control_quality_gate.py"
+      - "scripts/mission_control_e2e_placeholder.mjs"
+      - "runtime/quality-gate/**"
+      - ".github/workflows/mission-control-quality-gate.yml"
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "Quality gate profile"
+        required: true
+        default: "pr"
+        type: choice
+        options:
+          - pr
+          - release
+
+concurrency:
+  group: mission-control-quality-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  mission-control-quality-gate:
+    name: Mission Control Quality Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/mission-control/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: apps/mission-control
+        run: npm ci
+
+      - name: Run quality gate
+        run: |
+          set -euo pipefail
+          profile="pr"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            profile="${{ github.event.inputs.profile }}"
+          fi
+          python3 scripts/mission_control_quality_gate.py --profile "${profile}"
+
+      - name: Upload quality gate artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mission-control-quality-gate-${{ github.run_id }}
+          path: runtime/quality-gate/reports/
+          if-no-files-found: warn
