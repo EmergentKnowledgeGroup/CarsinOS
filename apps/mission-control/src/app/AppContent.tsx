@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { Fragment, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import type { NotifyFn } from "./useAppController";
 import { ChatroomsPage } from "../features/agentMail/ChatroomsPage";
 import { MailPage } from "../features/agentMail/MailPage";
@@ -136,7 +136,7 @@ function TabBoundaryPane({
         onResetScope={() => onResetTabState(tab)}
         onEnterSafeMode={onEnterSafeMode}
       >
-        <div key={`${tab}-${resetVersion}`}>{children}</div>
+        <Fragment key={`${tab}-${resetVersion}`}>{children}</Fragment>
       </AppErrorBoundary>
     </TabPane>
   );

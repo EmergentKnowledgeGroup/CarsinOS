@@ -19,7 +19,7 @@ export function nextCrashWindow(
   nowMs: number,
   windowMs: number
 ): CrashWindowState {
-  if (nowMs - previous.windowStartMs > windowMs) {
+  if (nowMs - previous.windowStartMs >= windowMs) {
     return {
       windowStartMs: nowMs,
       crashCount: 1,
@@ -51,7 +51,10 @@ export function buildErrorReport(
 
   const eventLines = events.slice(0, 10).map((event) => {
     const summary = eventSummary(event.event_type, event.payload) ?? "(no summary)";
-    return `${event.ts_unix_ms} ${event.event_type} ${event.entity} ${summary}`;
+    const safeType = redactSecrets(event.event_type);
+    const safeEntity = redactSecrets(event.entity);
+    const safeSummary = redactSecrets(summary);
+    return `${event.ts_unix_ms} ${safeType} ${safeEntity} ${safeSummary}`;
   });
 
   return [

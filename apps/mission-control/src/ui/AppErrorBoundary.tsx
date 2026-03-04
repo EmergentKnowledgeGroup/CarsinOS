@@ -119,6 +119,8 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
 
     const report = formatErrorText(this.props, this.state);
     const eventRows = (this.props.events ?? []).slice(0, 10);
+    const showResetAction =
+      this.props.scope === "tab" || (this.props.scope === "global" && Boolean(this.props.onResetScope));
 
     return (
       <section className="mc-crash-shell" role="alert">
@@ -131,9 +133,11 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
             <button type="button" className="ghost" onClick={this.retry}>
               Retry
             </button>
-            <button type="button" className="ghost" onClick={this.resetScope}>
-              {this.props.scope === "tab" ? "Reset tab state" : "Reset app state"}
-            </button>
+            {showResetAction ? (
+              <button type="button" className="ghost" onClick={this.resetScope}>
+                {this.props.scope === "tab" ? "Reset tab state" : "Reset app state"}
+              </button>
+            ) : null}
             <button type="button" className="ghost" onClick={this.reloadApp}>
               Reload app
             </button>
