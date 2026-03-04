@@ -1,4 +1,4 @@
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import type { NotifyFn } from "./useAppController";
 import { ChatroomsPage } from "../features/agentMail/ChatroomsPage";
 import { MailPage } from "../features/agentMail/MailPage";
@@ -21,6 +21,8 @@ import { TabHelpBanner } from "./TabHelpBanner";
 import type { EventStreamItem, MissionControlTab } from "./useAppController";
 import type { Agent, RuntimeConnectionSettings } from "../types";
 import type { BoardSummary } from "./useRuntimeConnectionController";
+import type { ErrorEventContext } from "../lib/errorRecovery";
+import { AppErrorBoundary } from "../ui/AppErrorBoundary";
 
 interface AppContentProps {
   activeTab: MissionControlTab;
@@ -38,6 +40,9 @@ interface AppContentProps {
   showRawEvents: boolean;
   setShowRawEvents: Dispatch<SetStateAction<boolean>>;
   visibleEvents: EventStreamItem[];
+  onResetTabState: (tab: MissionControlTab) => void;
+  onEnterSafeMode: (reason: string) => void;
+  tabResetVersion: Partial<Record<MissionControlTab, number>>;
   setNotice: NotifyFn;
 }
 
@@ -91,7 +96,7 @@ function TabPane({
   children,
 }: {
   active: boolean;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="mc-tab-pane" style={{ display: active ? "contents" : "none" }}>
@@ -100,13 +105,60 @@ function TabPane({
   );
 }
 
+function TabBoundaryPane({
+  tab,
+  active,
+  resetVersion,
+  title,
+  subtitle,
+  events,
+  onResetTabState,
+  onEnterSafeMode,
+  children,
+}: {
+  tab: MissionControlTab;
+  active: boolean;
+  resetVersion: number;
+  title: string;
+  subtitle: string;
+  events: readonly ErrorEventContext[];
+  onResetTabState: (tab: MissionControlTab) => void;
+  onEnterSafeMode: (reason: string) => void;
+  children: ReactNode;
+}) {
+  return (
+    <TabPane active={active}>
+      <AppErrorBoundary
+        scope="tab"
+        title={title}
+        subtitle={subtitle}
+        events={events}
+        onResetScope={() => onResetTabState(tab)}
+        onEnterSafeMode={onEnterSafeMode}
+      >
+        <div key={`${tab}-${resetVersion}`}>{children}</div>
+      </AppErrorBoundary>
+    </TabPane>
+  );
+}
+
 export function AppContent(props: AppContentProps) {
   const active = props.activeTab;
   const [editMode, setEditMode] = useState(false);
+  const tabEvents = props.visibleEvents.slice(0, 10);
 
   return (
     <>
-      <TabPane active={active === "boards"}>
+      <TabBoundaryPane
+        tab="boards"
+        active={active === "boards"}
+        resetVersion={props.tabResetVersion.boards ?? 0}
+        title="This tab crashed."
+        subtitle="Boards ran into an unexpected runtime error. Retry, reset this tab, or reload."
+        events={tabEvents}
+        onResetTabState={props.onResetTabState}
+        onEnterSafeMode={props.onEnterSafeMode}
+      >
         <TabHelpBanner
           tab="boards"
           onOpenDocs={props.onOpenHelpDocs}
@@ -134,9 +186,18 @@ export function AppContent(props: AppContentProps) {
           onPreviewAsset={props.boardsController.previewAsset}
           selectedPreviewUrl={props.boardsController.selectedPreviewUrl}
         />
-      </TabPane>
+      </TabBoundaryPane>
 
-      <TabPane active={active === "calendar"}>
+      <TabBoundaryPane
+        tab="calendar"
+        active={active === "calendar"}
+        resetVersion={props.tabResetVersion.calendar ?? 0}
+        title="This tab crashed."
+        subtitle="Calendar ran into an unexpected runtime error. Retry, reset this tab, or reload."
+        events={tabEvents}
+        onResetTabState={props.onResetTabState}
+        onEnterSafeMode={props.onEnterSafeMode}
+      >
         <TabHelpBanner
           tab="calendar"
           onOpenDocs={props.onOpenHelpDocs}
@@ -150,9 +211,18 @@ export function AppContent(props: AppContentProps) {
           onRunCalendarJobNow={props.missionControl.runCalendarJobNow}
           onToggleCalendarJob={props.missionControl.toggleCalendarJob}
         />
-      </TabPane>
+      </TabBoundaryPane>
 
-      <TabPane active={active === "focus"}>
+      <TabBoundaryPane
+        tab="focus"
+        active={active === "focus"}
+        resetVersion={props.tabResetVersion.focus ?? 0}
+        title="This tab crashed."
+        subtitle="Focus ran into an unexpected runtime error. Retry, reset this tab, or reload."
+        events={tabEvents}
+        onResetTabState={props.onResetTabState}
+        onEnterSafeMode={props.onEnterSafeMode}
+      >
         <TabHelpBanner
           tab="focus"
           onOpenDocs={props.onOpenHelpDocs}
@@ -166,9 +236,18 @@ export function AppContent(props: AppContentProps) {
           onRunCalendarJobNow={props.missionControl.runCalendarJobNow}
           onReconnectFocusChannel={props.missionControl.reconnectFocusChannel}
         />
-      </TabPane>
+      </TabBoundaryPane>
 
-      <TabPane active={active === "events"}>
+      <TabBoundaryPane
+        tab="events"
+        active={active === "events"}
+        resetVersion={props.tabResetVersion.events ?? 0}
+        title="This tab crashed."
+        subtitle="Events ran into an unexpected runtime error. Retry, reset this tab, or reload."
+        events={tabEvents}
+        onResetTabState={props.onResetTabState}
+        onEnterSafeMode={props.onEnterSafeMode}
+      >
         <TabHelpBanner
           tab="events"
           onOpenDocs={props.onOpenHelpDocs}
@@ -179,9 +258,18 @@ export function AppContent(props: AppContentProps) {
           onShowRawEventsChange={props.setShowRawEvents}
           visibleEvents={props.visibleEvents}
         />
-      </TabPane>
+      </TabBoundaryPane>
 
-      <TabPane active={active === "mail"}>
+      <TabBoundaryPane
+        tab="mail"
+        active={active === "mail"}
+        resetVersion={props.tabResetVersion.mail ?? 0}
+        title="This tab crashed."
+        subtitle="Mail ran into an unexpected runtime error. Retry, reset this tab, or reload."
+        events={tabEvents}
+        onResetTabState={props.onResetTabState}
+        onEnterSafeMode={props.onEnterSafeMode}
+      >
         <TabHelpBanner
           tab="mail"
           onOpenDocs={props.onOpenHelpDocs}
@@ -243,9 +331,18 @@ export function AppContent(props: AppContentProps) {
           leases={props.mailController.leases}
           onReleaseFileLease={props.mailController.releaseFileLease}
         />
-      </TabPane>
+      </TabBoundaryPane>
 
-      <TabPane active={active === "chatrooms"}>
+      <TabBoundaryPane
+        tab="chatrooms"
+        active={active === "chatrooms"}
+        resetVersion={props.tabResetVersion.chatrooms ?? 0}
+        title="This tab crashed."
+        subtitle="Chatrooms ran into an unexpected runtime error. Retry, reset this tab, or reload."
+        events={tabEvents}
+        onResetTabState={props.onResetTabState}
+        onEnterSafeMode={props.onEnterSafeMode}
+      >
         <TabHelpBanner
           tab="chatrooms"
           onOpenDocs={props.onOpenHelpDocs}
@@ -293,9 +390,18 @@ export function AppContent(props: AppContentProps) {
           leases={props.mailController.leases}
           onReleaseFileLease={props.mailController.releaseFileLease}
         />
-      </TabPane>
+      </TabBoundaryPane>
 
-      <TabPane active={active === "assistant"}>
+      <TabBoundaryPane
+        tab="assistant"
+        active={active === "assistant"}
+        resetVersion={props.tabResetVersion.assistant ?? 0}
+        title="This tab crashed."
+        subtitle="Assistant ran into an unexpected runtime error. Retry, reset this tab, or reload."
+        events={tabEvents}
+        onResetTabState={props.onResetTabState}
+        onEnterSafeMode={props.onEnterSafeMode}
+      >
         <TabHelpBanner
           tab="assistant"
           onOpenDocs={props.onOpenHelpDocs}
@@ -307,9 +413,18 @@ export function AppContent(props: AppContentProps) {
           onTabChange={props.onTabChange}
           controller={props.assistantController}
         />
-      </TabPane>
+      </TabBoundaryPane>
 
-      <TabPane active={active === "team"}>
+      <TabBoundaryPane
+        tab="team"
+        active={active === "team"}
+        resetVersion={props.tabResetVersion.team ?? 0}
+        title="This tab crashed."
+        subtitle="Team ran into an unexpected runtime error. Retry, reset this tab, or reload."
+        events={tabEvents}
+        onResetTabState={props.onResetTabState}
+        onEnterSafeMode={props.onEnterSafeMode}
+      >
         <TabHelpBanner
           tab="team"
           onOpenDocs={props.onOpenHelpDocs}
@@ -321,9 +436,18 @@ export function AppContent(props: AppContentProps) {
           settings={props.settings}
           onRefresh={() => props.missionControl.queueMissionControlRefresh(props.settings)}
         />
-      </TabPane>
+      </TabBoundaryPane>
 
-      <TabPane active={active === "cockpit"}>
+      <TabBoundaryPane
+        tab="cockpit"
+        active={active === "cockpit"}
+        resetVersion={props.tabResetVersion.cockpit ?? 0}
+        title="This tab crashed."
+        subtitle="Cockpit ran into an unexpected runtime error. Retry, reset this tab, or reload."
+        events={tabEvents}
+        onResetTabState={props.onResetTabState}
+        onEnterSafeMode={props.onEnterSafeMode}
+      >
         <TabHelpBanner
           tab="cockpit"
           onOpenDocs={props.onOpenHelpDocs}
@@ -359,11 +483,20 @@ export function AppContent(props: AppContentProps) {
           renderCockpitWidget={(widget) => renderCockpitWidget(widget, props)}
           settings={props.settings}
         />
-      </TabPane>
+      </TabBoundaryPane>
 
-      <TabPane active={active === "help"}>
+      <TabBoundaryPane
+        tab="help"
+        active={active === "help"}
+        resetVersion={props.tabResetVersion.help ?? 0}
+        title="This tab crashed."
+        subtitle="Help/Docs ran into an unexpected runtime error. Retry, reset this tab, or reload."
+        events={tabEvents}
+        onResetTabState={props.onResetTabState}
+        onEnterSafeMode={props.onEnterSafeMode}
+      >
         <HelpDocsPage onOpenTab={props.onTabChange} onStartTour={props.onStartGuidedTour} />
-      </TabPane>
+      </TabBoundaryPane>
     </>
   );
 }

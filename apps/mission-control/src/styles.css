@@ -6006,3 +6006,67 @@ button.danger:hover {
     grid-template-columns: 1fr;
   }
 }
+
+.mc-crash-shell {
+  min-height: clamp(320px, 52vh, 640px);
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+}
+
+.mc-crash-card {
+  width: min(980px, 96%);
+  background: color-mix(in srgb, var(--surface) 93%, #ffffff 7%);
+  border: 1px solid color-mix(in srgb, var(--danger) 28%, var(--line-soft));
+  border-radius: 18px;
+  padding: var(--space-4);
+  display: grid;
+  gap: var(--space-2);
+  box-shadow: 0 20px 60px rgba(6, 10, 28, 0.35);
+}
+
+.mc-safe-mode-card {
+  border-color: color-mix(in srgb, var(--focus) 45%, var(--line-soft));
+}
+
+.mc-crash-label {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.mc-crash-card h2,
+.mc-crash-card p {
+  margin: 0;
+}
+
+.mc-crash-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.mc-crash-feedback {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.mc-crash-events {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.mc-crash-details {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--line-soft);
+  border-radius: 12px;
+  padding: var(--space-2);
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+}
