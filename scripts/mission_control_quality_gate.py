@@ -105,8 +105,22 @@ def run_step(step: dict[str, Any], repo_root: Path, log_handle, active_blockers:
 
     cwd_rel = str(step.get("cwd", ".")).strip() or "."
     cwd = (repo_root / cwd_rel).resolve()
+    try:
+        cwd.relative_to(repo_root)
+    except ValueError as error:
+        raise ValueError(f"step '{step_id}' cwd is invalid: {cwd_rel}") from error
     if not cwd.exists() or not cwd.is_dir():
         raise ValueError(f"step '{step_id}' cwd is invalid: {cwd_rel}")
+
+    timeout_raw = step.get("timeout_sec")
+    timeout_sec: float | None = None
+    if timeout_raw is not None:
+        try:
+            timeout_sec = float(timeout_raw)
+        except (TypeError, ValueError) as error:
+            raise ValueError(f"step '{step_id}' timeout_sec must be a number > 0") from error
+        if timeout_sec <= 0:
+            raise ValueError(f"step '{step_id}' timeout_sec must be a number > 0")
 
     blocked_by_raw = step.get("blocked_by", [])
     if blocked_by_raw is None:
@@ -148,11 +162,42 @@ def run_step(step: dict[str, Any], repo_root: Path, log_handle, active_blockers:
         text=True,
         bufsize=1,
     )
-    assert proc.stdout is not None
-    for line in proc.stdout:
-        print(line, end="")
-        print(line, end="", file=log_handle)
-    code = proc.wait()
+    try:
+        output_text, _ = proc.communicate(timeout=timeout_sec)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        output_text, _ = proc.communicate()
+        if output_text:
+            for line in output_text.splitlines(keepends=True):
+                print(line, end="")
+                print(line, end="", file=log_handle)
+        duration_ms = int((perf_counter() - start) * 1000)
+        tail = (
+            f"FAIL  {step_id} timeout after {timeout_sec}s ({duration_ms}ms)"
+            if timeout_sec is not None
+            else f"FAIL  {step_id} timeout ({duration_ms}ms)"
+        )
+        print(tail)
+        print(tail, file=log_handle)
+        return StepResult(
+            step_id=step_id,
+            status="FAIL",
+            command=command,
+            cwd=str(cwd),
+            blocked_by=[],
+            blocker_reason=None,
+            return_code=124,
+            duration_ms=duration_ms,
+        )
+
+    if output_text:
+        for line in output_text.splitlines(keepends=True):
+            print(line, end="")
+            print(line, end="", file=log_handle)
+
+    code = proc.returncode
+    if code is None:
+        code = 1
 
     duration_ms = int((perf_counter() - start) * 1000)
     if code == 0:

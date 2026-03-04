@@ -52,10 +52,14 @@ jobs:
         run: |
           set -euo pipefail
           profile="pr"
+          extra_args=()
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             profile="${{ github.event.inputs.profile }}"
           fi
-          python3 scripts/mission_control_quality_gate.py --profile "${profile}"
+          if [[ "${profile}" == "release" ]]; then
+            extra_args+=(--fail-on-blocked)
+          fi
+          python3 scripts/mission_control_quality_gate.py --profile "${profile}" "${extra_args[@]}"
 
       - name: Upload quality gate artifacts
         uses: actions/upload-artifact@v4

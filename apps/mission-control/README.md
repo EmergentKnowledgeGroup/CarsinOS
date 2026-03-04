@@ -10,6 +10,7 @@ Mission Control is the CarsinOS operator UI built with React + TypeScript + Vite
 - `npm run lint` - ESLint
 - `npm run test:unit` - Vitest unit suite
 - `npm run quality:gate` - run Mission Control quality gate (`pr` profile)
+- `npm run quality:gate:pr` - run Mission Control quality gate (`pr` profile)
 - `npm run quality:gate:release` - run Mission Control quality gate (`release` profile)
 - `npm run tauri:dev` - run desktop app in Tauri dev mode
 
