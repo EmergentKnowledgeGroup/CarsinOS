@@ -4,6 +4,7 @@ import { EmptyState } from "../../ui/EmptyState";
 import { Pagination } from "../../ui/Pagination";
 import { Surface } from "../../ui/Surface";
 import { usePagination } from "../../ui/usePagination";
+import { eventDomain, eventSummary, redactEventPayload } from "../../lib/eventStream";
 
 export interface EventsPageEventItem {
   event_id: string;
@@ -32,11 +33,6 @@ const DOMAIN_FILTERS: { id: DomainFilter; label: string }[] = [
   { id: "agent_mail", label: "Mail" },
 ];
 
-function eventDomain(eventType: string): string {
-  const dot = eventType.indexOf(".");
-  return dot > 0 ? eventType.slice(0, dot) : eventType;
-}
-
 /** Color-code left border by event domain */
 function domainTone(domain: string): string {
   switch (domain) {
@@ -50,29 +46,13 @@ function domainTone(domain: string): string {
   }
 }
 
-/** Extract a human-readable summary from the event payload */
-function eventSummary(eventType: string, payload: Record<string, unknown>): string | null {
-  if (eventType.startsWith("board.card.")) {
-    const action = eventType.split(".").pop();
-    const title = payload.title ?? payload.card_id ?? "";
-    return `Card ${action}: ${title}`;
-  }
-  if (eventType.startsWith("job.")) {
-    const jobId = payload.job_id ?? payload.agent_id ?? "";
-    return `${jobId}`;
-  }
-  if (eventType.startsWith("approval.")) {
-    const decision = payload.decision ?? payload.status ?? "";
-    return `${decision}`;
-  }
-  return null;
-}
 
 function EventItem({ event }: { event: EventsPageEventItem }) {
   const [expanded, setExpanded] = useState(false);
   const domain = eventDomain(event.event_type);
   const tone = domainTone(domain);
   const summary = eventSummary(event.event_type, event.payload);
+  const redactedPayload = useMemo(() => redactEventPayload(event.payload), [event.payload]);
   const payloadId = `mc-event-payload-${event.event_id}`;
 
   return (
@@ -94,7 +74,7 @@ function EventItem({ event }: { event: EventsPageEventItem }) {
       </div>
       {expanded ? (
         <pre id={payloadId} className="mc-event-payload" aria-hidden={!expanded}>
-          {JSON.stringify(event.payload, null, 2)}
+          {JSON.stringify(redactedPayload, null, 2)}
         </pre>
       ) : null}
     </article>
