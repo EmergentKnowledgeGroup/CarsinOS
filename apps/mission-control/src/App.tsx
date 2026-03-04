@@ -22,6 +22,7 @@ import { ToastStack } from "./ui/Toast";
 import { useToasts } from "./ui/useToasts";
 import type { Agent, WsEventFrame } from "./types";
 import { EVENT_STREAM_BUFFER_CAP, WS_MAX_RECONNECT_ATTEMPTS } from "./constants";
+import { filterVisibleEvents } from "./lib/eventStream";
 import { STORAGE_KEYS } from "./storageKeys";
 import "./styles.css";
 
@@ -245,10 +246,7 @@ export default function App() {
   }, [guidedTourOpen, guidedTourStep, setActiveTab]);
 
   const visibleEvents = useMemo(
-    () =>
-      showRawEvents
-        ? eventStream
-        : eventStream.filter((event) => !event.event_type.startsWith("heartbeat.")),
+    () => filterVisibleEvents(eventStream, showRawEvents),
     [eventStream, showRawEvents]
   );
 
