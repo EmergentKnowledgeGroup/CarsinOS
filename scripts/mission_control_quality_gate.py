@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shlex
+import signal
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -112,15 +114,13 @@ def run_step(step: dict[str, Any], repo_root: Path, log_handle, active_blockers:
     if not cwd.exists() or not cwd.is_dir():
         raise ValueError(f"step '{step_id}' cwd is invalid: {cwd_rel}")
 
-    timeout_raw = step.get("timeout_sec")
-    timeout_sec: float | None = None
-    if timeout_raw is not None:
-        try:
-            timeout_sec = float(timeout_raw)
-        except (TypeError, ValueError) as error:
-            raise ValueError(f"step '{step_id}' timeout_sec must be a number > 0") from error
-        if timeout_sec <= 0:
-            raise ValueError(f"step '{step_id}' timeout_sec must be a number > 0")
+    timeout_raw = step.get("timeout_sec", 300)
+    try:
+        timeout_sec = float(timeout_raw)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"step '{step_id}' timeout_sec must be a number > 0") from error
+    if timeout_sec <= 0:
+        raise ValueError(f"step '{step_id}' timeout_sec must be a number > 0")
 
     blocked_by_raw = step.get("blocked_by", [])
     if blocked_by_raw is None:
@@ -161,12 +161,27 @@ def run_step(step: dict[str, Any], repo_root: Path, log_handle, active_blockers:
         stderr=subprocess.STDOUT,
         text=True,
         bufsize=1,
+        start_new_session=True,
     )
     try:
         output_text, _ = proc.communicate(timeout=timeout_sec)
     except subprocess.TimeoutExpired:
-        proc.kill()
-        output_text, _ = proc.communicate()
+        if os.name == "posix":
+            try:
+                os.killpg(proc.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+            try:
+                output_text, _ = proc.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(proc.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                output_text, _ = proc.communicate()
+        else:
+            proc.kill()
+            output_text, _ = proc.communicate()
         if output_text:
             for line in output_text.splitlines(keepends=True):
                 print(line, end="")
