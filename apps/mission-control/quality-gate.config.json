@@ -1,0 +1,68 @@
+{
+  "schema": "carsinos.mission_control_quality_gate.v1",
+  "active_blockers": [
+    "BLK-01",
+    "BLK-02"
+  ],
+  "profiles": {
+    "pr": {
+      "description": "PR merge gate for Mission Control",
+      "steps": [
+        {
+          "id": "mc-lint",
+          "cwd": "apps/mission-control",
+          "command": ["npm", "run", "lint"]
+        },
+        {
+          "id": "mc-typecheck",
+          "cwd": "apps/mission-control",
+          "command": ["npm", "run", "typecheck"]
+        },
+        {
+          "id": "mc-unit",
+          "cwd": "apps/mission-control",
+          "command": ["npm", "run", "test:unit"]
+        },
+        {
+          "id": "mc-e2e-core",
+          "cwd": "apps/mission-control",
+          "command": ["npm", "run", "test:e2e:core"],
+          "blocked_by": ["BLK-01"],
+          "blocker_reason": "Deterministic stub gateway + websocket harness (P1-02) not finalized yet."
+        },
+        {
+          "id": "mc-build-web",
+          "cwd": "apps/mission-control",
+          "command": ["npm", "run", "build"]
+        }
+      ]
+    },
+    "release": {
+      "description": "Release gate for Mission Control",
+      "extends": "pr",
+      "steps": [
+        {
+          "id": "mc-e2e-full",
+          "cwd": "apps/mission-control",
+          "command": ["npm", "run", "test:e2e:full"],
+          "blocked_by": ["BLK-01"],
+          "blocker_reason": "Full deterministic E2E suite (P1-02/P1-04) not finalized yet."
+        },
+        {
+          "id": "mc-e2e-tauri-smoke",
+          "cwd": "apps/mission-control",
+          "command": ["npm", "run", "test:e2e:tauri-smoke"],
+          "blocked_by": ["BLK-02"],
+          "blocker_reason": "Desktop CI/Tauri smoke runtime chain (P1-07) not finalized yet."
+        },
+        {
+          "id": "mc-build-tauri",
+          "cwd": "apps/mission-control",
+          "command": ["npm", "run", "tauri:build"],
+          "blocked_by": ["BLK-02"],
+          "blocker_reason": "Desktop CI/Tauri packaging lane (P1-07) not finalized yet."
+        }
+      ]
+    }
+  }
+}

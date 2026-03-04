@@ -8,7 +8,13 @@ Mission Control is the CarsinOS operator UI built with React + TypeScript + Vite
 - `npm run build` - typecheck + production bundle
 - `npm run typecheck` - TypeScript project check
 - `npm run lint` - ESLint
+- `npm run test:unit` - Vitest unit suite
+- `npm run quality:gate` - run Mission Control quality gate (`pr` profile)
+- `npm run quality:gate:release` - run Mission Control quality gate (`release` profile)
 - `npm run tauri:dev` - run desktop app in Tauri dev mode
+
+Quality gate profiles are config-driven via [`quality-gate.config.json`](./quality-gate.config.json).  
+Current unresolved blocker IDs (`BLK-01`, `BLK-02`) are explicitly represented there and suppress blocked E2E/Tauri steps until those blockers are cleared.
 
 ## Onboarding Wizard
 
