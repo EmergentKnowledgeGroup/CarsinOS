@@ -15,6 +15,7 @@ Mission Control is the CarsinOS operator UI built with React + TypeScript + Vite
 - `npm run quality:acceptance:p1` - validate Section 7 `[P1]` acceptance matrix coverage
 - `npm run quality:acceptance:p2` - validate Section 7 `[P2]` acceptance matrix coverage
 - `npm run quality:acceptance:p3` - validate Section 7 `[P3]` acceptance matrix coverage
+- `npm run quality:acceptance:p4` - validate Section 7 `[P4]` acceptance matrix coverage
 - `npm run quality:gate` - run Mission Control quality gate (`pr` profile)
 - `npm run quality:gate:pr` - run Mission Control quality gate (`pr` profile)
 - `npm run quality:gate:release` - run Mission Control quality gate (`release` profile)

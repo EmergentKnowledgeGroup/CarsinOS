@@ -55,7 +55,12 @@ use carsinos_protocol::{
     ListSkillsResponse, ListToolCapabilitiesQuery, ListToolCapabilitiesResponse, MessageResponse,
     MetricsResponse, MissionControlCalendarWeekJobResponse, MissionControlCalendarWeekQuery,
     MissionControlCalendarWeekResponse, MissionControlFocusItemResponse, MissionControlFocusQuery,
-    MissionControlFocusResponse, MoveBoardCardRequest, MoveBoardCardResponse, NoteResponse,
+    MissionControlFocusResponse, MissionControlUsageBudgetThresholdResponse,
+    MissionControlUsageByAgentResponse, MissionControlUsageByCardResponse,
+    MissionControlUsageByJobResponse, MissionControlUsageByModelResponse,
+    MissionControlUsageByProviderResponse, MissionControlUsageByTimeResponse,
+    MissionControlUsageQuery, MissionControlUsageResponse, MoveBoardCardRequest,
+    MoveBoardCardResponse, NoteResponse,
     NumquamIntegrationStatusResponse, OpenAiOauthFinishRequest, OpenAiOauthFinishResponse,
     OpenAiOauthStartRequest, OpenAiOauthStartResponse, PluginArtifactResponse,
     PluginCapabilityResponse, PluginCompatibilityResponse, PluginLimitsResponse,
@@ -6587,6 +6592,7 @@ fn build_app(state: AppState) -> Router {
             "/api/v1/mission-control/calendar/week",
             get(mission_control_calendar_week),
         )
+        .route("/api/v1/mission-control/usage", get(mission_control_usage))
         .route("/api/v1/mission-control/focus", get(mission_control_focus))
         .route(
             "/api/v1/agent-mail/threads",
@@ -11643,6 +11649,435 @@ fn mission_control_calendar_job_from_record(
     }
 }
 
+const MISSION_CONTROL_USAGE_CONTRACT_VERSION: &str = "mc-usage-v1";
+const MISSION_CONTROL_USAGE_MAX_SAMPLE_ROWS: u32 = 50_000;
+
+#[derive(Debug, Clone, Copy, Default)]
+struct UsageAggregate {
+    estimated_cost_total: f64,
+    token_input_total: u64,
+    token_output_total: u64,
+}
+
+impl UsageAggregate {
+    fn add(&mut self, input_tokens: u64, output_tokens: u64, estimated_cost_usd: f64) {
+        self.token_input_total = self.token_input_total.saturating_add(input_tokens);
+        self.token_output_total = self.token_output_total.saturating_add(output_tokens);
+        self.estimated_cost_total += estimated_cost_usd.max(0.0);
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ParsedRunUsageMetrics {
+    input_tokens: u64,
+    output_tokens: u64,
+    estimated_cost_usd: Option<f64>,
+}
+
+fn parse_non_negative_u64(value: Option<&serde_json::Value>) -> Option<u64> {
+    match value {
+        Some(serde_json::Value::Number(number)) => {
+            if let Some(v) = number.as_u64() {
+                Some(v)
+            } else {
+                number
+                    .as_i64()
+                    .and_then(|v| if v >= 0 { Some(v as u64) } else { None })
+            }
+        }
+        _ => None,
+    }
+}
+
+fn parse_non_negative_f64(value: Option<&serde_json::Value>) -> Option<f64> {
+    match value {
+        Some(serde_json::Value::Number(number)) => number.as_f64().filter(|v| *v >= 0.0),
+        _ => None,
+    }
+}
+
+fn parse_run_usage_metrics(usage_json: &str) -> AnyResult<ParsedRunUsageMetrics> {
+    let payload: serde_json::Value = serde_json::from_str(usage_json)
+        .context("run usage_json must be valid JSON")?;
+    let provider = payload
+        .get("provider")
+        .and_then(|value| value.as_object())
+        .context("run usage_json provider section missing")?;
+    Ok(ParsedRunUsageMetrics {
+        input_tokens: parse_non_negative_u64(provider.get("input_tokens")).unwrap_or(0),
+        output_tokens: parse_non_negative_u64(provider.get("output_tokens")).unwrap_or(0),
+        estimated_cost_usd: parse_non_negative_f64(provider.get("estimated_cost_usd")),
+    })
+}
+
+fn mission_control_day_start_ms(now_ms: i64, tz_offset_minutes: Option<i32>) -> i64 {
+    let tz_offset_seconds = i64::from(tz_offset_minutes.unwrap_or(0)).saturating_mul(60);
+    let local_seconds = now_ms
+        .saturating_div(1000)
+        .saturating_add(tz_offset_seconds);
+    let local_dt = DateTime::<Utc>::from_timestamp(local_seconds, 0).unwrap_or_else(Utc::now);
+    let local_date = local_dt.date_naive();
+    let day_start_local_ms = local_date
+        .and_hms_opt(0, 0, 0)
+        .map(|value| value.and_utc().timestamp_millis())
+        .unwrap_or(now_ms);
+    day_start_local_ms.saturating_sub(tz_offset_seconds.saturating_mul(1000))
+}
+
+fn resolve_mission_control_usage_window(
+    now_ms: i64,
+    query: &MissionControlUsageQuery,
+) -> std::result::Result<(String, i64, i64, String), (StatusCode, Json<ApiError>)> {
+    let timezone = query
+        .timezone
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "UTC".to_string());
+    let explicit_start = query.window_start_ms;
+    let explicit_end = query.window_end_ms;
+    match (explicit_start, explicit_end) {
+        (Some(start_ms), Some(end_ms)) => {
+            if end_ms <= start_ms {
+                return Err(api_error(
+                    StatusCode::BAD_REQUEST,
+                    "window_end_ms must be greater than window_start_ms",
+                ));
+            }
+            let span_ms = end_ms.saturating_sub(start_ms);
+            let max_span_ms = 31_i64
+                .saturating_mul(24)
+                .saturating_mul(60)
+                .saturating_mul(60_000);
+            if span_ms > max_span_ms {
+                return Err(api_error(
+                    StatusCode::BAD_REQUEST,
+                    "usage window exceeds maximum 31-day span",
+                ));
+            }
+            Ok(("custom".to_string(), start_ms, end_ms, timezone))
+        }
+        (Some(_), None) | (None, Some(_)) => Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "window_start_ms and window_end_ms must be provided together",
+        )),
+        (None, None) => {
+            let window = query
+                .window
+                .as_ref()
+                .map(|value| value.trim().to_ascii_lowercase())
+                .filter(|value| !value.is_empty())
+                .unwrap_or_else(|| "week".to_string());
+            let (start_ms, end_ms) = match window.as_str() {
+                "today" => {
+                    let start = mission_control_day_start_ms(now_ms, query.tz_offset_minutes);
+                    (start, start.saturating_add(24 * 60 * 60_000))
+                }
+                "week" => {
+                    let start = mission_control_week_start_ms(now_ms, None, query.tz_offset_minutes);
+                    (start, start.saturating_add(7 * 24 * 60 * 60_000))
+                }
+                _ => {
+                    return Err(api_error(
+                        StatusCode::BAD_REQUEST,
+                        "window must be one of: today, week, or explicit window_start_ms/window_end_ms",
+                    ))
+                }
+            };
+            Ok((window, start_ms, end_ms, timezone))
+        }
+    }
+}
+
+fn usage_bucket_spec(window: &str, window_start_ms: i64, window_end_ms: i64) -> (usize, i64) {
+    match window {
+        "today" => (24, 60 * 60_000),
+        "week" => (7, 24 * 60 * 60_000),
+        _ => {
+            let bucket_count = 12usize;
+            let span = window_end_ms.saturating_sub(window_start_ms).max(1);
+            let bucket_ms = (span / bucket_count as i64).max(1);
+            (bucket_count, bucket_ms)
+        }
+    }
+}
+
+fn utc_from_ms(ms: i64) -> DateTime<Utc> {
+    DateTime::<Utc>::from_timestamp_millis(ms).unwrap_or_else(Utc::now)
+}
+
+fn mission_control_usage_unavailable(
+    window: &str,
+    timezone: &str,
+    reason_code: &str,
+    detail: &str,
+) -> MissionControlUsageResponse {
+    MissionControlUsageResponse {
+        contract_version: MISSION_CONTROL_USAGE_CONTRACT_VERSION.to_string(),
+        available: false,
+        window: window.to_string(),
+        timezone: timezone.to_string(),
+        currency: "USD".to_string(),
+        window_start_utc: None,
+        window_end_utc: None,
+        estimated_cost_total: None,
+        token_input_total: None,
+        token_output_total: None,
+        by_agent: None,
+        by_model: None,
+        by_provider: None,
+        by_time: None,
+        by_job: None,
+        by_card: None,
+        budget_thresholds: None,
+        updated_at_utc: None,
+        reason_code: Some(reason_code.to_string()),
+        detail: Some(detail.to_string()),
+    }
+}
+
+fn build_mission_control_usage_response(
+    state: &AppState,
+    window: &str,
+    timezone: &str,
+    window_start_ms: i64,
+    window_end_ms: i64,
+) -> AnyResult<MissionControlUsageResponse> {
+    let runtime_config = load_runtime_config(state)?;
+    let samples = state.storage.list_run_usage_samples_between(
+        window_start_ms,
+        window_end_ms,
+        MISSION_CONTROL_USAGE_MAX_SAMPLE_ROWS,
+    )?;
+    let (bucket_count, bucket_ms) = usage_bucket_spec(window, window_start_ms, window_end_ms);
+    let mut by_time = vec![UsageAggregate::default(); bucket_count];
+    let mut by_agent: HashMap<String, (String, UsageAggregate)> = HashMap::new();
+    let mut by_model: HashMap<String, ((String, String), UsageAggregate)> = HashMap::new();
+    let mut by_provider: HashMap<String, (String, UsageAggregate)> = HashMap::new();
+    let mut total = UsageAggregate::default();
+    let mut valid_rows = 0u64;
+    let mut invalid_rows = 0u64;
+    let mut latest_sample_ms = 0i64;
+
+    for sample in samples {
+        let parsed = match parse_run_usage_metrics(&sample.usage_json) {
+            Ok(value) => value,
+            Err(err) => {
+                invalid_rows = invalid_rows.saturating_add(1);
+                debug!(
+                    run_id = %sample.run_id,
+                    error = %err,
+                    "skipping run usage row with invalid usage_json payload"
+                );
+                continue;
+            }
+        };
+        let total_tokens = parsed.input_tokens.saturating_add(parsed.output_tokens);
+        let estimated_cost_usd = parsed.estimated_cost_usd.unwrap_or_else(|| {
+            let policy = lookup_runtime_provider_policy(&runtime_config, &sample.model_provider);
+            match policy.and_then(|item| item.usd_per_1k_tokens) {
+                Some(rate) => (total_tokens as f64 / 1000.0) * rate,
+                None => 0.0,
+            }
+        });
+
+        valid_rows = valid_rows.saturating_add(1);
+        latest_sample_ms = latest_sample_ms.max(sample.sample_ts_ms);
+        total.add(parsed.input_tokens, parsed.output_tokens, estimated_cost_usd);
+
+        let agent_entry = by_agent
+            .entry(sample.agent_id.clone())
+            .or_insert_with(|| (sample.agent_name.clone(), UsageAggregate::default()));
+        agent_entry
+            .1
+            .add(parsed.input_tokens, parsed.output_tokens, estimated_cost_usd);
+
+        let model_key = format!("{}::{}", sample.model_provider, sample.model_id);
+        let model_entry = by_model.entry(model_key).or_insert_with(|| {
+            (
+                (sample.model_provider.clone(), sample.model_id.clone()),
+                UsageAggregate::default(),
+            )
+        });
+        model_entry
+            .1
+            .add(parsed.input_tokens, parsed.output_tokens, estimated_cost_usd);
+
+        let provider_key = sample.model_provider.to_ascii_lowercase();
+        let provider_entry = by_provider
+            .entry(provider_key)
+            .or_insert_with(|| (sample.model_provider.clone(), UsageAggregate::default()));
+        provider_entry
+            .1
+            .add(parsed.input_tokens, parsed.output_tokens, estimated_cost_usd);
+
+        if bucket_count > 0 {
+            let relative_ms = sample
+                .sample_ts_ms
+                .saturating_sub(window_start_ms)
+                .max(0);
+            let mut idx = (relative_ms / bucket_ms) as usize;
+            if idx >= bucket_count {
+                idx = bucket_count - 1;
+            }
+            by_time[idx].add(parsed.input_tokens, parsed.output_tokens, estimated_cost_usd);
+        }
+    }
+
+    if valid_rows == 0 && invalid_rows > 0 {
+        return Ok(mission_control_usage_unavailable(
+            window,
+            timezone,
+            "INVALID_USAGE_DATA",
+            "Usage metrics are present but could not be parsed safely.",
+        ));
+    }
+
+    let mut by_agent_items = by_agent
+        .into_iter()
+        .map(|(agent_id, (agent_name, totals))| MissionControlUsageByAgentResponse {
+            agent_id,
+            agent_name,
+            estimated_cost_total: totals.estimated_cost_total,
+            token_input_total: totals.token_input_total,
+            token_output_total: totals.token_output_total,
+        })
+        .collect::<Vec<_>>();
+    by_agent_items.sort_by(|left, right| {
+        right
+            .estimated_cost_total
+            .partial_cmp(&left.estimated_cost_total)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| left.agent_name.cmp(&right.agent_name))
+    });
+
+    let mut by_model_items = by_model
+        .into_iter()
+        .map(
+            |(_, ((model_provider, model_id), totals))| MissionControlUsageByModelResponse {
+                model_provider,
+                model_id,
+                estimated_cost_total: totals.estimated_cost_total,
+                token_input_total: totals.token_input_total,
+                token_output_total: totals.token_output_total,
+            },
+        )
+        .collect::<Vec<_>>();
+    by_model_items.sort_by(|left, right| {
+        right
+            .estimated_cost_total
+            .partial_cmp(&left.estimated_cost_total)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| left.model_provider.cmp(&right.model_provider))
+            .then_with(|| left.model_id.cmp(&right.model_id))
+    });
+
+    let mut by_provider_items = by_provider
+        .into_iter()
+        .map(
+            |(_, (provider, totals))| MissionControlUsageByProviderResponse {
+                provider,
+                estimated_cost_total: totals.estimated_cost_total,
+                token_input_total: totals.token_input_total,
+                token_output_total: totals.token_output_total,
+            },
+        )
+        .collect::<Vec<_>>();
+    by_provider_items.sort_by(|left, right| {
+        right
+            .estimated_cost_total
+            .partial_cmp(&left.estimated_cost_total)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| left.provider.cmp(&right.provider))
+    });
+
+    let by_time_items = (0..bucket_count)
+        .map(|index| {
+            let start_ms = window_start_ms.saturating_add((index as i64).saturating_mul(bucket_ms));
+            let end_ms = (start_ms.saturating_add(bucket_ms)).min(window_end_ms);
+            let totals = by_time[index];
+            MissionControlUsageByTimeResponse {
+                bucket_start_utc: utc_from_ms(start_ms),
+                bucket_end_utc: utc_from_ms(end_ms),
+                estimated_cost_total: totals.estimated_cost_total,
+                token_input_total: totals.token_input_total,
+                token_output_total: totals.token_output_total,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let mut budget_thresholds = Vec::new();
+    for provider in &runtime_config.providers {
+        if provider.daily_token_budget.is_none() && provider.daily_cost_usd_budget.is_none() {
+            continue;
+        }
+        let usage = by_provider_items
+            .iter()
+            .find(|item| item.provider.eq_ignore_ascii_case(&provider.provider))
+            .cloned()
+            .unwrap_or(MissionControlUsageByProviderResponse {
+                provider: provider.provider.clone(),
+                estimated_cost_total: 0.0,
+                token_input_total: 0,
+                token_output_total: 0,
+            });
+        let token_usage_total = usage
+            .token_input_total
+            .saturating_add(usage.token_output_total);
+        let token_ratio = provider.daily_token_budget.and_then(|limit| {
+            if limit == 0 {
+                None
+            } else {
+                Some(token_usage_total as f64 / limit as f64)
+            }
+        });
+        let cost_ratio = provider.daily_cost_usd_budget.and_then(|limit| {
+            if limit <= 0.0 {
+                None
+            } else {
+                Some(usage.estimated_cost_total / limit)
+            }
+        });
+        budget_thresholds.push(MissionControlUsageBudgetThresholdResponse {
+            provider: provider.provider.clone(),
+            daily_token_budget: provider.daily_token_budget,
+            daily_cost_usd_budget: provider.daily_cost_usd_budget,
+            token_usage_total,
+            cost_usage_total: usage.estimated_cost_total,
+            token_ratio,
+            cost_ratio,
+        });
+    }
+
+    let updated_at_utc = utc_from_ms(if latest_sample_ms > 0 {
+        latest_sample_ms
+    } else {
+        current_time_ms()
+    });
+    Ok(MissionControlUsageResponse {
+        contract_version: MISSION_CONTROL_USAGE_CONTRACT_VERSION.to_string(),
+        available: true,
+        window: window.to_string(),
+        timezone: timezone.to_string(),
+        currency: "USD".to_string(),
+        window_start_utc: Some(utc_from_ms(window_start_ms)),
+        window_end_utc: Some(utc_from_ms(window_end_ms)),
+        estimated_cost_total: Some(total.estimated_cost_total),
+        token_input_total: Some(total.token_input_total),
+        token_output_total: Some(total.token_output_total),
+        by_agent: Some(by_agent_items),
+        by_model: Some(by_model_items),
+        by_provider: Some(by_provider_items),
+        by_time: Some(by_time_items),
+        by_job: None::<Vec<MissionControlUsageByJobResponse>>,
+        by_card: None::<Vec<MissionControlUsageByCardResponse>>,
+        budget_thresholds: Some(budget_thresholds),
+        updated_at_utc: Some(updated_at_utc),
+        reason_code: None,
+        detail: None,
+    })
+}
+
 async fn mission_control_calendar_week(
     headers: HeaderMap,
     State(state): State<AppState>,
@@ -11707,6 +12142,38 @@ async fn mission_control_calendar_week(
         next_up,
         jobs: jobs_payload,
     }))
+}
+
+async fn mission_control_usage(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Query(query): Query<MissionControlUsageQuery>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_OPERATOR_READONLY,
+            ROLE_AUTOMATION_RUNNER,
+        ],
+        "mission_control.usage",
+        "mission_control.usage",
+    )?;
+    let now_ms = current_time_ms();
+    let (window, window_start_ms, window_end_ms, timezone) =
+        resolve_mission_control_usage_window(now_ms, &query)?;
+    let response = build_mission_control_usage_response(
+        &state,
+        &window,
+        &timezone,
+        window_start_ms,
+        window_end_ms,
+    )
+    .map_err(|err| internal_err_with_error("building mission-control usage failed", err))?;
+    Ok(Json(response))
 }
 
 async fn mission_control_focus(
@@ -34199,6 +34666,123 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                 .map(|value| value == format!("job_failure:{job_id}"))
                 .unwrap_or(false)
         }));
+    }
+
+    #[tokio::test]
+    async fn mission_control_usage_read_model_returns_required_contract_fields() {
+        let ctx = test_context();
+        let session = ctx
+            .storage
+            .create_session(NewSession {
+                session_key: None,
+                agent_id: "default".to_string(),
+                title: Some("usage read model".to_string()),
+            })
+            .expect("create usage session");
+        let run = ctx
+            .storage
+            .create_run(NewRun {
+                session_id: session.session_id.clone(),
+                model_provider: "openai".to_string(),
+                model_id: "gpt-4o-mini".to_string(),
+            })
+            .expect("create usage run")
+            .expect("usage run exists");
+        ctx.storage
+            .set_run_usage_json(
+                &run.run_id,
+                r#"{"provider":{"input_tokens":120,"output_tokens":40,"estimated_cost_usd":0.42}}"#,
+            )
+            .expect("set usage json");
+
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/mission-control/usage?window=today&timezone=UTC&tz_offset_minutes=0",
+                Body::empty(),
+            ))
+            .await
+            .expect("usage response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let usage_json = parse_json(response).await;
+        assert_eq!(usage_json["available"], true);
+        assert_eq!(usage_json["window"], "today");
+        assert_eq!(usage_json["timezone"], "UTC");
+        assert_eq!(usage_json["currency"], "USD");
+        assert!(usage_json["window_start_utc"].is_string());
+        assert!(usage_json["window_end_utc"].is_string());
+        assert!(usage_json["updated_at_utc"].is_string());
+        assert!((usage_json["estimated_cost_total"].as_f64().unwrap_or(0.0) - 0.42).abs() < 1e-9);
+        assert_eq!(usage_json["token_input_total"], 120);
+        assert_eq!(usage_json["token_output_total"], 40);
+
+        let by_agent = usage_json["by_agent"].as_array().expect("by_agent array");
+        assert!(by_agent.iter().any(|item| {
+            item["agent_id"]
+                .as_str()
+                .map(|value| value == "default")
+                .unwrap_or(false)
+        }));
+
+        let by_model = usage_json["by_model"].as_array().expect("by_model array");
+        assert!(by_model.iter().any(|item| {
+            item["model_provider"]
+                .as_str()
+                .map(|value| value == "openai")
+                .unwrap_or(false)
+                && item["model_id"]
+                    .as_str()
+                    .map(|value| value == "gpt-4o-mini")
+                    .unwrap_or(false)
+        }));
+
+        let by_time = usage_json["by_time"].as_array().expect("by_time array");
+        assert_eq!(by_time.len(), 24);
+        assert!(usage_json["by_job"].is_null());
+        assert!(usage_json["by_card"].is_null());
+    }
+
+    #[tokio::test]
+    async fn mission_control_usage_returns_unavailable_when_usage_json_is_invalid() {
+        let ctx = test_context();
+        let session = ctx
+            .storage
+            .create_session(NewSession {
+                session_key: None,
+                agent_id: "default".to_string(),
+                title: Some("usage invalid".to_string()),
+            })
+            .expect("create invalid usage session");
+        let run = ctx
+            .storage
+            .create_run(NewRun {
+                session_id: session.session_id.clone(),
+                model_provider: "openai".to_string(),
+                model_id: "gpt-4o-mini".to_string(),
+            })
+            .expect("create invalid usage run")
+            .expect("invalid usage run exists");
+        ctx.storage
+            .set_run_usage_json(&run.run_id, "{invalid-json")
+            .expect("set invalid usage json");
+
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/mission-control/usage?window=today&timezone=UTC&tz_offset_minutes=0",
+                Body::empty(),
+            ))
+            .await
+            .expect("usage unavailable response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let usage_json = parse_json(response).await;
+        assert_eq!(usage_json["available"], false);
+        assert_eq!(usage_json["reason_code"], "INVALID_USAGE_DATA");
+        assert!(usage_json["detail"].is_string());
     }
 
     #[tokio::test]

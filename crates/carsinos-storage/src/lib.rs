@@ -866,6 +866,18 @@ pub struct DailyAuthProfileUsageIncrement {
 }
 
 #[derive(Debug, Clone)]
+pub struct RunUsageSampleRecord {
+    pub run_id: String,
+    pub session_id: String,
+    pub agent_id: String,
+    pub agent_name: String,
+    pub model_provider: String,
+    pub model_id: String,
+    pub usage_json: String,
+    pub sample_ts_ms: i64,
+}
+
+#[derive(Debug, Clone)]
 pub struct CircuitBreakerStateRecord {
     pub breaker_key: String,
     pub scope: String,
@@ -3650,6 +3662,51 @@ impl Storage {
             .context("daily auth profile usage missing after upsert")
     }
 
+    pub fn list_run_usage_samples_between(
+        &self,
+        start_ms: i64,
+        end_ms: i64,
+        limit: u32,
+    ) -> Result<Vec<RunUsageSampleRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              r.run_id,
+              r.session_id,
+              s.agent_id,
+              COALESCE(a.name, s.agent_id) AS agent_name,
+              r.model_provider,
+              r.model_id,
+              r.usage_json,
+              COALESCE(r.ended_at, r.started_at, r.created_at) AS sample_ts_ms
+            FROM runs r
+            INNER JOIN sessions s ON s.session_id = r.session_id
+            LEFT JOIN agents a ON a.agent_id = s.agent_id
+            WHERE r.usage_json IS NOT NULL
+              AND COALESCE(r.ended_at, r.started_at, r.created_at) >= ?1
+              AND COALESCE(r.ended_at, r.started_at, r.created_at) < ?2
+            ORDER BY sample_ts_ms ASC, r.rowid ASC
+            LIMIT ?3
+            "#,
+        )?;
+        let mut rows = stmt.query(params![start_ms, end_ms, limit])?;
+        let mut items = Vec::new();
+        while let Some(row) = rows.next()? {
+            items.push(RunUsageSampleRecord {
+                run_id: row.get(0)?,
+                session_id: row.get(1)?,
+                agent_id: row.get(2)?,
+                agent_name: row.get(3)?,
+                model_provider: row.get(4)?,
+                model_id: row.get(5)?,
+                usage_json: row.get(6)?,
+                sample_ts_ms: row.get(7)?,
+            });
+        }
+        Ok(items)
+    }
+
     pub fn get_circuit_breaker_state(
         &self,
         scope: &str,
@@ -5732,6 +5789,49 @@ mod tests {
             .expect("daily usage exists");
         assert_eq!(loaded.total_tokens, 75);
         assert!((loaded.estimated_cost_usd - 0.0225).abs() < 1e-9);
+    }
+
+    #[test]
+    fn list_run_usage_samples_between_returns_joined_agent_metadata() {
+        let (_temp_dir, storage) = test_storage();
+        let session = storage
+            .create_session(NewSession {
+                session_key: None,
+                agent_id: "default".to_string(),
+                title: Some("usage sample".to_string()),
+            })
+            .expect("create session");
+        let run = storage
+            .create_run(NewRun {
+                session_id: session.session_id.clone(),
+                model_provider: "mock".to_string(),
+                model_id: "mock-echo-v1".to_string(),
+            })
+            .expect("create run")
+            .expect("run exists");
+        storage
+            .set_run_usage_json(
+                &run.run_id,
+                r#"{"provider":{"input_tokens":12,"output_tokens":7,"estimated_cost_usd":0.031}}"#,
+            )
+            .expect("set run usage");
+
+        let start_ms = run.created_at.saturating_sub(60_000);
+        let end_ms = run.created_at.saturating_add(60_000);
+        let rows = storage
+            .list_run_usage_samples_between(start_ms, end_ms, 100)
+            .expect("list usage samples");
+        assert_eq!(rows.len(), 1);
+        let sample = &rows[0];
+        assert_eq!(sample.run_id, run.run_id);
+        assert_eq!(sample.session_id, session.session_id);
+        assert_eq!(sample.agent_id, "default");
+        assert_eq!(sample.agent_name, "Default Agent");
+        assert_eq!(sample.model_provider, "mock");
+        assert_eq!(sample.model_id, "mock-echo-v1");
+        assert!(sample.usage_json.contains("\"input_tokens\":12"));
+        assert!(sample.sample_ts_ms >= start_ms);
+        assert!(sample.sample_ts_ms < end_ms);
     }
 
     #[test]

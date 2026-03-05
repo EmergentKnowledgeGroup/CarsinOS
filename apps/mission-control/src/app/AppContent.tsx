@@ -44,6 +44,7 @@ interface AppContentProps {
   onEnterSafeMode: (reason: string) => void;
   tabResetVersion: Partial<Record<MissionControlTab, number>>;
   setNotice: NotifyFn;
+  usageChartsEnabled: boolean;
 }
 
 function E2EForceCrashSentinel({
@@ -92,6 +93,15 @@ function renderCockpitWidget(
       plugins={missionControl.plugins}
       pluginRuntimeById={missionControl.pluginRuntimeById}
       visibleEvents={visibleEvents}
+      usageChartsEnabled={props.usageChartsEnabled}
+      usageToday={missionControl.usageToday}
+      usageWeek={missionControl.usageWeek}
+      usageUnavailableReason={missionControl.usageUnavailableReason}
+      usageCorrelationAvailable={missionControl.usageCorrelationAvailable}
+      usageFreshness={missionControl.usageFreshness}
+      usageTrend={missionControl.usageTrend}
+      usageBudgetWarnings={missionControl.usageBudgetWarnings}
+      usageUpdatedAtUtc={missionControl.usageUpdatedAtUtc}
       onRefreshAll={() => missionControl.queueMissionControlRefresh(settings)}
       onRunCalendarJobNow={missionControl.runCalendarJobNow}
       onToggleCalendarJob={missionControl.toggleCalendarJob}

@@ -202,6 +202,8 @@ const channelStatuses = [
 
 const authProfiles = [];
 const providerOrder = new Map();
+let usageMode = "available";
+let usageUpdatedAtMs = Date.now();
 
 function findBoard(boardId) {
   return boardId === board.board_id ? board : null;
@@ -404,6 +406,171 @@ function buildCalendarWeek() {
       },
     ],
   };
+}
+
+function usageDayStartMs(nowMs, tzOffsetMinutes) {
+  const offsetMs = tzOffsetMinutes * 60_000;
+  const localNow = new Date(nowMs + offsetMs);
+  localNow.setUTCHours(0, 0, 0, 0);
+  return localNow.getTime() - offsetMs;
+}
+
+function usageWeekStartMs(nowMs, tzOffsetMinutes) {
+  const offsetMs = tzOffsetMinutes * 60_000;
+  const localNow = new Date(nowMs + offsetMs);
+  localNow.setUTCHours(0, 0, 0, 0);
+  const mondayOffset = (localNow.getUTCDay() + 6) % 7;
+  localNow.setUTCDate(localNow.getUTCDate() - mondayOffset);
+  return localNow.getTime() - offsetMs;
+}
+
+function buildUsageBuckets(window, windowStartMs, windowEndMs) {
+  const bucketCount = window === "today" ? 24 : 7;
+  const bucketSpanMs = Math.max(1, Math.floor((windowEndMs - windowStartMs) / bucketCount));
+  const buckets = [];
+  for (let i = 0; i < bucketCount; i += 1) {
+    const start = windowStartMs + i * bucketSpanMs;
+    const end = i === bucketCount - 1 ? windowEndMs : start + bucketSpanMs;
+    const loadFactor = window === "today" ? (i === bucketCount - 1 ? 0.28 : i === bucketCount - 2 ? 0.18 : 0.03) : (i >= bucketCount - 2 ? 0.24 : 0.08);
+    buckets.push({
+      bucket_start_utc: new Date(start).toISOString(),
+      bucket_end_utc: new Date(end).toISOString(),
+      estimated_cost_total: Number((loadFactor * 2.6).toFixed(4)),
+      token_input_total: Math.round(loadFactor * 12_000),
+      token_output_total: Math.round(loadFactor * 5_200),
+    });
+  }
+  return buckets;
+}
+
+function buildMissionControlUsage(requestUrl) {
+  const now = Date.now();
+  const window = requestUrl.searchParams.get("window") === "today" ? "today" : "week";
+  const timezone = requestUrl.searchParams.get("timezone") || "UTC";
+  const tzOffsetRaw = Number(requestUrl.searchParams.get("tz_offset_minutes") ?? "0");
+  const tzOffsetMinutes = Number.isFinite(tzOffsetRaw) ? Math.trunc(tzOffsetRaw) : 0;
+  const explicitStart = Number(requestUrl.searchParams.get("window_start_ms") ?? "");
+  const explicitEnd = Number(requestUrl.searchParams.get("window_end_ms") ?? "");
+
+  const windowStartMs = Number.isFinite(explicitStart) && Number.isFinite(explicitEnd) && explicitEnd > explicitStart
+    ? Math.trunc(explicitStart)
+    : window === "today"
+      ? usageDayStartMs(now, tzOffsetMinutes)
+      : usageWeekStartMs(now, tzOffsetMinutes);
+  const windowEndMs = Number.isFinite(explicitStart) && Number.isFinite(explicitEnd) && explicitEnd > explicitStart
+    ? Math.trunc(explicitEnd)
+    : window === "today"
+      ? windowStartMs + 24 * 60 * 60_000
+      : windowStartMs + 7 * 24 * 60 * 60_000;
+
+  if (usageMode === "unavailable") {
+    return {
+      contract_version: "mc-usage-v1",
+      available: false,
+      window,
+      timezone,
+      currency: "USD",
+      window_start_utc: null,
+      window_end_utc: null,
+      estimated_cost_total: null,
+      token_input_total: null,
+      token_output_total: null,
+      by_agent: null,
+      by_model: null,
+      by_provider: null,
+      by_time: null,
+      by_job: null,
+      by_card: null,
+      budget_thresholds: null,
+      updated_at_utc: null,
+      reason_code: "USAGE_UNAVAILABLE",
+      detail: "Stub usage mode set to unavailable.",
+    };
+  }
+
+  const estimatedCostTotal = window === "today" ? 1.284 : 6.742;
+  const tokenInputTotal = window === "today" ? 18_200 : 82_900;
+  const tokenOutputTotal = window === "today" ? 7_420 : 31_000;
+  const byAgent = [
+    {
+      agent_id: "lyra",
+      agent_name: "Lyra",
+      estimated_cost_total: Number((estimatedCostTotal * 0.62).toFixed(4)),
+      token_input_total: Math.round(tokenInputTotal * 0.6),
+      token_output_total: Math.round(tokenOutputTotal * 0.58),
+    },
+    {
+      agent_id: "default",
+      agent_name: "Default Agent",
+      estimated_cost_total: Number((estimatedCostTotal * 0.38).toFixed(4)),
+      token_input_total: Math.round(tokenInputTotal * 0.4),
+      token_output_total: Math.round(tokenOutputTotal * 0.42),
+    },
+  ];
+  const byModel = [
+    {
+      model_provider: "ollama",
+      model_id: "qwen3.5-9b-instruct",
+      estimated_cost_total: Number((estimatedCostTotal * 0.74).toFixed(4)),
+      token_input_total: Math.round(tokenInputTotal * 0.73),
+      token_output_total: Math.round(tokenOutputTotal * 0.7),
+    },
+    {
+      model_provider: "ollama",
+      model_id: "qwen3.5-4b-instruct",
+      estimated_cost_total: Number((estimatedCostTotal * 0.26).toFixed(4)),
+      token_input_total: Math.round(tokenInputTotal * 0.27),
+      token_output_total: Math.round(tokenOutputTotal * 0.3),
+    },
+  ];
+  const byProvider = [
+    {
+      provider: "ollama",
+      estimated_cost_total: estimatedCostTotal,
+      token_input_total: tokenInputTotal,
+      token_output_total: tokenOutputTotal,
+    },
+  ];
+
+  const payload = {
+    contract_version: "mc-usage-v1",
+    available: true,
+    window,
+    timezone,
+    currency: "USD",
+    window_start_utc: new Date(windowStartMs).toISOString(),
+    window_end_utc: new Date(windowEndMs).toISOString(),
+    estimated_cost_total: estimatedCostTotal,
+    token_input_total: tokenInputTotal,
+    token_output_total: tokenOutputTotal,
+    by_agent: byAgent,
+    by_model: byModel,
+    by_provider: byProvider,
+    by_time: buildUsageBuckets(window, windowStartMs, windowEndMs),
+    by_job: [],
+    by_card: [],
+    budget_thresholds: [
+      {
+        provider: "ollama",
+        daily_token_budget: 100_000,
+        daily_cost_usd_budget: 1.4,
+        token_usage_total: tokenInputTotal + tokenOutputTotal,
+        cost_usage_total: estimatedCostTotal,
+        token_ratio: (tokenInputTotal + tokenOutputTotal) / 100_000,
+        cost_ratio: estimatedCostTotal / 1.4,
+      },
+    ],
+    updated_at_utc: new Date(usageUpdatedAtMs).toISOString(),
+  };
+
+  if (usageMode === "missing-optional") {
+    payload.by_job = null;
+    payload.by_card = null;
+  }
+  if (usageMode === "invalid-required") {
+    delete payload.by_model;
+  }
+  return payload;
 }
 
 function buildWsEvent(overrides = {}) {
@@ -862,6 +1029,11 @@ async function routeRequest(req, res) {
     return;
   }
 
+  if (req.method === "GET" && requestUrl.pathname === "/api/v1/mission-control/usage") {
+    sendJson(res, 200, buildMissionControlUsage(requestUrl));
+    return;
+  }
+
   if (req.method === "GET" && requestUrl.pathname === "/api/v1/jobs") {
     sendJson(res, 200, {
       items: jobs,
@@ -1138,6 +1310,33 @@ async function routeRequest(req, res) {
     });
     sendJson(res, 200, {
       event,
+    });
+    return;
+  }
+
+  if (req.method === "POST" && requestUrl.pathname === "/api/v1/e2e/usage-mode") {
+    const payload = await readJson(req);
+    const mode =
+      typeof payload.mode === "string" && payload.mode.trim().length > 0
+        ? payload.mode.trim()
+        : "available";
+    if (!["available", "unavailable", "missing-optional", "invalid-required"].includes(mode)) {
+      sendJson(res, 400, {
+        error: "mode must be one of available|unavailable|missing-optional|invalid-required",
+      });
+      return;
+    }
+    usageMode = mode;
+    if (Number.isFinite(payload.updated_at_ms)) {
+      usageUpdatedAtMs = Math.trunc(Number(payload.updated_at_ms));
+    } else if (Number.isFinite(payload.age_minutes)) {
+      usageUpdatedAtMs = Date.now() - Math.max(0, Math.trunc(Number(payload.age_minutes))) * 60_000;
+    } else {
+      usageUpdatedAtMs = Date.now();
+    }
+    sendJson(res, 200, {
+      mode: usageMode,
+      updated_at_ms: usageUpdatedAtMs,
     });
     return;
   }

@@ -653,6 +653,7 @@ export default function App() {
         onEnterSafeMode={enterSafeMode}
         tabResetVersion={tabResetVersion}
         setNotice={setNotice}
+        usageChartsEnabled={usageChartsEnabled}
       />
     </AppShell>
     <GuidedTourOverlay

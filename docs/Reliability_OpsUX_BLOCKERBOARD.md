@@ -25,7 +25,7 @@ Use this board to track sequencing, blockers, and phase acceptance criteria.
 | BLK-02 | Platform/CI | DONE | Desktop (Tauri) CI runner/smoke pipeline finalized (macOS desktop release gate with tauri smoke visual + tauri build sanity) | Release-profile desktop confidence available | P3-04 |
 | BLK-03 | Gateway Config + Mission Control Frontend | DONE | Runtime feature-flag controls and kill-switch wiring finalized and validated in quality-gate profiles | Safe incremental rollout controls now available | P2-01, P2-06, P4-02 |
 | BLK-04 | Storage | DONE | Session-level durable recovery-log path finalized and validated for soft-clear/restore behavior | `Clear`/undo contract no longer blocked | P2-04 |
-| BLK-05 | Gateway Usage API | TODO | Gateway usage metrics contract not yet exposed/validated | Blocks optional cost/token module | P4-01, P4-02, P4-03, P4-04 |
+| BLK-05 | Gateway Usage API | DONE | Usage/cost contract exposed via gateway read-model route and validated with Phase-4 acceptance/e2e coverage | Optional cost/token module is now unblocked | P4-01, P4-02, P4-03, P4-04 |
 
 ## Phase 1 (Foundations + Crash-Proofing + Core Gate)
 
@@ -74,14 +74,14 @@ Phase objective: usage transparency only when safe gateway contract exists.
 
 | Task ID | Owner | Task | Status | Depends On | Blocker | Spec Mapping | Exit Criteria |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| P4-01 | Gateway Usage API + Product/Ops | Validate gateway usage contract readiness and field integrity | BLOCKED | - | BLK-05 | D1 | Contract completeness confirmed or feature explicitly disabled |
-| P4-02 | Mission Control Frontend + Gateway Config | Build summary + breakdown + freshness/staleness states | BLOCKED | P4-01 | BLK-05 | D2, D3 | UI answers required spend/trend questions without misleading states |
-| P4-03 | Mission Control Frontend + Product/Ops | Add optional budget thresholds and non-spam warning behavior | BLOCKED | P4-02 | BLK-05 | D3 | Threshold UX understandable and noise-controlled |
-| P4-04 | QA/Automation | Add tests for available-data, unavailable-data, and missing optional correlation slices | BLOCKED | P4-02 | BLK-05 | D4 | Automated assertions cover all availability permutations |
+| P4-01 | Gateway Usage API + Product/Ops | Validate gateway usage contract readiness and field integrity | DONE | - | - | D1 | Contract completeness confirmed via `/api/v1/mission-control/usage` contract fields and gateway tests |
+| P4-02 | Mission Control Frontend + Gateway Config | Build summary + breakdown + freshness/staleness states | DONE | P4-01 | - | D2, D3 | Usage UI renders summary/breakdown + explicit freshness/correlation states without misleading claims |
+| P4-03 | Mission Control Frontend + Product/Ops | Add optional budget thresholds and non-spam warning behavior | DONE | P4-02 | - | D3 | Threshold warnings are surfaced only when warning/critical ratios are exceeded |
+| P4-04 | QA/Automation | Add tests for available-data, unavailable-data, and missing optional correlation slices | DONE | P4-02 | - | D4 | Automated assertions cover available/unavailable/missing-optional permutations (`e2e/p4-usage.spec.ts`) |
 
 ## Critical Path (Current)
 
-1. BLK-05 -> P4-01 -> P4-02 -> P4-03 -> P4-04
+1. Phase 1-4 execution path complete; no active blockers.
 
 ## Definition of Done Per Phase
 

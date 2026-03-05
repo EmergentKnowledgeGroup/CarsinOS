@@ -55,6 +55,7 @@ Event families used for UI refresh logic:
 ### Mission Control Read Models
 - `GET /api/v1/mission-control/calendar/week` (`getMissionControlCalendarWeek`)
 - `GET /api/v1/mission-control/focus?limit={n}` (`getMissionControlFocus`)
+- `GET /api/v1/mission-control/usage?window={today|week}` (`getMissionControlUsage`)
 
 ### Jobs + Scheduler
 - `GET /api/v1/jobs?limit={n}&include_disabled=true` (`listJobs`)

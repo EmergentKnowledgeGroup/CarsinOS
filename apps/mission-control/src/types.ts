@@ -217,6 +217,88 @@ export interface MissionControlFocusResponse {
   items: MissionControlFocusItem[];
 }
 
+export type MissionControlUsageWindow = "today" | "week" | "custom";
+
+export interface MissionControlUsageByAgent {
+  agent_id: string;
+  agent_name: string;
+  estimated_cost_total: number;
+  token_input_total: number;
+  token_output_total: number;
+}
+
+export interface MissionControlUsageByModel {
+  model_provider: string;
+  model_id: string;
+  estimated_cost_total: number;
+  token_input_total: number;
+  token_output_total: number;
+}
+
+export interface MissionControlUsageByProvider {
+  provider: string;
+  estimated_cost_total: number;
+  token_input_total: number;
+  token_output_total: number;
+}
+
+export interface MissionControlUsageByTime {
+  bucket_start_utc: string;
+  bucket_end_utc: string;
+  estimated_cost_total: number;
+  token_input_total: number;
+  token_output_total: number;
+}
+
+export interface MissionControlUsageByJob {
+  job_id: string;
+  name: string | null;
+  estimated_cost_total: number;
+  token_input_total: number;
+  token_output_total: number;
+}
+
+export interface MissionControlUsageByCard {
+  card_id: string;
+  title: string | null;
+  estimated_cost_total: number;
+  token_input_total: number;
+  token_output_total: number;
+}
+
+export interface MissionControlUsageBudgetThreshold {
+  provider: string;
+  daily_token_budget: number | null;
+  daily_cost_usd_budget: number | null;
+  token_usage_total: number;
+  cost_usage_total: number;
+  token_ratio: number | null;
+  cost_ratio: number | null;
+}
+
+export interface MissionControlUsageResponse {
+  contract_version: string;
+  available: boolean;
+  window: MissionControlUsageWindow | string;
+  timezone: string;
+  currency: string;
+  window_start_utc: string | null;
+  window_end_utc: string | null;
+  estimated_cost_total: number | null;
+  token_input_total: number | null;
+  token_output_total: number | null;
+  by_agent: MissionControlUsageByAgent[] | null;
+  by_model: MissionControlUsageByModel[] | null;
+  by_provider: MissionControlUsageByProvider[] | null;
+  by_time: MissionControlUsageByTime[] | null;
+  by_job: MissionControlUsageByJob[] | null;
+  by_card: MissionControlUsageByCard[] | null;
+  budget_thresholds: MissionControlUsageBudgetThreshold[] | null;
+  updated_at_utc: string | null;
+  reason_code?: string | null;
+  detail?: string | null;
+}
+
 export interface JobResponse {
   job_id: string;
   agent_id: string;

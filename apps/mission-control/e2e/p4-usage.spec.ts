@@ -1,0 +1,185 @@
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Page,
+} from "@playwright/test";
+
+const E2E_APP_URL = "/?e2e=1";
+const GATEWAY_URL = "http://127.0.0.1:19789";
+const TEST_TOKEN = "stub-token-001";
+const ASSISTANT_MODEL_ID = "qwen3.5-9b-instruct";
+
+const OPS_CONFIG = {
+  schema_version: "mc-opsux-runtime-v1",
+  controls: {
+    global_kill_switch: false,
+    live_feed_drawer: true,
+    incident_auto_trigger: true,
+    usage_charts: true,
+  },
+  safety: {
+    fail_safe_on_config_error: true,
+    incident_high_burst_threshold: 5,
+    incident_high_burst_window_ms: 60_000,
+    incident_auto_cooldown_ms: 10 * 60_000,
+    incident_health_degraded_trigger_ms: 30_000,
+    incident_healthy_exit_ms: 5 * 60_000,
+    recovery_retention_window_ms: 30 * 60_000,
+    recovery_log_max_bytes: 50 * 1024 * 1024,
+    mark_read_undo_window_ms: 5 * 60_000,
+  },
+};
+
+async function openWizard(page: Page): Promise<void> {
+  await page.addInitScript((payload: { config: typeof OPS_CONFIG }) => {
+    window.localStorage.setItem("mc-guided-tour-completed-v1", "true");
+    window.localStorage.setItem("mc-opsux-runtime-v1", JSON.stringify(payload.config));
+  }, { config: OPS_CONFIG });
+  await page.goto(E2E_APP_URL);
+  await expect(page.getByRole("heading", { name: "Setup Wizard" })).toBeVisible();
+}
+
+async function waitForWsConnected(page: Page): Promise<void> {
+  const wsDot = page.locator(".mc-connection-dot").first();
+  await expect(wsDot).toBeVisible({ timeout: 20_000 });
+  await expect
+    .poll(async () => wsDot.getAttribute("title"), {
+      timeout: 20_000,
+      message: "Expected websocket status indicator to reach connected state.",
+    })
+    .toBe("ws: connected");
+}
+
+async function completeLocalOnboarding(page: Page): Promise<void> {
+  await openWizard(page);
+
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await page.getByLabel("Gateway URL").fill(GATEWAY_URL);
+  await page.getByLabel("Gateway token").fill(TEST_TOKEN);
+  await page.getByRole("button", { name: "Save + Connect" }).click();
+  await expect(page.getByText(/Connection status:\s*Connected/)).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await page.getByRole("button", { name: /Use Selected Agent|Create Agent/ }).click();
+  await expect(page.getByText(/Agent status:\s*Ready/)).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await page.getByRole("radio", { name: "Local connector" }).check();
+  await page
+    .getByPlaceholder("Or paste assistant model ID manually")
+    .fill(ASSISTANT_MODEL_ID);
+  await page.getByRole("button", { name: "Apply Provider Setup" }).click();
+  await expect(page.getByText(/Provider status:\s*Ready/)).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await page.getByRole("button", { name: "Apply Routing" }).click();
+  await expect(page.getByText(/Routing status:\s*Ready/)).toBeVisible();
+  await page.getByRole("button", { name: "Continue" }).click();
+
+  await page.getByRole("button", { name: "Finalize" }).click();
+  await page.getByRole("button", { name: "Go to Boards" }).click();
+
+  await expect(page.getByRole("heading", { name: "Setup Wizard" })).toBeHidden();
+  await waitForWsConnected(page);
+}
+
+async function openCockpitTemplate(page: Page): Promise<void> {
+  await page.locator('[data-tour-id="nav-cockpit"]').click();
+  await expect(page.locator(".mc-cockpit-grid")).toBeVisible();
+  const loadTemplateButton = page.getByRole("button", { name: "Load Ops Template" });
+  if (await loadTemplateButton.isVisible()) {
+    await loadTemplateButton.click();
+  }
+  await expect(page.getByTestId("mc-usage-panel")).toBeVisible();
+}
+
+async function setUsageMode(
+  request: APIRequestContext,
+  payload: {
+    mode: "available" | "unavailable" | "missing-optional" | "invalid-required";
+    age_minutes?: number;
+  }
+): Promise<void> {
+  const response = await request.post(`${GATEWAY_URL}/api/v1/e2e/usage-mode`, {
+    headers: {
+      Authorization: `Bearer ${TEST_TOKEN}`,
+    },
+    data: payload,
+  });
+  expect(response.ok()).toBeTruthy();
+}
+
+test.describe("mission-control usage charts @p4 @core", () => {
+  test("renders today/week usage summaries and breakdowns when contract is available", async ({
+    page,
+    request,
+  }) => {
+    await completeLocalOnboarding(page);
+    await setUsageMode(request, { mode: "available", age_minutes: 2 });
+    await openCockpitTemplate(page);
+
+    await page.getByRole("button", { name: "Refresh all" }).first().click();
+    await expect(page.getByTestId("usage-not-available")).toHaveCount(0);
+    await expect(page.getByTestId("usage-summary-today-cost")).toContainText("$");
+    await expect(page.getByTestId("usage-trend-label")).not.toContainText("unavailable");
+    await expect(page.getByTestId("usage-correlation-status")).toContainText("available");
+    await expect(page.locator(".mc-usage-warning-list li")).toHaveCount(1);
+    await expect(page.locator(".mc-usage-warning-list li").first()).toContainText("budget");
+  });
+
+  test("shows explicit not-available state when usage contract is unavailable", async ({
+    page,
+    request,
+  }) => {
+    await completeLocalOnboarding(page);
+    await setUsageMode(request, { mode: "unavailable" });
+    await openCockpitTemplate(page);
+
+    await page.getByRole("button", { name: "Refresh all" }).first().click();
+    await expect(page.getByTestId("usage-not-available")).toContainText("Not available");
+  });
+
+  test("keeps summaries visible when optional correlation slices are missing", async ({
+    page,
+    request,
+  }) => {
+    await completeLocalOnboarding(page);
+    await setUsageMode(request, { mode: "missing-optional", age_minutes: 18 });
+    await openCockpitTemplate(page);
+
+    await page.getByRole("button", { name: "Refresh all" }).first().click();
+    await expect(page.getByTestId("usage-not-available")).toHaveCount(0);
+    await expect(page.getByTestId("usage-summary-today-cost")).toContainText("$");
+    await expect(page.getByTestId("usage-correlation-status")).toContainText(
+      "unavailable from gateway contract"
+    );
+    await expect(page.getByText("Data is older than 15 minutes.")).toBeVisible();
+  });
+
+  test("limits trend claims when usage data is older than 60 minutes", async ({
+    page,
+    request,
+  }) => {
+    await completeLocalOnboarding(page);
+    await setUsageMode(request, { mode: "available", age_minutes: 90 });
+    await openCockpitTemplate(page);
+
+    await page.getByRole("button", { name: "Refresh all" }).first().click();
+    await expect(page.getByTestId("usage-not-available")).toHaveCount(0);
+    await expect(page.getByTestId("usage-trend-label")).toContainText("Trend limited");
+  });
+
+  test("disables charts when required usage fields are missing", async ({ page, request }) => {
+    await completeLocalOnboarding(page);
+    await setUsageMode(request, { mode: "invalid-required" });
+    await openCockpitTemplate(page);
+
+    await page.getByRole("button", { name: "Refresh all" }).first().click();
+    await expect(page.getByTestId("usage-not-available")).toContainText(
+      "missing required fields"
+    );
+  });
+});
