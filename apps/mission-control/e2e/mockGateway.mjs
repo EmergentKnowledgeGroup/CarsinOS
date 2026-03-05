@@ -66,6 +66,9 @@ const startedAtMs = Date.now() - 90_000;
 const createdAt = startedAtMs - 12_000;
 let nextAuthProfileCounter = 1;
 let nextEventCounter = 1;
+let nextCardCounter = 2;
+let nextRunCounter = 1;
+let nextJobRunCounter = 1;
 const wsClients = new Set();
 
 const board = {
@@ -75,7 +78,7 @@ const board = {
   board_type: "kanban",
   created_at: createdAt,
   updated_at: createdAt,
-  column_count: 1,
+  column_count: 3,
   card_count: 1,
 };
 
@@ -86,6 +89,24 @@ const columns = [
     column_key: "backlog",
     name: "Backlog",
     position: 0,
+    created_at: createdAt,
+    updated_at: createdAt,
+  },
+  {
+    column_id: "ops-doing",
+    board_id: board.board_id,
+    column_key: "doing",
+    name: "Doing",
+    position: 1,
+    created_at: createdAt,
+    updated_at: createdAt,
+  },
+  {
+    column_id: "ops-done",
+    board_id: board.board_id,
+    column_key: "done",
+    name: "Done",
+    position: 2,
     created_at: createdAt,
     updated_at: createdAt,
   },
@@ -146,8 +167,141 @@ const agents = [
   },
 ];
 
+const approvals = [
+  {
+    approval_id: "approval-001",
+    run_id: "run-pending-001",
+    kind: "tool_call",
+    status: "requested",
+    request_summary: "Allow shell command: ls -la",
+    requested_at: Date.now() - 8_000,
+    decided_at: null,
+  },
+  {
+    approval_id: "approval-002",
+    run_id: "run-pending-002",
+    kind: "tool_call",
+    status: "requested",
+    request_summary: "Allow file edit: docs/release.md",
+    requested_at: Date.now() - 7_000,
+    decided_at: null,
+  },
+];
+
+const channelStatuses = [
+  {
+    provider: "ollama",
+    lifecycle_state: "running",
+    healthy: true,
+    detail: "stub",
+    last_error: null,
+    reconnect_attempts: 0,
+    updated_at: Date.now(),
+  },
+];
+
 const authProfiles = [];
 const providerOrder = new Map();
+
+function findBoard(boardId) {
+  return boardId === board.board_id ? board : null;
+}
+
+function sortByPosition(items) {
+  return [...items].sort((left, right) => left.position - right.position);
+}
+
+function normalizeColumnPositions(boardId, columnId) {
+  const target = sortByPosition(
+    cards.filter((card) => card.board_id === boardId && card.column_id === columnId)
+  );
+  for (let i = 0; i < target.length; i += 1) {
+    target[i].position = i;
+    target[i].updated_at = Date.now();
+  }
+}
+
+function recalcBoardSummary() {
+  board.column_count = columns.filter((column) => column.board_id === board.board_id).length;
+  board.card_count = cards.filter((card) => card.board_id === board.board_id).length;
+  board.updated_at = Date.now();
+}
+
+function getApprovals(status) {
+  if (!status) {
+    return approvals;
+  }
+  return approvals.filter((item) => item.status === status);
+}
+
+function getMissionControlFocusItems() {
+  const now = Date.now();
+  const pendingApprovals = getApprovals("requested");
+  const approvalItems = pendingApprovals.map((approval, index) => ({
+    item_id: `focus-approval-${approval.approval_id}`,
+    category: "approval",
+    severity: "high",
+    title: `Approval requested: ${approval.request_summary}`,
+    detail: `Approval ${approval.approval_id} requires operator decision.`,
+    primary_action: "review",
+    action_payload: {
+      approval_id: approval.approval_id,
+      request_summary: approval.request_summary,
+      run_id: approval.run_id,
+      provider: "ollama",
+    },
+    created_at: approval.requested_at - index,
+  }));
+
+  const degradedChannels = channelStatuses.filter(
+    (item) => !item.healthy || item.lifecycle_state !== "running"
+  );
+  const channelItems = degradedChannels.map((channel) => ({
+    item_id: `focus-channel-${channel.provider}`,
+    category: "channel_health",
+    severity: "warning",
+    title: `${channel.provider} degraded`,
+    detail: channel.last_error ?? channel.detail ?? "Channel adapter is degraded.",
+    primary_action: "reconnect",
+    action_payload: {
+      provider: channel.provider,
+    },
+    created_at: now - 2_000,
+  }));
+
+  if (approvalItems.length === 0 && channelItems.length === 0) {
+    return [
+      {
+        item_id: "focus-001",
+        category: "status",
+        severity: "normal",
+        title: "All systems nominal",
+        detail: "Deterministic stub focus event",
+        primary_action: "none",
+        action_payload: {},
+        created_at: now - 5_000,
+      },
+    ];
+  }
+
+  return [...approvalItems, ...channelItems];
+}
+
+function closeAllWsConnections(code = 1012, reason = "e2e-ws-flap") {
+  for (const client of wsClients) {
+    if (client.readyState === 1) {
+      client.close(code, reason);
+    }
+  }
+}
+
+function sendMalformedWsPayload(raw = "{malformed") {
+  for (const client of wsClients) {
+    if (client.readyState === 1) {
+      client.send(raw);
+    }
+  }
+}
 
 function requireAuth(req, res) {
   const auth = req.headers.authorization;
@@ -320,8 +474,250 @@ async function routeRequest(req, res) {
   }
 
   if (req.method === "GET" && requestUrl.pathname === "/api/v1/boards") {
+    recalcBoardSummary();
     sendJson(res, 200, {
       items: [board],
+    });
+    return;
+  }
+
+  const boardCreateMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/boards\/([^/]+)\/cards\/create$/
+  );
+  if (req.method === "POST" && boardCreateMatch) {
+    const boardId = decodeURIComponent(boardCreateMatch[1]);
+    if (!findBoard(boardId)) {
+      sendJson(res, 404, { error: "board not found" });
+      return;
+    }
+    const payload = await readJson(req);
+    const title = String(payload.title ?? "").trim();
+    const columnId = String(payload.column_id ?? "").trim();
+    if (!title || !columnId) {
+      sendJson(res, 400, { error: "title and column_id are required" });
+      return;
+    }
+    const targetColumn = columns.find(
+      (column) => column.board_id === boardId && column.column_id === columnId
+    );
+    if (!targetColumn) {
+      sendJson(res, 400, { error: "column_id is invalid" });
+      return;
+    }
+    const currentColumnCards = cards.filter(
+      (card) => card.board_id === boardId && card.column_id === columnId
+    );
+    const now = Date.now();
+    const created = {
+      card_id: `card-ops-${String(nextCardCounter++).padStart(2, "0")}`,
+      board_id: boardId,
+      column_id: columnId,
+      title,
+      description: null,
+      owner_kind: String(payload.owner_kind ?? "unassigned"),
+      owner_agent_id:
+        typeof payload.owner_agent_id === "string" && payload.owner_agent_id.trim().length > 0
+          ? payload.owner_agent_id.trim()
+          : null,
+      owner_human_id:
+        typeof payload.owner_human_id === "string" && payload.owner_human_id.trim().length > 0
+          ? payload.owner_human_id.trim()
+          : null,
+      due_at: null,
+      tags: [],
+      script_markdown: null,
+      linked_session_id: null,
+      latest_run_id: null,
+      position: currentColumnCards.length,
+      created_at: now,
+      updated_at: now,
+      assets: [],
+    };
+    cards.push(created);
+    recalcBoardSummary();
+    broadcastWsEvent({
+      event_type: "board.card.created",
+      entity: "board",
+      payload: {
+        domain: "boards",
+        severity: "normal",
+        summary: `Card created: ${created.title}`,
+        board_id: boardId,
+        card_id: created.card_id,
+        column_id: created.column_id,
+        title: created.title,
+      },
+    });
+    sendJson(res, 200, {
+      card: created,
+    });
+    return;
+  }
+
+  const boardUpdateMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/boards\/([^/]+)\/cards\/([^/]+)\/update$/
+  );
+  if (req.method === "POST" && boardUpdateMatch) {
+    const boardId = decodeURIComponent(boardUpdateMatch[1]);
+    const cardId = decodeURIComponent(boardUpdateMatch[2]);
+    const existing = cards.find(
+      (card) => card.board_id === boardId && card.card_id === cardId
+    );
+    if (!existing) {
+      sendJson(res, 404, { error: "card not found" });
+      return;
+    }
+    const payload = await readJson(req);
+    if (typeof payload.title === "string" && payload.title.trim().length > 0) {
+      existing.title = payload.title.trim();
+    }
+    if (payload.description === null || typeof payload.description === "string") {
+      existing.description = payload.description;
+    }
+    if (typeof payload.owner_kind === "string") {
+      existing.owner_kind = payload.owner_kind;
+    }
+    if (payload.owner_agent_id === null || typeof payload.owner_agent_id === "string") {
+      existing.owner_agent_id =
+        typeof payload.owner_agent_id === "string" && payload.owner_agent_id.trim().length > 0
+          ? payload.owner_agent_id.trim()
+          : null;
+    }
+    if (payload.owner_human_id === null || typeof payload.owner_human_id === "string") {
+      existing.owner_human_id =
+        typeof payload.owner_human_id === "string" && payload.owner_human_id.trim().length > 0
+          ? payload.owner_human_id.trim()
+          : null;
+    }
+    if (payload.due_at === null || typeof payload.due_at === "number") {
+      existing.due_at = payload.due_at;
+    }
+    if (payload.script_markdown === null || typeof payload.script_markdown === "string") {
+      existing.script_markdown = payload.script_markdown;
+    }
+    if (Array.isArray(payload.tags)) {
+      existing.tags = payload.tags.filter((item) => typeof item === "string");
+    } else if (payload.tags === null) {
+      existing.tags = [];
+    }
+    existing.updated_at = Date.now();
+    recalcBoardSummary();
+    sendJson(res, 200, {
+      card: existing,
+    });
+    return;
+  }
+
+  const boardMoveMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/boards\/([^/]+)\/cards\/([^/]+)\/move$/
+  );
+  if (req.method === "POST" && boardMoveMatch) {
+    const boardId = decodeURIComponent(boardMoveMatch[1]);
+    const cardId = decodeURIComponent(boardMoveMatch[2]);
+    const existing = cards.find(
+      (card) => card.board_id === boardId && card.card_id === cardId
+    );
+    if (!existing) {
+      sendJson(res, 404, { error: "card not found" });
+      return;
+    }
+    const payload = await readJson(req);
+    const columnId = String(payload.column_id ?? "").trim();
+    const beforeCardId =
+      typeof payload.before_card_id === "string" && payload.before_card_id.trim().length > 0
+        ? payload.before_card_id.trim()
+        : null;
+    if (!columnId) {
+      sendJson(res, 400, { error: "column_id is required" });
+      return;
+    }
+    const targetColumn = columns.find(
+      (column) => column.board_id === boardId && column.column_id === columnId
+    );
+    if (!targetColumn) {
+      sendJson(res, 400, { error: "column_id is invalid" });
+      return;
+    }
+    const previousColumnId = existing.column_id;
+    existing.column_id = columnId;
+    existing.updated_at = Date.now();
+
+    const siblings = sortByPosition(
+      cards.filter(
+        (card) =>
+          card.board_id === boardId &&
+          card.column_id === columnId &&
+          card.card_id !== existing.card_id
+      )
+    );
+    const beforeIndex =
+      beforeCardId === null
+        ? -1
+        : siblings.findIndex((card) => card.card_id === beforeCardId);
+    const insertIndex =
+      beforeIndex < 0 ? siblings.length : beforeIndex;
+    siblings.splice(insertIndex, 0, existing);
+    for (let i = 0; i < siblings.length; i += 1) {
+      siblings[i].position = i;
+      siblings[i].updated_at = Date.now();
+    }
+    normalizeColumnPositions(boardId, previousColumnId);
+    normalizeColumnPositions(boardId, columnId);
+    recalcBoardSummary();
+    broadcastWsEvent({
+      event_type: "board.card.moved",
+      entity: "board",
+      payload: {
+        domain: "boards",
+        severity: "normal",
+        summary: `Card moved: ${existing.title}`,
+        board_id: boardId,
+        card_id: existing.card_id,
+        column_id: existing.column_id,
+        position: existing.position,
+      },
+    });
+    sendJson(res, 200, {
+      card: existing,
+    });
+    return;
+  }
+
+  const boardRunMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/boards\/([^/]+)\/cards\/([^/]+)\/run$/
+  );
+  if (req.method === "POST" && boardRunMatch) {
+    const boardId = decodeURIComponent(boardRunMatch[1]);
+    const cardId = decodeURIComponent(boardRunMatch[2]);
+    const existing = cards.find(
+      (card) => card.board_id === boardId && card.card_id === cardId
+    );
+    if (!existing) {
+      sendJson(res, 404, { error: "card not found" });
+      return;
+    }
+    const runId = `run-${String(nextRunCounter++).padStart(4, "0")}`;
+    existing.latest_run_id = runId;
+    existing.updated_at = Date.now();
+    recalcBoardSummary();
+    broadcastWsEvent({
+      event_type: "board.card.run",
+      entity: "board",
+      payload: {
+        domain: "boards",
+        severity: "high",
+        summary: `Card run queued: ${existing.title}`,
+        board_id: boardId,
+        card_id: existing.card_id,
+        run_id: runId,
+      },
+    });
+    sendJson(res, 200, {
+      card: existing,
+      run: {
+        run_id: runId,
+        status: "queued",
+      },
     });
     return;
   }
@@ -332,10 +728,11 @@ async function routeRequest(req, res) {
       sendJson(res, 404, { error: "board not found" });
       return;
     }
+    recalcBoardSummary();
     sendJson(res, 200, {
       board,
-      columns,
-      cards,
+      columns: sortByPosition(columns),
+      cards: sortByPosition(cards),
     });
     return;
   }
@@ -460,18 +857,7 @@ async function routeRequest(req, res) {
   if (req.method === "GET" && requestUrl.pathname === "/api/v1/mission-control/focus") {
     sendJson(res, 200, {
       generated_at_ms: Date.now(),
-      items: [
-        {
-          item_id: "focus-001",
-          category: "status",
-          severity: "normal",
-          title: "All systems nominal",
-          detail: "Deterministic stub focus event",
-          primary_action: "none",
-          action_payload: {},
-          created_at: Date.now() - 5_000,
-        },
-      ],
+      items: getMissionControlFocusItems(),
     });
     return;
   }
@@ -483,9 +869,102 @@ async function routeRequest(req, res) {
     return;
   }
 
-  if (req.method === "GET" && requestUrl.pathname === "/api/v1/approvals") {
+  const jobRunMatch = requestUrl.pathname.match(/^\/api\/v1\/jobs\/([^/]+)\/run$/);
+  if (req.method === "POST" && jobRunMatch) {
+    const jobId = decodeURIComponent(jobRunMatch[1]);
+    const job = jobs.find((item) => item.job_id === jobId);
+    if (!job) {
+      sendJson(res, 404, { error: "job not found" });
+      return;
+    }
+    const now = Date.now();
+    job.last_run_at = now;
+    job.last_error = null;
+    job.updated_at = now;
+    const run = {
+      job_run_id: `job-run-${String(nextJobRunCounter++).padStart(4, "0")}`,
+      status: "queued",
+      attempt: 1,
+      started_at: now,
+      ended_at: null,
+      error_text: null,
+      output_json: null,
+    };
+    broadcastWsEvent({
+      event_type: "job.run.queued",
+      entity: "job",
+      payload: {
+        domain: "jobs",
+        severity: "normal",
+        summary: `Job run queued: ${job.name}`,
+        job_id: job.job_id,
+      },
+    });
     sendJson(res, 200, {
-      items: [],
+      job_run: run,
+    });
+    return;
+  }
+
+  const jobUpdateMatch = requestUrl.pathname.match(/^\/api\/v1\/jobs\/([^/]+)\/update$/);
+  if (req.method === "POST" && jobUpdateMatch) {
+    const jobId = decodeURIComponent(jobUpdateMatch[1]);
+    const job = jobs.find((item) => item.job_id === jobId);
+    if (!job) {
+      sendJson(res, 404, { error: "job not found" });
+      return;
+    }
+    const payload = await readJson(req);
+    if (typeof payload.enabled === "boolean") {
+      job.enabled = payload.enabled;
+      job.updated_at = Date.now();
+    }
+    sendJson(res, 200, {
+      job,
+    });
+    return;
+  }
+
+  if (req.method === "GET" && requestUrl.pathname === "/api/v1/approvals") {
+    const status = requestUrl.searchParams.get("status") ?? "";
+    const limitRaw = Number(requestUrl.searchParams.get("limit") ?? "100");
+    const limit = Number.isFinite(limitRaw)
+      ? Math.max(1, Math.min(500, Math.floor(limitRaw)))
+      : 100;
+    const filtered = getApprovals(status).slice(0, limit);
+    sendJson(res, 200, {
+      items: filtered,
+    });
+    return;
+  }
+
+  const approvalResolveMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/approvals\/([^/]+)\/resolve$/
+  );
+  if (req.method === "POST" && approvalResolveMatch) {
+    const approvalId = decodeURIComponent(approvalResolveMatch[1]);
+    const approval = approvals.find((item) => item.approval_id === approvalId);
+    if (!approval) {
+      sendJson(res, 404, { error: "approval not found" });
+      return;
+    }
+    const payload = await readJson(req);
+    const decision = payload.decision === "deny" ? "deny" : "approve";
+    approval.status = decision === "deny" ? "denied" : "approved";
+    approval.decided_at = Date.now();
+    broadcastWsEvent({
+      event_type: "approval.resolved",
+      entity: "approval",
+      payload: {
+        domain: "approvals",
+        severity: "high",
+        summary: `Approval ${decision}: ${approval.approval_id}`,
+        approval_id: approval.approval_id,
+        status: approval.status,
+      },
+    });
+    sendJson(res, 200, {
+      approval,
     });
     return;
   }
@@ -493,17 +972,52 @@ async function routeRequest(req, res) {
   if (req.method === "GET" && requestUrl.pathname === "/api/v1/channels/runtime/status") {
     sendJson(res, 200, {
       updated_at: Date.now(),
-      items: [
-        {
-          provider: agents[0]?.model_provider ?? "ollama",
-          lifecycle_state: "connected",
-          healthy: true,
-          detail: "stub",
-          last_error: null,
-          reconnect_attempts: 0,
-          updated_at: Date.now(),
-        },
-      ],
+      items: channelStatuses,
+    });
+    return;
+  }
+
+  if (req.method === "POST" && requestUrl.pathname === "/api/v1/channels/runtime/reconnect") {
+    const payload = await readJson(req);
+    const provider =
+      typeof payload.provider === "string" && payload.provider.trim().length > 0
+        ? payload.provider.trim()
+        : "ollama";
+    let target = channelStatuses.find((item) => item.provider === provider);
+    if (!target) {
+      target = {
+        provider,
+        lifecycle_state: "running",
+        healthy: true,
+        detail: "stub",
+        last_error: null,
+        reconnect_attempts: 0,
+        updated_at: Date.now(),
+      };
+      channelStatuses.push(target);
+    }
+    target.reconnect_attempts += 1;
+    target.lifecycle_state = "running";
+    target.healthy = true;
+    target.last_error = null;
+    target.detail = "reconnected via mock endpoint";
+    target.updated_at = Date.now();
+    broadcastWsEvent({
+      event_type: "channel.runtime.reconnected",
+      entity: "channel",
+      payload: {
+        domain: "channels",
+        severity: "normal",
+        summary: `Channel reconnected: ${provider}`,
+        provider,
+      },
+    });
+    sendJson(res, 200, {
+      status: {
+        provider: target.provider,
+        healthy: target.healthy,
+        lifecycle_state: target.lifecycle_state,
+      },
     });
     return;
   }
@@ -632,7 +1146,7 @@ async function routeRequest(req, res) {
     const payload = await readJson(req);
     const countRaw = Number(payload.count ?? 5);
     const count = Number.isFinite(countRaw)
-      ? Math.max(1, Math.min(100, Math.floor(countRaw)))
+      ? Math.max(1, Math.min(500, Math.floor(countRaw)))
       : 5;
     const eventType =
       typeof payload.event_type === "string" ? payload.event_type : "gateway.notice";
@@ -653,6 +1167,46 @@ async function routeRequest(req, res) {
     sendJson(res, 200, {
       count,
       events: emitted,
+    });
+    return;
+  }
+
+  if (req.method === "POST" && requestUrl.pathname === "/api/v1/e2e/ws-malformed") {
+    const payload = await readJson(req);
+    const raw =
+      typeof payload.raw === "string" && payload.raw.length > 0
+        ? payload.raw
+        : "{malformed-json";
+    sendMalformedWsPayload(raw);
+    sendJson(res, 200, {
+      delivered: wsClients.size,
+      raw,
+    });
+    return;
+  }
+
+  if (req.method === "POST" && requestUrl.pathname === "/api/v1/e2e/ws-flap") {
+    const payload = await readJson(req);
+    const countRaw = Number(payload.count ?? 1);
+    const intervalRaw = Number(payload.interval_ms ?? 75);
+    const count = Number.isFinite(countRaw)
+      ? Math.max(1, Math.min(8, Math.floor(countRaw)))
+      : 1;
+    const intervalMs = Number.isFinite(intervalRaw)
+      ? Math.max(0, Math.min(2_000, Math.floor(intervalRaw)))
+      : 75;
+    const codeRaw = Number(payload.code ?? 1012);
+    const code = Number.isFinite(codeRaw) ? Math.max(1000, Math.min(4999, Math.floor(codeRaw))) : 1012;
+    for (let i = 0; i < count; i += 1) {
+      setTimeout(() => {
+        closeAllWsConnections(code, "e2e-flap");
+      }, i * intervalMs);
+    }
+    sendJson(res, 200, {
+      count,
+      interval_ms: intervalMs,
+      code,
+      ws_clients: wsClients.size,
     });
     return;
   }

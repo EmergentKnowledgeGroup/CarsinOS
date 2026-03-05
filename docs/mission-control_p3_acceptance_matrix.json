@@ -1,0 +1,52 @@
+{
+  "schema": "carsinos.mission_control_phase_acceptance_matrix.v1",
+  "phase": "P3",
+  "source_spec": "docs/Reliability_OpsUX_upgrade.md",
+  "source_section": "7) Cross-Cutting QA / Edge Cases Checklist",
+  "bullets": [
+    {
+      "text": "Boards create/move/run workflow persists across refresh/reload.",
+      "assertions": [
+        {
+          "type": "e2e",
+          "file": "apps/mission-control/e2e/p3-workflows.spec.ts",
+          "test_name": "boards workflow supports create/move/run with persistence across refresh"
+        }
+      ]
+    },
+    {
+      "text": "Reconnect-edge scenarios (rapid flap + malformed frames) recover to connected without exploding state buffers.",
+      "assertions": [
+        {
+          "type": "e2e",
+          "file": "apps/mission-control/e2e/reconnect-edge.spec.ts",
+          "test_name": "handles malformed frames and rapid flaps without state explosion"
+        }
+      ]
+    },
+    {
+      "text": "Focus approvals approve/deny actions update queue content and pending counts deterministically.",
+      "assertions": [
+        {
+          "type": "e2e",
+          "file": "apps/mission-control/e2e/p3-workflows.spec.ts",
+          "test_name": "focus approvals workflow resolves approve+deny and updates pending count"
+        }
+      ]
+    },
+    {
+      "text": "Tauri smoke includes one representative operator parity path (onboarding + boards + focus).",
+      "assertions": [
+        {
+          "type": "static",
+          "file": "scripts/mission_control_e2e_placeholder.mjs",
+          "present_substrings": [
+            "await shot(\"wizard-complete-boards\");",
+            "\"focus\",",
+            "await shot(`nav-${tab}`);"
+          ]
+        }
+      ]
+    }
+  ]
+}

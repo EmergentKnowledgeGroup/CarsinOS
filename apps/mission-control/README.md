@@ -13,6 +13,8 @@ Mission Control is the CarsinOS operator UI built with React + TypeScript + Vite
 - `npm run test:e2e:full` - full Playwright suite
 - `npm run test:e2e:tauri-smoke` - desktop smoke automation with step-by-step screenshots and trace artifacts
 - `npm run quality:acceptance:p1` - validate Section 7 `[P1]` acceptance matrix coverage
+- `npm run quality:acceptance:p2` - validate Section 7 `[P2]` acceptance matrix coverage
+- `npm run quality:acceptance:p3` - validate Section 7 `[P3]` acceptance matrix coverage
 - `npm run quality:gate` - run Mission Control quality gate (`pr` profile)
 - `npm run quality:gate:pr` - run Mission Control quality gate (`pr` profile)
 - `npm run quality:gate:release` - run Mission Control quality gate (`release` profile)
@@ -20,7 +22,11 @@ Mission Control is the CarsinOS operator UI built with React + TypeScript + Vite
 
 Quality gate profiles are config-driven via [`quality-gate.config.json`](./quality-gate.config.json).  
 Tauri smoke visual artifacts are written to `runtime/quality-gate/artifacts/tauri-smoke/<timestamp>/` (screenshots, trace, logs, and run manifest).
-Phase-scoped acceptance mapping for Section 7 `[P1]` bullets is tracked in [`docs/mission-control_p1_acceptance_matrix.json`](../../docs/mission-control_p1_acceptance_matrix.json) and validated by `mc-acceptance-p1` in the quality gate.
+Phase-scoped acceptance mapping for Section 7 bullets is tracked in:
+- [`docs/mission-control_p1_acceptance_matrix.json`](../../docs/mission-control_p1_acceptance_matrix.json)
+- [`docs/mission-control_p2_acceptance_matrix.json`](../../docs/mission-control_p2_acceptance_matrix.json)
+- [`docs/mission-control_p3_acceptance_matrix.json`](../../docs/mission-control_p3_acceptance_matrix.json)
+and validated by `mc-acceptance-p1/p2/p3` in the quality gate.
 
 ## Onboarding Wizard
 

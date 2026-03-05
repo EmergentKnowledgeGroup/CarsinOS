@@ -310,12 +310,15 @@ Reliability / regressions
 - [P1] Malformed WS events do not crash UI (drop safely + optionally log).
 - [P2] Very large event payloads do not freeze UI (summarize; expand on demand).
 - [P2] Pause feed actually pauses (no sneaky auto-scroll or read-marking).
+- [P3] Boards create/move/run workflow persists across refresh/reload.
+- [P3] Reconnect-edge scenarios (rapid flap + malformed frames) recover to connected without exploding state buffers.
 
 State + recovery
 
 - [P1] Tab reset does not wipe global app settings unintentionally.
 - [P1] Error recovery does not cause infinite crash loops.
 - [P2] Clear notifications does not break live feed counts and supports undo/restore window.
+- [P3] Focus approvals approve/deny actions update queue content and pending counts deterministically.
 
 Security / privacy
 
@@ -329,6 +332,7 @@ Test stability
 - [P1] E2E avoids racey sleep patterns; waits on visible states or deterministic mocks.
 - [P1] E2E runs against deterministic stub gateway + websocket.
 - [P1] Tests do not require real provider OAuth flows (mock/stub those paths).
+- [P3] Tauri smoke includes one representative operator parity path (onboarding + boards + focus).
 
 Acceptance binding (explicit): each scoped bullet above must be covered by at least one automated assertion tracked in test plan artifacts by the end of its owning phase.
 
