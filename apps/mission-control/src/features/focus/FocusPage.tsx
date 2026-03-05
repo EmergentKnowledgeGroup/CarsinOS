@@ -16,6 +16,12 @@ import { redactSecrets } from "../../lib/redaction";
 
 const FOCUS_PAGE_SIZE = 6;
 
+function formatContextDisplay(value: unknown): string {
+  return typeof value === "object"
+    ? JSON.stringify(redactSecrets(value), null, 2)
+    : redactSecrets(String(value));
+}
+
 function SeverityIcon({ severity }: { severity: string }) {
   switch (severity) {
     case "critical":
@@ -45,10 +51,7 @@ function extractApprovalContext(payload: Record<string, unknown>): Array<[string
   for (const [key, label] of fields) {
     const value = payload[key];
     if (value !== undefined && value !== null && value !== "") {
-      const display =
-        typeof value === "object"
-          ? JSON.stringify(redactSecrets(value), null, 2)
-          : redactSecrets(String(value));
+      const display = formatContextDisplay(value);
       entries.push([label, display]);
     }
   }
@@ -56,10 +59,7 @@ function extractApprovalContext(payload: Record<string, unknown>): Array<[string
   const coveredKeys = new Set(["approval_id", "job_id", "provider", ...fields.map(([k]) => k)]);
   for (const [key, value] of Object.entries(payload)) {
     if (!coveredKeys.has(key) && value !== undefined && value !== null && value !== "") {
-      const display =
-        typeof value === "object"
-          ? JSON.stringify(redactSecrets(value), null, 2)
-          : redactSecrets(String(value));
+      const display = formatContextDisplay(value);
       entries.push([key, display]);
     }
   }

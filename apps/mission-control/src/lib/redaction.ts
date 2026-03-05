@@ -46,13 +46,13 @@ function redactStringValue(value: string): string {
 
   // Redact generic key/token assignments in text logs.
   next = next.replace(
-    /((?:token|access_token|refresh_token|api_key|client_secret|password)\s*[:=]\s*)[^\s,;]+/gi,
+    /((?:token|access_token|refresh_token|api_key|client_secret|password|oauth_code|auth_code)\s*[:=]\s*)[^\s,;&]+/gi,
     `$1${REDACTED_VALUE}`
   );
 
   // Redact URL query-string style secret params.
   next = next.replace(
-    /([?&](?:token|access_token|refresh_token|api_key|apikey|client_secret|code)=)[^&#\s]+/gi,
+    /([?&](?:token|access_token|refresh_token|api_key|apikey|client_secret|oauth_code|auth_code|code)=)[^&#\s]+/gi,
     `$1${REDACTED_VALUE}`
   );
 

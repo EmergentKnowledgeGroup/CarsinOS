@@ -31,6 +31,12 @@ describe("redactSecrets", () => {
     expect(redactSecrets("https://api.example.com/callback?code=abc123&token=xyz")).toBe(
       "https://api.example.com/callback?code=[REDACTED]&token=[REDACTED]"
     );
+    expect(redactSecrets("oauth_code=abc123 auth_code=xyz987")).toBe(
+      "oauth_code=[REDACTED] auth_code=[REDACTED]"
+    );
+    expect(redactSecrets("https://x.test/cb?oauth_code=abc&auth_code=def")).toBe(
+      "https://x.test/cb?oauth_code=[REDACTED]&auth_code=[REDACTED]"
+    );
     expect(
       redactSecrets(
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature"
