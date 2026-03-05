@@ -6,6 +6,7 @@ import type {
   AgentMailThreadDetailResponse,
   AgentProviderProfileOrderResponse,
   AnthropicSetupTokenIngestResponse,
+  AnthropicSetupTokenValidateResponse,
   AuthProfileResponse,
   BoardDetail,
   BoardDetailResponse,
@@ -43,6 +44,8 @@ import type {
   OpenAiOauthStartResponse,
   PluginManifestResponse,
   ReleaseAgentMailFileLeaseResponse,
+  RemoveAgentResponse,
+  RevokeAuthProfileResponse,
   ResolveApprovalResponse,
   RuntimeConnectionSettings,
   RunJobNowResponse,
@@ -264,6 +267,19 @@ export async function updateAgent(
     {
       method: "POST",
       body: payload,
+    }
+  );
+}
+
+export async function removeAgent(
+  settings: RuntimeConnectionSettings,
+  agentId: string
+): Promise<RemoveAgentResponse> {
+  return requestJson<RemoveAgentResponse>(
+    settings,
+    `/api/v1/agents/${encodeURIComponent(agentId)}/remove`,
+    {
+      method: "POST",
     }
   );
 }
@@ -546,6 +562,26 @@ export async function setAgentProviderProfileOrder(
   );
 }
 
+export async function revokeAuthProfile(
+  settings: RuntimeConnectionSettings,
+  authProfileId: string,
+  payload: {
+    reason?: string;
+    remove_secret?: boolean;
+    disable_profile?: boolean;
+    kill_switch_scope?: string;
+  } = {}
+): Promise<RevokeAuthProfileResponse> {
+  return requestJson<RevokeAuthProfileResponse>(
+    settings,
+    `/api/v1/security/auth-profiles/${encodeURIComponent(authProfileId)}/revoke`,
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
 export async function startOpenAiOauth(
   settings: RuntimeConnectionSettings,
   payload: {
@@ -626,6 +662,23 @@ export async function ingestAnthropicSetupToken(
   return requestJson<AnthropicSetupTokenIngestResponse>(
     settings,
     "/api/v1/auth/anthropic/setup-token/ingest",
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
+export async function validateAnthropicSetupToken(
+  settings: RuntimeConnectionSettings,
+  payload: {
+    setup_token: string;
+    api_base_url?: string;
+  }
+): Promise<AnthropicSetupTokenValidateResponse> {
+  return requestJson<AnthropicSetupTokenValidateResponse>(
+    settings,
+    "/api/v1/auth/anthropic/setup-token/validate",
     {
       method: "POST",
       body: payload,

@@ -16,9 +16,9 @@ async function openWizard(page: Page): Promise<void> {
 async function moveWizardToConnectionStep(page: Page): Promise<void> {
   await openWizard(page);
   await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByText("Step 2 of 8")).toBeVisible();
+  await expect(page.getByText("Step 2 of 6")).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByText("Step 3 of 8")).toBeVisible();
+  await expect(page.getByText("Step 3 of 6")).toBeVisible();
 }
 
 async function completeLocalOnboarding(
@@ -33,33 +33,23 @@ async function completeLocalOnboarding(
 
   await page.getByLabel("Gateway URL").fill(GATEWAY_URL);
   await page.getByLabel("Gateway token").fill(TEST_TOKEN);
-  await page.getByRole("button", { name: "Save + Connect" }).click();
+  await page.getByRole("button", { name: /Save \+ Connect/ }).click();
   await expect(page.getByText(/Connection status:\s*Connected/)).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
 
-  await expect(page.getByText("Step 4 of 8")).toBeVisible();
-  await page.getByRole("button", { name: /Use Selected Agent|Create Agent/ }).click();
-  await expect(page.getByText(/Agent status:\s*Ready/)).toBeVisible();
-  await page.getByRole("button", { name: "Continue" }).click();
-
-  await expect(page.getByText("Step 5 of 8")).toBeVisible();
+  await expect(page.getByText("Step 4 of 6")).toBeVisible();
+  await page.getByLabel("Agent ID").fill("assistant-main");
+  await page.getByLabel("Agent name").fill("Assistant");
   await page.getByRole("radio", { name: "Local connector" }).check();
   await page
     .getByPlaceholder("Or paste assistant model ID manually")
     .fill(ASSISTANT_MODEL_ID);
-  await page.getByRole("button", { name: "Apply Provider Setup" }).click();
-  await expect(page.getByText(/Provider status:\s*Ready/)).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
 
-  await expect(page.getByText("Step 6 of 8")).toBeVisible();
-  await page.getByRole("button", { name: "Apply Routing" }).click();
-  await expect(page.getByText(/Routing status:\s*Ready/)).toBeVisible();
-  await page.getByRole("button", { name: "Continue" }).click();
-
-  await expect(page.getByText("Step 7 of 8")).toBeVisible();
+  await expect(page.getByText("Step 5 of 6")).toBeVisible();
   await page.getByRole("button", { name: "Finalize" }).click();
 
-  await expect(page.getByText("Step 8 of 8")).toBeVisible();
+  await expect(page.getByText("Step 6 of 6")).toBeVisible();
   await page.getByRole("button", { name: "Go to Boards" }).click();
 
   await expect(page.getByRole("heading", { name: "Setup Wizard" })).toBeHidden();
@@ -96,7 +86,7 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
     await page.getByRole("button", { name: "Setup Wizard" }).click();
     await page.getByRole("button", { name: "Continue" }).click();
     await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByText("Step 3 of 8")).toBeVisible();
+    await expect(page.getByText("Step 3 of 6")).toBeVisible();
     await expect(page.getByLabel("Gateway token").first()).not.toHaveValue(TEST_TOKEN);
   });
 

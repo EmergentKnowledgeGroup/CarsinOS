@@ -1018,6 +1018,51 @@ impl Storage {
         self.get_agent(agent_id)
     }
 
+    pub fn remove_agent(&self, agent_id: &str) -> Result<bool> {
+        let agent_id = agent_id.trim().to_ascii_lowercase();
+        if agent_id.is_empty() {
+            anyhow::bail!("agent_id cannot be empty");
+        }
+        let mut conn = self.connect()?;
+        let tx = conn.transaction()?;
+        let exists = tx
+            .query_row(
+                "SELECT 1 FROM agents WHERE agent_id = ?1 LIMIT 1",
+                params![agent_id],
+                |_| Ok(()),
+            )
+            .optional()?
+            .is_some();
+        if !exists {
+            return Ok(false);
+        }
+
+        let session_refs: i64 = tx.query_row(
+            "SELECT COUNT(1) FROM sessions WHERE agent_id = ?1",
+            params![agent_id],
+            |row| row.get(0),
+        )?;
+        if session_refs > 0 {
+            anyhow::bail!("agent has sessions and cannot be removed");
+        }
+
+        tx.execute(
+            "UPDATE assistant_workers SET agent_id = NULL WHERE agent_id = ?1",
+            params![agent_id],
+        )?;
+        tx.execute(
+            "DELETE FROM agent_provider_profile_order WHERE agent_id = ?1",
+            params![agent_id],
+        )?;
+        tx.execute(
+            "DELETE FROM routing_rules WHERE agent_id = ?1",
+            params![agent_id],
+        )?;
+        let removed = tx.execute("DELETE FROM agents WHERE agent_id = ?1", params![agent_id])?;
+        tx.commit()?;
+        Ok(removed > 0)
+    }
+
     pub fn list_boards(&self) -> Result<Vec<BoardRecord>> {
         let conn = self.connect()?;
         let mut stmt = conn.prepare(
@@ -6236,6 +6281,56 @@ mod tests {
                 .is_some();
             assert!(exists, "expected migrated table: {}", table);
         }
+    }
+
+    #[test]
+    fn remove_agent_deletes_unreferenced_agent() {
+        let (_temp_dir, storage) = test_storage();
+        let created = storage
+            .create_agent(NewAgent {
+                agent_id: "delete-me".to_string(),
+                name: "Delete Me".to_string(),
+                workspace_root: ".".to_string(),
+                model_provider: "mock".to_string(),
+                model_id: "mock-echo-v1".to_string(),
+                tool_profile: "default".to_string(),
+            })
+            .expect("create removable agent");
+        assert_eq!(created.agent_id, "delete-me");
+
+        let removed = storage.remove_agent("delete-me").expect("remove agent");
+        assert!(removed);
+        assert!(storage
+            .get_agent("delete-me")
+            .expect("reload removed agent")
+            .is_none());
+    }
+
+    #[test]
+    fn remove_agent_rejects_agent_with_sessions() {
+        let (_temp_dir, storage) = test_storage();
+        let created = storage
+            .create_agent(NewAgent {
+                agent_id: "has-session".to_string(),
+                name: "Has Session".to_string(),
+                workspace_root: ".".to_string(),
+                model_provider: "mock".to_string(),
+                model_id: "mock-echo-v1".to_string(),
+                tool_profile: "default".to_string(),
+            })
+            .expect("create session-bound agent");
+        storage
+            .create_session(NewSession {
+                session_key: Some("session-bound-agent".to_string()),
+                agent_id: created.agent_id.clone(),
+                title: Some("Session Bound".to_string()),
+            })
+            .expect("create blocking session");
+
+        let err = storage
+            .remove_agent(&created.agent_id)
+            .expect_err("remove should fail");
+        assert!(err.to_string().contains("cannot be removed"));
     }
 
     #[test]

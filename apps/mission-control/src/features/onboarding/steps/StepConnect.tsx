@@ -10,15 +10,15 @@ interface StepConnectProps {
   connected: boolean;
   onGatewayUrlChange: (value: string) => void;
   onGatewayTokenInputChange: (value: string) => void;
-  onConnect: () => Promise<void>;
+  onConnect: () => Promise<boolean>;
   onBack: () => void;
-  onNext: () => void;
+  onNext: () => void | Promise<void>;
 }
 
 export function StepConnect(props: StepConnectProps) {
   return (
     <OnboardingStepShell
-      stepLabel="Step 3 of 8"
+      stepLabel="Step 3 of 6"
       title="Connect Gateway"
       subtitle={
         props.tokenConfigured
@@ -30,21 +30,28 @@ export function StepConnect(props: StepConnectProps) {
           <button type="button" className="ghost" onClick={props.onBack}>
             Back
           </button>
-          <button
-            type="button"
-            className="ghost"
-            disabled={props.busy}
-            aria-busy={props.busy}
-            onClick={() => void props.onConnect()}
-          >
-            {props.busy ? "Connecting..." : "Save + Connect"}
-          </button>
-          <button type="button" disabled={!props.connected} onClick={props.onNext}>
+          <button type="button" disabled={props.busy} onClick={() => void props.onNext()}>
             Continue
           </button>
         </>
       }
     >
+      <div className="mc-onboarding-inline-actions">
+        <button
+          type="button"
+          className="ghost"
+          disabled={props.busy}
+          aria-busy={props.busy}
+          onClick={() => {
+            if (props.busy) {
+              return;
+            }
+            void props.onConnect();
+          }}
+        >
+          {props.busy ? "Connecting..." : "Save + Connect now"}
+        </button>
+      </div>
       <div className="mc-onboarding-field-grid">
         <label>
           Gateway URL
@@ -58,10 +65,6 @@ export function StepConnect(props: StepConnectProps) {
           Gateway token
           <input
             type="text"
-            autoComplete="off"
-            autoCapitalize="none"
-            autoCorrect="off"
-            spellCheck={false}
             value={props.gatewayTokenInput}
             onChange={(event) => props.onGatewayTokenInputChange(event.target.value)}
             placeholder={

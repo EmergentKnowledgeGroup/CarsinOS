@@ -480,6 +480,11 @@ export interface CreateAuthProfileResponse {
   profile: AuthProfileResponse;
 }
 
+export interface RevokeAuthProfileResponse {
+  profile: AuthProfileResponse;
+  revoked_secret_ref: string | null;
+}
+
 export interface AgentProviderProfileOrderResponse {
   agent_id: string;
   provider: string;
@@ -501,6 +506,14 @@ export interface OpenAiOauthFinishResponse {
 
 export interface AnthropicSetupTokenIngestResponse {
   profile: AuthProfileResponse;
+}
+
+export interface AnthropicSetupTokenValidateResponse {
+  valid: boolean;
+}
+
+export interface RemoveAgentResponse {
+  removed: boolean;
 }
 
 export interface SkillResponse {

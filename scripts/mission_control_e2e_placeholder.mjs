@@ -239,47 +239,34 @@ async function run() {
     await shot("wizard-opened");
 
     await page.getByRole("button", { name: "Continue" }).click();
-    await page.getByText("Step 2 of 8").waitFor();
+    await page.getByText("Step 2 of 6").waitFor();
     await shot("wizard-step-2");
 
     await page.getByRole("button", { name: "Continue" }).click();
-    await page.getByText("Step 3 of 8").waitFor();
+    await page.getByText("Step 3 of 6").waitFor();
     await shot("wizard-step-3-connect");
 
     await page.getByLabel("Gateway URL").fill(gatewayUrl);
     await page.getByLabel("Gateway token").first().fill(token);
     await shot("connect-fields-filled");
 
-    await page.getByRole("button", { name: "Save + Connect" }).click();
+    await page.getByRole("button", { name: /Save \+ Connect/ }).click();
     await page.getByText(/Connection status:\s*Connected/).waitFor();
     await shot("gateway-connected");
 
     await page.getByRole("button", { name: "Continue" }).click();
-    await page.getByText("Step 4 of 8").waitFor();
-    await page.getByRole("button", { name: /Use Selected Agent|Create Agent/ }).click();
-    await page.getByText(/Agent status:\s*Ready/).waitFor();
-    await shot("agent-ready");
-
-    await page.getByRole("button", { name: "Continue" }).click();
-    await page.getByText("Step 5 of 8").waitFor();
+    await page.getByText("Step 4 of 6").waitFor();
+    await page.getByLabel("Agent ID").fill("assistant-main");
+    await page.getByLabel("Agent name").fill("Assistant");
     await page.getByRole("radio", { name: "Local connector" }).check();
     await page.getByPlaceholder("Or paste assistant model ID manually").fill(modelId);
-    await shot("provider-local-selected");
-
-    await page.getByRole("button", { name: "Apply Provider Setup" }).click();
-    await page.getByText(/Provider status:\s*Ready/).waitFor();
-    await shot("provider-ready");
+    await shot("wizard-step-4-agent-provider");
 
     await page.getByRole("button", { name: "Continue" }).click();
-    await page.getByText("Step 6 of 8").waitFor();
-    await page.getByRole("button", { name: "Apply Routing" }).click();
-    await page.getByText(/Routing status:\s*Ready/).waitFor();
-    await shot("routing-ready");
-
-    await page.getByRole("button", { name: "Continue" }).click();
-    await page.getByText("Step 7 of 8").waitFor();
+    await page.getByText("Step 5 of 6").waitFor();
+    await shot("wizard-step-5-review");
     await page.getByRole("button", { name: "Finalize" }).click();
-    await page.getByText("Step 8 of 8").waitFor();
+    await page.getByText("Step 6 of 6").waitFor();
     await page.getByRole("button", { name: "Go to Boards" }).click();
     await page.getByText("Investigate gateway health").waitFor();
     await shot("wizard-complete-boards");

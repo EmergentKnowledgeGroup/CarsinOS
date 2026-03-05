@@ -59,24 +59,16 @@ async function completeLocalOnboarding(page: Page): Promise<void> {
 
   await page.getByLabel("Gateway URL").fill(GATEWAY_URL);
   await page.getByLabel("Gateway token").fill(TEST_TOKEN);
-  await page.getByRole("button", { name: "Save + Connect" }).click();
+  await page.getByRole("button", { name: /Save \+ Connect/ }).click();
   await expect(page.getByText(/Connection status:\s*Connected/)).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
 
-  await page.getByRole("button", { name: /Use Selected Agent|Create Agent/ }).click();
-  await expect(page.getByText(/Agent status:\s*Ready/)).toBeVisible();
-  await page.getByRole("button", { name: "Continue" }).click();
-
+  await page.getByLabel("Agent ID").fill("assistant-main");
+  await page.getByLabel("Agent name").fill("Assistant");
   await page.getByRole("radio", { name: "Local connector" }).check();
   await page
     .getByPlaceholder("Or paste assistant model ID manually")
     .fill(ASSISTANT_MODEL_ID);
-  await page.getByRole("button", { name: "Apply Provider Setup" }).click();
-  await expect(page.getByText(/Provider status:\s*Ready/)).toBeVisible();
-  await page.getByRole("button", { name: "Continue" }).click();
-
-  await page.getByRole("button", { name: "Apply Routing" }).click();
-  await expect(page.getByText(/Routing status:\s*Ready/)).toBeVisible();
   await page.getByRole("button", { name: "Continue" }).click();
 
   await page.getByRole("button", { name: "Finalize" }).click();

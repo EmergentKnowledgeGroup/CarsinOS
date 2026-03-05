@@ -24,13 +24,15 @@ use carsinos_protocol::{
     AgentMailFileLeaseResponse, AgentMailMessageRecipientResponse, AgentMailMessageResponse,
     AgentMailThreadDetailResponse, AgentMailThreadParticipantResponse,
     AgentMailThreadSummaryResponse, AgentResponse, AnthropicSetupTokenIngestRequest,
-    AnthropicSetupTokenIngestResponse, ApprovalResponse, AssistantMemoryScope, AssistantTaskHandle,
-    AssistantToolCapabilitiesResponse, AssistantToolCapabilityItem, AssistantToolLimitsResponse,
-    AssistantToolRpcRequest, AssistantToolRpcResponse, AssistantWorkerSummary,
-    AssistantWorkerTemplateResponse, AssistantWorkerTemplateRunDefaults, AuthProfileResponse,
-    BoardAutomationRuleResponse, BoardCardAssetResponse, BoardCardResponse, BoardColumnResponse,
-    BoardDetailResponse, BoardSummaryResponse, ChannelRuntimeAdapterStatusResponse,
-    CircuitBreakerStateResponse, CreateAgentMailFileLeaseRequest, CreateAgentMailFileLeaseResponse,
+    AnthropicSetupTokenIngestResponse, AnthropicSetupTokenValidateRequest,
+    AnthropicSetupTokenValidateResponse, ApprovalResponse, AssistantMemoryScope,
+    AssistantTaskHandle, AssistantToolCapabilitiesResponse, AssistantToolCapabilityItem,
+    AssistantToolLimitsResponse, AssistantToolRpcRequest, AssistantToolRpcResponse,
+    AssistantWorkerSummary, AssistantWorkerTemplateResponse, AssistantWorkerTemplateRunDefaults,
+    AuthProfileResponse, BoardAutomationRuleResponse, BoardCardAssetResponse, BoardCardResponse,
+    BoardColumnResponse, BoardDetailResponse, BoardSummaryResponse,
+    ChannelRuntimeAdapterStatusResponse, CircuitBreakerStateResponse,
+    CreateAgentMailFileLeaseRequest, CreateAgentMailFileLeaseResponse,
     CreateAgentMailThreadRequest, CreateAgentMailThreadResponse, CreateAgentRequest,
     CreateAgentResponse, CreateApprovalRequest, CreateApprovalResponse, CreateAuthProfileRequest,
     CreateAuthProfileResponse, CreateBoardCardRequest, CreateBoardCardResponse, CreateJobRequest,
@@ -67,14 +69,14 @@ use carsinos_protocol::{
     PluginPermissionsResponse, PluginRuntimeStatusResponse, ProviderCapabilityResponse,
     ProviderModelResponse, ReconnectChannelRuntimeRequest, ReconnectChannelRuntimeResponse,
     RefreshRuntimeTrustContractLockRequest, RefreshRuntimeTrustContractLockResponse,
-    ReleaseAgentMailFileLeaseRequest, ReleaseAgentMailFileLeaseResponse, RemoveJobResponse,
-    ResolveApprovalRequest, ResolveApprovalResponse, ResolveChannelApprovalActionRequest,
-    RollbackPluginRequest, RollbackPluginResponse, RollbackRuntimeConfigRequest,
-    RollbackRuntimeConfigResponse, RunBoardAutomationRuleResponse, RunBoardCardRequest,
-    RunBoardCardResponse, RunJobNowResponse, RunMemoryWhyRequest, RunMemoryWhyResponse,
-    RunResponse, RuntimeAutonomyGuardrailsConfig, RuntimeChannelsConfig, RuntimeConfigResponse,
-    RuntimeDiscordDeploymentConfig, RuntimeExtensionsConfig, RuntimeGlobalConfig,
-    RuntimeMemoryConfig, RuntimeNumquamConfig, RuntimeProviderPolicyConfig,
+    ReleaseAgentMailFileLeaseRequest, ReleaseAgentMailFileLeaseResponse, RemoveAgentResponse,
+    RemoveJobResponse, ResolveApprovalRequest, ResolveApprovalResponse,
+    ResolveChannelApprovalActionRequest, RollbackPluginRequest, RollbackPluginResponse,
+    RollbackRuntimeConfigRequest, RollbackRuntimeConfigResponse, RunBoardAutomationRuleResponse,
+    RunBoardCardRequest, RunBoardCardResponse, RunJobNowResponse, RunMemoryWhyRequest,
+    RunMemoryWhyResponse, RunResponse, RuntimeAutonomyGuardrailsConfig, RuntimeChannelsConfig,
+    RuntimeConfigResponse, RuntimeDiscordDeploymentConfig, RuntimeExtensionsConfig,
+    RuntimeGlobalConfig, RuntimeMemoryConfig, RuntimeNumquamConfig, RuntimeProviderPolicyConfig,
     RuntimeSecurityOpsConfig, RuntimeTelegramDeploymentConfig, RuntimeTrustContractLockResponse,
     RuntimeTrustContractLockSummaryResponse, SanitizedPath, SchedulerLockStateResponse,
     SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult, SendAgentMailMessageRequest,
@@ -6449,6 +6451,7 @@ fn build_app(state: AppState) -> Router {
             "/api/v1/agents/{agent_id}",
             get(get_agent).post(update_agent),
         )
+        .route("/api/v1/agents/{agent_id}/remove", post(remove_agent))
         .route("/api/v1/boards", get(list_boards))
         .route("/api/v1/boards/{board_id}", get(get_board))
         .route(
@@ -6528,6 +6531,10 @@ fn build_app(state: AppState) -> Router {
         .route(
             "/api/v1/auth/anthropic/setup-token/ingest",
             post(anthropic_setup_token_ingest),
+        )
+        .route(
+            "/api/v1/auth/anthropic/setup-token/validate",
+            post(anthropic_setup_token_validate),
         )
         .route(
             "/api/v1/auth/agents/{agent_id}/providers/{provider}/profile-order",
@@ -7171,6 +7178,48 @@ async fn update_agent(
     Ok(Json(UpdateAgentResponse {
         agent: to_agent_response(record),
     }))
+}
+
+async fn remove_agent(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(agent_id): Path<String>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let agent_id = agent_id.trim().to_ascii_lowercase();
+    if agent_id.is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "agent_id cannot be empty",
+        ));
+    }
+    let removed = state.storage.remove_agent(&agent_id).map_err(|err| {
+        let message = err.to_string();
+        if message.contains("cannot be removed") {
+            api_error(StatusCode::CONFLICT, &message)
+        } else {
+            internal_err_with_error("removing agent failed", err)
+        }
+    })?;
+    if !removed {
+        return Err(api_error(StatusCode::NOT_FOUND, "agent not found"));
+    }
+    record_security_audit(
+        &headers,
+        &state,
+        &auth,
+        "agent.remove",
+        &format!("agent:{agent_id}"),
+        "allow",
+        Some("agent removed".to_string()),
+        StatusCode::OK,
+        None,
+        None,
+        None,
+        None,
+    );
+    Ok(Json(RemoveAgentResponse { removed: true }))
 }
 
 async fn list_boards(
@@ -9705,6 +9754,37 @@ async fn anthropic_setup_token_ingest(
             profile: to_auth_profile_response(profile),
         }),
     ))
+}
+
+async fn anthropic_setup_token_validate(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<AnthropicSetupTokenValidateRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_AUTOMATION_RUNNER])?;
+    let setup_token = request.setup_token.trim().to_string();
+    if setup_token.is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "setup_token cannot be empty",
+        ));
+    }
+    let api_base_url = request
+        .api_base_url
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| ANTHROPIC_DEFAULT_API_BASE.to_string());
+    validate_anthropic_setup_token(&api_base_url, &setup_token)
+        .await
+        .map_err(|err| {
+            api_error(
+                StatusCode::BAD_GATEWAY,
+                &format!("setup token validation failed: {err}"),
+            )
+        })?;
+    Ok(Json(AnthropicSetupTokenValidateResponse { valid: true }))
 }
 
 fn random_urlsafe_token(min_len: usize) -> String {

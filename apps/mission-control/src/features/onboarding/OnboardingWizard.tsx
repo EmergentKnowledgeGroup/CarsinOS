@@ -1,12 +1,10 @@
 import type { Agent } from "../../types";
-import { StepAgent } from "./steps/StepAgent";
 import { StepConnect } from "./steps/StepConnect";
 import { StepDone } from "./steps/StepDone";
 import { StepMode } from "./steps/StepMode";
 import { StepPreflight } from "./steps/StepPreflight";
 import { StepProvider } from "./steps/StepProvider";
 import { StepReview } from "./steps/StepReview";
-import { StepRouting } from "./steps/StepRouting";
 import { useOnboardingController } from "./useOnboardingController";
 
 interface OnboardingWizardProps {
@@ -79,8 +77,8 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
           />
         ) : null}
 
-        {c.step === "agent" ? (
-          <StepAgent
+        {c.step === "provider" ? (
+          <StepProvider
             busy={c.busy}
             agents={props.agents}
             selectedAgentId={c.selectedAgentId}
@@ -89,25 +87,12 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
             workspaceRootDraft={c.workspaceRootDraft}
             toolProfileDraft={c.toolProfileDraft}
             agentReady={c.agentReady}
-            onSelectedAgentIdChange={c.setSelectedAgentId}
-            onAgentIdDraftChange={c.setAgentIdDraft}
-            onAgentNameDraftChange={c.setAgentNameDraft}
-            onWorkspaceRootDraftChange={c.setWorkspaceRootDraft}
-            onToolProfileDraftChange={c.setToolProfileDraft}
-            onEnsureAgent={c.ensureAgent}
-            onBack={c.previousStep}
-            onNext={c.nextStep}
-          />
-        ) : null}
-
-        {c.step === "provider" ? (
-          <StepProvider
-            busy={c.busy}
             providerPath={c.providerPath}
             useExistingProfile={c.useExistingProfile}
             existingProviderProfiles={c.existingProviderProfiles}
             selectedExistingProfileId={c.selectedExistingProfileId}
             providerReady={c.providerReady}
+            routingReady={c.routingReady}
             localProvider={c.localProvider}
             localUseConnectionProfile={c.localUseConnectionProfile}
             localConnectionProfileName={c.localConnectionProfileName}
@@ -127,6 +112,8 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
             anthropicDisplayName={c.anthropicDisplayName}
             anthropicSetupToken={c.anthropicSetupToken}
             anthropicSetupLaunchNote={c.anthropicSetupLaunchNote}
+            anthropicValidationBusy={c.anthropicValidationBusy}
+            anthropicValidationNote={c.anthropicValidationNote}
             anthropicApiBaseUrl={c.anthropicApiBaseUrl}
             anthropicAccessToken={c.anthropicAccessToken}
             anthropicRefreshToken={c.anthropicRefreshToken}
@@ -143,6 +130,14 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
             openAiCallbackUrl={c.openAiCallbackUrl}
             openAiCode={c.openAiCode}
             openAiState={c.openAiState}
+            onSelectedAgentIdChange={c.setSelectedAgentId}
+            onAgentIdDraftChange={c.setAgentIdDraft}
+            onAgentNameDraftChange={c.setAgentNameDraft}
+            onWorkspaceRootDraftChange={c.setWorkspaceRootDraft}
+            onToolProfileDraftChange={c.setToolProfileDraft}
+            onCreateNewAgentDraft={c.createNewAgentDraft}
+            onSaveAgent={c.saveAgent}
+            onDeleteSelectedAgent={c.deleteSelectedAgent}
             onProviderPathChange={c.setProviderPath}
             onUseExistingProfileChange={c.setUseExistingProfile}
             onSelectedExistingProfileIdChange={c.setSelectedExistingProfileId}
@@ -161,6 +156,7 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
             onAnthropicDisplayNameChange={c.setAnthropicDisplayName}
             onAnthropicSetupTokenChange={c.setAnthropicSetupToken}
             onLaunchAnthropicSetupTokenFlow={c.launchAnthropicSetupTokenFlow}
+            onValidateAnthropicSetupToken={c.runAnthropicSetupTokenValidation}
             onAnthropicApiBaseUrlChange={c.setAnthropicApiBaseUrl}
             onAnthropicAccessTokenChange={c.setAnthropicAccessToken}
             onAnthropicRefreshTokenChange={c.setAnthropicRefreshToken}
@@ -176,20 +172,7 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
             onOpenAiStateChange={c.setOpenAiState}
             onStartOpenAiOauthFlow={c.startOpenAiOauthFlow}
             onFinishOpenAiOauthFlow={c.finishOpenAiOauthFlow}
-            onCompleteProvider={c.completeProvider}
-            onBack={c.previousStep}
-            onNext={c.nextStep}
-          />
-        ) : null}
-
-        {c.step === "routing" ? (
-          <StepRouting
-            busy={c.busy}
-            providerPath={c.providerPath}
-            selectedAgentId={c.selectedAgentId}
-            providerProfileId={c.providerProfileId}
-            routingReady={c.routingReady}
-            onApplyRouting={c.applyRouting}
+            onReauthSelectedProfile={c.reauthSelectedProfile}
             onBack={c.previousStep}
             onNext={c.nextStep}
           />
