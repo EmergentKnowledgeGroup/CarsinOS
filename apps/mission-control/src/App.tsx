@@ -5,6 +5,7 @@ import { GuidedTourOverlay, type GuidedTourStep } from "./app/GuidedTourOverlay"
 import {
   useAppController,
   type EventStreamItem,
+  type MissionControlTab,
 } from "./app/useAppController";
 import { useGatewayEvents } from "./app/useGatewayEvents";
 import { useMissionControlController } from "./app/useMissionControlController";
@@ -18,6 +19,7 @@ import { useBoardsController } from "./features/boards/useBoardsController";
 import { useCockpitController } from "./features/cockpit/useCockpitController";
 import { OnboardingWizard } from "./features/onboarding/OnboardingWizard";
 import { useOnboardingController } from "./features/onboarding/useOnboardingController";
+import { SafeModePanel } from "./ui/SafeModePanel";
 import { ToastStack } from "./ui/Toast";
 import { useToasts } from "./ui/useToasts";
 import type { Agent, WsEventFrame } from "./types";
@@ -137,6 +139,8 @@ export default function App() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [guidedTourOpen, setGuidedTourOpen] = useState(false);
   const [guidedTourStep, setGuidedTourStep] = useState(0);
+  const [safeModeReason, setSafeModeReason] = useState<string | null>(null);
+  const [tabResetVersion, setTabResetVersion] = useState<Partial<Record<MissionControlTab, number>>>({});
 
   const boardsController = useBoardsController({
     settings,
@@ -250,6 +254,28 @@ export default function App() {
     [eventStream, showRawEvents]
   );
 
+  const resetTabState = useCallback((tab: MissionControlTab) => {
+    setTabResetVersion((previous) => ({
+      ...previous,
+      [tab]: (previous[tab] ?? 0) + 1,
+    }));
+  }, []);
+
+  const enterSafeMode = useCallback((reason: string) => {
+    setSafeModeReason(reason);
+  }, []);
+
+  const resumeFromSafeMode = useCallback(() => {
+    setSafeModeReason(null);
+    setTabResetVersion((previous) => {
+      const next: Partial<Record<MissionControlTab, number>> = {};
+      for (const [tab, version] of Object.entries(previous)) {
+        next[tab as MissionControlTab] = (version ?? 0) + 1;
+      }
+      return next;
+    });
+  }, []);
+
   const handleGatewayEvent = useCallback(
     (frame: WsEventFrame) => {
       setEventStream((previous) => {
@@ -294,6 +320,10 @@ export default function App() {
     onState: setWsState,
     onEvent: handleGatewayEvent,
   });
+
+  if (safeModeReason) {
+    return <SafeModePanel reason={safeModeReason} onResume={resumeFromSafeMode} />;
+  }
 
   return (
     <>
@@ -347,6 +377,9 @@ export default function App() {
         showRawEvents={showRawEvents}
         setShowRawEvents={setShowRawEvents}
         visibleEvents={visibleEvents}
+        onResetTabState={resetTabState}
+        onEnterSafeMode={enterSafeMode}
+        tabResetVersion={tabResetVersion}
         setNotice={setNotice}
       />
     </AppShell>
