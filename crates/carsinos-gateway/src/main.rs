@@ -60,26 +60,26 @@ use carsinos_protocol::{
     MissionControlUsageByJobResponse, MissionControlUsageByModelResponse,
     MissionControlUsageByProviderResponse, MissionControlUsageByTimeResponse,
     MissionControlUsageQuery, MissionControlUsageResponse, MoveBoardCardRequest,
-    MoveBoardCardResponse, NoteResponse,
-    NumquamIntegrationStatusResponse, OpenAiOauthFinishRequest, OpenAiOauthFinishResponse,
-    OpenAiOauthStartRequest, OpenAiOauthStartResponse, PluginArtifactResponse,
-    PluginCapabilityResponse, PluginCompatibilityResponse, PluginLimitsResponse,
-    PluginManifestResponse, PluginPermissionsResponse, PluginRuntimeStatusResponse,
-    ProviderCapabilityResponse, ProviderModelResponse, ReconnectChannelRuntimeRequest,
-    ReconnectChannelRuntimeResponse, RefreshRuntimeTrustContractLockRequest,
-    RefreshRuntimeTrustContractLockResponse, ReleaseAgentMailFileLeaseRequest,
-    ReleaseAgentMailFileLeaseResponse, RemoveJobResponse, ResolveApprovalRequest,
-    ResolveApprovalResponse, ResolveChannelApprovalActionRequest, RollbackPluginRequest,
-    RollbackPluginResponse, RollbackRuntimeConfigRequest, RollbackRuntimeConfigResponse,
-    RunBoardAutomationRuleResponse, RunBoardCardRequest, RunBoardCardResponse, RunJobNowResponse,
-    RunMemoryWhyRequest, RunMemoryWhyResponse, RunResponse, RuntimeAutonomyGuardrailsConfig,
-    RuntimeChannelsConfig, RuntimeConfigResponse, RuntimeDiscordDeploymentConfig,
-    RuntimeExtensionsConfig, RuntimeGlobalConfig, RuntimeMemoryConfig, RuntimeNumquamConfig,
-    RuntimeProviderPolicyConfig, RuntimeSecurityOpsConfig, RuntimeTelegramDeploymentConfig,
-    RuntimeTrustContractLockResponse, RuntimeTrustContractLockSummaryResponse, SanitizedPath,
-    SchedulerLockStateResponse, SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult,
-    SendAgentMailMessageRequest, SendAgentMailMessageResponse, SessionDetailResponse,
-    SessionSummary, SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse,
+    MoveBoardCardResponse, NoteResponse, NumquamIntegrationStatusResponse,
+    OpenAiOauthFinishRequest, OpenAiOauthFinishResponse, OpenAiOauthStartRequest,
+    OpenAiOauthStartResponse, PluginArtifactResponse, PluginCapabilityResponse,
+    PluginCompatibilityResponse, PluginLimitsResponse, PluginManifestResponse,
+    PluginPermissionsResponse, PluginRuntimeStatusResponse, ProviderCapabilityResponse,
+    ProviderModelResponse, ReconnectChannelRuntimeRequest, ReconnectChannelRuntimeResponse,
+    RefreshRuntimeTrustContractLockRequest, RefreshRuntimeTrustContractLockResponse,
+    ReleaseAgentMailFileLeaseRequest, ReleaseAgentMailFileLeaseResponse, RemoveJobResponse,
+    ResolveApprovalRequest, ResolveApprovalResponse, ResolveChannelApprovalActionRequest,
+    RollbackPluginRequest, RollbackPluginResponse, RollbackRuntimeConfigRequest,
+    RollbackRuntimeConfigResponse, RunBoardAutomationRuleResponse, RunBoardCardRequest,
+    RunBoardCardResponse, RunJobNowResponse, RunMemoryWhyRequest, RunMemoryWhyResponse,
+    RunResponse, RuntimeAutonomyGuardrailsConfig, RuntimeChannelsConfig, RuntimeConfigResponse,
+    RuntimeDiscordDeploymentConfig, RuntimeExtensionsConfig, RuntimeGlobalConfig,
+    RuntimeMemoryConfig, RuntimeNumquamConfig, RuntimeProviderPolicyConfig,
+    RuntimeSecurityOpsConfig, RuntimeTelegramDeploymentConfig, RuntimeTrustContractLockResponse,
+    RuntimeTrustContractLockSummaryResponse, SanitizedPath, SchedulerLockStateResponse,
+    SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult, SendAgentMailMessageRequest,
+    SendAgentMailMessageResponse, SessionDetailResponse, SessionSummary,
+    SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse,
     SetBoardAutomationRuleStateRequest, SetBoardAutomationRuleStateResponse, SkillResponse,
     StatusResponse, SyncMemorySourceItemResponse, SyncMemorySourcesRequest,
     SyncMemorySourcesResponse, TelegramChannelConfig, ToolCapabilityResponse,
@@ -11697,8 +11697,8 @@ fn parse_non_negative_f64(value: Option<&serde_json::Value>) -> Option<f64> {
 }
 
 fn parse_run_usage_metrics(usage_json: &str) -> AnyResult<ParsedRunUsageMetrics> {
-    let payload: serde_json::Value = serde_json::from_str(usage_json)
-        .context("run usage_json must be valid JSON")?;
+    let payload: serde_json::Value =
+        serde_json::from_str(usage_json).context("run usage_json must be valid JSON")?;
     let provider = payload
         .get("provider")
         .and_then(|value| value.as_object())
@@ -11724,10 +11724,13 @@ fn mission_control_day_start_ms(now_ms: i64, tz_offset_minutes: Option<i32>) -> 
     day_start_local_ms.saturating_sub(tz_offset_seconds.saturating_mul(1000))
 }
 
+type MissionControlUsageWindow = (String, i64, i64, String);
+type ApiErrorResponse = (StatusCode, Json<ApiError>);
+
 fn resolve_mission_control_usage_window(
     now_ms: i64,
     query: &MissionControlUsageQuery,
-) -> std::result::Result<(String, i64, i64, String), (StatusCode, Json<ApiError>)> {
+) -> std::result::Result<MissionControlUsageWindow, ApiErrorResponse> {
     let timezone = query
         .timezone
         .as_ref()
@@ -11774,15 +11777,14 @@ fn resolve_mission_control_usage_window(
                     (start, start.saturating_add(24 * 60 * 60_000))
                 }
                 "week" => {
-                    let start = mission_control_week_start_ms(now_ms, None, query.tz_offset_minutes);
+                    let start =
+                        mission_control_week_start_ms(now_ms, None, query.tz_offset_minutes);
                     (start, start.saturating_add(7 * 24 * 60 * 60_000))
                 }
-                _ => {
-                    return Err(api_error(
-                        StatusCode::BAD_REQUEST,
-                        "window must be one of: today, week, or explicit window_start_ms/window_end_ms",
-                    ))
-                }
+                _ => return Err(api_error(
+                    StatusCode::BAD_REQUEST,
+                    "window must be one of: today, week, or explicit window_start_ms/window_end_ms",
+                )),
             };
             Ok((window, start_ms, end_ms, timezone))
         }
@@ -11883,14 +11885,20 @@ fn build_mission_control_usage_response(
 
         valid_rows = valid_rows.saturating_add(1);
         latest_sample_ms = latest_sample_ms.max(sample.sample_ts_ms);
-        total.add(parsed.input_tokens, parsed.output_tokens, estimated_cost_usd);
+        total.add(
+            parsed.input_tokens,
+            parsed.output_tokens,
+            estimated_cost_usd,
+        );
 
         let agent_entry = by_agent
             .entry(sample.agent_id.clone())
             .or_insert_with(|| (sample.agent_name.clone(), UsageAggregate::default()));
-        agent_entry
-            .1
-            .add(parsed.input_tokens, parsed.output_tokens, estimated_cost_usd);
+        agent_entry.1.add(
+            parsed.input_tokens,
+            parsed.output_tokens,
+            estimated_cost_usd,
+        );
 
         let model_key = format!("{}::{}", sample.model_provider, sample.model_id);
         let model_entry = by_model.entry(model_key).or_insert_with(|| {
@@ -11899,28 +11907,33 @@ fn build_mission_control_usage_response(
                 UsageAggregate::default(),
             )
         });
-        model_entry
-            .1
-            .add(parsed.input_tokens, parsed.output_tokens, estimated_cost_usd);
+        model_entry.1.add(
+            parsed.input_tokens,
+            parsed.output_tokens,
+            estimated_cost_usd,
+        );
 
         let provider_key = sample.model_provider.to_ascii_lowercase();
         let provider_entry = by_provider
             .entry(provider_key)
             .or_insert_with(|| (sample.model_provider.clone(), UsageAggregate::default()));
-        provider_entry
-            .1
-            .add(parsed.input_tokens, parsed.output_tokens, estimated_cost_usd);
+        provider_entry.1.add(
+            parsed.input_tokens,
+            parsed.output_tokens,
+            estimated_cost_usd,
+        );
 
         if bucket_count > 0 {
-            let relative_ms = sample
-                .sample_ts_ms
-                .saturating_sub(window_start_ms)
-                .max(0);
+            let relative_ms = sample.sample_ts_ms.saturating_sub(window_start_ms).max(0);
             let mut idx = (relative_ms / bucket_ms) as usize;
             if idx >= bucket_count {
                 idx = bucket_count - 1;
             }
-            by_time[idx].add(parsed.input_tokens, parsed.output_tokens, estimated_cost_usd);
+            by_time[idx].add(
+                parsed.input_tokens,
+                parsed.output_tokens,
+                estimated_cost_usd,
+            );
         }
     }
 
@@ -11935,13 +11948,15 @@ fn build_mission_control_usage_response(
 
     let mut by_agent_items = by_agent
         .into_iter()
-        .map(|(agent_id, (agent_name, totals))| MissionControlUsageByAgentResponse {
-            agent_id,
-            agent_name,
-            estimated_cost_total: totals.estimated_cost_total,
-            token_input_total: totals.token_input_total,
-            token_output_total: totals.token_output_total,
-        })
+        .map(
+            |(agent_id, (agent_name, totals))| MissionControlUsageByAgentResponse {
+                agent_id,
+                agent_name,
+                estimated_cost_total: totals.estimated_cost_total,
+                token_input_total: totals.token_input_total,
+                token_output_total: totals.token_output_total,
+            },
+        )
         .collect::<Vec<_>>();
     by_agent_items.sort_by(|left, right| {
         right
