@@ -65,8 +65,12 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
     const nowMs = Date.now();
     this.setState((previous) => {
       const nextWindow = nextCrashWindow(previous.crashWindow, nowMs, SAFE_MODE_WINDOW_MS);
+      const crossedThreshold =
+        previous.crashWindow.crashCount < SAFE_MODE_CRASH_THRESHOLD &&
+        nextWindow.crashCount >= SAFE_MODE_CRASH_THRESHOLD;
       if (
         this.props.scope === "tab" &&
+        crossedThreshold &&
         shouldEnterSafeMode(nextWindow.crashCount, SAFE_MODE_CRASH_THRESHOLD)
       ) {
         this.props.onEnterSafeMode?.(
