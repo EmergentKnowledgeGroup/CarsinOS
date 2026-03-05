@@ -43,3 +43,8 @@ This repository follows a strict execution workflow.
 - Avoid hidden coupling and side effects.
 - Preserve deterministic behavior and explicit error handling.
 
+7. Local filesystem source of truth:
+- The single source of truth for this project is the local checkout at `/Users/domusanimae/Documents/openclaw replacement/carsinos`.
+- Do not create or use git worktrees for normal implementation flow.
+- Start new work by branching from that local checkout, not by creating another filesystem copy.
+- Keep Cargo builds using the shared target directory defined in `.cargo/config.toml` so Rust artifacts do not multiply across local environments.

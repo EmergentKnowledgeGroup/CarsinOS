@@ -7,6 +7,13 @@ Ship work in small PR chunks into `main` so CodeRabbit can review each change se
 1. Keep `main` stable and deployable.
 2. New work always starts from `main` on a `codex/*` branch.
 3. One branch = one focused change set.
+4. The local checkout at `/Users/domusanimae/Documents/openclaw replacement/carsinos` is the filesystem source of truth.
+5. Do not create git worktrees for normal PR execution. Branch in the source-of-truth checkout and work there.
+
+## Local Build Storage
+1. Cargo build artifacts are shared through [`.cargo/config.toml`](/Users/domusanimae/Documents/openclaw replacement/carsinos/.cargo/config.toml).
+2. This prevents duplicated `target` directories across local runs and nested app builds.
+3. Do not override the shared target dir unless you are intentionally isolating a one-off experiment.
 
 ## PR Size Rules
 1. Prefer < 500 net LOC per PR unless a larger change is unavoidable.
