@@ -1,7 +1,6 @@
 {
   "schema": "carsinos.mission_control_quality_gate.v1",
   "active_blockers": [
-    "BLK-01",
     "BLK-02"
   ],
   "profiles": {
@@ -26,9 +25,7 @@
         {
           "id": "mc-e2e-core",
           "cwd": "apps/mission-control",
-          "command": ["npm", "run", "test:e2e:core"],
-          "blocked_by": ["BLK-01"],
-          "blocker_reason": "Deterministic stub gateway + websocket harness (P1-02) not finalized yet."
+          "command": ["npm", "run", "test:e2e:core"]
         },
         {
           "id": "mc-build-web",
@@ -44,9 +41,7 @@
         {
           "id": "mc-e2e-full",
           "cwd": "apps/mission-control",
-          "command": ["npm", "run", "test:e2e:full"],
-          "blocked_by": ["BLK-01"],
-          "blocker_reason": "Full deterministic E2E suite (P1-02/P1-04) not finalized yet."
+          "command": ["npm", "run", "test:e2e:full"]
         },
         {
           "id": "mc-e2e-tauri-smoke",

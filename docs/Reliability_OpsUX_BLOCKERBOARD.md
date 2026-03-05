@@ -21,7 +21,7 @@ Use this board to track sequencing, blockers, and phase acceptance criteria.
 
 | Blocker ID | Owner | Status | Blocker | Impact | Unblocks |
 | --- | --- | --- | --- | --- | --- |
-| BLK-01 | QA/Automation + Gateway | IN_PROGRESS | Deterministic stub gateway + websocket harness not finalized | Blocks stable E2E foundation | P1-02, P1-04, P2-07, P3-01, P3-02, P3-03 |
+| BLK-01 | QA/Automation + Gateway | DONE | Deterministic stub gateway + websocket harness finalized (Playwright core E2E wired to deterministic local gateway/ws) | Stable E2E foundation available | P2-07, P3-01, P3-02, P3-03 |
 | BLK-02 | Platform/CI | TODO | Desktop (Tauri) CI runner/smoke pipeline not finalized | Blocks release-profile desktop confidence | P1-07, P3-04 |
 | BLK-03 | Gateway Config + Mission Control Frontend | TODO | Runtime feature-flag controls and kill-switch wiring for new modules not finalized | Blocks safe incremental rollout | P2-01, P2-06, P4-02 |
 | BLK-04 | Storage | TODO | Local durable recovery-log decision not finalized (storage implementation for 30-min recoverability) | Blocks `Clear`/undo contract completion | P2-04 |
@@ -34,11 +34,11 @@ Phase objective: quality gate and crash-recovery baseline are production safe.
 | Task ID | Owner | Task | Status | Depends On | Blocker | Spec Mapping | Exit Criteria |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | P1-01 | Mission Control Frontend | Implement `quality:gate` entrypoint with `pr` and `release` profiles | DONE | - | - | A1 | Local and CI gate pass/fail behavior matches profile definitions |
-| P1-02 | QA/Automation + Gateway | Build deterministic stub gateway + websocket harness for E2E | BLOCKED | P1-01 | BLK-01 | A3, Sec7(P1 test stability) | Repeatable E2E runs without external providers |
-| P1-03 | Mission Control Frontend | Add unit tests for runtime URL/token, board logic, WS parsing/reconnect, summarization, redaction | IN_PROGRESS | P1-01 | - | A2 | Required unit suites green in gate |
-| P1-04 | QA/Automation | Add core E2E set: onboarding, connect/baseline, controlled crash recovery | BLOCKED | P1-02 | BLK-01 | A3(Phase 1) | E2E scenarios deterministic and green |
-| P1-05 | Mission Control Frontend | Implement per-tab boundary, global boundary, fallback loop guard + operator recovery actions | TODO | P1-03 | - | C2, C3, C4 | Forced crashes recover without full app loss |
-| P1-06 | Mission Control Frontend | Implement and verify secret redaction for copy/debug surfaces | TODO | P1-05 | - | C3 redaction, Sec7(P1 security) | Copy/debug output scrubs required secret classes |
+| P1-02 | QA/Automation + Gateway | Build deterministic stub gateway + websocket harness for E2E | DONE | P1-01 | - | A3, Sec7(P1 test stability) | Repeatable E2E runs without external providers |
+| P1-03 | Mission Control Frontend | Add unit tests for runtime URL/token, board logic, WS parsing/reconnect, summarization, redaction | DONE | P1-01 | - | A2 | Required unit suites green in gate |
+| P1-04 | QA/Automation | Add core E2E set: onboarding, connect/baseline, controlled crash recovery | DONE | P1-02 | - | A3(Phase 1) | E2E scenarios deterministic and green |
+| P1-05 | Mission Control Frontend | Implement per-tab boundary, global boundary, fallback loop guard + operator recovery actions | DONE | P1-03 | - | C2, C3, C4 | Forced crashes recover without full app loss |
+| P1-06 | Mission Control Frontend | Implement and verify secret redaction for copy/debug surfaces | DONE | P1-05 | - | C3 redaction, Sec7(P1 security) | Copy/debug output scrubs required secret classes |
 | P1-07 | Platform/CI | Add release-profile Tauri smoke subset + desktop build sanity gate | BLOCKED | P1-01 | BLK-02 | A1, A3, A4 | Release profile includes desktop sanity and smoke checks |
 | P1-08 | QA/Automation | Publish phase-scoped acceptance matrix (Section 7 bullet -> automated assertion) | TODO | P1-03, P1-04, P1-05, P1-06 | - | A4, Sec7 | Every P1-tagged checklist bullet has linked assertion(s) |
 
@@ -81,7 +81,7 @@ Phase objective: usage transparency only when safe gateway contract exists.
 
 ## Critical Path (Current)
 
-1. P1-01 -> P1-02 -> P1-04 -> P1-05 -> P1-08  
+1. P1-08 (phase acceptance matrix)  
 2. P2-01 -> P2-03 -> P2-04 -> P2-07  
 3. P1-07 -> P3-04 (desktop parity chain)
 
