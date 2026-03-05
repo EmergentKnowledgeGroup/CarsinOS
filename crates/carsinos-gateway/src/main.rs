@@ -1676,6 +1676,7 @@ const OAUTH_OPENAI_DEFAULT_TOKEN_URL: &str = "https://auth.openai.com/oauth/toke
 const OPENAI_DEFAULT_API_BASE: &str = "https://api.openai.com";
 const ANTHROPIC_DEFAULT_API_BASE: &str = "https://api.anthropic.com";
 const ANTHROPIC_API_BASE_ALLOWLIST_ENV: &str = "CARSINOS_ANTHROPIC_API_BASE_ALLOWLIST";
+const ANTHROPIC_ALLOW_TEST_LOOPBACK_HTTP_ENV: &str = "CARSINOS_ANTHROPIC_ALLOW_TEST_LOOPBACK_HTTP";
 const OPENROUTER_DEFAULT_API_BASE: &str = "https://openrouter.ai/api";
 const OLLAMA_DEFAULT_API_BASE: &str = "http://127.0.0.1:11434";
 const VLLM_DEFAULT_API_BASE: &str = "http://127.0.0.1:8000";
@@ -9952,7 +9953,8 @@ fn normalize_anthropic_api_base_url(raw: Option<&str>) -> AnyResult<String> {
         .map(|value| value.to_ascii_lowercase())
         .filter(|value| !value.is_empty())
         .context("api_base_url must include host")?;
-    let allow_test_loopback_http = cfg!(test)
+    let allow_test_loopback_http = (cfg!(test)
+        || bool_env(ANTHROPIC_ALLOW_TEST_LOOPBACK_HTTP_ENV, false))
         && parsed.scheme() == "http"
         && matches!(host.as_str(), "localhost" | "127.0.0.1" | "::1");
     if parsed.scheme() != "https" && !allow_test_loopback_http {

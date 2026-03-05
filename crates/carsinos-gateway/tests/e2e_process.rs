@@ -1297,6 +1297,70 @@ async fn daily_budget_kill_switch_is_enforced_process_level() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn anthropic_setup_token_ingest_accepts_loopback_stub_when_runtime_flag_enabled() -> Result<()>
+{
+    let state_dir = TempDir::new().context("failed to create temp state directory")?;
+    let server = MockServer::start_async().await;
+    let models = server
+        .mock_async(|when, then| {
+            when.method(httpmock::Method::GET)
+                .path("/v1/models")
+                .header("x-api-key", "setup-token-123")
+                .header("anthropic-version", "2023-06-01");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(r#"{"data":[]}"#);
+        })
+        .await;
+    let api_base_url = server.url("");
+
+    {
+        let gateway =
+            GatewayProcess::spawn(state_dir.path(), "e2e-token-anthropic-setup-default", None)
+                .await
+                .context("failed to start anthropic setup-token process without override")?;
+
+        let rejected = gateway
+            .request(Method::POST, "/api/v1/auth/anthropic/setup-token/ingest")
+            .json(&json!({
+                "display_name":"anthropic-loopback-default",
+                "setup_token":"setup-token-123",
+                "api_base_url": api_base_url
+            }))
+            .send()
+            .await
+            .context("anthropic setup token ingest without override failed")?;
+        assert_eq!(rejected.status(), StatusCode::BAD_REQUEST);
+    }
+
+    let gateway = GatewayProcess::spawn_with_env(
+        state_dir.path(),
+        "e2e-token-anthropic-setup-override",
+        None,
+        &[("CARSINOS_ANTHROPIC_ALLOW_TEST_LOOPBACK_HTTP", "true")],
+    )
+    .await
+    .context("failed to start anthropic setup-token process with override")?;
+
+    let ingest = gateway
+        .request(Method::POST, "/api/v1/auth/anthropic/setup-token/ingest")
+        .json(&json!({
+            "display_name":"anthropic-loopback-override",
+            "setup_token":"setup-token-123",
+            "api_base_url": api_base_url
+        }))
+        .send()
+        .await
+        .context("anthropic setup token ingest with override failed")?;
+    assert_eq!(ingest.status(), StatusCode::CREATED);
+    let ingest_json = json_body(ingest).await?;
+    assert!(ingest_json["profile"]["auth_profile_id"].as_str().is_some());
+    assert_eq!(models.hits_async().await, 1);
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn concurrent_session_flows_remain_stable() -> Result<()> {
     let state_dir = TempDir::new().context("failed to create temp state directory")?;
     let gateway = GatewayProcess::spawn(state_dir.path(), "e2e-token-concurrency", None).await?;
