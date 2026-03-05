@@ -66,6 +66,7 @@ const startedAtMs = Date.now() - 90_000;
 const createdAt = startedAtMs - 12_000;
 let nextAuthProfileCounter = 1;
 let nextEventCounter = 1;
+const wsClients = new Set();
 
 const board = {
   board_id: "ops-board",
@@ -251,20 +252,34 @@ function buildCalendarWeek() {
   };
 }
 
-function buildWsEvent() {
+function buildWsEvent(overrides = {}) {
+  const payload = overrides.payload && typeof overrides.payload === "object" ? overrides.payload : {};
+  const mergedPayload = {
+    domain: "system",
+    severity: "normal",
+    summary: "Stub gateway connected",
+    ...payload,
+  };
   return {
     schema_version: "v1",
     event_id: `evt-${String(nextEventCounter++).padStart(4, "0")}`,
-    event_type: "gateway.notice",
-    ts_unix_ms: Date.now(),
+    event_type: typeof overrides.event_type === "string" ? overrides.event_type : "gateway.notice",
+    ts_unix_ms: typeof overrides.ts_unix_ms === "number" ? overrides.ts_unix_ms : Date.now(),
     request_id: null,
-    entity: "system",
-    payload: {
-      domain: "system",
-      severity: "normal",
-      summary: "Stub gateway connected",
-    },
+    entity: typeof overrides.entity === "string" ? overrides.entity : "system",
+    payload: mergedPayload,
   };
+}
+
+function broadcastWsEvent(overrides = {}) {
+  const event = buildWsEvent(overrides);
+  const message = JSON.stringify(event);
+  for (const client of wsClients) {
+    if (client.readyState === 1) {
+      client.send(message);
+    }
+  }
+  return event;
 }
 
 async function routeRequest(req, res) {
@@ -599,6 +614,49 @@ async function routeRequest(req, res) {
     return;
   }
 
+  if (req.method === "POST" && requestUrl.pathname === "/api/v1/e2e/ws-event") {
+    const payload = await readJson(req);
+    const event = broadcastWsEvent({
+      event_type:
+        typeof payload.event_type === "string" ? payload.event_type : "gateway.notice",
+      entity: typeof payload.entity === "string" ? payload.entity : "system",
+      payload: payload.payload && typeof payload.payload === "object" ? payload.payload : {},
+    });
+    sendJson(res, 200, {
+      event,
+    });
+    return;
+  }
+
+  if (req.method === "POST" && requestUrl.pathname === "/api/v1/e2e/ws-burst") {
+    const payload = await readJson(req);
+    const countRaw = Number(payload.count ?? 5);
+    const count = Number.isFinite(countRaw)
+      ? Math.max(1, Math.min(100, Math.floor(countRaw)))
+      : 5;
+    const eventType =
+      typeof payload.event_type === "string" ? payload.event_type : "gateway.notice";
+    const entity = typeof payload.entity === "string" ? payload.entity : "system";
+    const eventPayload =
+      payload.payload && typeof payload.payload === "object" ? payload.payload : {};
+
+    const emitted = [];
+    for (let i = 0; i < count; i += 1) {
+      emitted.push(
+        broadcastWsEvent({
+          event_type: eventType,
+          entity,
+          payload: eventPayload,
+        })
+      );
+    }
+    sendJson(res, 200, {
+      count,
+      events: emitted,
+    });
+    return;
+  }
+
   sendText(res, 404, `stub route not found: ${req.method} ${requestUrl.pathname}`);
 }
 
@@ -613,14 +671,16 @@ const server = http.createServer((req, res) => {
 const wsServer = new WebSocketServer({ noServer: true });
 
 wsServer.on("connection", (socket) => {
+  wsClients.add(socket);
   socket.send(JSON.stringify(buildWsEvent()));
   const intervalId = setInterval(() => {
-    if (socket.readyState === socket.OPEN) {
+    if (socket.readyState === 1) {
       socket.send(JSON.stringify(buildWsEvent()));
     }
   }, 2_000);
   socket.on("close", () => {
     clearInterval(intervalId);
+    wsClients.delete(socket);
   });
 });
 

@@ -31,6 +31,16 @@
           ]
         },
         {
+          "id": "mc-acceptance-p2",
+          "cwd": ".",
+          "command": [
+            "python3",
+            "scripts/mission_control_phase_acceptance_check.py",
+            "--phase",
+            "P2"
+          ]
+        },
+        {
           "id": "mc-e2e-core",
           "cwd": "apps/mission-control",
           "command": ["npm", "run", "test:e2e:core"]

@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppContent } from "./app/AppContent";
 import { AppShell } from "./app/AppShell";
 import { GuidedTourOverlay, type GuidedTourStep } from "./app/GuidedTourOverlay";
+import { LiveFeedDrawer } from "./app/LiveFeedDrawer";
 import {
   useAppController,
   type EventStreamItem,
   type MissionControlTab,
 } from "./app/useAppController";
 import { useGatewayEvents } from "./app/useGatewayEvents";
+import { useLiveFeedController } from "./app/useLiveFeedController";
 import { useMissionControlController } from "./app/useMissionControlController";
 import {
   useRuntimeConnectionController,
@@ -25,6 +27,16 @@ import { useToasts } from "./ui/useToasts";
 import type { Agent, WsEventFrame } from "./types";
 import { EVENT_STREAM_BUFFER_CAP, WS_MAX_RECONNECT_ATTEMPTS } from "./constants";
 import { filterVisibleEvents } from "./lib/eventStream";
+import {
+  countRecentHighSeverityEvents,
+  hasCriticalEventWithinWindow,
+} from "./lib/liveFeed";
+import {
+  loadOpsUxRuntimeConfig,
+  saveOpsUxRuntimeConfig,
+  withOpsUxControlPatch,
+  type OpsUxFeatureControls,
+} from "./lib/opsUxConfig";
 import { STORAGE_KEYS } from "./storageKeys";
 import "./styles.css";
 
@@ -141,6 +153,41 @@ export default function App() {
   const [guidedTourStep, setGuidedTourStep] = useState(0);
   const [safeModeReason, setSafeModeReason] = useState<string | null>(null);
   const [tabResetVersion, setTabResetVersion] = useState<Partial<Record<MissionControlTab, number>>>({});
+  const [opsUxRuntime, setOpsUxRuntime] = useState(() => loadOpsUxRuntimeConfig());
+  const [incidentAutoSuppressedUntilMs, setIncidentAutoSuppressedUntilMs] = useState(0);
+  const [incidentAutoTickMs, setIncidentAutoTickMs] = useState(() => Date.now());
+  const manualIncidentOverrideRef = useRef<"on" | "off" | null>(null);
+  const wsDegradedSinceRef = useRef<number | null>(null);
+  const healthySinceRef = useRef<number>(0);
+  const previousIncidentModeRef = useRef(false);
+
+  const opsConfig = opsUxRuntime.config;
+  const optionalModulesEnabled = !opsConfig.controls.global_kill_switch;
+  const liveFeedEnabled = optionalModulesEnabled && opsConfig.controls.live_feed_drawer;
+  const incidentAutoEnabled =
+    optionalModulesEnabled && opsConfig.controls.incident_auto_trigger;
+  const usageChartsEnabled = optionalModulesEnabled && opsConfig.controls.usage_charts;
+
+  const patchOpsControls = useCallback(
+    (patch: Partial<OpsUxFeatureControls>) => {
+      setOpsUxRuntime((current) => {
+        const nextConfig = withOpsUxControlPatch(current.config, patch);
+        const persisted = saveOpsUxRuntimeConfig(nextConfig);
+        if (!persisted.ok) {
+          setNotice({
+            tone: "error",
+            message: persisted.error ?? "Runtime config persistence failed.",
+          });
+        }
+        return {
+          config: nextConfig,
+          degraded: !persisted.ok,
+          error: persisted.error,
+        };
+      });
+    },
+    [setNotice]
+  );
 
   const boardsController = useBoardsController({
     settings,
@@ -168,6 +215,16 @@ export default function App() {
     boards,
     setNotice,
   });
+
+  const liveFeed = useLiveFeedController({
+    retentionWindowMs: opsConfig.safety.recovery_retention_window_ms,
+    recoveryMaxBytes: opsConfig.safety.recovery_log_max_bytes,
+    markReadUndoWindowMs: opsConfig.safety.mark_read_undo_window_ms,
+  });
+  const liveFeedEvents = liveFeed.events;
+  const liveFeedSeverityFilter = liveFeed.severityFilter;
+  const setLiveFeedSeverityFilter = liveFeed.setSeverityFilter;
+  const ingestLiveFeedFrame = liveFeed.ingestWsFrame;
   const queueMissionControlRefresh = missionControl.queueMissionControlRefresh;
   const applyGatewayBoardEvent = boardsController.applyGatewayBoardEvent;
   const queueAgentMailRefresh = mailController.queueAgentMailRefresh;
@@ -202,6 +259,43 @@ export default function App() {
     loadBaseline,
     setActiveTab,
   });
+
+  const setIncidentModeFromOperator = useCallback(
+    (next: boolean) => {
+      const now = Date.now();
+      if (next) {
+        manualIncidentOverrideRef.current = "on";
+        setIncidentAutoSuppressedUntilMs(0);
+        healthySinceRef.current = now;
+      } else {
+        manualIncidentOverrideRef.current = "off";
+        setIncidentAutoSuppressedUntilMs(
+          now + opsConfig.safety.incident_auto_cooldown_ms
+        );
+        healthySinceRef.current = now;
+      }
+      cockpitController.setIncidentMode(next);
+    },
+    [cockpitController, opsConfig.safety.incident_auto_cooldown_ms]
+  );
+
+  const setIncidentModeAutomatically = useCallback(
+    (next: boolean, reason: string) => {
+      if (cockpitController.incidentMode === next) {
+        return;
+      }
+      if (next) {
+        manualIncidentOverrideRef.current = null;
+        healthySinceRef.current = Date.now();
+        addToast(`Incident mode auto-enabled: ${reason}.`, "critical");
+      } else {
+        addToast(`Incident mode auto-disabled: ${reason}.`, "info");
+        healthySinceRef.current = Date.now();
+      }
+      cockpitController.setIncidentMode(next);
+    },
+    [addToast, cockpitController]
+  );
 
   const openHelpDocs = useCallback(() => {
     setActiveTab("help");
@@ -254,6 +348,133 @@ export default function App() {
     [eventStream, showRawEvents]
   );
 
+  useEffect(() => {
+    const wasIncident = previousIncidentModeRef.current;
+    if (!wasIncident && cockpitController.incidentMode) {
+      setLiveFeedSeverityFilter("critical_high");
+    } else if (
+      wasIncident &&
+      !cockpitController.incidentMode &&
+      liveFeedSeverityFilter === "critical_high"
+    ) {
+      setLiveFeedSeverityFilter("all");
+    }
+    previousIncidentModeRef.current = cockpitController.incidentMode;
+  }, [
+    cockpitController.incidentMode,
+    liveFeedSeverityFilter,
+    setLiveFeedSeverityFilter,
+  ]);
+
+  useEffect(() => {
+    if (!cockpitController.incidentMode || !incidentAutoEnabled || !liveFeedEnabled) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setIncidentAutoTickMs(Date.now());
+    }, 1_000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [cockpitController.incidentMode, incidentAutoEnabled, liveFeedEnabled]);
+
+  useEffect(() => {
+    const now = incidentAutoTickMs;
+    if (wsState === "connected") {
+      wsDegradedSinceRef.current = null;
+    } else if (
+      wsState === "connecting" ||
+      wsState === "reconnecting" ||
+      wsState === "error"
+    ) {
+      if (wsDegradedSinceRef.current === null) {
+        wsDegradedSinceRef.current = now;
+      }
+    }
+
+    if (!incidentAutoEnabled || !liveFeedEnabled) {
+      return;
+    }
+
+    const hasCriticalNow = hasCriticalEventWithinWindow(
+      liveFeedEvents,
+      now,
+      opsConfig.safety.incident_high_burst_window_ms
+    );
+    const recentHighCount = countRecentHighSeverityEvents(
+      liveFeedEvents,
+      now,
+      opsConfig.safety.incident_high_burst_window_ms
+    );
+    const highBurstTriggered =
+      recentHighCount >= opsConfig.safety.incident_high_burst_threshold;
+    const healthDegradedTriggered =
+      wsDegradedSinceRef.current !== null &&
+      now - wsDegradedSinceRef.current >=
+        opsConfig.safety.incident_health_degraded_trigger_ms;
+
+    if (!cockpitController.incidentMode) {
+      if (hasCriticalNow) {
+        setIncidentModeAutomatically(true, "critical event");
+        return;
+      }
+      if (manualIncidentOverrideRef.current === "off") {
+        if (now < incidentAutoSuppressedUntilMs) {
+          return;
+        }
+        manualIncidentOverrideRef.current = null;
+      }
+      if (manualIncidentOverrideRef.current === "on") {
+        return;
+      }
+      if (highBurstTriggered) {
+        setIncidentModeAutomatically(
+          true,
+          `${recentHighCount} high/critical events in 60 seconds`
+        );
+        return;
+      }
+      if (healthDegradedTriggered) {
+        setIncidentModeAutomatically(true, "gateway degraded >30s");
+      }
+      return;
+    }
+
+    if (manualIncidentOverrideRef.current === "on") {
+      return;
+    }
+
+    const hasRecentHighOrCritical = countRecentHighSeverityEvents(
+      liveFeedEvents,
+      now,
+      opsConfig.safety.incident_healthy_exit_ms
+    ) > 0;
+    const wsHealthy = wsState === "connected";
+    if (wsHealthy && !hasRecentHighOrCritical) {
+      if (healthySinceRef.current <= 0) {
+        healthySinceRef.current = now;
+      }
+      if (now - healthySinceRef.current >= opsConfig.safety.incident_healthy_exit_ms) {
+        setIncidentModeAutomatically(false, "system healthy for 5 minutes");
+      }
+      return;
+    }
+    healthySinceRef.current = now;
+  }, [
+    cockpitController.incidentMode,
+    incidentAutoTickMs,
+    incidentAutoEnabled,
+    incidentAutoSuppressedUntilMs,
+    liveFeedEvents,
+    liveFeedEnabled,
+    opsConfig.safety.incident_health_degraded_trigger_ms,
+    opsConfig.safety.incident_healthy_exit_ms,
+    opsConfig.safety.incident_high_burst_threshold,
+    opsConfig.safety.incident_high_burst_window_ms,
+    setIncidentModeAutomatically,
+    wsState,
+  ]);
+
   const resetTabState = useCallback((tab: MissionControlTab) => {
     setTabResetVersion((previous) => ({
       ...previous,
@@ -278,6 +499,7 @@ export default function App() {
 
   const handleGatewayEvent = useCallback(
     (frame: WsEventFrame) => {
+      const normalized = ingestLiveFeedFrame(frame);
       setEventStream((previous) => {
         const next: EventStreamItem = {
           event_id: frame.event_id,
@@ -302,12 +524,24 @@ export default function App() {
         queueAgentMailRefresh(settings);
       }
 
+      if (
+        incidentAutoEnabled &&
+        liveFeedEnabled &&
+        normalized.severity === "critical"
+      ) {
+        setIncidentModeAutomatically(true, "critical event");
+      }
+
       applyGatewayBoardEvent(frame, settings);
     },
     [
       applyGatewayBoardEvent,
+      ingestLiveFeedFrame,
+      incidentAutoEnabled,
+      liveFeedEnabled,
       queueAgentMailRefresh,
       queueMissionControlRefresh,
+      setIncidentModeAutomatically,
       setEventStream,
       settings,
     ]
@@ -334,7 +568,7 @@ export default function App() {
       wsState={wsState}
       tokenConfigured={tokenConfigured}
       incidentMode={cockpitController.incidentMode}
-      onIncidentModeChange={cockpitController.setIncidentMode}
+      onIncidentModeChange={setIncidentModeFromOperator}
       openBreakerCount={
         missionControl.openBreakers.length + missionControl.openPluginBreakers.length
       }
@@ -355,6 +589,44 @@ export default function App() {
       notifications={notifications}
       onDismissNotification={dismissNotification}
       onClearAllNotifications={clearAllNotifications}
+      liveFeedEnabled={liveFeedEnabled}
+      liveFeedOpen={liveFeed.drawerOpen}
+      liveFeedUnreadCount={liveFeed.unreadCount}
+      onToggleLiveFeed={liveFeed.toggleDrawer}
+      opsUxConfig={opsConfig}
+      opsUxConfigError={opsUxRuntime.error}
+      onPatchOpsUxControls={patchOpsControls}
+      usageChartsEnabled={usageChartsEnabled}
+      liveFeedPanel={
+        <LiveFeedDrawer
+          enabled={liveFeedEnabled}
+          open={liveFeed.drawerOpen}
+          paused={liveFeed.paused}
+          unreadCount={liveFeed.unreadCount}
+          domainFilter={liveFeed.domainFilter}
+          severityFilter={liveFeed.severityFilter}
+          events={liveFeed.renderEvents}
+          storageMode={liveFeed.storageMode}
+          storageError={liveFeed.storageError}
+          recoveryAvailableCount={liveFeed.recoveryAvailableCount}
+          markAllUndoAvailable={liveFeed.markAllUndoAvailable}
+          clearUndoAvailable={liveFeed.clearUndoAvailable}
+          approvalsCount={missionControl.approvalsById.size}
+          openBreakersCount={
+            missionControl.openBreakers.length + missionControl.openPluginBreakers.length
+          }
+          mailUnreadCount={mailController.mailThreads.reduce((sum, t) => sum + (t.unread_count ?? 0), 0)}
+          onToggleOpen={liveFeed.toggleDrawer}
+          onTogglePause={liveFeed.togglePause}
+          onDomainFilterChange={liveFeed.setDomainFilter}
+          onSeverityFilterChange={liveFeed.setSeverityFilter}
+          onMarkAllRead={liveFeed.markAllRead}
+          onUndoMarkAllRead={liveFeed.undoMarkAllRead}
+          onClearSoft={liveFeed.clearFeedSoft}
+          onRestoreClear={liveFeed.restoreFromClearUndo}
+          onRestoreRecovery={liveFeed.restoreFromRecoveryLog}
+        />
+      }
       navBadges={{
         focus: missionControl.approvalsById.size,
         mail: mailController.mailThreads.reduce((sum, t) => sum + (t.unread_count ?? 0), 0),

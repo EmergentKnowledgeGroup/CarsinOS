@@ -1,0 +1,58 @@
+{
+  "schema": "carsinos.mission_control_phase_acceptance_matrix.v1",
+  "phase": "P2",
+  "source_spec": "docs/Reliability_OpsUX_upgrade.md",
+  "source_section": "7) Cross-Cutting QA / Edge Cases Checklist",
+  "bullets": [
+    {
+      "text": "Very large event payloads do not freeze UI (summarize; expand on demand).",
+      "assertions": [
+        {
+          "type": "unit",
+          "file": "apps/mission-control/src/lib/liveFeed.test.ts",
+          "test_name": "handles very large payloads with summary-first normalization"
+        },
+        {
+          "type": "e2e",
+          "file": "apps/mission-control/e2e/live-feed.spec.ts",
+          "test_name": "live feed supports pause + unread behavior"
+        }
+      ]
+    },
+    {
+      "text": "Pause feed actually pauses (no sneaky auto-scroll or read-marking).",
+      "assertions": [
+        {
+          "type": "e2e",
+          "file": "apps/mission-control/e2e/live-feed.spec.ts",
+          "test_name": "live feed supports pause + unread behavior"
+        }
+      ]
+    },
+    {
+      "text": "Clear notifications does not break live feed counts and supports undo/restore window.",
+      "assertions": [
+        {
+          "type": "e2e",
+          "file": "apps/mission-control/e2e/live-feed.spec.ts",
+          "test_name": "soft clear keeps events recoverable with undo"
+        }
+      ]
+    },
+    {
+      "text": "Live Feed never shows raw secrets by default.",
+      "assertions": [
+        {
+          "type": "unit",
+          "file": "apps/mission-control/src/lib/liveFeed.test.ts",
+          "test_name": "normalizes ws events with domain/severity fallback and redacted payload"
+        },
+        {
+          "type": "unit",
+          "file": "apps/mission-control/src/lib/eventStream.test.ts",
+          "test_name": "redacts sensitive payload keys and inline token values"
+        }
+      ]
+    }
+  ]
+}
