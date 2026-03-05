@@ -3668,6 +3668,7 @@ impl Storage {
         end_ms: i64,
         limit: u32,
     ) -> Result<Vec<RunUsageSampleRecord>> {
+        let bounded_limit = limit.clamp(1, 50_000);
         let conn = self.connect()?;
         let mut stmt = conn.prepare(
             r#"
@@ -3690,7 +3691,7 @@ impl Storage {
             LIMIT ?3
             "#,
         )?;
-        let mut rows = stmt.query(params![start_ms, end_ms, limit])?;
+        let mut rows = stmt.query(params![start_ms, end_ms, bounded_limit])?;
         let mut items = Vec::new();
         while let Some(row) = rows.next()? {
             items.push(RunUsageSampleRecord {
@@ -5832,6 +5833,40 @@ mod tests {
         assert!(sample.usage_json.contains("\"input_tokens\":12"));
         assert!(sample.sample_ts_ms >= start_ms);
         assert!(sample.sample_ts_ms < end_ms);
+    }
+
+    #[test]
+    fn list_run_usage_samples_between_clamps_zero_limit_to_one() {
+        let (_temp_dir, storage) = test_storage();
+        let session = storage
+            .create_session(NewSession {
+                session_key: None,
+                agent_id: "default".to_string(),
+                title: Some("usage sample clamp".to_string()),
+            })
+            .expect("create session");
+        let run = storage
+            .create_run(NewRun {
+                session_id: session.session_id.clone(),
+                model_provider: "mock".to_string(),
+                model_id: "mock-echo-v1".to_string(),
+            })
+            .expect("create run")
+            .expect("run exists");
+        storage
+            .set_run_usage_json(
+                &run.run_id,
+                r#"{"provider":{"input_tokens":4,"output_tokens":2,"estimated_cost_usd":0.01}}"#,
+            )
+            .expect("set run usage");
+
+        let start_ms = run.created_at.saturating_sub(60_000);
+        let end_ms = run.created_at.saturating_add(60_000);
+        let rows = storage
+            .list_run_usage_samples_between(start_ms, end_ms, 0)
+            .expect("list usage samples with zero limit");
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].run_id, run.run_id);
     }
 
     #[test]

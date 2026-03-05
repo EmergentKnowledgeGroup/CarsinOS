@@ -121,9 +121,17 @@ function parseUsageWindowContract(
       reason: `Usage contract window mismatch: expected ${expectedWindow}, got ${raw.window}.`,
     };
   }
+  const windowStartMs = parseIsoMs(raw.window_start_utc);
+  const windowEndMs = parseIsoMs(raw.window_end_utc);
   if (
+    typeof raw.timezone !== "string" ||
+    raw.timezone.trim().length === 0 ||
+    typeof raw.currency !== "string" ||
+    raw.currency.trim().length === 0 ||
     typeof raw.window_start_utc !== "string" ||
     typeof raw.window_end_utc !== "string" ||
+    windowStartMs === null ||
+    windowEndMs === null ||
     !isFiniteNumber(raw.estimated_cost_total) ||
     !isFiniteNumber(raw.token_input_total) ||
     !isFiniteNumber(raw.token_output_total) ||
@@ -140,8 +148,8 @@ function parseUsageWindowContract(
   return {
     data: {
       window: expectedWindow,
-      timezone: raw.timezone,
-      currency: raw.currency,
+      timezone: raw.timezone.trim(),
+      currency: raw.currency.trim().toUpperCase(),
       windowStartUtc: raw.window_start_utc,
       windowEndUtc: raw.window_end_utc,
       estimatedCostTotal: raw.estimated_cost_total,
@@ -799,7 +807,7 @@ export function useMissionControlController(options: UseMissionControlController
     if (timestamps.length === 0) {
       return null;
     }
-    return new Date(Math.max(...timestamps)).toISOString();
+    return new Date(Math.min(...timestamps)).toISOString();
   }, [usageToday.data, usageWeek.data]);
   const usageFreshness = useMemo(
     () => usageStaleLevel(usageUpdatedAtUtc),

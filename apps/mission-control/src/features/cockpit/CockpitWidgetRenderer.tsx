@@ -52,6 +52,7 @@ interface CockpitWidgetRendererProps {
   visibleEvents: EventStreamItem[];
   usageChartsEnabled: boolean;
   usageToday: {
+    currency: string;
     estimatedCostTotal: number;
     tokenInputTotal: number;
     tokenOutputTotal: number;
@@ -59,6 +60,7 @@ interface CockpitWidgetRendererProps {
     byModel: MissionControlUsageByModel[];
   } | null;
   usageWeek: {
+    currency: string;
     estimatedCostTotal: number;
   } | null;
   usageUnavailableReason: string | null;
@@ -122,18 +124,32 @@ function PaginationControls({
 const LIST_ITEM_HEIGHT = 44;
 const COMPACT_ITEM_HEIGHT = 38;
 const EVENT_ITEM_HEIGHT = 32;
-const USD_FORMATTER = new Intl.NumberFormat("en-US", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 3,
-});
+const MONEY_FORMATTERS = new Map<string, Intl.NumberFormat>();
 const TOKEN_FORMATTER = new Intl.NumberFormat("en-US", {
   notation: "compact",
   maximumFractionDigits: 1,
 });
 
-function formatUsd(value: number): string {
-  return USD_FORMATTER.format(value);
+function normalizeCurrencyCode(currency: string | null | undefined): string {
+  if (typeof currency !== "string") {
+    return "USD";
+  }
+  const normalized = currency.trim().toUpperCase();
+  return /^[A-Z]{3}$/.test(normalized) ? normalized : "USD";
+}
+
+function formatMoney(value: number, currency: string): string {
+  const currencyCode = normalizeCurrencyCode(currency);
+  let formatter = MONEY_FORMATTERS.get(currencyCode);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currencyCode,
+      maximumFractionDigits: 3,
+    });
+    MONEY_FORMATTERS.set(currencyCode, formatter);
+  }
+  return formatter.format(value);
 }
 
 function formatTokens(value: number): string {
@@ -197,6 +213,9 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
   if (widget.widget === "health") {
     const topAgents = (props.usageToday?.byAgent ?? []).slice(0, 3);
     const topModels = (props.usageToday?.byModel ?? []).slice(0, 3);
+    const usageCurrency = normalizeCurrencyCode(
+      props.usageToday?.currency ?? props.usageWeek?.currency
+    );
     return (
       <article className="mc-cockpit-widget-body">
         <div className="mc-health-grid">
@@ -274,12 +293,12 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
                 <div>
                   <strong>Today Cost</strong>
                   <p data-testid="usage-summary-today-cost">
-                    {formatUsd(props.usageToday?.estimatedCostTotal ?? 0)}
+                    {formatMoney(props.usageToday?.estimatedCostTotal ?? 0, usageCurrency)}
                   </p>
                 </div>
                 <div>
                   <strong>Week Cost</strong>
-                  <p>{formatUsd(props.usageWeek?.estimatedCostTotal ?? 0)}</p>
+                  <p>{formatMoney(props.usageWeek?.estimatedCostTotal ?? 0, usageCurrency)}</p>
                 </div>
                 <div>
                   <strong>Today Tokens</strong>
@@ -324,7 +343,7 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
                     {topAgents.map((item) => (
                       <li key={item.agent_id}>
                         <span>{item.agent_name}</span>
-                        <span>{formatUsd(item.estimated_cost_total)}</span>
+                        <span>{formatMoney(item.estimated_cost_total, usageCurrency)}</span>
                       </li>
                     ))}
                     {topAgents.length === 0 ? <li>No usage yet.</li> : null}
@@ -336,7 +355,7 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
                     {topModels.map((item) => (
                       <li key={`${item.model_provider}:${item.model_id}`}>
                         <span>{item.model_id}</span>
-                        <span>{formatUsd(item.estimated_cost_total)}</span>
+                        <span>{formatMoney(item.estimated_cost_total, usageCurrency)}</span>
                       </li>
                     ))}
                     {topModels.length === 0 ? <li>No usage yet.</li> : null}

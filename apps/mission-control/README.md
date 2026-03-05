@@ -27,7 +27,8 @@ Phase-scoped acceptance mapping for Section 7 bullets is tracked in:
 - [`docs/mission-control_p1_acceptance_matrix.json`](../../docs/mission-control_p1_acceptance_matrix.json)
 - [`docs/mission-control_p2_acceptance_matrix.json`](../../docs/mission-control_p2_acceptance_matrix.json)
 - [`docs/mission-control_p3_acceptance_matrix.json`](../../docs/mission-control_p3_acceptance_matrix.json)
-and validated by `mc-acceptance-p1/p2/p3` in the quality gate.
+- [`docs/mission-control_p4_acceptance_matrix.json`](../../docs/mission-control_p4_acceptance_matrix.json)
+and validated by `mc-acceptance-p1/p2/p3/p4` in the quality gate.
 
 ## Onboarding Wizard
 

@@ -449,15 +449,20 @@ function buildMissionControlUsage(requestUrl) {
   const timezone = requestUrl.searchParams.get("timezone") || "UTC";
   const tzOffsetRaw = Number(requestUrl.searchParams.get("tz_offset_minutes") ?? "0");
   const tzOffsetMinutes = Number.isFinite(tzOffsetRaw) ? Math.trunc(tzOffsetRaw) : 0;
-  const explicitStart = Number(requestUrl.searchParams.get("window_start_ms") ?? "");
-  const explicitEnd = Number(requestUrl.searchParams.get("window_end_ms") ?? "");
+  const explicitStartRaw = requestUrl.searchParams.get("window_start_ms");
+  const explicitEndRaw = requestUrl.searchParams.get("window_end_ms");
+  const explicitStart = explicitStartRaw === null ? Number.NaN : Number(explicitStartRaw);
+  const explicitEnd = explicitEndRaw === null ? Number.NaN : Number(explicitEndRaw);
+  const hasExplicitWindow = Number.isFinite(explicitStart)
+    && Number.isFinite(explicitEnd)
+    && explicitEnd > explicitStart;
 
-  const windowStartMs = Number.isFinite(explicitStart) && Number.isFinite(explicitEnd) && explicitEnd > explicitStart
+  const windowStartMs = hasExplicitWindow
     ? Math.trunc(explicitStart)
     : window === "today"
       ? usageDayStartMs(now, tzOffsetMinutes)
       : usageWeekStartMs(now, tzOffsetMinutes);
-  const windowEndMs = Number.isFinite(explicitStart) && Number.isFinite(explicitEnd) && explicitEnd > explicitStart
+  const windowEndMs = hasExplicitWindow
     ? Math.trunc(explicitEnd)
     : window === "today"
       ? windowStartMs + 24 * 60 * 60_000

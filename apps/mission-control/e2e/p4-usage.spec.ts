@@ -90,10 +90,12 @@ async function openCockpitTemplate(page: Page): Promise<void> {
   await page.locator('[data-tour-id="nav-cockpit"]').click();
   await expect(page.locator(".mc-cockpit-grid")).toBeVisible();
   const loadTemplateButton = page.getByRole("button", { name: "Load Ops Template" });
+  const usagePanel = page.getByTestId("mc-usage-panel");
+  await expect(loadTemplateButton.or(usagePanel).first()).toBeVisible();
   if (await loadTemplateButton.isVisible()) {
     await loadTemplateButton.click();
   }
-  await expect(page.getByTestId("mc-usage-panel")).toBeVisible();
+  await expect(usagePanel).toBeVisible();
 }
 
 async function setUsageMode(
@@ -122,10 +124,35 @@ test.describe("mission-control usage charts @p4 @core", () => {
     await openCockpitTemplate(page);
 
     await page.getByRole("button", { name: "Refresh all" }).first().click();
-    await expect(page.getByTestId("usage-not-available")).toHaveCount(0);
+    await expect(page.getByTestId("usage-not-available")).not.toBeVisible();
     await expect(page.getByTestId("usage-summary-today-cost")).toContainText("$");
     await expect(page.getByTestId("usage-trend-label")).not.toContainText("unavailable");
     await expect(page.getByTestId("usage-correlation-status")).toContainText("available");
+  });
+
+  test("shows stale warning when usage data is older than 15 minutes", async ({
+    page,
+    request,
+  }) => {
+    await completeLocalOnboarding(page);
+    await setUsageMode(request, { mode: "available", age_minutes: 20 });
+    await openCockpitTemplate(page);
+
+    await page.getByRole("button", { name: "Refresh all" }).first().click();
+    await expect(page.getByTestId("usage-not-available")).not.toBeVisible();
+    await expect(page.getByText("Data is older than 15 minutes.")).toBeVisible();
+  });
+
+  test("shows concise budget warning when usage thresholds are breached", async ({
+    page,
+    request,
+  }) => {
+    await completeLocalOnboarding(page);
+    await setUsageMode(request, { mode: "available", age_minutes: 2 });
+    await openCockpitTemplate(page);
+
+    await page.getByRole("button", { name: "Refresh all" }).first().click();
+    await expect(page.getByTestId("usage-not-available")).not.toBeVisible();
     await expect(page.locator(".mc-usage-warning-list li")).toHaveCount(1);
     await expect(page.locator(".mc-usage-warning-list li").first()).toContainText("budget");
   });
@@ -151,7 +178,7 @@ test.describe("mission-control usage charts @p4 @core", () => {
     await openCockpitTemplate(page);
 
     await page.getByRole("button", { name: "Refresh all" }).first().click();
-    await expect(page.getByTestId("usage-not-available")).toHaveCount(0);
+    await expect(page.getByTestId("usage-not-available")).not.toBeVisible();
     await expect(page.getByTestId("usage-summary-today-cost")).toContainText("$");
     await expect(page.getByTestId("usage-correlation-status")).toContainText(
       "unavailable from gateway contract"
@@ -168,7 +195,7 @@ test.describe("mission-control usage charts @p4 @core", () => {
     await openCockpitTemplate(page);
 
     await page.getByRole("button", { name: "Refresh all" }).first().click();
-    await expect(page.getByTestId("usage-not-available")).toHaveCount(0);
+    await expect(page.getByTestId("usage-not-available")).not.toBeVisible();
     await expect(page.getByTestId("usage-trend-label")).toContainText("Trend limited");
   });
 

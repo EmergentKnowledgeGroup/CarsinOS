@@ -45,7 +45,7 @@
         {
           "type": "e2e",
           "file": "apps/mission-control/e2e/p4-usage.spec.ts",
-          "test_name": "keeps summaries visible when optional correlation slices are missing"
+          "test_name": "shows stale warning when usage data is older than 15 minutes"
         },
         {
           "type": "e2e",
@@ -60,7 +60,7 @@
         {
           "type": "e2e",
           "file": "apps/mission-control/e2e/p4-usage.spec.ts",
-          "test_name": "renders today/week usage summaries and breakdowns when contract is available"
+          "test_name": "shows concise budget warning when usage thresholds are breached"
         }
       ]
     }

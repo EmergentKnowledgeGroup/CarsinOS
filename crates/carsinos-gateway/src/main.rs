@@ -11846,11 +11846,14 @@ fn build_mission_control_usage_response(
     window_end_ms: i64,
 ) -> AnyResult<MissionControlUsageResponse> {
     let runtime_config = load_runtime_config(state)?;
+    let sample_limit = MISSION_CONTROL_USAGE_MAX_SAMPLE_ROWS;
     let samples = state.storage.list_run_usage_samples_between(
         window_start_ms,
         window_end_ms,
-        MISSION_CONTROL_USAGE_MAX_SAMPLE_ROWS,
+        sample_limit,
     )?;
+    let sampled_row_count = samples.len() as u64;
+    let sample_limit_reached = sampled_row_count >= u64::from(sample_limit);
     let (bucket_count, bucket_ms) = usage_bucket_spec(window, window_start_ms, window_end_ms);
     let mut by_time = vec![UsageAggregate::default(); bucket_count];
     let mut by_agent: HashMap<String, (String, UsageAggregate)> = HashMap::new();
@@ -11859,6 +11862,7 @@ fn build_mission_control_usage_response(
     let mut total = UsageAggregate::default();
     let mut valid_rows = 0u64;
     let mut invalid_rows = 0u64;
+    let mut first_invalid_run_id: Option<String> = None;
     let mut latest_sample_ms = 0i64;
 
     for sample in samples {
@@ -11866,6 +11870,9 @@ fn build_mission_control_usage_response(
             Ok(value) => value,
             Err(err) => {
                 invalid_rows = invalid_rows.saturating_add(1);
+                if first_invalid_run_id.is_none() {
+                    first_invalid_run_id = Some(sample.run_id.clone());
+                }
                 debug!(
                     run_id = %sample.run_id,
                     error = %err,
@@ -11937,12 +11944,44 @@ fn build_mission_control_usage_response(
         }
     }
 
+    if sample_limit_reached {
+        let detail = format!(
+            "Usage sample window hit safety limit of {} rows; totals may be truncated. Narrow the window for complete results.",
+            sample_limit
+        );
+        return Ok(mission_control_usage_unavailable(
+            window,
+            timezone,
+            "USAGE_SAMPLE_LIMIT_REACHED",
+            &detail,
+        ));
+    }
+
     if valid_rows == 0 && invalid_rows > 0 {
         return Ok(mission_control_usage_unavailable(
             window,
             timezone,
             "INVALID_USAGE_DATA",
             "Usage metrics are present but could not be parsed safely.",
+        ));
+    }
+
+    if valid_rows > 0 && invalid_rows > 0 {
+        let detail = match first_invalid_run_id.as_deref() {
+            Some(run_id) => format!(
+                "Usage metrics include {} invalid row(s) (first run_id: {}). Results are withheld to avoid partial totals.",
+                invalid_rows, run_id
+            ),
+            None => format!(
+                "Usage metrics include {} invalid row(s). Results are withheld to avoid partial totals.",
+                invalid_rows
+            ),
+        };
+        return Ok(mission_control_usage_unavailable(
+            window,
+            timezone,
+            "PARTIAL_USAGE_DATA",
+            &detail,
         ));
     }
 
@@ -34798,6 +34837,65 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         assert_eq!(usage_json["available"], false);
         assert_eq!(usage_json["reason_code"], "INVALID_USAGE_DATA");
         assert!(usage_json["detail"].is_string());
+    }
+
+    #[tokio::test]
+    async fn mission_control_usage_returns_unavailable_when_usage_rows_are_partial() {
+        let ctx = test_context();
+        let session = ctx
+            .storage
+            .create_session(NewSession {
+                session_key: None,
+                agent_id: "default".to_string(),
+                title: Some("usage partial".to_string()),
+            })
+            .expect("create partial usage session");
+
+        let valid_run = ctx
+            .storage
+            .create_run(NewRun {
+                session_id: session.session_id.clone(),
+                model_provider: "openai".to_string(),
+                model_id: "gpt-4o-mini".to_string(),
+            })
+            .expect("create valid usage run")
+            .expect("valid usage run exists");
+        ctx.storage
+            .set_run_usage_json(
+                &valid_run.run_id,
+                r#"{"provider":{"input_tokens":16,"output_tokens":8,"estimated_cost_usd":0.08}}"#,
+            )
+            .expect("set valid usage json");
+
+        let invalid_run = ctx
+            .storage
+            .create_run(NewRun {
+                session_id: session.session_id.clone(),
+                model_provider: "openai".to_string(),
+                model_id: "gpt-4o-mini".to_string(),
+            })
+            .expect("create invalid usage run")
+            .expect("invalid usage run exists");
+        ctx.storage
+            .set_run_usage_json(&invalid_run.run_id, "{invalid-json")
+            .expect("set invalid usage json");
+
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/mission-control/usage?window=today&timezone=UTC&tz_offset_minutes=0",
+                Body::empty(),
+            ))
+            .await
+            .expect("partial usage unavailable response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let usage_json = parse_json(response).await;
+        assert_eq!(usage_json["available"], false);
+        assert_eq!(usage_json["reason_code"], "PARTIAL_USAGE_DATA");
+        let detail = usage_json["detail"].as_str().unwrap_or_default();
+        assert!(detail.contains(&invalid_run.run_id));
     }
 
     #[tokio::test]
