@@ -1,0 +1,177 @@
+{
+  "schema": "carsinos.mission_control_phase_acceptance_matrix.v1",
+  "phase": "P1",
+  "source_spec": "docs/Reliability_OpsUX_upgrade.md",
+  "source_section": "7) Cross-Cutting QA / Edge Cases Checklist",
+  "bullets": [
+    {
+      "text": "Gateway URL changes mid-session (feed + tabs update without stale data).",
+      "assertions": [
+        {
+          "type": "unit",
+          "file": "apps/mission-control/src/lib/api.test.ts",
+          "test_name": "uses the latest gateway URL when runtime settings change mid-session"
+        }
+      ]
+    },
+    {
+      "text": "WebSocket flaps (rapid disconnect/reconnect) without duplicating/exploding state.",
+      "assertions": [
+        {
+          "type": "unit",
+          "file": "apps/mission-control/src/lib/ws.test.ts",
+          "test_name": "schedules reconnect and re-attempts websocket connection"
+        },
+        {
+          "type": "unit",
+          "file": "apps/mission-control/src/lib/ws.test.ts",
+          "test_name": "respects max reconnect attempts cap"
+        }
+      ]
+    },
+    {
+      "text": "Malformed WS events do not crash UI (drop safely + optionally log).",
+      "assertions": [
+        {
+          "type": "unit",
+          "file": "apps/mission-control/src/lib/ws.test.ts",
+          "test_name": "connects and ignores malformed ws payloads"
+        }
+      ]
+    },
+    {
+      "text": "Tab reset does not wipe global app settings unintentionally.",
+      "assertions": [
+        {
+          "type": "e2e",
+          "file": "apps/mission-control/e2e/core.spec.ts",
+          "test_name": "reset tab state preserves global connection settings"
+        }
+      ]
+    },
+    {
+      "text": "Error recovery does not cause infinite crash loops.",
+      "assertions": [
+        {
+          "type": "unit",
+          "file": "apps/mission-control/src/lib/errorRecovery.test.ts",
+          "test_name": "enters safe mode only at threshold"
+        },
+        {
+          "type": "unit",
+          "file": "apps/mission-control/src/lib/errorRecovery.test.ts",
+          "test_name": "increments crash count inside window and resets outside window"
+        }
+      ]
+    },
+    {
+      "text": "Copy/debug features are explicit and scrub secrets.",
+      "assertions": [
+        {
+          "type": "unit",
+          "file": "apps/mission-control/src/lib/redaction.test.ts",
+          "test_name": "redacts known sensitive keys recursively"
+        },
+        {
+          "type": "unit",
+          "file": "apps/mission-control/src/lib/errorRecovery.test.ts",
+          "test_name": "builds redacted error reports with event context"
+        }
+      ]
+    },
+    {
+      "text": "Wizard token-entry fields can be plaintext only during active onboarding entry; outside onboarding entry state, tokens must not be visible.",
+      "assertions": [
+        {
+          "type": "e2e",
+          "file": "apps/mission-control/e2e/core.spec.ts",
+          "test_name": "keeps onboarding token plaintext only during active entry and does not expose it after setup"
+        },
+        {
+          "type": "static",
+          "file": "apps/mission-control/src/features/onboarding/steps/StepProvider.tsx",
+          "present_substrings": [
+            "value={props.localApiKey}",
+            "value={props.anthropicSetupToken}",
+            "value={props.anthropicAccessToken}",
+            "value={props.anthropicRefreshToken}",
+            "autoComplete=\"off\"",
+            "autoCapitalize=\"none\"",
+            "autoCorrect=\"off\"",
+            "spellCheck={false}"
+          ]
+        },
+        {
+          "type": "static",
+          "file": "apps/mission-control/src/features/onboarding/useOnboardingController.ts",
+          "present_substrings": [
+            "setLocalApiKey(\"\");",
+            "setAnthropicSetupToken(\"\");",
+            "setAnthropicAccessToken(\"\");",
+            "setAnthropicRefreshToken(\"\");"
+          ]
+        }
+      ]
+    },
+    {
+      "text": "If screenshots are taken, default view should not expose tokens (except operator-controlled active onboarding token-entry field).",
+      "assertions": [
+        {
+          "type": "e2e",
+          "file": "apps/mission-control/e2e/core.spec.ts",
+          "test_name": "keeps onboarding token plaintext only during active entry and does not expose it after setup"
+        }
+      ]
+    },
+    {
+      "text": "E2E avoids racey sleep patterns; waits on visible states or deterministic mocks.",
+      "assertions": [
+        {
+          "type": "static",
+          "file": "apps/mission-control/e2e/core.spec.ts",
+          "absent_substrings": [
+            "waitForTimeout(",
+            "setTimeout(",
+            "sleep("
+          ]
+        }
+      ]
+    },
+    {
+      "text": "E2E runs against deterministic stub gateway + websocket.",
+      "assertions": [
+        {
+          "type": "static",
+          "file": "apps/mission-control/playwright.config.ts",
+          "present_substrings": [
+            "const gatewayPort = 19_789;",
+            "node ./e2e/mockGateway.mjs --port ${gatewayPort}",
+            "reuseExistingServer: false"
+          ]
+        },
+        {
+          "type": "static",
+          "file": "apps/mission-control/e2e/core.spec.ts",
+          "present_substrings": [
+            "const GATEWAY_URL = \"http://127.0.0.1:19789\";"
+          ]
+        }
+      ]
+    },
+    {
+      "text": "Tests do not require real provider OAuth flows (mock/stub those paths).",
+      "assertions": [
+        {
+          "type": "e2e",
+          "file": "apps/mission-control/e2e/core.spec.ts",
+          "present_substrings": [
+            "page.getByRole(\"radio\", { name: \"Local connector\" }).check();"
+          ],
+          "absent_substrings": [
+            "Open CLI + auth"
+          ]
+        }
+      ]
+    }
+  ]
+}

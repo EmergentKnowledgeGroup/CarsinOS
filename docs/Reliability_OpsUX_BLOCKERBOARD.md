@@ -40,7 +40,7 @@ Phase objective: quality gate and crash-recovery baseline are production safe.
 | P1-05 | Mission Control Frontend | Implement per-tab boundary, global boundary, fallback loop guard + operator recovery actions | DONE | P1-03 | - | C2, C3, C4 | Forced crashes recover without full app loss |
 | P1-06 | Mission Control Frontend | Implement and verify secret redaction for copy/debug surfaces | DONE | P1-05 | - | C3 redaction, Sec7(P1 security) | Copy/debug output scrubs required secret classes |
 | P1-07 | Platform/CI | Add release-profile Tauri smoke subset + desktop build sanity gate | BLOCKED | P1-01 | BLK-02 | A1, A3, A4 | Release profile includes desktop sanity and smoke checks |
-| P1-08 | QA/Automation | Publish phase-scoped acceptance matrix (Section 7 bullet -> automated assertion) | TODO | P1-03, P1-04, P1-05, P1-06 | - | A4, Sec7 | Every P1-tagged checklist bullet has linked assertion(s) |
+| P1-08 | QA/Automation | Publish phase-scoped acceptance matrix (Section 7 bullet -> automated assertion) | DONE | P1-03, P1-04, P1-05, P1-06 | - | A4, Sec7 | Every P1-tagged checklist bullet has linked assertion(s) |
 
 ## Phase 2 (Live Feed v1 + Incident Behavior + Burst Safety)
 
@@ -81,9 +81,9 @@ Phase objective: usage transparency only when safe gateway contract exists.
 
 ## Critical Path (Current)
 
-1. P1-08 (phase acceptance matrix)  
-2. P2-01 -> P2-03 -> P2-04 -> P2-07  
-3. P1-07 -> P3-04 (desktop parity chain)
+1. BLK-02 -> P1-07 -> P3-04 (desktop parity chain)  
+2. BLK-03 -> P2-01 -> P2-03 -> P2-06  
+3. BLK-04 -> P2-04 -> P2-07
 
 ## Definition of Done Per Phase
 

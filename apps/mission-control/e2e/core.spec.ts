@@ -13,14 +13,23 @@ async function openWizard(page: Page): Promise<void> {
   await expect(page.getByRole("heading", { name: "Setup Wizard" })).toBeVisible();
 }
 
-async function completeLocalOnboarding(page: Page): Promise<void> {
+async function moveWizardToConnectionStep(page: Page): Promise<void> {
   await openWizard(page);
-
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByText("Step 2 of 8")).toBeVisible();
-
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.getByText("Step 3 of 8")).toBeVisible();
+}
+
+async function completeLocalOnboarding(
+  page: Page,
+  options?: {
+    startFromConnectionStep?: boolean;
+  }
+): Promise<void> {
+  if (!options?.startFromConnectionStep) {
+    await moveWizardToConnectionStep(page);
+  }
 
   await page.getByLabel("Gateway URL").fill(GATEWAY_URL);
   await page.getByLabel("Gateway token").fill(TEST_TOKEN);
@@ -70,10 +79,47 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
     await expect(page.getByRole("heading", { name: "Setup Wizard" })).toBeVisible();
   });
 
+  test("keeps onboarding token plaintext only during active entry and does not expose it after setup", async ({
+    page,
+  }) => {
+    await moveWizardToConnectionStep(page);
+
+    const tokenField = page.getByLabel("Gateway token").first();
+    await expect(tokenField).toHaveAttribute("type", "text");
+    await tokenField.fill(TEST_TOKEN);
+    await expect(tokenField).toHaveValue(TEST_TOKEN);
+
+    await completeLocalOnboarding(page, { startFromConnectionStep: true });
+    await expect(page.locator("body")).not.toContainText(TEST_TOKEN);
+
+    await page.locator('[data-tour-id="nav-config"]').click();
+    await page.getByRole("button", { name: "Setup Wizard" }).click();
+    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page.getByText("Step 3 of 8")).toBeVisible();
+    await expect(page.getByLabel("Gateway token").first()).not.toHaveValue(TEST_TOKEN);
+  });
+
   test("connects via deterministic stub gateway and loads baseline", async ({ page }) => {
     await completeLocalOnboarding(page);
 
     await expect(page.getByText("Investigate gateway health")).toBeVisible();
+
+    await page.locator('[data-tour-id="nav-config"]').click();
+    await expect(page.getByText(/health:\s*up/)).toBeVisible();
+    await expect(page.getByText(/ws:\s*connected/)).toBeVisible();
+  });
+
+  test("reset tab state preserves global connection settings", async ({ page }) => {
+    await completeLocalOnboarding(page);
+
+    await page.getByTestId("e2e-crash-active-tab").click();
+    await page.locator('[data-tour-id="nav-calendar"]').click();
+    await page.locator('[data-tour-id="nav-boards"]').click();
+
+    await expect(page.getByRole("heading", { name: "This tab crashed." })).toBeVisible();
+    await page.getByRole("button", { name: "Reset tab state" }).click();
+    await expect(page.getByText("Crash Recovery")).toBeHidden();
 
     await page.locator('[data-tour-id="nav-config"]').click();
     await expect(page.getByText(/health:\s*up/)).toBeVisible();
