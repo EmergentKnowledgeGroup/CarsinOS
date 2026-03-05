@@ -48,6 +48,10 @@ jobs:
         working-directory: apps/mission-control
         run: npm ci
 
+      - name: Install Playwright Chromium
+        working-directory: apps/mission-control
+        run: npx playwright install --with-deps chromium
+
       - name: Run quality gate
         run: |
           set -euo pipefail

@@ -46,6 +46,21 @@ interface AppContentProps {
   setNotice: NotifyFn;
 }
 
+function E2EForceCrashSentinel({
+  tab,
+  active,
+  forceCrashToken,
+}: {
+  tab: MissionControlTab;
+  active: boolean;
+  forceCrashToken: string | null;
+}) {
+  if (!active || !forceCrashToken || !forceCrashToken.startsWith(`${tab}:`)) {
+    return null;
+  }
+  throw new Error(`[e2e] forced tab crash: ${tab}`);
+}
+
 function renderCockpitWidget(
   widget: CockpitWidgetLayoutV2,
   props: Omit<AppContentProps, "activeTab">
@@ -109,6 +124,7 @@ function TabBoundaryPane({
   tab,
   active,
   resetVersion,
+  forceCrashToken,
   title,
   subtitle,
   events,
@@ -119,6 +135,7 @@ function TabBoundaryPane({
   tab: MissionControlTab;
   active: boolean;
   resetVersion: number;
+  forceCrashToken: string | null;
   title: string;
   subtitle: string;
   events: readonly ErrorEventContext[];
@@ -136,7 +153,14 @@ function TabBoundaryPane({
         onResetScope={() => onResetTabState(tab)}
         onEnterSafeMode={onEnterSafeMode}
       >
-        <Fragment key={`${tab}-${resetVersion}`}>{children}</Fragment>
+        <Fragment key={`${tab}-${resetVersion}`}>
+          <E2EForceCrashSentinel
+            tab={tab}
+            active={active}
+            forceCrashToken={forceCrashToken}
+          />
+          {children}
+        </Fragment>
       </AppErrorBoundary>
     </TabPane>
   );
@@ -144,15 +168,46 @@ function TabBoundaryPane({
 
 export function AppContent(props: AppContentProps) {
   const active = props.activeTab;
+  const e2eMode =
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).has("e2e");
+  const [forceCrashToken, setForceCrashToken] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const tabEvents = props.visibleEvents.slice(0, 10);
 
   return (
     <>
+      {e2eMode ? (
+        <button
+          type="button"
+          data-testid="e2e-crash-active-tab"
+          aria-label="Force crash active tab"
+          onClick={() => {
+            const token = `${active}:${Date.now()}`;
+            setForceCrashToken(token);
+            window.setTimeout(() => {
+              setForceCrashToken((current) => (current === token ? null : current));
+            }, 0);
+          }}
+          style={{
+            bottom: 8,
+            fontSize: 10,
+            opacity: 0.2,
+            padding: "2px 6px",
+            position: "fixed",
+            right: 8,
+            zIndex: 9999,
+          }}
+        >
+          Force Crash
+        </button>
+      ) : null}
+
       <TabBoundaryPane
         tab="boards"
         active={active === "boards"}
         resetVersion={props.tabResetVersion.boards ?? 0}
+        forceCrashToken={forceCrashToken}
         title="This tab crashed."
         subtitle="Boards ran into an unexpected runtime error. Retry, reset this tab, or reload."
         events={tabEvents}
@@ -192,6 +247,7 @@ export function AppContent(props: AppContentProps) {
         tab="calendar"
         active={active === "calendar"}
         resetVersion={props.tabResetVersion.calendar ?? 0}
+        forceCrashToken={forceCrashToken}
         title="This tab crashed."
         subtitle="Calendar ran into an unexpected runtime error. Retry, reset this tab, or reload."
         events={tabEvents}
@@ -217,6 +273,7 @@ export function AppContent(props: AppContentProps) {
         tab="focus"
         active={active === "focus"}
         resetVersion={props.tabResetVersion.focus ?? 0}
+        forceCrashToken={forceCrashToken}
         title="This tab crashed."
         subtitle="Focus ran into an unexpected runtime error. Retry, reset this tab, or reload."
         events={tabEvents}
@@ -242,6 +299,7 @@ export function AppContent(props: AppContentProps) {
         tab="events"
         active={active === "events"}
         resetVersion={props.tabResetVersion.events ?? 0}
+        forceCrashToken={forceCrashToken}
         title="This tab crashed."
         subtitle="Events ran into an unexpected runtime error. Retry, reset this tab, or reload."
         events={tabEvents}
@@ -264,6 +322,7 @@ export function AppContent(props: AppContentProps) {
         tab="mail"
         active={active === "mail"}
         resetVersion={props.tabResetVersion.mail ?? 0}
+        forceCrashToken={forceCrashToken}
         title="This tab crashed."
         subtitle="Mail ran into an unexpected runtime error. Retry, reset this tab, or reload."
         events={tabEvents}
@@ -337,6 +396,7 @@ export function AppContent(props: AppContentProps) {
         tab="chatrooms"
         active={active === "chatrooms"}
         resetVersion={props.tabResetVersion.chatrooms ?? 0}
+        forceCrashToken={forceCrashToken}
         title="This tab crashed."
         subtitle="Chatrooms ran into an unexpected runtime error. Retry, reset this tab, or reload."
         events={tabEvents}
@@ -396,6 +456,7 @@ export function AppContent(props: AppContentProps) {
         tab="assistant"
         active={active === "assistant"}
         resetVersion={props.tabResetVersion.assistant ?? 0}
+        forceCrashToken={forceCrashToken}
         title="This tab crashed."
         subtitle="Assistant ran into an unexpected runtime error. Retry, reset this tab, or reload."
         events={tabEvents}
@@ -419,6 +480,7 @@ export function AppContent(props: AppContentProps) {
         tab="team"
         active={active === "team"}
         resetVersion={props.tabResetVersion.team ?? 0}
+        forceCrashToken={forceCrashToken}
         title="This tab crashed."
         subtitle="Team ran into an unexpected runtime error. Retry, reset this tab, or reload."
         events={tabEvents}
@@ -442,6 +504,7 @@ export function AppContent(props: AppContentProps) {
         tab="cockpit"
         active={active === "cockpit"}
         resetVersion={props.tabResetVersion.cockpit ?? 0}
+        forceCrashToken={forceCrashToken}
         title="This tab crashed."
         subtitle="Cockpit ran into an unexpected runtime error. Retry, reset this tab, or reload."
         events={tabEvents}
@@ -489,6 +552,7 @@ export function AppContent(props: AppContentProps) {
         tab="help"
         active={active === "help"}
         resetVersion={props.tabResetVersion.help ?? 0}
+        forceCrashToken={forceCrashToken}
         title="This tab crashed."
         subtitle="Help/Docs ran into an unexpected runtime error. Retry, reset this tab, or reload."
         events={tabEvents}
