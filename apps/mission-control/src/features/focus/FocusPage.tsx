@@ -12,6 +12,7 @@ import { Surface } from "../../ui/Surface";
 import { Tabs } from "../../ui/Tabs";
 import { usePagination } from "../../ui/usePagination";
 import { formatDateTime, formatRelative } from "../../utils/datetime";
+import { redactSecrets } from "../../lib/redaction";
 
 const FOCUS_PAGE_SIZE = 6;
 
@@ -44,7 +45,10 @@ function extractApprovalContext(payload: Record<string, unknown>): Array<[string
   for (const [key, label] of fields) {
     const value = payload[key];
     if (value !== undefined && value !== null && value !== "") {
-      const display = typeof value === "object" ? JSON.stringify(value, null, 2) : String(value);
+      const display =
+        typeof value === "object"
+          ? JSON.stringify(redactSecrets(value), null, 2)
+          : redactSecrets(String(value));
       entries.push([label, display]);
     }
   }
@@ -52,7 +56,10 @@ function extractApprovalContext(payload: Record<string, unknown>): Array<[string
   const coveredKeys = new Set(["approval_id", "job_id", "provider", ...fields.map(([k]) => k)]);
   for (const [key, value] of Object.entries(payload)) {
     if (!coveredKeys.has(key) && value !== undefined && value !== null && value !== "") {
-      const display = typeof value === "object" ? JSON.stringify(value, null, 2) : String(value);
+      const display =
+        typeof value === "object"
+          ? JSON.stringify(redactSecrets(value), null, 2)
+          : redactSecrets(String(value));
       entries.push([key, display]);
     }
   }

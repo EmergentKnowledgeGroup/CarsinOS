@@ -28,5 +28,13 @@ describe("redactSecrets", () => {
     );
     expect(redactSecrets("sk-ant-abcdefghijk")).toBe("[REDACTED]");
     expect(redactSecrets("x-api-key: top-secret")).toBe("x-api-key: [REDACTED]");
+    expect(redactSecrets("https://api.example.com/callback?code=abc123&token=xyz")).toBe(
+      "https://api.example.com/callback?code=[REDACTED]&token=[REDACTED]"
+    );
+    expect(
+      redactSecrets(
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature"
+      )
+    ).toBe("[REDACTED]");
   });
 });
