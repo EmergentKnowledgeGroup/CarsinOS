@@ -219,7 +219,7 @@ export function StepProvider(props: StepProviderProps) {
                 <label>
                   API key (optional)
                   <input
-                    type="password"
+                    type="text"
                     value={props.localApiKey}
                     onChange={(event) => props.onLocalApiKeyChange(event.target.value)}
                     placeholder="Bearer token if required"
@@ -438,7 +438,7 @@ export function StepProvider(props: StepProviderProps) {
                           <label>
                             Setup token
                             <input
-                              type="password"
+                              type="text"
                               value={props.anthropicSetupToken}
                               onChange={(event) =>
                                 props.onAnthropicSetupTokenChange(event.target.value)
@@ -460,7 +460,7 @@ export function StepProvider(props: StepProviderProps) {
                           <label>
                             Access token
                             <input
-                              type="password"
+                              type="text"
                               value={props.anthropicAccessToken}
                               onChange={(event) =>
                                 props.onAnthropicAccessTokenChange(event.target.value)
@@ -471,7 +471,7 @@ export function StepProvider(props: StepProviderProps) {
                           <label>
                             Refresh token (optional)
                             <input
-                              type="password"
+                              type="text"
                               value={props.anthropicRefreshToken}
                               onChange={(event) =>
                                 props.onAnthropicRefreshTokenChange(event.target.value)

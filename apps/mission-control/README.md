@@ -11,6 +11,7 @@ Mission Control is the CarsinOS operator UI built with React + TypeScript + Vite
 - `npm run test:unit` - Vitest unit suite
 - `npm run test:e2e:core` - Playwright core suite (onboarding, baseline connect, crash recovery)
 - `npm run test:e2e:full` - full Playwright suite
+- `npm run quality:acceptance:p1` - validate Section 7 `[P1]` acceptance matrix coverage
 - `npm run quality:gate` - run Mission Control quality gate (`pr` profile)
 - `npm run quality:gate:pr` - run Mission Control quality gate (`pr` profile)
 - `npm run quality:gate:release` - run Mission Control quality gate (`release` profile)
@@ -18,6 +19,7 @@ Mission Control is the CarsinOS operator UI built with React + TypeScript + Vite
 
 Quality gate profiles are config-driven via [`quality-gate.config.json`](./quality-gate.config.json).  
 Current unresolved blocker IDs (currently `BLK-02`) are explicitly represented there and suppress blocked Tauri steps until those blockers are cleared.
+Phase-scoped acceptance mapping for Section 7 `[P1]` bullets is tracked in [`docs/mission-control_p1_acceptance_matrix.json`](../../docs/mission-control_p1_acceptance_matrix.json) and validated by `mc-acceptance-p1` in the quality gate.
 
 ## Onboarding Wizard
 

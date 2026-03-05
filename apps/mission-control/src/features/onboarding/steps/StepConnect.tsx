@@ -57,7 +57,7 @@ export function StepConnect(props: StepConnectProps) {
         <label>
           Gateway token
           <input
-            type="password"
+            type="text"
             value={props.gatewayTokenInput}
             onChange={(event) => props.onGatewayTokenInputChange(event.target.value)}
             placeholder={

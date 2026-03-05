@@ -12,6 +12,7 @@
     "test:e2e:core": "playwright test --config=playwright.config.ts --grep \"@core\"",
     "test:e2e:full": "playwright test --config=playwright.config.ts",
     "test:e2e:tauri-smoke": "node ../../scripts/mission_control_e2e_placeholder.mjs tauri-smoke",
+    "quality:acceptance:p1": "python3 ../../scripts/mission_control_phase_acceptance_check.py --phase P1",
     "quality:gate": "python3 ../../scripts/mission_control_quality_gate.py --profile=pr",
     "quality:gate:pr": "python3 ../../scripts/mission_control_quality_gate.py --profile=pr",
     "quality:gate:release": "python3 ../../scripts/mission_control_quality_gate.py --profile=release",
