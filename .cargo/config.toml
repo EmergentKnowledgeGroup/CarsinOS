@@ -1,2 +1,2 @@
 [build]
-target-dir = "/Users/domusanimae/Documents/openclaw replacement/.shared-cargo-targets/carsinos-workspace"
+target-dir = "../.shared-cargo-targets/carsinos-workspace"

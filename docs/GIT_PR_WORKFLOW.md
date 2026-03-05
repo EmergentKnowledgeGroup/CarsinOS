@@ -7,11 +7,11 @@ Ship work in small PR chunks into `main` so CodeRabbit can review each change se
 1. Keep `main` stable and deployable.
 2. New work always starts from `main` on a `codex/*` branch.
 3. One branch = one focused change set.
-4. The local checkout at `/Users/domusanimae/Documents/openclaw replacement/carsinos` is the filesystem source of truth.
-5. Do not create git worktrees for normal PR execution. Branch in the source-of-truth checkout and work there.
+4. The local repository checkout is the filesystem source of truth.
+5. Do not create git worktrees for normal PR execution. Branch in the local repository checkout and work there.
 
 ## Local Build Storage
-1. Cargo build artifacts are shared through [`.cargo/config.toml`](/Users/domusanimae/Documents/openclaw replacement/carsinos/.cargo/config.toml).
+1. Cargo build artifacts are shared through [`.cargo/config.toml`](../.cargo/config.toml).
 2. This prevents duplicated `target` directories across local runs and nested app builds.
 3. Do not override the shared target dir unless you are intentionally isolating a one-off experiment.
 
@@ -32,10 +32,11 @@ Ship work in small PR chunks into `main` so CodeRabbit can review each change se
 ## PR Flow
 1. Push branch to origin.
 2. Open PR into `main`.
-3. Update `runtime/checkpoints/LATEST.md` and `runtime/checkpoints/LATEST.json`.
-4. Let CodeRabbit + CI run.
-5. Address review comments on same branch.
-6. Merge to `main` when green.
+3. PR descriptions must include a short summary and the verification commands that were run.
+4. Update `runtime/checkpoints/LATEST.md` and `runtime/checkpoints/LATEST.json`.
+5. Let CodeRabbit + CI run.
+6. Address review comments on same branch.
+7. Merge to `main` when green.
 
 ## Why This Helps
 1. Faster, cleaner reviews.
