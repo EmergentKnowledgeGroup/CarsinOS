@@ -1,8 +1,6 @@
 {
   "schema": "carsinos.mission_control_quality_gate.v1",
-  "active_blockers": [
-    "BLK-02"
-  ],
+  "active_blockers": [],
   "profiles": {
     "pr": {
       "description": "PR merge gate for Mission Control",
@@ -56,16 +54,12 @@
         {
           "id": "mc-e2e-tauri-smoke",
           "cwd": "apps/mission-control",
-          "command": ["npm", "run", "test:e2e:tauri-smoke"],
-          "blocked_by": ["BLK-02"],
-          "blocker_reason": "Desktop CI/Tauri smoke runtime chain (P1-07) not finalized yet."
+          "command": ["npm", "run", "test:e2e:tauri-smoke"]
         },
         {
           "id": "mc-build-tauri",
           "cwd": "apps/mission-control",
-          "command": ["npm", "run", "tauri:build"],
-          "blocked_by": ["BLK-02"],
-          "blocker_reason": "Desktop CI/Tauri packaging lane (P1-07) not finalized yet."
+          "command": ["npm", "run", "tauri:build", "--", "--debug", "--no-bundle"]
         }
       ]
     }

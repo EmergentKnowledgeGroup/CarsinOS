@@ -15,7 +15,7 @@ on:
       profile:
         description: "Quality gate profile"
         required: true
-        default: "pr"
+        default: "release"
         type: choice
         options:
           - pr
@@ -30,9 +30,10 @@ permissions:
 
 jobs:
   mission-control-quality-gate:
-    name: Mission Control Quality Gate
+    name: Mission Control Quality Gate (PR Web)
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    if: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.profile == 'pr') }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -55,20 +56,54 @@ jobs:
       - name: Run quality gate
         run: |
           set -euo pipefail
-          profile="pr"
-          extra_args=()
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            profile="${{ github.event.inputs.profile }}"
-          fi
-          if [[ "${profile}" == "release" ]]; then
-            extra_args+=(--fail-on-blocked)
-          fi
-          python3 scripts/mission_control_quality_gate.py --profile "${profile}" "${extra_args[@]}"
+          python3 scripts/mission_control_quality_gate.py --profile pr
 
       - name: Upload quality gate artifacts
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: mission-control-quality-gate-${{ github.run_id }}
+          name: mission-control-quality-gate-pr-${{ github.run_id }}
           path: runtime/quality-gate/reports/
+          if-no-files-found: warn
+
+  mission-control-desktop-release-gate:
+    name: Mission Control Desktop Release Gate (macOS)
+    runs-on: macos-latest
+    timeout-minutes: 90
+    if: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.profile == 'release') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/mission-control/package-lock.json
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        working-directory: apps/mission-control
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        working-directory: apps/mission-control
+        run: npx playwright install chromium
+
+      - name: Run release quality gate (desktop)
+        run: |
+          set -euo pipefail
+          python3 scripts/mission_control_quality_gate.py --profile release --fail-on-blocked
+
+      - name: Upload desktop gate artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mission-control-quality-gate-release-macos-${{ github.run_id }}
+          path: |
+            runtime/quality-gate/reports/
+            runtime/quality-gate/artifacts/tauri-smoke/
           if-no-files-found: warn
