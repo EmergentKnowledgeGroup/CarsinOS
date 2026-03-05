@@ -21,6 +21,7 @@ import { runCockpitDataSource, resolveResponsePath } from "./cockpitApiRunner";
 import { CustomWidgetRenderer } from "./CustomWidgetRenderer";
 import type { CustomWidgetConfig, CockpitWidgetLayoutV2 } from "./cockpitLayout";
 import type { RuntimeConnectionSettings } from "../../types";
+import { redactSecrets } from "../../lib/redaction";
 
 interface CustomWidgetBuilderModalProps {
   open: boolean;
@@ -594,7 +595,7 @@ function PreviewStep({
       {data != null ? (
         <details className="mc-builder-preview-raw">
           <summary>Raw response</summary>
-          <pre>{JSON.stringify(data, null, 2)}</pre>
+          <pre>{JSON.stringify(redactSecrets(data), null, 2)}</pre>
         </details>
       ) : null}
     </div>

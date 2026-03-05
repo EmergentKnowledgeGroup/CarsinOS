@@ -13,6 +13,9 @@ const SENSITIVE_KEYS = new Set([
   "x-api-key",
   "secret",
   "client_secret",
+  "password",
+  "oauth_code",
+  "auth_code",
 ]);
 
 function looksSensitiveKey(key: string): boolean {
@@ -20,7 +23,15 @@ function looksSensitiveKey(key: string): boolean {
   if (SENSITIVE_KEYS.has(normalized)) {
     return true;
   }
-  return normalized.includes("token") || normalized.includes("secret") || normalized.includes("api_key");
+  return (
+    normalized.includes("token") ||
+    normalized.includes("secret") ||
+    normalized.includes("api_key") ||
+    normalized.includes("apikey") ||
+    normalized.includes("api key") ||
+    normalized.endsWith("_key") ||
+    normalized.endsWith("-key")
+  );
 }
 
 function redactStringValue(value: string): string {
@@ -34,6 +45,21 @@ function redactStringValue(value: string): string {
 
   // Redact generic x-api-key assignment forms.
   next = next.replace(/(x-api-key\s*[:=]\s*)[^\s,;]+/gi, `$1${REDACTED_VALUE}`);
+
+  // Redact generic key/token assignments in text logs.
+  next = next.replace(
+    /((?:"|')?(?:token|access_token|refresh_token|api_key|client_secret|password|oauth_code|auth_code)(?:"|')?\s*[:=]\s*(?:"|')?)[^\s"',;&]+/gi,
+    `$1${REDACTED_VALUE}`
+  );
+
+  // Redact URL query-string style secret params.
+  next = next.replace(
+    /([?&](?:token|access_token|refresh_token|api_key|apikey|client_secret|oauth_code|auth_code|code)=)[^&#\s]+/gi,
+    `$1${REDACTED_VALUE}`
+  );
+
+  // Redact JWT-like values.
+  next = next.replace(/\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/g, REDACTED_VALUE);
 
   return next;
 }

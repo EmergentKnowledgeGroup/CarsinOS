@@ -52,7 +52,7 @@ function EventItem({ event }: { event: EventsPageEventItem }) {
   const domain = eventDomain(event.event_type);
   const tone = domainTone(domain);
   const summary = eventSummary(event.event_type, event.payload);
-  const redactedPayload = useMemo(() => redactEventPayload(event.payload), [event.payload]);
+  const redactedPayload = expanded ? redactEventPayload(event.payload) : null;
   const payloadId = `mc-event-payload-${event.event_id}`;
 
   return (

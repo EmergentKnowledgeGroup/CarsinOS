@@ -6,6 +6,7 @@ import { useWidgetPagination } from "./useWidgetPagination";
 import { runCockpitDataSource, resolveResponsePath } from "./cockpitApiRunner";
 import type { CustomWidgetConfig } from "./cockpitLayout";
 import type { RuntimeConnectionSettings } from "../../types";
+import { redactSecrets } from "../../lib/redaction";
 
 interface CustomWidgetRendererProps {
   config: CustomWidgetConfig;
@@ -96,7 +97,7 @@ export function CustomWidgetRenderer({
       return (
         <article className="mc-cockpit-widget-body">
           <pre className="mc-custom-widget-raw">
-            {JSON.stringify(data, null, 2)}
+            {JSON.stringify(redactSecrets(data), null, 2)}
           </pre>
         </article>
       );
@@ -338,7 +339,10 @@ function formatCell(val: unknown): string {
   if (val == null) return "—";
   if (typeof val === "boolean") return val ? "true" : "false";
   if (typeof val === "number") return String(val);
-  if (typeof val === "string") return val.length > 80 ? val.slice(0, 77) + "..." : val;
+  if (typeof val === "string") {
+    const safe = redactSecrets(val);
+    return safe.length > 80 ? safe.slice(0, 77) + "..." : safe;
+  }
   if (Array.isArray(val)) return `[${val.length}]`;
   if (typeof val === "object") return "{...}";
   return String(val);
@@ -350,13 +354,15 @@ const DETAIL_KEYS = ["description", "detail", "status", "state", "lifecycle_stat
 function pickLabel(row: Record<string, unknown>): string {
   for (const key of LABEL_KEYS) {
     if (typeof row[key] === "string" && (row[key] as string).trim()) {
-      return row[key] as string;
+      return redactSecrets(row[key] as string);
     }
   }
   const keys = Object.keys(row);
   if (keys.length > 0) {
     const first = row[keys[0]!];
-    return typeof first === "string" ? first : JSON.stringify(first);
+    return typeof first === "string"
+      ? redactSecrets(first)
+      : JSON.stringify(redactSecrets(first));
   }
   return "—";
 }
@@ -365,7 +371,7 @@ function pickDetail(row: Record<string, unknown>, usedLabel: string): string | n
   for (const key of DETAIL_KEYS) {
     const val = row[key];
     if (typeof val === "string" && val.trim() && val !== usedLabel) {
-      return val;
+      return redactSecrets(val);
     }
   }
   return null;
