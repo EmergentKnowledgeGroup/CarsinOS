@@ -1,6 +1,6 @@
 # Reliability + OpsUX Blockerboard
 
-Date: 2026-03-04  
+Date: 2026-03-05  
 Source spec: [Reliability_OpsUX_upgrade.md](./Reliability_OpsUX_upgrade.md)
 Tracking note: The source spec references this blockerboard directly for execution control.
 
@@ -23,8 +23,8 @@ Use this board to track sequencing, blockers, and phase acceptance criteria.
 | --- | --- | --- | --- | --- | --- |
 | BLK-01 | QA/Automation + Gateway | DONE | Deterministic stub gateway + websocket harness finalized (Playwright core E2E wired to deterministic local gateway/ws) | Stable E2E foundation available | P2-07, P3-01, P3-02, P3-03 |
 | BLK-02 | Platform/CI | DONE | Desktop (Tauri) CI runner/smoke pipeline finalized (macOS desktop release gate with tauri smoke visual + tauri build sanity) | Release-profile desktop confidence available | P3-04 |
-| BLK-03 | Gateway Config + Mission Control Frontend | TODO | Runtime feature-flag controls and kill-switch wiring for new modules not finalized | Blocks safe incremental rollout | P2-01, P2-06, P4-02 |
-| BLK-04 | Storage | TODO | Local durable recovery-log decision not finalized (storage implementation for 30-min recoverability) | Blocks `Clear`/undo contract completion | P2-04 |
+| BLK-03 | Gateway Config + Mission Control Frontend | DONE | Runtime feature-flag controls and kill-switch wiring finalized and validated in quality-gate profiles | Safe incremental rollout controls now available | P2-01, P2-06, P4-02 |
+| BLK-04 | Storage | DONE | Session-level durable recovery-log path finalized and validated for soft-clear/restore behavior | `Clear`/undo contract no longer blocked | P2-04 |
 | BLK-05 | Gateway Usage API | TODO | Gateway usage metrics contract not yet exposed/validated | Blocks optional cost/token module | P4-01, P4-02, P4-03, P4-04 |
 
 ## Phase 1 (Foundations + Crash-Proofing + Core Gate)
@@ -48,13 +48,13 @@ Phase objective: always-accessible live operational feed with safe behavior unde
 
 | Task ID | Owner | Task | Status | Depends On | Blocker | Spec Mapping | Exit Criteria |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| P2-01 | Mission Control Frontend | Add right-side Live Feed drawer accessible from every tab | TODO | P1-05 | BLK-03 | B1, B5 | Drawer reachable globally without tab disruption |
-| P2-02 | Mission Control Frontend + Gateway | Implement event normalization adapter/envelope handling with safe fallback defaults | TODO | P2-01 | - | B1.1 | Incomplete metadata degrades safely (`other/normal`) |
-| P2-03 | Mission Control Frontend | Implement filters, unread badge, pause semantics, mark-read behavior | TODO | P2-01, P2-02 | - | B2, B3 | Unread/pause/filter behavior matches spec |
-| P2-04 | Mission Control Frontend + Storage | Implement soft clear + undo windows + 30-min recoverability via persisted session recovery log | BLOCKED | P2-03 | BLK-04 | B3, B4 recoverability contract | Recoverability promise holds under burst and cap conditions |
-| P2-05 | Mission Control Frontend | Add virtualization, bounded in-memory caps, overflow policy, and interaction SLO instrumentation | TODO | P2-02 | - | B4 | Burst tests meet cap and responsiveness constraints |
-| P2-06 | Mission Control Frontend + Gateway Config | Implement incident mode auto/manual rules, cooldown, and override precedence | BLOCKED | P2-03 | BLK-03 | B3 incident mode | Incident transitions follow rule matrix |
-| P2-07 | QA/Automation | Add Live Feed E2E + burst/overflow + reconnect flap coverage | BLOCKED | P2-04, P2-05, P2-06 | BLK-01 | B5, Sec7(P2) | All P2-tagged checklist assertions green |
+| P2-01 | Mission Control Frontend | Add right-side Live Feed drawer accessible from every tab | DONE | P1-05 | - | B1, B5 | Drawer reachable globally without tab disruption |
+| P2-02 | Mission Control Frontend + Gateway | Implement event normalization adapter/envelope handling with safe fallback defaults | DONE | P2-01 | - | B1.1 | Incomplete metadata degrades safely (`other/normal`) |
+| P2-03 | Mission Control Frontend | Implement filters, unread badge, pause semantics, mark-read behavior | DONE | P2-01, P2-02 | - | B2, B3 | Unread/pause/filter behavior matches spec |
+| P2-04 | Mission Control Frontend + Storage | Implement soft clear + undo windows + 30-min recoverability via persisted session recovery log | DONE | P2-03 | - | B3, B4 recoverability contract | Recoverability promise holds under burst and cap conditions |
+| P2-05 | Mission Control Frontend | Add virtualization, bounded in-memory caps, overflow policy, and interaction SLO instrumentation | DONE | P2-02 | - | B4 | Burst tests meet cap and responsiveness constraints |
+| P2-06 | Mission Control Frontend + Gateway Config | Implement incident mode auto/manual rules, cooldown, and override precedence | DONE | P2-03 | - | B3 incident mode | Incident transitions follow rule matrix |
+| P2-07 | QA/Automation | Add Live Feed E2E + burst/overflow + reconnect flap coverage | DONE | P2-04, P2-05, P2-06 | - | B5, Sec7(P2) | All P2-tagged checklist assertions green |
 
 ## Phase 3 (Operator Workflow Expansion)
 
@@ -62,11 +62,11 @@ Phase objective: end-to-end confidence for real operator workflows.
 
 | Task ID | Owner | Task | Status | Depends On | Blocker | Spec Mapping | Exit Criteria |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| P3-01 | QA/Automation | Expand E2E boards workflow (create/move/run/persist/refresh) | BLOCKED | P1-02, P2-07 | BLK-01 | A3(Phase 3) | Boards flows deterministic and green |
-| P3-02 | QA/Automation | Expand E2E focus approvals workflow (approve/deny/state updates/counts) | BLOCKED | P1-02, P2-07 | BLK-01 | A3(Phase 3) | Focus approvals workflows deterministic and green |
-| P3-03 | QA/Automation | Add reconnect-edge suite (rapid flap, malformed events, state consistency) | BLOCKED | P2-05, P2-07 | BLK-01 | Sec7 reliability | No duplicated/exploded state under flap scenarios |
-| P3-04 | Platform/CI | Validate Tauri parity for representative workflow scenarios | TODO | P1-07 | - | A3 release/Tauri parity intent | Desktop smoke parity evidence recorded |
-| P3-05 | QA/Automation | Complete P3 acceptance mapping for Section 7 scoped bullets | TODO | P3-01, P3-02, P3-03, P3-04 | - | Sec7 acceptance binding | P3 checklist matrix complete and green |
+| P3-01 | QA/Automation | Expand E2E boards workflow (create/move/run/persist/refresh) | DONE | P1-02, P2-07 | - | A3(Phase 3) | Boards flows deterministic and green |
+| P3-02 | QA/Automation | Expand E2E focus approvals workflow (approve/deny/state updates/counts) | DONE | P1-02, P2-07 | - | A3(Phase 3) | Focus approvals workflows deterministic and green |
+| P3-03 | QA/Automation | Add reconnect-edge suite (rapid flap, malformed events, state consistency) | DONE | P2-05, P2-07 | - | Sec7 reliability | No duplicated/exploded state under flap scenarios |
+| P3-04 | Platform/CI | Validate Tauri parity for representative workflow scenarios | DONE | P1-07 | - | A3 release/Tauri parity intent | Desktop smoke parity evidence recorded in [`mission-control_p3_tauri_parity_evidence.md`](./mission-control_p3_tauri_parity_evidence.md) |
+| P3-05 | QA/Automation | Complete P3 acceptance mapping for Section 7 scoped bullets | DONE | P3-01, P3-02, P3-03, P3-04 | - | Sec7 acceptance binding | P3 checklist matrix complete and green (`docs/mission-control_p3_acceptance_matrix.json`) |
 
 ## Phase 4 (Optional: Cost + Token Visibility)
 
@@ -75,15 +75,13 @@ Phase objective: usage transparency only when safe gateway contract exists.
 | Task ID | Owner | Task | Status | Depends On | Blocker | Spec Mapping | Exit Criteria |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | P4-01 | Gateway Usage API + Product/Ops | Validate gateway usage contract readiness and field integrity | BLOCKED | - | BLK-05 | D1 | Contract completeness confirmed or feature explicitly disabled |
-| P4-02 | Mission Control Frontend + Gateway Config | Build summary + breakdown + freshness/staleness states | BLOCKED | P4-01 | BLK-05, BLK-03 | D2, D3 | UI answers required spend/trend questions without misleading states |
+| P4-02 | Mission Control Frontend + Gateway Config | Build summary + breakdown + freshness/staleness states | BLOCKED | P4-01 | BLK-05 | D2, D3 | UI answers required spend/trend questions without misleading states |
 | P4-03 | Mission Control Frontend + Product/Ops | Add optional budget thresholds and non-spam warning behavior | BLOCKED | P4-02 | BLK-05 | D3 | Threshold UX understandable and noise-controlled |
 | P4-04 | QA/Automation | Add tests for available-data, unavailable-data, and missing optional correlation slices | BLOCKED | P4-02 | BLK-05 | D4 | Automated assertions cover all availability permutations |
 
 ## Critical Path (Current)
 
-1. BLK-03 -> P2-01 -> P2-03 -> P2-06  
-2. BLK-04 -> P2-04 -> P2-07  
-3. BLK-05 -> P4-01 -> P4-02
+1. BLK-05 -> P4-01 -> P4-02 -> P4-03 -> P4-04
 
 ## Definition of Done Per Phase
 
