@@ -1,0 +1,68 @@
+{
+  "schema": "carsinos.mission_control_phase_acceptance_matrix.v1",
+  "phase": "P4",
+  "source_spec": "docs/Reliability_OpsUX_upgrade.md",
+  "source_section": "7) Cross-Cutting QA / Edge Cases Checklist",
+  "bullets": [
+    {
+      "text": "Usage summary + breakdown render correctly when gateway usage contract is available.",
+      "assertions": [
+        {
+          "type": "e2e",
+          "file": "apps/mission-control/e2e/p4-usage.spec.ts",
+          "test_name": "renders today/week usage summaries and breakdowns when contract is available"
+        }
+      ]
+    },
+    {
+      "text": "Usage module shows explicit \"Not available\" state when contract is unavailable or required fields are invalid.",
+      "assertions": [
+        {
+          "type": "e2e",
+          "file": "apps/mission-control/e2e/p4-usage.spec.ts",
+          "test_name": "shows explicit not-available state when usage contract is unavailable"
+        },
+        {
+          "type": "e2e",
+          "file": "apps/mission-control/e2e/p4-usage.spec.ts",
+          "test_name": "disables charts when required usage fields are missing"
+        }
+      ]
+    },
+    {
+      "text": "Missing optional `by_job`/`by_card` slices keep summary/breakdown active and mark correlation as unavailable.",
+      "assertions": [
+        {
+          "type": "e2e",
+          "file": "apps/mission-control/e2e/p4-usage.spec.ts",
+          "test_name": "keeps summaries visible when optional correlation slices are missing"
+        }
+      ]
+    },
+    {
+      "text": "Usage freshness handling is explicit: stale warning at >15 minutes and trend-limited mode at >60 minutes.",
+      "assertions": [
+        {
+          "type": "e2e",
+          "file": "apps/mission-control/e2e/p4-usage.spec.ts",
+          "test_name": "shows stale warning when usage data is older than 15 minutes"
+        },
+        {
+          "type": "e2e",
+          "file": "apps/mission-control/e2e/p4-usage.spec.ts",
+          "test_name": "limits trend claims when usage data is older than 60 minutes"
+        }
+      ]
+    },
+    {
+      "text": "Budget threshold warnings are concise and non-spammy when provider usage ratios exceed warning/critical thresholds.",
+      "assertions": [
+        {
+          "type": "e2e",
+          "file": "apps/mission-control/e2e/p4-usage.spec.ts",
+          "test_name": "shows concise budget warning when usage thresholds are breached"
+        }
+      ]
+    }
+  ]
+}

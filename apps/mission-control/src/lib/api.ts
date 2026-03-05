@@ -37,6 +37,7 @@ import type {
   ListBoardsResponse,
   MissionControlCalendarWeekResponse,
   MissionControlFocusResponse,
+  MissionControlUsageResponse,
   MoveBoardCardResponse,
   OpenAiOauthFinishResponse,
   OpenAiOauthStartResponse,
@@ -347,6 +348,34 @@ export async function getMissionControlFocus(
   return requestJson<MissionControlFocusResponse>(
     settings,
     `/api/v1/mission-control/focus?limit=${encodeURIComponent(String(limit))}`
+  );
+}
+
+export async function getMissionControlUsage(
+  settings: RuntimeConnectionSettings,
+  query: {
+    window: "today" | "week";
+    timezone?: string;
+    tz_offset_minutes?: number;
+    window_start_ms?: number;
+    window_end_ms?: number;
+  }
+): Promise<MissionControlUsageResponse> {
+  const params = new URLSearchParams();
+  params.set("window", query.window);
+  if (query.timezone?.trim()) {
+    params.set("timezone", query.timezone.trim());
+  }
+  if (Number.isFinite(query.tz_offset_minutes)) {
+    params.set("tz_offset_minutes", String(Math.trunc(query.tz_offset_minutes as number)));
+  }
+  if (Number.isFinite(query.window_start_ms) && Number.isFinite(query.window_end_ms)) {
+    params.set("window_start_ms", String(Math.trunc(query.window_start_ms as number)));
+    params.set("window_end_ms", String(Math.trunc(query.window_end_ms as number)));
+  }
+  return requestJson<MissionControlUsageResponse>(
+    settings,
+    `/api/v1/mission-control/usage?${params.toString()}`
   );
 }
 

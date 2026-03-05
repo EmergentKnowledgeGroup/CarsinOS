@@ -8,6 +8,7 @@ import {
 import {
   getAgentProviderProfileOrder,
   getChannelRuntimeStatus,
+  getMissionControlUsage,
   getJobsStatus,
   getGatewayStatus,
   getMissionControlCalendarWeek,
@@ -36,6 +37,10 @@ import type {
   MissionControlCalendarJob,
   MissionControlCalendarWeekResponse,
   MissionControlFocusItem,
+  MissionControlUsageBudgetThreshold,
+  MissionControlUsageByAgent,
+  MissionControlUsageByModel,
+  MissionControlUsageResponse,
   PluginManifestResponse,
   PluginRuntimeStatusResponse,
   RuntimeConnectionSettings,
@@ -48,6 +53,232 @@ interface UseMissionControlControllerOptions {
   agents: Agent[];
   incidentMode: boolean;
   setNotice: NotifyFn;
+}
+
+type UsageStaleLevel = "fresh" | "stale" | "limited";
+
+interface UsageWindowContract {
+  window: "today" | "week";
+  timezone: string;
+  currency: string;
+  windowStartUtc: string;
+  windowEndUtc: string;
+  estimatedCostTotal: number;
+  tokenInputTotal: number;
+  tokenOutputTotal: number;
+  byAgent: MissionControlUsageByAgent[];
+  byModel: MissionControlUsageByModel[];
+  byTime: NonNullable<MissionControlUsageResponse["by_time"]>;
+  byJob: MissionControlUsageResponse["by_job"];
+  byCard: MissionControlUsageResponse["by_card"];
+  budgetThresholds: MissionControlUsageBudgetThreshold[];
+  updatedAtUtc: string;
+}
+
+interface UsageBudgetWarning {
+  tone: "warning" | "critical";
+  message: string;
+}
+
+interface UsageTrendSummary {
+  direction: "up" | "down" | "flat" | "limited" | "unknown";
+  label: string;
+}
+
+function resolveOperatorTimezone(): string {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return typeof tz === "string" && tz.trim().length > 0 ? tz : "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+
+function resolveTzOffsetMinutes(): number {
+  return -new Date().getTimezoneOffset();
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function parseUsageWindowContract(
+  raw: MissionControlUsageResponse | null,
+  expectedWindow: "today" | "week"
+): { data: UsageWindowContract | null; reason: string | null } {
+  if (!raw) {
+    return { data: null, reason: `Usage contract missing for ${expectedWindow}.` };
+  }
+  if (raw.available !== true) {
+    const detail = raw.detail?.trim();
+    const reasonCode = raw.reason_code?.trim();
+    const reason = detail || reasonCode || "Usage contract unavailable.";
+    return { data: null, reason };
+  }
+  if (raw.window !== expectedWindow) {
+    return {
+      data: null,
+      reason: `Usage contract window mismatch: expected ${expectedWindow}, got ${raw.window}.`,
+    };
+  }
+  const windowStartMs = parseIsoMs(raw.window_start_utc);
+  const windowEndMs = parseIsoMs(raw.window_end_utc);
+  if (
+    typeof raw.timezone !== "string" ||
+    raw.timezone.trim().length === 0 ||
+    typeof raw.currency !== "string" ||
+    raw.currency.trim().length === 0 ||
+    typeof raw.window_start_utc !== "string" ||
+    typeof raw.window_end_utc !== "string" ||
+    windowStartMs === null ||
+    windowEndMs === null ||
+    !isFiniteNumber(raw.estimated_cost_total) ||
+    !isFiniteNumber(raw.token_input_total) ||
+    !isFiniteNumber(raw.token_output_total) ||
+    !Array.isArray(raw.by_agent) ||
+    !Array.isArray(raw.by_model) ||
+    !Array.isArray(raw.by_time) ||
+    typeof raw.updated_at_utc !== "string"
+  ) {
+    return {
+      data: null,
+      reason: `Usage contract invalid for ${expectedWindow}: missing required fields.`,
+    };
+  }
+  return {
+    data: {
+      window: expectedWindow,
+      timezone: raw.timezone.trim(),
+      currency: raw.currency.trim().toUpperCase(),
+      windowStartUtc: raw.window_start_utc,
+      windowEndUtc: raw.window_end_utc,
+      estimatedCostTotal: raw.estimated_cost_total,
+      tokenInputTotal: raw.token_input_total,
+      tokenOutputTotal: raw.token_output_total,
+      byAgent: raw.by_agent,
+      byModel: raw.by_model,
+      byTime: raw.by_time,
+      byJob: raw.by_job,
+      byCard: raw.by_card,
+      budgetThresholds: Array.isArray(raw.budget_thresholds) ? raw.budget_thresholds : [],
+      updatedAtUtc: raw.updated_at_utc,
+    },
+    reason: null,
+  };
+}
+
+function usageUnavailableFallback(
+  window: "today" | "week",
+  timezone: string,
+  detail: string
+): MissionControlUsageResponse {
+  return {
+    contract_version: "mc-usage-v1",
+    available: false,
+    window,
+    timezone,
+    currency: "USD",
+    window_start_utc: null,
+    window_end_utc: null,
+    estimated_cost_total: null,
+    token_input_total: null,
+    token_output_total: null,
+    by_agent: null,
+    by_model: null,
+    by_provider: null,
+    by_time: null,
+    by_job: null,
+    by_card: null,
+    budget_thresholds: null,
+    updated_at_utc: null,
+    reason_code: "USAGE_ENDPOINT_UNAVAILABLE",
+    detail,
+  };
+}
+
+function parseIsoMs(value: string | null | undefined): number | null {
+  if (!value) {
+    return null;
+  }
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function usageStaleLevel(updatedAtUtc: string | null): UsageStaleLevel {
+  const updatedAtMs = parseIsoMs(updatedAtUtc);
+  if (updatedAtMs === null) {
+    return "limited";
+  }
+  const ageMs = Date.now() - updatedAtMs;
+  if (ageMs > 60 * 60_000) {
+    return "limited";
+  }
+  if (ageMs > 15 * 60_000) {
+    return "stale";
+  }
+  return "fresh";
+}
+
+function computeUsageTrend(
+  today: UsageWindowContract | null,
+  week: UsageWindowContract | null,
+  staleLevel: UsageStaleLevel
+): UsageTrendSummary {
+  if (!today || !week) {
+    return { direction: "unknown", label: "Trend unavailable" };
+  }
+  if (staleLevel === "limited") {
+    return { direction: "limited", label: "Trend limited (stale data)" };
+  }
+  const buckets = week.byTime.map((item) => item.estimated_cost_total);
+  if (buckets.length < 2) {
+    return { direction: "unknown", label: "Trend unavailable" };
+  }
+  const prior = buckets.slice(0, -1);
+  const priorAvg = prior.reduce((sum, value) => sum + value, 0) / Math.max(1, prior.length);
+  const todayCost = today.estimatedCostTotal;
+  if (priorAvg <= 0 && todayCost <= 0) {
+    return { direction: "flat", label: "Flat vs recent average" };
+  }
+  if (priorAvg <= 0 && todayCost > 0) {
+    return { direction: "up", label: "Up vs recent average" };
+  }
+  const ratio = todayCost / priorAvg;
+  if (ratio >= 1.15) {
+    return { direction: "up", label: "Up vs recent average" };
+  }
+  if (ratio <= 0.85) {
+    return { direction: "down", label: "Down vs recent average" };
+  }
+  return { direction: "flat", label: "Flat vs recent average" };
+}
+
+function buildBudgetWarnings(
+  thresholds: MissionControlUsageBudgetThreshold[]
+): UsageBudgetWarning[] {
+  const warnings: UsageBudgetWarning[] = [];
+  for (const entry of thresholds) {
+    const highestRatio = Math.max(
+      entry.cost_ratio ?? 0,
+      entry.token_ratio ?? 0
+    );
+    if (highestRatio < 0.8) {
+      continue;
+    }
+    const pct = Math.round(highestRatio * 100);
+    if (highestRatio >= 1.0) {
+      warnings.push({
+        tone: "critical",
+        message: `${entry.provider}: budget exceeded (${pct}%).`,
+      });
+      continue;
+    }
+    warnings.push({
+      tone: "warning",
+      message: `${entry.provider}: budget nearing limit (${pct}%).`,
+    });
+  }
+  return warnings.slice(0, 2);
 }
 
 export function useMissionControlController(options: UseMissionControlControllerOptions) {
@@ -67,6 +298,8 @@ export function useMissionControlController(options: UseMissionControlController
   const [authProfiles, setAuthProfiles] = useState<AuthProfileResponse[]>([]);
   const [skills, setSkills] = useState<SkillResponse[]>([]);
   const [plugins, setPlugins] = useState<PluginManifestResponse[]>([]);
+  const [usageTodayRaw, setUsageTodayRaw] = useState<MissionControlUsageResponse | null>(null);
+  const [usageWeekRaw, setUsageWeekRaw] = useState<MissionControlUsageResponse | null>(null);
   const [pluginRuntimeById, setPluginRuntimeById] = useState<
     Map<string, PluginRuntimeStatusResponse>
   >(new Map());
@@ -140,6 +373,8 @@ export function useMissionControlController(options: UseMissionControlController
 
   const loadMissionControlReadModels = useCallback(
     async (runtimeSettings: RuntimeConnectionSettings = settings) => {
+      const timezone = resolveOperatorTimezone();
+      const tzOffsetMinutes = resolveTzOffsetMinutes();
       const [
         calendar,
         focus,
@@ -152,6 +387,8 @@ export function useMissionControlController(options: UseMissionControlController
         skillResponse,
         pluginResponse,
         pluginRuntimeResponse,
+        usageTodayResponse,
+        usageWeekResponse,
       ] = await Promise.all([
         getMissionControlCalendarWeek(runtimeSettings),
         getMissionControlFocus(runtimeSettings, 100),
@@ -164,6 +401,20 @@ export function useMissionControlController(options: UseMissionControlController
         listSkills(runtimeSettings, true),
         listPlugins(runtimeSettings, true),
         listPluginRuntimeStatus(runtimeSettings, true),
+        getMissionControlUsage(runtimeSettings, {
+          window: "today",
+          timezone,
+          tz_offset_minutes: tzOffsetMinutes,
+        }).catch((error: unknown) =>
+          usageUnavailableFallback("today", timezone, String(error))
+        ),
+        getMissionControlUsage(runtimeSettings, {
+          window: "week",
+          timezone,
+          tz_offset_minutes: tzOffsetMinutes,
+        }).catch((error: unknown) =>
+          usageUnavailableFallback("week", timezone, String(error))
+        ),
       ]);
       setCalendarWeek(calendar);
       setFocusItems(focus.items);
@@ -204,6 +455,8 @@ export function useMissionControlController(options: UseMissionControlController
       setPluginRuntimeById(
         new Map(pluginRuntimeResponse.items.map((item) => [item.plugin_id, item]))
       );
+      setUsageTodayRaw(usageTodayResponse);
+      setUsageWeekRaw(usageWeekResponse);
     },
     [settings]
   );
@@ -529,6 +782,45 @@ export function useMissionControlController(options: UseMissionControlController
     () => calendarWeek?.jobs ?? Array.from(jobsById.values()),
     [calendarWeek, jobsById]
   );
+  const usageToday = useMemo(
+    () => parseUsageWindowContract(usageTodayRaw, "today"),
+    [usageTodayRaw]
+  );
+  const usageWeek = useMemo(
+    () => parseUsageWindowContract(usageWeekRaw, "week"),
+    [usageWeekRaw]
+  );
+  const usageUnavailableReason = useMemo(() => {
+    return usageToday.reason ?? usageWeek.reason ?? null;
+  }, [usageToday.reason, usageWeek.reason]);
+  const usageAvailable = usageToday.data !== null && usageWeek.data !== null;
+  const usageCorrelationAvailable = useMemo(() => {
+    if (!usageAvailable) {
+      return false;
+    }
+    return Array.isArray(usageToday.data?.byJob) && Array.isArray(usageToday.data?.byCard);
+  }, [usageAvailable, usageToday.data]);
+  const usageUpdatedAtUtc = useMemo(() => {
+    const timestamps = [usageToday.data?.updatedAtUtc, usageWeek.data?.updatedAtUtc]
+      .map((value) => parseIsoMs(value))
+      .filter((value): value is number => value !== null);
+    if (timestamps.length === 0) {
+      return null;
+    }
+    return new Date(Math.min(...timestamps)).toISOString();
+  }, [usageToday.data, usageWeek.data]);
+  const usageFreshness = useMemo(
+    () => usageStaleLevel(usageUpdatedAtUtc),
+    [usageUpdatedAtUtc]
+  );
+  const usageTrend = useMemo(
+    () => computeUsageTrend(usageToday.data, usageWeek.data, usageFreshness),
+    [usageFreshness, usageToday.data, usageWeek.data]
+  );
+  const usageBudgetWarnings = useMemo(
+    () => buildBudgetWarnings(usageToday.data?.budgetThresholds ?? []),
+    [usageToday.data]
+  );
 
   return {
     calendarWeek,
@@ -554,6 +846,15 @@ export function useMissionControlController(options: UseMissionControlController
     calendarAlwaysRunning,
     calendarNextUp,
     calendarJobs,
+    usageToday: usageToday.data,
+    usageWeek: usageWeek.data,
+    usageAvailable,
+    usageUnavailableReason,
+    usageCorrelationAvailable,
+    usageFreshness,
+    usageTrend,
+    usageBudgetWarnings,
+    usageUpdatedAtUtc,
     loadMissionControlReadModels,
     queueMissionControlRefresh,
     reloadProviderProfileOrder,

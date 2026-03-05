@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getGatewayHealth, websocketUrlFromGateway } from "./api";
+import { getGatewayHealth, getMissionControlUsage, websocketUrlFromGateway } from "./api";
 import { getGatewayToken } from "./runtime";
 
 vi.mock("./runtime", () => ({
@@ -72,5 +72,55 @@ describe("request URL resolution", () => {
         }),
       })
     );
+  });
+
+  it("builds mission-control usage query with window + timezone metadata", async () => {
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      new Response(
+        JSON.stringify({
+          contract_version: "mc-usage-v1",
+          available: false,
+          window: "today",
+          timezone: "UTC",
+          currency: "USD",
+          window_start_utc: null,
+          window_end_utc: null,
+          estimated_cost_total: null,
+          token_input_total: null,
+          token_output_total: null,
+          by_agent: null,
+          by_model: null,
+          by_provider: null,
+          by_time: null,
+          by_job: null,
+          by_card: null,
+          budget_thresholds: null,
+          updated_at_utc: null,
+          reason_code: "USAGE_UNAVAILABLE",
+          detail: "stub",
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getMissionControlUsage(
+      { gateway_url: "http://127.0.0.1:19999" },
+      {
+        window: "today",
+        timezone: "America/Chicago",
+        tz_offset_minutes: -360,
+      }
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [calledUrl] = fetchMock.mock.calls[0] as [string];
+    expect(calledUrl).toContain("/api/v1/mission-control/usage?");
+    expect(calledUrl).toContain("window=today");
+    expect(calledUrl).toContain("timezone=America%2FChicago");
+    expect(calledUrl).toContain("tz_offset_minutes=-360");
   });
 });

@@ -2040,6 +2040,110 @@ pub struct MissionControlFocusResponse {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct MissionControlUsageQuery {
+    #[serde(default)]
+    pub window: Option<String>,
+    #[serde(default)]
+    pub timezone: Option<String>,
+    #[serde(default)]
+    pub window_start_ms: Option<i64>,
+    #[serde(default)]
+    pub window_end_ms: Option<i64>,
+    #[serde(default)]
+    pub tz_offset_minutes: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MissionControlUsageByAgentResponse {
+    pub agent_id: String,
+    pub agent_name: String,
+    pub estimated_cost_total: f64,
+    pub token_input_total: u64,
+    pub token_output_total: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MissionControlUsageByModelResponse {
+    pub model_provider: String,
+    pub model_id: String,
+    pub estimated_cost_total: f64,
+    pub token_input_total: u64,
+    pub token_output_total: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MissionControlUsageByProviderResponse {
+    pub provider: String,
+    pub estimated_cost_total: f64,
+    pub token_input_total: u64,
+    pub token_output_total: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MissionControlUsageByTimeResponse {
+    pub bucket_start_utc: DateTime<Utc>,
+    pub bucket_end_utc: DateTime<Utc>,
+    pub estimated_cost_total: f64,
+    pub token_input_total: u64,
+    pub token_output_total: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MissionControlUsageByJobResponse {
+    pub job_id: String,
+    pub name: Option<String>,
+    pub estimated_cost_total: f64,
+    pub token_input_total: u64,
+    pub token_output_total: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MissionControlUsageByCardResponse {
+    pub card_id: String,
+    pub title: Option<String>,
+    pub estimated_cost_total: f64,
+    pub token_input_total: u64,
+    pub token_output_total: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MissionControlUsageBudgetThresholdResponse {
+    pub provider: String,
+    pub daily_token_budget: Option<u64>,
+    pub daily_cost_usd_budget: Option<f64>,
+    pub token_usage_total: u64,
+    pub cost_usage_total: f64,
+    pub token_ratio: Option<f64>,
+    pub cost_ratio: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MissionControlUsageResponse {
+    pub contract_version: String,
+    pub available: bool,
+    pub window: String,
+    pub timezone: String,
+    pub currency: String,
+    pub window_start_utc: Option<DateTime<Utc>>,
+    pub window_end_utc: Option<DateTime<Utc>>,
+    pub estimated_cost_total: Option<f64>,
+    pub token_input_total: Option<u64>,
+    pub token_output_total: Option<u64>,
+    pub by_agent: Option<Vec<MissionControlUsageByAgentResponse>>,
+    pub by_model: Option<Vec<MissionControlUsageByModelResponse>>,
+    pub by_provider: Option<Vec<MissionControlUsageByProviderResponse>>,
+    pub by_time: Option<Vec<MissionControlUsageByTimeResponse>>,
+    pub by_job: Option<Vec<MissionControlUsageByJobResponse>>,
+    pub by_card: Option<Vec<MissionControlUsageByCardResponse>>,
+    pub budget_thresholds: Option<Vec<MissionControlUsageBudgetThresholdResponse>>,
+    pub updated_at_utc: Option<DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason_code: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct ListAgentMailThreadsQuery {
     pub kind: Option<String>,
     pub mailbox: Option<String>,

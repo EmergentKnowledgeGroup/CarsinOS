@@ -142,6 +142,24 @@ export const COCKPIT_DATA_SOURCES: CockpitDataSource[] = [
     sampleFields: ["days"],
   },
 
+  /* ── Cost / Usage ── */
+  {
+    id: "getMissionControlUsageToday",
+    label: "Usage (Today)",
+    category: "Cost",
+    description: "Token and cost usage summary for today.",
+    responseShape: "object",
+    sampleFields: ["available", "estimated_cost_total", "by_agent", "by_model"],
+  },
+  {
+    id: "getMissionControlUsageWeek",
+    label: "Usage (Week)",
+    category: "Cost",
+    description: "Token and cost usage summary for this week.",
+    responseShape: "object",
+    sampleFields: ["available", "estimated_cost_total", "by_time", "budget_thresholds"],
+  },
+
   /* ── Approvals ── */
   {
     id: "listApprovals",

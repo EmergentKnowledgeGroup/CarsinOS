@@ -8,6 +8,23 @@ type RunnerFn = (
   params: Record<string, string>,
 ) => Promise<unknown>;
 
+function usageQuery(window: "today" | "week") {
+  let timezone = "UTC";
+  try {
+    const resolved = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (typeof resolved === "string" && resolved.trim().length > 0) {
+      timezone = resolved;
+    }
+  } catch {
+    timezone = "UTC";
+  }
+  return {
+    window,
+    timezone,
+    tz_offset_minutes: -new Date().getTimezoneOffset(),
+  };
+}
+
 const DISPATCH: Record<string, RunnerFn> = {
   /* ── Health ── */
   getGatewayHealth: (s) => api.getGatewayHealth(s),
@@ -30,6 +47,10 @@ const DISPATCH: Record<string, RunnerFn> = {
   /* ── Focus ── */
   getMissionControlFocus: (s) => api.getMissionControlFocus(s),
   getMissionControlCalendarWeek: (s) => api.getMissionControlCalendarWeek(s),
+  getMissionControlUsageToday: (s) =>
+    api.getMissionControlUsage(s, usageQuery("today")),
+  getMissionControlUsageWeek: (s) =>
+    api.getMissionControlUsage(s, usageQuery("week")),
 
   /* ── Approvals ── */
   listApprovals: (s, p) => api.listApprovals(s, p.status || "requested"),

@@ -333,6 +333,11 @@ Test stability
 - [P1] E2E runs against deterministic stub gateway + websocket.
 - [P1] Tests do not require real provider OAuth flows (mock/stub those paths).
 - [P3] Tauri smoke includes one representative operator parity path (onboarding + boards + focus).
+- [P4] Usage summary + breakdown render correctly when gateway usage contract is available.
+- [P4] Usage module shows explicit "Not available" state when contract is unavailable or required fields are invalid.
+- [P4] Missing optional `by_job`/`by_card` slices keep summary/breakdown active and mark correlation as unavailable.
+- [P4] Usage freshness handling is explicit: stale warning at >15 minutes and trend-limited mode at >60 minutes.
+- [P4] Budget threshold warnings are concise and non-spammy when provider usage ratios exceed warning/critical thresholds.
 
 Acceptance binding (explicit): each scoped bullet above must be covered by at least one automated assertion tracked in test plan artifacts by the end of its owning phase.
 

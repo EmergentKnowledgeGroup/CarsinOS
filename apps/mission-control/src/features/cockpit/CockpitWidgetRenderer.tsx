@@ -13,6 +13,8 @@ import type {
   JobStatusResponse,
   MissionControlCalendarJob,
   MissionControlFocusItem,
+  MissionControlUsageByAgent,
+  MissionControlUsageByModel,
   PluginManifestResponse,
   PluginRuntimeStatusResponse,
   SkillResponse,
@@ -48,6 +50,31 @@ interface CockpitWidgetRendererProps {
   plugins: PluginManifestResponse[];
   pluginRuntimeById: Map<string, PluginRuntimeStatusResponse>;
   visibleEvents: EventStreamItem[];
+  usageChartsEnabled: boolean;
+  usageToday: {
+    currency: string;
+    estimatedCostTotal: number;
+    tokenInputTotal: number;
+    tokenOutputTotal: number;
+    byAgent: MissionControlUsageByAgent[];
+    byModel: MissionControlUsageByModel[];
+  } | null;
+  usageWeek: {
+    currency: string;
+    estimatedCostTotal: number;
+  } | null;
+  usageUnavailableReason: string | null;
+  usageCorrelationAvailable: boolean;
+  usageFreshness: "fresh" | "stale" | "limited";
+  usageTrend: {
+    direction: "up" | "down" | "flat" | "limited" | "unknown";
+    label: string;
+  };
+  usageBudgetWarnings: Array<{
+    tone: "warning" | "critical";
+    message: string;
+  }>;
+  usageUpdatedAtUtc: string | null;
   onRefreshAll: () => void;
   onRunCalendarJobNow: (jobId: string) => Promise<void>;
   onToggleCalendarJob: (jobId: string, enabled: boolean) => Promise<void>;
@@ -97,6 +124,37 @@ function PaginationControls({
 const LIST_ITEM_HEIGHT = 44;
 const COMPACT_ITEM_HEIGHT = 38;
 const EVENT_ITEM_HEIGHT = 32;
+const MONEY_FORMATTERS = new Map<string, Intl.NumberFormat>();
+const TOKEN_FORMATTER = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+function normalizeCurrencyCode(currency: string | null | undefined): string {
+  if (typeof currency !== "string") {
+    return "USD";
+  }
+  const normalized = currency.trim().toUpperCase();
+  return /^[A-Z]{3}$/.test(normalized) ? normalized : "USD";
+}
+
+function formatMoney(value: number, currency: string): string {
+  const currencyCode = normalizeCurrencyCode(currency);
+  let formatter = MONEY_FORMATTERS.get(currencyCode);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: currencyCode,
+      maximumFractionDigits: 3,
+    });
+    MONEY_FORMATTERS.set(currencyCode, formatter);
+  }
+  return formatter.format(value);
+}
+
+function formatTokens(value: number): string {
+  return TOKEN_FORMATTER.format(value);
+}
 
 export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
   const { widget } = props;
@@ -153,6 +211,11 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
   }
 
   if (widget.widget === "health") {
+    const topAgents = (props.usageToday?.byAgent ?? []).slice(0, 3);
+    const topModels = (props.usageToday?.byModel ?? []).slice(0, 3);
+    const usageCurrency = normalizeCurrencyCode(
+      props.usageToday?.currency ?? props.usageWeek?.currency
+    );
     return (
       <article className="mc-cockpit-widget-body">
         <div className="mc-health-grid">
@@ -204,6 +267,114 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
             {isBusyAction("health:refresh-all") ? "Refreshing..." : "Refresh all"}
           </button>
         </InlineActions>
+        <section className="mc-usage-panel" data-testid="mc-usage-panel">
+          <header className="mc-usage-head">
+            <h4>Cost + Token Usage</h4>
+            <span className={`mc-usage-freshness mc-usage-freshness-${props.usageFreshness}`}>
+              {props.usageFreshness === "limited"
+                ? "stale >60m"
+                : props.usageFreshness === "stale"
+                  ? "stale >15m"
+                  : "fresh"}
+            </span>
+          </header>
+
+          {!props.usageChartsEnabled ? (
+            <p className="mc-usage-unavailable" data-testid="usage-not-available">
+              Usage charts are disabled in Runtime Settings.
+            </p>
+          ) : props.usageUnavailableReason ? (
+            <p className="mc-usage-unavailable" data-testid="usage-not-available">
+              Not available: {props.usageUnavailableReason}
+            </p>
+          ) : (
+            <>
+              <div className="mc-usage-summary-grid">
+                <div>
+                  <strong>Today Cost</strong>
+                  <p data-testid="usage-summary-today-cost">
+                    {formatMoney(props.usageToday?.estimatedCostTotal ?? 0, usageCurrency)}
+                  </p>
+                </div>
+                <div>
+                  <strong>Week Cost</strong>
+                  <p>{formatMoney(props.usageWeek?.estimatedCostTotal ?? 0, usageCurrency)}</p>
+                </div>
+                <div>
+                  <strong>Today Tokens</strong>
+                  <p>
+                    {formatTokens(
+                      (props.usageToday?.tokenInputTotal ?? 0) +
+                        (props.usageToday?.tokenOutputTotal ?? 0)
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <strong>Trend</strong>
+                  <p data-testid="usage-trend-label">{props.usageTrend.label}</p>
+                </div>
+              </div>
+
+              {props.usageFreshness !== "fresh" ? (
+                <p className="mc-usage-stale-note">
+                  {props.usageFreshness === "limited"
+                    ? "Data is older than 60 minutes. Trend claims are limited."
+                    : "Data is older than 15 minutes. Validate before acting."}
+                </p>
+              ) : null}
+
+              {props.usageBudgetWarnings.length > 0 ? (
+                <ul className="mc-usage-warning-list">
+                  {props.usageBudgetWarnings.map((warning) => (
+                    <li
+                      key={warning.message}
+                      className={warning.tone === "critical" ? "critical" : "warning"}
+                    >
+                      {warning.message}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+
+              <div className="mc-usage-breakdown-grid">
+                <div>
+                  <strong>By Agent</strong>
+                  <ul className="mc-usage-breakdown-list">
+                    {topAgents.map((item) => (
+                      <li key={item.agent_id}>
+                        <span>{item.agent_name}</span>
+                        <span>{formatMoney(item.estimated_cost_total, usageCurrency)}</span>
+                      </li>
+                    ))}
+                    {topAgents.length === 0 ? <li>No usage yet.</li> : null}
+                  </ul>
+                </div>
+                <div>
+                  <strong>By Model</strong>
+                  <ul className="mc-usage-breakdown-list">
+                    {topModels.map((item) => (
+                      <li key={`${item.model_provider}:${item.model_id}`}>
+                        <span>{item.model_id}</span>
+                        <span>{formatMoney(item.estimated_cost_total, usageCurrency)}</span>
+                      </li>
+                    ))}
+                    {topModels.length === 0 ? <li>No usage yet.</li> : null}
+                  </ul>
+                </div>
+              </div>
+
+              <p className="mc-usage-footnote" data-testid="usage-correlation-status">
+                {props.usageCorrelationAvailable
+                  ? "Job/card correlation data available."
+                  : "Job/card correlation unavailable from gateway contract."}
+                {" "}
+                {props.usageUpdatedAtUtc
+                  ? `Updated ${formatDateTime(Date.parse(props.usageUpdatedAtUtc))}.`
+                  : ""}
+              </p>
+            </>
+          )}
+        </section>
       </article>
     );
   }
