@@ -743,6 +743,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
         await loadBaseline(settings);
         setProviderReady(true);
         setProviderProfileId(resolvedLocalConnectionProfileId);
+        setLocalApiKey("");
         return;
       }
 

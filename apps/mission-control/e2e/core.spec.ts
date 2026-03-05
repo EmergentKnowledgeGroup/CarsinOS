@@ -21,8 +21,15 @@ async function moveWizardToConnectionStep(page: Page): Promise<void> {
   await expect(page.getByText("Step 3 of 8")).toBeVisible();
 }
 
-async function completeLocalOnboarding(page: Page): Promise<void> {
-  await moveWizardToConnectionStep(page);
+async function completeLocalOnboarding(
+  page: Page,
+  options?: {
+    startFromConnectionStep?: boolean;
+  }
+): Promise<void> {
+  if (!options?.startFromConnectionStep) {
+    await moveWizardToConnectionStep(page);
+  }
 
   await page.getByLabel("Gateway URL").fill(GATEWAY_URL);
   await page.getByLabel("Gateway token").fill(TEST_TOKEN);
@@ -82,7 +89,7 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
     await tokenField.fill(TEST_TOKEN);
     await expect(tokenField).toHaveValue(TEST_TOKEN);
 
-    await completeLocalOnboarding(page);
+    await completeLocalOnboarding(page, { startFromConnectionStep: true });
     await expect(page.locator("body")).not.toContainText(TEST_TOKEN);
 
     await page.locator('[data-tour-id="nav-config"]').click();

@@ -19,6 +19,16 @@ def resolve_repo_root(script_path: Path) -> Path:
     return script_path.resolve().parent.parent
 
 
+def ensure_inside_repo(repo_root: Path, candidate: Path, label: str) -> tuple[Path | None, str | None]:
+    resolved_repo = repo_root.resolve()
+    resolved_candidate = candidate.resolve()
+    try:
+        resolved_candidate.relative_to(resolved_repo)
+    except ValueError:
+        return None, f"{label} path escapes repo root: {resolved_candidate}"
+    return resolved_candidate, None
+
+
 def parse_phase_bullets(spec_path: Path, phase: str) -> list[str]:
     lines = spec_path.read_text(encoding="utf-8").splitlines()
     in_section_7 = False
@@ -139,24 +149,40 @@ def main() -> int:
     script_path = Path(__file__).resolve()
     repo_root = resolve_repo_root(script_path)
 
-    spec_path = (repo_root / args.spec).resolve()
+    spec_candidate = repo_root / args.spec
+    spec_path, spec_error = ensure_inside_repo(repo_root, spec_candidate, "spec")
+    if spec_error:
+        print(spec_error, file=sys.stderr)
+        return 2
+    assert spec_path is not None
     if not spec_path.exists():
         print(f"spec file not found: {spec_path}", file=sys.stderr)
         return 2
 
     default_matrix = f"docs/mission-control_{phase.lower()}_acceptance_matrix.json"
     matrix_arg = args.matrix or default_matrix
-    matrix_path = (repo_root / matrix_arg).resolve()
+    matrix_candidate = repo_root / matrix_arg
+    matrix_path, matrix_error = ensure_inside_repo(repo_root, matrix_candidate, "matrix")
+    if matrix_error:
+        print(matrix_error, file=sys.stderr)
+        return 2
+    assert matrix_path is not None
     if not matrix_path.exists():
         print(f"matrix file not found: {matrix_path}", file=sys.stderr)
         return 2
 
     try:
         spec_bullets = parse_phase_bullets(spec_path, phase)
-        matrix = load_json(matrix_path)
+        matrix_raw = load_json(matrix_path)
     except Exception as error:
         print(f"failed to read inputs: {error}", file=sys.stderr)
         return 2
+
+    if not isinstance(matrix_raw, dict):
+        print("matrix root must be a JSON object", file=sys.stderr)
+        return 2
+
+    matrix = matrix_raw
 
     if not spec_bullets:
         print(f"no bullets found in Section 7 for phase {phase}", file=sys.stderr)

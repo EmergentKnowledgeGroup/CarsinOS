@@ -86,6 +86,30 @@
           "type": "e2e",
           "file": "apps/mission-control/e2e/core.spec.ts",
           "test_name": "keeps onboarding token plaintext only during active entry and does not expose it after setup"
+        },
+        {
+          "type": "static",
+          "file": "apps/mission-control/src/features/onboarding/steps/StepProvider.tsx",
+          "present_substrings": [
+            "value={props.localApiKey}",
+            "value={props.anthropicSetupToken}",
+            "value={props.anthropicAccessToken}",
+            "value={props.anthropicRefreshToken}",
+            "autoComplete=\"off\"",
+            "autoCapitalize=\"none\"",
+            "autoCorrect=\"off\"",
+            "spellCheck={false}"
+          ]
+        },
+        {
+          "type": "static",
+          "file": "apps/mission-control/src/features/onboarding/useOnboardingController.ts",
+          "present_substrings": [
+            "setLocalApiKey(\"\");",
+            "setAnthropicSetupToken(\"\");",
+            "setAnthropicAccessToken(\"\");",
+            "setAnthropicRefreshToken(\"\");"
+          ]
         }
       ]
     },

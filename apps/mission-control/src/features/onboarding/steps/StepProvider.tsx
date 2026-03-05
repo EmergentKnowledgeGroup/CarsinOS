@@ -220,6 +220,10 @@ export function StepProvider(props: StepProviderProps) {
                   API key (optional)
                   <input
                     type="text"
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     value={props.localApiKey}
                     onChange={(event) => props.onLocalApiKeyChange(event.target.value)}
                     placeholder="Bearer token if required"
@@ -439,6 +443,10 @@ export function StepProvider(props: StepProviderProps) {
                             Setup token
                             <input
                               type="text"
+                              autoComplete="off"
+                              autoCapitalize="none"
+                              autoCorrect="off"
+                              spellCheck={false}
                               value={props.anthropicSetupToken}
                               onChange={(event) =>
                                 props.onAnthropicSetupTokenChange(event.target.value)
@@ -461,6 +469,10 @@ export function StepProvider(props: StepProviderProps) {
                             Access token
                             <input
                               type="text"
+                              autoComplete="off"
+                              autoCapitalize="none"
+                              autoCorrect="off"
+                              spellCheck={false}
                               value={props.anthropicAccessToken}
                               onChange={(event) =>
                                 props.onAnthropicAccessTokenChange(event.target.value)
@@ -472,6 +484,10 @@ export function StepProvider(props: StepProviderProps) {
                             Refresh token (optional)
                             <input
                               type="text"
+                              autoComplete="off"
+                              autoCapitalize="none"
+                              autoCorrect="off"
+                              spellCheck={false}
                               value={props.anthropicRefreshToken}
                               onChange={(event) =>
                                 props.onAnthropicRefreshTokenChange(event.target.value)
