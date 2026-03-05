@@ -91,7 +91,7 @@ jobs:
 
       - name: Install Playwright Chromium
         working-directory: apps/mission-control
-        run: npx playwright install chromium
+        run: npx playwright install --with-deps chromium
 
       - name: Run release quality gate (desktop)
         run: |

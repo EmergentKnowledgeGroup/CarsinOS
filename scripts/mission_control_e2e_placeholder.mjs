@@ -117,6 +117,7 @@ async function terminate(proc) {
 }
 
 async function run() {
+  const startedAtUtc = new Date().toISOString();
   await mkdir(screenshotDir, { recursive: true });
   await mkdir(videoDir, { recursive: true });
 
@@ -323,7 +324,7 @@ async function run() {
       JSON.stringify(
         {
           suite: "tauri-smoke",
-          started_at_utc: new Date().toISOString(),
+          started_at_utc: startedAtUtc,
           app_url: appUrl,
           gateway_url: gatewayUrl,
           screenshots_dir: path.relative(repoRoot, screenshotDir),

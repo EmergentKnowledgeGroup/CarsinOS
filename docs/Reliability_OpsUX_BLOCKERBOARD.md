@@ -65,7 +65,7 @@ Phase objective: end-to-end confidence for real operator workflows.
 | P3-01 | QA/Automation | Expand E2E boards workflow (create/move/run/persist/refresh) | BLOCKED | P1-02, P2-07 | BLK-01 | A3(Phase 3) | Boards flows deterministic and green |
 | P3-02 | QA/Automation | Expand E2E focus approvals workflow (approve/deny/state updates/counts) | BLOCKED | P1-02, P2-07 | BLK-01 | A3(Phase 3) | Focus approvals workflows deterministic and green |
 | P3-03 | QA/Automation | Add reconnect-edge suite (rapid flap, malformed events, state consistency) | BLOCKED | P2-05, P2-07 | BLK-01 | Sec7 reliability | No duplicated/exploded state under flap scenarios |
-| P3-04 | Platform/CI | Validate Tauri parity for representative workflow scenarios | BLOCKED | P1-07 | BLK-02 | A3 release/Tauri parity intent | Desktop smoke parity evidence recorded |
+| P3-04 | Platform/CI | Validate Tauri parity for representative workflow scenarios | TODO | P1-07 | - | A3 release/Tauri parity intent | Desktop smoke parity evidence recorded |
 | P3-05 | QA/Automation | Complete P3 acceptance mapping for Section 7 scoped bullets | TODO | P3-01, P3-02, P3-03, P3-04 | - | Sec7 acceptance binding | P3 checklist matrix complete and green |
 
 ## Phase 4 (Optional: Cost + Token Visibility)
