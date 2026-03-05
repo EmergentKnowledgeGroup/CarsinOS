@@ -115,6 +115,8 @@ export function LiveFeedDrawer(props: LiveFeedDrawerProps) {
       className={`mc-live-feed-drawer ${props.open ? "mc-live-feed-drawer-open" : "mc-live-feed-drawer-closed"}`}
       data-testid="live-feed-drawer"
       data-open={props.open ? "true" : "false"}
+      aria-hidden={props.open ? undefined : true}
+      inert={props.open ? undefined : true}
     >
       <header className="mc-live-feed-header">
         <div>
@@ -219,9 +221,14 @@ export function LiveFeedDrawer(props: LiveFeedDrawerProps) {
               >
                 {rowVirtualizer.getVirtualItems().map((virtualItem) => {
                   const event = props.events[virtualItem.index];
+                  if (!event) {
+                    return null;
+                  }
                   return (
                     <div
-                      key={event.event_id}
+                      key={virtualItem.key}
+                      data-index={virtualItem.index}
+                      ref={rowVirtualizer.measureElement}
                       style={{
                         left: 0,
                         position: "absolute",

@@ -6337,6 +6337,7 @@ button.danger:hover {
   .mc-live-feed-drawer-closed {
     width: 0;
     opacity: 0;
+    visibility: hidden;
     pointer-events: none;
     border-left: none;
   }

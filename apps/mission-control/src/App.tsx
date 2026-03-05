@@ -155,6 +155,7 @@ export default function App() {
   const [tabResetVersion, setTabResetVersion] = useState<Partial<Record<MissionControlTab, number>>>({});
   const [opsUxRuntime, setOpsUxRuntime] = useState(() => loadOpsUxRuntimeConfig());
   const [incidentAutoSuppressedUntilMs, setIncidentAutoSuppressedUntilMs] = useState(0);
+  const [incidentAutoTickMs, setIncidentAutoTickMs] = useState(() => Date.now());
   const manualIncidentOverrideRef = useRef<"on" | "off" | null>(null);
   const wsDegradedSinceRef = useRef<number | null>(null);
   const healthySinceRef = useRef<number>(0);
@@ -169,21 +170,23 @@ export default function App() {
 
   const patchOpsControls = useCallback(
     (patch: Partial<OpsUxFeatureControls>) => {
-      const nextConfig = withOpsUxControlPatch(opsConfig, patch);
-      const persisted = saveOpsUxRuntimeConfig(nextConfig);
-      setOpsUxRuntime({
-        config: nextConfig,
-        degraded: !persisted.ok,
-        error: persisted.error,
+      setOpsUxRuntime((current) => {
+        const nextConfig = withOpsUxControlPatch(current.config, patch);
+        const persisted = saveOpsUxRuntimeConfig(nextConfig);
+        if (!persisted.ok) {
+          setNotice({
+            tone: "error",
+            message: persisted.error ?? "Runtime config persistence failed.",
+          });
+        }
+        return {
+          config: nextConfig,
+          degraded: !persisted.ok,
+          error: persisted.error,
+        };
       });
-      if (!persisted.ok) {
-        setNotice({
-          tone: "error",
-          message: persisted.error ?? "Runtime config persistence failed.",
-        });
-      }
     },
-    [opsConfig, setNotice]
+    [setNotice]
   );
 
   const boardsController = useBoardsController({
@@ -364,7 +367,19 @@ export default function App() {
   ]);
 
   useEffect(() => {
-    const now = Date.now();
+    if (!cockpitController.incidentMode || !incidentAutoEnabled || !liveFeedEnabled) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setIncidentAutoTickMs(Date.now());
+    }, 1_000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [cockpitController.incidentMode, incidentAutoEnabled, liveFeedEnabled]);
+
+  useEffect(() => {
+    const now = incidentAutoTickMs;
     if (wsState === "connected") {
       wsDegradedSinceRef.current = null;
     } else if (
@@ -447,6 +462,7 @@ export default function App() {
     healthySinceRef.current = now;
   }, [
     cockpitController.incidentMode,
+    incidentAutoTickMs,
     incidentAutoEnabled,
     incidentAutoSuppressedUntilMs,
     liveFeedEvents,

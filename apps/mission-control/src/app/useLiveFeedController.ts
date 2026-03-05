@@ -326,12 +326,16 @@ export function useLiveFeedController(options: UseLiveFeedControllerOptions) {
   const markAllUndoAvailable = Boolean(markAllUndo && markAllUndo.expires_at_ms >= nowMs);
   const clearUndoAvailable = Boolean(clearUndo && clearUndo.expires_at_ms >= nowMs);
   const recoveryAvailableCount = useMemo(() => {
-    return pruneRecoveryLog(recoveryLog, {
-      now_ms: nowMs,
-      retention_window_ms: options.retentionWindowMs,
-      max_bytes: options.recoveryMaxBytes,
-    }).length;
-  }, [nowMs, options.recoveryMaxBytes, options.retentionWindowMs, recoveryLog]);
+    const minTs = nowMs - Math.max(1, options.retentionWindowMs);
+    let count = 0;
+    for (let i = recoveryLog.length - 1; i >= 0; i -= 1) {
+      if (recoveryLog[i].ts_unix_ms < minTs) {
+        break;
+      }
+      count += 1;
+    }
+    return count;
+  }, [nowMs, options.retentionWindowMs, recoveryLog]);
 
   return {
     events,

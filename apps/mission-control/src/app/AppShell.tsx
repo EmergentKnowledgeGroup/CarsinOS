@@ -202,7 +202,9 @@ export function AppShell(props: AppShellProps) {
   useKeyboardShortcuts({
     onTabChange: props.onTabChange,
     onToggleIncidentMode: toggleIncidentMode,
-    onToggleLiveFeed: props.onToggleLiveFeed,
+    onToggleLiveFeed: props.liveFeedEnabled
+      ? props.onToggleLiveFeed
+      : () => setSettingsOpen(true),
     onOpenCommandPalette: toggleCommandPalette,
     onCloseOverlay: closeOverlay,
     overlayOpen: settingsOpen || cmdPaletteOpen,
@@ -217,6 +219,11 @@ export function AppShell(props: AppShellProps) {
         : props.wsState === "idle"
           ? ""
           : "checking";
+  const liveFeedToggleTitle = props.liveFeedEnabled
+    ? props.liveFeedOpen
+      ? "Hide live feed"
+      : "Show live feed"
+    : "Enable live feed in Settings > Reliability";
 
   return (
     <div className="mc-shell-layout">
@@ -301,18 +308,15 @@ export function AppShell(props: AppShellProps) {
               type="button"
               className={clsx("mc-topbar-icon-btn", "mc-live-feed-toggle", props.liveFeedOpen && "mc-live-feed-toggle-active")}
               data-testid="live-feed-toggle"
+              aria-label={liveFeedToggleTitle}
+              aria-pressed={props.liveFeedOpen}
+              aria-disabled={props.liveFeedEnabled ? undefined : true}
               onClick={
                 props.liveFeedEnabled
                   ? props.onToggleLiveFeed
                   : () => setSettingsOpen(true)
               }
-              title={
-                props.liveFeedEnabled
-                  ? props.liveFeedOpen
-                    ? "Hide live feed"
-                    : "Show live feed"
-                  : "Enable live feed in Settings > Reliability"
-              }
+              title={liveFeedToggleTitle}
             >
               {props.liveFeedOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
               {props.liveFeedUnreadCount > 0 ? (

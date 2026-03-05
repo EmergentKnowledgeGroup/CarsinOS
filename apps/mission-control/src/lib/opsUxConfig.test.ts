@@ -38,6 +38,7 @@ describe("opsUxRuntimeConfig", () => {
   });
 
   it("patches controls without mutating safety profile", () => {
+    const originalSafety = DEFAULT_OPSUX_RUNTIME_CONFIG.safety;
     const next = withOpsUxControlPatch(DEFAULT_OPSUX_RUNTIME_CONFIG, {
       global_kill_switch: true,
       live_feed_drawer: true,
@@ -45,6 +46,6 @@ describe("opsUxRuntimeConfig", () => {
 
     expect(next.controls.global_kill_switch).toBe(true);
     expect(next.controls.live_feed_drawer).toBe(true);
-    expect(next.safety).toEqual(DEFAULT_OPSUX_RUNTIME_CONFIG.safety);
+    expect(next.safety).toBe(originalSafety);
   });
 });

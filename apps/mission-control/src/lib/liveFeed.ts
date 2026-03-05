@@ -245,7 +245,7 @@ export function countRecentHighSeverityEvents(
   let count = 0;
   for (const event of events) {
     if (event.ts_unix_ms < minTs) {
-      break;
+      continue;
     }
     if (event.severity === "critical" || event.severity === "high") {
       count += 1;
@@ -262,7 +262,7 @@ export function hasCriticalEventWithinWindow(
   const minTs = nowMs - Math.max(1, windowMs);
   for (const event of events) {
     if (event.ts_unix_ms < minTs) {
-      return false;
+      continue;
     }
     if (event.severity === "critical") {
       return true;
