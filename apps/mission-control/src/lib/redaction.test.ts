@@ -8,6 +8,7 @@ describe("redactSecrets", () => {
       nested: {
         access_token: "def",
         client_secret: "ghi",
+        apiKey: "jkl",
       },
       safe: "ok",
     };
@@ -17,6 +18,7 @@ describe("redactSecrets", () => {
       nested: {
         access_token: "[REDACTED]",
         client_secret: "[REDACTED]",
+        apiKey: "[REDACTED]",
       },
       safe: "ok",
     });
@@ -37,6 +39,8 @@ describe("redactSecrets", () => {
     expect(redactSecrets("https://x.test/cb?oauth_code=abc&auth_code=def")).toBe(
       "https://x.test/cb?oauth_code=[REDACTED]&auth_code=[REDACTED]"
     );
+    expect(redactSecrets('"access_token": "value"')).toBe('"access_token": "[REDACTED]"');
+    expect(redactSecrets("'api_key':'secret'")).toBe("'api_key':'[REDACTED]'");
     expect(
       redactSecrets(
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.signature"

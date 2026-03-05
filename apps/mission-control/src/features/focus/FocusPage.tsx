@@ -17,9 +17,16 @@ import { redactSecrets } from "../../lib/redaction";
 const FOCUS_PAGE_SIZE = 6;
 
 function formatContextDisplay(value: unknown): string {
-  return typeof value === "object"
-    ? JSON.stringify(redactSecrets(value), null, 2)
-    : redactSecrets(String(value));
+  const tag = Object.prototype.toString.call(value);
+  const isJsonLike = Array.isArray(value) || tag === "[object Object]";
+  if (isJsonLike) {
+    try {
+      return JSON.stringify(redactSecrets(value), null, 2);
+    } catch {
+      return redactSecrets(String(value));
+    }
+  }
+  return redactSecrets(String(value));
 }
 
 function SeverityIcon({ severity }: { severity: string }) {

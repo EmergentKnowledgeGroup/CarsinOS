@@ -27,6 +27,8 @@ function looksSensitiveKey(key: string): boolean {
     normalized.includes("token") ||
     normalized.includes("secret") ||
     normalized.includes("api_key") ||
+    normalized.includes("apikey") ||
+    normalized.includes("api key") ||
     normalized.endsWith("_key") ||
     normalized.endsWith("-key")
   );
@@ -46,7 +48,7 @@ function redactStringValue(value: string): string {
 
   // Redact generic key/token assignments in text logs.
   next = next.replace(
-    /((?:token|access_token|refresh_token|api_key|client_secret|password|oauth_code|auth_code)\s*[:=]\s*)[^\s,;&]+/gi,
+    /((?:"|')?(?:token|access_token|refresh_token|api_key|client_secret|password|oauth_code|auth_code)(?:"|')?\s*[:=]\s*(?:"|')?)[^\s"',;&]+/gi,
     `$1${REDACTED_VALUE}`
   );
 
