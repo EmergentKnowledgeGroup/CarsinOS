@@ -1,4 +1,6 @@
 /target
+/.cargo/.shared-cargo-targets/
+/.shared-cargo-targets/
 .state/
 .state*/
 runtime/security/reports/

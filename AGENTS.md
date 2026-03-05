@@ -8,6 +8,7 @@ This repository follows a strict execution workflow.
 - There is a hard blocker.
 - Input is 100% required and not already defined in `PLAN.md`.
 - The full plan is complete.
+- PRs must target `main` and include a short summary plus the verification commands that were run.
 
 2. Maintain a live checkpoint file:
 - File: `CHECKPOINT.md`.
@@ -43,3 +44,8 @@ This repository follows a strict execution workflow.
 - Avoid hidden coupling and side effects.
 - Preserve deterministic behavior and explicit error handling.
 
+7. Local filesystem source of truth:
+- The single source of truth for this project is your local `carsinos` checkout.
+- Do not create or use git worktrees for normal implementation flow.
+- Start new work by branching from your local `carsinos` checkout, not by creating another filesystem copy.
+- Keep Cargo builds using the shared target directory defined in `.cargo/config.toml` so Rust artifacts do not multiply across local environments.
