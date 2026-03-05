@@ -37,12 +37,7 @@ export function StepPreflight(props: StepPreflightProps) {
           type="button"
           className="ghost"
           disabled={props.preflight.running}
-          onClick={() => {
-            if (props.preflight.running) {
-              return;
-            }
-            void props.onRun();
-          }}
+          onClick={() => void props.onRun()}
         >
           {props.preflight.running ? "Running..." : "Run checks now"}
         </button>

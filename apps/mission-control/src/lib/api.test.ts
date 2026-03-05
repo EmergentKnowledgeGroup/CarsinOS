@@ -155,13 +155,32 @@ describe("request URL resolution", () => {
     const [removeUrl, removeInit] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(removeUrl).toContain("/api/v1/agents/assistant-main/remove");
     expect(removeInit.method).toBe("POST");
+    expect(removeInit.body).toBeUndefined();
 
     const [validateUrl, validateInit] = fetchMock.mock.calls[1] as [string, RequestInit];
     expect(validateUrl).toContain("/api/v1/auth/anthropic/setup-token/validate");
     expect(validateInit.method).toBe("POST");
+    expect(validateInit.body).toBe(
+      JSON.stringify({
+        setup_token: "token-1",
+        api_base_url: "https://api.anthropic.com",
+      })
+    );
+    expect((validateInit.headers as Record<string, string>)["Content-Type"]).toBe(
+      "application/json"
+    );
 
     const [revokeUrl, revokeInit] = fetchMock.mock.calls[2] as [string, RequestInit];
     expect(revokeUrl).toContain("/api/v1/security/auth-profiles/profile-1/revoke");
     expect(revokeInit.method).toBe("POST");
+    expect(revokeInit.body).toBe(
+      JSON.stringify({
+        reason: "reauth",
+        remove_secret: true,
+      })
+    );
+    expect((revokeInit.headers as Record<string, string>)["Content-Type"]).toBe(
+      "application/json"
+    );
   });
 });

@@ -539,6 +539,14 @@ pub struct AgentUpdatePatch {
     pub tool_profile: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RemoveAgentOutcome {
+    Removed,
+    NotFound,
+    InvalidAgentId,
+    HasSessions,
+}
+
 #[derive(Debug, Clone)]
 pub struct BoardRecord {
     pub board_id: String,
@@ -1018,49 +1026,56 @@ impl Storage {
         self.get_agent(agent_id)
     }
 
-    pub fn remove_agent(&self, agent_id: &str) -> Result<bool> {
-        let agent_id = agent_id.trim().to_ascii_lowercase();
+    pub fn remove_agent(&self, agent_id: &str) -> Result<RemoveAgentOutcome> {
+        let agent_id = agent_id.trim().to_string();
         if agent_id.is_empty() {
-            anyhow::bail!("agent_id cannot be empty");
+            return Ok(RemoveAgentOutcome::InvalidAgentId);
         }
         let mut conn = self.connect()?;
         let tx = conn.transaction()?;
         let exists = tx
             .query_row(
                 "SELECT 1 FROM agents WHERE agent_id = ?1 LIMIT 1",
-                params![agent_id],
+                params![agent_id.as_str()],
                 |_| Ok(()),
             )
             .optional()?
             .is_some();
         if !exists {
-            return Ok(false);
+            return Ok(RemoveAgentOutcome::NotFound);
         }
 
         let session_refs: i64 = tx.query_row(
             "SELECT COUNT(1) FROM sessions WHERE agent_id = ?1",
-            params![agent_id],
+            params![agent_id.as_str()],
             |row| row.get(0),
         )?;
         if session_refs > 0 {
-            anyhow::bail!("agent has sessions and cannot be removed");
+            return Ok(RemoveAgentOutcome::HasSessions);
         }
 
         tx.execute(
             "UPDATE assistant_workers SET agent_id = NULL WHERE agent_id = ?1",
-            params![agent_id],
+            params![agent_id.as_str()],
         )?;
         tx.execute(
             "DELETE FROM agent_provider_profile_order WHERE agent_id = ?1",
-            params![agent_id],
+            params![agent_id.as_str()],
         )?;
         tx.execute(
             "DELETE FROM routing_rules WHERE agent_id = ?1",
-            params![agent_id],
+            params![agent_id.as_str()],
         )?;
-        let removed = tx.execute("DELETE FROM agents WHERE agent_id = ?1", params![agent_id])?;
+        let removed = tx.execute(
+            "DELETE FROM agents WHERE agent_id = ?1",
+            params![agent_id.as_str()],
+        )?;
         tx.commit()?;
-        Ok(removed > 0)
+        if removed > 0 {
+            Ok(RemoveAgentOutcome::Removed)
+        } else {
+            Ok(RemoveAgentOutcome::NotFound)
+        }
     }
 
     pub fn list_boards(&self) -> Result<Vec<BoardRecord>> {
@@ -6299,7 +6314,7 @@ mod tests {
         assert_eq!(created.agent_id, "delete-me");
 
         let removed = storage.remove_agent("delete-me").expect("remove agent");
-        assert!(removed);
+        assert_eq!(removed, RemoveAgentOutcome::Removed);
         assert!(storage
             .get_agent("delete-me")
             .expect("reload removed agent")
@@ -6327,10 +6342,10 @@ mod tests {
             })
             .expect("create blocking session");
 
-        let err = storage
+        let outcome = storage
             .remove_agent(&created.agent_id)
-            .expect_err("remove should fail");
-        assert!(err.to_string().contains("cannot be removed"));
+            .expect("remove should return outcome");
+        assert_eq!(outcome, RemoveAgentOutcome::HasSessions);
     }
 
     #[test]

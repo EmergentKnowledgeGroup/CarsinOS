@@ -65,6 +65,10 @@ export function StepConnect(props: StepConnectProps) {
           Gateway token
           <input
             type="text"
+            autoComplete="off"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
             value={props.gatewayTokenInput}
             onChange={(event) => props.onGatewayTokenInputChange(event.target.value)}
             placeholder={

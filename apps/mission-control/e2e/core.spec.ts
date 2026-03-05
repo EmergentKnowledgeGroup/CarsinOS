@@ -90,6 +90,31 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
     await expect(page.getByLabel("Gateway token").first()).not.toHaveValue(TEST_TOKEN);
   });
 
+  test("continues from connect step without manual Save + Connect click", async ({ page }) => {
+    await moveWizardToConnectionStep(page);
+
+    await page.getByLabel("Gateway URL").fill(GATEWAY_URL);
+    await page.getByLabel("Gateway token").fill(TEST_TOKEN);
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page.getByText("Step 4 of 6")).toBeVisible();
+
+    await page.getByLabel("Agent ID").fill("assistant-continue");
+    await page.getByLabel("Agent name").fill("Assistant Continue");
+    await page.getByRole("radio", { name: "Local connector" }).check();
+    await page
+      .getByPlaceholder("Or paste assistant model ID manually")
+      .fill(ASSISTANT_MODEL_ID);
+    await page.getByRole("button", { name: "Continue" }).click();
+
+    await expect(page.getByText("Step 5 of 6")).toBeVisible();
+    await expect(
+      page
+        .locator(".mc-onboarding-checklist li")
+        .filter({ hasText: "Connection verified" })
+        .first()
+    ).toHaveClass(/done/);
+  });
+
   test("connects via deterministic stub gateway and loads baseline", async ({ page }) => {
     await completeLocalOnboarding(page);
 

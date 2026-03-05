@@ -200,6 +200,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   const [routingReady, setRoutingReady] = useState(false);
   const localProviderRef = useRef(localProvider);
   const localModelIdRef = useRef(localModelId);
+  const nextStepInFlightRef = useRef(false);
 
   const [preflight, setPreflight] = useState<OnboardingPreflightState>({
     running: false,
@@ -1125,39 +1126,45 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   ]);
 
   const completeProviderAndRouting = useCallback(async (): Promise<boolean> => {
-    if (!selectedAgentId.trim()) {
-      const saved = await saveAgent();
-      if (!saved) {
-        return false;
-      }
+    const saved = await saveAgent();
+    if (!saved) {
+      return false;
     }
     const providerResult = await completeProvider();
     if (!providerResult.ok) {
       return false;
     }
     return applyRouting(providerResult.profileId);
-  }, [applyRouting, completeProvider, saveAgent, selectedAgentId]);
+  }, [applyRouting, completeProvider, saveAgent]);
 
   const nextStep = useCallback(async () => {
+    if (nextStepInFlightRef.current) {
+      return;
+    }
     if (busy || preflight.running) {
       return;
     }
-    if (step === "preflight") {
-      await runPreflight();
-    }
-    if (step === "connect") {
-      const connectedOk = await connectGateway();
-      if (!connectedOk) {
-        return;
+    nextStepInFlightRef.current = true;
+    try {
+      if (step === "preflight") {
+        await runPreflight();
       }
-    }
-    if (step === "provider") {
-      const setupOk = await completeProviderAndRouting();
-      if (!setupOk) {
-        return;
+      if (step === "connect") {
+        const connectedOk = await connectGateway();
+        if (!connectedOk) {
+          return;
+        }
       }
+      if (step === "provider") {
+        const setupOk = await completeProviderAndRouting();
+        if (!setupOk) {
+          return;
+        }
+      }
+      setStepIndex((value) => Math.min(value + 1, ONBOARDING_STEPS.length - 1));
+    } finally {
+      nextStepInFlightRef.current = false;
     }
-    setStepIndex((value) => Math.min(value + 1, ONBOARDING_STEPS.length - 1));
   }, [
     busy,
     completeProviderAndRouting,
