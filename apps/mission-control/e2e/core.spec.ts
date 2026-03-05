@@ -115,6 +115,19 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
     ).toHaveClass(/done/);
   });
 
+  test("continues after manual Save + Connect even when token input is cleared", async ({ page }) => {
+    await moveWizardToConnectionStep(page);
+
+    await page.getByLabel("Gateway URL").fill(GATEWAY_URL);
+    await page.getByLabel("Gateway token").fill(TEST_TOKEN);
+    await page.getByRole("button", { name: /Save \+ Connect/ }).click();
+    await expect(page.getByText(/Connection status:\s*Connected/)).toBeVisible();
+    await expect(page.getByLabel("Gateway token")).toHaveValue("");
+
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page.getByText("Step 4 of 6")).toBeVisible();
+  });
+
   test("connects via deterministic stub gateway and loads baseline", async ({ page }) => {
     await completeLocalOnboarding(page);
 

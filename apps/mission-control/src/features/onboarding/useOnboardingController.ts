@@ -563,7 +563,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     try {
       const hasTokenInput = gatewayTokenInput.trim().length > 0;
       await saveConnectionFromInputs(gatewayUrl, gatewayTokenInput);
-      const tokenAvailable = hasTokenInput || tokenConfigured;
+      const tokenAvailable = hasTokenInput || tokenConfigured || connected;
       if (!tokenAvailable) {
         setConnected(false);
         setErrorText("Connection saved, but no gateway token is configured yet.");
@@ -579,7 +579,14 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     } finally {
       setBusy(false);
     }
-  }, [clearError, gatewayTokenInput, gatewayUrl, saveConnectionFromInputs, tokenConfigured]);
+  }, [
+    clearError,
+    connected,
+    gatewayTokenInput,
+    gatewayUrl,
+    saveConnectionFromInputs,
+    tokenConfigured,
+  ]);
 
   const createNewAgentDraft = useCallback(() => {
     clearError();

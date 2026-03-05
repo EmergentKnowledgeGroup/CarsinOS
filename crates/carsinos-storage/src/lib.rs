@@ -6303,7 +6303,7 @@ mod tests {
         let (_temp_dir, storage) = test_storage();
         let created = storage
             .create_agent(NewAgent {
-                agent_id: "delete-me".to_string(),
+                agent_id: "Delete-Me".to_string(),
                 name: "Delete Me".to_string(),
                 workspace_root: ".".to_string(),
                 model_provider: "mock".to_string(),
@@ -6311,12 +6311,12 @@ mod tests {
                 tool_profile: "default".to_string(),
             })
             .expect("create removable agent");
-        assert_eq!(created.agent_id, "delete-me");
+        assert_eq!(created.agent_id, "Delete-Me");
 
-        let removed = storage.remove_agent("delete-me").expect("remove agent");
+        let removed = storage.remove_agent("Delete-Me").expect("remove agent");
         assert_eq!(removed, RemoveAgentOutcome::Removed);
         assert!(storage
-            .get_agent("delete-me")
+            .get_agent("Delete-Me")
             .expect("reload removed agent")
             .is_none());
     }
@@ -6346,6 +6346,10 @@ mod tests {
             .remove_agent(&created.agent_id)
             .expect("remove should return outcome");
         assert_eq!(outcome, RemoveAgentOutcome::HasSessions);
+        assert!(storage
+            .get_agent(&created.agent_id)
+            .expect("reload retained agent")
+            .is_some());
     }
 
     #[test]
