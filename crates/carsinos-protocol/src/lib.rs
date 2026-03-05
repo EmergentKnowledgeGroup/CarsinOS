@@ -413,6 +413,11 @@ pub struct UpdateAgentResponse {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct RemoveAgentResponse {
+    pub removed: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct BoardSummaryResponse {
     pub board_id: String,
     pub board_key: String,
@@ -1222,6 +1227,17 @@ pub struct AnthropicSetupTokenIngestRequest {
 #[derive(Debug, Clone, Serialize)]
 pub struct AnthropicSetupTokenIngestResponse {
     pub profile: AuthProfileResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AnthropicSetupTokenValidateRequest {
+    pub setup_token: String,
+    pub api_base_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AnthropicSetupTokenValidateResponse {
+    pub valid: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -8,12 +8,15 @@ import {
   getGatewayStatus,
   ingestAnthropicSetupToken,
   listAgents,
+  listAuthProfiles,
   listProviderCapabilities,
   listProviderModels,
-  listAuthProfiles,
+  removeAgent,
+  revokeAuthProfile,
   setAgentProviderProfileOrder,
   startOpenAiOauth,
   updateAgent,
+  validateAnthropicSetupToken,
 } from "../../lib/api";
 import {
   localProviderCapabilities,
@@ -57,9 +60,7 @@ const ONBOARDING_STEPS = [
   "mode",
   "preflight",
   "connect",
-  "agent",
   "provider",
-  "routing",
   "review",
   "done",
 ] as const;
@@ -128,10 +129,14 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   );
 
   const [selectedAgentId, setSelectedAgentId] = useState<string>(agents[0]?.agent_id ?? "");
-  const [agentIdDraft, setAgentIdDraft] = useState("lyra");
-  const [agentNameDraft, setAgentNameDraft] = useState("Lyra");
-  const [workspaceRootDraft, setWorkspaceRootDraft] = useState(".");
-  const [toolProfileDraft, setToolProfileDraft] = useState("default");
+  const [agentIdDraft, setAgentIdDraft] = useState(agents[0]?.agent_id ?? "");
+  const [agentNameDraft, setAgentNameDraft] = useState(agents[0]?.name ?? "");
+  const [workspaceRootDraft, setWorkspaceRootDraft] = useState(
+    agents[0]?.workspace_root?.trim() || "."
+  );
+  const [toolProfileDraft, setToolProfileDraft] = useState(
+    agents[0]?.tool_profile?.trim() || "default"
+  );
   const [agentReady, setAgentReady] = useState(agents.length > 0);
 
   const [providerPath, setProviderPath] = useState<OnboardingProviderPath>(
@@ -170,6 +175,8 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   const [anthropicDisplayName, setAnthropicDisplayName] = useState("claude-primary");
   const [anthropicSetupToken, setAnthropicSetupToken] = useState("");
   const [anthropicSetupLaunchNote, setAnthropicSetupLaunchNote] = useState<string | null>(null);
+  const [anthropicValidationBusy, setAnthropicValidationBusy] = useState(false);
+  const [anthropicValidationNote, setAnthropicValidationNote] = useState<string | null>(null);
   const [anthropicApiBaseUrl, setAnthropicApiBaseUrl] = useState("");
   const [anthropicAccessToken, setAnthropicAccessToken] = useState("");
   const [anthropicRefreshToken, setAnthropicRefreshToken] = useState("");
@@ -193,6 +200,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   const [routingReady, setRoutingReady] = useState(false);
   const localProviderRef = useRef(localProvider);
   const localModelIdRef = useRef(localModelId);
+  const nextStepInFlightRef = useRef(false);
 
   const [preflight, setPreflight] = useState<OnboardingPreflightState>({
     running: false,
@@ -219,9 +227,32 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   }, [localModelId]);
 
   useEffect(() => {
-    if (!selectedAgentId && agents.length > 0) {
-      setSelectedAgentId(agents[0].agent_id);
+    if (agents.length === 0) {
+      setSelectedAgentId("");
+      setAgentReady(false);
+      return;
     }
+    setSelectedAgentId((current) => {
+      if (current && agents.some((agent) => agent.agent_id === current)) {
+        return current;
+      }
+      return agents[0].agent_id;
+    });
+  }, [agents]);
+
+  useEffect(() => {
+    if (!selectedAgentId) {
+      return;
+    }
+    const selected = agents.find((agent) => agent.agent_id === selectedAgentId);
+    if (!selected) {
+      return;
+    }
+    setAgentIdDraft(selected.agent_id);
+    setAgentNameDraft(selected.name);
+    setWorkspaceRootDraft(selected.workspace_root?.trim() || ".");
+    setToolProfileDraft(selected.tool_profile?.trim() || "default");
+    setAgentReady(true);
   }, [agents, selectedAgentId]);
 
   useEffect(() => {
@@ -255,6 +286,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     setOpenAiCallbackUrl("");
     setOpenAiCode("");
     setOpenAiState("");
+    setAnthropicValidationNote(null);
   }, [providerPath]);
 
   useEffect(() => {
@@ -399,15 +431,11 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     setIsOpen(false);
   }, []);
 
-  const nextStep = useCallback(() => {
-    setStepIndex((value) => Math.min(value + 1, ONBOARDING_STEPS.length - 1));
-  }, []);
-
   const previousStep = useCallback(() => {
     setStepIndex((value) => Math.max(value - 1, 0));
   }, []);
 
-  const runPreflight = useCallback(async () => {
+  const runPreflight = useCallback(async (): Promise<boolean> => {
     clearError();
     setPreflight((value) => ({ ...value, running: true, detail: "Running checks..." }));
     const effectiveSettings: RuntimeConnectionSettings = {
@@ -430,6 +458,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
       // Keep preflight non-mutating: write permissions are validated when setup actions execute.
       const canManageSetup: boolean | null = null;
 
+      const passed = gatewayReachable && authValidated && canReadCore;
       setPreflight({
         running: false,
         ranAtMs: Date.now(),
@@ -446,6 +475,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
                 ? "Checks completed. Setup write permissions are validated during setup actions."
                 : "Checks completed. Token cannot read core — setup actions may require operator_admin.",
       });
+      return passed;
     } catch (error: unknown) {
       setPreflight({
         running: false,
@@ -457,6 +487,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
         detail: `Preflight failed: ${String(error)}`,
       });
       setErrorText(`Preflight failed: ${String(error)}`);
+      return false;
     }
   }, [clearError, gatewayUrl, settings.gateway_url]);
 
@@ -481,6 +512,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
       setProviderReady(false);
       setRoutingReady(false);
       setAnthropicSetupLaunchNote(null);
+      setAnthropicValidationNote(null);
     },
     []
   );
@@ -504,75 +536,222 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     }
   }, [clearError]);
 
-  const connectGateway = useCallback(async () => {
+  const runAnthropicSetupTokenValidation = useCallback(async () => {
+    clearError();
+    const setupToken = anthropicSetupToken.trim();
+    if (!setupToken) {
+      setAnthropicValidationNote("Enter a key first.");
+      return;
+    }
+    setAnthropicValidationBusy(true);
+    try {
+      await validateAnthropicSetupToken(settings, {
+        setup_token: setupToken,
+        api_base_url: anthropicApiBaseUrl.trim() || undefined,
+      });
+      setAnthropicValidationNote("Key verified successfully against Anthropic.");
+    } catch (error: unknown) {
+      setAnthropicValidationNote(`Validation failed: ${String(error)}`);
+    } finally {
+      setAnthropicValidationBusy(false);
+    }
+  }, [anthropicApiBaseUrl, anthropicSetupToken, clearError, settings]);
+
+  const connectGateway = useCallback(async (): Promise<boolean> => {
     clearError();
     setBusy(true);
     try {
       const hasTokenInput = gatewayTokenInput.trim().length > 0;
       await saveConnectionFromInputs(gatewayUrl, gatewayTokenInput);
-      const tokenAvailable = hasTokenInput || tokenConfigured;
+      const tokenAvailable = hasTokenInput || tokenConfigured || connected;
       if (!tokenAvailable) {
         setConnected(false);
         setErrorText("Connection saved, but no gateway token is configured yet.");
-        return;
+        return false;
       }
       setConnected(true);
       setGatewayTokenInput("");
+      return true;
     } catch (error: unknown) {
       setConnected(false);
       setErrorText(`Connection failed: ${String(error)}`);
+      return false;
     } finally {
       setBusy(false);
     }
-  }, [clearError, gatewayTokenInput, gatewayUrl, saveConnectionFromInputs, tokenConfigured]);
+  }, [
+    clearError,
+    connected,
+    gatewayTokenInput,
+    gatewayUrl,
+    saveConnectionFromInputs,
+    tokenConfigured,
+  ]);
 
-  const ensureAgent = useCallback(async () => {
+  const createNewAgentDraft = useCallback(() => {
     clearError();
+    setSelectedAgentId("");
+    setAgentIdDraft("");
+    setAgentNameDraft("");
+    setWorkspaceRootDraft(".");
+    setToolProfileDraft("default");
+    setAgentReady(false);
+    setProviderReady(false);
+    setRoutingReady(false);
+  }, [clearError]);
+
+  const saveAgent = useCallback(async (): Promise<boolean> => {
+    clearError();
+    const desiredAgentId = agentIdDraft.trim().toLowerCase();
+    const desiredAgentName = agentNameDraft.trim();
+    if (!desiredAgentId) {
+      setAgentReady(false);
+      setErrorText("Agent ID is required.");
+      return false;
+    }
+    if (!desiredAgentName) {
+      setAgentReady(false);
+      setErrorText("Agent name is required.");
+      return false;
+    }
     setBusy(true);
     try {
-      if (selectedAgentId.trim()) {
-        setAgentReady(true);
-        return;
-      }
-
-      // If the local read model is stale, bind to an existing agent before creating.
-      const latestAgents = await listAgents(settings);
-      if (latestAgents.items.length > 0) {
-        const desiredAgentId = agentIdDraft.trim().toLowerCase();
-        const matched =
-          latestAgents.items.find(
-            (agent) => agent.agent_id.trim().toLowerCase() === desiredAgentId
-          ) ?? latestAgents.items[0];
-        setSelectedAgentId(matched.agent_id);
-        await loadBaseline(settings);
-        setAgentReady(true);
-        return;
-      }
-
-      const created = await createAgent(settings, {
-        agent_id: agentIdDraft.trim(),
-        name: agentNameDraft.trim(),
+      const patch = {
+        name: desiredAgentName,
         workspace_root: workspaceRootDraft.trim() || ".",
         tool_profile: toolProfileDraft.trim() || "default",
-      });
-      setSelectedAgentId(created.agent.agent_id);
+      };
+      const selectedId = selectedAgentId.trim();
+      const existingByDesired =
+        agents.find(
+          (agent) => agent.agent_id.trim().toLowerCase() === desiredAgentId
+        ) ?? null;
+      let resolvedAgentId = desiredAgentId;
+
+      if (selectedId && selectedId.toLowerCase() === desiredAgentId) {
+        await updateAgent(settings, selectedId, patch);
+        resolvedAgentId = selectedId;
+      } else if (existingByDesired) {
+        await updateAgent(settings, existingByDesired.agent_id, patch);
+        resolvedAgentId = existingByDesired.agent_id;
+      } else {
+        await createAgent(settings, {
+          agent_id: desiredAgentId,
+          name: desiredAgentName,
+          workspace_root: patch.workspace_root,
+          tool_profile: patch.tool_profile,
+        });
+      }
       await loadBaseline(settings);
+      setSelectedAgentId(resolvedAgentId);
       setAgentReady(true);
+      setProviderReady(false);
+      setRoutingReady(false);
+      return true;
     } catch (error: unknown) {
       setAgentReady(false);
       setErrorText(`Agent setup failed: ${String(error)}`);
+      return false;
     } finally {
       setBusy(false);
     }
   }, [
     agentIdDraft,
     agentNameDraft,
+    agents,
     clearError,
     loadBaseline,
     selectedAgentId,
     settings,
     toolProfileDraft,
     workspaceRootDraft,
+  ]);
+
+  const deleteSelectedAgent = useCallback(async (): Promise<boolean> => {
+    clearError();
+    const targetAgentId = selectedAgentId.trim();
+    if (!targetAgentId) {
+      setErrorText("Select an agent to delete.");
+      return false;
+    }
+    setBusy(true);
+    try {
+      const removal = await removeAgent(settings, targetAgentId);
+      if (!removal.removed) {
+        setErrorText("Agent was already removed.");
+        return false;
+      }
+      const latestAgents = await listAgents(settings);
+      await loadBaseline(settings);
+      if (latestAgents.items.length === 0) {
+        createNewAgentDraft();
+        setAgentReady(false);
+      } else {
+        setSelectedAgentId(latestAgents.items[0].agent_id);
+        setAgentReady(true);
+      }
+      setProviderReady(false);
+      setRoutingReady(false);
+      return true;
+    } catch (error: unknown) {
+      setErrorText(`Agent delete failed: ${String(error)}`);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }, [
+    clearError,
+    createNewAgentDraft,
+    loadBaseline,
+    selectedAgentId,
+    settings,
+  ]);
+
+  const reauthSelectedProfile = useCallback(async (): Promise<boolean> => {
+    clearError();
+    const profileId = selectedExistingProfileId.trim();
+    if (!profileId) {
+      setErrorText("Select an existing profile to re-auth.");
+      return false;
+    }
+    setBusy(true);
+    try {
+      await revokeAuthProfile(settings, profileId, {
+        reason: "wizard reauth requested",
+        remove_secret: true,
+        disable_profile: true,
+        kill_switch_scope: "profile",
+      });
+      await loadBaseline(settings);
+      setUseExistingProfile(false);
+      setSelectedExistingProfileId("");
+      setProviderProfileId(null);
+      setProviderReady(false);
+      setRoutingReady(false);
+      if (providerPath === "anthropic") {
+        setAnthropicValidationNote("Profile revoked. Re-run auth to continue.");
+      }
+      if (providerPath === "openai") {
+        setOpenAiSessionId("");
+        setOpenAiAuthorizeUrl("");
+        setOpenAiCallbackUrlHint("");
+        setOpenAiCallbackUrl("");
+        setOpenAiCode("");
+        setOpenAiState("");
+      }
+      return true;
+    } catch (error: unknown) {
+      setErrorText(`Profile re-auth failed: ${String(error)}`);
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }, [
+    clearError,
+    loadBaseline,
+    providerPath,
+    selectedExistingProfileId,
+    settings,
   ]);
 
   const startOpenAiOauthFlow = useCallback(async () => {
@@ -634,13 +813,13 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     settings,
   ]);
 
-  const completeProvider = useCallback(async () => {
+  const completeProvider = useCallback(async (): Promise<{ ok: boolean; profileId: string | null }> => {
     clearError();
     setBusy(true);
     try {
+      const targetAgentId = selectedAgentId.trim() || agentIdDraft.trim().toLowerCase();
       if (providerPath === "local") {
-        const targetAgent = selectedAgentId.trim();
-        if (!targetAgent) {
+        if (!targetAgentId) {
           throw new Error("Select or create an agent first.");
         }
         const provider = localProvider.trim();
@@ -674,24 +853,24 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
         if (!assistantModel) {
           throw new Error("Select an assistant model or enter one manually.");
         }
-        await updateAgent(settings, targetAgent, {
+        await updateAgent(settings, targetAgentId, {
           model_provider: provider,
           model_id: assistantModel,
         });
         if (resolvedLocalConnectionProfileId) {
-          const existing = await getAgentProviderProfileOrder(settings, targetAgent, provider);
+          const existing = await getAgentProviderProfileOrder(settings, targetAgentId, provider);
           const nextOrder = reorderProfileFirst(
             existing.profile_ids,
             resolvedLocalConnectionProfileId
           );
-          await setAgentProviderProfileOrder(settings, targetAgent, provider, nextOrder);
+          await setAgentProviderProfileOrder(settings, targetAgentId, provider, nextOrder);
         }
         if (localOrchestratorEnabled) {
           const orchestratorAgentId = localOrchestratorAgentId.trim();
           if (!orchestratorAgentId) {
             throw new Error("Enter an orchestrator agent ID.");
           }
-          if (orchestratorAgentId.toLowerCase() === targetAgent.toLowerCase()) {
+          if (orchestratorAgentId.toLowerCase() === targetAgentId.toLowerCase()) {
             throw new Error(
               "Orchestrator agent ID must be different from the assistant agent ID."
             );
@@ -735,25 +914,37 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
             );
           }
           setLocalModelDiscoveryNote(
-            `Applied local setup: assistant=${targetAgent}, orchestrator=${orchestratorAgentId}.`
+            `Applied local setup: assistant=${targetAgentId}, orchestrator=${orchestratorAgentId}.`
           );
         } else {
-          setLocalModelDiscoveryNote(`Applied local setup for assistant agent ${targetAgent}.`);
+          setLocalModelDiscoveryNote(`Applied local setup for assistant agent ${targetAgentId}.`);
         }
         await loadBaseline(settings);
         setProviderReady(true);
         setProviderProfileId(resolvedLocalConnectionProfileId);
         setLocalApiKey("");
-        return;
+        return {
+          ok: true,
+          profileId: resolvedLocalConnectionProfileId,
+        };
       }
 
       if (useExistingProfile) {
-        if (!selectedExistingProfileId.trim()) {
+        const existingProfileId = selectedExistingProfileId.trim();
+        if (!existingProfileId) {
           throw new Error("Select an existing profile or create a new one.");
         }
-        setProviderProfileId(selectedExistingProfileId.trim());
+        await listProviderModels(settings, {
+          provider: providerPath,
+          agent_id: targetAgentId || undefined,
+          auth_profile_id: existingProfileId,
+        });
+        setProviderProfileId(existingProfileId);
         setProviderReady(true);
-        return;
+        return {
+          ok: true,
+          profileId: existingProfileId,
+        };
       }
 
       if (providerPath === "anthropic") {
@@ -764,11 +955,20 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
             api_base_url: anthropicApiBaseUrl.trim() || undefined,
             enabled: true,
           });
-          setProviderProfileId(response.profile.auth_profile_id);
+          const nextProfileId = response.profile.auth_profile_id;
+          await listProviderModels(settings, {
+            provider: "anthropic",
+            agent_id: targetAgentId || undefined,
+            auth_profile_id: nextProfileId,
+          });
+          setProviderProfileId(nextProfileId);
           setProviderReady(true);
           setAnthropicSetupToken("");
           await loadBaseline(settings);
-          return;
+          return {
+            ok: true,
+            profileId: nextProfileId,
+          };
         }
 
         const accessToken = anthropicAccessToken.trim();
@@ -813,29 +1013,54 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
           api_base_url: anthropicApiBaseUrl.trim() || undefined,
           credentials_json: credentialsJson,
         });
-        setProviderProfileId(response.profile.auth_profile_id);
+        const nextProfileId = response.profile.auth_profile_id;
+        await listProviderModels(settings, {
+          provider: "anthropic",
+          agent_id: targetAgentId || undefined,
+          auth_profile_id: nextProfileId,
+        });
+        setProviderProfileId(nextProfileId);
         setProviderReady(true);
         setAnthropicAccessToken("");
         setAnthropicRefreshToken("");
         await loadBaseline(settings);
-        return;
+        return {
+          ok: true,
+          profileId: nextProfileId,
+        };
       }
 
       if (providerPath === "openai") {
-        if (!providerProfileId) {
+        const openAiProfileId = providerProfileId?.trim();
+        if (!openAiProfileId) {
           throw new Error(
             "Complete OpenAI OAuth first, or switch to an existing profile."
           );
         }
+        await listProviderModels(settings, {
+          provider: "openai",
+          agent_id: targetAgentId || undefined,
+          auth_profile_id: openAiProfileId,
+        });
         setProviderReady(true);
+        return {
+          ok: true,
+          profileId: openAiProfileId,
+        };
       }
+      throw new Error("Unsupported provider path.");
     } catch (error: unknown) {
       setProviderReady(false);
       setErrorText(`Provider setup failed: ${String(error)}`);
+      return {
+        ok: false,
+        profileId: null,
+      };
     } finally {
       setBusy(false);
     }
   }, [
+    agentIdDraft,
     anthropicAccessToken,
     anthropicApiBaseUrl,
     anthropicAuthMode,
@@ -868,19 +1093,19 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     workspaceRootDraft,
   ]);
 
-  const applyRouting = useCallback(async () => {
+  const applyRouting = useCallback(async (profileIdOverride?: string | null): Promise<boolean> => {
     clearError();
     setBusy(true);
     try {
-      const targetAgent = selectedAgentId.trim();
+      const targetAgent = selectedAgentId.trim() || agentIdDraft.trim().toLowerCase();
       if (!targetAgent) {
         throw new Error("Select an agent first.");
       }
       if (!providerRequiresProfile(providerPath)) {
         setRoutingReady(true);
-        return;
+        return true;
       }
-      const profileId = providerProfileId?.trim();
+      const profileId = (profileIdOverride ?? providerProfileId)?.trim();
       if (!profileId) {
         throw new Error("Provider profile is not ready.");
       }
@@ -889,13 +1114,72 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
       await setAgentProviderProfileOrder(settings, targetAgent, providerPath, nextOrder);
       setRoutingReady(true);
       await loadBaseline(settings);
+      return true;
     } catch (error: unknown) {
       setRoutingReady(false);
       setErrorText(`Routing update failed: ${String(error)}`);
+      return false;
     } finally {
       setBusy(false);
     }
-  }, [clearError, loadBaseline, providerPath, providerProfileId, selectedAgentId, settings]);
+  }, [
+    agentIdDraft,
+    clearError,
+    loadBaseline,
+    providerPath,
+    providerProfileId,
+    selectedAgentId,
+    settings,
+  ]);
+
+  const completeProviderAndRouting = useCallback(async (): Promise<boolean> => {
+    const saved = await saveAgent();
+    if (!saved) {
+      return false;
+    }
+    const providerResult = await completeProvider();
+    if (!providerResult.ok) {
+      return false;
+    }
+    return applyRouting(providerResult.profileId);
+  }, [applyRouting, completeProvider, saveAgent]);
+
+  const nextStep = useCallback(async () => {
+    if (nextStepInFlightRef.current) {
+      return;
+    }
+    if (busy || preflight.running) {
+      return;
+    }
+    nextStepInFlightRef.current = true;
+    try {
+      if (step === "preflight") {
+        await runPreflight();
+      }
+      if (step === "connect") {
+        const connectedOk = await connectGateway();
+        if (!connectedOk) {
+          return;
+        }
+      }
+      if (step === "provider") {
+        const setupOk = await completeProviderAndRouting();
+        if (!setupOk) {
+          return;
+        }
+      }
+      setStepIndex((value) => Math.min(value + 1, ONBOARDING_STEPS.length - 1));
+    } finally {
+      nextStepInFlightRef.current = false;
+    }
+  }, [
+    busy,
+    completeProviderAndRouting,
+    connectGateway,
+    preflight.running,
+    runPreflight,
+    step,
+  ]);
 
   const completeAndExit = useCallback(() => {
     setActiveTab("boards");
@@ -938,7 +1222,9 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     toolProfileDraft,
     setToolProfileDraft,
     agentReady,
-    ensureAgent,
+    createNewAgentDraft,
+    saveAgent,
+    deleteSelectedAgent,
     providerPath,
     setProviderPath,
     useExistingProfile,
@@ -981,6 +1267,8 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     anthropicSetupToken,
     setAnthropicSetupToken,
     anthropicSetupLaunchNote,
+    anthropicValidationBusy,
+    anthropicValidationNote,
     anthropicApiBaseUrl,
     setAnthropicApiBaseUrl,
     anthropicAccessToken,
@@ -1011,9 +1299,12 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     openAiState,
     setOpenAiState,
     launchAnthropicSetupTokenFlow,
+    runAnthropicSetupTokenValidation,
     startOpenAiOauthFlow,
     finishOpenAiOauthFlow,
     completeProvider,
+    completeProviderAndRouting,
+    reauthSelectedProfile,
     routingReady,
     applyRouting,
     canFinishReview,

@@ -3,8 +3,8 @@ import type { OnboardingPreflightState } from "../useOnboardingController";
 
 interface StepPreflightProps {
   preflight: OnboardingPreflightState;
-  onRun: () => Promise<void>;
-  onNext: () => void;
+  onRun: () => Promise<boolean>;
+  onNext: () => void | Promise<void>;
   onBack: () => void;
 }
 
@@ -18,7 +18,7 @@ function renderState(value: boolean | null): string {
 export function StepPreflight(props: StepPreflightProps) {
   return (
     <OnboardingStepShell
-      stepLabel="Step 2 of 8"
+      stepLabel="Step 2 of 6"
       title="Preflight Checks"
       subtitle="Run a quick readiness check before applying setup actions."
       actions={
@@ -26,20 +26,22 @@ export function StepPreflight(props: StepPreflightProps) {
           <button type="button" className="ghost" onClick={props.onBack}>
             Back
           </button>
-          <button
-            type="button"
-            className="ghost"
-            disabled={props.preflight.running}
-            onClick={() => void props.onRun()}
-          >
-            {props.preflight.running ? "Running..." : "Run Checks"}
-          </button>
-          <button type="button" onClick={props.onNext}>
+          <button type="button" disabled={props.preflight.running} onClick={() => void props.onNext()}>
             Continue
           </button>
         </>
       }
     >
+      <div className="mc-onboarding-inline-actions">
+        <button
+          type="button"
+          className="ghost"
+          disabled={props.preflight.running}
+          onClick={() => void props.onRun()}
+        >
+          {props.preflight.running ? "Running..." : "Run checks now"}
+        </button>
+      </div>
       <div className="mc-onboarding-preflight-grid">
         <div className={`mc-onboarding-preflight-item ${renderState(props.preflight.gatewayReachable)}`}>
           <strong>Gateway reachable</strong>

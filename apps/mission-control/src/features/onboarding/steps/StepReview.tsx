@@ -11,13 +11,13 @@ interface StepReviewProps {
   providerProfileId: string | null;
   canFinishReview: boolean;
   onBack: () => void;
-  onNext: () => void;
+  onNext: () => void | Promise<void>;
 }
 
 export function StepReview(props: StepReviewProps) {
   return (
     <OnboardingStepShell
-      stepLabel="Step 7 of 8"
+      stepLabel="Step 5 of 6"
       title="Review"
       subtitle="Confirm setup status before finalizing onboarding."
       actions={
@@ -25,7 +25,7 @@ export function StepReview(props: StepReviewProps) {
           <button type="button" className="ghost" onClick={props.onBack}>
             Back
           </button>
-          <button type="button" disabled={!props.canFinishReview} onClick={props.onNext}>
+          <button type="button" disabled={!props.canFinishReview} onClick={() => void props.onNext()}>
             Finalize
           </button>
         </>

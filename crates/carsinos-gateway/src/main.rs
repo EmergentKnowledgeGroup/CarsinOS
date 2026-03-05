@@ -24,13 +24,15 @@ use carsinos_protocol::{
     AgentMailFileLeaseResponse, AgentMailMessageRecipientResponse, AgentMailMessageResponse,
     AgentMailThreadDetailResponse, AgentMailThreadParticipantResponse,
     AgentMailThreadSummaryResponse, AgentResponse, AnthropicSetupTokenIngestRequest,
-    AnthropicSetupTokenIngestResponse, ApprovalResponse, AssistantMemoryScope, AssistantTaskHandle,
-    AssistantToolCapabilitiesResponse, AssistantToolCapabilityItem, AssistantToolLimitsResponse,
-    AssistantToolRpcRequest, AssistantToolRpcResponse, AssistantWorkerSummary,
-    AssistantWorkerTemplateResponse, AssistantWorkerTemplateRunDefaults, AuthProfileResponse,
-    BoardAutomationRuleResponse, BoardCardAssetResponse, BoardCardResponse, BoardColumnResponse,
-    BoardDetailResponse, BoardSummaryResponse, ChannelRuntimeAdapterStatusResponse,
-    CircuitBreakerStateResponse, CreateAgentMailFileLeaseRequest, CreateAgentMailFileLeaseResponse,
+    AnthropicSetupTokenIngestResponse, AnthropicSetupTokenValidateRequest,
+    AnthropicSetupTokenValidateResponse, ApprovalResponse, AssistantMemoryScope,
+    AssistantTaskHandle, AssistantToolCapabilitiesResponse, AssistantToolCapabilityItem,
+    AssistantToolLimitsResponse, AssistantToolRpcRequest, AssistantToolRpcResponse,
+    AssistantWorkerSummary, AssistantWorkerTemplateResponse, AssistantWorkerTemplateRunDefaults,
+    AuthProfileResponse, BoardAutomationRuleResponse, BoardCardAssetResponse, BoardCardResponse,
+    BoardColumnResponse, BoardDetailResponse, BoardSummaryResponse,
+    ChannelRuntimeAdapterStatusResponse, CircuitBreakerStateResponse,
+    CreateAgentMailFileLeaseRequest, CreateAgentMailFileLeaseResponse,
     CreateAgentMailThreadRequest, CreateAgentMailThreadResponse, CreateAgentRequest,
     CreateAgentResponse, CreateApprovalRequest, CreateApprovalResponse, CreateAuthProfileRequest,
     CreateAuthProfileResponse, CreateBoardCardRequest, CreateBoardCardResponse, CreateJobRequest,
@@ -67,14 +69,14 @@ use carsinos_protocol::{
     PluginPermissionsResponse, PluginRuntimeStatusResponse, ProviderCapabilityResponse,
     ProviderModelResponse, ReconnectChannelRuntimeRequest, ReconnectChannelRuntimeResponse,
     RefreshRuntimeTrustContractLockRequest, RefreshRuntimeTrustContractLockResponse,
-    ReleaseAgentMailFileLeaseRequest, ReleaseAgentMailFileLeaseResponse, RemoveJobResponse,
-    ResolveApprovalRequest, ResolveApprovalResponse, ResolveChannelApprovalActionRequest,
-    RollbackPluginRequest, RollbackPluginResponse, RollbackRuntimeConfigRequest,
-    RollbackRuntimeConfigResponse, RunBoardAutomationRuleResponse, RunBoardCardRequest,
-    RunBoardCardResponse, RunJobNowResponse, RunMemoryWhyRequest, RunMemoryWhyResponse,
-    RunResponse, RuntimeAutonomyGuardrailsConfig, RuntimeChannelsConfig, RuntimeConfigResponse,
-    RuntimeDiscordDeploymentConfig, RuntimeExtensionsConfig, RuntimeGlobalConfig,
-    RuntimeMemoryConfig, RuntimeNumquamConfig, RuntimeProviderPolicyConfig,
+    ReleaseAgentMailFileLeaseRequest, ReleaseAgentMailFileLeaseResponse, RemoveAgentResponse,
+    RemoveJobResponse, ResolveApprovalRequest, ResolveApprovalResponse,
+    ResolveChannelApprovalActionRequest, RollbackPluginRequest, RollbackPluginResponse,
+    RollbackRuntimeConfigRequest, RollbackRuntimeConfigResponse, RunBoardAutomationRuleResponse,
+    RunBoardCardRequest, RunBoardCardResponse, RunJobNowResponse, RunMemoryWhyRequest,
+    RunMemoryWhyResponse, RunResponse, RuntimeAutonomyGuardrailsConfig, RuntimeChannelsConfig,
+    RuntimeConfigResponse, RuntimeDiscordDeploymentConfig, RuntimeExtensionsConfig,
+    RuntimeGlobalConfig, RuntimeMemoryConfig, RuntimeNumquamConfig, RuntimeProviderPolicyConfig,
     RuntimeSecurityOpsConfig, RuntimeTelegramDeploymentConfig, RuntimeTrustContractLockResponse,
     RuntimeTrustContractLockSummaryResponse, SanitizedPath, SchedulerLockStateResponse,
     SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult, SendAgentMailMessageRequest,
@@ -108,8 +110,9 @@ use carsinos_storage::{
     JobRecord, JobRunRecord, JobUpdatePatch, MessageRecord, NewAgent, NewAgentMailAttachment,
     NewAgentMailFileLease, NewAgentMailMessage, NewAgentMailThread, NewApproval,
     NewAssistantToolCallAudit, NewAssistantWorker, NewAuthProfile, NewBoardCard, NewBoardCardAsset,
-    NewJob, NewMessage, NewNote, NewRun, NewSecurityAuditEvent, NewSession, NoteRecord, RunRecord,
-    SecurityAuditEventListFilter, SecurityAuditEventRecord, SessionRecord, Storage,
+    NewJob, NewMessage, NewNote, NewRun, NewSecurityAuditEvent, NewSession, NoteRecord,
+    RemoveAgentOutcome, RunRecord, SecurityAuditEventListFilter, SecurityAuditEventRecord,
+    SessionRecord, Storage,
 };
 use carsinos_tools::{
     ChannelActionRequest, ExecRequest, FsReadRequest, FsWriteMode, FsWriteRequest, LocalToolRunner,
@@ -1672,6 +1675,7 @@ const OAUTH_OPENAI_DEFAULT_AUTHORIZE_URL: &str = "https://auth.openai.com/oauth/
 const OAUTH_OPENAI_DEFAULT_TOKEN_URL: &str = "https://auth.openai.com/oauth/token";
 const OPENAI_DEFAULT_API_BASE: &str = "https://api.openai.com";
 const ANTHROPIC_DEFAULT_API_BASE: &str = "https://api.anthropic.com";
+const ANTHROPIC_API_BASE_ALLOWLIST_ENV: &str = "CARSINOS_ANTHROPIC_API_BASE_ALLOWLIST";
 const OPENROUTER_DEFAULT_API_BASE: &str = "https://openrouter.ai/api";
 const OLLAMA_DEFAULT_API_BASE: &str = "http://127.0.0.1:11434";
 const VLLM_DEFAULT_API_BASE: &str = "http://127.0.0.1:8000";
@@ -6449,6 +6453,7 @@ fn build_app(state: AppState) -> Router {
             "/api/v1/agents/{agent_id}",
             get(get_agent).post(update_agent),
         )
+        .route("/api/v1/agents/{agent_id}/remove", post(remove_agent))
         .route("/api/v1/boards", get(list_boards))
         .route("/api/v1/boards/{board_id}", get(get_board))
         .route(
@@ -6528,6 +6533,10 @@ fn build_app(state: AppState) -> Router {
         .route(
             "/api/v1/auth/anthropic/setup-token/ingest",
             post(anthropic_setup_token_ingest),
+        )
+        .route(
+            "/api/v1/auth/anthropic/setup-token/validate",
+            post(anthropic_setup_token_validate),
         )
         .route(
             "/api/v1/auth/agents/{agent_id}/providers/{provider}/profile-order",
@@ -7171,6 +7180,66 @@ async fn update_agent(
     Ok(Json(UpdateAgentResponse {
         agent: to_agent_response(record),
     }))
+}
+
+async fn remove_agent(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(agent_id): Path<String>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let agent_id = agent_id.trim().to_string();
+    if agent_id.is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "agent_id cannot be empty",
+        ));
+    }
+    let outcome = state
+        .storage
+        .remove_agent(&agent_id)
+        .map_err(|err| internal_err_with_error("removing agent failed", err))?;
+    match outcome {
+        RemoveAgentOutcome::InvalidAgentId => {
+            return Err(api_error(
+                StatusCode::BAD_REQUEST,
+                "agent_id cannot be empty",
+            ));
+        }
+        RemoveAgentOutcome::NotFound => {
+            return Err(api_error(StatusCode::NOT_FOUND, "agent not found"));
+        }
+        RemoveAgentOutcome::HasSessions => {
+            return Err(api_error(
+                StatusCode::CONFLICT,
+                "agent has sessions and cannot be removed",
+            ));
+        }
+        RemoveAgentOutcome::Removed => {}
+    }
+    record_security_audit(
+        &headers,
+        &state,
+        &auth,
+        "agent.remove",
+        &format!("agent:{agent_id}"),
+        "allow",
+        Some("agent removed".to_string()),
+        StatusCode::OK,
+        None,
+        None,
+        None,
+        None,
+    );
+    emit_event(
+        &state,
+        "agent.removed",
+        serde_json::json!({
+            "agent_id": agent_id,
+        }),
+    );
+    Ok(Json(RemoveAgentResponse { removed: true }))
 }
 
 async fn list_boards(
@@ -9624,20 +9693,25 @@ async fn anthropic_setup_token_ingest(
             "setup_token cannot be empty",
         ));
     }
-    let api_base_url = request
-        .api_base_url
-        .as_ref()
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| ANTHROPIC_DEFAULT_API_BASE.to_string());
-    validate_anthropic_setup_token(&api_base_url, &setup_token)
-        .await
-        .map_err(|err| {
+    let api_base_url =
+        normalize_anthropic_api_base_url(request.api_base_url.as_deref()).map_err(|_| {
             api_error(
-                StatusCode::BAD_GATEWAY,
-                &format!("setup token validation failed: {err}"),
+                StatusCode::BAD_REQUEST,
+                "api_base_url must be an allowlisted https Anthropic endpoint",
             )
         })?;
+    let setup_token_valid = validate_anthropic_setup_token(&api_base_url, &setup_token)
+        .await
+        .map_err(|err| {
+            warn!(error = %err, "anthropic setup token ingest validation upstream failure");
+            api_error(StatusCode::BAD_GATEWAY, "setup token validation failed")
+        })?;
+    if !setup_token_valid {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "setup token validation failed",
+        ));
+    }
 
     let kill_switch_scope = request
         .kill_switch_scope
@@ -9705,6 +9779,36 @@ async fn anthropic_setup_token_ingest(
             profile: to_auth_profile_response(profile),
         }),
     ))
+}
+
+async fn anthropic_setup_token_validate(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<AnthropicSetupTokenValidateRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_AUTOMATION_RUNNER])?;
+    let setup_token = request.setup_token.trim().to_string();
+    if setup_token.is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "setup_token cannot be empty",
+        ));
+    }
+    let api_base_url =
+        normalize_anthropic_api_base_url(request.api_base_url.as_deref()).map_err(|_| {
+            api_error(
+                StatusCode::BAD_REQUEST,
+                "api_base_url must be an allowlisted https Anthropic endpoint",
+            )
+        })?;
+    let valid = validate_anthropic_setup_token(&api_base_url, &setup_token)
+        .await
+        .map_err(|err| {
+            warn!(error = %err, "anthropic setup token validation upstream failure");
+            api_error(StatusCode::BAD_GATEWAY, "setup token validation failed")
+        })?;
+    Ok(Json(AnthropicSetupTokenValidateResponse { valid }))
 }
 
 fn random_urlsafe_token(min_len: usize) -> String {
@@ -9837,7 +9941,39 @@ async fn exchange_openai_oauth_code(
     Ok(payload)
 }
 
-async fn validate_anthropic_setup_token(api_base_url: &str, setup_token: &str) -> AnyResult<()> {
+fn normalize_anthropic_api_base_url(raw: Option<&str>) -> AnyResult<String> {
+    let candidate = raw
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(ANTHROPIC_DEFAULT_API_BASE);
+    let mut parsed = Url::parse(candidate).context("api_base_url must be a valid URL")?;
+    if parsed.scheme() != "https" {
+        anyhow::bail!("api_base_url must use https");
+    }
+    let host = parsed
+        .host_str()
+        .map(|value| value.to_ascii_lowercase())
+        .filter(|value| !value.is_empty())
+        .context("api_base_url must include host")?;
+    let mut allowed_hosts: HashSet<String> = HashSet::from([String::from("api.anthropic.com")]);
+    if let Ok(configured_allowlist) = std::env::var(ANTHROPIC_API_BASE_ALLOWLIST_ENV) {
+        allowed_hosts.extend(parse_csv_set_lower(&configured_allowlist));
+    }
+    if !allowed_hosts.contains(&host) {
+        anyhow::bail!("api_base_url host is not allowlisted");
+    }
+    if let Some(port) = parsed.port() {
+        if port != 443 {
+            anyhow::bail!("api_base_url port must be 443 when specified");
+        }
+    }
+    parsed.set_path("");
+    parsed.set_query(None);
+    parsed.set_fragment(None);
+    Ok(parsed.to_string().trim_end_matches('/').to_string())
+}
+
+async fn validate_anthropic_setup_token(api_base_url: &str, setup_token: &str) -> AnyResult<bool> {
     let base = api_base_url.trim_end_matches('/');
     let url = format!("{base}/v1/models");
     let client = reqwest::Client::builder()
@@ -9852,7 +9988,10 @@ async fn validate_anthropic_setup_token(api_base_url: &str, setup_token: &str) -
         .await
         .context("anthropic setup token validation HTTP request failed")?;
     if response.status().is_success() {
-        return Ok(());
+        return Ok(true);
+    }
+    if response.status().is_client_error() {
+        return Ok(false);
     }
     let status = response.status();
     let body = response.text().await.unwrap_or_default();

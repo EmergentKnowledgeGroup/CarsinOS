@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getGatewayHealth, getMissionControlUsage, websocketUrlFromGateway } from "./api";
+import {
+  getGatewayHealth,
+  getMissionControlUsage,
+  removeAgent,
+  revokeAuthProfile,
+  validateAnthropicSetupToken,
+  websocketUrlFromGateway,
+} from "./api";
 import { getGatewayToken } from "./runtime";
 
 vi.mock("./runtime", () => ({
@@ -122,5 +129,58 @@ describe("request URL resolution", () => {
     expect(calledUrl).toContain("window=today");
     expect(calledUrl).toContain("timezone=America%2FChicago");
     expect(calledUrl).toContain("tz_offset_minutes=-360");
+  });
+
+  it("hits remove-agent and auth validation endpoints with POST", async () => {
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      new Response(JSON.stringify({ removed: true, valid: true, profile: {} }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await removeAgent({ gateway_url: "http://127.0.0.1:18888" }, "assistant-main");
+    await validateAnthropicSetupToken(
+      { gateway_url: "http://127.0.0.1:18888" },
+      { setup_token: "token-1", api_base_url: "https://api.anthropic.com" }
+    );
+    await revokeAuthProfile(
+      { gateway_url: "http://127.0.0.1:18888" },
+      "profile-1",
+      { reason: "reauth", remove_secret: true }
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const [removeUrl, removeInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(removeUrl).toContain("/api/v1/agents/assistant-main/remove");
+    expect(removeInit.method).toBe("POST");
+    expect(removeInit.body).toBeUndefined();
+
+    const [validateUrl, validateInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(validateUrl).toContain("/api/v1/auth/anthropic/setup-token/validate");
+    expect(validateInit.method).toBe("POST");
+    expect(validateInit.body).toBe(
+      JSON.stringify({
+        setup_token: "token-1",
+        api_base_url: "https://api.anthropic.com",
+      })
+    );
+    expect((validateInit.headers as Record<string, string>)["Content-Type"]).toBe(
+      "application/json"
+    );
+
+    const [revokeUrl, revokeInit] = fetchMock.mock.calls[2] as [string, RequestInit];
+    expect(revokeUrl).toContain("/api/v1/security/auth-profiles/profile-1/revoke");
+    expect(revokeInit.method).toBe("POST");
+    expect(revokeInit.body).toBe(
+      JSON.stringify({
+        reason: "reauth",
+        remove_secret: true,
+      })
+    );
+    expect((revokeInit.headers as Record<string, string>)["Content-Type"]).toBe(
+      "application/json"
+    );
   });
 });

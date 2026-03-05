@@ -4,17 +4,17 @@ import type { OnboardingMode } from "../onboardingState";
 interface StepModeProps {
   mode: OnboardingMode;
   onModeChange: (value: OnboardingMode) => void;
-  onNext: () => void;
+  onNext: () => void | Promise<void>;
 }
 
 export function StepMode(props: StepModeProps) {
   return (
     <OnboardingStepShell
-      stepLabel="Step 1 of 8"
+      stepLabel="Step 1 of 6"
       title="Choose Setup Mode"
       subtitle="Quickstart keeps decisions minimal. Manual exposes advanced fields."
       actions={
-        <button type="button" onClick={props.onNext}>
+        <button type="button" onClick={() => void props.onNext()}>
           Continue
         </button>
       }
