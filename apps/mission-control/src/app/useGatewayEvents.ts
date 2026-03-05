@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { connectGatewayEvents, type WsLifecycleState } from "../lib/ws";
 import type { RuntimeConnectionSettings, WsEventFrame } from "../types";
 import { WS_MAX_RECONNECT_ATTEMPTS } from "../constants";
@@ -19,22 +19,32 @@ export function useGatewayEvents(options: UseGatewayEventsOptions): void {
     onState,
     onEvent,
   } = options;
+  const onStateRef = useRef(onState);
+  const onEventRef = useRef(onEvent);
+
+  useEffect(() => {
+    onStateRef.current = onState;
+  }, [onState]);
+
+  useEffect(() => {
+    onEventRef.current = onEvent;
+  }, [onEvent]);
 
   useEffect(() => {
     if (!tokenConfigured || !settings.gateway_url.trim()) {
-      onState("idle");
+      onStateRef.current("idle");
       return;
     }
 
     const subscription = connectGatewayEvents({
       settings,
       maxReconnectAttempts: maxReconnectAttempts ?? WS_MAX_RECONNECT_ATTEMPTS,
-      onState,
-      onEvent,
+      onState: (state) => onStateRef.current(state),
+      onEvent: (frame) => onEventRef.current(frame),
     });
 
     return () => {
       subscription.close();
     };
-  }, [maxReconnectAttempts, onEvent, onState, settings, tokenConfigured]);
+  }, [maxReconnectAttempts, settings, tokenConfigured]);
 }

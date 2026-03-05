@@ -30,10 +30,16 @@ import {
   Command,
   Minimize2,
   Maximize2,
+  PanelRightOpen,
+  PanelRightClose,
 } from "lucide-react";
 import { NotificationCenter } from "../ui/NotificationCenter";
 import { ThemeDropdown } from "../ui/ThemeDropdown";
 import type { NotificationItem } from "../ui/useToasts";
+import type {
+  OpsUxFeatureControls,
+  OpsUxRuntimeConfig,
+} from "../lib/opsUxConfig";
 
 const NAV_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
   kanban: Kanban,
@@ -74,6 +80,15 @@ interface AppShellProps {
   notifications?: NotificationItem[];
   onDismissNotification?: (id: string) => void;
   onClearAllNotifications?: () => void;
+  liveFeedEnabled: boolean;
+  liveFeedOpen: boolean;
+  liveFeedUnreadCount: number;
+  onToggleLiveFeed: () => void;
+  liveFeedPanel?: ReactNode;
+  opsUxConfig: OpsUxRuntimeConfig;
+  opsUxConfigError: string | null;
+  onPatchOpsUxControls: (patch: Partial<OpsUxFeatureControls>) => void;
+  usageChartsEnabled: boolean;
   /** Badge counts keyed by tab id. 0 or missing = no badge. */
   navBadges?: Partial<Record<MissionControlTab, number>>;
   children: ReactNode;
@@ -125,6 +140,7 @@ export function AppShell(props: AppShellProps) {
   const [gwUrlHistory, setGwUrlHistory] = useState<string[]>(getGatewayUrlHistory);
   const [density, setDensity] = useState<"comfortable" | "compact">(getDensity);
   const theme = useTheme();
+  const onPatchOpsUxControls = props.onPatchOpsUxControls;
 
   useEffect(() => {
     applyDensity(density);
@@ -173,10 +189,20 @@ export function AppShell(props: AppShellProps) {
     });
   }, [onOpenGuidedTour]);
 
+  const patchOpsControl = useCallback(
+    (key: keyof OpsUxFeatureControls, value: boolean) => {
+      onPatchOpsUxControls({
+        [key]: value,
+      });
+    },
+    [onPatchOpsUxControls]
+  );
+
   // Keyboard shortcuts
   useKeyboardShortcuts({
     onTabChange: props.onTabChange,
     onToggleIncidentMode: toggleIncidentMode,
+    onToggleLiveFeed: props.onToggleLiveFeed,
     onOpenCommandPalette: toggleCommandPalette,
     onCloseOverlay: closeOverlay,
     overlayOpen: settingsOpen || cmdPaletteOpen,
@@ -271,6 +297,28 @@ export function AppShell(props: AppShellProps) {
               />
               <span className={clsx("mc-incident-dot", props.incidentMode && "mc-incident-active")} />
             </label>
+            <button
+              type="button"
+              className={clsx("mc-topbar-icon-btn", "mc-live-feed-toggle", props.liveFeedOpen && "mc-live-feed-toggle-active")}
+              data-testid="live-feed-toggle"
+              onClick={
+                props.liveFeedEnabled
+                  ? props.onToggleLiveFeed
+                  : () => setSettingsOpen(true)
+              }
+              title={
+                props.liveFeedEnabled
+                  ? props.liveFeedOpen
+                    ? "Hide live feed"
+                    : "Show live feed"
+                  : "Enable live feed in Settings > Reliability"
+              }
+            >
+              {props.liveFeedOpen ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
+              {props.liveFeedUnreadCount > 0 ? (
+                <span className="mc-live-feed-toggle-badge">{props.liveFeedUnreadCount}</span>
+              ) : null}
+            </button>
             <NotificationCenter
               notifications={props.notifications ?? []}
               onDismiss={props.onDismissNotification ?? (() => {})}
@@ -311,8 +359,11 @@ export function AppShell(props: AppShellProps) {
         </header>
 
         {/* ── CONTENT ── */}
-        <div className="mc-content-area">
-          {props.children}
+        <div className="mc-workspace">
+          <div className="mc-content-area">
+            {props.children}
+          </div>
+          {props.liveFeedEnabled ? props.liveFeedPanel : null}
         </div>
       </main>
 
@@ -389,6 +440,90 @@ export function AppShell(props: AppShellProps) {
                     Clear Token
                   </button>
                 </div>
+              </div>
+
+              {/* Reliability / feature controls */}
+              <div className="mc-settings-section">
+                <h3 className="mc-settings-section-title">Reliability + Rollout</h3>
+                <label className="mc-settings-toggle">
+                  <input
+                    type="checkbox"
+                    checked={!props.opsUxConfig.controls.global_kill_switch}
+                    onChange={(event) =>
+                      patchOpsControl("global_kill_switch", !event.target.checked)
+                    }
+                  />
+                  <span>Optional modules enabled (global kill switch)</span>
+                </label>
+                <label className="mc-settings-toggle">
+                  <input
+                    type="checkbox"
+                    checked={props.opsUxConfig.controls.live_feed_drawer}
+                    onChange={(event) =>
+                      patchOpsControl("live_feed_drawer", event.target.checked)
+                    }
+                  />
+                  <span>Live Feed drawer</span>
+                </label>
+                <label className="mc-settings-toggle">
+                  <input
+                    type="checkbox"
+                    checked={props.opsUxConfig.controls.incident_auto_trigger}
+                    onChange={(event) =>
+                      patchOpsControl("incident_auto_trigger", event.target.checked)
+                    }
+                  />
+                  <span>Incident auto-trigger</span>
+                </label>
+                <label className="mc-settings-toggle">
+                  <input
+                    type="checkbox"
+                    checked={props.opsUxConfig.controls.usage_charts}
+                    onChange={(event) =>
+                      patchOpsControl("usage_charts", event.target.checked)
+                    }
+                  />
+                  <span>Cost/usage charts module</span>
+                </label>
+                <div className="mc-modal-status-row">
+                  <Chip
+                    label={`live feed: ${
+                      !props.opsUxConfig.controls.global_kill_switch &&
+                      props.opsUxConfig.controls.live_feed_drawer
+                        ? "enabled"
+                        : "disabled"
+                    }`}
+                    tone={
+                      !props.opsUxConfig.controls.global_kill_switch &&
+                      props.opsUxConfig.controls.live_feed_drawer
+                        ? "connected"
+                        : ""
+                    }
+                  />
+                  <Chip
+                    label={`incident auto: ${
+                      !props.opsUxConfig.controls.global_kill_switch &&
+                      props.opsUxConfig.controls.incident_auto_trigger
+                        ? "enabled"
+                        : "disabled"
+                    }`}
+                    tone={
+                      !props.opsUxConfig.controls.global_kill_switch &&
+                      props.opsUxConfig.controls.incident_auto_trigger
+                        ? "checking"
+                        : ""
+                    }
+                  />
+                  <Chip
+                    label={`usage charts: ${
+                      props.usageChartsEnabled ? "enabled" : "unavailable"
+                    }`}
+                    tone={props.usageChartsEnabled ? "connected" : "down"}
+                  />
+                </div>
+                {props.opsUxConfigError ? (
+                  <p className="mc-settings-inline-error">{props.opsUxConfigError}</p>
+                ) : null}
               </div>
 
               {/* Theme section */}

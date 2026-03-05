@@ -5,6 +5,7 @@ import type { MissionControlTab } from "./useAppController";
 interface UseKeyboardShortcutsOptions {
   onTabChange: (tab: MissionControlTab) => void;
   onToggleIncidentMode: () => void;
+  onToggleLiveFeed: () => void;
   onOpenCommandPalette: () => void;
   onCloseOverlay: () => void;
   /** True when a modal/overlay is open — suppresses tab shortcuts */
@@ -23,6 +24,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions) {
   const {
     onTabChange,
     onToggleIncidentMode,
+    onToggleLiveFeed,
     onOpenCommandPalette,
     onCloseOverlay,
     overlayOpen,
@@ -54,6 +56,13 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions) {
         return;
       }
 
+      // Cmd+Shift+L — toggle live feed drawer
+      if (meta && e.shiftKey && (e.key === "L" || e.key === "l")) {
+        e.preventDefault();
+        onToggleLiveFeed();
+        return;
+      }
+
       // Tab shortcuts 1-8 — only when not editing and no overlay
       if (!overlayOpen && !isEditableTarget(e) && !meta && !e.altKey && !e.shiftKey) {
         const idx = parseInt(e.key, 10);
@@ -63,7 +72,14 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions) {
         }
       }
     },
-    [onTabChange, onToggleIncidentMode, onOpenCommandPalette, onCloseOverlay, overlayOpen]
+    [
+      onTabChange,
+      onToggleIncidentMode,
+      onToggleLiveFeed,
+      onOpenCommandPalette,
+      onCloseOverlay,
+      overlayOpen,
+    ]
   );
 
   useEffect(() => {
