@@ -6,6 +6,7 @@ import type {
   AgentMailThreadDetailResponse,
   AgentProviderProfileOrderResponse,
   AnthropicSetupTokenIngestResponse,
+  AnthropicSetupTokenValidateResponse,
   AuthProfileResponse,
   BoardDetail,
   BoardDetailResponse,
@@ -41,6 +42,8 @@ import type {
   OpenAiOauthFinishResponse,
   OpenAiOauthStartResponse,
   PluginManifestResponse,
+  RemoveAgentResponse,
+  RevokeAuthProfileResponse,
   ReleaseAgentMailFileLeaseResponse,
   ResolveApprovalResponse,
   RuntimeConnectionSettings,
@@ -267,6 +270,19 @@ export async function updateAgent(
   );
 }
 
+export async function removeAgent(
+  settings: RuntimeConnectionSettings,
+  agentId: string
+): Promise<RemoveAgentResponse> {
+  return requestJson<RemoveAgentResponse>(
+    settings,
+    `/api/v1/agents/${encodeURIComponent(agentId)}/remove`,
+    {
+      method: "POST",
+    }
+  );
+}
+
 export async function createSession(
   settings: RuntimeConnectionSettings,
   payload: {
@@ -488,6 +504,26 @@ export async function createAuthProfile(
   });
 }
 
+export async function revokeAuthProfile(
+  settings: RuntimeConnectionSettings,
+  authProfileId: string,
+  payload: {
+    reason?: string;
+    remove_secret?: boolean;
+    kill_switch_scope?: string;
+    disable_profile?: boolean;
+  } = {}
+): Promise<RevokeAuthProfileResponse> {
+  return requestJson<RevokeAuthProfileResponse>(
+    settings,
+    `/api/v1/security/auth-profiles/${encodeURIComponent(authProfileId)}/revoke`,
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
 export async function getAgentProviderProfileOrder(
   settings: RuntimeConnectionSettings,
   agentId: string,
@@ -597,6 +633,23 @@ export async function ingestAnthropicSetupToken(
   return requestJson<AnthropicSetupTokenIngestResponse>(
     settings,
     "/api/v1/auth/anthropic/setup-token/ingest",
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
+export async function validateAnthropicSetupToken(
+  settings: RuntimeConnectionSettings,
+  payload: {
+    setup_token: string;
+    api_base_url?: string;
+  }
+): Promise<AnthropicSetupTokenValidateResponse> {
+  return requestJson<AnthropicSetupTokenValidateResponse>(
+    settings,
+    "/api/v1/auth/anthropic/setup-token/validate",
     {
       method: "POST",
       body: payload,

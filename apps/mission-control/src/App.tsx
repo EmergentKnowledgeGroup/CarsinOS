@@ -160,7 +160,11 @@ export default function App() {
     settings,
     tokenConfigured,
     agents,
+    authProfiles: missionControl.authProfiles,
     boards,
+    refreshAuthProfiles: async () => {
+      await missionControl.loadMissionControlReadModels(settings);
+    },
     setNotice,
   });
   const queueMissionControlRefresh = missionControl.queueMissionControlRefresh;

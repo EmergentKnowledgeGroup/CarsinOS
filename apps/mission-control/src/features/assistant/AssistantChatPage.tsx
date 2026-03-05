@@ -41,29 +41,58 @@ export function AssistantChatPage(props: AssistantChatPageProps) {
           </label>
           <label>
             Model provider
-            <input
+            <select
               value={c.modelProvider}
               onChange={(event) => c.setModelProvider(event.target.value)}
-              placeholder="ollama"
-            />
+              disabled={c.providerOptions.length === 0}
+            >
+              {c.providerOptions.length === 0 ? (
+                <option value="">No providers discovered</option>
+              ) : null}
+              {c.providerOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             Model ID
-            <input
+            <select
               value={c.modelId}
               onChange={(event) => c.setModelId(event.target.value)}
-              placeholder="qwen3.5-9b"
-            />
+              disabled={c.modelsLoading || c.modelOptions.length === 0}
+            >
+              {c.modelsLoading ? <option value="">Loading models...</option> : null}
+              {!c.modelsLoading && c.modelOptions.length === 0 ? (
+                <option value="">No models discovered</option>
+              ) : null}
+              {c.modelOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             Auth profile (optional)
-            <input
+            <select
               value={c.authProfileId}
               onChange={(event) => c.setAuthProfileId(event.target.value)}
-              placeholder="auth-profile-id"
-            />
+            >
+              <option value="">Automatic / none</option>
+              {c.authProfileOptions.map((profile) => (
+                <option key={profile.auth_profile_id} value={profile.auth_profile_id}>
+                  {profile.display_name}
+                </option>
+              ))}
+            </select>
+            {c.authProfileOptions.length > 0 ? (
+              <small>Choose and save to keep this provider profile pinned for the selected agent.</small>
+            ) : null}
           </label>
         </div>
+        {c.modelsError ? <p className="mc-form-error">{c.modelsError}</p> : null}
         <div className="mc-assistant-toolbar-actions">
           <label>
             Send reply to board
@@ -103,6 +132,29 @@ export function AssistantChatPage(props: AssistantChatPageProps) {
             disabled={c.busy}
           >
             Insert Core Prompt
+          </button>
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => void c.saveAuthProfileSelection()}
+            disabled={
+              c.busy ||
+              c.savingAuthProfileRoute ||
+              !c.selectedAgentId.trim() ||
+              !c.modelProvider.trim() ||
+              !c.authProfileId.trim()
+            }
+          >
+            {c.savingAuthProfileRoute ? "Saving Profile..." : "Save Profile Routing"}
+          </button>
+          <button
+            type="button"
+            className="ghost"
+            onClick={() => void c.clearAllAssistantProfiles()}
+            disabled={c.busy || c.savingAuthProfileRoute || c.clearingAllProfiles}
+            title="Revoke and disable all auth profiles so you can re-auth from scratch"
+          >
+            {c.clearingAllProfiles ? "Clearing Profiles..." : "Clear All Profiles"}
           </button>
           {c.sessionId ? <span className="chip">session: {c.sessionId}</span> : null}
           {c.lastRunStatus ? <span className="chip">run: {c.lastRunStatus}</span> : null}

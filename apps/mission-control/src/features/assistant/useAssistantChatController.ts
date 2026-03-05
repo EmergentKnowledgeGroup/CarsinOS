@@ -4,19 +4,33 @@ import {
   createSession,
   createSessionMessage,
   createSessionRun,
+  getAgentProviderProfileOrder,
   getBoard,
+  listAuthProfiles,
+  listProviderCapabilities,
+  listProviderModels,
   listSessionMessages,
+  revokeAuthProfile,
+  setAgentProviderProfileOrder,
 } from "../../lib/api";
 import type { BoardSummary } from "../../app/useRuntimeConnectionController";
 import { STORAGE_KEYS } from "../../storageKeys";
 import type { NotifyFn } from "../../app/useAppController";
-import type { Agent, MessageResponse, RuntimeConnectionSettings } from "../../types";
+import { providerLabel } from "../../lib/providerCatalog";
+import type {
+  Agent,
+  AuthProfileResponse,
+  MessageResponse,
+  RuntimeConnectionSettings,
+} from "../../types";
 
 interface UseAssistantChatControllerOptions {
   settings: RuntimeConnectionSettings;
   tokenConfigured: boolean;
   agents: Agent[];
+  authProfiles: AuthProfileResponse[];
   boards: BoardSummary[];
+  refreshAuthProfiles?: () => Promise<void>;
   setNotice: NotifyFn;
 }
 
@@ -35,13 +49,50 @@ function normalizeMessages(items: MessageResponse[]): MessageResponse[] {
   return [...items].sort((left, right) => left.created_at - right.created_at);
 }
 
+function providerRequiresAuth(provider: string): boolean {
+  const normalized = provider.trim().toLowerCase();
+  return normalized === "openai" || normalized === "anthropic" || normalized === "openrouter";
+}
+
+function parseApiError(error: unknown): { code: string | null; message: string } {
+  const raw = String(error);
+  const jsonStart = raw.indexOf("{");
+  if (jsonStart === -1) {
+    return { code: null, message: raw };
+  }
+  try {
+    const payload = JSON.parse(raw.slice(jsonStart)) as {
+      error?: unknown;
+      error_code?: unknown;
+    };
+    const code = typeof payload.error_code === "string" ? payload.error_code : null;
+    const message =
+      typeof payload.error === "string" && payload.error.trim().length > 0
+        ? payload.error
+        : raw;
+    return { code, message };
+  } catch {
+    return { code: null, message: raw };
+  }
+}
+
 export function useAssistantChatController(options: UseAssistantChatControllerOptions) {
-  const { settings, tokenConfigured, agents, setNotice } = options;
+  const { settings, tokenConfigured, agents, authProfiles, refreshAuthProfiles, setNotice } =
+    options;
 
   const [selectedAgentId, setSelectedAgentId] = useState(agents[0]?.agent_id ?? "");
   const [modelProvider, setModelProvider] = useState(agents[0]?.model_provider ?? "");
   const [modelId, setModelId] = useState(agents[0]?.model_id ?? "");
   const [authProfileId, setAuthProfileId] = useState("");
+  const [providerOptions, setProviderOptions] = useState<Array<{ value: string; label: string }>>(
+    []
+  );
+  const [authProfileOrder, setAuthProfileOrder] = useState<string[]>([]);
+  const [modelOptions, setModelOptions] = useState<string[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsError, setModelsError] = useState<string | null>(null);
+  const [savingAuthProfileRoute, setSavingAuthProfileRoute] = useState(false);
+  const [clearingAllProfiles, setClearingAllProfiles] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageResponse[]>([]);
   const [draft, setDraft] = useState("");
@@ -59,6 +110,29 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
     () => [...messages].reverse().find((item) => item.role === "assistant") ?? null,
     [messages]
   );
+  const authProfileOptions = useMemo(() => {
+    if (!modelProvider.trim()) {
+      return [] as AuthProfileResponse[];
+    }
+    const provider = modelProvider.trim().toLowerCase();
+    const orderIndex = new Map(authProfileOrder.map((profileId, index) => [profileId, index]));
+    return authProfiles
+      .filter((profile) => profile.provider.toLowerCase() === provider && profile.enabled)
+      .sort((left, right) => {
+        const leftOrder = orderIndex.get(left.auth_profile_id);
+        const rightOrder = orderIndex.get(right.auth_profile_id);
+        if (leftOrder !== undefined && rightOrder !== undefined) {
+          return leftOrder - rightOrder;
+        }
+        if (leftOrder !== undefined) {
+          return -1;
+        }
+        if (rightOrder !== undefined) {
+          return 1;
+        }
+        return left.display_name.localeCompare(right.display_name);
+      });
+  }, [authProfiles, authProfileOrder, modelProvider]);
 
   useEffect(() => {
     if (agents.length === 0) {
@@ -91,6 +165,265 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
     setLastRunStatus(null);
     setLastError(null);
   }, [selectedAgent]);
+
+  useEffect(() => {
+    if (!tokenConfigured || !settings.gateway_url.trim()) {
+      setProviderOptions((previous) => {
+        if (previous.length > 0) {
+          return previous;
+        }
+        const fallback = [...new Set(agents.map((item) => item.model_provider).filter(Boolean))]
+          .sort((left, right) => left.localeCompare(right))
+          .map((provider) => ({ value: provider, label: providerLabel(provider) }));
+        return fallback;
+      });
+      return;
+    }
+    let cancelled = false;
+    void listProviderCapabilities(settings)
+      .then((response) => {
+        if (cancelled) {
+          return;
+        }
+        const discovered = response.items
+          .map((item) => item.provider.trim())
+          .filter((provider) => provider.length > 0);
+        const mergedProviders = new Set([
+          ...discovered,
+          ...agents.map((item) => item.model_provider).filter(Boolean),
+        ]);
+        const options = [...mergedProviders]
+          .sort((left, right) => left.localeCompare(right))
+          .map((provider) => ({
+            value: provider,
+            label: providerLabel(provider),
+          }));
+        setProviderOptions(options);
+      })
+      .catch(() => {
+        if (cancelled) {
+          return;
+        }
+        const fallback = [...new Set(agents.map((item) => item.model_provider).filter(Boolean))]
+          .sort((left, right) => left.localeCompare(right))
+          .map((provider) => ({ value: provider, label: providerLabel(provider) }));
+        setProviderOptions(fallback);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [agents, settings, tokenConfigured]);
+
+  useEffect(() => {
+    if (providerOptions.length === 0) {
+      return;
+    }
+    if (providerOptions.some((option) => option.value === modelProvider)) {
+      return;
+    }
+    const preferred =
+      selectedAgent?.model_provider &&
+      providerOptions.some((option) => option.value === selectedAgent.model_provider)
+        ? selectedAgent.model_provider
+        : providerOptions[0].value;
+    setModelProvider(preferred);
+  }, [modelProvider, providerOptions, selectedAgent]);
+
+  useEffect(() => {
+    const provider = modelProvider.trim().toLowerCase();
+    const agentId = selectedAgentId.trim();
+    if (!provider || !agentId || !tokenConfigured || !settings.gateway_url.trim()) {
+      setAuthProfileOrder([]);
+      return;
+    }
+    let cancelled = false;
+    void getAgentProviderProfileOrder(settings, agentId, provider)
+      .then((response) => {
+        if (cancelled) {
+          return;
+        }
+        setAuthProfileOrder(response.profile_ids);
+      })
+      .catch(() => {
+        if (cancelled) {
+          return;
+        }
+        setAuthProfileOrder([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [modelProvider, selectedAgentId, settings, tokenConfigured]);
+
+  useEffect(() => {
+    const provider = modelProvider.trim();
+    if (authProfileOptions.length === 0) {
+      setAuthProfileId("");
+      return;
+    }
+    if (authProfileId && authProfileOptions.some((item) => item.auth_profile_id === authProfileId)) {
+      return;
+    }
+    if (providerRequiresAuth(provider)) {
+      setAuthProfileId(authProfileOptions[0].auth_profile_id);
+      return;
+    }
+    if (authProfileId) {
+      setAuthProfileId("");
+    }
+  }, [authProfileId, authProfileOptions, modelProvider]);
+
+  useEffect(() => {
+    if (!selectedAgent) {
+      return;
+    }
+    if (!selectedAgent.model_provider || selectedAgent.model_provider !== modelProvider) {
+      return;
+    }
+    if (!selectedAgent.model_id) {
+      return;
+    }
+    if (modelId || modelOptions.length === 0) {
+      return;
+    }
+    if (modelOptions.includes(selectedAgent.model_id)) {
+      setModelId(selectedAgent.model_id);
+    }
+  }, [modelId, modelOptions, modelProvider, selectedAgent]);
+
+  useEffect(() => {
+    if (!modelProvider.trim() || modelId) {
+      return;
+    }
+    if (modelOptions.length > 0) {
+      setModelId(modelOptions[0]);
+    }
+  }, [modelId, modelOptions, modelProvider]);
+
+  useEffect(() => {
+    const provider = modelProvider.trim();
+    const providerName = providerLabel(provider);
+    const providerNeedsAuth = providerRequiresAuth(provider);
+    if (!provider) {
+      setModelOptions([]);
+      setModelsError("Select a model provider.");
+      setModelsLoading(false);
+      return;
+    }
+    if (providerNeedsAuth && authProfileOptions.length === 0) {
+      setModelOptions([]);
+      setModelId("");
+      setModelsError(
+        `No eligible ${providerName} auth profiles are available. Add one, then save it for this agent.`
+      );
+      setModelsLoading(false);
+      return;
+    }
+    if (providerNeedsAuth && !authProfileId.trim()) {
+      setModelOptions([]);
+      setModelId("");
+      setModelsError(`Select a ${providerName} auth profile to load model choices.`);
+      setModelsLoading(false);
+      return;
+    }
+    if (!tokenConfigured || !settings.gateway_url.trim()) {
+      const fallback = selectedAgent?.model_provider === provider && selectedAgent.model_id
+        ? [selectedAgent.model_id]
+        : [];
+      setModelOptions(fallback);
+      setModelsError(null);
+      setModelsLoading(false);
+      if (fallback.length > 0) {
+        setModelId((current) => (current ? current : fallback[0]));
+      }
+      return;
+    }
+
+    let cancelled = false;
+    setModelsLoading(true);
+    setModelsError(null);
+    void listProviderModels(settings, {
+      provider,
+      agent_id: selectedAgentId || undefined,
+      auth_profile_id: authProfileId || undefined,
+    })
+      .then((response) => {
+        if (cancelled) {
+          return;
+        }
+        const models = response.items.map((item) => item.model_id);
+        setModelOptions(models);
+        if (models.length === 0) {
+          setModelId("");
+          setModelsError(`No models reported for ${providerName}.`);
+          return;
+        }
+        setModelId((current) => {
+          if (current && models.includes(current)) {
+            return current;
+          }
+          if (
+            selectedAgent?.model_provider === provider &&
+            selectedAgent.model_id &&
+            models.includes(selectedAgent.model_id)
+          ) {
+            return selectedAgent.model_id;
+          }
+          return models[0];
+        });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return;
+        }
+        const parsed = parseApiError(error);
+        const fallback = selectedAgent?.model_provider === provider && selectedAgent.model_id
+          ? [selectedAgent.model_id]
+          : [];
+        setModelOptions(fallback);
+        if (fallback.length > 0) {
+          setModelId((current) => (current && fallback.includes(current) ? current : fallback[0]));
+        }
+        if (parsed.code === "AUTH_FORBIDDEN") {
+          setModelsError(
+            authProfileId
+              ? `Selected ${providerName} profile is blocked by policy. Pick another profile or un-revoke it in Security.`
+              : `${providerName} auth policy blocked model discovery for this agent.`
+          );
+          return;
+        }
+        if (parsed.code === "AUTH_REQUIRED") {
+          setModelsError(
+            authProfileOptions.length > 0
+              ? `Choose an eligible ${providerName} auth profile, then retry model discovery.`
+              : `No eligible ${providerName} auth profiles are available.`
+          );
+          return;
+        }
+        if (fallback.length > 0) {
+          setModelsError(null);
+        } else {
+          setModelsError(parsed.message);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setModelsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    authProfileId,
+    authProfileOptions.length,
+    modelProvider,
+    selectedAgent,
+    selectedAgentId,
+    settings,
+    tokenConfigured,
+  ]);
 
   useEffect(() => {
     try {
@@ -169,6 +502,101 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
     }
   }, [corePrompt, ensureSession, refreshMessages, setNotice, settings]);
 
+  const saveAuthProfileSelection = useCallback(async () => {
+    const agentId = selectedAgentId.trim();
+    const provider = modelProvider.trim().toLowerCase();
+    const profileId = authProfileId.trim();
+    if (!agentId || !provider || !profileId) {
+      setNotice({ tone: "error", message: "Select agent, provider, and auth profile first." });
+      return;
+    }
+    setSavingAuthProfileRoute(true);
+    try {
+      const existing = await getAgentProviderProfileOrder(settings, agentId, provider);
+      const nextOrder = [
+        profileId,
+        ...existing.profile_ids.filter((candidate) => candidate !== profileId),
+      ];
+      await setAgentProviderProfileOrder(settings, agentId, provider, nextOrder);
+      setAuthProfileOrder(nextOrder);
+      setNotice({
+        tone: "info",
+        message: `Saved ${providerLabel(provider)} profile routing for agent ${agentId}.`,
+      });
+    } catch (error: unknown) {
+      setNotice({
+        tone: "error",
+        message: `Profile save failed: ${String(error)}`,
+      });
+    } finally {
+      setSavingAuthProfileRoute(false);
+    }
+  }, [authProfileId, modelProvider, selectedAgentId, setNotice, settings]);
+
+  const clearAllAssistantProfiles = useCallback(async () => {
+    if (!tokenConfigured) {
+      setNotice({ tone: "error", message: "Gateway token is missing." });
+      return;
+    }
+    const shouldProceed =
+      typeof window === "undefined"
+        ? true
+        : window.confirm(
+            "Clear all assistant auth profiles? This revokes tokens and disables every profile."
+          );
+    if (!shouldProceed) {
+      return;
+    }
+    setClearingAllProfiles(true);
+    try {
+      const profiles = await listAuthProfiles(settings, { includeDisabled: true });
+      if (profiles.length === 0) {
+        setNotice({ tone: "info", message: "No assistant profiles found to clear." });
+        return;
+      }
+      const results = await Promise.allSettled(
+        profiles.map((profile) =>
+          revokeAuthProfile(settings, profile.auth_profile_id, {
+            reason: "assistant profile reset",
+            remove_secret: true,
+            disable_profile: true,
+            kill_switch_scope: "profile",
+          })
+        )
+      );
+      const failed = results.filter((result) => result.status === "rejected");
+      if (failed.length > 0) {
+        const firstFailure = String((failed[0] as PromiseRejectedResult).reason);
+        setNotice({
+          tone: "error",
+          message: `Cleared ${profiles.length - failed.length}/${profiles.length} profiles. First error: ${firstFailure}`,
+        });
+      } else {
+        setNotice({
+          tone: "info",
+          message: `Cleared ${profiles.length} assistant profile${
+            profiles.length === 1 ? "" : "s"
+          }.`,
+        });
+      }
+      setAuthProfileId("");
+      setAuthProfileOrder([]);
+      setModelId("");
+      setModelOptions([]);
+      setModelsError(null);
+      if (refreshAuthProfiles) {
+        await refreshAuthProfiles();
+      }
+    } catch (error: unknown) {
+      setNotice({
+        tone: "error",
+        message: `Clear profiles failed: ${String(error)}`,
+      });
+    } finally {
+      setClearingAllProfiles(false);
+    }
+  }, [refreshAuthProfiles, setNotice, settings, tokenConfigured]);
+
   const send = useCallback(async () => {
     const body = draft.trim();
     if (!body) {
@@ -180,6 +608,13 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
     }
     if (!modelProvider.trim() || !modelId.trim()) {
       setNotice({ tone: "error", message: "Model provider and model are required." });
+      return;
+    }
+    if (providerRequiresAuth(modelProvider) && !authProfileId.trim()) {
+      setNotice({
+        tone: "error",
+        message: `${providerLabel(modelProvider)} requires an auth profile. Select one first.`,
+      });
       return;
     }
 
@@ -268,10 +703,17 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
     selectedAgent,
     modelProvider,
     setModelProvider,
+    providerOptions,
     modelId,
     setModelId,
+    modelOptions,
+    modelsLoading,
+    modelsError,
     authProfileId,
     setAuthProfileId,
+    authProfileOptions,
+    savingAuthProfileRoute,
+    clearingAllProfiles,
     sessionId,
     messages,
     draft,
@@ -285,6 +727,8 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
     lastRunStatus,
     lastError,
     send,
+    saveAuthProfileSelection,
+    clearAllAssistantProfiles,
     startNewChat,
     injectCorePrompt,
     sendLastAssistantToBoard,

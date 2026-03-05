@@ -24,13 +24,15 @@ use carsinos_protocol::{
     AgentMailFileLeaseResponse, AgentMailMessageRecipientResponse, AgentMailMessageResponse,
     AgentMailThreadDetailResponse, AgentMailThreadParticipantResponse,
     AgentMailThreadSummaryResponse, AgentResponse, AnthropicSetupTokenIngestRequest,
-    AnthropicSetupTokenIngestResponse, ApprovalResponse, AssistantMemoryScope, AssistantTaskHandle,
-    AssistantToolCapabilitiesResponse, AssistantToolCapabilityItem, AssistantToolLimitsResponse,
-    AssistantToolRpcRequest, AssistantToolRpcResponse, AssistantWorkerSummary,
-    AssistantWorkerTemplateResponse, AssistantWorkerTemplateRunDefaults, AuthProfileResponse,
-    BoardAutomationRuleResponse, BoardCardAssetResponse, BoardCardResponse, BoardColumnResponse,
-    BoardDetailResponse, BoardSummaryResponse, ChannelRuntimeAdapterStatusResponse,
-    CircuitBreakerStateResponse, CreateAgentMailFileLeaseRequest, CreateAgentMailFileLeaseResponse,
+    AnthropicSetupTokenIngestResponse, AnthropicSetupTokenValidateRequest,
+    AnthropicSetupTokenValidateResponse, ApprovalResponse, AssistantMemoryScope,
+    AssistantTaskHandle, AssistantToolCapabilitiesResponse, AssistantToolCapabilityItem,
+    AssistantToolLimitsResponse, AssistantToolRpcRequest, AssistantToolRpcResponse,
+    AssistantWorkerSummary, AssistantWorkerTemplateResponse, AssistantWorkerTemplateRunDefaults,
+    AuthProfileResponse, BoardAutomationRuleResponse, BoardCardAssetResponse, BoardCardResponse,
+    BoardColumnResponse, BoardDetailResponse, BoardSummaryResponse,
+    ChannelRuntimeAdapterStatusResponse, CircuitBreakerStateResponse,
+    CreateAgentMailFileLeaseRequest, CreateAgentMailFileLeaseResponse,
     CreateAgentMailThreadRequest, CreateAgentMailThreadResponse, CreateAgentRequest,
     CreateAgentResponse, CreateApprovalRequest, CreateApprovalResponse, CreateAuthProfileRequest,
     CreateAuthProfileResponse, CreateBoardCardRequest, CreateBoardCardResponse, CreateJobRequest,
@@ -63,7 +65,7 @@ use carsinos_protocol::{
     ProviderCapabilityResponse, ProviderModelResponse, ReconnectChannelRuntimeRequest,
     ReconnectChannelRuntimeResponse, RefreshRuntimeTrustContractLockRequest,
     RefreshRuntimeTrustContractLockResponse, ReleaseAgentMailFileLeaseRequest,
-    ReleaseAgentMailFileLeaseResponse, RemoveJobResponse, ResolveApprovalRequest,
+    ReleaseAgentMailFileLeaseResponse, RemoveAgentResponse, RemoveJobResponse, ResolveApprovalRequest,
     ResolveApprovalResponse, ResolveChannelApprovalActionRequest, RollbackPluginRequest,
     RollbackPluginResponse, RollbackRuntimeConfigRequest, RollbackRuntimeConfigResponse,
     RunBoardAutomationRuleResponse, RunBoardCardRequest, RunBoardCardResponse, RunJobNowResponse,
@@ -3236,9 +3238,6 @@ async fn resolve_provider_models_auth_profile(
     }
     if !profile.enabled {
         anyhow::bail!("requested auth profile is disabled: {profile_id}");
-    }
-    if profile.kill_switch_scope == KILL_SWITCH_SCOPE_PROFILE {
-        anyhow::bail!("requested auth profile is kill-switched at profile scope");
     }
     if !provider_auth_mode_allowed(provider, &profile.auth_mode) {
         anyhow::bail!(
@@ -6444,6 +6443,7 @@ fn build_app(state: AppState) -> Router {
             "/api/v1/agents/{agent_id}",
             get(get_agent).post(update_agent),
         )
+        .route("/api/v1/agents/{agent_id}/remove", post(remove_agent))
         .route("/api/v1/boards", get(list_boards))
         .route("/api/v1/boards/{board_id}", get(get_board))
         .route(
@@ -6523,6 +6523,10 @@ fn build_app(state: AppState) -> Router {
         .route(
             "/api/v1/auth/anthropic/setup-token/ingest",
             post(anthropic_setup_token_ingest),
+        )
+        .route(
+            "/api/v1/auth/anthropic/setup-token/validate",
+            post(anthropic_setup_token_validate),
         )
         .route(
             "/api/v1/auth/agents/{agent_id}/providers/{provider}/profile-order",
@@ -7167,6 +7171,49 @@ async fn update_agent(
     }))
 }
 
+async fn remove_agent(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(agent_id): Path<String>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let agent_id = agent_id.trim().to_ascii_lowercase();
+    if agent_id.is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "agent_id cannot be empty",
+        ));
+    }
+    let removed = state.storage.remove_agent(&agent_id).map_err(|err| {
+        if err.to_string().contains("FOREIGN KEY constraint failed") {
+            api_error(
+                StatusCode::CONFLICT,
+                "agent cannot be removed because it has linked sessions, runs, rules, or history",
+            )
+        } else {
+            internal_err_with_error("removing agent failed", err)
+        }
+    })?;
+    if removed {
+        record_security_audit(
+            &headers,
+            &state,
+            &auth,
+            "agent.remove",
+            &format!("agent:{agent_id}"),
+            "allow",
+            Some("agent removed".to_string()),
+            StatusCode::OK,
+            None,
+            None,
+            None,
+            None,
+        );
+    }
+    Ok(Json(RemoveAgentResponse { agent_id, removed }))
+}
+
 async fn list_boards(
     headers: HeaderMap,
     State(state): State<AppState>,
@@ -7639,7 +7686,14 @@ async fn run_board_card(
     let agent_id = card
         .owner_agent_id
         .clone()
-        .unwrap_or_else(|| "lyra".to_string());
+        .or_else(|| {
+            state
+                .storage
+                .list_agents()
+                .ok()
+                .and_then(|items| items.into_iter().next().map(|item| item.agent_id))
+        })
+        .ok_or_else(|| api_error(StatusCode::CONFLICT, "no agents configured for board run"))?;
     let session_key = format!("board:{board_id}:card:{card_id}:agent:{agent_id}");
     let session = match state
         .storage
@@ -7974,7 +8028,14 @@ async fn upsert_board_automation_rule(
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .or_else(|| existing_rule.as_ref().map(|rule| rule.agent_id.clone()))
-        .unwrap_or_else(|| "lyra".to_string());
+        .or_else(|| {
+            state
+                .storage
+                .list_agents()
+                .ok()
+                .and_then(|items| items.into_iter().next().map(|item| item.agent_id))
+        })
+        .ok_or_else(|| api_error(StatusCode::CONFLICT, "no agents configured for automation rule"))?;
     let max_cards_per_run = request
         .max_cards_per_run
         .map(|value| value as i64)
@@ -9699,6 +9760,40 @@ async fn anthropic_setup_token_ingest(
             profile: to_auth_profile_response(profile),
         }),
     ))
+}
+
+async fn anthropic_setup_token_validate(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<AnthropicSetupTokenValidateRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_AUTOMATION_RUNNER])?;
+
+    let setup_token = request.setup_token.trim().to_string();
+    if setup_token.is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "setup_token cannot be empty",
+        ));
+    }
+    let api_base_url = request
+        .api_base_url
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| ANTHROPIC_DEFAULT_API_BASE.to_string());
+
+    validate_anthropic_setup_token(&api_base_url, &setup_token)
+        .await
+        .map_err(|err| {
+            api_error(
+                StatusCode::BAD_GATEWAY,
+                &format!("setup token validation failed: {err}"),
+            )
+        })?;
+
+    Ok(Json(AnthropicSetupTokenValidateResponse { ok: true }))
 }
 
 fn random_urlsafe_token(min_len: usize) -> String {
@@ -24122,9 +24217,6 @@ async fn resolve_run_auth_profiles(
             if !profile.enabled {
                 anyhow::bail!("requested auth profile is disabled: {profile_id}");
             }
-            if profile.kill_switch_scope == KILL_SWITCH_SCOPE_PROFILE {
-                anyhow::bail!("requested auth profile is kill-switched at profile scope");
-            }
             if !provider_auth_mode_allowed(provider, &profile.auth_mode) {
                 anyhow::bail!(
                     "requested auth profile mode '{}' not allowed for provider '{}'",
@@ -24160,10 +24252,7 @@ async fn resolve_run_auth_profiles(
             let Some(profile) = state.storage.get_auth_profile(&profile_id)? else {
                 continue;
             };
-            if !profile.enabled
-                || profile.provider != provider
-                || profile.kill_switch_scope == KILL_SWITCH_SCOPE_PROFILE
-            {
+            if !profile.enabled || profile.provider != provider {
                 continue;
             }
             if !provider_auth_mode_allowed(provider, &profile.auth_mode) {
@@ -24220,9 +24309,6 @@ async fn resolve_run_auth_profiles(
         if !profile.enabled {
             anyhow::bail!("requested auth profile is disabled: {profile_id}");
         }
-        if profile.kill_switch_scope == KILL_SWITCH_SCOPE_PROFILE {
-            anyhow::bail!("requested auth profile is kill-switched at profile scope");
-        }
         if !provider_auth_mode_allowed(provider, &profile.auth_mode) {
             anyhow::bail!(
                 "requested auth profile mode '{}' not allowed for provider '{}'",
@@ -24261,10 +24347,7 @@ async fn resolve_run_auth_profiles(
         let Some(profile) = state.storage.get_auth_profile(&profile_id)? else {
             continue;
         };
-        if !profile.enabled
-            || profile.provider != provider
-            || profile.kill_switch_scope == KILL_SWITCH_SCOPE_PROFILE
-        {
+        if !profile.enabled || profile.provider != provider {
             continue;
         }
         let profile = match maybe_refresh_expired_auth_profile(state, profile).await {
@@ -24340,9 +24423,6 @@ async fn resolve_run_auth_profiles(
     let mut fallback_candidates = Vec::new();
     for profile in enabled_profiles {
         if seen.contains(&profile.auth_profile_id) {
-            continue;
-        }
-        if profile.kill_switch_scope == KILL_SWITCH_SCOPE_PROFILE {
             continue;
         }
         let profile = match maybe_refresh_expired_auth_profile(state, profile).await {
@@ -27724,13 +27804,20 @@ mod tests {
         title: &str,
         content_text: &str,
     ) -> String {
+        create_test_agent(ctx, "session-agent", "Session Agent").await;
         let create_session_response = ctx
             .app
             .clone()
             .oneshot(auth_request(
                 "POST",
                 "/api/v1/sessions",
-                Body::from(serde_json::json!({ "title": title }).to_string()),
+                Body::from(
+                    serde_json::json!({
+                        "title": title,
+                        "agent_id": "session-agent"
+                    })
+                    .to_string(),
+                ),
             ))
             .await
             .expect("create session");
@@ -27760,6 +27847,32 @@ mod tests {
         assert_eq!(create_message_response.status(), StatusCode::CREATED);
 
         session_id
+    }
+
+    async fn create_test_agent(ctx: &TestContext, agent_id: &str, name: &str) {
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/agents",
+                Body::from(
+                    serde_json::json!({
+                        "agent_id": agent_id,
+                        "name": name,
+                        "workspace_root": ".",
+                        "tool_profile": "default"
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("create test agent response");
+        assert!(
+            response.status() == StatusCode::CREATED || response.status() == StatusCode::CONFLICT,
+            "unexpected create-test-agent status: {}",
+            response.status()
+        );
     }
 
     async fn assistant_tool_call(
@@ -31407,6 +31520,32 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         assert_eq!(run_response.status(), StatusCode::CREATED);
         let run_json = parse_json(run_response).await;
         assert_eq!(run_json["run"]["status"], "succeeded");
+    }
+
+    #[tokio::test]
+    async fn anthropic_setup_token_validate_returns_ok_for_valid_token() {
+        let ctx = test_context();
+        let stub = spawn_auth_flow_stub(AuthFlowStubConfig::anthropic("setup-token-123")).await;
+
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/anthropic/setup-token/validate",
+                Body::from(format!(
+                    r#"{{
+                        "setup_token":"setup-token-123",
+                        "api_base_url":"{}"
+                    }}"#,
+                    stub.base_url
+                )),
+            ))
+            .await
+            .expect("validate setup token");
+        assert_eq!(response.status(), StatusCode::OK);
+        let payload = parse_json(response).await;
+        assert_eq!(payload["ok"], true);
     }
 
     #[tokio::test]
@@ -36020,6 +36159,76 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     }
 
     #[tokio::test]
+    async fn provider_models_anthropic_accepts_profile_scope_auth_profile() {
+        let ctx = test_context();
+        let server = MockServer::start_async().await;
+        let models_mock = server
+            .mock_async(|when, then| {
+                when.method(GET)
+                    .path("/v1/models")
+                    .header("x-api-key", "anthropic-profile-token")
+                    .header("anthropic-version", "2023-06-01");
+                then.status(200).json_body(serde_json::json!({
+                    "data": [
+                        {"id":"claude-sonnet-profile"}
+                    ]
+                }));
+            })
+            .await;
+
+        let create_profile_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(format!(
+                    r#"{{
+                        "provider":"anthropic",
+                        "display_name":"anthropic-profile-scope",
+                        "auth_mode":"claude_consumer_oauth",
+                        "risk_level":"high",
+                        "enabled":true,
+                        "kill_switch_scope":"profile",
+                        "api_base_url":"{}",
+                        "credentials_json":{{"access_token":"anthropic-profile-token"}}
+                    }}"#,
+                    server.base_url()
+                )),
+            ))
+            .await
+            .expect("create anthropic profile response");
+        assert_eq!(create_profile_response.status(), StatusCode::CREATED);
+        let create_profile_json = parse_json(create_profile_response).await;
+        let auth_profile_id = create_profile_json["profile"]["auth_profile_id"]
+            .as_str()
+            .expect("auth profile id")
+            .to_string();
+
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!(
+                    "/api/v1/providers/models?provider=anthropic&auth_profile_id={auth_profile_id}&refresh=true"
+                ),
+                Body::empty(),
+            ))
+            .await
+            .expect("provider models anthropic response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = parse_json(response).await;
+        assert_eq!(body["auth_profile_id"], auth_profile_id);
+        assert!(body["items"]
+            .as_array()
+            .expect("anthropic model items")
+            .iter()
+            .any(|item| item["model_id"] == "claude-sonnet-profile"));
+        assert_eq!(models_mock.hits_async().await, 1);
+    }
+
+    #[tokio::test]
     async fn provider_models_lmstudio_uses_openai_compatible_catalog_path() {
         let ctx = test_context();
         let server = MockServer::start_async().await;
@@ -37464,7 +37673,7 @@ sys.stdout.write(json.dumps(response))
     }
 
     #[tokio::test]
-    async fn agents_api_lists_seeded_lyra_and_claude() {
+    async fn agents_api_starts_with_no_seeded_agents() {
         let ctx = test_context();
         let response = ctx
             .app
@@ -37475,13 +37684,13 @@ sys.stdout.write(json.dumps(response))
         assert_eq!(response.status(), StatusCode::OK);
         let json = parse_json(response).await;
         let items = json["items"].as_array().expect("agents items");
-        assert!(items.iter().any(|item| item["agent_id"] == "lyra"));
-        assert!(items.iter().any(|item| item["agent_id"] == "claude"));
+        assert!(items.is_empty());
     }
 
     #[tokio::test]
     async fn board_card_create_move_and_asset_upload_round_trip() {
         let ctx = test_context();
+        create_test_agent(&ctx, "lyra", "Lyra").await;
 
         let boards_response = ctx
             .app
@@ -37793,6 +38002,7 @@ sys.stdout.write(json.dumps(response))
     #[tokio::test]
     async fn run_board_card_links_session_and_latest_run() {
         let ctx = test_context();
+        create_test_agent(&ctx, "claude", "Claude").await;
         let boards_response = ctx
             .app
             .clone()
@@ -37874,6 +38084,7 @@ sys.stdout.write(json.dumps(response))
     #[tokio::test]
     async fn board_automation_rule_upsert_state_run_and_move_flow() {
         let ctx = test_context();
+        create_test_agent(&ctx, "lyra", "Lyra").await;
         let boards_response = ctx
             .app
             .clone()
@@ -38055,6 +38266,7 @@ sys.stdout.write(json.dumps(response))
     #[tokio::test]
     async fn board_automation_daily_run_limit_is_enforced() {
         let ctx = test_context();
+        create_test_agent(&ctx, "lyra", "Lyra").await;
         let boards_response = ctx
             .app
             .clone()
@@ -38268,6 +38480,7 @@ sys.stdout.write(json.dumps(response))
     #[tokio::test]
     async fn assistant_tools_reject_cross_boss_context() {
         let ctx = test_context();
+        create_test_agent(&ctx, "lyra", "Lyra").await;
         let session_id =
             create_session_with_user_message(&ctx, "assistant-cross-boss", "context check").await;
 

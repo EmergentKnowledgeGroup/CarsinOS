@@ -54,36 +54,6 @@ fn seed_default_entities(db_path: &Path) -> Result<()> {
         .transaction()
         .context("failed to start default-entity seed transaction")?;
     let now = now_ms();
-    let workspace_root = std::env::current_dir()
-        .map(|path| path.display().to_string())
-        .unwrap_or_else(|_| ".".to_string());
-
-    for (agent_id, name) in [
-        ("default", "Default Agent"),
-        ("lyra", "Lyra"),
-        ("claude", "Claude"),
-    ] {
-        tx.execute(
-            r#"
-        INSERT OR IGNORE INTO agents
-          (agent_id, name, workspace_root, model_provider, model_id, tool_profile, created_at, updated_at)
-        VALUES
-          (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
-        "#,
-            params![
-                agent_id,
-                name,
-                workspace_root,
-                "unconfigured",
-                "unconfigured",
-                "default",
-                now,
-                now
-            ],
-        )
-        .with_context(|| format!("failed to seed {agent_id} agent"))?;
-    }
-
     seed_default_boards(&tx, now)?;
     tx.commit()
         .context("failed to commit default-entity seed transaction")?;
@@ -1004,6 +974,24 @@ impl Storage {
             return Ok(None);
         }
         self.get_agent(agent_id)
+    }
+
+    pub fn remove_agent(&self, agent_id: &str) -> Result<bool> {
+        let conn = self.connect()?;
+        let tx = conn
+            .unchecked_transaction()
+            .context("failed to start remove-agent transaction")?;
+        tx.execute(
+            "DELETE FROM agent_provider_profile_order WHERE agent_id = ?1",
+            params![agent_id],
+        )
+        .context("failed to clear agent profile-order rows")?;
+        let removed_rows = tx
+            .execute("DELETE FROM agents WHERE agent_id = ?1", params![agent_id])
+            .context("failed to remove agent")?;
+        tx.commit()
+            .context("failed to commit remove-agent transaction")?;
+        Ok(removed_rows > 0)
     }
 
     pub fn list_boards(&self) -> Result<Vec<BoardRecord>> {

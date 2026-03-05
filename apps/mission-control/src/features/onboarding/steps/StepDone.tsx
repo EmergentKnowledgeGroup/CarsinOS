@@ -7,7 +7,7 @@ interface StepDoneProps {
 export function StepDone(props: StepDoneProps) {
   return (
     <OnboardingStepShell
-      stepLabel="Step 8 of 8"
+      stepLabel="Step 6 of 6"
       title="Setup Complete"
       subtitle="Mission Control onboarding is complete. You can start operating now."
       actions={

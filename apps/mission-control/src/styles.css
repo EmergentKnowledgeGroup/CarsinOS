@@ -4040,47 +4040,6 @@ button.danger:hover {
   color: var(--info-ink);
 }
 
-/* ─── UI PRIMITIVES: Skeleton ─────────────────────────────────────────────── */
-
-.mc-skeleton {
-  background: var(--surface);
-  border-radius: var(--radius-sm);
-  position: relative;
-  overflow: hidden;
-}
-
-.mc-skeleton::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    var(--surface-hover) 40%,
-    var(--surface-hover) 60%,
-    transparent 100%
-  );
-  animation: mc-shimmer 1.6s ease-in-out infinite;
-}
-
-@keyframes mc-shimmer {
-  0%   { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
-
-.mc-skeleton-text {
-  width: 100%;
-  height: 1em;
-}
-
-.mc-skeleton-circle {
-  border-radius: var(--radius-full);
-}
-
-.mc-skeleton-rect {
-  border-radius: var(--radius-sm);
-}
-
 /* ─── UI PRIMITIVES: Pagination ───────────────────────────────────────────── */
 
 .mc-pagination {

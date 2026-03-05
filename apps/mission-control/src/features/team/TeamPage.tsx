@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { Plus, Pencil, Bot } from "lucide-react";
+import { Plus, Pencil, Bot, Copy } from "lucide-react";
 import clsx from "clsx";
 import { Modal } from "../../ui/Modal";
 import { Pagination } from "../../ui/Pagination";
@@ -55,6 +55,20 @@ const FALLBACK_PROVIDER_OPTIONS = [
   { value: "anthropic", label: "Anthropic" },
   { value: "other", label: "Other" },
 ];
+
+function nextCloneAgentId(seed: string, agents: Agent[]): string {
+  const normalizedSeed = seed.trim().toLowerCase() || "agent";
+  const taken = new Set(agents.map((agent) => agent.agent_id.trim().toLowerCase()));
+  const candidate = `${normalizedSeed}-copy`;
+  if (!taken.has(candidate)) {
+    return candidate;
+  }
+  let index = 2;
+  while (taken.has(`${candidate}-${index}`)) {
+    index += 1;
+  }
+  return `${candidate}-${index}`;
+}
 
 export function TeamPage({ agents, activeJobCount, settings, onRefresh }: TeamPageProps) {
   const [page, setPage] = useState(1);
@@ -238,6 +252,27 @@ export function TeamPage({ agents, activeJobCount, settings, onRefresh }: TeamPa
     setModalMode("edit");
   }, []);
 
+  const openClone = useCallback(
+    (agent: Agent) => {
+      const clonedId = nextCloneAgentId(agent.agent_id, agents);
+      setForm({
+        agent_id: clonedId,
+        name: `${agent.name} Copy`,
+        model_provider: agent.model_provider,
+        model_id: agent.model_id,
+        tool_profile: agent.tool_profile ?? "standard",
+        workspace_root: agent.workspace_root ?? "",
+      });
+      setError(null);
+      setProviderCapabilitiesError(null);
+      setModelsByProvider({});
+      setModelErrorsByProvider({});
+      setModelLoadingProvider(null);
+      setModalMode("create");
+    },
+    [agents]
+  );
+
   const closeModal = useCallback(() => {
     setModalMode(null);
     setError(null);
@@ -345,6 +380,14 @@ export function TeamPage({ agents, activeJobCount, settings, onRefresh }: TeamPa
                   title="Edit agent"
                 >
                   <Pencil size={14} />
+                </button>
+                <button
+                  type="button"
+                  className="mc-topbar-icon-btn"
+                  onClick={() => openClone(agent)}
+                  title="Clone agent as new"
+                >
+                  <Copy size={14} />
                 </button>
                 <button
                   type="button"

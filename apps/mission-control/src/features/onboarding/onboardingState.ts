@@ -16,9 +16,7 @@ export type OnboardingStepId =
   | "mode"
   | "preflight"
   | "connect"
-  | "agent"
   | "provider"
-  | "routing"
   | "review"
   | "done";
 

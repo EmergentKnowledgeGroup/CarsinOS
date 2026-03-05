@@ -1,4 +1,4 @@
-import type { AuthProfileResponse } from "../../../types";
+import type { Agent, AuthProfileResponse } from "../../../types";
 import { OnboardingStepShell } from "../OnboardingStepShell";
 import type {
   OnboardingAnthropicAuthMode,
@@ -7,11 +7,19 @@ import type {
 
 interface StepProviderProps {
   busy: boolean;
+  agents: Agent[];
+  selectedAgentId: string;
+  agentIdDraft: string;
+  agentNameDraft: string;
+  workspaceRootDraft: string;
+  toolProfileDraft: string;
+  agentReady: boolean;
   providerPath: OnboardingProviderPath;
   useExistingProfile: boolean;
   existingProviderProfiles: AuthProfileResponse[];
   selectedExistingProfileId: string;
   providerReady: boolean;
+  routingReady: boolean;
   localProvider: string;
   localUseConnectionProfile: boolean;
   localConnectionProfileName: string;
@@ -31,6 +39,8 @@ interface StepProviderProps {
   anthropicDisplayName: string;
   anthropicSetupToken: string;
   anthropicSetupLaunchNote: string | null;
+  anthropicValidationBusy: boolean;
+  anthropicValidationNote: string | null;
   anthropicApiBaseUrl: string;
   anthropicAccessToken: string;
   anthropicRefreshToken: string;
@@ -47,6 +57,14 @@ interface StepProviderProps {
   openAiCallbackUrl: string;
   openAiCode: string;
   openAiState: string;
+  onSelectedAgentIdChange: (value: string) => void;
+  onAgentIdDraftChange: (value: string) => void;
+  onAgentNameDraftChange: (value: string) => void;
+  onWorkspaceRootDraftChange: (value: string) => void;
+  onToolProfileDraftChange: (value: string) => void;
+  onCreateNewAgentDraft: () => void;
+  onSaveAgent: () => Promise<boolean>;
+  onDeleteSelectedAgent: () => Promise<boolean>;
   onProviderPathChange: (value: OnboardingProviderPath) => void;
   onUseExistingProfileChange: (value: boolean) => void;
   onSelectedExistingProfileIdChange: (value: string) => void;
@@ -65,6 +83,7 @@ interface StepProviderProps {
   onAnthropicDisplayNameChange: (value: string) => void;
   onAnthropicSetupTokenChange: (value: string) => void;
   onLaunchAnthropicSetupTokenFlow: () => Promise<void>;
+  onValidateAnthropicSetupToken: () => Promise<void>;
   onAnthropicApiBaseUrlChange: (value: string) => void;
   onAnthropicAccessTokenChange: (value: string) => void;
   onAnthropicRefreshTokenChange: (value: string) => void;
@@ -80,9 +99,9 @@ interface StepProviderProps {
   onOpenAiStateChange: (value: string) => void;
   onStartOpenAiOauthFlow: () => Promise<void>;
   onFinishOpenAiOauthFlow: () => Promise<void>;
-  onCompleteProvider: () => Promise<void>;
+  onReauthSelectedProfile: () => Promise<boolean>;
   onBack: () => void;
-  onNext: () => void;
+  onNext: () => void | Promise<void>;
 }
 
 export function StepProvider(props: StepProviderProps) {
@@ -92,9 +111,9 @@ export function StepProvider(props: StepProviderProps) {
     props.anthropicAuthMode === "claude_consumer_oauth";
   return (
     <OnboardingStepShell
-      stepLabel="Step 5 of 8"
-      title="Choose Provider Path"
-      subtitle="Attach Claude, OpenAI, or local connector mode."
+      stepLabel="Step 4 of 6"
+      title="Configure Agents + Providers"
+      subtitle="Create or edit agents, then attach provider auth and routing in one place."
       actions={
         <>
           <button type="button" className="ghost" onClick={props.onBack}>
@@ -102,29 +121,127 @@ export function StepProvider(props: StepProviderProps) {
           </button>
           <button
             type="button"
-            className="ghost"
             disabled={props.busy}
-            aria-busy={props.busy}
-            onClick={() => void props.onCompleteProvider()}
-          >
-            {props.busy ? "Applying..." : "Apply Provider Setup"}
-          </button>
-          <button
-            type="button"
-            disabled={props.busy || !props.providerReady}
             onClick={() => {
               if (props.busy) {
                 return;
               }
-              props.onNext();
+              void props.onNext();
             }}
           >
-            Continue
+            {props.busy ? "Applying..." : "Continue"}
           </button>
         </>
       }
     >
       <fieldset disabled={props.busy} style={{ border: "none", margin: 0, minWidth: 0, padding: 0 }}>
+        <div className="mc-onboarding-openai-block">
+          <div className="mc-onboarding-inline-actions">
+            <button
+              type="button"
+              className="ghost"
+              disabled={props.busy}
+              onClick={() => {
+                if (props.busy) {
+                  return;
+                }
+                props.onCreateNewAgentDraft();
+              }}
+            >
+              New agent draft
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              disabled={props.busy}
+              onClick={() => {
+                if (props.busy) {
+                  return;
+                }
+                void props.onSaveAgent();
+              }}
+            >
+              {props.busy ? "Saving..." : "Save agent"}
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              disabled={props.busy || !props.selectedAgentId}
+              onClick={() => {
+                if (props.busy || !props.selectedAgentId) {
+                  return;
+                }
+                void props.onDeleteSelectedAgent();
+              }}
+            >
+              Delete selected
+            </button>
+          </div>
+
+          {props.agents.length > 0 ? (
+            <label>
+              Existing agents
+              <select
+                value={props.selectedAgentId}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  if (!value) {
+                    props.onCreateNewAgentDraft();
+                    return;
+                  }
+                  props.onSelectedAgentIdChange(value);
+                }}
+              >
+                <option value="">Create new agent...</option>
+                {props.agents.map((agent) => (
+                  <option key={agent.agent_id} value={agent.agent_id}>
+                    {agent.name} ({agent.agent_id})
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <p className="mc-onboarding-note">
+              No agents are configured yet. Add your first assistant agent below.
+            </p>
+          )}
+
+          <div className="mc-onboarding-field-grid">
+            <label>
+              Agent ID
+              <input
+                value={props.agentIdDraft}
+                onChange={(event) => props.onAgentIdDraftChange(event.target.value)}
+                placeholder="assistant-1"
+              />
+            </label>
+            <label>
+              Agent name
+              <input
+                value={props.agentNameDraft}
+                onChange={(event) => props.onAgentNameDraftChange(event.target.value)}
+                placeholder="Assistant"
+              />
+            </label>
+            <label>
+              Workspace root
+              <input
+                value={props.workspaceRootDraft}
+                onChange={(event) => props.onWorkspaceRootDraftChange(event.target.value)}
+                placeholder="."
+              />
+            </label>
+            <label>
+              Tool profile
+              <input
+                value={props.toolProfileDraft}
+                onChange={(event) => props.onToolProfileDraftChange(event.target.value)}
+                placeholder="default"
+              />
+            </label>
+          </div>
+        </div>
+
         <div className="mc-onboarding-choice-grid">
           <label className="mc-onboarding-choice">
             <input
@@ -219,7 +336,7 @@ export function StepProvider(props: StepProviderProps) {
                 <label>
                   API key (optional)
                   <input
-                    type="password"
+                    type="text"
                     value={props.localApiKey}
                     onChange={(event) => props.onLocalApiKeyChange(event.target.value)}
                     placeholder="Bearer token if required"
@@ -348,19 +465,36 @@ export function StepProvider(props: StepProviderProps) {
             ) : null}
 
             {props.useExistingProfile && hasExistingProfiles ? (
-              <label>
-                Existing profile
-                <select
-                  value={props.selectedExistingProfileId}
-                  onChange={(event) => props.onSelectedExistingProfileIdChange(event.target.value)}
-                >
-                  {props.existingProviderProfiles.map((profile) => (
-                    <option key={profile.auth_profile_id} value={profile.auth_profile_id}>
-                      {profile.display_name}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <>
+                <label>
+                  Existing profile
+                  <select
+                    value={props.selectedExistingProfileId}
+                    onChange={(event) => props.onSelectedExistingProfileIdChange(event.target.value)}
+                  >
+                    {props.existingProviderProfiles.map((profile) => (
+                      <option key={profile.auth_profile_id} value={profile.auth_profile_id}>
+                        {profile.display_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="mc-onboarding-inline-actions">
+                  <button
+                    type="button"
+                    className="ghost"
+                    disabled={props.busy || !props.selectedExistingProfileId}
+                    onClick={() => {
+                      if (props.busy || !props.selectedExistingProfileId) {
+                        return;
+                      }
+                      void props.onReauthSelectedProfile();
+                    }}
+                  >
+                    Reauth selected profile
+                  </button>
+                </div>
+              </>
             ) : null}
 
             {!props.useExistingProfile || !hasExistingProfiles ? (
@@ -438,7 +572,7 @@ export function StepProvider(props: StepProviderProps) {
                           <label>
                             Setup token
                             <input
-                              type="password"
+                              type="text"
                               value={props.anthropicSetupToken}
                               onChange={(event) =>
                                 props.onAnthropicSetupTokenChange(event.target.value)
@@ -447,6 +581,24 @@ export function StepProvider(props: StepProviderProps) {
                             />
                           </label>
                         </div>
+                        <div className="mc-onboarding-inline-actions">
+                          <button
+                            type="button"
+                            className="ghost"
+                            disabled={props.busy || props.anthropicValidationBusy}
+                            onClick={() => {
+                              if (props.busy || props.anthropicValidationBusy) {
+                                return;
+                              }
+                              void props.onValidateAnthropicSetupToken();
+                            }}
+                          >
+                            {props.anthropicValidationBusy ? "Validating..." : "Validate key"}
+                          </button>
+                        </div>
+                        {props.anthropicValidationNote ? (
+                          <p className="mc-onboarding-note">{props.anthropicValidationNote}</p>
+                        ) : null}
                       </>
                     ) : null}
 
@@ -460,7 +612,7 @@ export function StepProvider(props: StepProviderProps) {
                           <label>
                             Access token
                             <input
-                              type="password"
+                              type="text"
                               value={props.anthropicAccessToken}
                               onChange={(event) =>
                                 props.onAnthropicAccessTokenChange(event.target.value)
@@ -471,7 +623,7 @@ export function StepProvider(props: StepProviderProps) {
                           <label>
                             Refresh token (optional)
                             <input
-                              type="password"
+                              type="text"
                               value={props.anthropicRefreshToken}
                               onChange={(event) =>
                                 props.onAnthropicRefreshTokenChange(event.target.value)
@@ -629,7 +781,9 @@ export function StepProvider(props: StepProviderProps) {
       </fieldset>
 
       <p className="mc-onboarding-status-row">
-        Provider status: <strong>{props.providerReady ? "Ready" : "Not ready"}</strong>
+        Agent status: <strong>{props.agentReady ? "Ready" : "Not ready"}</strong> · Provider
+        status: <strong>{props.providerReady ? "Ready" : "Not ready"}</strong> · Routing status:{" "}
+        <strong>{props.routingReady ? "Ready" : "Not ready"}</strong>
       </p>
     </OnboardingStepShell>
   );

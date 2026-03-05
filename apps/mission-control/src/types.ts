@@ -104,6 +104,11 @@ export interface UpdateAgentResponse {
   agent: Agent;
 }
 
+export interface RemoveAgentResponse {
+  agent_id: string;
+  removed: boolean;
+}
+
 export interface SessionSummaryResponse {
   session_id: string;
   session_key: string;
@@ -398,6 +403,12 @@ export interface CreateAuthProfileResponse {
   profile: AuthProfileResponse;
 }
 
+export interface RevokeAuthProfileResponse {
+  profile: AuthProfileResponse;
+  revoked_secret_ref: string | null;
+  reason: string | null;
+}
+
 export interface AgentProviderProfileOrderResponse {
   agent_id: string;
   provider: string;
@@ -419,6 +430,10 @@ export interface OpenAiOauthFinishResponse {
 
 export interface AnthropicSetupTokenIngestResponse {
   profile: AuthProfileResponse;
+}
+
+export interface AnthropicSetupTokenValidateResponse {
+  ok: boolean;
 }
 
 export interface SkillResponse {
