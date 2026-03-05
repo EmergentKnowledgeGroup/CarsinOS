@@ -32,8 +32,6 @@ export function GuidedTourOverlay(props: GuidedTourOverlayProps) {
   const bubbleRef = useRef<HTMLElement | null>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const step = props.steps[props.stepIndex] ?? null;
-  const progressLabel = `${props.stepIndex + 1}/${props.steps.length}`;
-  const progressPercent = ((props.stepIndex + 1) / Math.max(props.steps.length, 1)) * 100;
 
   useEffect(() => {
     if (!props.open || !step) {
@@ -159,25 +157,8 @@ export function GuidedTourOverlay(props: GuidedTourOverlayProps) {
         className="mc-tour-bubble"
         style={{ left: `${bubbleStyle.left}px`, top: `${bubbleStyle.top}px` }}
         tabIndex={-1}
-        aria-live="polite"
       >
-        <div className="mc-tour-header">
-          <div className="mc-tour-progress-block">
-            <span
-              className="mc-tour-progress-chip"
-              aria-label={`Guided tour step ${props.stepIndex + 1} of ${props.steps.length}`}
-            >
-              {progressLabel}
-            </span>
-            <p className="mc-tour-step">Guided tour</p>
-          </div>
-          <div className="mc-tour-progress-track" aria-hidden="true">
-            <span
-              className="mc-tour-progress-fill"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
-        </div>
+        <p className="mc-tour-step">Step {props.stepIndex + 1} of {props.steps.length}</p>
         <h3>{step.title}</h3>
         <p>{step.body}</p>
         <div className="mc-tour-actions">
