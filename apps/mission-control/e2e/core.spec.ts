@@ -168,4 +168,28 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
     await expect(page.getByText("Crash Recovery")).toBeHidden();
     await expect(page.getByText("Investigate gateway health")).toBeVisible();
   });
+
+  test("guided tour shows explicit progress and covers events and config", async ({ page }) => {
+    await completeLocalOnboarding(page);
+
+    await page.locator('[data-tour-id="topbar-tour"]').click();
+    await expect(page.locator(".mc-tour-progress-chip")).toHaveText("1/12");
+    await expect(page.getByRole("heading", { name: "Boards = task execution" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Next" }).click();
+    await page.getByRole("button", { name: "Next" }).click();
+    await page.getByRole("button", { name: "Next" }).click();
+
+    await expect(page.locator(".mc-tour-progress-chip")).toHaveText("4/12");
+    await expect(page.getByRole("heading", { name: "Events = runtime activity" })).toBeVisible();
+
+    for (let index = 0; index < 7; index += 1) {
+      await page.getByRole("button", { name: "Next" }).click();
+    }
+
+    await expect(page.locator(".mc-tour-progress-chip")).toHaveText("11/12");
+    await expect(
+      page.getByRole("heading", { name: "Config = connection + recovery controls" })
+    ).toBeVisible();
+  });
 });

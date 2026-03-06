@@ -67,6 +67,13 @@ const GUIDED_TOUR_STEPS: GuidedTourStepDef[] = [
     body: "Approvals, breakers, and urgent operational items are surfaced here first.",
   },
   {
+    id: "events",
+    tab: "events",
+    targetId: "nav-events",
+    title: "Events = runtime activity",
+    body: "Watch the live event stream here when you need to verify what the system is doing right now.",
+  },
+  {
     id: "mail",
     tab: "mail",
     targetId: "nav-mail",
@@ -107,6 +114,12 @@ const GUIDED_TOUR_STEPS: GuidedTourStepDef[] = [
     targetId: "nav-help-shortcut",
     title: "Help/Docs = in-app knowledge base",
     body: "This section explains each tab with examples and links back into live workflows.",
+  },
+  {
+    id: "config",
+    targetId: "nav-config",
+    title: "Config = connection + recovery controls",
+    body: "Open Config to reconnect the gateway, re-run setup, launch this tour again, and control rollout switches.",
   },
   {
     id: "command",
