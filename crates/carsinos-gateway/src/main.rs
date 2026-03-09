@@ -7916,7 +7916,7 @@ async fn create_bootstrap_preset(
                 .flatten(),
             default_reports_to_agent_id: request
                 .default_reports_to_agent_id
-                .map(normalize_string_allow_empty)
+                .map(normalize_optional_agent_reference)
                 .transpose()?
                 .flatten(),
             setup_notes: request
@@ -7969,7 +7969,7 @@ async fn update_bootstrap_preset(
                     .transpose()?,
                 default_reports_to_agent_id: request
                     .default_reports_to_agent_id
-                    .map(normalize_nested_optional_string)
+                    .map(normalize_nested_optional_agent_reference)
                     .transpose()?,
                 setup_notes: request
                     .setup_notes
@@ -8009,6 +8009,11 @@ async fn import_bootstrap_preset(
     let auth = require_bearer_auth_with_error(&headers, &state)?;
     require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
     let imported = parse_imported_bootstrap_preset(&request.payload)?;
+    let imported_default_reports_to_agent_id = imported
+        .default_reports_to_agent_id
+        .as_deref()
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty());
     let existing = state
         .storage
         .get_bootstrap_preset(&imported.preset_key)
@@ -8028,7 +8033,7 @@ async fn import_bootstrap_preset(
                         default_model_id: Some(imported.default_model_id),
                         default_tool_profile: Some(imported.default_tool_profile),
                         default_workspace_root: Some(imported.default_workspace_root),
-                        default_reports_to_agent_id: Some(imported.default_reports_to_agent_id),
+                        default_reports_to_agent_id: Some(imported_default_reports_to_agent_id),
                         setup_notes: Some(imported.setup_notes),
                     },
                 )
@@ -8053,7 +8058,7 @@ async fn import_bootstrap_preset(
                 default_model_id: imported.default_model_id,
                 default_tool_profile: imported.default_tool_profile,
                 default_workspace_root: imported.default_workspace_root,
-                default_reports_to_agent_id: imported.default_reports_to_agent_id,
+                default_reports_to_agent_id: imported_default_reports_to_agent_id,
                 setup_notes: imported.setup_notes,
             })
             .map_err(|err| strategy_storage_err("importing bootstrap preset failed", err))?
@@ -13139,11 +13144,26 @@ fn normalize_string_allow_empty(
     }
 }
 
+fn normalize_optional_agent_reference(
+    value: String,
+) -> std::result::Result<Option<String>, ApiErrorResponse> {
+    Ok(normalize_string_allow_empty(value)?.map(|trimmed| trimmed.to_ascii_lowercase()))
+}
+
 fn normalize_nested_optional_string(
     value: Option<String>,
 ) -> std::result::Result<Option<String>, ApiErrorResponse> {
     match value {
         Some(inner) => normalize_string_allow_empty(inner),
+        None => Ok(None),
+    }
+}
+
+fn normalize_nested_optional_agent_reference(
+    value: Option<String>,
+) -> std::result::Result<Option<String>, ApiErrorResponse> {
+    match value {
+        Some(inner) => normalize_optional_agent_reference(inner),
         None => Ok(None),
     }
 }
@@ -39746,6 +39766,102 @@ sys.stdout.write(json.dumps(response))
         let items = json["items"].as_array().expect("agents items");
         assert!(items.iter().any(|item| item["agent_id"] == "lyra"));
         assert!(items.iter().any(|item| item["agent_id"] == "claude"));
+    }
+
+    #[tokio::test]
+    async fn bootstrap_preset_manager_ids_are_normalized_across_create_update_and_import() {
+        let ctx = test_context();
+
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/bootstrap-presets",
+                Body::from(
+                    serde_json::json!({
+                        "preset_key": "ops-mixed",
+                        "display_name": "Ops Mixed",
+                        "description": "Mixed-case manager id",
+                        "role_label": "Strategist",
+                        "provider_path": "openai",
+                        "default_model_provider": "openai",
+                        "default_model_id": "gpt-5-mini",
+                        "default_tool_profile": "default",
+                        "default_workspace_root": "/tmp/presets",
+                        "default_reports_to_agent_id": " MiXeD-MaNaGeR ",
+                        "setup_notes": "Seeded from test"
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("create bootstrap preset response");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_json = parse_json(create_response).await;
+        assert_eq!(
+            create_json["preset"]["default_reports_to_agent_id"],
+            "mixed-manager"
+        );
+
+        let update_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/bootstrap-presets/ops-mixed",
+                Body::from(
+                    serde_json::json!({
+                        "default_reports_to_agent_id": " STILL-MIXED "
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("update bootstrap preset response");
+        assert_eq!(update_response.status(), StatusCode::OK);
+        let update_json = parse_json(update_response).await;
+        assert_eq!(
+            update_json["preset"]["default_reports_to_agent_id"],
+            "still-mixed"
+        );
+
+        let import_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/bootstrap-presets/import",
+                Body::from(
+                    serde_json::json!({
+                        "payload": {
+                            "schema_version": "mc-bootstrap-preset-v1",
+                            "preset_key": "imported-ops",
+                            "display_name": "Imported Ops",
+                            "description": "Imported preset",
+                            "role_label": "Operator",
+                            "provider_path": "openai",
+                            "default_model_provider": "openai",
+                            "default_model_id": "gpt-5-mini",
+                            "default_tool_profile": "default",
+                            "default_workspace_root": "/tmp/imported",
+                            "default_reports_to_agent_id": " Import-MANAGER ",
+                            "setup_notes": "Imported from test",
+                            "created_at": 0,
+                            "updated_at": 0
+                        }
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("import bootstrap preset response");
+        assert_eq!(import_response.status(), StatusCode::OK);
+        let import_json = parse_json(import_response).await;
+        assert_eq!(
+            import_json["preset"]["default_reports_to_agent_id"],
+            "import-manager"
+        );
     }
 
     #[tokio::test]

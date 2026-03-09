@@ -1466,7 +1466,25 @@ impl Storage {
             params![agent_id.as_str()],
             |row| row.get(0),
         )?;
-        if hierarchy_refs + goal_refs + project_refs + task_refs + preset_refs > 0 {
+        let job_refs: i64 = tx.query_row(
+            "SELECT COUNT(1) FROM jobs WHERE agent_id = ?1",
+            params![agent_id.as_str()],
+            |row| row.get(0),
+        )?;
+        let board_refs: i64 = tx.query_row(
+            "SELECT COUNT(1) FROM board_cards WHERE owner_agent_id = ?1",
+            params![agent_id.as_str()],
+            |row| row.get(0),
+        )?;
+        if hierarchy_refs
+            + goal_refs
+            + project_refs
+            + task_refs
+            + preset_refs
+            + job_refs
+            + board_refs
+            > 0
+        {
             return Ok(RemoveAgentOutcome::HasReferences);
         }
 
@@ -2101,7 +2119,8 @@ impl Storage {
         ensure_goal_exists(&conn, &new_project.goal_id)?;
         validate_project_status(&new_project.status)?;
         validate_optional_owner_agent(self, &conn, new_project.owner_agent_id.as_deref())?;
-        validate_project_workspace_root(new_project.workspace_root.as_deref())?;
+        let workspace_root =
+            normalize_project_workspace_root(new_project.workspace_root.as_deref())?;
         validate_budget_month_usd(new_project.budget_month_usd)?;
         let project_id = uuid::Uuid::new_v4().to_string();
         let now = now_ms();
@@ -2120,7 +2139,7 @@ impl Storage {
                 new_project.summary.trim(),
                 new_project.status.trim(),
                 new_project.owner_agent_id,
-                new_project.workspace_root,
+                workspace_root,
                 new_project.budget_month_usd,
                 now,
                 now
@@ -2163,11 +2182,13 @@ impl Storage {
         let next_summary = patch.summary.unwrap_or(current.summary);
         let next_status = patch.status.unwrap_or(current.status);
         let next_owner_agent_id = patch.owner_agent_id.unwrap_or(current.owner_agent_id);
-        let next_workspace_root = patch.workspace_root.unwrap_or(current.workspace_root);
+        let next_workspace_root = match patch.workspace_root {
+            Some(value) => normalize_project_workspace_root(value.as_deref())?,
+            None => current.workspace_root,
+        };
         let next_budget_month_usd = patch.budget_month_usd.unwrap_or(current.budget_month_usd);
         validate_project_status(&next_status)?;
         validate_optional_owner_agent(self, &tx, next_owner_agent_id.as_deref())?;
-        validate_project_workspace_root(next_workspace_root.as_deref())?;
         validate_budget_month_usd(next_budget_month_usd)?;
         if next_status == PROJECT_STATUS_COMPLETED && has_open_tasks_in_project(&tx, project_id)? {
             anyhow::bail!("project cannot be completed while it has open tasks");
@@ -2478,8 +2499,8 @@ impl Storage {
             Some(record) => record,
             None => return Ok(None),
         };
-        let next_clear_board_card = clear_board_card || !clear_job;
-        let next_clear_job = clear_job || !clear_board_card;
+        let next_clear_board_card = clear_board_card;
+        let next_clear_job = clear_job;
         let next_board_card_id = if next_clear_board_card {
             None
         } else {
@@ -2562,11 +2583,14 @@ impl Storage {
         new_preset: NewBootstrapPreset,
     ) -> Result<BootstrapPresetRecord> {
         let conn = self.connect()?;
+        let default_workspace_root =
+            normalize_project_workspace_root(new_preset.default_workspace_root.as_deref())?;
+        let default_reports_to_agent_id =
+            normalize_optional_agent_reference(new_preset.default_reports_to_agent_id.as_deref());
         validate_bootstrap_preset_provider(
             &new_preset.provider_path,
             new_preset.default_model_provider.as_deref(),
         )?;
-        validate_project_workspace_root(new_preset.default_workspace_root.as_deref())?;
         let preset_key = normalize_preset_key(&new_preset.preset_key)?;
         let now = now_ms();
         conn.execute(
@@ -2586,8 +2610,8 @@ impl Storage {
                 new_preset.default_model_provider,
                 new_preset.default_model_id,
                 new_preset.default_tool_profile,
-                new_preset.default_workspace_root,
-                new_preset.default_reports_to_agent_id,
+                default_workspace_root,
+                default_reports_to_agent_id,
                 new_preset.setup_notes,
                 now,
                 now
@@ -2632,18 +2656,19 @@ impl Storage {
         let next_default_tool_profile = patch
             .default_tool_profile
             .unwrap_or(current.default_tool_profile);
-        let next_default_workspace_root = patch
-            .default_workspace_root
-            .unwrap_or(current.default_workspace_root);
-        let next_default_reports_to_agent_id = patch
-            .default_reports_to_agent_id
-            .unwrap_or(current.default_reports_to_agent_id);
+        let next_default_workspace_root = match patch.default_workspace_root {
+            Some(value) => normalize_project_workspace_root(value.as_deref())?,
+            None => current.default_workspace_root,
+        };
+        let next_default_reports_to_agent_id = match patch.default_reports_to_agent_id {
+            Some(value) => normalize_optional_agent_reference(value.as_deref()),
+            None => current.default_reports_to_agent_id,
+        };
         let next_setup_notes = patch.setup_notes.unwrap_or(current.setup_notes);
         validate_bootstrap_preset_provider(
             &next_provider_path,
             next_default_model_provider.as_deref(),
         )?;
-        validate_project_workspace_root(next_default_workspace_root.as_deref())?;
         let now = now_ms();
         let updated = conn.execute(
             r#"
@@ -5914,15 +5939,6 @@ impl Storage {
         decided_via: Option<String>,
         decided_by_peer_id: Option<String>,
     ) -> Result<ApprovalResolveResult> {
-        let existing = match self.get_approval(approval_id)? {
-            Some(record) => record,
-            None => return Ok(ApprovalResolveResult::NotFound),
-        };
-
-        if existing.status != "requested" {
-            return Ok(ApprovalResolveResult::AlreadyResolved(existing));
-        }
-
         let resolved_status = match decision {
             "approve" => "approved",
             "deny" => "denied",
@@ -5930,24 +5946,31 @@ impl Storage {
         };
         let decided_at = now_ms();
         let conn = self.connect()?;
-        conn.execute(
-            r#"
+        let updated_rows = conn
+            .execute(
+                r#"
             UPDATE approvals
             SET status = ?1, decided_at = ?2, decided_via = ?3, decided_by_peer_id = ?4
             WHERE approval_id = ?5
+              AND status = 'requested'
             "#,
-            params![
-                resolved_status,
-                decided_at,
-                decided_via,
-                decided_by_peer_id,
-                approval_id
-            ],
-        )
-        .context("failed to resolve approval")?;
+                params![
+                    resolved_status,
+                    decided_at,
+                    decided_via,
+                    decided_by_peer_id,
+                    approval_id
+                ],
+            )
+            .context("failed to resolve approval")?;
+        if updated_rows == 0 {
+            return match get_approval_with_conn(&conn, approval_id)? {
+                Some(record) => Ok(ApprovalResolveResult::AlreadyResolved(record)),
+                None => Ok(ApprovalResolveResult::NotFound),
+            };
+        }
 
-        let updated = self
-            .get_approval(approval_id)?
+        let updated = get_approval_with_conn(&conn, approval_id)?
             .context("resolved approval missing after update")?;
 
         Ok(ApprovalResolveResult::Resolved(updated))
@@ -6161,6 +6184,21 @@ fn get_bootstrap_preset_with_conn(
         .optional()?)
 }
 
+fn get_approval_with_conn(conn: &Connection, approval_id: &str) -> Result<Option<ApprovalRecord>> {
+    let mut stmt = conn.prepare(
+        r#"
+        SELECT
+          approval_id, run_id, tool_call_id, kind, status, request_summary, request_json,
+          requested_at, decided_at, decided_via, decided_by_peer_id
+        FROM approvals
+        WHERE approval_id = ?1
+        "#,
+    )?;
+    Ok(stmt
+        .query_row(params![approval_id], map_approval_row)
+        .optional()?)
+}
+
 fn get_job_with_conn(conn: &Connection, job_id: &str) -> Result<Option<JobRecord>> {
     let mut stmt = conn.prepare(
         r#"
@@ -6325,15 +6363,24 @@ fn validate_task_priority(priority: &str) -> Result<()> {
     }
 }
 
-fn validate_project_workspace_root(workspace_root: Option<&str>) -> Result<()> {
+fn normalize_project_workspace_root(workspace_root: Option<&str>) -> Result<Option<String>> {
     let Some(value) = workspace_root else {
-        return Ok(());
+        return Ok(None);
     };
     let trimmed = value.trim();
-    if trimmed.is_empty() || trimmed == "." || Path::new(trimmed).is_absolute() {
-        return Ok(());
+    if trimmed.is_empty() || trimmed == "." {
+        return Ok(None);
+    }
+    if Path::new(trimmed).is_absolute() {
+        return Ok(Some(trimmed.to_string()));
     }
     anyhow::bail!("workspace_root must be null, '.', or an absolute path");
+}
+
+fn normalize_optional_agent_reference(value: Option<&str>) -> Option<String> {
+    value
+        .map(|item| item.trim().to_ascii_lowercase())
+        .filter(|item| !item.is_empty())
 }
 
 fn validate_budget_month_usd(value: Option<f64>) -> Result<()> {
@@ -8450,6 +8497,89 @@ mod tests {
     }
 
     #[test]
+    fn remove_agent_rejects_agent_referenced_by_jobs_and_board_cards() {
+        let (_temp_dir, storage) = test_storage();
+        let job_agent = storage
+            .create_agent(NewAgent {
+                agent_id: "job-owner".to_string(),
+                name: "Job Owner".to_string(),
+                workspace_root: ".".to_string(),
+                model_provider: "mock".to_string(),
+                model_id: "mock-echo-v1".to_string(),
+                tool_profile: "default".to_string(),
+                reports_to_agent_id: None,
+                role_label: None,
+            })
+            .expect("create job owner agent");
+        let board_agent = storage
+            .create_agent(NewAgent {
+                agent_id: "board-owner".to_string(),
+                name: "Board Owner".to_string(),
+                workspace_root: ".".to_string(),
+                model_provider: "mock".to_string(),
+                model_id: "mock-echo-v1".to_string(),
+                tool_profile: "default".to_string(),
+                reports_to_agent_id: None,
+                role_label: None,
+            })
+            .expect("create board owner agent");
+
+        let now = now_ms();
+        let _job = storage
+            .create_job(NewJob {
+                agent_id: job_agent.agent_id.clone(),
+                name: "job-owner-check".to_string(),
+                enabled: true,
+                schedule_kind: "interval".to_string(),
+                interval_seconds: Some(60),
+                run_at_ms: None,
+                next_run_at: Some(now),
+                payload_json: r#"{"mode":"noop"}"#.to_string(),
+                max_retries: 1,
+                retry_backoff_ms: 500,
+                timeout_ms: 2_000,
+            })
+            .expect("create job reference");
+
+        let board = storage
+            .list_boards()
+            .expect("list boards")
+            .into_iter()
+            .next()
+            .expect("seeded board");
+        let column = storage
+            .list_board_columns(&board.board_id)
+            .expect("list board columns")
+            .into_iter()
+            .next()
+            .expect("seeded board column");
+        let _card = storage
+            .create_board_card(NewBoardCard {
+                board_id: board.board_id.clone(),
+                column_id: column.column_id.clone(),
+                title: "Board-owned card".to_string(),
+                description: None,
+                owner_kind: "agent".to_string(),
+                owner_agent_id: Some(board_agent.agent_id.clone()),
+                owner_human_id: None,
+                due_at: None,
+                tags_json: Some("[]".to_string()),
+                script_markdown: None,
+            })
+            .expect("create board card reference");
+
+        let job_outcome = storage
+            .remove_agent(&job_agent.agent_id)
+            .expect("remove job owner should return outcome");
+        assert_eq!(job_outcome, RemoveAgentOutcome::HasReferences);
+
+        let board_outcome = storage
+            .remove_agent(&board_agent.agent_id)
+            .expect("remove board owner should return outcome");
+        assert_eq!(board_outcome, RemoveAgentOutcome::HasReferences);
+    }
+
+    #[test]
     fn bootstrap_presets_allow_unresolved_manager_defaults() {
         let (_temp_dir, storage) = test_storage();
         let created = storage
@@ -8462,11 +8592,15 @@ mod tests {
                 default_model_provider: Some("openai".to_string()),
                 default_model_id: Some("gpt-5-mini".to_string()),
                 default_tool_profile: Some("default".to_string()),
-                default_workspace_root: Some("/tmp/shared".to_string()),
-                default_reports_to_agent_id: Some("missing-manager".to_string()),
+                default_workspace_root: Some(" /tmp/shared ".to_string()),
+                default_reports_to_agent_id: Some("Missing-Manager".to_string()),
                 setup_notes: Some("Imported preset".to_string()),
             })
             .expect("create preset with soft manager reference");
+        assert_eq!(
+            created.default_workspace_root.as_deref(),
+            Some("/tmp/shared")
+        );
         assert_eq!(
             created.default_reports_to_agent_id.as_deref(),
             Some("missing-manager")
@@ -8483,13 +8617,14 @@ mod tests {
                     default_model_provider: None,
                     default_model_id: None,
                     default_tool_profile: None,
-                    default_workspace_root: None,
-                    default_reports_to_agent_id: Some(Some("still-missing".to_string())),
+                    default_workspace_root: Some(Some(" . ".to_string())),
+                    default_reports_to_agent_id: Some(Some("Still-Missing".to_string())),
                     setup_notes: None,
                 },
             )
             .expect("update preset")
             .expect("preset should exist");
+        assert!(updated.default_workspace_root.is_none());
         assert_eq!(
             updated.default_reports_to_agent_id.as_deref(),
             Some("still-missing")
@@ -8609,6 +8744,174 @@ mod tests {
         assert!(update_err
             .to_string()
             .contains("task with subtasks cannot move to another project"));
+    }
+
+    #[test]
+    fn project_workspace_roots_are_normalized() {
+        let (_temp_dir, storage) = test_storage();
+        let goal = storage
+            .create_goal(NewGoal {
+                slug: "normalized-roots".to_string(),
+                title: "Normalize Roots".to_string(),
+                summary: String::new(),
+                status: GOAL_STATUS_ACTIVE.to_string(),
+                owner_agent_id: None,
+                target_date: None,
+            })
+            .expect("create goal");
+        let created = storage
+            .create_project(NewProject {
+                goal_id: goal.goal_id.clone(),
+                slug: "normalized-project".to_string(),
+                name: "Normalized Project".to_string(),
+                summary: String::new(),
+                status: PROJECT_STATUS_ACTIVE.to_string(),
+                owner_agent_id: None,
+                workspace_root: Some(" /tmp/strategy-project ".to_string()),
+                budget_month_usd: None,
+            })
+            .expect("create project");
+        assert_eq!(
+            created.workspace_root.as_deref(),
+            Some("/tmp/strategy-project")
+        );
+
+        let updated = storage
+            .update_project(
+                &created.project_id,
+                ProjectUpdatePatch {
+                    goal_id: None,
+                    slug: None,
+                    name: None,
+                    summary: None,
+                    status: None,
+                    owner_agent_id: None,
+                    workspace_root: Some(Some(" . ".to_string())),
+                    budget_month_usd: None,
+                },
+            )
+            .expect("update project")
+            .expect("project should exist");
+        assert!(updated.workspace_root.is_none());
+    }
+
+    #[test]
+    fn clear_task_links_only_clears_requested_targets() {
+        let (_temp_dir, storage) = test_storage();
+        let goal = storage
+            .create_goal(NewGoal {
+                slug: "clear-links-goal".to_string(),
+                title: "Clear Links".to_string(),
+                summary: String::new(),
+                status: GOAL_STATUS_ACTIVE.to_string(),
+                owner_agent_id: None,
+                target_date: None,
+            })
+            .expect("create goal");
+        let project = storage
+            .create_project(NewProject {
+                goal_id: goal.goal_id.clone(),
+                slug: "clear-links-project".to_string(),
+                name: "Clear Links Project".to_string(),
+                summary: String::new(),
+                status: PROJECT_STATUS_ACTIVE.to_string(),
+                owner_agent_id: None,
+                workspace_root: Some(".".to_string()),
+                budget_month_usd: None,
+            })
+            .expect("create project");
+        let task = storage
+            .create_task(NewTask {
+                project_id: project.project_id.clone(),
+                parent_task_id: None,
+                title: "Linked Task".to_string(),
+                detail: String::new(),
+                status: TASK_STATUS_TODO.to_string(),
+                priority: TASK_PRIORITY_NORMAL.to_string(),
+                owner_agent_id: Some("default".to_string()),
+                due_at: None,
+                blocked_reason: None,
+            })
+            .expect("create task");
+
+        let board = storage
+            .list_boards()
+            .expect("list boards")
+            .into_iter()
+            .next()
+            .expect("seeded board");
+        let column = storage
+            .list_board_columns(&board.board_id)
+            .expect("list board columns")
+            .into_iter()
+            .next()
+            .expect("seeded board column");
+        let card = storage
+            .create_board_card(NewBoardCard {
+                board_id: board.board_id.clone(),
+                column_id: column.column_id.clone(),
+                title: "Linked Card".to_string(),
+                description: None,
+                owner_kind: "agent".to_string(),
+                owner_agent_id: Some("default".to_string()),
+                owner_human_id: None,
+                due_at: None,
+                tags_json: Some("[]".to_string()),
+                script_markdown: None,
+            })
+            .expect("create board card");
+        let job = storage
+            .create_job(NewJob {
+                agent_id: "default".to_string(),
+                name: "linked-job".to_string(),
+                enabled: true,
+                schedule_kind: "interval".to_string(),
+                interval_seconds: Some(60),
+                run_at_ms: None,
+                next_run_at: Some(now_ms()),
+                payload_json: r#"{"mode":"noop"}"#.to_string(),
+                max_retries: 1,
+                retry_backoff_ms: 250,
+                timeout_ms: 2_000,
+            })
+            .expect("create job");
+
+        let linked = storage
+            .link_task_board_card(&task.task_id, &card.card_id, false)
+            .expect("link board card")
+            .expect("linked task");
+        assert_eq!(
+            linked.linked_board_card_id.as_deref(),
+            Some(card.card_id.as_str())
+        );
+        let linked = storage
+            .link_task_job(&task.task_id, &job.job_id, false)
+            .expect("link job")
+            .expect("linked task");
+        assert_eq!(linked.linked_job_id.as_deref(), Some(job.job_id.as_str()));
+
+        let unchanged = storage
+            .clear_task_links(&task.task_id, false, false)
+            .expect("clear no-op")
+            .expect("task exists");
+        assert_eq!(
+            unchanged.linked_board_card_id.as_deref(),
+            Some(card.card_id.as_str())
+        );
+        assert_eq!(
+            unchanged.linked_job_id.as_deref(),
+            Some(job.job_id.as_str())
+        );
+
+        let cleared_job = storage
+            .clear_task_links(&task.task_id, false, true)
+            .expect("clear only job")
+            .expect("task exists");
+        assert_eq!(
+            cleared_job.linked_board_card_id.as_deref(),
+            Some(card.card_id.as_str())
+        );
+        assert!(cleared_job.linked_job_id.is_none());
     }
 
     #[test]
