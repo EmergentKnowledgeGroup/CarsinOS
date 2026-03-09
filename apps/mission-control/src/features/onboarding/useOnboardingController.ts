@@ -23,7 +23,13 @@ import {
   providerLabel,
 } from "../../lib/providerCatalog";
 import type { MissionControlTab } from "../../app/useAppController";
-import type { Agent, AuthProfileResponse, RuntimeConnectionSettings } from "../../types";
+import type {
+  Agent,
+  AuthProfileResponse,
+  BootstrapPresetResponse,
+  RuntimeConnectionSettings,
+} from "../../types";
+import { applyBootstrapPresetToDraft } from "../strategy/bootstrapPresetUtils";
 import {
   loadDismissedAt,
   type OnboardingAnthropicAuthMode,
@@ -51,6 +57,8 @@ interface UseOnboardingControllerOptions {
   tokenConfigured: boolean;
   agents: Agent[];
   authProfiles: AuthProfileResponse[];
+  strategyEnabled: boolean;
+  bootstrapPresets: BootstrapPresetResponse[];
   saveConnectionFromInputs: (gatewayUrl: string, tokenInput?: string) => Promise<void>;
   loadBaseline: (runtimeSettings?: RuntimeConnectionSettings) => Promise<void>;
   setActiveTab: (tab: MissionControlTab) => void;
@@ -110,6 +118,8 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     tokenConfigured,
     agents,
     authProfiles,
+    strategyEnabled,
+    bootstrapPresets,
     saveConnectionFromInputs,
     loadBaseline,
     setActiveTab,
@@ -137,6 +147,13 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   const [toolProfileDraft, setToolProfileDraft] = useState(
     agents[0]?.tool_profile?.trim() || "default"
   );
+  const [reportsToAgentIdDraft, setReportsToAgentIdDraft] = useState(
+    agents[0]?.reports_to_agent_id?.trim() || ""
+  );
+  const [roleLabelDraft, setRoleLabelDraft] = useState(
+    agents[0]?.role_label?.trim() || ""
+  );
+  const [selectedPresetKey, setSelectedPresetKey] = useState("");
   const [agentReady, setAgentReady] = useState(agents.length > 0);
 
   const [providerPath, setProviderPath] = useState<OnboardingProviderPath>(
@@ -252,6 +269,8 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     setAgentNameDraft(selected.name);
     setWorkspaceRootDraft(selected.workspace_root?.trim() || ".");
     setToolProfileDraft(selected.tool_profile?.trim() || "default");
+    setReportsToAgentIdDraft(selected.reports_to_agent_id?.trim() || "");
+    setRoleLabelDraft(selected.role_label?.trim() || "");
     setAgentReady(true);
   }, [agents, selectedAgentId]);
 
@@ -595,10 +614,60 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     setAgentNameDraft("");
     setWorkspaceRootDraft(".");
     setToolProfileDraft("default");
+    setReportsToAgentIdDraft("");
+    setRoleLabelDraft("");
+    setSelectedPresetKey("");
     setAgentReady(false);
     setProviderReady(false);
     setRoutingReady(false);
   }, [clearError]);
+
+  const applySelectedPreset = useCallback(() => {
+    if (!strategyEnabled || !selectedPresetKey) {
+      return;
+    }
+    const preset = bootstrapPresets.find((item) => item.preset_key === selectedPresetKey);
+    if (!preset) {
+      return;
+    }
+    const next = applyBootstrapPresetToDraft(
+      {
+        preset_key: selectedPresetKey,
+        role_label: roleLabelDraft,
+        model_provider: localProvider,
+        model_id: localModelId,
+        tool_profile: toolProfileDraft,
+        workspace_root: workspaceRootDraft,
+        reports_to_agent_id: reportsToAgentIdDraft,
+      },
+      preset
+    );
+    setRoleLabelDraft(next.role_label);
+    setToolProfileDraft(next.tool_profile);
+    setWorkspaceRootDraft(next.workspace_root);
+    setReportsToAgentIdDraft(next.reports_to_agent_id);
+    if (next.model_provider) {
+      if (next.model_provider === "openai" || next.model_provider === "anthropic") {
+        setProviderPath(next.model_provider);
+      } else {
+        setProviderPath("local");
+        setLocalProvider(next.model_provider);
+      }
+    }
+    if (next.model_id) {
+      setLocalModelId(next.model_id);
+    }
+  }, [
+    bootstrapPresets,
+    localModelId,
+    localProvider,
+    reportsToAgentIdDraft,
+    roleLabelDraft,
+    selectedPresetKey,
+    strategyEnabled,
+    toolProfileDraft,
+    workspaceRootDraft,
+  ]);
 
   const saveAgent = useCallback(async (): Promise<boolean> => {
     clearError();
@@ -620,6 +689,8 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
         name: desiredAgentName,
         workspace_root: workspaceRootDraft.trim() || ".",
         tool_profile: toolProfileDraft.trim() || "default",
+        reports_to_agent_id: reportsToAgentIdDraft.trim() || null,
+        role_label: roleLabelDraft.trim() || null,
       };
       const selectedId = selectedAgentId.trim();
       const existingByDesired =
@@ -640,6 +711,8 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
           name: desiredAgentName,
           workspace_root: patch.workspace_root,
           tool_profile: patch.tool_profile,
+          reports_to_agent_id: patch.reports_to_agent_id,
+          role_label: patch.role_label,
         });
       }
       await loadBaseline(settings);
@@ -664,6 +737,8 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     selectedAgentId,
     settings,
     toolProfileDraft,
+    reportsToAgentIdDraft,
+    roleLabelDraft,
     workspaceRootDraft,
   ]);
 
@@ -1221,6 +1296,15 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     setWorkspaceRootDraft,
     toolProfileDraft,
     setToolProfileDraft,
+    reportsToAgentIdDraft,
+    setReportsToAgentIdDraft,
+    roleLabelDraft,
+    setRoleLabelDraft,
+    strategyEnabled,
+    bootstrapPresets,
+    selectedPresetKey,
+    setSelectedPresetKey,
+    applySelectedPreset,
     agentReady,
     createNewAgentDraft,
     saveAgent,

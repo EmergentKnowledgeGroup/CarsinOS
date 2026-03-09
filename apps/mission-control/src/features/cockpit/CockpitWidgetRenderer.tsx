@@ -10,6 +10,7 @@ import type {
   AuthProfileResponse,
   ChannelRuntimeAdapterStatusResponse,
   CircuitBreakerStateResponse,
+  GoalResponse,
   JobStatusResponse,
   MissionControlCalendarJob,
   MissionControlFocusItem,
@@ -17,13 +18,22 @@ import type {
   MissionControlUsageByModel,
   PluginManifestResponse,
   PluginRuntimeStatusResponse,
+  ProjectResponse,
   SkillResponse,
   StatusResponse,
+  StrategySummaryResponse,
 } from "../../types";
 import type { EventStreamItem } from "../../app/useAppController";
 import { CustomWidgetRenderer } from "./CustomWidgetRenderer";
 import type { CockpitWidgetLayoutV2 } from "./cockpitLayout";
 import type { RuntimeConnectionSettings } from "../../types";
+
+type StrategyAvailability =
+  | "disabled"
+  | "loading"
+  | "ready"
+  | "unsupported"
+  | "error";
 
 interface CockpitWidgetRendererProps {
   widget: CockpitWidgetLayoutV2;
@@ -75,6 +85,14 @@ interface CockpitWidgetRendererProps {
     message: string;
   }>;
   usageUpdatedAtUtc: string | null;
+  strategyEnabled: boolean;
+  strategyAvailability: StrategyAvailability;
+  strategySummary: StrategySummaryResponse | null;
+  strategyGoals: GoalResponse[];
+  strategyProjects: ProjectResponse[];
+  onOpenStrategyTask: (taskId: string) => boolean;
+  onSelectStrategyGoal: (goalId: string) => void;
+  onSelectStrategyProject: (projectId: string) => void;
   onRefreshAll: () => void;
   onRunCalendarJobNow: (jobId: string) => Promise<void>;
   onToggleCalendarJob: (jobId: string, enabled: boolean) => Promise<void>;
@@ -129,6 +147,9 @@ const TOKEN_FORMATTER = new Intl.NumberFormat("en-US", {
   notation: "compact",
   maximumFractionDigits: 1,
 });
+const PERCENT_FORMATTER = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 0,
+});
 
 function normalizeCurrencyCode(currency: string | null | undefined): string {
   if (typeof currency !== "string") {
@@ -156,6 +177,43 @@ function formatTokens(value: number): string {
   return TOKEN_FORMATTER.format(value);
 }
 
+function formatPercent(value: number): string {
+  return `${PERCENT_FORMATTER.format(value)}%`;
+}
+
+function joinParts(parts: Array<string | null | undefined>): string {
+  return parts
+    .filter((part): part is string => Boolean(part && part.trim()))
+    .join(" / ");
+}
+
+function getStrategyStateMessage(
+  strategyEnabled: boolean,
+  strategyAvailability: StrategyAvailability
+): string | null {
+  if (!strategyEnabled || strategyAvailability === "disabled") {
+    return "Enable Strategy Hub in Runtime Controls to use this widget.";
+  }
+  if (strategyAvailability === "loading") {
+    return "Strategy data is loading.";
+  }
+  if (strategyAvailability === "unsupported") {
+    return "This gateway does not expose Strategy data yet.";
+  }
+  if (strategyAvailability === "error") {
+    return "Strategy data failed to load.";
+  }
+  return null;
+}
+
+function renderStrategyState(message: string) {
+  return (
+    <article className="mc-cockpit-widget-body">
+      <EmptyState message={message} />
+    </article>
+  );
+}
+
 export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
   const { widget } = props;
   const [busyActions, setBusyActions] = useState<Set<string>>(new Set());
@@ -170,6 +228,22 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
   const skillsListRef = useRef<HTMLDivElement>(null);
   const pluginsListRef = useRef<HTMLDivElement>(null);
   const eventsListRef = useRef<HTMLDivElement>(null);
+  const blockedListRef = useRef<HTMLDivElement>(null);
+  const staleListRef = useRef<HTMLDivElement>(null);
+  const goalProgressListRef = useRef<HTMLDivElement>(null);
+  const projectSpendListRef = useRef<HTMLDivElement>(null);
+  const approvalBacklogListRef = useRef<HTMLDivElement>(null);
+
+  const strategySummary = props.strategySummary;
+  const blockedTasks = strategySummary?.blocked_tasks ?? [];
+  const staleTasks = strategySummary?.stale_tasks ?? [];
+  const goalProgressItems = strategySummary?.goal_progress ?? [];
+  const projectSpendItems = strategySummary?.spend_by_project ?? [];
+  const approvalBacklogItems = strategySummary?.critical_approval_backlog ?? [];
+  const strategyStateMessage = getStrategyStateMessage(
+    props.strategyEnabled,
+    props.strategyAvailability
+  );
 
   const focusPagination = useWidgetPagination(props.incidentFocusItems.length, focusListRef, LIST_ITEM_HEIGHT);
   const breakerCorePagination = useWidgetPagination(props.openBreakers.length, breakerCoreRef, COMPACT_ITEM_HEIGHT);
@@ -180,6 +254,15 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
   const skillsPagination = useWidgetPagination(props.skills.length, skillsListRef, LIST_ITEM_HEIGHT);
   const pluginsPagination = useWidgetPagination(props.plugins.length, pluginsListRef, LIST_ITEM_HEIGHT);
   const eventsPagination = useWidgetPagination(props.visibleEvents.length, eventsListRef, EVENT_ITEM_HEIGHT);
+  const blockedPagination = useWidgetPagination(blockedTasks.length, blockedListRef, LIST_ITEM_HEIGHT);
+  const stalePagination = useWidgetPagination(staleTasks.length, staleListRef, LIST_ITEM_HEIGHT);
+  const goalProgressPagination = useWidgetPagination(goalProgressItems.length, goalProgressListRef, LIST_ITEM_HEIGHT);
+  const projectSpendPagination = useWidgetPagination(projectSpendItems.length, projectSpendListRef, LIST_ITEM_HEIGHT);
+  const approvalBacklogPagination = useWidgetPagination(
+    approvalBacklogItems.length,
+    approvalBacklogListRef,
+    LIST_ITEM_HEIGHT
+  );
 
   const runBusyAction = (key: string, fn: () => Promise<unknown>) => {
     if (busyActionsRef.current.has(key)) {
@@ -701,6 +784,295 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
           </ul>
         </div>
         <PaginationControls page={pluginsPagination.page} totalPages={pluginsPagination.totalPages} onSetPage={pluginsPagination.setPage} />
+      </article>
+    );
+  }
+
+  if (widget.widget === "strategy_summary") {
+    if (strategyStateMessage) {
+      return renderStrategyState(strategyStateMessage);
+    }
+    if (!strategySummary) {
+      return renderStrategyState("Strategy summary is unavailable right now.");
+    }
+    return (
+      <article className="mc-cockpit-widget-body">
+        <div className="mc-health-grid">
+          <div>
+            <strong>Blocked</strong>
+            <p>{strategySummary.blocked_task_count}</p>
+          </div>
+          <div>
+            <strong>Stale</strong>
+            <p>{strategySummary.stale_task_count}</p>
+          </div>
+          <div>
+            <strong>Approvals</strong>
+            <p>{strategySummary.critical_approval_backlog_count}</p>
+          </div>
+          <div>
+            <strong>Goals</strong>
+            <p>{props.strategyGoals.length}</p>
+          </div>
+          <div>
+            <strong>Projects</strong>
+            <p>{props.strategyProjects.length}</p>
+          </div>
+          <div>
+            <strong>Unattributed Spend</strong>
+            <p>{formatMoney(strategySummary.unattributed_spend_total, strategySummary.currency)}</p>
+          </div>
+        </div>
+        <p className="mc-usage-footnote">
+          Updated {formatDateTime(strategySummary.generated_at_ms)}.
+        </p>
+      </article>
+    );
+  }
+
+  if (widget.widget === "blocked_work") {
+    if (strategyStateMessage) {
+      return renderStrategyState(strategyStateMessage);
+    }
+    if (!strategySummary) {
+      return renderStrategyState("Strategy summary is unavailable right now.");
+    }
+    const items = blockedTasks.slice(blockedPagination.startIndex, blockedPagination.endIndex);
+    return (
+      <article className="mc-cockpit-widget-body">
+        <div className="mc-widget-list-container" ref={blockedListRef}>
+          <ul className="mc-cockpit-list">
+            {items.map((item) => (
+              <li key={item.task_id}>
+                <div>
+                  <strong>{item.title}</strong>
+                  <p>
+                    {joinParts([
+                      item.project_name,
+                      item.owner_name ?? "Unassigned",
+                      item.blocked_reason ?? undefined,
+                    ])}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    props.onOpenStrategyTask(item.task_id);
+                  }}
+                >
+                  Open Task
+                </button>
+              </li>
+            ))}
+            {blockedTasks.length === 0 ? <li>No blocked tasks.</li> : null}
+          </ul>
+        </div>
+        <p className="mc-usage-footnote">
+          {blockedTasks.length > 0
+            ? `Most recently updated ${formatRelative(blockedTasks[0].updated_at)}.`
+            : "Strategy summary is clear of blocked work."}
+        </p>
+        <PaginationControls
+          page={blockedPagination.page}
+          totalPages={blockedPagination.totalPages}
+          onSetPage={blockedPagination.setPage}
+        />
+      </article>
+    );
+  }
+
+  if (widget.widget === "stale_work") {
+    if (strategyStateMessage) {
+      return renderStrategyState(strategyStateMessage);
+    }
+    if (!strategySummary) {
+      return renderStrategyState("Strategy summary is unavailable right now.");
+    }
+    const items = staleTasks.slice(stalePagination.startIndex, stalePagination.endIndex);
+    return (
+      <article className="mc-cockpit-widget-body">
+        <div className="mc-widget-list-container" ref={staleListRef}>
+          <ul className="mc-cockpit-list">
+            {items.map((item) => (
+              <li key={item.task_id}>
+                <div>
+                  <strong>{item.title}</strong>
+                  <p>
+                    {joinParts([
+                      item.project_name,
+                      item.owner_name ?? "Unassigned",
+                      `Updated ${formatRelative(item.updated_at)}`,
+                      item.due_at ? `Due ${formatRelative(item.due_at)}` : undefined,
+                    ])}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    props.onOpenStrategyTask(item.task_id);
+                  }}
+                >
+                  Open Task
+                </button>
+              </li>
+            ))}
+            {staleTasks.length === 0 ? <li>No stale tasks.</li> : null}
+          </ul>
+        </div>
+        <PaginationControls
+          page={stalePagination.page}
+          totalPages={stalePagination.totalPages}
+          onSetPage={stalePagination.setPage}
+        />
+      </article>
+    );
+  }
+
+  if (widget.widget === "goal_progress") {
+    if (strategyStateMessage) {
+      return renderStrategyState(strategyStateMessage);
+    }
+    if (!strategySummary) {
+      return renderStrategyState("Strategy summary is unavailable right now.");
+    }
+    const items = goalProgressItems.slice(
+      goalProgressPagination.startIndex,
+      goalProgressPagination.endIndex
+    );
+    return (
+      <article className="mc-cockpit-widget-body">
+        <div className="mc-widget-list-container" ref={goalProgressListRef}>
+          <ul className="mc-cockpit-list">
+            {items.map((item) => (
+              <li key={item.goal_id}>
+                <div>
+                  <strong>{item.title}</strong>
+                  <p>
+                    {joinParts([
+                      formatPercent(item.progress_pct),
+                      `${item.open_task_count} open`,
+                      `${item.blocked_task_count} blocked`,
+                    ])}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => props.onSelectStrategyGoal(item.goal_id)}
+                >
+                  Open Goal
+                </button>
+              </li>
+            ))}
+            {goalProgressItems.length === 0 ? <li>No goal progress data yet.</li> : null}
+          </ul>
+        </div>
+        <PaginationControls
+          page={goalProgressPagination.page}
+          totalPages={goalProgressPagination.totalPages}
+          onSetPage={goalProgressPagination.setPage}
+        />
+      </article>
+    );
+  }
+
+  if (widget.widget === "project_spend") {
+    if (strategyStateMessage) {
+      return renderStrategyState(strategyStateMessage);
+    }
+    if (!strategySummary) {
+      return renderStrategyState("Strategy summary is unavailable right now.");
+    }
+    const items = projectSpendItems.slice(
+      projectSpendPagination.startIndex,
+      projectSpendPagination.endIndex
+    );
+    return (
+      <article className="mc-cockpit-widget-body">
+        <div className="mc-widget-list-container" ref={projectSpendListRef}>
+          <ul className="mc-cockpit-list">
+            {items.map((item) => (
+              <li key={item.project_id}>
+                <div>
+                  <strong>{item.project_name}</strong>
+                  <p>
+                    {joinParts([
+                      item.goal_title,
+                      formatMoney(item.estimated_cost_total, strategySummary.currency),
+                      `${item.attributed_run_count} runs`,
+                    ])}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    props.onSelectStrategyGoal(item.goal_id);
+                    props.onSelectStrategyProject(item.project_id);
+                  }}
+                >
+                  Open Project
+                </button>
+              </li>
+            ))}
+            {projectSpendItems.length === 0 ? <li>No project spend has been attributed yet.</li> : null}
+          </ul>
+        </div>
+        <PaginationControls
+          page={projectSpendPagination.page}
+          totalPages={projectSpendPagination.totalPages}
+          onSetPage={projectSpendPagination.setPage}
+        />
+      </article>
+    );
+  }
+
+  if (widget.widget === "approval_backlog") {
+    if (strategyStateMessage) {
+      return renderStrategyState(strategyStateMessage);
+    }
+    if (!strategySummary) {
+      return renderStrategyState("Strategy summary is unavailable right now.");
+    }
+    const items = approvalBacklogItems.slice(
+      approvalBacklogPagination.startIndex,
+      approvalBacklogPagination.endIndex
+    );
+    return (
+      <article className="mc-cockpit-widget-body">
+        <div className="mc-widget-list-container" ref={approvalBacklogListRef}>
+          <ul className="mc-cockpit-list">
+            {items.map((item) => (
+              <li key={item.approval_id}>
+                <div>
+                  <strong>{item.summary}</strong>
+                  <p>
+                    {joinParts([
+                      item.kind,
+                      `Requested ${formatRelative(item.requested_at)}`,
+                    ])}
+                  </p>
+                </div>
+                {item.linked_task_id ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      props.onOpenStrategyTask(item.linked_task_id!);
+                    }}
+                  >
+                    Open Task
+                  </button>
+                ) : (
+                  <Chip label="unlinked" tone="warning" />
+                )}
+              </li>
+            ))}
+            {approvalBacklogItems.length === 0 ? <li>No critical approvals are waiting.</li> : null}
+          </ul>
+        </div>
+        <PaginationControls
+          page={approvalBacklogPagination.page}
+          totalPages={approvalBacklogPagination.totalPages}
+          onSetPage={approvalBacklogPagination.setPage}
+        />
       </article>
     );
   }

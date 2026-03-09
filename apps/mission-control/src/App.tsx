@@ -21,6 +21,7 @@ import { useBoardsController } from "./features/boards/useBoardsController";
 import { useCockpitController } from "./features/cockpit/useCockpitController";
 import { OnboardingWizard } from "./features/onboarding/OnboardingWizard";
 import { useOnboardingController } from "./features/onboarding/useOnboardingController";
+import { useStrategyController } from "./features/strategy/useStrategyController";
 import { SafeModePanel } from "./ui/SafeModePanel";
 import { ToastStack } from "./ui/Toast";
 import { useToasts } from "./ui/useToasts";
@@ -109,6 +110,13 @@ const GUIDED_TOUR_STEPS: GuidedTourStepDef[] = [
     body: "Build operation views with widgets for approvals, jobs, channels, and runtime health.",
   },
   {
+    id: "strategy",
+    tab: "strategy",
+    targetId: "nav-strategy",
+    title: "Strategy = management layer",
+    body: "Track goals, projects, blocked work, stale work, ownership, and approval-linked tasks here.",
+  },
+  {
     id: "help",
     tab: "help",
     targetId: "nav-help-shortcut",
@@ -180,6 +188,7 @@ export default function App() {
   const incidentAutoEnabled =
     optionalModulesEnabled && opsConfig.controls.incident_auto_trigger;
   const usageChartsEnabled = optionalModulesEnabled && opsConfig.controls.usage_charts;
+  const strategyHubEnabled = optionalModulesEnabled && opsConfig.controls.strategy_hub;
 
   const patchOpsControls = useCallback(
     (patch: Partial<OpsUxFeatureControls>) => {
@@ -219,6 +228,12 @@ export default function App() {
     settings,
     agents,
     incidentMode: cockpitController.incidentMode,
+    setNotice,
+  });
+  const strategyController = useStrategyController({
+    settings,
+    agents,
+    enabled: strategyHubEnabled,
     setNotice,
   });
   const assistantController = useAssistantChatController({
@@ -268,6 +283,8 @@ export default function App() {
     tokenConfigured,
     agents,
     authProfiles: missionControl.authProfiles,
+    strategyEnabled: strategyHubEnabled,
+    bootstrapPresets: strategyController.presets,
     saveConnectionFromInputs,
     loadBaseline,
     setActiveTab,
@@ -528,10 +545,12 @@ export default function App() {
       if (
         frame.event_type.startsWith("job.") ||
         frame.event_type.startsWith("approval.") ||
+        frame.event_type.startsWith("board.") ||
         frame.event_type.startsWith("channel.") ||
         frame.event_type.startsWith("extension.")
       ) {
         queueMissionControlRefresh(settings);
+        strategyController.queueRefresh(settings);
       }
       if (isAgentMailEvent) {
         queueAgentMailRefresh(settings);
@@ -557,6 +576,7 @@ export default function App() {
       setIncidentModeAutomatically,
       setEventStream,
       settings,
+      strategyController,
     ]
   );
 
@@ -567,6 +587,11 @@ export default function App() {
     onState: setWsState,
     onEvent: handleGatewayEvent,
   });
+
+  const refreshAllReadModels = useCallback(() => {
+    missionControl.queueMissionControlRefresh(settings);
+    strategyController.queueRefresh(settings);
+  }, [missionControl, settings, strategyController]);
 
   if (safeModeReason) {
     return <SafeModePanel reason={safeModeReason} onResume={resumeFromSafeMode} />;
@@ -598,7 +623,7 @@ export default function App() {
       onOpenSetupWizard={onboarding.openWizard}
       onOpenHelpDocs={openHelpDocs}
       onOpenGuidedTour={openGuidedTour}
-      onRefresh={() => missionControl.queueMissionControlRefresh(settings)}
+      onRefresh={refreshAllReadModels}
       notifications={notifications}
       onDismissNotification={dismissNotification}
       onClearAllNotifications={clearAllNotifications}
@@ -651,6 +676,7 @@ export default function App() {
         onTabChange={setActiveTab}
         onOpenHelpDocs={openHelpDocs}
         onStartGuidedTour={openGuidedTour}
+        onRefreshBaseline={() => loadBaseline(settings)}
         settings={settings}
         boards={boards}
         agents={agents}
@@ -659,6 +685,7 @@ export default function App() {
         mailController={mailController}
         assistantController={assistantController}
         cockpitController={cockpitController}
+        strategyController={strategyController}
         showRawEvents={showRawEvents}
         setShowRawEvents={setShowRawEvents}
         visibleEvents={visibleEvents}

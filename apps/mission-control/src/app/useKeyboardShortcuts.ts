@@ -63,12 +63,12 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions) {
         return;
       }
 
-      // Tab shortcuts 1-8 — only when not editing and no overlay
+      // Tab shortcuts — only when not editing and no overlay
       if (!overlayOpen && !isEditableTarget(e) && !meta && !e.altKey && !e.shiftKey) {
-        const idx = parseInt(e.key, 10);
-        if (idx >= 1 && idx <= MISSION_CONTROL_TABS.length) {
+        const match = MISSION_CONTROL_TABS.find((item) => item.shortcut === e.key);
+        if (match) {
           e.preventDefault();
-          onTabChange(MISSION_CONTROL_TABS[idx - 1].tab);
+          onTabChange(match.tab);
         }
       }
     },

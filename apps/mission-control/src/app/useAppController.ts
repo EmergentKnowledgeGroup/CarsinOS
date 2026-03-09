@@ -21,6 +21,7 @@ export type MissionControlTab =
   | "assistant"
   | "team"
   | "cockpit"
+  | "strategy"
   | "help";
 
 export interface EventStreamItem {

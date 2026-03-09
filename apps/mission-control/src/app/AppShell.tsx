@@ -51,6 +51,7 @@ const NAV_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
   users: Users,
   bot: Bot,
   gauge: Gauge,
+  compass: Compass,
   "book-open": BookOpen,
 };
 
@@ -489,6 +490,16 @@ export function AppShell(props: AppShellProps) {
                   />
                   <span>Cost/usage charts module</span>
                 </label>
+                <label className="mc-settings-toggle">
+                  <input
+                    type="checkbox"
+                    checked={props.opsUxConfig.controls.strategy_hub}
+                    onChange={(event) =>
+                      patchOpsControl("strategy_hub", event.target.checked)
+                    }
+                  />
+                  <span>Strategy hub module</span>
+                </label>
                 <div className="mc-modal-status-row">
                   <Chip
                     label={`live feed: ${
@@ -523,6 +534,20 @@ export function AppShell(props: AppShellProps) {
                       props.usageChartsEnabled ? "enabled" : "unavailable"
                     }`}
                     tone={props.usageChartsEnabled ? "connected" : "down"}
+                  />
+                  <Chip
+                    label={`strategy hub: ${
+                      !props.opsUxConfig.controls.global_kill_switch &&
+                      props.opsUxConfig.controls.strategy_hub
+                        ? "enabled"
+                        : "disabled"
+                    }`}
+                    tone={
+                      !props.opsUxConfig.controls.global_kill_switch &&
+                      props.opsUxConfig.controls.strategy_hub
+                        ? "checking"
+                        : "down"
+                    }
                   />
                 </div>
                 {props.opsUxConfigError ? (

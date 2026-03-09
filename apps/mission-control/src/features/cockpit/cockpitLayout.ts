@@ -7,6 +7,18 @@ const COCKPIT_V2_KEY = STORAGE_KEYS.cockpitPagesV2;
 
 /* ── Widget kinds ─────────────────────────────────────────────────────────── */
 
+export const STRATEGY_COCKPIT_WIDGET_KINDS = [
+  "strategy_summary",
+  "blocked_work",
+  "stale_work",
+  "goal_progress",
+  "project_spend",
+  "approval_backlog",
+] as const;
+
+export type StrategyCockpitWidgetKind =
+  (typeof STRATEGY_COCKPIT_WIDGET_KINDS)[number];
+
 export type CockpitWidgetKind =
   | "health"
   | "focus"
@@ -16,7 +28,8 @@ export type CockpitWidgetKind =
   | "profiles"
   | "skills"
   | "plugins"
-  | "events";
+  | "events"
+  | StrategyCockpitWidgetKind;
 
 const COCKPIT_WIDGET_KINDS: CockpitWidgetKind[] = [
   "health",
@@ -28,6 +41,7 @@ const COCKPIT_WIDGET_KINDS: CockpitWidgetKind[] = [
   "skills",
   "plugins",
   "events",
+  ...STRATEGY_COCKPIT_WIDGET_KINDS,
 ];
 
 /* ── v2 position model ────────────────────────────────────────────────────── */
@@ -47,15 +61,21 @@ export interface WidgetSizeConstraint {
 }
 
 export const WIDGET_SIZE_CONSTRAINTS: Record<CockpitWidgetKind, WidgetSizeConstraint> = {
-  health:   { minW: 6, minH: 2, defaultW: 12, defaultH: 2 },
-  focus:    { minW: 4, minH: 3, defaultW: 6,  defaultH: 4 },
-  breakers: { minW: 4, minH: 3, defaultW: 6,  defaultH: 4 },
-  jobs:     { minW: 4, minH: 3, defaultW: 6,  defaultH: 5 },
-  channels: { minW: 4, minH: 3, defaultW: 6,  defaultH: 4 },
-  profiles: { minW: 6, minH: 4, defaultW: 8,  defaultH: 5 },
-  skills:   { minW: 4, minH: 3, defaultW: 6,  defaultH: 4 },
-  plugins:  { minW: 4, minH: 3, defaultW: 6,  defaultH: 4 },
-  events:   { minW: 4, minH: 3, defaultW: 6,  defaultH: 5 },
+  health:            { minW: 6, minH: 2, defaultW: 12, defaultH: 2 },
+  focus:             { minW: 4, minH: 3, defaultW: 6, defaultH: 4 },
+  breakers:          { minW: 4, minH: 3, defaultW: 6, defaultH: 4 },
+  jobs:              { minW: 4, minH: 3, defaultW: 6, defaultH: 5 },
+  channels:          { minW: 4, minH: 3, defaultW: 6, defaultH: 4 },
+  profiles:          { minW: 6, minH: 4, defaultW: 8, defaultH: 5 },
+  skills:            { minW: 4, minH: 3, defaultW: 6, defaultH: 4 },
+  plugins:           { minW: 4, minH: 3, defaultW: 6, defaultH: 4 },
+  events:            { minW: 4, minH: 3, defaultW: 6, defaultH: 5 },
+  strategy_summary:  { minW: 6, minH: 3, defaultW: 12, defaultH: 3 },
+  blocked_work:      { minW: 4, minH: 3, defaultW: 6, defaultH: 5 },
+  stale_work:        { minW: 4, minH: 3, defaultW: 6, defaultH: 5 },
+  goal_progress:     { minW: 4, minH: 3, defaultW: 6, defaultH: 4 },
+  project_spend:     { minW: 4, minH: 3, defaultW: 6, defaultH: 4 },
+  approval_backlog:  { minW: 4, minH: 3, defaultW: 6, defaultH: 4 },
 };
 
 const CUSTOM_WIDGET_SIZE_CONSTRAINTS: WidgetSizeConstraint = {
@@ -170,6 +190,42 @@ export const COCKPIT_WIDGET_PALETTE: CockpitWidgetPaletteEntry[] = [
     title: "Event Tail",
     description: "Live operational event stream with noise control.",
     icon: "activity",
+  },
+  {
+    widget: "strategy_summary",
+    title: "Strategy Summary",
+    description: "Blocked work, stale work, approvals, and spend from the strategy layer.",
+    icon: "compass",
+  },
+  {
+    widget: "blocked_work",
+    title: "Blocked Work",
+    description: "Track blocked strategy tasks and jump directly into the task detail view.",
+    icon: "octagon-alert",
+  },
+  {
+    widget: "stale_work",
+    title: "Stale Work",
+    description: "Surface stale strategy tasks before execution drifts too far.",
+    icon: "clock-3",
+  },
+  {
+    widget: "goal_progress",
+    title: "Goal Progress",
+    description: "Compare goal progress, open task counts, and blocked work at a glance.",
+    icon: "flag",
+  },
+  {
+    widget: "project_spend",
+    title: "Project Spend",
+    description: "Inspect project spend rollups and jump into the associated goal or project.",
+    icon: "coins",
+  },
+  {
+    widget: "approval_backlog",
+    title: "Approval Backlog",
+    description: "Watch critical approvals and open the linked task when one is attached.",
+    icon: "badge-alert",
   },
 ];
 

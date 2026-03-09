@@ -36,9 +36,10 @@ Ship work in small PR chunks into `main` so CodeRabbit can review each change se
 3. Open PR into `main`.
 4. PR descriptions must include a short summary and the verification commands that were run.
 5. Request CodeRabbit review with `@coderabbitai review`.
-6. Let CodeRabbit + CI run.
-7. Address review comments on the same branch and rerun required validation.
-8. Merge to `main` only after CodeRabbit review is complete and checks are green.
+6. Run the required validation locally before and after review fixes. PR-triggered GitHub Actions are manual-only and are not the merge gate.
+7. Address CodeRabbit actionables on the same branch and rerun required validation.
+8. Limit CodeRabbit follow-up on the same PR to two resubmits after the initial review request. Do not start a third follow-up review cycle on the same PR.
+9. Merge to `main` only after CodeRabbit review is complete and local validation is green.
 
 ## Why This Helps
 1. Faster, cleaner reviews.

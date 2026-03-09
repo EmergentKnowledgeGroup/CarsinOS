@@ -16,6 +16,8 @@ import { EventsPage } from "../features/events/EventsPage";
 import { FocusPage } from "../features/focus/FocusPage";
 import { TeamPage } from "../features/team/TeamPage";
 import { HelpDocsPage } from "../features/help/HelpDocsPage";
+import { StrategyPage } from "../features/strategy/StrategyPage";
+import { useStrategyController } from "../features/strategy/useStrategyController";
 import { useMissionControlController } from "./useMissionControlController";
 import { TabHelpBanner } from "./TabHelpBanner";
 import type { EventStreamItem, MissionControlTab } from "./useAppController";
@@ -29,6 +31,7 @@ interface AppContentProps {
   onTabChange: (tab: MissionControlTab) => void;
   onOpenHelpDocs: () => void;
   onStartGuidedTour: () => void;
+  onRefreshBaseline: () => Promise<void>;
   settings: RuntimeConnectionSettings;
   boards: BoardSummary[];
   agents: Agent[];
@@ -37,6 +40,7 @@ interface AppContentProps {
   mailController: ReturnType<typeof useAgentMailController>;
   assistantController: ReturnType<typeof useAssistantChatController>;
   cockpitController: ReturnType<typeof useCockpitController>;
+  strategyController: ReturnType<typeof useStrategyController>;
   showRawEvents: boolean;
   setShowRawEvents: Dispatch<SetStateAction<boolean>>;
   visibleEvents: EventStreamItem[];
@@ -64,9 +68,21 @@ function E2EForceCrashSentinel({
 
 function renderCockpitWidget(
   widget: CockpitWidgetLayoutV2,
-  props: Omit<AppContentProps, "activeTab">
+  props: Omit<AppContentProps, "activeTab">,
+  strategyActions: {
+    openTask: (taskId: string) => boolean;
+    selectGoal: (goalId: string) => void;
+    selectProject: (projectId: string) => void;
+  }
 ) {
-  const { missionControl, cockpitController, agents, visibleEvents, settings } = props;
+  const {
+    missionControl,
+    cockpitController,
+    agents,
+    visibleEvents,
+    settings,
+    strategyController,
+  } = props;
   return (
     <CockpitWidgetRenderer
       widget={widget}
@@ -102,6 +118,14 @@ function renderCockpitWidget(
       usageTrend={missionControl.usageTrend}
       usageBudgetWarnings={missionControl.usageBudgetWarnings}
       usageUpdatedAtUtc={missionControl.usageUpdatedAtUtc}
+      strategyEnabled={strategyController.enabled}
+      strategyAvailability={strategyController.availability}
+      strategySummary={strategyController.summary}
+      strategyGoals={strategyController.goals}
+      strategyProjects={strategyController.projects}
+      onOpenStrategyTask={strategyActions.openTask}
+      onSelectStrategyGoal={strategyActions.selectGoal}
+      onSelectStrategyProject={strategyActions.selectProject}
       onRefreshAll={() => missionControl.queueMissionControlRefresh(settings)}
       onRunCalendarJobNow={missionControl.runCalendarJobNow}
       onToggleCalendarJob={missionControl.toggleCalendarJob}
@@ -184,6 +208,24 @@ export function AppContent(props: AppContentProps) {
   const [forceCrashToken, setForceCrashToken] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const tabEvents = props.visibleEvents.slice(0, 10);
+  const strategyReady =
+    props.strategyController.enabled &&
+    props.strategyController.availability === "ready";
+  const openStrategyTask = (taskId: string) => {
+    const opened = props.strategyController.openTaskById(taskId);
+    if (opened) {
+      props.onTabChange("strategy");
+    }
+    return opened;
+  };
+  const selectStrategyGoal = (goalId: string) => {
+    props.strategyController.setSelectedGoalId(goalId);
+    props.onTabChange("strategy");
+  };
+  const selectStrategyProject = (projectId: string) => {
+    props.strategyController.setSelectedProjectId(projectId);
+    props.onTabChange("strategy");
+  };
 
   return (
     <>
@@ -250,6 +292,10 @@ export function AppContent(props: AppContentProps) {
           onUploadAsset={props.boardsController.uploadAsset}
           onPreviewAsset={props.boardsController.previewAsset}
           selectedPreviewUrl={props.boardsController.selectedPreviewUrl}
+          strategyReady={strategyReady}
+          linkedTaskByCardId={props.strategyController.taskByBoardCardId}
+          describeStrategyTask={props.strategyController.describeTaskContext}
+          onOpenStrategyTask={openStrategyTask}
         />
       </TabBoundaryPane>
 
@@ -276,6 +322,10 @@ export function AppContent(props: AppContentProps) {
           calendarJobs={props.missionControl.calendarJobs}
           onRunCalendarJobNow={props.missionControl.runCalendarJobNow}
           onToggleCalendarJob={props.missionControl.toggleCalendarJob}
+          strategyReady={strategyReady}
+          taskByJobId={props.strategyController.taskByJobId}
+          describeStrategyTask={props.strategyController.describeTaskContext}
+          onOpenStrategyTask={openStrategyTask}
         />
       </TabBoundaryPane>
 
@@ -302,6 +352,12 @@ export function AppContent(props: AppContentProps) {
           onResolveFocusApproval={props.missionControl.resolveFocusApproval}
           onRunCalendarJobNow={props.missionControl.runCalendarJobNow}
           onReconnectFocusChannel={props.missionControl.reconnectFocusChannel}
+          strategyReady={strategyReady}
+          approvalTaskByApprovalId={props.strategyController.approvalTaskByApprovalId}
+          taskById={props.strategyController.taskById}
+          taskByJobId={props.strategyController.taskByJobId}
+          describeStrategyTask={props.strategyController.describeTaskContext}
+          onOpenStrategyTask={openStrategyTask}
         />
       </TabBoundaryPane>
 
@@ -506,7 +562,8 @@ export function AppContent(props: AppContentProps) {
           agents={props.agents}
           activeJobCount={props.missionControl.calendarJobs.filter((j) => j.enabled).length}
           settings={props.settings}
-          onRefresh={() => props.missionControl.queueMissionControlRefresh(props.settings)}
+          strategyController={props.strategyController}
+          onRefresh={props.onRefreshBaseline}
         />
       </TabBoundaryPane>
 
@@ -553,8 +610,36 @@ export function AppContent(props: AppContentProps) {
           onAddCustomWidget={props.cockpitController.addCustomWidget}
           onRemoveCockpitWidget={props.cockpitController.removeCockpitWidget}
           onLayoutChange={props.cockpitController.handleLayoutChange}
-          renderCockpitWidget={(widget) => renderCockpitWidget(widget, props)}
+          renderCockpitWidget={(widget) =>
+            renderCockpitWidget(widget, props, {
+              openTask: openStrategyTask,
+              selectGoal: selectStrategyGoal,
+              selectProject: selectStrategyProject,
+            })
+          }
           settings={props.settings}
+        />
+      </TabBoundaryPane>
+
+      <TabBoundaryPane
+        tab="strategy"
+        active={active === "strategy"}
+        resetVersion={props.tabResetVersion.strategy ?? 0}
+        forceCrashToken={forceCrashToken}
+        title="This tab crashed."
+        subtitle="Strategy ran into an unexpected runtime error. Retry, reset this tab, or reload."
+        events={tabEvents}
+        onResetTabState={props.onResetTabState}
+        onEnterSafeMode={props.onEnterSafeMode}
+      >
+        <TabHelpBanner
+          tab="strategy"
+          onOpenDocs={props.onOpenHelpDocs}
+          onStartTour={props.onStartGuidedTour}
+        />
+        <StrategyPage
+          controller={props.strategyController}
+          agents={props.agents}
         />
       </TabBoundaryPane>
 

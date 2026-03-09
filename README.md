@@ -88,7 +88,8 @@ Security artifacts are written under `runtime/security/reports/`.
 ## Git/PR review flow
 
 - Follow `docs/GIT_PR_WORKFLOW.md`.
-- CI is wired through:
+- PR workflows are manual-only. Local validation is the authoritative pre-merge gate.
+- Optional/manual workflows still exist for ad hoc runs:
   - `.github/workflows/pr-gate.yml`
   - `.github/workflows/nightly-security.yml`
 

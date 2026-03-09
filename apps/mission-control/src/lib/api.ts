@@ -10,20 +10,26 @@ import type {
   AuthProfileResponse,
   BoardDetail,
   BoardDetailResponse,
+  CreateBootstrapPresetResponse,
+  CreateGoalResponse,
   CreateAgentResponse,
   CreateMessageResponse,
+  CreateProjectResponse,
   CreateRunResponse,
   CreateSessionResponse,
+  CreateTaskResponse,
   CreateAgentMailFileLeaseResponse,
   CreateAgentMailThreadResponse,
   CreateAuthProfileResponse,
   CreateMemoryNoteResponse,
+  ExportBootstrapPresetResponse,
   GetChannelRuntimeStatusResponse,
   HealthResponse,
   JobStatusResponse,
   ListAgentMailFileLeasesResponse,
   ListAgentMailMessagesResponse,
   ListAgentMailThreadsResponse,
+  ListBootstrapPresetsResponse,
   ListMemoryNotesResponse,
   ListMessagesResponse,
   ListAuthProfilesResponse,
@@ -36,6 +42,9 @@ import type {
   ListSkillsResponse,
   ListAgentsResponse,
   ListBoardsResponse,
+  ListGoalsResponse,
+  ListProjectsResponse,
+  ListTasksResponse,
   MissionControlCalendarWeekResponse,
   MissionControlFocusResponse,
   MissionControlUsageResponse,
@@ -52,13 +61,20 @@ import type {
   RunBoardCardResponse,
   SendAgentMailMessageResponse,
   StatusResponse,
+  StrategySummaryResponse,
+  TaskLinkMutationResponse,
+  UpdateBootstrapPresetResponse,
+  UpdateGoalResponse,
   UpdatePluginResponse,
   UpdateSkillStateResponse,
   UpdateJobResponse,
   UpdateBoardCardResponse,
   UpdateAgentResponse,
+  UpdateProjectResponse,
+  UpdateTaskResponse,
   UploadAgentMailAttachmentResponse,
   UploadBoardCardAssetResponse,
+  ImportBootstrapPresetResponse,
 } from "../types";
 
 function normalizeGatewayUrl(gatewayUrl: string): string {
@@ -86,6 +102,21 @@ function resolveApiUrl(gatewayUrl: string, path: string): string {
   const base = normalizeGatewayUrl(gatewayUrl);
   const normalizedPath = path.startsWith("/") ? path.slice(1) : path;
   return new URL(normalizedPath, base).toString();
+}
+
+function appendQuery(
+  path: string,
+  entries: Array<[string, string | number | boolean | null | undefined]>
+): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of entries) {
+    if (value === undefined || value === null || value === "") {
+      continue;
+    }
+    params.set(key, String(value));
+  }
+  const query = params.toString();
+  return query ? `${path}?${query}` : path;
 }
 
 interface ApiRequestOptions {
@@ -242,6 +273,8 @@ export async function createAgent(
     model_provider?: string;
     model_id?: string;
     tool_profile?: string;
+    reports_to_agent_id?: string | null;
+    role_label?: string | null;
   }
 ): Promise<CreateAgentResponse> {
   return requestJson<CreateAgentResponse>(settings, "/api/v1/agents", {
@@ -259,6 +292,8 @@ export async function updateAgent(
     model_provider?: string;
     model_id?: string;
     tool_profile?: string;
+    reports_to_agent_id?: string | null;
+    role_label?: string | null;
   }
 ): Promise<UpdateAgentResponse> {
   return requestJson<UpdateAgentResponse>(
@@ -280,6 +315,390 @@ export async function removeAgent(
     `/api/v1/agents/${encodeURIComponent(agentId)}/remove`,
     {
       method: "POST",
+    }
+  );
+}
+
+export async function listGoals(
+  settings: RuntimeConnectionSettings,
+  query?: {
+    limit?: number;
+    cursor?: string;
+    sort?: string;
+    status?: string;
+    owner_agent_id?: string;
+    query?: string;
+  }
+): Promise<ListGoalsResponse> {
+  return requestJson<ListGoalsResponse>(
+    settings,
+    appendQuery("/api/v1/goals", [
+      ["limit", query?.limit],
+      ["cursor", query?.cursor],
+      ["sort", query?.sort],
+      ["status", query?.status],
+      ["owner_agent_id", query?.owner_agent_id],
+      ["query", query?.query],
+    ])
+  );
+}
+
+export async function createGoal(
+  settings: RuntimeConnectionSettings,
+  payload: {
+    slug: string;
+    title: string;
+    summary?: string | null;
+    status?: string;
+    owner_agent_id?: string | null;
+    target_date?: number | null;
+  }
+): Promise<CreateGoalResponse> {
+  return requestJson<CreateGoalResponse>(settings, "/api/v1/goals", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export async function updateGoal(
+  settings: RuntimeConnectionSettings,
+  goalId: string,
+  payload: {
+    slug?: string;
+    title?: string;
+    summary?: string;
+    status?: string;
+    owner_agent_id?: string | null;
+    target_date?: number | null;
+  }
+): Promise<UpdateGoalResponse> {
+  return requestJson<UpdateGoalResponse>(
+    settings,
+    `/api/v1/goals/${encodeURIComponent(goalId)}`,
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
+export async function listProjects(
+  settings: RuntimeConnectionSettings,
+  query?: {
+    limit?: number;
+    cursor?: string;
+    sort?: string;
+    status?: string;
+    owner_agent_id?: string;
+    query?: string;
+    goal_id?: string;
+  }
+): Promise<ListProjectsResponse> {
+  return requestJson<ListProjectsResponse>(
+    settings,
+    appendQuery("/api/v1/projects", [
+      ["limit", query?.limit],
+      ["cursor", query?.cursor],
+      ["sort", query?.sort],
+      ["status", query?.status],
+      ["owner_agent_id", query?.owner_agent_id],
+      ["query", query?.query],
+      ["goal_id", query?.goal_id],
+    ])
+  );
+}
+
+export async function createProject(
+  settings: RuntimeConnectionSettings,
+  payload: {
+    goal_id: string;
+    slug: string;
+    name: string;
+    summary?: string | null;
+    status?: string;
+    owner_agent_id?: string | null;
+    workspace_root?: string | null;
+    budget_month_usd?: number | null;
+  }
+): Promise<CreateProjectResponse> {
+  return requestJson<CreateProjectResponse>(settings, "/api/v1/projects", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export async function updateProject(
+  settings: RuntimeConnectionSettings,
+  projectId: string,
+  payload: {
+    goal_id?: string;
+    slug?: string;
+    name?: string;
+    summary?: string;
+    status?: string;
+    owner_agent_id?: string | null;
+    workspace_root?: string | null;
+    budget_month_usd?: number | null;
+  }
+): Promise<UpdateProjectResponse> {
+  return requestJson<UpdateProjectResponse>(
+    settings,
+    `/api/v1/projects/${encodeURIComponent(projectId)}`,
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
+export async function listTasks(
+  settings: RuntimeConnectionSettings,
+  query?: {
+    limit?: number;
+    cursor?: string;
+    sort?: string;
+    status?: string;
+    owner_agent_id?: string;
+    query?: string;
+    goal_id?: string;
+    project_id?: string;
+    stale?: boolean;
+    blocked?: boolean;
+    unassigned?: boolean;
+    hierarchy_root_agent_id?: string;
+    hierarchy_scope?: string;
+  }
+): Promise<ListTasksResponse> {
+  return requestJson<ListTasksResponse>(
+    settings,
+    appendQuery("/api/v1/tasks", [
+      ["limit", query?.limit],
+      ["cursor", query?.cursor],
+      ["sort", query?.sort],
+      ["status", query?.status],
+      ["owner_agent_id", query?.owner_agent_id],
+      ["query", query?.query],
+      ["goal_id", query?.goal_id],
+      ["project_id", query?.project_id],
+      ["stale", query?.stale],
+      ["blocked", query?.blocked],
+      ["unassigned", query?.unassigned],
+      ["hierarchy_root_agent_id", query?.hierarchy_root_agent_id],
+      ["hierarchy_scope", query?.hierarchy_scope],
+    ])
+  );
+}
+
+export async function createTask(
+  settings: RuntimeConnectionSettings,
+  payload: {
+    project_id: string;
+    parent_task_id?: string | null;
+    title: string;
+    detail?: string | null;
+    status?: string;
+    priority?: string;
+    owner_agent_id?: string | null;
+    due_at?: number | null;
+    blocked_reason?: string | null;
+  }
+): Promise<CreateTaskResponse> {
+  return requestJson<CreateTaskResponse>(settings, "/api/v1/tasks", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export async function updateTask(
+  settings: RuntimeConnectionSettings,
+  taskId: string,
+  payload: {
+    project_id?: string;
+    parent_task_id?: string | null;
+    title?: string;
+    detail?: string;
+    status?: string;
+    priority?: string;
+    owner_agent_id?: string | null;
+    due_at?: number | null;
+    blocked_reason?: string | null;
+  }
+): Promise<UpdateTaskResponse> {
+  return requestJson<UpdateTaskResponse>(
+    settings,
+    `/api/v1/tasks/${encodeURIComponent(taskId)}`,
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
+export async function linkTaskBoardCard(
+  settings: RuntimeConnectionSettings,
+  taskId: string,
+  payload: {
+    board_card_id: string;
+    force_reassign?: boolean;
+  }
+): Promise<TaskLinkMutationResponse> {
+  return requestJson<TaskLinkMutationResponse>(
+    settings,
+    `/api/v1/tasks/${encodeURIComponent(taskId)}/links/board-card`,
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
+export async function linkTaskJob(
+  settings: RuntimeConnectionSettings,
+  taskId: string,
+  payload: {
+    job_id: string;
+    force_reassign?: boolean;
+  }
+): Promise<TaskLinkMutationResponse> {
+  return requestJson<TaskLinkMutationResponse>(
+    settings,
+    `/api/v1/tasks/${encodeURIComponent(taskId)}/links/job`,
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
+export async function clearTaskLinks(
+  settings: RuntimeConnectionSettings,
+  taskId: string,
+  payload: {
+    clear_board_card?: boolean;
+    clear_job?: boolean;
+  }
+): Promise<TaskLinkMutationResponse> {
+  return requestJson<TaskLinkMutationResponse>(
+    settings,
+    `/api/v1/tasks/${encodeURIComponent(taskId)}/links/clear`,
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
+export async function getStrategySummary(
+  settings: RuntimeConnectionSettings,
+  query?: {
+    timezone?: string;
+    tz_offset_minutes?: number;
+  }
+): Promise<StrategySummaryResponse> {
+  return requestJson<StrategySummaryResponse>(
+    settings,
+    appendQuery("/api/v1/mission-control/strategy/summary", [
+      ["timezone", query?.timezone],
+      ["tz_offset_minutes", query?.tz_offset_minutes],
+    ])
+  );
+}
+
+export async function listBootstrapPresets(
+  settings: RuntimeConnectionSettings,
+  query?: {
+    limit?: number;
+    cursor?: string;
+    sort?: string;
+    query?: string;
+  }
+): Promise<ListBootstrapPresetsResponse> {
+  return requestJson<ListBootstrapPresetsResponse>(
+    settings,
+    appendQuery("/api/v1/bootstrap-presets", [
+      ["limit", query?.limit],
+      ["cursor", query?.cursor],
+      ["sort", query?.sort],
+      ["query", query?.query],
+    ])
+  );
+}
+
+export async function createBootstrapPreset(
+  settings: RuntimeConnectionSettings,
+  payload: {
+    preset_key: string;
+    display_name: string;
+    description?: string | null;
+    role_label: string;
+    provider_path: string;
+    default_model_provider?: string | null;
+    default_model_id?: string | null;
+    default_tool_profile?: string | null;
+    default_workspace_root?: string | null;
+    default_reports_to_agent_id?: string | null;
+    setup_notes?: string | null;
+  }
+): Promise<CreateBootstrapPresetResponse> {
+  return requestJson<CreateBootstrapPresetResponse>(
+    settings,
+    "/api/v1/bootstrap-presets",
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
+export async function updateBootstrapPreset(
+  settings: RuntimeConnectionSettings,
+  presetKey: string,
+  payload: {
+    display_name?: string;
+    description?: string | null;
+    role_label?: string;
+    provider_path?: string;
+    default_model_provider?: string | null;
+    default_model_id?: string | null;
+    default_tool_profile?: string | null;
+    default_workspace_root?: string | null;
+    default_reports_to_agent_id?: string | null;
+    setup_notes?: string | null;
+  }
+): Promise<UpdateBootstrapPresetResponse> {
+  return requestJson<UpdateBootstrapPresetResponse>(
+    settings,
+    `/api/v1/bootstrap-presets/${encodeURIComponent(presetKey)}`,
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
+export async function exportBootstrapPreset(
+  settings: RuntimeConnectionSettings,
+  presetKey: string
+): Promise<ExportBootstrapPresetResponse> {
+  return requestJson<ExportBootstrapPresetResponse>(
+    settings,
+    `/api/v1/bootstrap-presets/${encodeURIComponent(presetKey)}/export`
+  );
+}
+
+export async function importBootstrapPreset(
+  settings: RuntimeConnectionSettings,
+  payload: {
+    payload: Record<string, unknown>;
+    overwrite?: boolean;
+  }
+): Promise<ImportBootstrapPresetResponse> {
+  return requestJson<ImportBootstrapPresetResponse>(
+    settings,
+    "/api/v1/bootstrap-presets/import",
+    {
+      method: "POST",
+      body: payload,
     }
   );
 }

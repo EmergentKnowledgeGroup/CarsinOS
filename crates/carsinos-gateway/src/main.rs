@@ -30,32 +30,39 @@ use carsinos_protocol::{
     AssistantToolLimitsResponse, AssistantToolRpcRequest, AssistantToolRpcResponse,
     AssistantWorkerSummary, AssistantWorkerTemplateResponse, AssistantWorkerTemplateRunDefaults,
     AuthProfileResponse, BoardAutomationRuleResponse, BoardCardAssetResponse, BoardCardResponse,
-    BoardColumnResponse, BoardDetailResponse, BoardSummaryResponse,
-    ChannelRuntimeAdapterStatusResponse, CircuitBreakerStateResponse,
+    BoardColumnResponse, BoardDetailResponse, BoardSummaryResponse, BootstrapPresetResponse,
+    ChannelRuntimeAdapterStatusResponse, CircuitBreakerStateResponse, ClearTaskLinksRequest,
     CreateAgentMailFileLeaseRequest, CreateAgentMailFileLeaseResponse,
     CreateAgentMailThreadRequest, CreateAgentMailThreadResponse, CreateAgentRequest,
     CreateAgentResponse, CreateApprovalRequest, CreateApprovalResponse, CreateAuthProfileRequest,
-    CreateAuthProfileResponse, CreateBoardCardRequest, CreateBoardCardResponse, CreateJobRequest,
-    CreateJobResponse, CreateMessageRequest, CreateMessageResponse, CreateNoteRequest,
-    CreateNoteResponse, CreateRunRequest, CreateRunResponse, CreateSessionRequest,
-    CreateSessionResponse, DeleteRuntimeSecretRequest, DeleteRuntimeSecretResponse,
-    DiscordChannelConfig, FailureReasonCountResponse, GetAgentProviderProfileOrderResponse,
-    GetAgentResponse, GetBoardAutomationRuleResponse, GetChannelConfigResponse,
-    GetChannelRuntimeStatusResponse, GetNoteResponse, GetRuntimeConfigResponse,
-    GetRuntimeTrustContractLockResponse, HealthResponse, IngestChannelMessageResponse,
+    CreateAuthProfileResponse, CreateBoardCardRequest, CreateBoardCardResponse,
+    CreateBootstrapPresetRequest, CreateBootstrapPresetResponse, CreateGoalRequest,
+    CreateGoalResponse, CreateJobRequest, CreateJobResponse, CreateMessageRequest,
+    CreateMessageResponse, CreateNoteRequest, CreateNoteResponse, CreateProjectRequest,
+    CreateProjectResponse, CreateRunRequest, CreateRunResponse, CreateSessionRequest,
+    CreateSessionResponse, CreateTaskRequest, CreateTaskResponse, DeleteRuntimeSecretRequest,
+    DeleteRuntimeSecretResponse, DiscordChannelConfig, ExportBootstrapPresetResponse,
+    FailureReasonCountResponse, GetAgentProviderProfileOrderResponse, GetAgentResponse,
+    GetBoardAutomationRuleResponse, GetBootstrapPresetResponse, GetChannelConfigResponse,
+    GetChannelRuntimeStatusResponse, GetGoalResponse, GetNoteResponse, GetProjectResponse,
+    GetRuntimeConfigResponse, GetRuntimeTrustContractLockResponse, GetTaskResponse, HealthResponse,
+    ImportBootstrapPresetRequest, ImportBootstrapPresetResponse, IngestChannelMessageResponse,
     IngestDiscordMessageRequest, IngestTelegramMessageRequest, InstallPluginRequest,
     InstallPluginResponse, JobResponse, JobRunResponse, JobStatusResponse,
-    ListAgentMailFileLeasesQuery, ListAgentMailFileLeasesResponse, ListAgentMailMessagesQuery,
-    ListAgentMailMessagesResponse, ListAgentMailThreadsQuery, ListAgentMailThreadsResponse,
-    ListAgentsResponse, ListApprovalsQuery, ListApprovalsResponse, ListAuthProfilesQuery,
-    ListAuthProfilesResponse, ListBoardAutomationRulesResponse, ListBoardsResponse,
-    ListJobHistoryQuery, ListJobHistoryResponse, ListJobsQuery, ListJobsResponse,
-    ListMessagesQuery, ListMessagesResponse, ListNotesQuery, ListNotesResponse,
-    ListPluginRuntimeStatusResponse, ListPluginsQuery, ListPluginsResponse,
+    LinkTaskBoardCardRequest, LinkTaskJobRequest, ListAgentMailFileLeasesQuery,
+    ListAgentMailFileLeasesResponse, ListAgentMailMessagesQuery, ListAgentMailMessagesResponse,
+    ListAgentMailThreadsQuery, ListAgentMailThreadsResponse, ListAgentsResponse,
+    ListApprovalsQuery, ListApprovalsResponse, ListAuthProfilesQuery, ListAuthProfilesResponse,
+    ListBoardAutomationRulesResponse, ListBoardsResponse, ListBootstrapPresetsQuery,
+    ListBootstrapPresetsResponse, ListGoalsQuery, ListGoalsResponse, ListJobHistoryQuery,
+    ListJobHistoryResponse, ListJobsQuery, ListJobsResponse, ListMessagesQuery,
+    ListMessagesResponse, ListNotesQuery, ListNotesResponse, ListPluginRuntimeStatusResponse,
+    ListPluginsQuery, ListPluginsResponse, ListProjectsQuery, ListProjectsResponse,
     ListProviderCapabilitiesQuery, ListProviderCapabilitiesResponse, ListProviderModelsQuery,
     ListProviderModelsResponse, ListSessionsQuery, ListSessionsResponse, ListSkillsQuery,
-    ListSkillsResponse, ListToolCapabilitiesQuery, ListToolCapabilitiesResponse, MessageResponse,
-    MetricsResponse, MissionControlCalendarWeekJobResponse, MissionControlCalendarWeekQuery,
+    ListSkillsResponse, ListTasksQuery, ListTasksResponse, ListToolCapabilitiesQuery,
+    ListToolCapabilitiesResponse, MessageResponse, MetricsResponse,
+    MissionControlCalendarWeekJobResponse, MissionControlCalendarWeekQuery,
     MissionControlCalendarWeekResponse, MissionControlFocusItemResponse, MissionControlFocusQuery,
     MissionControlFocusResponse, MissionControlUsageBudgetThresholdResponse,
     MissionControlUsageByAgentResponse, MissionControlUsageByCardResponse,
@@ -83,19 +90,24 @@ use carsinos_protocol::{
     SendAgentMailMessageResponse, SessionDetailResponse, SessionSummary,
     SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse,
     SetBoardAutomationRuleStateRequest, SetBoardAutomationRuleStateResponse, SkillResponse,
-    StatusResponse, SyncMemorySourceItemResponse, SyncMemorySourcesRequest,
-    SyncMemorySourcesResponse, TelegramChannelConfig, ToolCapabilityResponse,
-    ToolCapabilitySandboxResponse, UpdateAgentRequest, UpdateAgentResponse,
-    UpdateAuthProfileStateRequest, UpdateAuthProfileStateResponse, UpdateBoardCardRequest,
-    UpdateBoardCardResponse, UpdateChannelConfigRequest, UpdateChannelConfigResponse,
-    UpdateJobRequest, UpdateJobResponse, UpdateNoteRequest, UpdateNoteResponse,
-    UpdatePluginRequest, UpdatePluginResponse, UpdateRuntimeConfigRequest,
+    StatusResponse, StrategyApprovalBacklogItemResponse, StrategyGoalProgressItemResponse,
+    StrategySpendByAgentItemResponse, StrategySpendByProjectItemResponse, StrategySummaryQuery,
+    StrategySummaryResponse, StrategyTaskListItemResponse, SyncMemorySourceItemResponse,
+    SyncMemorySourcesRequest, SyncMemorySourcesResponse, TaskLinkMutationResponse,
+    TelegramChannelConfig, ToolCapabilityResponse, ToolCapabilitySandboxResponse,
+    UpdateAgentRequest, UpdateAgentResponse, UpdateAuthProfileStateRequest,
+    UpdateAuthProfileStateResponse, UpdateBoardCardRequest, UpdateBoardCardResponse,
+    UpdateBootstrapPresetRequest, UpdateBootstrapPresetResponse, UpdateChannelConfigRequest,
+    UpdateChannelConfigResponse, UpdateGoalRequest, UpdateGoalResponse, UpdateJobRequest,
+    UpdateJobResponse, UpdateNoteRequest, UpdateNoteResponse, UpdatePluginRequest,
+    UpdatePluginResponse, UpdateProjectRequest, UpdateProjectResponse, UpdateRuntimeConfigRequest,
     UpdateRuntimeConfigResponse, UpdateSkillStateRequest, UpdateSkillStateResponse,
-    UploadAgentMailAttachmentRequest, UploadAgentMailAttachmentResponse,
-    UploadBoardCardAssetRequest, UploadBoardCardAssetResponse, UpsertBoardAutomationRuleRequest,
-    UpsertBoardAutomationRuleResponse, UpsertRuntimeSecretRequest, UpsertRuntimeSecretResponse,
-    WsEventFrame, ASSISTANT_TOOL_CONTRACT_VERSION, HEARTBEAT_OUTPUT_ALERT_PREFIX,
-    HEARTBEAT_OUTPUT_OK, JOB_MODE_HEARTBEAT_RUN,
+    UpdateTaskRequest, UpdateTaskResponse, UploadAgentMailAttachmentRequest,
+    UploadAgentMailAttachmentResponse, UploadBoardCardAssetRequest, UploadBoardCardAssetResponse,
+    UpsertBoardAutomationRuleRequest, UpsertBoardAutomationRuleResponse,
+    UpsertRuntimeSecretRequest, UpsertRuntimeSecretResponse, WsEventFrame,
+    ASSISTANT_TOOL_CONTRACT_VERSION, HEARTBEAT_OUTPUT_ALERT_PREFIX, HEARTBEAT_OUTPUT_OK,
+    JOB_MODE_HEARTBEAT_RUN,
 };
 use carsinos_providers::{
     parse_provider_error_class as parse_provider_error_class_normalized,
@@ -106,13 +118,16 @@ use carsinos_storage::{
     AgentMailThreadListFilter, AgentRecord, AgentUpdatePatch, AppPaths, ApprovalRecord,
     ApprovalResolveResult, AssistantWorkerPatch, AssistantWorkerRecord, AuthProfileRecord,
     BoardCardAssetRecord, BoardCardRecord, BoardCardUpdatePatch, BoardColumnRecord, BoardRecord,
+    BootstrapPresetListFilter, BootstrapPresetRecord, BootstrapPresetUpdatePatch,
     CircuitBreakerStateRecord, CircuitBreakerStateUpsert, DailyAuthProfileUsageIncrement,
-    JobRecord, JobRunRecord, JobUpdatePatch, MessageRecord, NewAgent, NewAgentMailAttachment,
-    NewAgentMailFileLease, NewAgentMailMessage, NewAgentMailThread, NewApproval,
-    NewAssistantToolCallAudit, NewAssistantWorker, NewAuthProfile, NewBoardCard, NewBoardCardAsset,
-    NewJob, NewMessage, NewNote, NewRun, NewSecurityAuditEvent, NewSession, NoteRecord,
-    RemoveAgentOutcome, RunRecord, SecurityAuditEventListFilter, SecurityAuditEventRecord,
-    SessionRecord, Storage,
+    GoalListFilter, GoalRecord, GoalUpdatePatch, JobRecord, JobRunRecord, JobUpdatePatch,
+    MessageRecord, NewAgent, NewAgentMailAttachment, NewAgentMailFileLease, NewAgentMailMessage,
+    NewAgentMailThread, NewApproval, NewAssistantToolCallAudit, NewAssistantWorker, NewAuthProfile,
+    NewBoardCard, NewBoardCardAsset, NewBootstrapPreset, NewGoal, NewJob, NewMessage, NewNote,
+    NewProject, NewRun, NewSecurityAuditEvent, NewSession, NewTask, NoteRecord, ProjectListFilter,
+    ProjectRecord, ProjectUpdatePatch, RemoveAgentOutcome, RunRecord, SecurityAuditEventListFilter,
+    SecurityAuditEventRecord, SessionRecord, Storage, TaskListFilter, TaskRecord,
+    TaskRuntimeLinkRecord, TaskUpdatePatch,
 };
 use carsinos_tools::{
     ChannelActionRequest, ExecRequest, FsReadRequest, FsWriteMode, FsWriteRequest, LocalToolRunner,
@@ -6501,6 +6516,40 @@ fn build_app(state: AppState) -> Router {
             "/api/v1/boards/{board_id}/automation/{job_id}/run",
             post(run_board_automation_rule),
         )
+        .route("/api/v1/goals", get(list_goals).post(create_goal))
+        .route("/api/v1/goals/{goal_id}", get(get_goal).post(update_goal))
+        .route("/api/v1/projects", get(list_projects).post(create_project))
+        .route(
+            "/api/v1/projects/{project_id}",
+            get(get_project).post(update_project),
+        )
+        .route("/api/v1/tasks", get(list_tasks).post(create_task))
+        .route("/api/v1/tasks/{task_id}", get(get_task).post(update_task))
+        .route(
+            "/api/v1/tasks/{task_id}/links/board-card",
+            post(link_task_board_card),
+        )
+        .route("/api/v1/tasks/{task_id}/links/job", post(link_task_job))
+        .route(
+            "/api/v1/tasks/{task_id}/links/clear",
+            post(clear_task_links),
+        )
+        .route(
+            "/api/v1/bootstrap-presets",
+            get(list_bootstrap_presets).post(create_bootstrap_preset),
+        )
+        .route(
+            "/api/v1/bootstrap-presets/{preset_key}",
+            get(get_bootstrap_preset).post(update_bootstrap_preset),
+        )
+        .route(
+            "/api/v1/bootstrap-presets/{preset_key}/export",
+            post(export_bootstrap_preset),
+        )
+        .route(
+            "/api/v1/bootstrap-presets/import",
+            post(import_bootstrap_preset),
+        )
         .route("/api/v1/ws", get(ws_handler))
         .route("/api/v1/sessions", get(list_sessions).post(create_session))
         .route("/api/v1/sessions/{session_id}", get(get_session))
@@ -6604,6 +6653,10 @@ fn build_app(state: AppState) -> Router {
         )
         .route("/api/v1/mission-control/usage", get(mission_control_usage))
         .route("/api/v1/mission-control/focus", get(mission_control_focus))
+        .route(
+            "/api/v1/mission-control/strategy/summary",
+            get(strategy_summary),
+        )
         .route(
             "/api/v1/agent-mail/threads",
             get(list_agent_mail_threads).post(create_agent_mail_thread),
@@ -6820,6 +6873,82 @@ fn to_agent_response(record: AgentRecord) -> AgentResponse {
         model_provider: record.model_provider,
         model_id: record.model_id,
         tool_profile: record.tool_profile,
+        reports_to_agent_id: record.reports_to_agent_id,
+        role_label: record.role_label,
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+    }
+}
+
+fn to_goal_response(record: GoalRecord, progress_pct: u8) -> carsinos_protocol::GoalResponse {
+    carsinos_protocol::GoalResponse {
+        goal_id: record.goal_id,
+        slug: record.slug,
+        title: record.title,
+        summary: record.summary,
+        status: record.status,
+        owner_agent_id: record.owner_agent_id,
+        target_date: record.target_date,
+        progress_pct,
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+    }
+}
+
+fn to_project_response(record: ProjectRecord) -> carsinos_protocol::ProjectResponse {
+    carsinos_protocol::ProjectResponse {
+        project_id: record.project_id,
+        goal_id: record.goal_id,
+        slug: record.slug,
+        name: record.name,
+        summary: record.summary,
+        status: record.status,
+        owner_agent_id: record.owner_agent_id,
+        workspace_root: record.workspace_root,
+        budget_month_usd: record.budget_month_usd,
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+    }
+}
+
+fn to_task_response(
+    record: TaskRecord,
+    runtime_link: TaskRuntimeLinkRecord,
+) -> carsinos_protocol::TaskResponse {
+    carsinos_protocol::TaskResponse {
+        task_id: record.task_id,
+        project_id: record.project_id,
+        parent_task_id: record.parent_task_id,
+        title: record.title,
+        detail: record.detail,
+        status: record.status,
+        priority: record.priority,
+        owner_agent_id: record.owner_agent_id,
+        due_at: record.due_at,
+        blocked_reason: record.blocked_reason,
+        linked_board_card_id: record.linked_board_card_id,
+        linked_job_id: record.linked_job_id,
+        latest_run_id: runtime_link.latest_run_id,
+        latest_session_id: runtime_link.latest_session_id,
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+    }
+}
+
+fn to_bootstrap_preset_response(record: BootstrapPresetRecord) -> BootstrapPresetResponse {
+    BootstrapPresetResponse {
+        schema_version: "mc-bootstrap-preset-v1".to_string(),
+        preset_key: record.preset_key,
+        display_name: record.display_name,
+        description: record.description,
+        role_label: record.role_label,
+        provider_path: record.provider_path,
+        default_model_provider: record.default_model_provider,
+        default_model_id: record.default_model_id,
+        default_tool_profile: record.default_tool_profile,
+        default_workspace_root: record.default_workspace_root,
+        default_reports_to_agent_id: record.default_reports_to_agent_id,
+        setup_notes: record.setup_notes,
         created_at: record.created_at,
         updated_at: record.updated_at,
     }
@@ -7097,6 +7226,14 @@ async fn create_agent(
         .unwrap_or_else(|| "default".to_string())
         .trim()
         .to_string();
+    let reports_to_agent_id = request
+        .reports_to_agent_id
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty());
+    let role_label = request
+        .role_label
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
 
     let record = state
         .storage
@@ -7107,6 +7244,8 @@ async fn create_agent(
             model_provider,
             model_id,
             tool_profile,
+            reports_to_agent_id,
+            role_label,
         })
         .map_err(|err| {
             if err.to_string().to_ascii_lowercase().contains("unique") {
@@ -7158,6 +7297,16 @@ async fn update_agent(
         model_provider: request.model_provider.map(|value| value.trim().to_string()),
         model_id: request.model_id.map(|value| value.trim().to_string()),
         tool_profile: request.tool_profile.map(|value| value.trim().to_string()),
+        reports_to_agent_id: request.reports_to_agent_id.map(|value| {
+            value
+                .map(|inner| inner.trim().to_ascii_lowercase())
+                .filter(|inner| !inner.is_empty())
+        }),
+        role_label: request.role_label.map(|value| {
+            value
+                .map(|inner| inner.trim().to_string())
+                .filter(|inner| !inner.is_empty())
+        }),
     };
     let record = state
         .storage
@@ -7217,6 +7366,12 @@ async fn remove_agent(
                 "agent has sessions and cannot be removed",
             ));
         }
+        RemoveAgentOutcome::HasReferences => {
+            return Err(api_error(
+                StatusCode::CONFLICT,
+                "agent is still referenced by hierarchy or strategy records",
+            ));
+        }
         RemoveAgentOutcome::Removed => {}
     }
     record_security_audit(
@@ -7241,6 +7396,676 @@ async fn remove_agent(
         }),
     );
     Ok(Json(RemoveAgentResponse { removed: true }))
+}
+
+async fn list_goals(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Query(query): Query<ListGoalsQuery>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
+    let page = state
+        .storage
+        .list_goals(GoalListFilter {
+            status: query.status.map(normalize_optional_string).transpose()?,
+            owner_agent_id: query
+                .owner_agent_id
+                .map(normalize_optional_string)
+                .transpose()?,
+            query: query.query.map(normalize_optional_string).transpose()?,
+            limit: query.limit.unwrap_or(50),
+            cursor: query.cursor,
+            sort: query.sort,
+        })
+        .map_err(|err| strategy_storage_err("listing goals failed", err))?;
+    let mut items = Vec::new();
+    for record in page.items {
+        let progress_pct = goal_progress_pct(&state, &record.goal_id)?;
+        items.push(to_goal_response(record, progress_pct));
+    }
+    Ok(Json(ListGoalsResponse {
+        items,
+        next_cursor: page.next_cursor,
+    }))
+}
+
+async fn get_goal(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(goal_id): Path<String>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
+    let record = state
+        .storage
+        .get_goal(goal_id.trim())
+        .map_err(|err| strategy_storage_err("loading goal failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "goal not found"))?;
+    let progress_pct = goal_progress_pct(&state, &record.goal_id)?;
+    Ok(Json(GetGoalResponse {
+        goal: to_goal_response(record, progress_pct),
+    }))
+}
+
+async fn create_goal(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<CreateGoalRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let record = state
+        .storage
+        .create_goal(NewGoal {
+            slug: request.slug,
+            title: request.title,
+            summary: request.summary.unwrap_or_default(),
+            status: request.status.unwrap_or_else(|| "active".to_string()),
+            owner_agent_id: request
+                .owner_agent_id
+                .map(normalize_optional_string)
+                .transpose()?,
+            target_date: request.target_date,
+        })
+        .map_err(|err| strategy_storage_err("creating goal failed", err))?;
+    let progress_pct = goal_progress_pct(&state, &record.goal_id)?;
+    Ok((
+        StatusCode::CREATED,
+        Json(CreateGoalResponse {
+            goal: to_goal_response(record, progress_pct),
+        }),
+    ))
+}
+
+async fn update_goal(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(goal_id): Path<String>,
+    Json(request): Json<UpdateGoalRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let record = state
+        .storage
+        .update_goal(
+            goal_id.trim(),
+            GoalUpdatePatch {
+                slug: request.slug,
+                title: request.title,
+                summary: request.summary,
+                status: request.status,
+                owner_agent_id: request
+                    .owner_agent_id
+                    .map(normalize_nested_optional_string)
+                    .transpose()?,
+                target_date: request.target_date,
+            },
+        )
+        .map_err(|err| strategy_storage_err("updating goal failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "goal not found"))?;
+    let progress_pct = goal_progress_pct(&state, &record.goal_id)?;
+    Ok(Json(UpdateGoalResponse {
+        goal: to_goal_response(record, progress_pct),
+    }))
+}
+
+async fn list_projects(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Query(query): Query<ListProjectsQuery>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
+    let page = state
+        .storage
+        .list_projects(ProjectListFilter {
+            goal_id: query.goal_id.map(normalize_optional_string).transpose()?,
+            status: query.status.map(normalize_optional_string).transpose()?,
+            owner_agent_id: query
+                .owner_agent_id
+                .map(normalize_optional_string)
+                .transpose()?,
+            query: query.query.map(normalize_optional_string).transpose()?,
+            limit: query.limit.unwrap_or(50),
+            cursor: query.cursor,
+            sort: query.sort,
+        })
+        .map_err(|err| strategy_storage_err("listing projects failed", err))?;
+    Ok(Json(ListProjectsResponse {
+        items: page.items.into_iter().map(to_project_response).collect(),
+        next_cursor: page.next_cursor,
+    }))
+}
+
+async fn get_project(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(project_id): Path<String>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
+    let record = state
+        .storage
+        .get_project(project_id.trim())
+        .map_err(|err| strategy_storage_err("loading project failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "project not found"))?;
+    Ok(Json(GetProjectResponse {
+        project: to_project_response(record),
+    }))
+}
+
+async fn create_project(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<CreateProjectRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let record = state
+        .storage
+        .create_project(NewProject {
+            goal_id: request.goal_id,
+            slug: request.slug,
+            name: request.name,
+            summary: request.summary.unwrap_or_default(),
+            status: request.status.unwrap_or_else(|| "active".to_string()),
+            owner_agent_id: request
+                .owner_agent_id
+                .map(normalize_optional_string)
+                .transpose()?,
+            workspace_root: request
+                .workspace_root
+                .map(normalize_string_allow_empty)
+                .transpose()?
+                .flatten(),
+            budget_month_usd: request.budget_month_usd,
+        })
+        .map_err(|err| strategy_storage_err("creating project failed", err))?;
+    Ok((
+        StatusCode::CREATED,
+        Json(CreateProjectResponse {
+            project: to_project_response(record),
+        }),
+    ))
+}
+
+async fn update_project(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(project_id): Path<String>,
+    Json(request): Json<UpdateProjectRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let record = state
+        .storage
+        .update_project(
+            project_id.trim(),
+            ProjectUpdatePatch {
+                goal_id: request.goal_id,
+                slug: request.slug,
+                name: request.name,
+                summary: request.summary,
+                status: request.status,
+                owner_agent_id: request
+                    .owner_agent_id
+                    .map(normalize_nested_optional_string)
+                    .transpose()?,
+                workspace_root: request
+                    .workspace_root
+                    .map(normalize_nested_optional_string)
+                    .transpose()?,
+                budget_month_usd: request.budget_month_usd,
+            },
+        )
+        .map_err(|err| strategy_storage_err("updating project failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "project not found"))?;
+    Ok(Json(UpdateProjectResponse {
+        project: to_project_response(record),
+    }))
+}
+
+async fn list_tasks(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Query(query): Query<ListTasksQuery>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
+    let page = state
+        .storage
+        .list_tasks(TaskListFilter {
+            goal_id: query.goal_id.map(normalize_optional_string).transpose()?,
+            project_id: query
+                .project_id
+                .map(normalize_optional_string)
+                .transpose()?,
+            status: query.status.map(normalize_optional_string).transpose()?,
+            owner_agent_id: query
+                .owner_agent_id
+                .map(normalize_optional_string)
+                .transpose()?,
+            query: query.query.map(normalize_optional_string).transpose()?,
+            stale: query.stale,
+            blocked: query.blocked,
+            unassigned: query.unassigned,
+            hierarchy_root_agent_id: query
+                .hierarchy_root_agent_id
+                .map(normalize_optional_string)
+                .transpose()?,
+            hierarchy_scope: query
+                .hierarchy_scope
+                .map(normalize_optional_string)
+                .transpose()?,
+            limit: query.limit.unwrap_or(50),
+            cursor: query.cursor,
+            sort: query.sort,
+            now_ms: current_time_ms(),
+        })
+        .map_err(|err| strategy_storage_err("listing tasks failed", err))?;
+    let mut items = Vec::new();
+    for record in page.items {
+        items.push(load_task_response(&state, record)?);
+    }
+    Ok(Json(ListTasksResponse {
+        items,
+        next_cursor: page.next_cursor,
+    }))
+}
+
+async fn get_task(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(task_id): Path<String>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
+    let record = state
+        .storage
+        .get_task(task_id.trim())
+        .map_err(|err| strategy_storage_err("loading task failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "task not found"))?;
+    Ok(Json(GetTaskResponse {
+        task: load_task_response(&state, record)?,
+    }))
+}
+
+async fn create_task(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<CreateTaskRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let record = state
+        .storage
+        .create_task(NewTask {
+            project_id: request.project_id,
+            parent_task_id: request
+                .parent_task_id
+                .map(normalize_string_allow_empty)
+                .transpose()?
+                .flatten(),
+            title: request.title,
+            detail: request.detail.unwrap_or_default(),
+            status: request.status.unwrap_or_else(|| "todo".to_string()),
+            priority: request.priority.unwrap_or_else(|| "normal".to_string()),
+            owner_agent_id: request
+                .owner_agent_id
+                .map(normalize_optional_string)
+                .transpose()?,
+            due_at: request.due_at,
+            blocked_reason: request
+                .blocked_reason
+                .map(normalize_optional_string)
+                .transpose()?,
+        })
+        .map_err(|err| strategy_storage_err("creating task failed", err))?;
+    Ok((
+        StatusCode::CREATED,
+        Json(CreateTaskResponse {
+            task: load_task_response(&state, record)?,
+        }),
+    ))
+}
+
+async fn update_task(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(task_id): Path<String>,
+    Json(request): Json<UpdateTaskRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let record = state
+        .storage
+        .update_task(
+            task_id.trim(),
+            TaskUpdatePatch {
+                project_id: request.project_id,
+                parent_task_id: request
+                    .parent_task_id
+                    .map(normalize_nested_optional_string)
+                    .transpose()?,
+                title: request.title,
+                detail: request.detail,
+                status: request.status,
+                priority: request.priority,
+                owner_agent_id: request
+                    .owner_agent_id
+                    .map(normalize_nested_optional_string)
+                    .transpose()?,
+                due_at: request.due_at,
+                blocked_reason: request
+                    .blocked_reason
+                    .map(normalize_nested_optional_string)
+                    .transpose()?,
+            },
+        )
+        .map_err(|err| strategy_storage_err("updating task failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "task not found"))?;
+    Ok(Json(UpdateTaskResponse {
+        task: load_task_response(&state, record)?,
+    }))
+}
+
+async fn link_task_board_card(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(task_id): Path<String>,
+    Json(request): Json<LinkTaskBoardCardRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let record = state
+        .storage
+        .link_task_board_card(
+            task_id.trim(),
+            request.board_card_id.trim(),
+            request.force_reassign.unwrap_or(false),
+        )
+        .map_err(|err| strategy_storage_err("linking task board card failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "task not found"))?;
+    Ok(Json(TaskLinkMutationResponse {
+        task: load_task_response(&state, record)?,
+    }))
+}
+
+async fn link_task_job(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(task_id): Path<String>,
+    Json(request): Json<LinkTaskJobRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let record = state
+        .storage
+        .link_task_job(
+            task_id.trim(),
+            request.job_id.trim(),
+            request.force_reassign.unwrap_or(false),
+        )
+        .map_err(|err| strategy_storage_err("linking task job failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "task not found"))?;
+    Ok(Json(TaskLinkMutationResponse {
+        task: load_task_response(&state, record)?,
+    }))
+}
+
+async fn clear_task_links(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(task_id): Path<String>,
+    Json(request): Json<ClearTaskLinksRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let record = state
+        .storage
+        .clear_task_links(
+            task_id.trim(),
+            request.clear_board_card.unwrap_or(false),
+            request.clear_job.unwrap_or(false),
+        )
+        .map_err(|err| strategy_storage_err("clearing task links failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "task not found"))?;
+    Ok(Json(TaskLinkMutationResponse {
+        task: load_task_response(&state, record)?,
+    }))
+}
+
+async fn list_bootstrap_presets(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Query(query): Query<ListBootstrapPresetsQuery>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
+    let page = state
+        .storage
+        .list_bootstrap_presets(BootstrapPresetListFilter {
+            query: query.query.map(normalize_optional_string).transpose()?,
+            limit: query.limit.unwrap_or(50),
+            cursor: query.cursor,
+            sort: query.sort,
+        })
+        .map_err(|err| strategy_storage_err("listing bootstrap presets failed", err))?;
+    Ok(Json(ListBootstrapPresetsResponse {
+        items: page
+            .items
+            .into_iter()
+            .map(to_bootstrap_preset_response)
+            .collect(),
+        next_cursor: page.next_cursor,
+    }))
+}
+
+async fn get_bootstrap_preset(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(preset_key): Path<String>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
+    let record = state
+        .storage
+        .get_bootstrap_preset(preset_key.trim())
+        .map_err(|err| strategy_storage_err("loading bootstrap preset failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "bootstrap preset not found"))?;
+    Ok(Json(GetBootstrapPresetResponse {
+        preset: to_bootstrap_preset_response(record),
+    }))
+}
+
+async fn create_bootstrap_preset(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<CreateBootstrapPresetRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let record = state
+        .storage
+        .create_bootstrap_preset(NewBootstrapPreset {
+            preset_key: request.preset_key,
+            display_name: request.display_name,
+            description: request.description.unwrap_or_default(),
+            role_label: request.role_label,
+            provider_path: request.provider_path,
+            default_model_provider: request
+                .default_model_provider
+                .map(normalize_string_allow_empty)
+                .transpose()?
+                .flatten(),
+            default_model_id: request
+                .default_model_id
+                .map(normalize_string_allow_empty)
+                .transpose()?
+                .flatten(),
+            default_tool_profile: request
+                .default_tool_profile
+                .map(normalize_string_allow_empty)
+                .transpose()?
+                .flatten(),
+            default_workspace_root: request
+                .default_workspace_root
+                .map(normalize_string_allow_empty)
+                .transpose()?
+                .flatten(),
+            default_reports_to_agent_id: request
+                .default_reports_to_agent_id
+                .map(normalize_optional_agent_reference)
+                .transpose()?
+                .flatten(),
+            setup_notes: request
+                .setup_notes
+                .map(normalize_string_allow_empty)
+                .transpose()?
+                .flatten(),
+        })
+        .map_err(|err| strategy_storage_err("creating bootstrap preset failed", err))?;
+    Ok((
+        StatusCode::CREATED,
+        Json(CreateBootstrapPresetResponse {
+            preset: to_bootstrap_preset_response(record),
+        }),
+    ))
+}
+
+async fn update_bootstrap_preset(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(preset_key): Path<String>,
+    Json(request): Json<UpdateBootstrapPresetRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let record = state
+        .storage
+        .update_bootstrap_preset(
+            preset_key.trim(),
+            BootstrapPresetUpdatePatch {
+                display_name: request.display_name,
+                description: request.description,
+                role_label: request.role_label,
+                provider_path: request.provider_path,
+                default_model_provider: request
+                    .default_model_provider
+                    .map(normalize_nested_optional_string)
+                    .transpose()?,
+                default_model_id: request
+                    .default_model_id
+                    .map(normalize_nested_optional_string)
+                    .transpose()?,
+                default_tool_profile: request
+                    .default_tool_profile
+                    .map(normalize_nested_optional_string)
+                    .transpose()?,
+                default_workspace_root: request
+                    .default_workspace_root
+                    .map(normalize_nested_optional_string)
+                    .transpose()?,
+                default_reports_to_agent_id: request
+                    .default_reports_to_agent_id
+                    .map(normalize_nested_optional_agent_reference)
+                    .transpose()?,
+                setup_notes: request
+                    .setup_notes
+                    .map(normalize_nested_optional_string)
+                    .transpose()?,
+            },
+        )
+        .map_err(|err| strategy_storage_err("updating bootstrap preset failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "bootstrap preset not found"))?;
+    Ok(Json(UpdateBootstrapPresetResponse {
+        preset: to_bootstrap_preset_response(record),
+    }))
+}
+
+async fn export_bootstrap_preset(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(preset_key): Path<String>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
+    let record = state
+        .storage
+        .get_bootstrap_preset(preset_key.trim())
+        .map_err(|err| strategy_storage_err("exporting bootstrap preset failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "bootstrap preset not found"))?;
+    Ok(Json(ExportBootstrapPresetResponse {
+        preset: to_bootstrap_preset_response(record),
+    }))
+}
+
+async fn import_bootstrap_preset(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<ImportBootstrapPresetRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let imported = parse_imported_bootstrap_preset(&request.payload)?;
+    let imported_default_reports_to_agent_id = imported
+        .default_reports_to_agent_id
+        .as_deref()
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty());
+    let existing = state
+        .storage
+        .get_bootstrap_preset(&imported.preset_key)
+        .map_err(|err| strategy_storage_err("checking bootstrap preset collision failed", err))?;
+    let record = if existing.is_some() {
+        if request.overwrite.unwrap_or(false) {
+            state
+                .storage
+                .update_bootstrap_preset(
+                    &imported.preset_key,
+                    BootstrapPresetUpdatePatch {
+                        display_name: Some(imported.display_name),
+                        description: Some(imported.description),
+                        role_label: Some(imported.role_label),
+                        provider_path: Some(imported.provider_path),
+                        default_model_provider: Some(imported.default_model_provider),
+                        default_model_id: Some(imported.default_model_id),
+                        default_tool_profile: Some(imported.default_tool_profile),
+                        default_workspace_root: Some(imported.default_workspace_root),
+                        default_reports_to_agent_id: Some(imported_default_reports_to_agent_id),
+                        setup_notes: Some(imported.setup_notes),
+                    },
+                )
+                .map_err(|err| strategy_storage_err("overwriting bootstrap preset failed", err))?
+                .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "bootstrap preset not found"))?
+        } else {
+            return Err(api_error(
+                StatusCode::CONFLICT,
+                "preset_key already exists; set overwrite=true to replace it",
+            ));
+        }
+    } else {
+        state
+            .storage
+            .create_bootstrap_preset(NewBootstrapPreset {
+                preset_key: imported.preset_key,
+                display_name: imported.display_name,
+                description: imported.description,
+                role_label: imported.role_label,
+                provider_path: imported.provider_path,
+                default_model_provider: imported.default_model_provider,
+                default_model_id: imported.default_model_id,
+                default_tool_profile: imported.default_tool_profile,
+                default_workspace_root: imported.default_workspace_root,
+                default_reports_to_agent_id: imported_default_reports_to_agent_id,
+                setup_notes: imported.setup_notes,
+            })
+            .map_err(|err| strategy_storage_err("importing bootstrap preset failed", err))?
+    };
+    Ok(Json(ImportBootstrapPresetResponse {
+        preset: to_bootstrap_preset_response(record),
+    }))
 }
 
 async fn list_boards(
@@ -12276,6 +13101,625 @@ fn build_mission_control_usage_response(
     })
 }
 
+const STRATEGY_SUMMARY_ITEM_LIMIT: usize = 20;
+const STRATEGY_CRITICAL_APPROVAL_AGE_MS: i64 = 30 * 60_000;
+const STRATEGY_IMPORT_MAX_BYTES: usize = 16 * 1024;
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ImportedBootstrapPresetPayload {
+    schema_version: String,
+    preset_key: String,
+    display_name: String,
+    description: String,
+    role_label: String,
+    provider_path: String,
+    default_model_provider: Option<String>,
+    default_model_id: Option<String>,
+    default_tool_profile: Option<String>,
+    default_workspace_root: Option<String>,
+    default_reports_to_agent_id: Option<String>,
+    setup_notes: Option<String>,
+    created_at: i64,
+    updated_at: i64,
+}
+
+fn normalize_optional_string(value: String) -> std::result::Result<String, ApiErrorResponse> {
+    let trimmed = value.trim().to_string();
+    if trimmed.is_empty() {
+        Err(api_error(StatusCode::BAD_REQUEST, "value cannot be empty"))
+    } else {
+        Ok(trimmed)
+    }
+}
+
+fn normalize_string_allow_empty(
+    value: String,
+) -> std::result::Result<Option<String>, ApiErrorResponse> {
+    let trimmed = value.trim().to_string();
+    if trimmed.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(trimmed))
+    }
+}
+
+fn normalize_optional_agent_reference(
+    value: String,
+) -> std::result::Result<Option<String>, ApiErrorResponse> {
+    Ok(normalize_string_allow_empty(value)?.map(|trimmed| trimmed.to_ascii_lowercase()))
+}
+
+fn normalize_nested_optional_string(
+    value: Option<String>,
+) -> std::result::Result<Option<String>, ApiErrorResponse> {
+    match value {
+        Some(inner) => normalize_string_allow_empty(inner),
+        None => Ok(None),
+    }
+}
+
+fn normalize_nested_optional_agent_reference(
+    value: Option<String>,
+) -> std::result::Result<Option<String>, ApiErrorResponse> {
+    match value {
+        Some(inner) => normalize_optional_agent_reference(inner),
+        None => Ok(None),
+    }
+}
+
+fn strategy_storage_err(context: &str, err: anyhow::Error) -> ApiErrorResponse {
+    let message = err.to_string();
+    let lower = message.to_ascii_lowercase();
+    if lower.contains("unique")
+        || lower.contains("already exists")
+        || lower.contains("already linked")
+    {
+        api_error(StatusCode::CONFLICT, &message)
+    } else if lower.contains("not found") {
+        api_error(StatusCode::NOT_FOUND, &message)
+    } else if lower.contains("does not exist")
+        || lower.contains("invalid")
+        || lower.contains("must ")
+        || lower.contains("cannot")
+        || lower.contains("required")
+        || lower.contains("unsupported sort")
+        || lower.contains("supports at most")
+        || lower.contains("cycle")
+    {
+        api_error(StatusCode::BAD_REQUEST, &message)
+    } else {
+        internal_err_with_error(context, err)
+    }
+}
+
+fn load_task_response(
+    state: &AppState,
+    record: TaskRecord,
+) -> std::result::Result<carsinos_protocol::TaskResponse, ApiErrorResponse> {
+    let runtime_link = state
+        .storage
+        .resolve_task_runtime_link(&record)
+        .map_err(|err| internal_err_with_error("resolving task runtime link failed", err))?;
+    Ok(to_task_response(record, runtime_link))
+}
+
+fn collect_goal_records(
+    state: &AppState,
+) -> std::result::Result<Vec<GoalRecord>, ApiErrorResponse> {
+    let mut cursor = None;
+    let mut items = Vec::new();
+    loop {
+        let page = state
+            .storage
+            .list_goals(GoalListFilter {
+                limit: 200,
+                cursor: cursor.clone(),
+                ..GoalListFilter::default()
+            })
+            .map_err(|err| strategy_storage_err("collecting goals failed", err))?;
+        items.extend(page.items);
+        if page.next_cursor.is_none() {
+            break;
+        }
+        cursor = page.next_cursor;
+    }
+    Ok(items)
+}
+
+fn collect_project_records(
+    state: &AppState,
+) -> std::result::Result<Vec<ProjectRecord>, ApiErrorResponse> {
+    let mut cursor = None;
+    let mut items = Vec::new();
+    loop {
+        let page = state
+            .storage
+            .list_projects(ProjectListFilter {
+                limit: 200,
+                cursor: cursor.clone(),
+                ..ProjectListFilter::default()
+            })
+            .map_err(|err| strategy_storage_err("collecting projects failed", err))?;
+        items.extend(page.items);
+        if page.next_cursor.is_none() {
+            break;
+        }
+        cursor = page.next_cursor;
+    }
+    Ok(items)
+}
+
+fn collect_task_records(
+    state: &AppState,
+    filter: TaskListFilter,
+) -> std::result::Result<Vec<TaskRecord>, ApiErrorResponse> {
+    let mut cursor = None;
+    let mut items = Vec::new();
+    loop {
+        let mut page_filter = filter.clone();
+        page_filter.limit = 200;
+        page_filter.cursor = cursor.clone();
+        let page = state
+            .storage
+            .list_tasks(page_filter)
+            .map_err(|err| strategy_storage_err("collecting tasks failed", err))?;
+        items.extend(page.items);
+        if page.next_cursor.is_none() {
+            break;
+        }
+        cursor = page.next_cursor;
+    }
+    Ok(items)
+}
+
+fn goal_progress_pct(state: &AppState, goal_id: &str) -> std::result::Result<u8, ApiErrorResponse> {
+    let tasks = collect_task_records(
+        state,
+        TaskListFilter {
+            goal_id: Some(goal_id.to_string()),
+            now_ms: current_time_ms(),
+            ..TaskListFilter::default()
+        },
+    )?;
+    let leaf_parent_ids = tasks
+        .iter()
+        .filter_map(|task| task.parent_task_id.as_ref())
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
+    let mut denominator = 0u64;
+    let mut numerator = 0u64;
+    for task in tasks
+        .iter()
+        .filter(|task| !leaf_parent_ids.contains(task.task_id.as_str()))
+    {
+        denominator = denominator.saturating_add(1);
+        if task.status == "done" {
+            numerator = numerator.saturating_add(1);
+        }
+    }
+    if denominator == 0 {
+        return Ok(0);
+    }
+    Ok((((numerator as f64 / denominator as f64) * 100.0).round() as i64).clamp(0, 100) as u8)
+}
+
+fn task_projection(
+    task: &TaskRecord,
+    agents_by_id: &HashMap<String, AgentRecord>,
+    projects_by_id: &HashMap<String, ProjectRecord>,
+    goals_by_id: &HashMap<String, GoalRecord>,
+) -> Option<StrategyTaskListItemResponse> {
+    let project = projects_by_id.get(&task.project_id)?;
+    let goal = goals_by_id.get(&project.goal_id)?;
+    Some(StrategyTaskListItemResponse {
+        task_id: task.task_id.clone(),
+        title: task.title.clone(),
+        status: task.status.clone(),
+        priority: task.priority.clone(),
+        owner_agent_id: task.owner_agent_id.clone(),
+        owner_name: task
+            .owner_agent_id
+            .as_ref()
+            .and_then(|agent_id| agents_by_id.get(agent_id))
+            .map(|agent| agent.name.clone()),
+        project_id: project.project_id.clone(),
+        project_name: project.name.clone(),
+        goal_id: goal.goal_id.clone(),
+        goal_title: goal.title.clone(),
+        updated_at: task.updated_at,
+        due_at: task.due_at,
+        blocked_reason: task.blocked_reason.clone(),
+    })
+}
+
+fn parse_imported_bootstrap_preset(
+    payload: &serde_json::Value,
+) -> std::result::Result<ImportedBootstrapPresetPayload, ApiErrorResponse> {
+    let bytes = serde_json::to_vec(payload).map_err(|err| {
+        internal_err_with_error("serializing preset import payload failed", err.into())
+    })?;
+    if bytes.len() > STRATEGY_IMPORT_MAX_BYTES {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "bootstrap preset import exceeds 16 KB limit",
+        ));
+    }
+    scan_bootstrap_preset_payload(payload)?;
+    let parsed: ImportedBootstrapPresetPayload =
+        serde_json::from_value(payload.clone()).map_err(|_| {
+            api_error(
+                StatusCode::BAD_REQUEST,
+                "bootstrap preset import payload is invalid",
+            )
+        })?;
+    if parsed.schema_version != "mc-bootstrap-preset-v1" {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "bootstrap preset schema_version must be mc-bootstrap-preset-v1",
+        ));
+    }
+    let _ = (parsed.created_at, parsed.updated_at);
+    Ok(parsed)
+}
+
+fn scan_bootstrap_preset_payload(
+    value: &serde_json::Value,
+) -> std::result::Result<(), ApiErrorResponse> {
+    match value {
+        serde_json::Value::Object(map) => {
+            for (key, value) in map {
+                let lower = key.to_ascii_lowercase();
+                if [
+                    "token",
+                    "secret",
+                    "password",
+                    "api_key",
+                    "access_token",
+                    "refresh_token",
+                ]
+                .iter()
+                .any(|fragment| lower.contains(fragment))
+                {
+                    return Err(api_error(
+                        StatusCode::BAD_REQUEST,
+                        "bootstrap preset import contains secret-shaped keys",
+                    ));
+                }
+                scan_bootstrap_preset_payload(value)?;
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for item in items {
+                scan_bootstrap_preset_payload(item)?;
+            }
+        }
+        serde_json::Value::String(text) => {
+            if text.starts_with("Bearer ") || text.starts_with("sk-") || text.starts_with("sess-") {
+                return Err(api_error(
+                    StatusCode::BAD_REQUEST,
+                    "bootstrap preset import contains secret-shaped values",
+                ));
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+async fn strategy_summary(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Query(query): Query<StrategySummaryQuery>,
+) -> std::result::Result<impl IntoResponse, ApiErrorResponse> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_OPERATOR_READONLY,
+            ROLE_AUTOMATION_RUNNER,
+        ],
+        "mission_control.strategy_summary",
+        "mission_control.strategy",
+    )?;
+    let now_ms = current_time_ms();
+    let day_start_ms = mission_control_day_start_ms(now_ms, query.tz_offset_minutes);
+    let day_end_ms = day_start_ms.saturating_add(24 * 60 * 60_000);
+
+    let goals = collect_goal_records(&state)?;
+    let projects = collect_project_records(&state)?;
+    let tasks = collect_task_records(
+        &state,
+        TaskListFilter {
+            now_ms,
+            ..TaskListFilter::default()
+        },
+    )?;
+    let agents = state.storage.list_agents().map_err(|err| {
+        internal_err_with_error("listing agents for strategy summary failed", err)
+    })?;
+    let approvals = state
+        .storage
+        .list_approvals(Some("requested"), 10_000)
+        .map_err(|err| {
+            internal_err_with_error("listing approvals for strategy summary failed", err)
+        })?;
+
+    let goals_by_id = goals
+        .iter()
+        .cloned()
+        .map(|goal| (goal.goal_id.clone(), goal))
+        .collect::<HashMap<_, _>>();
+    let projects_by_id = projects
+        .iter()
+        .cloned()
+        .map(|project| (project.project_id.clone(), project))
+        .collect::<HashMap<_, _>>();
+    let agents_by_id = agents
+        .iter()
+        .cloned()
+        .map(|agent| (agent.agent_id.clone(), agent))
+        .collect::<HashMap<_, _>>();
+    let tasks_by_id = tasks
+        .iter()
+        .cloned()
+        .map(|task| (task.task_id.clone(), task))
+        .collect::<HashMap<_, _>>();
+
+    let mut blocked_tasks_all = tasks
+        .iter()
+        .filter(|task| task.status == "blocked")
+        .filter_map(|task| task_projection(task, &agents_by_id, &projects_by_id, &goals_by_id))
+        .collect::<Vec<_>>();
+    blocked_tasks_all.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
+
+    let mut stale_tasks_all = tasks
+        .iter()
+        .filter(|task| !matches!(task.status.as_str(), "done" | "archived"))
+        .filter(|task| now_ms.saturating_sub(task.updated_at) > 72 * 60 * 60_000)
+        .filter_map(|task| task_projection(task, &agents_by_id, &projects_by_id, &goals_by_id))
+        .collect::<Vec<_>>();
+    stale_tasks_all.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
+
+    let mut runtime_by_task_id = HashMap::new();
+    let mut run_to_task = HashMap::new();
+    let mut session_to_tasks: HashMap<String, Vec<String>> = HashMap::new();
+    let mut linked_task_count_by_owner: HashMap<String, u64> = HashMap::new();
+    for task in &tasks {
+        let runtime = state
+            .storage
+            .resolve_task_runtime_link(task)
+            .map_err(|err| {
+                internal_err_with_error("resolving task runtime for strategy summary failed", err)
+            })?;
+        if let Some(owner_agent_id) = task.owner_agent_id.as_ref() {
+            if runtime.latest_run_id.is_some() || runtime.latest_session_id.is_some() {
+                *linked_task_count_by_owner
+                    .entry(owner_agent_id.clone())
+                    .or_insert(0) += 1;
+            }
+        }
+        if let Some(run_id) = runtime.latest_run_id.as_ref() {
+            run_to_task.insert(run_id.clone(), task.task_id.clone());
+        }
+        if let Some(session_id) = runtime.latest_session_id.as_ref() {
+            session_to_tasks
+                .entry(session_id.clone())
+                .or_default()
+                .push(task.task_id.clone());
+        }
+        runtime_by_task_id.insert(task.task_id.clone(), runtime);
+    }
+
+    let samples = state
+        .storage
+        .list_run_usage_samples_between(
+            day_start_ms,
+            day_end_ms,
+            MISSION_CONTROL_USAGE_MAX_SAMPLE_ROWS,
+        )
+        .map_err(|err| internal_err_with_error("loading strategy usage samples failed", err))?;
+    let runtime_config = load_runtime_config(&state).map_err(|err| {
+        internal_err_with_error("loading runtime config for strategy summary failed", err)
+    })?;
+    let mut spend_by_agent: HashMap<String, (String, f64)> = HashMap::new();
+    let mut spend_by_project: HashMap<String, (String, String, String, f64, u64)> = HashMap::new();
+    let mut unattributed_spend_total = 0.0f64;
+    for sample in samples {
+        let parsed = match parse_run_usage_metrics(&sample.usage_json) {
+            Ok(value) => value,
+            Err(_) => continue,
+        };
+        let total_tokens = parsed.input_tokens.saturating_add(parsed.output_tokens);
+        let estimated_cost_usd = parsed.estimated_cost_usd.unwrap_or_else(|| {
+            let policy = lookup_runtime_provider_policy(&runtime_config, &sample.model_provider);
+            match policy.and_then(|item| item.usd_per_1k_tokens) {
+                Some(rate) => (total_tokens as f64 / 1000.0) * rate,
+                None => 0.0,
+            }
+        });
+        let entry = spend_by_agent
+            .entry(sample.agent_id.clone())
+            .or_insert((sample.agent_name.clone(), 0.0));
+        entry.1 += estimated_cost_usd;
+
+        let maybe_task_id = run_to_task.get(&sample.run_id).cloned().or_else(|| {
+            session_to_tasks
+                .get(&sample.session_id)
+                .and_then(|task_ids| {
+                    if task_ids.len() == 1 {
+                        Some(task_ids[0].clone())
+                    } else {
+                        None
+                    }
+                })
+        });
+        if let Some(task_id) = maybe_task_id {
+            if let Some(task) = tasks_by_id.get(&task_id) {
+                if let Some(project) = projects_by_id.get(&task.project_id) {
+                    if let Some(goal) = goals_by_id.get(&project.goal_id) {
+                        let project_entry = spend_by_project
+                            .entry(project.project_id.clone())
+                            .or_insert((
+                                project.name.clone(),
+                                goal.goal_id.clone(),
+                                goal.title.clone(),
+                                0.0,
+                                0,
+                            ));
+                        project_entry.3 += estimated_cost_usd;
+                        project_entry.4 = project_entry.4.saturating_add(1);
+                        continue;
+                    }
+                }
+            }
+        }
+        unattributed_spend_total += estimated_cost_usd;
+    }
+
+    let mut spend_by_agent_items = spend_by_agent
+        .into_iter()
+        .map(
+            |(agent_id, (agent_name, estimated_cost_total))| StrategySpendByAgentItemResponse {
+                linked_task_count: linked_task_count_by_owner
+                    .get(&agent_id)
+                    .copied()
+                    .unwrap_or(0),
+                agent_id,
+                agent_name,
+                estimated_cost_total,
+            },
+        )
+        .collect::<Vec<_>>();
+    spend_by_agent_items.sort_by(|left, right| {
+        right
+            .estimated_cost_total
+            .partial_cmp(&left.estimated_cost_total)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| left.agent_name.cmp(&right.agent_name))
+    });
+
+    let mut spend_by_project_items = spend_by_project
+        .into_iter()
+        .map(
+            |(
+                project_id,
+                (project_name, goal_id, goal_title, estimated_cost_total, attributed_run_count),
+            )| {
+                StrategySpendByProjectItemResponse {
+                    project_id,
+                    project_name,
+                    goal_id,
+                    goal_title,
+                    estimated_cost_total,
+                    attributed_run_count,
+                }
+            },
+        )
+        .collect::<Vec<_>>();
+    spend_by_project_items.sort_by(|left, right| {
+        right
+            .estimated_cost_total
+            .partial_cmp(&left.estimated_cost_total)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| left.project_name.cmp(&right.project_name))
+    });
+
+    let mut goal_progress_items = Vec::new();
+    for goal in &goals {
+        let progress_pct = goal_progress_pct(&state, &goal.goal_id)?;
+        let goal_tasks = tasks
+            .iter()
+            .filter(|task| {
+                projects_by_id
+                    .get(&task.project_id)
+                    .map(|project| project.goal_id.as_str() == goal.goal_id.as_str())
+                    .unwrap_or(false)
+            })
+            .collect::<Vec<_>>();
+        let open_task_count = goal_tasks
+            .iter()
+            .filter(|task| matches!(task.status.as_str(), "todo" | "in_progress" | "blocked"))
+            .count() as u64;
+        let blocked_task_count = goal_tasks
+            .iter()
+            .filter(|task| task.status == "blocked")
+            .count() as u64;
+        goal_progress_items.push(StrategyGoalProgressItemResponse {
+            goal_id: goal.goal_id.clone(),
+            title: goal.title.clone(),
+            progress_pct,
+            open_task_count,
+            blocked_task_count,
+        });
+    }
+    goal_progress_items.sort_by(|left, right| left.title.cmp(&right.title));
+
+    let mut critical_approval_backlog = Vec::new();
+    for approval in approvals {
+        let linked_task_id = run_to_task.get(&approval.run_id).cloned().or_else(|| {
+            state
+                .storage
+                .get_run(&approval.run_id)
+                .ok()
+                .flatten()
+                .and_then(|run| {
+                    session_to_tasks.get(&run.session_id).and_then(|task_ids| {
+                        if task_ids.len() == 1 {
+                            Some(task_ids[0].clone())
+                        } else {
+                            None
+                        }
+                    })
+                })
+        });
+        let critical_task = linked_task_id
+            .as_ref()
+            .and_then(|task_id| tasks_by_id.get(task_id))
+            .map(|task| task.priority == "critical")
+            .unwrap_or(false);
+        let aged = now_ms.saturating_sub(approval.requested_at) > STRATEGY_CRITICAL_APPROVAL_AGE_MS;
+        if !(critical_task || aged) {
+            continue;
+        }
+        critical_approval_backlog.push(StrategyApprovalBacklogItemResponse {
+            approval_id: approval.approval_id,
+            kind: approval.kind,
+            summary: approval.request_summary,
+            linked_task_id,
+            requested_at: approval.requested_at,
+        });
+    }
+    critical_approval_backlog.sort_by(|left, right| right.requested_at.cmp(&left.requested_at));
+
+    Ok(Json(StrategySummaryResponse {
+        generated_at_ms: now_ms,
+        currency: "USD".to_string(),
+        blocked_task_count: blocked_tasks_all.len() as u64,
+        blocked_tasks: blocked_tasks_all
+            .into_iter()
+            .take(STRATEGY_SUMMARY_ITEM_LIMIT)
+            .collect(),
+        stale_task_count: stale_tasks_all.len() as u64,
+        stale_tasks: stale_tasks_all
+            .into_iter()
+            .take(STRATEGY_SUMMARY_ITEM_LIMIT)
+            .collect(),
+        spend_by_agent: spend_by_agent_items,
+        spend_by_project: spend_by_project_items,
+        unattributed_spend_total,
+        goal_progress: goal_progress_items,
+        critical_approval_backlog_count: critical_approval_backlog.len() as u64,
+        critical_approval_backlog: critical_approval_backlog
+            .into_iter()
+            .take(STRATEGY_SUMMARY_ITEM_LIMIT)
+            .collect(),
+    }))
+}
+
 async fn mission_control_calendar_week(
     headers: HeaderMap,
     State(state): State<AppState>,
@@ -14090,6 +15534,8 @@ async fn apply_assistant_worker_approval_action(
                 model_provider,
                 model_id,
                 tool_profile: "default".to_string(),
+                reports_to_agent_id: None,
+                role_label: None,
             })
             .map_err(|err| {
                 internal_err_with_error("creating assistant worker agent failed", err)
@@ -14159,6 +15605,8 @@ async fn apply_assistant_worker_approval_action(
                         model_provider: Some(model_provider),
                         model_id: Some(model_id),
                         tool_profile: None,
+                        reports_to_agent_id: None,
+                        role_label: None,
                     },
                 )
                 .map_err(|err| {
@@ -38318,6 +39766,102 @@ sys.stdout.write(json.dumps(response))
         let items = json["items"].as_array().expect("agents items");
         assert!(items.iter().any(|item| item["agent_id"] == "lyra"));
         assert!(items.iter().any(|item| item["agent_id"] == "claude"));
+    }
+
+    #[tokio::test]
+    async fn bootstrap_preset_manager_ids_are_normalized_across_create_update_and_import() {
+        let ctx = test_context();
+
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/bootstrap-presets",
+                Body::from(
+                    serde_json::json!({
+                        "preset_key": "ops-mixed",
+                        "display_name": "Ops Mixed",
+                        "description": "Mixed-case manager id",
+                        "role_label": "Strategist",
+                        "provider_path": "openai",
+                        "default_model_provider": "openai",
+                        "default_model_id": "gpt-5-mini",
+                        "default_tool_profile": "default",
+                        "default_workspace_root": "/tmp/presets",
+                        "default_reports_to_agent_id": " MiXeD-MaNaGeR ",
+                        "setup_notes": "Seeded from test"
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("create bootstrap preset response");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_json = parse_json(create_response).await;
+        assert_eq!(
+            create_json["preset"]["default_reports_to_agent_id"],
+            "mixed-manager"
+        );
+
+        let update_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/bootstrap-presets/ops-mixed",
+                Body::from(
+                    serde_json::json!({
+                        "default_reports_to_agent_id": " STILL-MIXED "
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("update bootstrap preset response");
+        assert_eq!(update_response.status(), StatusCode::OK);
+        let update_json = parse_json(update_response).await;
+        assert_eq!(
+            update_json["preset"]["default_reports_to_agent_id"],
+            "still-mixed"
+        );
+
+        let import_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/bootstrap-presets/import",
+                Body::from(
+                    serde_json::json!({
+                        "payload": {
+                            "schema_version": "mc-bootstrap-preset-v1",
+                            "preset_key": "imported-ops",
+                            "display_name": "Imported Ops",
+                            "description": "Imported preset",
+                            "role_label": "Operator",
+                            "provider_path": "openai",
+                            "default_model_provider": "openai",
+                            "default_model_id": "gpt-5-mini",
+                            "default_tool_profile": "default",
+                            "default_workspace_root": "/tmp/imported",
+                            "default_reports_to_agent_id": " Import-MANAGER ",
+                            "setup_notes": "Imported from test",
+                            "created_at": 0,
+                            "updated_at": 0
+                        }
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("import bootstrap preset response");
+        assert_eq!(import_response.status(), StatusCode::OK);
+        let import_json = parse_json(import_response).await;
+        assert_eq!(
+            import_json["preset"]["default_reports_to_agent_id"],
+            "import-manager"
+        );
     }
 
     #[tokio::test]

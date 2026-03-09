@@ -369,6 +369,8 @@ pub struct AgentResponse {
     pub model_provider: String,
     pub model_id: String,
     pub tool_profile: String,
+    pub reports_to_agent_id: Option<String>,
+    pub role_label: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -391,6 +393,8 @@ pub struct CreateAgentRequest {
     pub model_provider: Option<String>,
     pub model_id: Option<String>,
     pub tool_profile: Option<String>,
+    pub reports_to_agent_id: Option<String>,
+    pub role_label: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -405,6 +409,8 @@ pub struct UpdateAgentRequest {
     pub model_provider: Option<String>,
     pub model_id: Option<String>,
     pub tool_profile: Option<String>,
+    pub reports_to_agent_id: Option<Option<String>>,
+    pub role_label: Option<Option<String>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -724,6 +730,416 @@ pub struct UpdateSkillStateRequest {
 #[derive(Debug, Clone, Serialize)]
 pub struct UpdateSkillStateResponse {
     pub skill: SkillResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListGoalsQuery {
+    pub limit: Option<u32>,
+    pub cursor: Option<String>,
+    pub sort: Option<String>,
+    pub status: Option<String>,
+    pub owner_agent_id: Option<String>,
+    pub query: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GoalResponse {
+    pub goal_id: String,
+    pub slug: String,
+    pub title: String,
+    pub summary: String,
+    pub status: String,
+    pub owner_agent_id: Option<String>,
+    pub target_date: Option<i64>,
+    pub progress_pct: u8,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListGoalsResponse {
+    pub items: Vec<GoalResponse>,
+    pub next_cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GetGoalResponse {
+    pub goal: GoalResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CreateGoalRequest {
+    pub slug: String,
+    pub title: String,
+    pub summary: Option<String>,
+    pub status: Option<String>,
+    pub owner_agent_id: Option<String>,
+    pub target_date: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CreateGoalResponse {
+    pub goal: GoalResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdateGoalRequest {
+    pub slug: Option<String>,
+    pub title: Option<String>,
+    pub summary: Option<String>,
+    pub status: Option<String>,
+    pub owner_agent_id: Option<Option<String>>,
+    pub target_date: Option<Option<i64>>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UpdateGoalResponse {
+    pub goal: GoalResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListProjectsQuery {
+    pub limit: Option<u32>,
+    pub cursor: Option<String>,
+    pub sort: Option<String>,
+    pub status: Option<String>,
+    pub owner_agent_id: Option<String>,
+    pub query: Option<String>,
+    pub goal_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ProjectResponse {
+    pub project_id: String,
+    pub goal_id: String,
+    pub slug: String,
+    pub name: String,
+    pub summary: String,
+    pub status: String,
+    pub owner_agent_id: Option<String>,
+    pub workspace_root: Option<String>,
+    pub budget_month_usd: Option<f64>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListProjectsResponse {
+    pub items: Vec<ProjectResponse>,
+    pub next_cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GetProjectResponse {
+    pub project: ProjectResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CreateProjectRequest {
+    pub goal_id: String,
+    pub slug: String,
+    pub name: String,
+    pub summary: Option<String>,
+    pub status: Option<String>,
+    pub owner_agent_id: Option<String>,
+    pub workspace_root: Option<String>,
+    pub budget_month_usd: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CreateProjectResponse {
+    pub project: ProjectResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdateProjectRequest {
+    pub goal_id: Option<String>,
+    pub slug: Option<String>,
+    pub name: Option<String>,
+    pub summary: Option<String>,
+    pub status: Option<String>,
+    pub owner_agent_id: Option<Option<String>>,
+    pub workspace_root: Option<Option<String>>,
+    pub budget_month_usd: Option<Option<f64>>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UpdateProjectResponse {
+    pub project: ProjectResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListTasksQuery {
+    pub limit: Option<u32>,
+    pub cursor: Option<String>,
+    pub sort: Option<String>,
+    pub status: Option<String>,
+    pub owner_agent_id: Option<String>,
+    pub query: Option<String>,
+    pub goal_id: Option<String>,
+    pub project_id: Option<String>,
+    pub stale: Option<bool>,
+    pub blocked: Option<bool>,
+    pub unassigned: Option<bool>,
+    pub hierarchy_root_agent_id: Option<String>,
+    pub hierarchy_scope: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TaskResponse {
+    pub task_id: String,
+    pub project_id: String,
+    pub parent_task_id: Option<String>,
+    pub title: String,
+    pub detail: String,
+    pub status: String,
+    pub priority: String,
+    pub owner_agent_id: Option<String>,
+    pub due_at: Option<i64>,
+    pub blocked_reason: Option<String>,
+    pub linked_board_card_id: Option<String>,
+    pub linked_job_id: Option<String>,
+    pub latest_run_id: Option<String>,
+    pub latest_session_id: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListTasksResponse {
+    pub items: Vec<TaskResponse>,
+    pub next_cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GetTaskResponse {
+    pub task: TaskResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CreateTaskRequest {
+    pub project_id: String,
+    pub parent_task_id: Option<String>,
+    pub title: String,
+    pub detail: Option<String>,
+    pub status: Option<String>,
+    pub priority: Option<String>,
+    pub owner_agent_id: Option<String>,
+    pub due_at: Option<i64>,
+    pub blocked_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CreateTaskResponse {
+    pub task: TaskResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdateTaskRequest {
+    pub project_id: Option<String>,
+    pub parent_task_id: Option<Option<String>>,
+    pub title: Option<String>,
+    pub detail: Option<String>,
+    pub status: Option<String>,
+    pub priority: Option<String>,
+    pub owner_agent_id: Option<Option<String>>,
+    pub due_at: Option<Option<i64>>,
+    pub blocked_reason: Option<Option<String>>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UpdateTaskResponse {
+    pub task: TaskResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LinkTaskBoardCardRequest {
+    pub board_card_id: String,
+    pub force_reassign: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LinkTaskJobRequest {
+    pub job_id: String,
+    pub force_reassign: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ClearTaskLinksRequest {
+    pub clear_board_card: Option<bool>,
+    pub clear_job: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TaskLinkMutationResponse {
+    pub task: TaskResponse,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct StrategyTaskListItemResponse {
+    pub task_id: String,
+    pub title: String,
+    pub status: String,
+    pub priority: String,
+    pub owner_agent_id: Option<String>,
+    pub owner_name: Option<String>,
+    pub project_id: String,
+    pub project_name: String,
+    pub goal_id: String,
+    pub goal_title: String,
+    pub updated_at: i64,
+    pub due_at: Option<i64>,
+    pub blocked_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct StrategySpendByAgentItemResponse {
+    pub agent_id: String,
+    pub agent_name: String,
+    pub estimated_cost_total: f64,
+    pub linked_task_count: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct StrategySpendByProjectItemResponse {
+    pub project_id: String,
+    pub project_name: String,
+    pub goal_id: String,
+    pub goal_title: String,
+    pub estimated_cost_total: f64,
+    pub attributed_run_count: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct StrategyGoalProgressItemResponse {
+    pub goal_id: String,
+    pub title: String,
+    pub progress_pct: u8,
+    pub open_task_count: u64,
+    pub blocked_task_count: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct StrategyApprovalBacklogItemResponse {
+    pub approval_id: String,
+    pub kind: String,
+    pub summary: String,
+    pub linked_task_id: Option<String>,
+    pub requested_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct StrategySummaryResponse {
+    pub generated_at_ms: i64,
+    pub currency: String,
+    pub blocked_task_count: u64,
+    pub blocked_tasks: Vec<StrategyTaskListItemResponse>,
+    pub stale_task_count: u64,
+    pub stale_tasks: Vec<StrategyTaskListItemResponse>,
+    pub spend_by_agent: Vec<StrategySpendByAgentItemResponse>,
+    pub spend_by_project: Vec<StrategySpendByProjectItemResponse>,
+    pub unattributed_spend_total: f64,
+    pub goal_progress: Vec<StrategyGoalProgressItemResponse>,
+    pub critical_approval_backlog_count: u64,
+    pub critical_approval_backlog: Vec<StrategyApprovalBacklogItemResponse>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct StrategySummaryQuery {
+    pub timezone: Option<String>,
+    pub tz_offset_minutes: Option<i32>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListBootstrapPresetsQuery {
+    pub limit: Option<u32>,
+    pub cursor: Option<String>,
+    pub sort: Option<String>,
+    pub query: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BootstrapPresetResponse {
+    pub schema_version: String,
+    pub preset_key: String,
+    pub display_name: String,
+    pub description: String,
+    pub role_label: String,
+    pub provider_path: String,
+    pub default_model_provider: Option<String>,
+    pub default_model_id: Option<String>,
+    pub default_tool_profile: Option<String>,
+    pub default_workspace_root: Option<String>,
+    pub default_reports_to_agent_id: Option<String>,
+    pub setup_notes: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListBootstrapPresetsResponse {
+    pub items: Vec<BootstrapPresetResponse>,
+    pub next_cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GetBootstrapPresetResponse {
+    pub preset: BootstrapPresetResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CreateBootstrapPresetRequest {
+    pub preset_key: String,
+    pub display_name: String,
+    pub description: Option<String>,
+    pub role_label: String,
+    pub provider_path: String,
+    pub default_model_provider: Option<String>,
+    pub default_model_id: Option<String>,
+    pub default_tool_profile: Option<String>,
+    pub default_workspace_root: Option<String>,
+    pub default_reports_to_agent_id: Option<String>,
+    pub setup_notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CreateBootstrapPresetResponse {
+    pub preset: BootstrapPresetResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdateBootstrapPresetRequest {
+    pub display_name: Option<String>,
+    pub description: Option<String>,
+    pub role_label: Option<String>,
+    pub provider_path: Option<String>,
+    pub default_model_provider: Option<Option<String>>,
+    pub default_model_id: Option<Option<String>>,
+    pub default_tool_profile: Option<Option<String>>,
+    pub default_workspace_root: Option<Option<String>>,
+    pub default_reports_to_agent_id: Option<Option<String>>,
+    pub setup_notes: Option<Option<String>>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UpdateBootstrapPresetResponse {
+    pub preset: BootstrapPresetResponse,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ExportBootstrapPresetResponse {
+    pub preset: BootstrapPresetResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ImportBootstrapPresetRequest {
+    pub payload: serde_json::Value,
+    pub overwrite: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ImportBootstrapPresetResponse {
+    pub preset: BootstrapPresetResponse,
 }
 
 #[derive(Debug, Clone, Deserialize)]

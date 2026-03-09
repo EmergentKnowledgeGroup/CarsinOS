@@ -1,9 +1,11 @@
 import { useState, useCallback, type ReactNode } from "react";
 import clsx from "clsx";
 import {
+  COCKPIT_WIDGET_PALETTE,
   type CockpitPageLayoutV2,
   type CockpitWidgetKind,
   type CockpitWidgetLayoutV2,
+  STRATEGY_COCKPIT_WIDGET_KINDS,
 } from "./cockpitLayout";
 import { CockpitCanvas } from "./CockpitCanvas";
 import { CockpitEditToolbar } from "./CockpitEditToolbar";
@@ -12,6 +14,7 @@ import { CustomWidgetBuilderModal } from "./CustomWidgetBuilderModal";
 import { EmptyState } from "../../ui/EmptyState";
 import { Modal } from "../../ui/Modal";
 import type { RuntimeConnectionSettings } from "../../types";
+import { loadOpsUxRuntimeConfig } from "../../lib/opsUxConfig";
 import {
   Plus,
   Pencil,
@@ -41,7 +44,12 @@ interface CockpitPageProps {
   onLayoutChange: (layout: Array<{ i: string; x: number; y: number; w: number; h: number }>) => void;
   renderCockpitWidget: (widget: CockpitWidgetLayoutV2) => ReactNode;
   settings: RuntimeConnectionSettings;
+  strategyEnabled?: boolean;
 }
+
+const STRATEGY_WIDGET_KIND_SET = new Set<CockpitWidgetKind>(
+  STRATEGY_COCKPIT_WIDGET_KINDS
+);
 
 export function CockpitPage(props: CockpitPageProps) {
   const [removeWidgetId, setRemoveWidgetId] = useState<string | null>(null);
@@ -81,7 +89,24 @@ export function CockpitPage(props: CockpitPageProps) {
     setRenamingPageId(null);
   }, [renamingPageId, renameValue, props]);
 
-  const hasWidgets = props.activeCockpitPage.widgets.length > 0;
+  const strategyEnabled =
+    props.strategyEnabled ?? loadOpsUxRuntimeConfig().config.controls.strategy_hub;
+  const visibleWidgets = props.activeCockpitPage.widgets.filter(
+    (widget) => {
+      if (widget.widget === "custom" || strategyEnabled) {
+        return true;
+      }
+      return !STRATEGY_WIDGET_KIND_SET.has(widget.widget);
+    }
+  );
+  const hiddenStrategyWidgetCount =
+    props.activeCockpitPage.widgets.length - visibleWidgets.length;
+  const hasWidgets = visibleWidgets.length > 0;
+  const availableWidgetKinds = strategyEnabled
+    ? undefined
+    : COCKPIT_WIDGET_PALETTE.filter(
+        (entry) => !STRATEGY_WIDGET_KIND_SET.has(entry.widget)
+      ).map((entry) => entry.widget);
 
   return (
     <section className="mc-cockpit-grid">
@@ -178,11 +203,11 @@ export function CockpitPage(props: CockpitPageProps) {
 
         {hasWidgets ? (
           <CockpitCanvas
-            widgets={props.activeCockpitPage.widgets}
+            widgets={visibleWidgets}
             editMode={props.editMode}
             onLayoutChange={props.onLayoutChange}
           >
-            {props.activeCockpitPage.widgets.map((widget) => (
+            {visibleWidgets.map((widget) => (
               <div
                 key={widget.instance_id}
                 className={clsx(
@@ -216,7 +241,11 @@ export function CockpitPage(props: CockpitPageProps) {
           <div className="mc-cockpit-empty-canvas">
             <EmptyState
               className="mc-cockpit-empty-message"
-              message="Your dashboard is empty."
+              message={
+                hiddenStrategyWidgetCount > 0
+                  ? "This page only contains Strategy widgets. Enable Strategy Hub to display them."
+                  : "Your dashboard is empty."
+              }
             />
             <div className="mc-cockpit-empty-actions">
               <button
@@ -289,6 +318,7 @@ export function CockpitPage(props: CockpitPageProps) {
         open={widgetPickerOpen}
         onClose={() => setWidgetPickerOpen(false)}
         onAddWidget={props.onAddCockpitWidget}
+        availableWidgets={availableWidgetKinds}
         onOpenCustomBuilder={() => {
           setWidgetPickerOpen(false);
           setCustomBuilderOpen(true);

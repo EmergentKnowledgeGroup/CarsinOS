@@ -86,6 +86,11 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
             agentNameDraft={c.agentNameDraft}
             workspaceRootDraft={c.workspaceRootDraft}
             toolProfileDraft={c.toolProfileDraft}
+            reportsToAgentIdDraft={c.reportsToAgentIdDraft}
+            roleLabelDraft={c.roleLabelDraft}
+            strategyEnabled={c.strategyEnabled}
+            bootstrapPresets={c.bootstrapPresets}
+            selectedPresetKey={c.selectedPresetKey}
             agentReady={c.agentReady}
             providerPath={c.providerPath}
             useExistingProfile={c.useExistingProfile}
@@ -135,6 +140,10 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
             onAgentNameDraftChange={c.setAgentNameDraft}
             onWorkspaceRootDraftChange={c.setWorkspaceRootDraft}
             onToolProfileDraftChange={c.setToolProfileDraft}
+            onReportsToAgentIdDraftChange={c.setReportsToAgentIdDraft}
+            onRoleLabelDraftChange={c.setRoleLabelDraft}
+            onSelectedPresetKeyChange={c.setSelectedPresetKey}
+            onApplySelectedPreset={c.applySelectedPreset}
             onCreateNewAgentDraft={c.createNewAgentDraft}
             onSaveAgent={c.saveAgent}
             onDeleteSelectedAgent={c.deleteSelectedAgent}

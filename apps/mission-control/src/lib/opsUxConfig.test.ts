@@ -9,6 +9,7 @@ describe("opsUxRuntimeConfig", () => {
   it("keeps approved fail-safe defaults", () => {
     expect(DEFAULT_OPSUX_RUNTIME_CONFIG.controls.live_feed_drawer).toBe(false);
     expect(DEFAULT_OPSUX_RUNTIME_CONFIG.controls.incident_auto_trigger).toBe(false);
+    expect(DEFAULT_OPSUX_RUNTIME_CONFIG.controls.strategy_hub).toBe(false);
     expect(DEFAULT_OPSUX_RUNTIME_CONFIG.safety.incident_high_burst_threshold).toBe(5);
     expect(DEFAULT_OPSUX_RUNTIME_CONFIG.safety.incident_auto_cooldown_ms).toBe(10 * 60_000);
     expect(DEFAULT_OPSUX_RUNTIME_CONFIG.safety.recovery_retention_window_ms).toBe(30 * 60_000);
@@ -20,6 +21,7 @@ describe("opsUxRuntimeConfig", () => {
       controls: {
         live_feed_drawer: true,
         incident_auto_trigger: "yes",
+        strategy_hub: true,
       },
       safety: {
         incident_high_burst_threshold: 8,
@@ -28,6 +30,7 @@ describe("opsUxRuntimeConfig", () => {
     });
 
     expect(sanitized.controls.live_feed_drawer).toBe(true);
+    expect(sanitized.controls.strategy_hub).toBe(true);
     expect(sanitized.controls.incident_auto_trigger).toBe(
       DEFAULT_OPSUX_RUNTIME_CONFIG.controls.incident_auto_trigger
     );
@@ -42,10 +45,12 @@ describe("opsUxRuntimeConfig", () => {
     const next = withOpsUxControlPatch(DEFAULT_OPSUX_RUNTIME_CONFIG, {
       global_kill_switch: true,
       live_feed_drawer: true,
+      strategy_hub: true,
     });
 
     expect(next.controls.global_kill_switch).toBe(true);
     expect(next.controls.live_feed_drawer).toBe(true);
+    expect(next.controls.strategy_hub).toBe(true);
     expect(next.safety).toBe(originalSafety);
   });
 });

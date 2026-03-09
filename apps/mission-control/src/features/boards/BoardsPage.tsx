@@ -1,12 +1,14 @@
 import { useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type { Agent, BoardCard, BoardColumn } from "../../types";
+import type { Agent, BoardCard, BoardColumn, TaskResponse } from "../../types";
 import { formatBytes } from "../../utils/files";
 import { Modal } from "../../ui/Modal";
 import { Pagination } from "../../ui/Pagination";
 import { Tabs } from "../../ui/Tabs";
 import { TagPicker } from "../../ui/TagPicker";
 import { usePagination } from "../../ui/usePagination";
+import { StrategyTaskContextPanel } from "../strategy/StrategyTaskContextPanel";
+import type { StrategyTaskContextSnapshot } from "../strategy/useStrategyController";
 import { BoardLane } from "./BoardLane";
 import type { CardEditorDraft } from "./boardModel";
 
@@ -33,6 +35,10 @@ interface BoardsPageProps {
   onUploadAsset: (file: File) => Promise<void>;
   onPreviewAsset: (cardId: string, cardAssetId: string) => Promise<void>;
   selectedPreviewUrl: string | null;
+  strategyReady: boolean;
+  linkedTaskByCardId: Map<string, TaskResponse>;
+  describeStrategyTask: (taskId: string) => StrategyTaskContextSnapshot | null;
+  onOpenStrategyTask: (taskId: string) => boolean;
 }
 
 type OwnerFilter = "all" | "unassigned" | string;
@@ -58,6 +64,10 @@ export function BoardsPage({
   onUploadAsset,
   onPreviewAsset,
   selectedPreviewUrl,
+  strategyReady,
+  linkedTaskByCardId,
+  describeStrategyTask,
+  onOpenStrategyTask,
 }: BoardsPageProps) {
   const [editorTab, setEditorTab] = useState<"details" | "script" | "assets">("details");
   const [assetsPage, setAssetsPage] = useState(1);
@@ -181,6 +191,12 @@ export function BoardsPage({
   });
 
   const cardEditorOpen = selectedCard !== null;
+  const linkedTask = selectedCard
+    ? linkedTaskByCardId.get(selectedCard.card_id) ?? null
+    : null;
+  const linkedTaskContext = linkedTask
+    ? describeStrategyTask(linkedTask.task_id)
+    : null;
 
   return (
     <section className="mc-board-full">
@@ -253,6 +269,9 @@ export function BoardsPage({
                   }}
                   onDropCard={onDropCard}
                   onCreateCard={onCreateCard}
+                  strategyReady={strategyReady}
+                  linkedTaskByCardId={linkedTaskByCardId}
+                  onOpenStrategyTask={onOpenStrategyTask}
                 />
               </div>
             );
@@ -319,6 +338,17 @@ export function BoardsPage({
                 rows={3}
               />
             </label>
+            {strategyReady ? (
+              <StrategyTaskContextPanel
+                className="mc-board-strategy-panel"
+                task={linkedTask}
+                context={linkedTaskContext}
+                emptyMessage="Link this board card from Strategy to expose project, owner, and manager context here without changing board execution flow."
+                onOpen={
+                  linkedTask ? () => onOpenStrategyTask(linkedTask.task_id) : undefined
+                }
+              />
+            ) : null}
 
             <label className="mc-modal-field">
               Owner

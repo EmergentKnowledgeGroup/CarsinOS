@@ -1,4 +1,4 @@
-import type { Agent, AuthProfileResponse } from "../../../types";
+import type { Agent, AuthProfileResponse, BootstrapPresetResponse } from "../../../types";
 import { OnboardingStepShell } from "../OnboardingStepShell";
 import type {
   OnboardingAnthropicAuthMode,
@@ -13,6 +13,11 @@ interface StepProviderProps {
   agentNameDraft: string;
   workspaceRootDraft: string;
   toolProfileDraft: string;
+  reportsToAgentIdDraft: string;
+  roleLabelDraft: string;
+  strategyEnabled: boolean;
+  bootstrapPresets: BootstrapPresetResponse[];
+  selectedPresetKey: string;
   agentReady: boolean;
   providerPath: OnboardingProviderPath;
   useExistingProfile: boolean;
@@ -62,6 +67,10 @@ interface StepProviderProps {
   onAgentNameDraftChange: (value: string) => void;
   onWorkspaceRootDraftChange: (value: string) => void;
   onToolProfileDraftChange: (value: string) => void;
+  onReportsToAgentIdDraftChange: (value: string) => void;
+  onRoleLabelDraftChange: (value: string) => void;
+  onSelectedPresetKeyChange: (value: string) => void;
+  onApplySelectedPreset: () => void;
   onCreateNewAgentDraft: () => void;
   onSaveAgent: () => Promise<boolean>;
   onDeleteSelectedAgent: () => Promise<boolean>;
@@ -206,6 +215,33 @@ export function StepProvider(props: StepProviderProps) {
             </p>
           )}
 
+          {props.strategyEnabled ? (
+            <div className="mc-onboarding-inline-actions">
+              <label style={{ flex: 1 }}>
+                Bootstrap preset
+                <select
+                  value={props.selectedPresetKey}
+                  onChange={(event) => props.onSelectedPresetKeyChange(event.target.value)}
+                >
+                  <option value="">No preset</option>
+                  {props.bootstrapPresets.map((preset) => (
+                    <option key={preset.preset_key} value={preset.preset_key}>
+                      {preset.display_name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                className="ghost"
+                disabled={!props.selectedPresetKey}
+                onClick={() => props.onApplySelectedPreset()}
+              >
+                Apply preset
+              </button>
+            </div>
+          ) : null}
+
           <div className="mc-onboarding-field-grid">
             <label>
               Agent ID
@@ -238,6 +274,30 @@ export function StepProvider(props: StepProviderProps) {
                 onChange={(event) => props.onToolProfileDraftChange(event.target.value)}
                 placeholder="default"
               />
+            </label>
+            <label>
+              Role label
+              <input
+                value={props.roleLabelDraft}
+                onChange={(event) => props.onRoleLabelDraftChange(event.target.value)}
+                placeholder="Operations Lead"
+              />
+            </label>
+            <label>
+              Reports to
+              <select
+                value={props.reportsToAgentIdDraft}
+                onChange={(event) => props.onReportsToAgentIdDraftChange(event.target.value)}
+              >
+                <option value="">No manager</option>
+                {props.agents
+                  .filter((agent) => agent.agent_id !== props.agentIdDraft)
+                  .map((agent) => (
+                    <option key={agent.agent_id} value={agent.agent_id}>
+                      {agent.name}
+                    </option>
+                  ))}
+              </select>
             </label>
           </div>
         </div>
