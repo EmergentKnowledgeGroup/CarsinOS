@@ -1966,12 +1966,9 @@ impl Storage {
         sort_records_by_updated(&mut items, filter.sort.as_deref(), |item| {
             (item.updated_at, item.goal_id.as_str())
         })?;
-        Ok(page_records(
-            items,
-            filter.limit,
-            filter.cursor.as_deref(),
-            |item| (item.updated_at, item.goal_id.as_str()),
-        )?)
+        page_records(items, filter.limit, filter.cursor.as_deref(), |item| {
+            (item.updated_at, item.goal_id.as_str())
+        })
     }
 
     pub fn get_goal(&self, goal_id: &str) -> Result<Option<GoalRecord>> {
@@ -2086,12 +2083,9 @@ impl Storage {
         sort_records_by_updated(&mut items, filter.sort.as_deref(), |item| {
             (item.updated_at, item.project_id.as_str())
         })?;
-        Ok(page_records(
-            items,
-            filter.limit,
-            filter.cursor.as_deref(),
-            |item| (item.updated_at, item.project_id.as_str()),
-        )?)
+        page_records(items, filter.limit, filter.cursor.as_deref(), |item| {
+            (item.updated_at, item.project_id.as_str())
+        })
     }
 
     pub fn get_project(&self, project_id: &str) -> Result<Option<ProjectRecord>> {
@@ -2246,12 +2240,9 @@ impl Storage {
         sort_records_by_updated(&mut items, filter.sort.as_deref(), |item| {
             (item.updated_at, item.task_id.as_str())
         })?;
-        Ok(page_records(
-            items,
-            filter.limit,
-            filter.cursor.as_deref(),
-            |item| (item.updated_at, item.task_id.as_str()),
-        )?)
+        page_records(items, filter.limit, filter.cursor.as_deref(), |item| {
+            (item.updated_at, item.task_id.as_str())
+        })
     }
 
     pub fn get_task(&self, task_id: &str) -> Result<Option<TaskRecord>> {
@@ -2468,8 +2459,8 @@ impl Storage {
             Some(record) => record,
             None => return Ok(None),
         };
-        let next_clear_board_card = clear_board_card || (!clear_board_card && !clear_job);
-        let next_clear_job = clear_job || (!clear_board_card && !clear_job);
+        let next_clear_board_card = clear_board_card || !clear_job;
+        let next_clear_job = clear_job || !clear_board_card;
         let next_board_card_id = if next_clear_board_card {
             None
         } else {
@@ -2537,12 +2528,9 @@ impl Storage {
         sort_records_by_updated(&mut items, filter.sort.as_deref(), |item| {
             (item.updated_at, item.preset_key.as_str())
         })?;
-        Ok(page_records(
-            items,
-            filter.limit,
-            filter.cursor.as_deref(),
-            |item| (item.updated_at, item.preset_key.as_str()),
-        )?)
+        page_records(items, filter.limit, filter.cursor.as_deref(), |item| {
+            (item.updated_at, item.preset_key.as_str())
+        })
     }
 
     pub fn get_bootstrap_preset(&self, preset_key: &str) -> Result<Option<BootstrapPresetRecord>> {
@@ -6271,9 +6259,8 @@ fn validate_agent_manager_assignment(
         if candidate == agent_id {
             anyhow::bail!("agent hierarchy cycle detected");
         }
-        current = get_agent_with_conn(conn, &candidate)?
-            .map(|record| record.reports_to_agent_id)
-            .flatten();
+        current =
+            get_agent_with_conn(conn, &candidate)?.and_then(|record| record.reports_to_agent_id);
         if current.is_none() && get_agent_with_conn(conn, &candidate)?.is_none() {
             anyhow::bail!("reports_to_agent_id does not exist: {manager_id}");
         }
