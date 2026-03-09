@@ -47,10 +47,10 @@ export function buildAgentOrgModel(agents: Agent[]): AgentOrgModel {
   const managerChainByAgentId = new Map<string, Agent[]>();
   for (const agent of agents) {
     const chain: Agent[] = [];
-    const seen = new Set<string>();
+    const seen = new Set<string>([agent.agent_id]);
     let current = agent;
     while (current.reports_to_agent_id) {
-      const next = agentsById.get(current.reports_to_agent_id);
+      const next = agentsById.get(current.reports_to_agent_id.trim());
       if (!next || seen.has(next.agent_id)) {
         break;
       }

@@ -79,4 +79,38 @@ describe("buildAgentOrgModel", () => {
     expect(managerChainLabel("root", org)).toBeNull();
     expect(managerChainLabel(null, org)).toBeNull();
   });
+
+  it("trims manager ids and avoids self/cycle pollution in the chain", () => {
+    const org = buildAgentOrgModel([
+      {
+        agent_id: "root",
+        name: "Root",
+        model_provider: "openai",
+        model_id: "gpt-5",
+        reports_to_agent_id: null,
+        role_label: null,
+      },
+      {
+        agent_id: "worker",
+        name: "Worker",
+        model_provider: "openai",
+        model_id: "gpt-5-mini",
+        reports_to_agent_id: " root ",
+        role_label: null,
+      },
+      {
+        agent_id: "self-loop",
+        name: "Self Loop",
+        model_provider: "local",
+        model_id: "llama",
+        reports_to_agent_id: "self-loop",
+        role_label: null,
+      },
+    ]);
+
+    expect(org.managerChainByAgentId.get("worker")?.map((agent) => agent.agent_id)).toEqual([
+      "root",
+    ]);
+    expect(org.managerChainByAgentId.get("self-loop")).toEqual([]);
+  });
 });

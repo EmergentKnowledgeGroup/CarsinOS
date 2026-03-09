@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS bootstrap_presets (
   default_model_id TEXT,
   default_tool_profile TEXT,
   default_workspace_root TEXT,
-  default_reports_to_agent_id TEXT REFERENCES agents(agent_id),
+  default_reports_to_agent_id TEXT,
   setup_notes TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL

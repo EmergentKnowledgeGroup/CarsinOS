@@ -165,17 +165,26 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
     await expect(page.locator(".mc-board-strategy-panel")).toBeVisible();
     await page.getByRole("button", { name: "Open in Strategy" }).click();
     await expect(page.getByTestId("strategy-page")).toBeVisible();
+    await expect(page.locator(".mc-strategy-task-row.is-active").first()).toContainText(
+      "Investigate gateway health"
+    );
 
     await page.locator('[data-tour-id="nav-calendar"]').click();
     await page.getByRole("tab", { name: /Schedule/ }).click();
     await expect(page.getByRole("button", { name: "Open task" }).first()).toBeVisible();
     await page.getByRole("button", { name: "Open task" }).first().click();
     await expect(page.getByTestId("strategy-page")).toBeVisible();
+    await expect(page.locator(".mc-strategy-task-row.is-active").first()).toContainText(
+      "Investigate gateway health"
+    );
 
     await page.locator('[data-tour-id="nav-focus"]').click();
     await expect(page.getByRole("button", { name: "Open task" }).first()).toBeVisible();
     await page.getByRole("button", { name: "Open task" }).first().click();
     await expect(page.getByTestId("strategy-page")).toBeVisible();
+    await expect(page.locator(".mc-strategy-task-row.is-active").first()).toContainText(
+      "Investigate gateway health"
+    );
   });
 
   test("reset tab state preserves global connection settings", async ({ page }) => {
@@ -237,5 +246,9 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
     await expect(
       page.getByRole("heading", { name: "Config = connection + recovery controls" })
     ).toBeVisible();
+
+    await page.getByRole("button", { name: "Next" }).click();
+    await expect(page.locator(".mc-tour-progress-chip")).toHaveText("13/13");
+    await expect(page.getByRole("heading", { name: "Command palette" })).toBeVisible();
   });
 });

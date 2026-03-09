@@ -123,12 +123,89 @@ fn ensure_agent_hierarchy_columns(conn: &Connection) -> Result<()> {
 fn ensure_bootstrap_preset_manager_column(conn: &Connection) -> Result<()> {
     if !column_exists(conn, "bootstrap_presets", "default_reports_to_agent_id")? {
         conn.execute(
-            "ALTER TABLE bootstrap_presets ADD COLUMN default_reports_to_agent_id TEXT REFERENCES agents(agent_id)",
+            "ALTER TABLE bootstrap_presets ADD COLUMN default_reports_to_agent_id TEXT",
             [],
         )
         .context("failed adding bootstrap_presets.default_reports_to_agent_id column")?;
+    } else if bootstrap_preset_manager_has_agent_fk(conn)? {
+        rebuild_bootstrap_presets_without_manager_fk(conn)?;
     }
     Ok(())
+}
+
+fn bootstrap_preset_manager_has_agent_fk(conn: &Connection) -> Result<bool> {
+    let mut stmt = conn.prepare("PRAGMA foreign_key_list(bootstrap_presets)")?;
+    let rows = stmt.query_map([], |row| {
+        Ok((row.get::<_, String>(2)?, row.get::<_, String>(3)?))
+    })?;
+    for row in rows {
+        let (table_name, from_column) = row?;
+        if table_name.eq_ignore_ascii_case("agents")
+            && from_column.eq_ignore_ascii_case("default_reports_to_agent_id")
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn rebuild_bootstrap_presets_without_manager_fk(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        r#"
+        BEGIN IMMEDIATE;
+        CREATE TABLE bootstrap_presets_rebuild (
+          preset_key TEXT PRIMARY KEY,
+          display_name TEXT NOT NULL,
+          description TEXT NOT NULL DEFAULT '',
+          role_label TEXT NOT NULL,
+          provider_path TEXT NOT NULL,
+          default_model_provider TEXT,
+          default_model_id TEXT,
+          default_tool_profile TEXT,
+          default_workspace_root TEXT,
+          default_reports_to_agent_id TEXT,
+          setup_notes TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        INSERT INTO bootstrap_presets_rebuild (
+          preset_key,
+          display_name,
+          description,
+          role_label,
+          provider_path,
+          default_model_provider,
+          default_model_id,
+          default_tool_profile,
+          default_workspace_root,
+          default_reports_to_agent_id,
+          setup_notes,
+          created_at,
+          updated_at
+        )
+        SELECT
+          preset_key,
+          display_name,
+          description,
+          role_label,
+          provider_path,
+          default_model_provider,
+          default_model_id,
+          default_tool_profile,
+          default_workspace_root,
+          default_reports_to_agent_id,
+          setup_notes,
+          created_at,
+          updated_at
+        FROM bootstrap_presets;
+        DROP TABLE bootstrap_presets;
+        ALTER TABLE bootstrap_presets_rebuild RENAME TO bootstrap_presets;
+        CREATE INDEX IF NOT EXISTS idx_bootstrap_presets_updated
+        ON bootstrap_presets(updated_at DESC, preset_key ASC);
+        COMMIT;
+        "#,
+    )
+    .context("failed rebuilding bootstrap_presets without manager foreign key")
 }
 
 fn column_exists(conn: &Connection, table_name: &str, column_name: &str) -> Result<bool> {
@@ -1381,7 +1458,12 @@ impl Storage {
             params![agent_id.as_str()],
             |row| row.get(0),
         )?;
-        if hierarchy_refs + goal_refs + project_refs + task_refs > 0 {
+        let preset_refs: i64 = tx.query_row(
+            "SELECT COUNT(1) FROM bootstrap_presets WHERE default_reports_to_agent_id = ?1",
+            params![agent_id.as_str()],
+            |row| row.get(0),
+        )?;
+        if hierarchy_refs + goal_refs + project_refs + task_refs + preset_refs > 0 {
             return Ok(RemoveAgentOutcome::HasReferences);
         }
 
@@ -2179,7 +2261,7 @@ impl Storage {
 
     pub fn create_task(&self, new_task: NewTask) -> Result<TaskRecord> {
         let conn = self.connect()?;
-        ensure_project_exists(&conn, &new_task.project_id)?;
+        ensure_project_accepts_task_changes(&conn, &new_task.project_id)?;
         validate_optional_owner_agent(self, &conn, new_task.owner_agent_id.as_deref())?;
         validate_task_status(&new_task.status)?;
         validate_task_priority(&new_task.priority)?;
@@ -2237,8 +2319,11 @@ impl Storage {
             Some(record) => record,
             None => return Ok(None),
         };
-        let next_project_id = patch.project_id.unwrap_or(current.project_id);
-        ensure_project_exists(&conn, &next_project_id)?;
+        let next_project_id = patch
+            .project_id
+            .unwrap_or_else(|| current.project_id.clone());
+        ensure_project_accepts_task_changes(&conn, &next_project_id)?;
+        ensure_task_project_move_is_safe(&conn, task_id, &current.project_id, &next_project_id)?;
         let next_parent_task_id = patch.parent_task_id.unwrap_or(current.parent_task_id);
         let next_title = patch.title.unwrap_or(current.title);
         let next_detail = patch.detail.unwrap_or(current.detail);
@@ -2475,11 +2560,6 @@ impl Storage {
             new_preset.default_model_provider.as_deref(),
         )?;
         validate_project_workspace_root(new_preset.default_workspace_root.as_deref())?;
-        validate_optional_owner_agent(
-            self,
-            &conn,
-            new_preset.default_reports_to_agent_id.as_deref(),
-        )?;
         let preset_key = normalize_preset_key(&new_preset.preset_key)?;
         let now = now_ms();
         conn.execute(
@@ -2557,7 +2637,6 @@ impl Storage {
             next_default_model_provider.as_deref(),
         )?;
         validate_project_workspace_root(next_default_workspace_root.as_deref())?;
-        validate_optional_owner_agent(self, &conn, next_default_reports_to_agent_id.as_deref())?;
         let now = now_ms();
         let updated = conn.execute(
             r#"
@@ -6143,20 +6222,16 @@ fn ensure_goal_exists(conn: &Connection, goal_id: &str) -> Result<()> {
     }
 }
 
-fn ensure_project_exists(conn: &Connection, project_id: &str) -> Result<()> {
-    let exists = conn
-        .query_row(
-            "SELECT 1 FROM projects WHERE project_id = ?1 LIMIT 1",
-            params![project_id],
-            |_| Ok(()),
-        )
-        .optional()?
-        .is_some();
-    if exists {
-        Ok(())
-    } else {
-        anyhow::bail!("project does not exist: {project_id}");
+fn ensure_project_accepts_task_changes(conn: &Connection, project_id: &str) -> Result<()> {
+    let project = get_project_with_conn(conn, project_id)?
+        .with_context(|| format!("project does not exist: {project_id}"))?;
+    if matches!(
+        project.status.as_str(),
+        PROJECT_STATUS_COMPLETED | PROJECT_STATUS_ARCHIVED
+    ) {
+        anyhow::bail!("project does not allow task changes: {project_id}");
     }
+    Ok(())
 }
 
 fn validate_optional_owner_agent(
@@ -6292,6 +6367,26 @@ fn validate_task_parent(
             anyhow::bail!("task hierarchy cycle detected");
         }
         cursor = get_task_with_conn(conn, &ancestor_id)?.and_then(|item| item.parent_task_id);
+    }
+    Ok(())
+}
+
+fn ensure_task_project_move_is_safe(
+    conn: &Connection,
+    task_id: &str,
+    current_project_id: &str,
+    next_project_id: &str,
+) -> Result<()> {
+    if current_project_id == next_project_id {
+        return Ok(());
+    }
+    let child_count: i64 = conn.query_row(
+        "SELECT COUNT(1) FROM tasks WHERE parent_task_id = ?1",
+        params![task_id],
+        |row| row.get(0),
+    )?;
+    if child_count > 0 {
+        anyhow::bail!("task with subtasks cannot move to another project");
     }
     Ok(())
 }
@@ -8274,6 +8369,205 @@ mod tests {
             .get_agent(&created.agent_id)
             .expect("reload retained agent")
             .is_some());
+    }
+
+    #[test]
+    fn remove_agent_rejects_agent_referenced_by_bootstrap_preset_manager() {
+        let (_temp_dir, storage) = test_storage();
+        let created = storage
+            .create_agent(NewAgent {
+                agent_id: "preset-manager".to_string(),
+                name: "Preset Manager".to_string(),
+                workspace_root: ".".to_string(),
+                model_provider: "mock".to_string(),
+                model_id: "mock-echo-v1".to_string(),
+                tool_profile: "default".to_string(),
+                reports_to_agent_id: None,
+                role_label: Some("Manager".to_string()),
+            })
+            .expect("create preset manager");
+        storage
+            .create_bootstrap_preset(NewBootstrapPreset {
+                preset_key: "ops-manager".to_string(),
+                display_name: "Ops Manager".to_string(),
+                description: "Preset with manager link".to_string(),
+                role_label: "Manager".to_string(),
+                provider_path: "openai".to_string(),
+                default_model_provider: Some("openai".to_string()),
+                default_model_id: Some("gpt-5-mini".to_string()),
+                default_tool_profile: Some("default".to_string()),
+                default_workspace_root: Some(".".to_string()),
+                default_reports_to_agent_id: Some(created.agent_id.clone()),
+                setup_notes: None,
+            })
+            .expect("create preset");
+
+        let outcome = storage
+            .remove_agent(&created.agent_id)
+            .expect("remove should return outcome");
+        assert_eq!(outcome, RemoveAgentOutcome::HasReferences);
+    }
+
+    #[test]
+    fn bootstrap_presets_allow_unresolved_manager_defaults() {
+        let (_temp_dir, storage) = test_storage();
+        let created = storage
+            .create_bootstrap_preset(NewBootstrapPreset {
+                preset_key: "cross-workspace".to_string(),
+                display_name: "Cross Workspace".to_string(),
+                description: "Importable without local manager".to_string(),
+                role_label: "Strategist".to_string(),
+                provider_path: "openai".to_string(),
+                default_model_provider: Some("openai".to_string()),
+                default_model_id: Some("gpt-5-mini".to_string()),
+                default_tool_profile: Some("default".to_string()),
+                default_workspace_root: Some("/tmp/shared".to_string()),
+                default_reports_to_agent_id: Some("missing-manager".to_string()),
+                setup_notes: Some("Imported preset".to_string()),
+            })
+            .expect("create preset with soft manager reference");
+        assert_eq!(
+            created.default_reports_to_agent_id.as_deref(),
+            Some("missing-manager")
+        );
+
+        let updated = storage
+            .update_bootstrap_preset(
+                &created.preset_key,
+                BootstrapPresetUpdatePatch {
+                    display_name: None,
+                    description: None,
+                    role_label: None,
+                    provider_path: None,
+                    default_model_provider: None,
+                    default_model_id: None,
+                    default_tool_profile: None,
+                    default_workspace_root: None,
+                    default_reports_to_agent_id: Some(Some("still-missing".to_string())),
+                    setup_notes: None,
+                },
+            )
+            .expect("update preset")
+            .expect("preset should exist");
+        assert_eq!(
+            updated.default_reports_to_agent_id.as_deref(),
+            Some("still-missing")
+        );
+    }
+
+    #[test]
+    fn create_task_rejects_completed_projects_and_cross_project_parent_moves() {
+        let (_temp_dir, storage) = test_storage();
+        let goal = storage
+            .create_goal(NewGoal {
+                slug: "goal-a".to_string(),
+                title: "Goal A".to_string(),
+                summary: String::new(),
+                status: GOAL_STATUS_ACTIVE.to_string(),
+                owner_agent_id: None,
+                target_date: None,
+            })
+            .expect("create goal");
+        let active_project = storage
+            .create_project(NewProject {
+                goal_id: goal.goal_id.clone(),
+                slug: "active-project".to_string(),
+                name: "Active Project".to_string(),
+                summary: String::new(),
+                status: PROJECT_STATUS_ACTIVE.to_string(),
+                owner_agent_id: None,
+                workspace_root: Some(".".to_string()),
+                budget_month_usd: None,
+            })
+            .expect("create active project");
+        let completed_project = storage
+            .create_project(NewProject {
+                goal_id: goal.goal_id.clone(),
+                slug: "completed-project".to_string(),
+                name: "Completed Project".to_string(),
+                summary: String::new(),
+                status: PROJECT_STATUS_COMPLETED.to_string(),
+                owner_agent_id: None,
+                workspace_root: Some(".".to_string()),
+                budget_month_usd: None,
+            })
+            .expect("create completed project");
+        let second_active_project = storage
+            .create_project(NewProject {
+                goal_id: goal.goal_id.clone(),
+                slug: "second-active-project".to_string(),
+                name: "Second Active Project".to_string(),
+                summary: String::new(),
+                status: PROJECT_STATUS_ACTIVE.to_string(),
+                owner_agent_id: None,
+                workspace_root: Some(".".to_string()),
+                budget_month_usd: None,
+            })
+            .expect("create second active project");
+
+        let create_err = storage
+            .create_task(NewTask {
+                project_id: completed_project.project_id.clone(),
+                parent_task_id: None,
+                title: "Blocked Create".to_string(),
+                detail: String::new(),
+                status: TASK_STATUS_TODO.to_string(),
+                priority: TASK_PRIORITY_NORMAL.to_string(),
+                owner_agent_id: None,
+                due_at: None,
+                blocked_reason: None,
+            })
+            .expect_err("completed project should reject new task");
+        assert!(create_err
+            .to_string()
+            .contains("project does not allow task changes"));
+
+        let parent = storage
+            .create_task(NewTask {
+                project_id: active_project.project_id.clone(),
+                parent_task_id: None,
+                title: "Parent Task".to_string(),
+                detail: String::new(),
+                status: TASK_STATUS_TODO.to_string(),
+                priority: TASK_PRIORITY_NORMAL.to_string(),
+                owner_agent_id: None,
+                due_at: None,
+                blocked_reason: None,
+            })
+            .expect("create parent task");
+        storage
+            .create_task(NewTask {
+                project_id: active_project.project_id.clone(),
+                parent_task_id: Some(parent.task_id.clone()),
+                title: "Child Task".to_string(),
+                detail: String::new(),
+                status: TASK_STATUS_TODO.to_string(),
+                priority: TASK_PRIORITY_NORMAL.to_string(),
+                owner_agent_id: None,
+                due_at: None,
+                blocked_reason: None,
+            })
+            .expect("create child task");
+
+        let update_err = storage
+            .update_task(
+                &parent.task_id,
+                TaskUpdatePatch {
+                    project_id: Some(second_active_project.project_id.clone()),
+                    parent_task_id: Some(None),
+                    title: None,
+                    detail: None,
+                    status: None,
+                    priority: None,
+                    owner_agent_id: None,
+                    due_at: None,
+                    blocked_reason: None,
+                },
+            )
+            .expect_err("task with subtasks should not move projects");
+        assert!(update_err
+            .to_string()
+            .contains("task with subtasks cannot move to another project"));
     }
 
     #[test]
