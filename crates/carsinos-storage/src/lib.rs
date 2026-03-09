@@ -1241,7 +1241,11 @@ impl Storage {
 
     pub fn create_agent(&self, new_agent: NewAgent) -> Result<AgentRecord> {
         let conn = self.connect()?;
-        validate_agent_manager_assignment(&conn, &new_agent.agent_id, new_agent.reports_to_agent_id.as_deref())?;
+        validate_agent_manager_assignment(
+            &conn,
+            &new_agent.agent_id,
+            new_agent.reports_to_agent_id.as_deref(),
+        )?;
         let now = now_ms();
         conn.execute(
             r#"
@@ -1316,7 +1320,10 @@ impl Storage {
                 patch.model_id,
                 patch.tool_profile,
                 next_reports_to_agent_id,
-                patch.role_label.clone().unwrap_or(current.role_label.clone()),
+                patch
+                    .role_label
+                    .clone()
+                    .unwrap_or(current.role_label.clone()),
                 now,
                 agent_id
             ],
@@ -1877,9 +1884,12 @@ impl Storage {
         sort_records_by_updated(&mut items, filter.sort.as_deref(), |item| {
             (item.updated_at, item.goal_id.as_str())
         })?;
-        Ok(page_records(items, filter.limit, filter.cursor.as_deref(), |item| {
-            (item.updated_at, item.goal_id.as_str())
-        })?)
+        Ok(page_records(
+            items,
+            filter.limit,
+            filter.cursor.as_deref(),
+            |item| (item.updated_at, item.goal_id.as_str()),
+        )?)
     }
 
     pub fn get_goal(&self, goal_id: &str) -> Result<Option<GoalRecord>> {
@@ -1994,9 +2004,12 @@ impl Storage {
         sort_records_by_updated(&mut items, filter.sort.as_deref(), |item| {
             (item.updated_at, item.project_id.as_str())
         })?;
-        Ok(page_records(items, filter.limit, filter.cursor.as_deref(), |item| {
-            (item.updated_at, item.project_id.as_str())
-        })?)
+        Ok(page_records(
+            items,
+            filter.limit,
+            filter.cursor.as_deref(),
+            |item| (item.updated_at, item.project_id.as_str()),
+        )?)
     }
 
     pub fn get_project(&self, project_id: &str) -> Result<Option<ProjectRecord>> {
@@ -2076,7 +2089,8 @@ impl Storage {
         validate_optional_owner_agent(self, &conn, next_owner_agent_id.as_deref())?;
         validate_project_workspace_root(next_workspace_root.as_deref())?;
         validate_budget_month_usd(next_budget_month_usd)?;
-        if next_status == PROJECT_STATUS_COMPLETED && has_open_tasks_in_project(&conn, project_id)? {
+        if next_status == PROJECT_STATUS_COMPLETED && has_open_tasks_in_project(&conn, project_id)?
+        {
             anyhow::bail!("project cannot be completed while it has open tasks");
         }
         let now = now_ms();
@@ -2120,12 +2134,12 @@ impl Storage {
             .iter()
             .map(|item| (item.project_id.clone(), item.goal_id.clone()))
             .collect::<std::collections::HashMap<_, _>>();
-        let hierarchy_agent_ids = if let Some(root_agent_id) = filter.hierarchy_root_agent_id.as_ref()
-        {
-            Some(agent_subtree_ids(&conn, root_agent_id)?)
-        } else {
-            None
-        };
+        let hierarchy_agent_ids =
+            if let Some(root_agent_id) = filter.hierarchy_root_agent_id.as_ref() {
+                Some(agent_subtree_ids(&conn, root_agent_id)?)
+            } else {
+                None
+            };
         let mut stmt = conn.prepare(
             r#"
             SELECT
@@ -2150,9 +2164,12 @@ impl Storage {
         sort_records_by_updated(&mut items, filter.sort.as_deref(), |item| {
             (item.updated_at, item.task_id.as_str())
         })?;
-        Ok(page_records(items, filter.limit, filter.cursor.as_deref(), |item| {
-            (item.updated_at, item.task_id.as_str())
-        })?)
+        Ok(page_records(
+            items,
+            filter.limit,
+            filter.cursor.as_deref(),
+            |item| (item.updated_at, item.task_id.as_str()),
+        )?)
     }
 
     pub fn get_task(&self, task_id: &str) -> Result<Option<TaskRecord>> {
@@ -2229,8 +2246,10 @@ impl Storage {
         let next_priority = patch.priority.unwrap_or(current.priority);
         let next_owner_agent_id = patch.owner_agent_id.unwrap_or(current.owner_agent_id);
         let next_due_at = patch.due_at.unwrap_or(current.due_at);
-        let next_blocked_reason =
-            normalize_blocked_reason(&next_status, patch.blocked_reason.unwrap_or(current.blocked_reason))?;
+        let next_blocked_reason = normalize_blocked_reason(
+            &next_status,
+            patch.blocked_reason.unwrap_or(current.blocked_reason),
+        )?;
         validate_optional_owner_agent(self, &conn, next_owner_agent_id.as_deref())?;
         validate_task_status(&next_status)?;
         validate_task_priority(&next_priority)?;
@@ -2291,7 +2310,8 @@ impl Storage {
         if Self::get_board_card_tx(&tx, board_card_id)?.is_none() {
             anyhow::bail!("board card not found");
         }
-        let linked_task_id = find_task_id_by_link_target(&tx, "linked_board_card_id", board_card_id)?;
+        let linked_task_id =
+            find_task_id_by_link_target(&tx, "linked_board_card_id", board_card_id)?;
         let now = now_ms();
         if let Some(existing_task_id) = linked_task_id {
             if existing_task_id != task_id {
@@ -2375,7 +2395,9 @@ impl Storage {
         } else {
             current.linked_job_id.clone()
         };
-        if next_board_card_id == current.linked_board_card_id && next_job_id == current.linked_job_id {
+        if next_board_card_id == current.linked_board_card_id
+            && next_job_id == current.linked_job_id
+        {
             return Ok(Some(current));
         }
         let now = now_ms();
@@ -2430,9 +2452,12 @@ impl Storage {
         sort_records_by_updated(&mut items, filter.sort.as_deref(), |item| {
             (item.updated_at, item.preset_key.as_str())
         })?;
-        Ok(page_records(items, filter.limit, filter.cursor.as_deref(), |item| {
-            (item.updated_at, item.preset_key.as_str())
-        })?)
+        Ok(page_records(
+            items,
+            filter.limit,
+            filter.cursor.as_deref(),
+            |item| (item.updated_at, item.preset_key.as_str()),
+        )?)
     }
 
     pub fn get_bootstrap_preset(&self, preset_key: &str) -> Result<Option<BootstrapPresetRecord>> {
@@ -2450,7 +2475,11 @@ impl Storage {
             new_preset.default_model_provider.as_deref(),
         )?;
         validate_project_workspace_root(new_preset.default_workspace_root.as_deref())?;
-        validate_optional_owner_agent(self, &conn, new_preset.default_reports_to_agent_id.as_deref())?;
+        validate_optional_owner_agent(
+            self,
+            &conn,
+            new_preset.default_reports_to_agent_id.as_deref(),
+        )?;
         let preset_key = normalize_preset_key(&new_preset.preset_key)?;
         let now = now_ms();
         conn.execute(
@@ -5997,9 +6026,7 @@ fn get_goal_with_conn(conn: &Connection, goal_id: &str) -> Result<Option<GoalRec
         WHERE goal_id = ?1
         "#,
     )?;
-    Ok(stmt
-        .query_row(params![goal_id], map_goal_row)
-        .optional()?)
+    Ok(stmt.query_row(params![goal_id], map_goal_row).optional()?)
 }
 
 fn get_project_with_conn(conn: &Connection, project_id: &str) -> Result<Option<ProjectRecord>> {
@@ -6027,9 +6054,7 @@ fn get_task_with_conn(conn: &Connection, task_id: &str) -> Result<Option<TaskRec
         WHERE task_id = ?1
         "#,
     )?;
-    Ok(stmt
-        .query_row(params![task_id], map_task_row)
-        .optional()?)
+    Ok(stmt.query_row(params![task_id], map_task_row).optional()?)
 }
 
 fn get_bootstrap_preset_with_conn(
@@ -6062,12 +6087,13 @@ fn get_job_with_conn(conn: &Connection, job_id: &str) -> Result<Option<JobRecord
         WHERE job_id = ?1 AND deleted_at IS NULL
         "#,
     )?;
-    Ok(stmt
-        .query_row(params![job_id], map_job_row)
-        .optional()?)
+    Ok(stmt.query_row(params![job_id], map_job_row).optional()?)
 }
 
-fn latest_run_for_session_with_conn(conn: &Connection, session_id: &str) -> Result<Option<RunRecord>> {
+fn latest_run_for_session_with_conn(
+    conn: &Connection,
+    session_id: &str,
+) -> Result<Option<RunRecord>> {
     let mut stmt = conn.prepare(
         r#"
         SELECT
@@ -6173,9 +6199,7 @@ fn validate_agent_manager_assignment(
         current = get_agent_with_conn(conn, &candidate)?
             .map(|record| record.reports_to_agent_id)
             .flatten();
-        if current.is_none()
-            && get_agent_with_conn(conn, &candidate)?.is_none()
-        {
+        if current.is_none() && get_agent_with_conn(conn, &candidate)?.is_none() {
             anyhow::bail!("reports_to_agent_id does not exist: {manager_id}");
         }
     }
@@ -6258,8 +6282,7 @@ fn validate_task_parent(
     if Some(parent_task_id) == current_task_id {
         anyhow::bail!("task cannot parent itself");
     }
-    let parent = get_task_with_conn(conn, parent_task_id)?
-        .context("parent task does not exist")?;
+    let parent = get_task_with_conn(conn, parent_task_id)?.context("parent task does not exist")?;
     if parent.project_id != project_id {
         anyhow::bail!("parent task must belong to the same project");
     }
@@ -6268,8 +6291,7 @@ fn validate_task_parent(
         if Some(ancestor_id.as_str()) == current_task_id {
             anyhow::bail!("task hierarchy cycle detected");
         }
-        cursor = get_task_with_conn(conn, &ancestor_id)?
-            .and_then(|item| item.parent_task_id);
+        cursor = get_task_with_conn(conn, &ancestor_id)?.and_then(|item| item.parent_task_id);
     }
     Ok(())
 }
@@ -6296,7 +6318,12 @@ fn has_open_tasks_in_project(conn: &Connection, project_id: &str) -> Result<bool
         WHERE project_id = ?1
           AND status IN (?2, ?3, ?4)
         "#,
-        params![project_id, TASK_STATUS_TODO, TASK_STATUS_IN_PROGRESS, TASK_STATUS_BLOCKED],
+        params![
+            project_id,
+            TASK_STATUS_TODO,
+            TASK_STATUS_IN_PROGRESS,
+            TASK_STATUS_BLOCKED
+        ],
         |row| row.get(0),
     )?;
     Ok(count > 0)
@@ -6369,7 +6396,10 @@ fn goal_matches_filter(record: &GoalRecord, filter: &GoalListFilter) -> bool {
             return false;
         }
     }
-    record_matches_query(filter.query.as_deref(), &[&record.slug, &record.title, &record.summary])
+    record_matches_query(
+        filter.query.as_deref(),
+        &[&record.slug, &record.title, &record.summary],
+    )
 }
 
 fn project_matches_filter(record: &ProjectRecord, filter: &ProjectListFilter) -> bool {
@@ -6390,7 +6420,10 @@ fn project_matches_filter(record: &ProjectRecord, filter: &ProjectListFilter) ->
             return false;
         }
     }
-    record_matches_query(filter.query.as_deref(), &[&record.slug, &record.name, &record.summary])
+    record_matches_query(
+        filter.query.as_deref(),
+        &[&record.slug, &record.name, &record.summary],
+    )
 }
 
 fn task_matches_filter(
@@ -6405,7 +6438,11 @@ fn task_matches_filter(
         }
     }
     if let Some(goal_id) = filter.goal_id.as_deref() {
-        if project_goal_by_id.get(&record.project_id).map(String::as_str) != Some(goal_id) {
+        if project_goal_by_id
+            .get(&record.project_id)
+            .map(String::as_str)
+            != Some(goal_id)
+        {
             return false;
         }
     }
@@ -6455,7 +6492,12 @@ fn bootstrap_preset_matches_filter(
 ) -> bool {
     record_matches_query(
         filter.query.as_deref(),
-        &[&record.preset_key, &record.display_name, &record.description, &record.role_label],
+        &[
+            &record.preset_key,
+            &record.display_name,
+            &record.description,
+            &record.role_label,
+        ],
     )
 }
 
@@ -6469,11 +6511,7 @@ fn record_matches_query(query: Option<&str>, fields: &[&str]) -> bool {
         .any(|field| field.to_ascii_lowercase().contains(&query))
 }
 
-fn sort_records_by_updated<T, F>(
-    items: &mut [T],
-    sort: Option<&str>,
-    key_fn: F,
-) -> Result<()>
+fn sort_records_by_updated<T, F>(items: &mut [T], sort: Option<&str>, key_fn: F) -> Result<()>
 where
     F: Fn(&T) -> (i64, &str),
 {
@@ -6511,7 +6549,8 @@ where
     let limit = limit.clamp(1, 200) as usize;
     let cursor = decode_page_cursor(cursor)?;
     let start = if let Some((updated_at, record_id)) = cursor {
-        items.iter()
+        items
+            .iter()
             .position(|item| {
                 let key = key_fn(item);
                 key.0 == updated_at && key.1 == record_id
@@ -6521,15 +6560,17 @@ where
     } else {
         0
     };
-    let mut window = items.into_iter().skip(start).take(limit + 1).collect::<Vec<_>>();
+    let mut window = items
+        .into_iter()
+        .skip(start)
+        .take(limit + 1)
+        .collect::<Vec<_>>();
     let next_cursor = if window.len() > limit {
         window.pop();
-        window
-            .last()
-            .map(|item| {
-                let key = key_fn(item);
-                encode_page_cursor(key.0, key.1)
-            })
+        window.last().map(|item| {
+            let key = key_fn(item);
+            encode_page_cursor(key.0, key.1)
+        })
     } else {
         None
     };
@@ -6557,11 +6598,16 @@ fn encode_page_cursor(updated_at: i64, record_id: &str) -> String {
 }
 
 fn is_task_stale(record: &TaskRecord, now_ms: i64) -> bool {
-    !matches!(record.status.as_str(), TASK_STATUS_DONE | TASK_STATUS_ARCHIVED)
-        && now_ms.saturating_sub(record.updated_at) > STRATEGY_STALE_THRESHOLD_MS
+    !matches!(
+        record.status.as_str(),
+        TASK_STATUS_DONE | TASK_STATUS_ARCHIVED
+    ) && now_ms.saturating_sub(record.updated_at) > STRATEGY_STALE_THRESHOLD_MS
 }
 
-fn agent_subtree_ids(conn: &Connection, root_agent_id: &str) -> Result<std::collections::HashSet<String>> {
+fn agent_subtree_ids(
+    conn: &Connection,
+    root_agent_id: &str,
+) -> Result<std::collections::HashSet<String>> {
     let mut stmt = conn.prepare(
         r#"
         SELECT
@@ -6651,7 +6697,10 @@ fn resolve_board_runtime_candidate(
     }))
 }
 
-fn resolve_job_runtime_candidate(conn: &Connection, job_id: &str) -> Result<Option<RuntimeCandidate>> {
+fn resolve_job_runtime_candidate(
+    conn: &Connection,
+    job_id: &str,
+) -> Result<Option<RuntimeCandidate>> {
     let Some(job) = get_job_with_conn(conn, job_id)? else {
         return Ok(None);
     };
@@ -6711,9 +6760,7 @@ fn get_run_with_conn(conn: &Connection, run_id: &str) -> Result<Option<RunRecord
         WHERE run_id = ?1
         "#,
     )?;
-    Ok(stmt
-        .query_row(params![run_id], map_run_row)
-        .optional()?)
+    Ok(stmt.query_row(params![run_id], map_run_row).optional()?)
 }
 
 fn map_agent_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<AgentRecord> {

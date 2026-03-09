@@ -29,41 +29,40 @@ use carsinos_protocol::{
     AssistantTaskHandle, AssistantToolCapabilitiesResponse, AssistantToolCapabilityItem,
     AssistantToolLimitsResponse, AssistantToolRpcRequest, AssistantToolRpcResponse,
     AssistantWorkerSummary, AssistantWorkerTemplateResponse, AssistantWorkerTemplateRunDefaults,
-    BootstrapPresetResponse, ClearTaskLinksRequest, CreateBootstrapPresetRequest,
-    CreateBootstrapPresetResponse, CreateGoalRequest, CreateGoalResponse, CreateProjectRequest,
-    CreateProjectResponse, CreateTaskRequest, CreateTaskResponse,
     AuthProfileResponse, BoardAutomationRuleResponse, BoardCardAssetResponse, BoardCardResponse,
-    BoardColumnResponse, BoardDetailResponse, BoardSummaryResponse,
-    ChannelRuntimeAdapterStatusResponse, CircuitBreakerStateResponse,
+    BoardColumnResponse, BoardDetailResponse, BoardSummaryResponse, BootstrapPresetResponse,
+    ChannelRuntimeAdapterStatusResponse, CircuitBreakerStateResponse, ClearTaskLinksRequest,
     CreateAgentMailFileLeaseRequest, CreateAgentMailFileLeaseResponse,
     CreateAgentMailThreadRequest, CreateAgentMailThreadResponse, CreateAgentRequest,
     CreateAgentResponse, CreateApprovalRequest, CreateApprovalResponse, CreateAuthProfileRequest,
-    CreateAuthProfileResponse, CreateBoardCardRequest, CreateBoardCardResponse, CreateJobRequest,
-    CreateJobResponse, CreateMessageRequest, CreateMessageResponse, CreateNoteRequest,
-    CreateNoteResponse, CreateRunRequest, CreateRunResponse, CreateSessionRequest,
-    CreateSessionResponse, DeleteRuntimeSecretRequest, DeleteRuntimeSecretResponse,
-    DiscordChannelConfig, FailureReasonCountResponse, GetAgentProviderProfileOrderResponse,
-    GetAgentResponse, GetBoardAutomationRuleResponse, GetBootstrapPresetResponse,
-    GetChannelConfigResponse, GetGoalResponse, GetProjectResponse, GetTaskResponse,
-    GetChannelRuntimeStatusResponse, GetNoteResponse, GetRuntimeConfigResponse,
-    GetRuntimeTrustContractLockResponse, HealthResponse, IngestChannelMessageResponse,
-    ImportBootstrapPresetRequest, ImportBootstrapPresetResponse, ExportBootstrapPresetResponse,
+    CreateAuthProfileResponse, CreateBoardCardRequest, CreateBoardCardResponse,
+    CreateBootstrapPresetRequest, CreateBootstrapPresetResponse, CreateGoalRequest,
+    CreateGoalResponse, CreateJobRequest, CreateJobResponse, CreateMessageRequest,
+    CreateMessageResponse, CreateNoteRequest, CreateNoteResponse, CreateProjectRequest,
+    CreateProjectResponse, CreateRunRequest, CreateRunResponse, CreateSessionRequest,
+    CreateSessionResponse, CreateTaskRequest, CreateTaskResponse, DeleteRuntimeSecretRequest,
+    DeleteRuntimeSecretResponse, DiscordChannelConfig, ExportBootstrapPresetResponse,
+    FailureReasonCountResponse, GetAgentProviderProfileOrderResponse, GetAgentResponse,
+    GetBoardAutomationRuleResponse, GetBootstrapPresetResponse, GetChannelConfigResponse,
+    GetChannelRuntimeStatusResponse, GetGoalResponse, GetNoteResponse, GetProjectResponse,
+    GetRuntimeConfigResponse, GetRuntimeTrustContractLockResponse, GetTaskResponse, HealthResponse,
+    ImportBootstrapPresetRequest, ImportBootstrapPresetResponse, IngestChannelMessageResponse,
     IngestDiscordMessageRequest, IngestTelegramMessageRequest, InstallPluginRequest,
     InstallPluginResponse, JobResponse, JobRunResponse, JobStatusResponse,
-    ListAgentMailFileLeasesQuery, ListAgentMailFileLeasesResponse, ListAgentMailMessagesQuery,
-    ListAgentMailMessagesResponse, ListAgentMailThreadsQuery, ListAgentMailThreadsResponse,
-    ListAgentsResponse, ListApprovalsQuery, ListApprovalsResponse, ListAuthProfilesQuery,
-    ListAuthProfilesResponse, ListBoardAutomationRulesResponse, ListBoardsResponse,
-    ListBootstrapPresetsQuery, ListBootstrapPresetsResponse, ListGoalsQuery, ListGoalsResponse,
-    ListJobHistoryQuery, ListJobHistoryResponse, ListJobsQuery, ListJobsResponse,
-    ListMessagesQuery, ListMessagesResponse, ListNotesQuery, ListNotesResponse,
-    ListProjectsQuery, ListProjectsResponse, ListTasksQuery, ListTasksResponse,
-    ListPluginRuntimeStatusResponse, ListPluginsQuery, ListPluginsResponse,
+    LinkTaskBoardCardRequest, LinkTaskJobRequest, ListAgentMailFileLeasesQuery,
+    ListAgentMailFileLeasesResponse, ListAgentMailMessagesQuery, ListAgentMailMessagesResponse,
+    ListAgentMailThreadsQuery, ListAgentMailThreadsResponse, ListAgentsResponse,
+    ListApprovalsQuery, ListApprovalsResponse, ListAuthProfilesQuery, ListAuthProfilesResponse,
+    ListBoardAutomationRulesResponse, ListBoardsResponse, ListBootstrapPresetsQuery,
+    ListBootstrapPresetsResponse, ListGoalsQuery, ListGoalsResponse, ListJobHistoryQuery,
+    ListJobHistoryResponse, ListJobsQuery, ListJobsResponse, ListMessagesQuery,
+    ListMessagesResponse, ListNotesQuery, ListNotesResponse, ListPluginRuntimeStatusResponse,
+    ListPluginsQuery, ListPluginsResponse, ListProjectsQuery, ListProjectsResponse,
     ListProviderCapabilitiesQuery, ListProviderCapabilitiesResponse, ListProviderModelsQuery,
     ListProviderModelsResponse, ListSessionsQuery, ListSessionsResponse, ListSkillsQuery,
-    ListSkillsResponse, ListToolCapabilitiesQuery, ListToolCapabilitiesResponse,
-    LinkTaskBoardCardRequest, LinkTaskJobRequest, MessageResponse,
-    MetricsResponse, MissionControlCalendarWeekJobResponse, MissionControlCalendarWeekQuery,
+    ListSkillsResponse, ListTasksQuery, ListTasksResponse, ListToolCapabilitiesQuery,
+    ListToolCapabilitiesResponse, MessageResponse, MetricsResponse,
+    MissionControlCalendarWeekJobResponse, MissionControlCalendarWeekQuery,
     MissionControlCalendarWeekResponse, MissionControlFocusItemResponse, MissionControlFocusQuery,
     MissionControlFocusResponse, MissionControlUsageBudgetThresholdResponse,
     MissionControlUsageByAgentResponse, MissionControlUsageByCardResponse,
@@ -92,24 +91,23 @@ use carsinos_protocol::{
     SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse,
     SetBoardAutomationRuleStateRequest, SetBoardAutomationRuleStateResponse, SkillResponse,
     StatusResponse, StrategyApprovalBacklogItemResponse, StrategyGoalProgressItemResponse,
-    StrategySpendByAgentItemResponse, StrategySpendByProjectItemResponse,
-    StrategySummaryQuery, StrategySummaryResponse, StrategyTaskListItemResponse,
-    SyncMemorySourceItemResponse, SyncMemorySourcesRequest, TaskLinkMutationResponse,
-    SyncMemorySourcesResponse, TelegramChannelConfig, ToolCapabilityResponse,
-    ToolCapabilitySandboxResponse, UpdateAgentRequest, UpdateAgentResponse,
-    UpdateBootstrapPresetRequest, UpdateBootstrapPresetResponse, UpdateGoalRequest,
-    UpdateGoalResponse, UpdateProjectRequest, UpdateProjectResponse, UpdateTaskRequest,
-    UpdateTaskResponse,
-    UpdateAuthProfileStateRequest, UpdateAuthProfileStateResponse, UpdateBoardCardRequest,
-    UpdateBoardCardResponse, UpdateChannelConfigRequest, UpdateChannelConfigResponse,
-    UpdateJobRequest, UpdateJobResponse, UpdateNoteRequest, UpdateNoteResponse,
-    UpdatePluginRequest, UpdatePluginResponse, UpdateRuntimeConfigRequest,
+    StrategySpendByAgentItemResponse, StrategySpendByProjectItemResponse, StrategySummaryQuery,
+    StrategySummaryResponse, StrategyTaskListItemResponse, SyncMemorySourceItemResponse,
+    SyncMemorySourcesRequest, SyncMemorySourcesResponse, TaskLinkMutationResponse,
+    TelegramChannelConfig, ToolCapabilityResponse, ToolCapabilitySandboxResponse,
+    UpdateAgentRequest, UpdateAgentResponse, UpdateAuthProfileStateRequest,
+    UpdateAuthProfileStateResponse, UpdateBoardCardRequest, UpdateBoardCardResponse,
+    UpdateBootstrapPresetRequest, UpdateBootstrapPresetResponse, UpdateChannelConfigRequest,
+    UpdateChannelConfigResponse, UpdateGoalRequest, UpdateGoalResponse, UpdateJobRequest,
+    UpdateJobResponse, UpdateNoteRequest, UpdateNoteResponse, UpdatePluginRequest,
+    UpdatePluginResponse, UpdateProjectRequest, UpdateProjectResponse, UpdateRuntimeConfigRequest,
     UpdateRuntimeConfigResponse, UpdateSkillStateRequest, UpdateSkillStateResponse,
-    UploadAgentMailAttachmentRequest, UploadAgentMailAttachmentResponse,
-    UploadBoardCardAssetRequest, UploadBoardCardAssetResponse, UpsertBoardAutomationRuleRequest,
-    UpsertBoardAutomationRuleResponse, UpsertRuntimeSecretRequest, UpsertRuntimeSecretResponse,
-    WsEventFrame, ASSISTANT_TOOL_CONTRACT_VERSION, HEARTBEAT_OUTPUT_ALERT_PREFIX,
-    HEARTBEAT_OUTPUT_OK, JOB_MODE_HEARTBEAT_RUN,
+    UpdateTaskRequest, UpdateTaskResponse, UploadAgentMailAttachmentRequest,
+    UploadAgentMailAttachmentResponse, UploadBoardCardAssetRequest, UploadBoardCardAssetResponse,
+    UpsertBoardAutomationRuleRequest, UpsertBoardAutomationRuleResponse,
+    UpsertRuntimeSecretRequest, UpsertRuntimeSecretResponse, WsEventFrame,
+    ASSISTANT_TOOL_CONTRACT_VERSION, HEARTBEAT_OUTPUT_ALERT_PREFIX, HEARTBEAT_OUTPUT_OK,
+    JOB_MODE_HEARTBEAT_RUN,
 };
 use carsinos_providers::{
     parse_provider_error_class as parse_provider_error_class_normalized,
@@ -123,12 +121,11 @@ use carsinos_storage::{
     BootstrapPresetListFilter, BootstrapPresetRecord, BootstrapPresetUpdatePatch,
     CircuitBreakerStateRecord, CircuitBreakerStateUpsert, DailyAuthProfileUsageIncrement,
     GoalListFilter, GoalRecord, GoalUpdatePatch, JobRecord, JobRunRecord, JobUpdatePatch,
-    MessageRecord, NewAgent, NewAgentMailAttachment,
-    NewAgentMailFileLease, NewAgentMailMessage, NewAgentMailThread, NewApproval,
-    NewAssistantToolCallAudit, NewAssistantWorker, NewAuthProfile, NewBoardCard, NewBoardCardAsset,
-    NewBootstrapPreset, NewGoal, NewJob, NewMessage, NewNote, NewProject, NewRun, NewSecurityAuditEvent,
-    NewSession, NewTask, NoteRecord, ProjectListFilter, ProjectRecord,
-    ProjectUpdatePatch, RemoveAgentOutcome, RunRecord, SecurityAuditEventListFilter,
+    MessageRecord, NewAgent, NewAgentMailAttachment, NewAgentMailFileLease, NewAgentMailMessage,
+    NewAgentMailThread, NewApproval, NewAssistantToolCallAudit, NewAssistantWorker, NewAuthProfile,
+    NewBoardCard, NewBoardCardAsset, NewBootstrapPreset, NewGoal, NewJob, NewMessage, NewNote,
+    NewProject, NewRun, NewSecurityAuditEvent, NewSession, NewTask, NoteRecord, ProjectListFilter,
+    ProjectRecord, ProjectUpdatePatch, RemoveAgentOutcome, RunRecord, SecurityAuditEventListFilter,
     SecurityAuditEventRecord, SessionRecord, Storage, TaskListFilter, TaskRecord,
     TaskRuntimeLinkRecord, TaskUpdatePatch,
 };
@@ -6533,7 +6530,10 @@ fn build_app(state: AppState) -> Router {
             post(link_task_board_card),
         )
         .route("/api/v1/tasks/{task_id}/links/job", post(link_task_job))
-        .route("/api/v1/tasks/{task_id}/links/clear", post(clear_task_links))
+        .route(
+            "/api/v1/tasks/{task_id}/links/clear",
+            post(clear_task_links),
+        )
         .route(
             "/api/v1/bootstrap-presets",
             get(list_bootstrap_presets).post(create_bootstrap_preset),
@@ -7302,9 +7302,11 @@ async fn update_agent(
                 .map(|inner| inner.trim().to_ascii_lowercase())
                 .filter(|inner| !inner.is_empty())
         }),
-        role_label: request
-            .role_label
-            .map(|value| value.map(|inner| inner.trim().to_string()).filter(|inner| !inner.is_empty())),
+        role_label: request.role_label.map(|value| {
+            value
+                .map(|inner| inner.trim().to_string())
+                .filter(|inner| !inner.is_empty())
+        }),
     };
     let record = state
         .storage
@@ -7407,7 +7409,10 @@ async fn list_goals(
         .storage
         .list_goals(GoalListFilter {
             status: query.status.map(normalize_optional_string).transpose()?,
-            owner_agent_id: query.owner_agent_id.map(normalize_optional_string).transpose()?,
+            owner_agent_id: query
+                .owner_agent_id
+                .map(normalize_optional_string)
+                .transpose()?,
             query: query.query.map(normalize_optional_string).transpose()?,
             limit: query.limit.unwrap_or(50),
             cursor: query.cursor,
@@ -7457,7 +7462,10 @@ async fn create_goal(
             title: request.title,
             summary: request.summary.unwrap_or_default(),
             status: request.status.unwrap_or_else(|| "active".to_string()),
-            owner_agent_id: request.owner_agent_id.map(normalize_optional_string).transpose()?,
+            owner_agent_id: request
+                .owner_agent_id
+                .map(normalize_optional_string)
+                .transpose()?,
             target_date: request.target_date,
         })
         .map_err(|err| strategy_storage_err("creating goal failed", err))?;
@@ -7487,7 +7495,10 @@ async fn update_goal(
                 title: request.title,
                 summary: request.summary,
                 status: request.status,
-                owner_agent_id: request.owner_agent_id.map(normalize_nested_optional_string).transpose()?,
+                owner_agent_id: request
+                    .owner_agent_id
+                    .map(normalize_nested_optional_string)
+                    .transpose()?,
                 target_date: request.target_date,
             },
         )
@@ -7511,7 +7522,10 @@ async fn list_projects(
         .list_projects(ProjectListFilter {
             goal_id: query.goal_id.map(normalize_optional_string).transpose()?,
             status: query.status.map(normalize_optional_string).transpose()?,
-            owner_agent_id: query.owner_agent_id.map(normalize_optional_string).transpose()?,
+            owner_agent_id: query
+                .owner_agent_id
+                .map(normalize_optional_string)
+                .transpose()?,
             query: query.query.map(normalize_optional_string).transpose()?,
             limit: query.limit.unwrap_or(50),
             cursor: query.cursor,
@@ -7556,7 +7570,10 @@ async fn create_project(
             name: request.name,
             summary: request.summary.unwrap_or_default(),
             status: request.status.unwrap_or_else(|| "active".to_string()),
-            owner_agent_id: request.owner_agent_id.map(normalize_optional_string).transpose()?,
+            owner_agent_id: request
+                .owner_agent_id
+                .map(normalize_optional_string)
+                .transpose()?,
             workspace_root: request
                 .workspace_root
                 .map(normalize_string_allow_empty)
@@ -7591,8 +7608,14 @@ async fn update_project(
                 name: request.name,
                 summary: request.summary,
                 status: request.status,
-                owner_agent_id: request.owner_agent_id.map(normalize_nested_optional_string).transpose()?,
-                workspace_root: request.workspace_root.map(normalize_nested_optional_string).transpose()?,
+                owner_agent_id: request
+                    .owner_agent_id
+                    .map(normalize_nested_optional_string)
+                    .transpose()?,
+                workspace_root: request
+                    .workspace_root
+                    .map(normalize_nested_optional_string)
+                    .transpose()?,
                 budget_month_usd: request.budget_month_usd,
             },
         )
@@ -7614,9 +7637,15 @@ async fn list_tasks(
         .storage
         .list_tasks(TaskListFilter {
             goal_id: query.goal_id.map(normalize_optional_string).transpose()?,
-            project_id: query.project_id.map(normalize_optional_string).transpose()?,
+            project_id: query
+                .project_id
+                .map(normalize_optional_string)
+                .transpose()?,
             status: query.status.map(normalize_optional_string).transpose()?,
-            owner_agent_id: query.owner_agent_id.map(normalize_optional_string).transpose()?,
+            owner_agent_id: query
+                .owner_agent_id
+                .map(normalize_optional_string)
+                .transpose()?,
             query: query.query.map(normalize_optional_string).transpose()?,
             stale: query.stale,
             blocked: query.blocked,
@@ -7625,7 +7654,10 @@ async fn list_tasks(
                 .hierarchy_root_agent_id
                 .map(normalize_optional_string)
                 .transpose()?,
-            hierarchy_scope: query.hierarchy_scope.map(normalize_optional_string).transpose()?,
+            hierarchy_scope: query
+                .hierarchy_scope
+                .map(normalize_optional_string)
+                .transpose()?,
             limit: query.limit.unwrap_or(50),
             cursor: query.cursor,
             sort: query.sort,
@@ -7679,9 +7711,15 @@ async fn create_task(
             detail: request.detail.unwrap_or_default(),
             status: request.status.unwrap_or_else(|| "todo".to_string()),
             priority: request.priority.unwrap_or_else(|| "normal".to_string()),
-            owner_agent_id: request.owner_agent_id.map(normalize_optional_string).transpose()?,
+            owner_agent_id: request
+                .owner_agent_id
+                .map(normalize_optional_string)
+                .transpose()?,
             due_at: request.due_at,
-            blocked_reason: request.blocked_reason.map(normalize_optional_string).transpose()?,
+            blocked_reason: request
+                .blocked_reason
+                .map(normalize_optional_string)
+                .transpose()?,
         })
         .map_err(|err| strategy_storage_err("creating task failed", err))?;
     Ok((
@@ -7706,14 +7744,23 @@ async fn update_task(
             task_id.trim(),
             TaskUpdatePatch {
                 project_id: request.project_id,
-                parent_task_id: request.parent_task_id.map(normalize_nested_optional_string).transpose()?,
+                parent_task_id: request
+                    .parent_task_id
+                    .map(normalize_nested_optional_string)
+                    .transpose()?,
                 title: request.title,
                 detail: request.detail,
                 status: request.status,
                 priority: request.priority,
-                owner_agent_id: request.owner_agent_id.map(normalize_nested_optional_string).transpose()?,
+                owner_agent_id: request
+                    .owner_agent_id
+                    .map(normalize_nested_optional_string)
+                    .transpose()?,
                 due_at: request.due_at,
-                blocked_reason: request.blocked_reason.map(normalize_nested_optional_string).transpose()?,
+                blocked_reason: request
+                    .blocked_reason
+                    .map(normalize_nested_optional_string)
+                    .transpose()?,
             },
         )
         .map_err(|err| strategy_storage_err("updating task failed", err))?
@@ -7806,7 +7853,11 @@ async fn list_bootstrap_presets(
         })
         .map_err(|err| strategy_storage_err("listing bootstrap presets failed", err))?;
     Ok(Json(ListBootstrapPresetsResponse {
-        items: page.items.into_iter().map(to_bootstrap_preset_response).collect(),
+        items: page
+            .items
+            .into_iter()
+            .map(to_bootstrap_preset_response)
+            .collect(),
         next_cursor: page.next_cursor,
     }))
 }
@@ -7900,12 +7951,30 @@ async fn update_bootstrap_preset(
                 description: request.description,
                 role_label: request.role_label,
                 provider_path: request.provider_path,
-                default_model_provider: request.default_model_provider.map(normalize_nested_optional_string).transpose()?,
-                default_model_id: request.default_model_id.map(normalize_nested_optional_string).transpose()?,
-                default_tool_profile: request.default_tool_profile.map(normalize_nested_optional_string).transpose()?,
-                default_workspace_root: request.default_workspace_root.map(normalize_nested_optional_string).transpose()?,
-                default_reports_to_agent_id: request.default_reports_to_agent_id.map(normalize_nested_optional_string).transpose()?,
-                setup_notes: request.setup_notes.map(normalize_nested_optional_string).transpose()?,
+                default_model_provider: request
+                    .default_model_provider
+                    .map(normalize_nested_optional_string)
+                    .transpose()?,
+                default_model_id: request
+                    .default_model_id
+                    .map(normalize_nested_optional_string)
+                    .transpose()?,
+                default_tool_profile: request
+                    .default_tool_profile
+                    .map(normalize_nested_optional_string)
+                    .transpose()?,
+                default_workspace_root: request
+                    .default_workspace_root
+                    .map(normalize_nested_optional_string)
+                    .transpose()?,
+                default_reports_to_agent_id: request
+                    .default_reports_to_agent_id
+                    .map(normalize_nested_optional_string)
+                    .transpose()?,
+                setup_notes: request
+                    .setup_notes
+                    .map(normalize_nested_optional_string)
+                    .transpose()?,
             },
         )
         .map_err(|err| strategy_storage_err("updating bootstrap preset failed", err))?
@@ -13115,7 +13184,9 @@ fn load_task_response(
     Ok(to_task_response(record, runtime_link))
 }
 
-fn collect_goal_records(state: &AppState) -> std::result::Result<Vec<GoalRecord>, ApiErrorResponse> {
+fn collect_goal_records(
+    state: &AppState,
+) -> std::result::Result<Vec<GoalRecord>, ApiErrorResponse> {
     let mut cursor = None;
     let mut items = Vec::new();
     loop {
@@ -13198,7 +13269,10 @@ fn goal_progress_pct(state: &AppState, goal_id: &str) -> std::result::Result<u8,
         .collect::<HashSet<_>>();
     let mut denominator = 0u64;
     let mut numerator = 0u64;
-    for task in tasks.iter().filter(|task| !leaf_parent_ids.contains(task.task_id.as_str())) {
+    for task in tasks
+        .iter()
+        .filter(|task| !leaf_parent_ids.contains(task.task_id.as_str()))
+    {
         denominator = denominator.saturating_add(1);
         if task.status == "done" {
             numerator = numerator.saturating_add(1);
@@ -13242,8 +13316,9 @@ fn task_projection(
 fn parse_imported_bootstrap_preset(
     payload: &serde_json::Value,
 ) -> std::result::Result<ImportedBootstrapPresetPayload, ApiErrorResponse> {
-    let bytes = serde_json::to_vec(payload)
-        .map_err(|err| internal_err_with_error("serializing preset import payload failed", err.into()))?;
+    let bytes = serde_json::to_vec(payload).map_err(|err| {
+        internal_err_with_error("serializing preset import payload failed", err.into())
+    })?;
     if bytes.len() > STRATEGY_IMPORT_MAX_BYTES {
         return Err(api_error(
             StatusCode::BAD_REQUEST,
@@ -13251,8 +13326,13 @@ fn parse_imported_bootstrap_preset(
         ));
     }
     scan_bootstrap_preset_payload(payload)?;
-    let parsed: ImportedBootstrapPresetPayload = serde_json::from_value(payload.clone())
-        .map_err(|_| api_error(StatusCode::BAD_REQUEST, "bootstrap preset import payload is invalid"))?;
+    let parsed: ImportedBootstrapPresetPayload =
+        serde_json::from_value(payload.clone()).map_err(|_| {
+            api_error(
+                StatusCode::BAD_REQUEST,
+                "bootstrap preset import payload is invalid",
+            )
+        })?;
     if parsed.schema_version != "mc-bootstrap-preset-v1" {
         return Err(api_error(
             StatusCode::BAD_REQUEST,
@@ -13263,14 +13343,23 @@ fn parse_imported_bootstrap_preset(
     Ok(parsed)
 }
 
-fn scan_bootstrap_preset_payload(value: &serde_json::Value) -> std::result::Result<(), ApiErrorResponse> {
+fn scan_bootstrap_preset_payload(
+    value: &serde_json::Value,
+) -> std::result::Result<(), ApiErrorResponse> {
     match value {
         serde_json::Value::Object(map) => {
             for (key, value) in map {
                 let lower = key.to_ascii_lowercase();
-                if ["token", "secret", "password", "api_key", "access_token", "refresh_token"]
-                    .iter()
-                    .any(|fragment| lower.contains(fragment))
+                if [
+                    "token",
+                    "secret",
+                    "password",
+                    "api_key",
+                    "access_token",
+                    "refresh_token",
+                ]
+                .iter()
+                .any(|fragment| lower.contains(fragment))
                 {
                     return Err(api_error(
                         StatusCode::BAD_REQUEST,
@@ -13329,14 +13418,15 @@ async fn strategy_summary(
             ..TaskListFilter::default()
         },
     )?;
-    let agents = state
-        .storage
-        .list_agents()
-        .map_err(|err| internal_err_with_error("listing agents for strategy summary failed", err))?;
+    let agents = state.storage.list_agents().map_err(|err| {
+        internal_err_with_error("listing agents for strategy summary failed", err)
+    })?;
     let approvals = state
         .storage
         .list_approvals(Some("requested"), 10_000)
-        .map_err(|err| internal_err_with_error("listing approvals for strategy summary failed", err))?;
+        .map_err(|err| {
+            internal_err_with_error("listing approvals for strategy summary failed", err)
+        })?;
 
     let goals_by_id = goals
         .iter()
@@ -13382,10 +13472,14 @@ async fn strategy_summary(
         let runtime = state
             .storage
             .resolve_task_runtime_link(task)
-            .map_err(|err| internal_err_with_error("resolving task runtime for strategy summary failed", err))?;
+            .map_err(|err| {
+                internal_err_with_error("resolving task runtime for strategy summary failed", err)
+            })?;
         if let Some(owner_agent_id) = task.owner_agent_id.as_ref() {
             if runtime.latest_run_id.is_some() || runtime.latest_session_id.is_some() {
-                *linked_task_count_by_owner.entry(owner_agent_id.clone()).or_insert(0) += 1;
+                *linked_task_count_by_owner
+                    .entry(owner_agent_id.clone())
+                    .or_insert(0) += 1;
             }
         }
         if let Some(run_id) = runtime.latest_run_id.as_ref() {
@@ -13402,10 +13496,15 @@ async fn strategy_summary(
 
     let samples = state
         .storage
-        .list_run_usage_samples_between(day_start_ms, day_end_ms, MISSION_CONTROL_USAGE_MAX_SAMPLE_ROWS)
+        .list_run_usage_samples_between(
+            day_start_ms,
+            day_end_ms,
+            MISSION_CONTROL_USAGE_MAX_SAMPLE_ROWS,
+        )
         .map_err(|err| internal_err_with_error("loading strategy usage samples failed", err))?;
-    let runtime_config = load_runtime_config(&state)
-        .map_err(|err| internal_err_with_error("loading runtime config for strategy summary failed", err))?;
+    let runtime_config = load_runtime_config(&state).map_err(|err| {
+        internal_err_with_error("loading runtime config for strategy summary failed", err)
+    })?;
     let mut spend_by_agent: HashMap<String, (String, f64)> = HashMap::new();
     let mut spend_by_project: HashMap<String, (String, String, String, f64, u64)> = HashMap::new();
     let mut unattributed_spend_total = 0.0f64;
@@ -13427,18 +13526,17 @@ async fn strategy_summary(
             .or_insert((sample.agent_name.clone(), 0.0));
         entry.1 += estimated_cost_usd;
 
-        let maybe_task_id = run_to_task
-            .get(&sample.run_id)
-            .cloned()
-            .or_else(|| {
-                session_to_tasks.get(&sample.session_id).and_then(|task_ids| {
+        let maybe_task_id = run_to_task.get(&sample.run_id).cloned().or_else(|| {
+            session_to_tasks
+                .get(&sample.session_id)
+                .and_then(|task_ids| {
                     if task_ids.len() == 1 {
                         Some(task_ids[0].clone())
                     } else {
                         None
                     }
                 })
-            });
+        });
         if let Some(task_id) = maybe_task_id {
             if let Some(task) = tasks_by_id.get(&task_id) {
                 if let Some(project) = projects_by_id.get(&task.project_id) {
@@ -13464,12 +13562,17 @@ async fn strategy_summary(
 
     let mut spend_by_agent_items = spend_by_agent
         .into_iter()
-        .map(|(agent_id, (agent_name, estimated_cost_total))| StrategySpendByAgentItemResponse {
-            linked_task_count: linked_task_count_by_owner.get(&agent_id).copied().unwrap_or(0),
-            agent_id,
-            agent_name,
-            estimated_cost_total,
-        })
+        .map(
+            |(agent_id, (agent_name, estimated_cost_total))| StrategySpendByAgentItemResponse {
+                linked_task_count: linked_task_count_by_owner
+                    .get(&agent_id)
+                    .copied()
+                    .unwrap_or(0),
+                agent_id,
+                agent_name,
+                estimated_cost_total,
+            },
+        )
         .collect::<Vec<_>>();
     spend_by_agent_items.sort_by(|left, right| {
         right
@@ -13482,7 +13585,10 @@ async fn strategy_summary(
     let mut spend_by_project_items = spend_by_project
         .into_iter()
         .map(
-            |(project_id, (project_name, goal_id, goal_title, estimated_cost_total, attributed_run_count))| {
+            |(
+                project_id,
+                (project_name, goal_id, goal_title, estimated_cost_total, attributed_run_count),
+            )| {
                 StrategySpendByProjectItemResponse {
                     project_id,
                     project_name,
