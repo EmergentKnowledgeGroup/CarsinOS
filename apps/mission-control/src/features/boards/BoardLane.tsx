@@ -1,7 +1,7 @@
 import { useState } from "react";
 import clsx from "clsx";
 import { Bot, User, HelpCircle } from "lucide-react";
-import type { BoardCard, BoardColumn } from "../../types";
+import type { BoardCard, BoardColumn, TaskResponse } from "../../types";
 import { Pagination } from "../../ui/Pagination";
 import { usePagination } from "../../ui/usePagination";
 
@@ -24,6 +24,9 @@ export interface BoardLaneProps {
   onSelectCard: (cardId: string | null) => void;
   onDropCard: (cardId: string, columnId: string, beforeCardId?: string) => void;
   onCreateCard: (columnId: string, title: string) => Promise<boolean>;
+  strategyReady: boolean;
+  linkedTaskByCardId: Map<string, TaskResponse>;
+  onOpenStrategyTask: (taskId: string) => boolean;
 }
 
 export function BoardLane(props: BoardLaneProps) {
@@ -69,44 +72,64 @@ export function BoardLane(props: BoardLaneProps) {
         }}
       >
         {visibleCards.map((card) => (
-          <article
-            key={card.card_id}
-            className={clsx("mc-card", {
-              "mc-card-selected": props.selectedCardId === card.card_id,
-            })}
-            draggable
-            onClick={() => props.onSelectCard(card.card_id)}
-            onDragStart={(event) => {
-              props.setDragCardId(card.card_id);
-              event.dataTransfer.setData("text/plain", card.card_id);
-              event.dataTransfer.effectAllowed = "move";
-            }}
-            onDragEnd={() => props.setDragCardId(null)}
-            onDragOver={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-            }}
-            onDrop={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              const cardId =
-                event.dataTransfer.getData("text/plain") || props.dragCardId;
-              if (!cardId || cardId === card.card_id) {
-                return;
-              }
-              props.onDropCard(cardId, props.column.column_id, card.card_id);
-              props.setDragCardId(null);
-            }}
-          >
-            <div className={clsx("mc-card-bar", `mc-card-bar-${card.owner_kind}`)} />
-            <div className="mc-card-body">
-              <div className="mc-card-title">{card.title}</div>
-              <div className="mc-card-meta">
-                <span><OwnerIcon kind={card.owner_kind} /> {card.owner_kind}</span>
-                {card.latest_run_id ? <span className="mc-card-run">run: {card.latest_run_id}</span> : null}
-              </div>
-            </div>
-          </article>
+          (() => {
+            const linkedTask = props.strategyReady
+              ? props.linkedTaskByCardId.get(card.card_id) ?? null
+              : null;
+            return (
+              <article
+                key={card.card_id}
+                className={clsx("mc-card", {
+                  "mc-card-selected": props.selectedCardId === card.card_id,
+                })}
+                draggable
+                onClick={() => props.onSelectCard(card.card_id)}
+                onDragStart={(event) => {
+                  props.setDragCardId(card.card_id);
+                  event.dataTransfer.setData("text/plain", card.card_id);
+                  event.dataTransfer.effectAllowed = "move";
+                }}
+                onDragEnd={() => props.setDragCardId(null)}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  const cardId =
+                    event.dataTransfer.getData("text/plain") || props.dragCardId;
+                  if (!cardId || cardId === card.card_id) {
+                    return;
+                  }
+                  props.onDropCard(cardId, props.column.column_id, card.card_id);
+                  props.setDragCardId(null);
+                }}
+              >
+                <div className={clsx("mc-card-bar", `mc-card-bar-${card.owner_kind}`)} />
+                <div className="mc-card-body">
+                  <div className="mc-card-title">{card.title}</div>
+                  <div className="mc-card-meta">
+                    <span><OwnerIcon kind={card.owner_kind} /> {card.owner_kind}</span>
+                    {card.latest_run_id ? <span className="mc-card-run">run: {card.latest_run_id}</span> : null}
+                  </div>
+                  {linkedTask ? (
+                    <button
+                      type="button"
+                      className="mc-card-strategy-link"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        props.onOpenStrategyTask(linkedTask.task_id);
+                      }}
+                    >
+                      Strategy task
+                      <span>{linkedTask.status.replaceAll("_", " ")}</span>
+                    </button>
+                  ) : null}
+                </div>
+              </article>
+            );
+          })()
         ))}
         {visibleCards.length === 0 ? (
           <div className="mc-lane-empty">No cards</div>

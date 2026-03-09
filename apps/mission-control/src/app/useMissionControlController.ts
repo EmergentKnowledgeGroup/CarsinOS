@@ -27,6 +27,7 @@ import {
   setPluginEnabled,
   setSkillEnabled,
 } from "../lib/api";
+import { resolveOperatorTimezone, resolveTzOffsetMinutes } from "../lib/operatorTime";
 import type { NotifyFn } from "./useAppController";
 import type {
   Agent,
@@ -83,19 +84,6 @@ interface UsageBudgetWarning {
 interface UsageTrendSummary {
   direction: "up" | "down" | "flat" | "limited" | "unknown";
   label: string;
-}
-
-function resolveOperatorTimezone(): string {
-  try {
-    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    return typeof tz === "string" && tz.trim().length > 0 ? tz : "UTC";
-  } catch {
-    return "UTC";
-  }
-}
-
-function resolveTzOffsetMinutes(): number {
-  return -new Date().getTimezoneOffset();
 }
 
 function isFiniteNumber(value: unknown): value is number {

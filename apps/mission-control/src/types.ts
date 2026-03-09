@@ -94,6 +94,8 @@ export interface Agent {
   model_id: string;
   workspace_root?: string;
   tool_profile?: string;
+  reports_to_agent_id?: string | null;
+  role_label?: string | null;
 }
 
 export interface CreateAgentResponse {
@@ -102,6 +104,196 @@ export interface CreateAgentResponse {
 
 export interface UpdateAgentResponse {
   agent: Agent;
+}
+
+export interface GoalResponse {
+  goal_id: string;
+  slug: string;
+  title: string;
+  summary: string;
+  status: string;
+  owner_agent_id: string | null;
+  target_date: number | null;
+  progress_pct: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ListGoalsResponse {
+  items: GoalResponse[];
+  next_cursor: string | null;
+}
+
+export interface CreateGoalResponse {
+  goal: GoalResponse;
+}
+
+export interface UpdateGoalResponse {
+  goal: GoalResponse;
+}
+
+export interface ProjectResponse {
+  project_id: string;
+  goal_id: string;
+  slug: string;
+  name: string;
+  summary: string;
+  status: string;
+  owner_agent_id: string | null;
+  workspace_root: string | null;
+  budget_month_usd: number | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ListProjectsResponse {
+  items: ProjectResponse[];
+  next_cursor: string | null;
+}
+
+export interface CreateProjectResponse {
+  project: ProjectResponse;
+}
+
+export interface UpdateProjectResponse {
+  project: ProjectResponse;
+}
+
+export interface TaskResponse {
+  task_id: string;
+  project_id: string;
+  parent_task_id: string | null;
+  title: string;
+  detail: string;
+  status: string;
+  priority: string;
+  owner_agent_id: string | null;
+  due_at: number | null;
+  blocked_reason: string | null;
+  linked_board_card_id: string | null;
+  linked_job_id: string | null;
+  latest_run_id: string | null;
+  latest_session_id: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ListTasksResponse {
+  items: TaskResponse[];
+  next_cursor: string | null;
+}
+
+export interface CreateTaskResponse {
+  task: TaskResponse;
+}
+
+export interface UpdateTaskResponse {
+  task: TaskResponse;
+}
+
+export interface TaskLinkMutationResponse {
+  task: TaskResponse;
+}
+
+export interface StrategyTaskListItemResponse {
+  task_id: string;
+  title: string;
+  status: string;
+  priority: string;
+  owner_agent_id: string | null;
+  owner_name: string | null;
+  project_id: string;
+  project_name: string;
+  goal_id: string;
+  goal_title: string;
+  updated_at: number;
+  due_at: number | null;
+  blocked_reason: string | null;
+}
+
+export interface StrategySpendByAgentItemResponse {
+  agent_id: string;
+  agent_name: string;
+  estimated_cost_total: number;
+  linked_task_count: number;
+}
+
+export interface StrategySpendByProjectItemResponse {
+  project_id: string;
+  project_name: string;
+  goal_id: string;
+  goal_title: string;
+  estimated_cost_total: number;
+  attributed_run_count: number;
+}
+
+export interface StrategyGoalProgressItemResponse {
+  goal_id: string;
+  title: string;
+  progress_pct: number;
+  open_task_count: number;
+  blocked_task_count: number;
+}
+
+export interface StrategyApprovalBacklogItemResponse {
+  approval_id: string;
+  kind: string;
+  summary: string;
+  linked_task_id: string | null;
+  requested_at: number;
+}
+
+export interface StrategySummaryResponse {
+  generated_at_ms: number;
+  currency: string;
+  blocked_task_count: number;
+  blocked_tasks: StrategyTaskListItemResponse[];
+  stale_task_count: number;
+  stale_tasks: StrategyTaskListItemResponse[];
+  spend_by_agent: StrategySpendByAgentItemResponse[];
+  spend_by_project: StrategySpendByProjectItemResponse[];
+  unattributed_spend_total: number;
+  goal_progress: StrategyGoalProgressItemResponse[];
+  critical_approval_backlog_count: number;
+  critical_approval_backlog: StrategyApprovalBacklogItemResponse[];
+}
+
+export interface BootstrapPresetResponse {
+  schema_version: string;
+  preset_key: string;
+  display_name: string;
+  description: string;
+  role_label: string;
+  provider_path: string;
+  default_model_provider: string | null;
+  default_model_id: string | null;
+  default_tool_profile: string | null;
+  default_workspace_root: string | null;
+  default_reports_to_agent_id: string | null;
+  setup_notes: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ListBootstrapPresetsResponse {
+  items: BootstrapPresetResponse[];
+  next_cursor: string | null;
+}
+
+export interface CreateBootstrapPresetResponse {
+  preset: BootstrapPresetResponse;
+}
+
+export interface UpdateBootstrapPresetResponse {
+  preset: BootstrapPresetResponse;
+}
+
+export interface ExportBootstrapPresetResponse {
+  preset: BootstrapPresetResponse;
+}
+
+export interface ImportBootstrapPresetResponse {
+  preset: BootstrapPresetResponse;
 }
 
 export interface SessionSummaryResponse {

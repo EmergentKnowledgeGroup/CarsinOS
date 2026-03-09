@@ -138,6 +138,46 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
     await expect(page.getByText(/ws:\s*connected/)).toBeVisible();
   });
 
+  test("enables Strategy and follows linked work back from runtime surfaces @core", async ({
+    page,
+  }) => {
+    await completeLocalOnboarding(page);
+
+    await page.locator('[data-tour-id="nav-strategy"]').click();
+    await expect(page.getByText("Strategy hub is disabled")).toBeVisible();
+
+    await page.locator('[data-tour-id="nav-config"]').click();
+    await page.getByRole("checkbox", { name: "Strategy hub module" }).check();
+    await page.keyboard.press("Escape");
+
+    await page.locator('[data-tour-id="nav-strategy"]').click();
+    await expect(page.getByTestId("strategy-page")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Goals + Projects" })).toBeVisible();
+    await expect(
+      page
+        .locator(".mc-strategy-task-list")
+        .getByRole("button", { name: /Investigate gateway health/i })
+        .first()
+    ).toBeVisible();
+
+    await page.locator('[data-tour-id="nav-boards"]').click();
+    await page.getByText("Investigate gateway health").first().click();
+    await expect(page.locator(".mc-board-strategy-panel")).toBeVisible();
+    await page.getByRole("button", { name: "Open in Strategy" }).click();
+    await expect(page.getByTestId("strategy-page")).toBeVisible();
+
+    await page.locator('[data-tour-id="nav-calendar"]').click();
+    await page.getByRole("tab", { name: /Schedule/ }).click();
+    await expect(page.getByRole("button", { name: "Open task" }).first()).toBeVisible();
+    await page.getByRole("button", { name: "Open task" }).first().click();
+    await expect(page.getByTestId("strategy-page")).toBeVisible();
+
+    await page.locator('[data-tour-id="nav-focus"]').click();
+    await expect(page.getByRole("button", { name: "Open task" }).first()).toBeVisible();
+    await page.getByRole("button", { name: "Open task" }).first().click();
+    await expect(page.getByTestId("strategy-page")).toBeVisible();
+  });
+
   test("reset tab state preserves global connection settings", async ({ page }) => {
     await completeLocalOnboarding(page);
 
@@ -173,21 +213,27 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
     await completeLocalOnboarding(page);
 
     await page.locator('[data-tour-id="topbar-tour"]').click();
-    await expect(page.locator(".mc-tour-progress-chip")).toHaveText("1/12");
+    await expect(page.locator(".mc-tour-progress-chip")).toHaveText("1/13");
     await expect(page.getByRole("heading", { name: "Boards = task execution" })).toBeVisible();
 
     await page.getByRole("button", { name: "Next" }).click();
     await page.getByRole("button", { name: "Next" }).click();
     await page.getByRole("button", { name: "Next" }).click();
 
-    await expect(page.locator(".mc-tour-progress-chip")).toHaveText("4/12");
+    await expect(page.locator(".mc-tour-progress-chip")).toHaveText("4/13");
     await expect(page.getByRole("heading", { name: "Events = runtime activity" })).toBeVisible();
 
-    for (let index = 0; index < 7; index += 1) {
+    for (let index = 0; index < 6; index += 1) {
       await page.getByRole("button", { name: "Next" }).click();
     }
 
-    await expect(page.locator(".mc-tour-progress-chip")).toHaveText("11/12");
+    await expect(page.locator(".mc-tour-progress-chip")).toHaveText("10/13");
+    await expect(page.getByRole("heading", { name: "Strategy = management layer" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Next" }).click();
+    await page.getByRole("button", { name: "Next" }).click();
+
+    await expect(page.locator(".mc-tour-progress-chip")).toHaveText("12/13");
     await expect(
       page.getByRole("heading", { name: "Config = connection + recovery controls" })
     ).toBeVisible();

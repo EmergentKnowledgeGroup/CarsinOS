@@ -104,6 +104,17 @@ const HELP_SECTIONS: HelpSection[] = [
     caution: "Agents without provider/model will appear but cannot run useful work.",
   },
   {
+    tab: "strategy",
+    title: "Strategy",
+    whatItDoes: "Management layer for goals, projects, tasks, spend, stale work, and ownership.",
+    goodFor: [
+      "Planning work without disturbing board execution state",
+      "Tracking blockers, stale tasks, and approval-linked work",
+      "Linking canonical tasks to board cards and jobs",
+    ],
+    caution: "Strategy manages intent and ownership; Boards and Calendar still execute the work.",
+  },
+  {
     tab: "cockpit",
     title: "Cockpit",
     whatItDoes: "Custom dashboard builder for operational command views.",

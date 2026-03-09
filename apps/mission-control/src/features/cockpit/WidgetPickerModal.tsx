@@ -10,6 +10,7 @@ interface WidgetPickerModalProps {
   onClose: () => void;
   onAddWidget: (widget: CockpitWidgetKind) => void;
   onOpenCustomBuilder: () => void;
+  availableWidgets?: readonly CockpitWidgetKind[];
 }
 
 export function WidgetPickerModal({
@@ -17,7 +18,12 @@ export function WidgetPickerModal({
   onClose,
   onAddWidget,
   onOpenCustomBuilder,
+  availableWidgets,
 }: WidgetPickerModalProps) {
+  const visibleEntries = availableWidgets
+    ? COCKPIT_WIDGET_PALETTE.filter((entry) => availableWidgets.includes(entry.widget))
+    : COCKPIT_WIDGET_PALETTE;
+
   return (
     <Modal
       open={open}
@@ -27,7 +33,7 @@ export function WidgetPickerModal({
       width="680px"
     >
       <div className="mc-widget-picker-grid">
-        {COCKPIT_WIDGET_PALETTE.map((entry) => (
+        {visibleEntries.map((entry) => (
           <button
             key={entry.widget}
             type="button"

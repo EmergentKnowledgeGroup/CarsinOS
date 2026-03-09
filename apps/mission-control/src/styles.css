@@ -4030,7 +4030,8 @@ button.danger:hover {
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
-  max-width: 720px;
+  max-width: 1180px;
+  width: 100%;
 }
 
 .mc-team-header {
@@ -4243,6 +4244,536 @@ button.danger:hover {
 .mc-team-empty-sub {
   font-size: var(--type-caption) !important;
   color: var(--ink-muted) !important;
+}
+
+/* ─── STRATEGY HUB + TEAM MANAGEMENT SURFACES ───────────────────────────── */
+
+.mc-strategy-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.mc-strategy-state {
+  max-width: 42rem;
+}
+
+.mc-strategy-summary-strip {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+
+.mc-strategy-summary-card {
+  appearance: none;
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--line));
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(160deg, rgba(255, 106, 19, 0.14), transparent 46%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent),
+    var(--bg-raised);
+  color: inherit;
+  text-align: left;
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  box-shadow: var(--shadow-sm);
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.mc-strategy-summary-card strong {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.mc-strategy-summary-card p {
+  margin: 0;
+  color: var(--ink-secondary);
+}
+
+.mc-strategy-summary-card-action {
+  cursor: pointer;
+}
+
+.mc-strategy-summary-card-action:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
+  box-shadow: var(--shadow-md), 0 0 0 1px var(--accent-glow);
+}
+
+.mc-strategy-summary-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--type-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-secondary);
+}
+
+.mc-strategy-grid {
+  display: grid;
+  gap: var(--space-5);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.mc-strategy-nav,
+.mc-strategy-list,
+.mc-strategy-detail,
+.mc-team-preset-surface,
+.mc-team-org-surface {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent 28%),
+    var(--surface);
+}
+
+.mc-strategy-inline-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.mc-strategy-goal-list,
+.mc-strategy-project-stack,
+.mc-strategy-task-list,
+.mc-strategy-metric-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.mc-strategy-project-stack {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+
+.mc-strategy-subheader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.mc-strategy-subheader h3 {
+  margin: 0;
+  font-size: var(--type-body);
+}
+
+.mc-strategy-subheader p {
+  margin: var(--space-1) 0 0;
+  color: var(--ink-secondary);
+}
+
+.mc-strategy-goal-card,
+.mc-strategy-project-card,
+.mc-strategy-task-row,
+.mc-strategy-metric-row {
+  appearance: none;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface) 82%, var(--bg-raised));
+  color: inherit;
+  text-align: left;
+  padding: var(--space-4);
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
+}
+
+.mc-strategy-goal-card:hover,
+.mc-strategy-project-card:hover,
+.mc-strategy-task-row:hover,
+.mc-strategy-metric-row:hover {
+  transform: translateY(-1px);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.mc-strategy-goal-card.is-active,
+.mc-strategy-project-card.is-active,
+.mc-strategy-task-row.is-active {
+  border-color: color-mix(in srgb, var(--accent) 44%, var(--line));
+  box-shadow: 0 0 0 1px var(--accent-glow), var(--shadow-sm);
+  background:
+    linear-gradient(140deg, rgba(255, 106, 19, 0.12), transparent 55%),
+    color-mix(in srgb, var(--surface) 72%, var(--bg-raised));
+}
+
+.mc-strategy-goal-card p,
+.mc-strategy-project-card p,
+.mc-strategy-metric-row p {
+  margin: var(--space-2) 0 0;
+  color: var(--ink-secondary);
+}
+
+.mc-strategy-goal-head,
+.mc-strategy-project-head,
+.mc-strategy-task-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.mc-strategy-goal-meta,
+.mc-strategy-task-row-meta,
+.mc-strategy-task-row-foot,
+.mc-strategy-runtime-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.mc-strategy-goal-meta,
+.mc-strategy-task-row-meta,
+.mc-strategy-task-row-foot,
+.mc-strategy-runtime-meta {
+  font-size: var(--type-caption);
+  color: var(--ink-secondary);
+}
+
+.mc-strategy-filter-bar,
+.mc-strategy-form-grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.mc-strategy-filter-bar label,
+.mc-strategy-form-grid label,
+.mc-team-preset-inline label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.mc-strategy-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.mc-strategy-filter-chip {
+  appearance: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--ink-secondary);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--type-caption);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.mc-strategy-filter-chip:hover,
+.mc-strategy-filter-chip.is-active {
+  border-color: color-mix(in srgb, var(--accent) 44%, var(--line));
+  background: var(--accent-muted);
+  color: var(--accent-ink);
+}
+
+.mc-strategy-suggestion-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface) 78%, var(--bg-raised));
+  border: 1px dashed color-mix(in srgb, var(--accent) 28%, var(--line));
+}
+
+.mc-strategy-link-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(180deg, rgba(59, 130, 246, 0.08), transparent 35%),
+    color-mix(in srgb, var(--surface) 76%, var(--bg-raised));
+}
+
+.mc-strategy-insights-grid {
+  display: grid;
+  gap: var(--space-5);
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+
+.mc-strategy-metric-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.mc-strategy-runtime-link {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--info) 28%, var(--line));
+  background:
+    linear-gradient(135deg, rgba(59, 130, 246, 0.14), transparent 58%),
+    color-mix(in srgb, var(--surface) 78%, var(--bg-raised));
+}
+
+.mc-strategy-runtime-link.is-empty {
+  border-style: dashed;
+  color: var(--ink-secondary);
+}
+
+.mc-strategy-runtime-link.is-compact {
+  padding: var(--space-3);
+  gap: var(--space-2);
+}
+
+.mc-strategy-runtime-link-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.mc-strategy-runtime-link-title {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.mc-strategy-runtime-link-title strong {
+  overflow-wrap: anywhere;
+}
+
+.mc-strategy-runtime-link-label {
+  font-size: var(--type-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+}
+
+.mc-strategy-runtime-link-detail,
+.mc-strategy-runtime-link-meta {
+  margin: 0;
+  color: var(--ink-secondary);
+}
+
+.mc-strategy-runtime-link-open {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.mc-strategy-runtime-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.mc-card-strategy-link {
+  appearance: none;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--accent) 36%, var(--line));
+  border-radius: var(--radius-full);
+  background: var(--accent-subtle);
+  color: var(--accent-ink);
+  font-size: var(--type-micro);
+}
+
+.mc-card-strategy-link span {
+  color: var(--ink-primary);
+}
+
+.mc-board-strategy-panel,
+.mc-focus-strategy-panel,
+.mc-cal-strategy-panel {
+  margin-top: var(--space-3);
+}
+
+.mc-cal-linked-badge,
+.mc-cal-job-link-badge,
+.mc-cal-next-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-2);
+  min-height: 1.25rem;
+  border-radius: var(--radius-full);
+  background: rgba(8, 10, 18, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  font-size: var(--type-micro);
+  color: var(--accent-ink);
+}
+
+.mc-cal-job-block {
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.mc-team-preset-inline {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.mc-team-preset-grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+}
+
+.mc-team-preset-card,
+.mc-team-org-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface) 76%, var(--bg-raised));
+  padding: var(--space-4);
+  box-shadow: var(--shadow-sm);
+}
+
+.mc-team-preset-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.mc-team-preset-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.mc-team-preset-card p,
+.mc-team-org-card small {
+  margin: 0;
+  color: var(--ink-secondary);
+}
+
+.mc-team-org-tree {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.mc-team-org-node {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.mc-team-org-children {
+  margin-left: var(--space-6);
+  padding-left: var(--space-4);
+  border-left: 1px dashed color-mix(in srgb, var(--accent) 26%, var(--line));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.mc-team-org-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.mc-team-org-card strong {
+  font-size: var(--type-body);
+}
+
+.mc-team-org-card span {
+  color: var(--ink-primary);
+}
+
+.mc-team-card-actions {
+  min-width: 5.25rem;
+}
+
+@media (min-width: 768px) {
+  .mc-strategy-grid {
+    grid-template-columns: minmax(17rem, 0.95fr) minmax(19rem, 1.1fr);
+  }
+
+  .mc-strategy-insights-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mc-strategy-filter-bar,
+  .mc-strategy-form-grid,
+  .mc-team-preset-inline {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1080px) {
+  .mc-strategy-grid {
+    grid-template-columns: minmax(18rem, 0.9fr) minmax(20rem, 1.05fr) minmax(21rem, 1fr);
+    align-items: start;
+  }
+
+  .mc-strategy-detail {
+    position: sticky;
+    top: calc(var(--toolbar-height) + var(--space-5));
+  }
+
+  .mc-strategy-insights-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  .mc-team-header,
+  .mc-strategy-subheader,
+  .mc-strategy-runtime-link-head,
+  .mc-team-preset-head,
+  .mc-strategy-goal-head,
+  .mc-strategy-project-head,
+  .mc-strategy-task-row-head,
+  .mc-strategy-metric-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .mc-team-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .mc-team-card-actions {
+    width: 100%;
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+
+  .mc-cal-active-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .mc-cal-active-interval {
+    margin-left: calc(var(--space-5) + 0.75rem);
+  }
 }
 
 /* Shared button styles */

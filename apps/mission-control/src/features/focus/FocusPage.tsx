@@ -4,6 +4,7 @@ import { AlertCircle, AlertTriangle, CheckCircle, ChevronDown, ChevronRight, Inf
 import type {
   ChannelRuntimeAdapterStatusResponse,
   MissionControlFocusItem,
+  TaskResponse,
 } from "../../types";
 import { Chip } from "../../ui/Chip";
 import { InlineActions } from "../../ui/InlineActions";
@@ -13,6 +14,8 @@ import { Tabs } from "../../ui/Tabs";
 import { usePagination } from "../../ui/usePagination";
 import { formatDateTime, formatRelative } from "../../utils/datetime";
 import { redactSecrets } from "../../lib/redaction";
+import { StrategyTaskContextPanel } from "../strategy/StrategyTaskContextPanel";
+import type { StrategyTaskContextSnapshot } from "../strategy/useStrategyController";
 
 const FOCUS_PAGE_SIZE = 6;
 
@@ -80,6 +83,12 @@ interface FocusPageProps {
   onResolveFocusApproval: (approvalId: string, decision: "approve" | "deny") => Promise<void>;
   onRunCalendarJobNow: (jobId: string) => Promise<void>;
   onReconnectFocusChannel: (provider: string) => Promise<void>;
+  strategyReady: boolean;
+  approvalTaskByApprovalId: Map<string, TaskResponse>;
+  taskById: Map<string, TaskResponse>;
+  taskByJobId: Map<string, TaskResponse>;
+  describeStrategyTask: (taskId: string) => StrategyTaskContextSnapshot | null;
+  onOpenStrategyTask: (taskId: string) => boolean;
 }
 
 export function FocusPage(props: FocusPageProps) {
@@ -141,11 +150,24 @@ export function FocusPage(props: FocusPageProps) {
             {visibleFocusItems.map((item) => {
               const approvalId = String(item.action_payload.approval_id ?? "").trim();
               const jobId = String(item.action_payload.job_id ?? "").trim();
+              const payloadTaskId = String(item.action_payload.task_id ?? "").trim();
               const provider = String(item.action_payload.provider ?? "").trim();
               const isBusy = busyItems.has(item.item_id);
               const isExpanded = expandedItems.has(item.item_id);
               const contextEntries = extractApprovalContext(item.action_payload);
               const hasContext = contextEntries.length > 0;
+              const linkedTask = props.strategyReady
+                ? payloadTaskId
+                  ? props.taskById.get(payloadTaskId) ?? null
+                  : approvalId
+                    ? props.approvalTaskByApprovalId.get(approvalId) ?? null
+                    : jobId
+                      ? props.taskByJobId.get(jobId) ?? null
+                      : null
+                : null;
+              const linkedTaskContext = linkedTask
+                ? props.describeStrategyTask(linkedTask.task_id)
+                : null;
               return (
                 <article key={item.item_id} className={clsx("mc-focus-item", item.severity)}>
                   <div className="mc-focus-head">
@@ -156,6 +178,21 @@ export function FocusPage(props: FocusPageProps) {
                   </div>
                   <h3>{item.title}</h3>
                   <p>{item.detail}</p>
+                  {props.strategyReady ? (
+                    <StrategyTaskContextPanel
+                      compact
+                      className="mc-focus-strategy-panel"
+                      task={linkedTask}
+                      context={linkedTaskContext}
+                      onOpen={
+                        linkedTask
+                          ? () => props.onOpenStrategyTask(linkedTask.task_id)
+                          : undefined
+                      }
+                      emptyMessage={null}
+                      openLabel="Open task"
+                    />
+                  ) : null}
                   {hasContext ? (
                     <button
                       type="button"

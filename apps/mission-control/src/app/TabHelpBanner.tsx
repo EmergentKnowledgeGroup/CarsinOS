@@ -107,6 +107,16 @@ const HELP_COPY: Record<HelpTab, HelpCopy> = {
       "Switch to incident mode for tighter operational focus.",
     ],
   },
+  strategy: {
+    title: "Strategy holds why, priority, and ownership",
+    summary:
+      "Use Strategy for goals, projects, tasks, blockers, stale work, and approval backlog without interrupting runtime tabs.",
+    examples: [
+      "Create a goal, attach a project, then track task ownership before linking execution.",
+      "Use blocked and stale lenses to find work that needs intervention.",
+      "Link a task to a board card or job when management should trace runtime execution.",
+    ],
+  },
 };
 
 export function TabHelpBanner(props: TabHelpBannerProps) {

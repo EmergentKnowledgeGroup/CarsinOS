@@ -3,12 +3,15 @@ import { Play, Pause, Zap, Clock, CalendarDays } from "lucide-react";
 import type {
   MissionControlCalendarJob,
   MissionControlCalendarWeekResponse,
+  TaskResponse,
 } from "../../types";
 import { Chip } from "../../ui/Chip";
 import { Tabs } from "../../ui/Tabs";
 import { Pagination } from "../../ui/Pagination";
 import { usePagination } from "../../ui/usePagination";
 import { formatRelative } from "../../utils/datetime";
+import { StrategyTaskContextPanel } from "../strategy/StrategyTaskContextPanel";
+import type { StrategyTaskContextSnapshot } from "../strategy/useStrategyController";
 
 interface CalendarPageProps {
   calendarWeek: MissionControlCalendarWeekResponse | null;
@@ -17,6 +20,10 @@ interface CalendarPageProps {
   calendarJobs: MissionControlCalendarJob[];
   onRunCalendarJobNow: (jobId: string) => Promise<void>;
   onToggleCalendarJob: (jobId: string, enabled: boolean) => Promise<void>;
+  strategyReady: boolean;
+  taskByJobId: Map<string, TaskResponse>;
+  describeStrategyTask: (taskId: string) => StrategyTaskContextSnapshot | null;
+  onOpenStrategyTask: (taskId: string) => boolean;
 }
 
 const TABS = [
@@ -61,9 +68,13 @@ function jobColor(name: string): string {
 function WeekGrid({
   calendarWeek,
   onRunNow,
+  strategyReady,
+  taskByJobId,
 }: {
   calendarWeek: MissionControlCalendarWeekResponse | null;
   onRunNow: (jobId: string) => Promise<void>;
+  strategyReady: boolean;
+  taskByJobId: Map<string, TaskResponse>;
 }) {
   const { daySlots, alwaysRunning, nextUp } = useMemo(() => {
     if (!calendarWeek)
@@ -140,6 +151,9 @@ function WeekGrid({
                     every {formatInterval(job.interval_seconds)}
                   </span>
                 ) : null}
+                {strategyReady && taskByJobId.has(job.job_id) ? (
+                  <span className="mc-cal-linked-badge">Task linked</span>
+                ) : null}
               </button>
             ))}
           </div>
@@ -165,18 +179,21 @@ function WeekGrid({
               </div>
               <div className="mc-cal-day-body">
                 {dayJobs.map((job) => (
-                  <button
-                    key={job.job_id}
+                <button
+                  key={job.job_id}
                     type="button"
                     className="mc-cal-job-block"
                     onClick={() => void onRunNow(job.job_id)}
                     title={`${job.name} — ${job.agent_id}\nClick to run now`}
                     style={{ "--job-color": jobColor(job.name) } as React.CSSProperties}
-                  >
-                    <span className="mc-cal-job-dot" />
-                    <span className="mc-cal-job-name">{job.name}</span>
-                  </button>
-                ))}
+                >
+                  <span className="mc-cal-job-dot" />
+                  <span className="mc-cal-job-name">{job.name}</span>
+                  {strategyReady && taskByJobId.has(job.job_id) ? (
+                    <span className="mc-cal-job-link-badge">Task</span>
+                  ) : null}
+                </button>
+              ))}
                 {dayJobs.length === 0 ? (
                   <span className="mc-cal-day-empty">—</span>
                 ) : null}
@@ -204,6 +221,9 @@ function WeekGrid({
                 <span className="mc-cal-next-time">
                   {formatRelative(job.next_run_at)}
                 </span>
+                {strategyReady && taskByJobId.has(job.job_id) ? (
+                  <span className="mc-cal-next-badge">Task linked</span>
+                ) : null}
               </div>
             ))}
           </div>
@@ -219,10 +239,18 @@ function ScheduleTable({
   jobs,
   onRunNow,
   onToggle,
+  strategyReady,
+  taskByJobId,
+  describeStrategyTask,
+  onOpenStrategyTask,
 }: {
   jobs: MissionControlCalendarJob[];
   onRunNow: (jobId: string) => Promise<void>;
   onToggle: (jobId: string, enabled: boolean) => Promise<void>;
+  strategyReady: boolean;
+  taskByJobId: Map<string, TaskResponse>;
+  describeStrategyTask: (taskId: string) => StrategyTaskContextSnapshot | null;
+  onOpenStrategyTask: (taskId: string) => boolean;
 }) {
   const [page, setPage] = useState(1);
   const [busyJobActions, setBusyJobActions] = useState<Set<string>>(new Set());
@@ -260,12 +288,32 @@ function ScheduleTable({
             </tr>
           </thead>
           <tbody>
-            {visible.map((job) => (
-              <tr key={job.job_id}>
-                <td>
-                  <strong>{job.name}</strong>
-                  <p className="mc-table-sub">{job.agent_id}</p>
-                </td>
+            {visible.map((job) => {
+              const linkedTask = strategyReady ? taskByJobId.get(job.job_id) ?? null : null;
+              const linkedTaskContext = linkedTask
+                ? describeStrategyTask(linkedTask.task_id)
+                : null;
+              return (
+                <tr key={job.job_id}>
+                  <td>
+                    <strong>{job.name}</strong>
+                    <p className="mc-table-sub">{job.agent_id}</p>
+                    {strategyReady ? (
+                      <StrategyTaskContextPanel
+                        compact
+                        className="mc-cal-strategy-panel"
+                        task={linkedTask}
+                        context={linkedTaskContext}
+                        onOpen={
+                          linkedTask
+                            ? () => onOpenStrategyTask(linkedTask.task_id)
+                            : undefined
+                        }
+                        emptyMessage={null}
+                        openLabel="Open task"
+                      />
+                    ) : null}
+                  </td>
                 <td className="mc-mono">
                   {job.schedule_kind}
                   {job.interval_seconds !== null
@@ -317,7 +365,8 @@ function ScheduleTable({
                   </div>
                 </td>
               </tr>
-            ))}
+              );
+            })}
             {jobs.length === 0 ? (
               <tr>
                 <td colSpan={5} className="mc-table-empty">
@@ -340,11 +389,19 @@ function ActiveJobsList({
   nextUp,
   onRunNow,
   onToggle,
+  strategyReady,
+  taskByJobId,
+  describeStrategyTask,
+  onOpenStrategyTask,
 }: {
   alwaysRunning: MissionControlCalendarJob[];
   nextUp: MissionControlCalendarJob[];
   onRunNow: (jobId: string) => Promise<void>;
   onToggle: (jobId: string, enabled: boolean) => Promise<void>;
+  strategyReady: boolean;
+  taskByJobId: Map<string, TaskResponse>;
+  describeStrategyTask: (taskId: string) => StrategyTaskContextSnapshot | null;
+  onOpenStrategyTask: (taskId: string) => boolean;
 }) {
   const [busyJobActions, setBusyJobActions] = useState<Set<string>>(new Set());
   const busyJobActionsRef = useRef<Set<string>>(new Set());
@@ -377,53 +434,76 @@ function ActiveJobsList({
         ) : (
           <div className="mc-cal-active-list">
             {alwaysRunning.map((job) => (
-              <div key={job.job_id} className="mc-cal-active-item">
-                <span
-                  className="mc-cal-job-dot"
-                  style={{ "--job-color": jobColor(job.name) } as React.CSSProperties}
-                />
-                <div className="mc-cal-active-info">
-                  <strong>{job.name}</strong>
-                  <span className="mc-mono">{job.agent_id}</span>
-                </div>
-                <span className="mc-mono mc-cal-active-interval">
-                  {formatInterval(job.interval_seconds)}
-                </span>
-                <div className="mc-cal-actions">
-                  {(() => {
-                    const runKey = `active:run:${job.job_id}`;
-                    const toggleKey = `active:toggle:${job.job_id}`;
-                    const runBusy = busyJobActions.has(runKey);
-                    const toggleBusy = busyJobActions.has(toggleKey);
-                    return (
-                      <>
-                        <button
-                          type="button"
-                          className="mc-topbar-icon-btn"
-                          disabled={runBusy}
-                          onClick={() =>
-                            runBusyJobAction(runKey, () => onRunNow(job.job_id))
+              (() => {
+                const linkedTask = strategyReady ? taskByJobId.get(job.job_id) ?? null : null;
+                const linkedTaskContext = linkedTask
+                  ? describeStrategyTask(linkedTask.task_id)
+                  : null;
+                return (
+                  <div key={job.job_id} className="mc-cal-active-item">
+                    <span
+                      className="mc-cal-job-dot"
+                      style={{ "--job-color": jobColor(job.name) } as React.CSSProperties}
+                    />
+                    <div className="mc-cal-active-info">
+                      <strong>{job.name}</strong>
+                      <span className="mc-mono">{job.agent_id}</span>
+                      {strategyReady ? (
+                        <StrategyTaskContextPanel
+                          compact
+                          className="mc-cal-strategy-panel"
+                          task={linkedTask}
+                          context={linkedTaskContext}
+                          onOpen={
+                            linkedTask
+                              ? () => onOpenStrategyTask(linkedTask.task_id)
+                              : undefined
                           }
-                          title="Run now"
-                        >
-                          <Play size={13} />
-                        </button>
-                        <button
-                          type="button"
-                          className="mc-topbar-icon-btn"
-                          disabled={toggleBusy}
-                          onClick={() =>
-                            runBusyJobAction(toggleKey, () => onToggle(job.job_id, !job.enabled))
-                          }
-                          title={job.enabled ? "Pause" : "Resume"}
-                        >
-                          <Pause size={13} />
-                        </button>
-                      </>
-                    );
-                  })()}
-                </div>
-              </div>
+                          emptyMessage={null}
+                          openLabel="Open task"
+                        />
+                      ) : null}
+                    </div>
+                    <span className="mc-mono mc-cal-active-interval">
+                      {formatInterval(job.interval_seconds)}
+                    </span>
+                    <div className="mc-cal-actions">
+                      {(() => {
+                        const runKey = `active:run:${job.job_id}`;
+                        const toggleKey = `active:toggle:${job.job_id}`;
+                        const runBusy = busyJobActions.has(runKey);
+                        const toggleBusy = busyJobActions.has(toggleKey);
+                        return (
+                          <>
+                            <button
+                              type="button"
+                              className="mc-topbar-icon-btn"
+                              disabled={runBusy}
+                              onClick={() =>
+                                runBusyJobAction(runKey, () => onRunNow(job.job_id))
+                              }
+                              title="Run now"
+                            >
+                              <Play size={13} />
+                            </button>
+                            <button
+                              type="button"
+                              className="mc-topbar-icon-btn"
+                              disabled={toggleBusy}
+                              onClick={() =>
+                                runBusyJobAction(toggleKey, () => onToggle(job.job_id, !job.enabled))
+                              }
+                              title={job.enabled ? "Pause" : "Resume"}
+                            >
+                              <Pause size={13} />
+                            </button>
+                          </>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                );
+              })()
             ))}
           </div>
         )}
@@ -439,36 +519,59 @@ function ActiveJobsList({
         ) : (
           <div className="mc-cal-active-list">
             {nextUp.map((job) => (
-              <div key={job.job_id} className="mc-cal-active-item">
-                <span
-                  className="mc-cal-job-dot"
-                  style={{ "--job-color": jobColor(job.name) } as React.CSSProperties}
-                />
-                <div className="mc-cal-active-info">
-                  <strong>{job.name}</strong>
-                  <span className="mc-mono">{job.agent_id}</span>
-                </div>
-                <span className="mc-mono mc-cal-active-interval">
-                  {formatRelative(job.next_run_at)}
-                </span>
-                {(() => {
-                  const runKey = `next:run:${job.job_id}`;
-                  const runBusy = busyJobActions.has(runKey);
-                  return (
-                <button
-                  type="button"
-                  className="mc-topbar-icon-btn"
-                  disabled={runBusy}
-                  onClick={() =>
-                    runBusyJobAction(runKey, () => onRunNow(job.job_id))
-                  }
-                  title="Run now"
-                >
-                  <Play size={13} />
-                </button>
-                  );
-                })()}
-              </div>
+              (() => {
+                const linkedTask = strategyReady ? taskByJobId.get(job.job_id) ?? null : null;
+                const linkedTaskContext = linkedTask
+                  ? describeStrategyTask(linkedTask.task_id)
+                  : null;
+                return (
+                  <div key={job.job_id} className="mc-cal-active-item">
+                    <span
+                      className="mc-cal-job-dot"
+                      style={{ "--job-color": jobColor(job.name) } as React.CSSProperties}
+                    />
+                    <div className="mc-cal-active-info">
+                      <strong>{job.name}</strong>
+                      <span className="mc-mono">{job.agent_id}</span>
+                      {strategyReady ? (
+                        <StrategyTaskContextPanel
+                          compact
+                          className="mc-cal-strategy-panel"
+                          task={linkedTask}
+                          context={linkedTaskContext}
+                          onOpen={
+                            linkedTask
+                              ? () => onOpenStrategyTask(linkedTask.task_id)
+                              : undefined
+                          }
+                          emptyMessage={null}
+                          openLabel="Open task"
+                        />
+                      ) : null}
+                    </div>
+                    <span className="mc-mono mc-cal-active-interval">
+                      {formatRelative(job.next_run_at)}
+                    </span>
+                    {(() => {
+                      const runKey = `next:run:${job.job_id}`;
+                      const runBusy = busyJobActions.has(runKey);
+                      return (
+                        <button
+                          type="button"
+                          className="mc-topbar-icon-btn"
+                          disabled={runBusy}
+                          onClick={() =>
+                            runBusyJobAction(runKey, () => onRunNow(job.job_id))
+                          }
+                          title="Run now"
+                        >
+                          <Play size={13} />
+                        </button>
+                      );
+                    })()}
+                  </div>
+                );
+              })()
             ))}
           </div>
         )}
@@ -504,6 +607,8 @@ export function CalendarPage(props: CalendarPageProps) {
         <WeekGrid
           calendarWeek={props.calendarWeek}
           onRunNow={props.onRunCalendarJobNow}
+          strategyReady={props.strategyReady}
+          taskByJobId={props.taskByJobId}
         />
       ) : null}
 
@@ -512,6 +617,10 @@ export function CalendarPage(props: CalendarPageProps) {
           jobs={props.calendarJobs}
           onRunNow={props.onRunCalendarJobNow}
           onToggle={props.onToggleCalendarJob}
+          strategyReady={props.strategyReady}
+          taskByJobId={props.taskByJobId}
+          describeStrategyTask={props.describeStrategyTask}
+          onOpenStrategyTask={props.onOpenStrategyTask}
         />
       ) : null}
 
@@ -521,6 +630,10 @@ export function CalendarPage(props: CalendarPageProps) {
           nextUp={props.calendarNextUp}
           onRunNow={props.onRunCalendarJobNow}
           onToggle={props.onToggleCalendarJob}
+          strategyReady={props.strategyReady}
+          taskByJobId={props.taskByJobId}
+          describeStrategyTask={props.describeStrategyTask}
+          onOpenStrategyTask={props.onOpenStrategyTask}
         />
       ) : null}
     </div>

@@ -5,6 +5,7 @@ export interface OpsUxFeatureControls {
   live_feed_drawer: boolean;
   incident_auto_trigger: boolean;
   usage_charts: boolean;
+  strategy_hub: boolean;
 }
 
 export interface OpsUxSafetyProfile {
@@ -41,6 +42,7 @@ export const DEFAULT_OPSUX_RUNTIME_CONFIG: OpsUxRuntimeConfig = {
     live_feed_drawer: false,
     incident_auto_trigger: false,
     usage_charts: false,
+    strategy_hub: false,
   },
   safety: {
     // Approved defaults from operator guidance.
@@ -108,6 +110,10 @@ export function sanitizeOpsUxRuntimeConfig(raw: unknown): OpsUxRuntimeConfig {
       usage_charts: coerceBoolean(
         controlsRaw.usage_charts,
         DEFAULT_OPSUX_RUNTIME_CONFIG.controls.usage_charts
+      ),
+      strategy_hub: coerceBoolean(
+        controlsRaw.strategy_hub,
+        DEFAULT_OPSUX_RUNTIME_CONFIG.controls.strategy_hub
       ),
     },
     safety: {

@@ -158,12 +158,113 @@ const jobs = [
 
 const agents = [
   {
+    agent_id: "agent-root",
+    name: "Root",
+    model_provider: "ollama",
+    model_id: "qwen3.5-9b-instruct",
+    workspace_root: ".",
+    tool_profile: "standard",
+    role_label: "Operations Director",
+    reports_to_agent_id: null,
+  },
+  {
     agent_id: "lyra",
     name: "Lyra",
     model_provider: "ollama",
     model_id: "qwen3.5-9b-instruct",
     workspace_root: ".",
     tool_profile: "default",
+    role_label: "Reliability Lead",
+    reports_to_agent_id: "agent-root",
+  },
+];
+
+const strategyGoals = [
+  {
+    goal_id: "goal-reliability",
+    slug: "reliability-ops",
+    title: "Reliability Operations",
+    summary: "Keep core gateway workflows healthy and review throughput stable.",
+    status: "active",
+    owner_agent_id: "agent-root",
+    target_date: Date.now() + 14 * 86_400_000,
+    progress_pct: 68,
+    created_at: createdAt,
+    updated_at: Date.now() - 30_000,
+  },
+];
+
+const strategyProjects = [
+  {
+    project_id: "project-gateway",
+    goal_id: "goal-reliability",
+    slug: "gateway-health",
+    name: "Gateway Health",
+    summary: "Track jobs, approvals, and board execution against the gateway health objective.",
+    status: "active",
+    owner_agent_id: "lyra",
+    workspace_root: ".",
+    budget_month_usd: 120,
+    created_at: createdAt,
+    updated_at: Date.now() - 20_000,
+  },
+];
+
+const strategyTasks = [
+  {
+    task_id: "task-ops-1",
+    project_id: "project-gateway",
+    parent_task_id: null,
+    title: "Investigate gateway health",
+    detail: "Keep the board card, scheduled job, and approval queue aligned around gateway heartbeat health.",
+    status: "in_progress",
+    priority: "high",
+    owner_agent_id: "lyra",
+    due_at: Date.now() + 2 * 86_400_000,
+    blocked_reason: null,
+    linked_board_card_id: "card-ops-1",
+    linked_job_id: "job-heartbeat",
+    latest_run_id: "run-strategy-001",
+    latest_session_id: "session-strategy-001",
+    created_at: createdAt,
+    updated_at: Date.now() - 10_000,
+  },
+  {
+    task_id: "task-ops-2",
+    project_id: "project-gateway",
+    parent_task_id: null,
+    title: "Close approval backlog",
+    detail: "Resolve any lingering approval requests that block runtime execution.",
+    status: "blocked",
+    priority: "critical",
+    owner_agent_id: "lyra",
+    due_at: Date.now() + 86_400_000,
+    blocked_reason: "Pending operator approval on the shell command request.",
+    linked_board_card_id: null,
+    linked_job_id: null,
+    latest_run_id: null,
+    latest_session_id: null,
+    created_at: createdAt,
+    updated_at: Date.now() - 5 * 86_400_000,
+  },
+];
+
+const bootstrapPresets = [
+  {
+    schema_version: "bootstrap-preset-v1",
+    preset_key: "reliability-lead",
+    display_name: "Reliability Lead",
+    description: "Default manager and workspace for reliability operators.",
+    role_label: "Reliability Lead",
+    provider_path: "local",
+    default_model_provider: "ollama",
+    default_model_id: "qwen3.5-9b-instruct",
+    default_tool_profile: "standard",
+    default_workspace_root: ".",
+    default_reports_to_agent_id: "agent-root",
+    setup_notes: "Used for e2e strategy coverage.",
+    created_at: createdAt,
+    updated_at: Date.now() - 10_000,
   },
 ];
 
@@ -287,6 +388,93 @@ function getMissionControlFocusItems() {
   }
 
   return [...approvalItems, ...channelItems];
+}
+
+function toStrategyTaskListItem(taskId) {
+  const task = strategyTasks.find((item) => item.task_id === taskId);
+  if (!task) {
+    return null;
+  }
+  const project = strategyProjects.find((item) => item.project_id === task.project_id);
+  const goal = project
+    ? strategyGoals.find((item) => item.goal_id === project.goal_id) ?? null
+    : null;
+  const owner = task.owner_agent_id
+    ? agents.find((item) => item.agent_id === task.owner_agent_id) ?? null
+    : null;
+  return {
+    task_id: task.task_id,
+    title: task.title,
+    status: task.status,
+    priority: task.priority,
+    owner_agent_id: task.owner_agent_id,
+    owner_name: owner?.name ?? null,
+    project_id: project?.project_id ?? "unknown-project",
+    project_name: project?.name ?? "Unknown project",
+    goal_id: goal?.goal_id ?? "unknown-goal",
+    goal_title: goal?.title ?? "Unknown goal",
+    updated_at: task.updated_at,
+    due_at: task.due_at,
+    blocked_reason: task.blocked_reason,
+  };
+}
+
+function getStrategySummaryPayload() {
+  const blockedTasks = strategyTasks
+    .filter((task) => task.status === "blocked")
+    .map((task) => toStrategyTaskListItem(task.task_id))
+    .filter(Boolean);
+  const staleTasks = strategyTasks
+    .filter((task) => Date.now() - task.updated_at > 48 * 3_600_000)
+    .map((task) => toStrategyTaskListItem(task.task_id))
+    .filter(Boolean);
+
+  return {
+    generated_at_ms: Date.now(),
+    currency: "USD",
+    blocked_task_count: blockedTasks.length,
+    blocked_tasks: blockedTasks,
+    stale_task_count: staleTasks.length,
+    stale_tasks: staleTasks,
+    spend_by_agent: [
+      {
+        agent_id: "lyra",
+        agent_name: "Lyra",
+        estimated_cost_total: 18.4,
+        linked_task_count: 2,
+      },
+    ],
+    spend_by_project: [
+      {
+        project_id: "project-gateway",
+        project_name: "Gateway Health",
+        goal_id: "goal-reliability",
+        goal_title: "Reliability Operations",
+        estimated_cost_total: 18.4,
+        attributed_run_count: 3,
+      },
+    ],
+    unattributed_spend_total: 2.6,
+    goal_progress: [
+      {
+        goal_id: "goal-reliability",
+        title: "Reliability Operations",
+        progress_pct: 68,
+        open_task_count: 2,
+        blocked_task_count: 1,
+      },
+    ],
+    critical_approval_backlog_count: 1,
+    critical_approval_backlog: [
+      {
+        approval_id: "approval-001",
+        kind: "tool_call",
+        summary: "Allow shell command: ls -la",
+        linked_task_id: "task-ops-1",
+        requested_at: Date.now() - 8_000,
+      },
+    ],
+  };
 }
 
 function closeAllWsConnections(code = 1012, reason = "e2e-ws-flap") {
@@ -935,6 +1123,14 @@ async function routeRequest(req, res) {
       model_id: String(payload.model_id ?? "qwen3.5-9b-instruct"),
       workspace_root: String(payload.workspace_root ?? "."),
       tool_profile: String(payload.tool_profile ?? "default"),
+      role_label:
+        payload.role_label === null || payload.role_label === undefined
+          ? null
+          : String(payload.role_label),
+      reports_to_agent_id:
+        payload.reports_to_agent_id === null || payload.reports_to_agent_id === undefined
+          ? null
+          : String(payload.reports_to_agent_id),
     };
     agents.push(created);
     sendJson(res, 200, {
@@ -965,6 +1161,15 @@ async function routeRequest(req, res) {
     }
     if (typeof payload.tool_profile === "string") {
       existing.tool_profile = payload.tool_profile;
+    }
+    if (payload.role_label === null || typeof payload.role_label === "string") {
+      existing.role_label = payload.role_label;
+    }
+    if (
+      payload.reports_to_agent_id === null ||
+      typeof payload.reports_to_agent_id === "string"
+    ) {
+      existing.reports_to_agent_id = payload.reports_to_agent_id;
     }
     sendJson(res, 200, {
       agent: existing,
@@ -1034,8 +1239,45 @@ async function routeRequest(req, res) {
     return;
   }
 
+  if (req.method === "GET" && requestUrl.pathname === "/api/v1/mission-control/strategy/summary") {
+    sendJson(res, 200, getStrategySummaryPayload());
+    return;
+  }
+
   if (req.method === "GET" && requestUrl.pathname === "/api/v1/mission-control/usage") {
     sendJson(res, 200, buildMissionControlUsage(requestUrl));
+    return;
+  }
+
+  if (req.method === "GET" && requestUrl.pathname === "/api/v1/goals") {
+    sendJson(res, 200, {
+      items: strategyGoals,
+      next_cursor: null,
+    });
+    return;
+  }
+
+  if (req.method === "GET" && requestUrl.pathname === "/api/v1/projects") {
+    sendJson(res, 200, {
+      items: strategyProjects,
+      next_cursor: null,
+    });
+    return;
+  }
+
+  if (req.method === "GET" && requestUrl.pathname === "/api/v1/tasks") {
+    sendJson(res, 200, {
+      items: strategyTasks,
+      next_cursor: null,
+    });
+    return;
+  }
+
+  if (req.method === "GET" && requestUrl.pathname === "/api/v1/bootstrap-presets") {
+    sendJson(res, 200, {
+      items: bootstrapPresets,
+      next_cursor: null,
+    });
     return;
   }
 

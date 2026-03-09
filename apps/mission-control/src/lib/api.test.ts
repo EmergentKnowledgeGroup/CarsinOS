@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  createBootstrapPreset,
+  getStrategySummary,
   getGatewayHealth,
+  linkTaskBoardCard,
+  listTasks,
   getMissionControlUsage,
   removeAgent,
   revokeAuthProfile,
@@ -181,6 +185,156 @@ describe("request URL resolution", () => {
     );
     expect((revokeInit.headers as Record<string, string>)["Content-Type"]).toBe(
       "application/json"
+    );
+  });
+
+  it("builds strategy query URLs and link mutations with operator metadata", async () => {
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      new Response(
+        JSON.stringify({
+          generated_at_ms: 0,
+          currency: "USD",
+          blocked_task_count: 0,
+          blocked_tasks: [],
+          stale_task_count: 0,
+          stale_tasks: [],
+          spend_by_agent: [],
+          spend_by_project: [],
+          unattributed_spend_total: 0,
+          goal_progress: [],
+          critical_approval_backlog_count: 0,
+          critical_approval_backlog: [],
+          items: [],
+          next_cursor: null,
+          task: {
+            task_id: "task-1",
+            project_id: "project-1",
+            parent_task_id: null,
+            title: "Task",
+            detail: "",
+            status: "todo",
+            priority: "normal",
+            owner_agent_id: null,
+            due_at: null,
+            blocked_reason: null,
+            linked_board_card_id: "card-1",
+            linked_job_id: null,
+            latest_run_id: null,
+            latest_session_id: null,
+            created_at: 0,
+            updated_at: 0,
+          },
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getStrategySummary(
+      { gateway_url: "http://127.0.0.1:18888" },
+      { timezone: "America/Chicago", tz_offset_minutes: -360 }
+    );
+    await listTasks(
+      { gateway_url: "http://127.0.0.1:18888" },
+      { limit: 25, cursor: "cursor-1", owner_agent_id: "agent-1", blocked: true }
+    );
+    await linkTaskBoardCard(
+      { gateway_url: "http://127.0.0.1:18888" },
+      "task-1",
+      { board_card_id: "card-1", force_reassign: true }
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const [summaryUrl] = fetchMock.mock.calls[0] as [string];
+    expect(summaryUrl).toContain("/api/v1/mission-control/strategy/summary?");
+    expect(summaryUrl).toContain("timezone=America%2FChicago");
+    expect(summaryUrl).toContain("tz_offset_minutes=-360");
+
+    const [tasksUrl] = fetchMock.mock.calls[1] as [string];
+    expect(tasksUrl).toContain("/api/v1/tasks?");
+    expect(tasksUrl).toContain("limit=25");
+    expect(tasksUrl).toContain("cursor=cursor-1");
+    expect(tasksUrl).toContain("owner_agent_id=agent-1");
+    expect(tasksUrl).toContain("blocked=true");
+
+    const [linkUrl, linkInit] = fetchMock.mock.calls[2] as [string, RequestInit];
+    expect(linkUrl).toContain("/api/v1/tasks/task-1/links/board-card");
+    expect(linkInit.method).toBe("POST");
+    expect(linkInit.body).toBe(
+      JSON.stringify({
+        board_card_id: "card-1",
+        force_reassign: true,
+      })
+    );
+  });
+
+  it("posts bootstrap preset manager defaults", async () => {
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      new Response(
+        JSON.stringify({
+          preset: {
+            schema_version: "bootstrap-preset-v1",
+            preset_key: "lead",
+            display_name: "Lead",
+            description: "desc",
+            role_label: "Lead",
+            provider_path: "openai",
+            default_model_provider: "openai",
+            default_model_id: "gpt-5",
+            default_tool_profile: "standard",
+            default_workspace_root: ".",
+            default_reports_to_agent_id: "agent-root",
+            setup_notes: "notes",
+            created_at: 0,
+            updated_at: 0,
+          },
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createBootstrapPreset(
+      { gateway_url: "http://127.0.0.1:18888" },
+      {
+        preset_key: "lead",
+        display_name: "Lead",
+        description: "desc",
+        role_label: "Lead",
+        provider_path: "openai",
+        default_model_provider: "openai",
+        default_model_id: "gpt-5",
+        default_tool_profile: "standard",
+        default_workspace_root: ".",
+        default_reports_to_agent_id: "agent-root",
+        setup_notes: "notes",
+      }
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [presetUrl, presetInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(presetUrl).toContain("/api/v1/bootstrap-presets");
+    expect(presetInit.method).toBe("POST");
+    expect(presetInit.body).toBe(
+      JSON.stringify({
+        preset_key: "lead",
+        display_name: "Lead",
+        description: "desc",
+        role_label: "Lead",
+        provider_path: "openai",
+        default_model_provider: "openai",
+        default_model_id: "gpt-5",
+        default_tool_profile: "standard",
+        default_workspace_root: ".",
+        default_reports_to_agent_id: "agent-root",
+        setup_notes: "notes",
+      })
     );
   });
 });

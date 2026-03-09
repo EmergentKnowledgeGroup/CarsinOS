@@ -9,6 +9,7 @@ import {
   MessagesSquare,
   Users,
   Gauge,
+  Compass,
   AlertTriangle,
   Sun,
   Moon,
@@ -29,6 +30,7 @@ const TAB_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
   "messages-square": MessagesSquare,
   users: Users,
   gauge: Gauge,
+  compass: Compass,
 };
 
 export interface CommandAction {

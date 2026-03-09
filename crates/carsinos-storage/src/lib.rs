@@ -44,6 +44,10 @@ fn migrate(db_path: &Path) -> Result<()> {
         .with_context(|| format!("failed to open sqlite db at {}", db_path.display()))?;
     conn.execute_batch(MIGRATION_0001)
         .context("failed applying initial migration")?;
+    ensure_agent_hierarchy_columns(&conn)?;
+    conn.execute_batch(MIGRATION_0002)
+        .context("failed applying strategy migration")?;
+    ensure_bootstrap_preset_manager_column(&conn)?;
     Ok(())
 }
 
@@ -66,9 +70,20 @@ fn seed_default_entities(db_path: &Path) -> Result<()> {
         tx.execute(
             r#"
         INSERT OR IGNORE INTO agents
-          (agent_id, name, workspace_root, model_provider, model_id, tool_profile, created_at, updated_at)
+          (
+            agent_id,
+            name,
+            workspace_root,
+            model_provider,
+            model_id,
+            tool_profile,
+            reports_to_agent_id,
+            role_label,
+            created_at,
+            updated_at
+          )
         VALUES
-          (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+          (?1, ?2, ?3, ?4, ?5, ?6, NULL, NULL, ?7, ?8)
         "#,
             params![
                 agent_id,
@@ -88,6 +103,44 @@ fn seed_default_entities(db_path: &Path) -> Result<()> {
     tx.commit()
         .context("failed to commit default-entity seed transaction")?;
     Ok(())
+}
+
+fn ensure_agent_hierarchy_columns(conn: &Connection) -> Result<()> {
+    if !column_exists(conn, "agents", "reports_to_agent_id")? {
+        conn.execute(
+            "ALTER TABLE agents ADD COLUMN reports_to_agent_id TEXT REFERENCES agents(agent_id)",
+            [],
+        )
+        .context("failed adding agents.reports_to_agent_id column")?;
+    }
+    if !column_exists(conn, "agents", "role_label")? {
+        conn.execute("ALTER TABLE agents ADD COLUMN role_label TEXT", [])
+            .context("failed adding agents.role_label column")?;
+    }
+    Ok(())
+}
+
+fn ensure_bootstrap_preset_manager_column(conn: &Connection) -> Result<()> {
+    if !column_exists(conn, "bootstrap_presets", "default_reports_to_agent_id")? {
+        conn.execute(
+            "ALTER TABLE bootstrap_presets ADD COLUMN default_reports_to_agent_id TEXT REFERENCES agents(agent_id)",
+            [],
+        )
+        .context("failed adding bootstrap_presets.default_reports_to_agent_id column")?;
+    }
+    Ok(())
+}
+
+fn column_exists(conn: &Connection, table_name: &str, column_name: &str) -> Result<bool> {
+    let pragma = format!("PRAGMA table_info({table_name})");
+    let mut stmt = conn.prepare(&pragma)?;
+    let rows = stmt.query_map([], |row| row.get::<_, String>(1))?;
+    for row in rows {
+        if row?.eq_ignore_ascii_case(column_name) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn seed_default_boards(conn: &Transaction<'_>, now: i64) -> Result<()> {
@@ -516,6 +569,8 @@ pub struct AgentRecord {
     pub model_provider: String,
     pub model_id: String,
     pub tool_profile: String,
+    pub reports_to_agent_id: Option<String>,
+    pub role_label: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -528,6 +583,8 @@ pub struct NewAgent {
     pub model_provider: String,
     pub model_id: String,
     pub tool_profile: String,
+    pub reports_to_agent_id: Option<String>,
+    pub role_label: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -537,6 +594,8 @@ pub struct AgentUpdatePatch {
     pub model_provider: Option<String>,
     pub model_id: Option<String>,
     pub tool_profile: Option<String>,
+    pub reports_to_agent_id: Option<Option<String>>,
+    pub role_label: Option<Option<String>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -545,6 +604,228 @@ pub enum RemoveAgentOutcome {
     NotFound,
     InvalidAgentId,
     HasSessions,
+    HasReferences,
+}
+
+#[derive(Debug, Clone)]
+pub struct GoalRecord {
+    pub goal_id: String,
+    pub slug: String,
+    pub title: String,
+    pub summary: String,
+    pub status: String,
+    pub owner_agent_id: Option<String>,
+    pub target_date: Option<i64>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewGoal {
+    pub slug: String,
+    pub title: String,
+    pub summary: String,
+    pub status: String,
+    pub owner_agent_id: Option<String>,
+    pub target_date: Option<i64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct GoalUpdatePatch {
+    pub slug: Option<String>,
+    pub title: Option<String>,
+    pub summary: Option<String>,
+    pub status: Option<String>,
+    pub owner_agent_id: Option<Option<String>>,
+    pub target_date: Option<Option<i64>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProjectRecord {
+    pub project_id: String,
+    pub goal_id: String,
+    pub slug: String,
+    pub name: String,
+    pub summary: String,
+    pub status: String,
+    pub owner_agent_id: Option<String>,
+    pub workspace_root: Option<String>,
+    pub budget_month_usd: Option<f64>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewProject {
+    pub goal_id: String,
+    pub slug: String,
+    pub name: String,
+    pub summary: String,
+    pub status: String,
+    pub owner_agent_id: Option<String>,
+    pub workspace_root: Option<String>,
+    pub budget_month_usd: Option<f64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ProjectUpdatePatch {
+    pub goal_id: Option<String>,
+    pub slug: Option<String>,
+    pub name: Option<String>,
+    pub summary: Option<String>,
+    pub status: Option<String>,
+    pub owner_agent_id: Option<Option<String>>,
+    pub workspace_root: Option<Option<String>>,
+    pub budget_month_usd: Option<Option<f64>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TaskRecord {
+    pub task_id: String,
+    pub project_id: String,
+    pub parent_task_id: Option<String>,
+    pub title: String,
+    pub detail: String,
+    pub status: String,
+    pub priority: String,
+    pub owner_agent_id: Option<String>,
+    pub due_at: Option<i64>,
+    pub blocked_reason: Option<String>,
+    pub linked_board_card_id: Option<String>,
+    pub linked_job_id: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct TaskRuntimeLinkRecord {
+    pub latest_run_id: Option<String>,
+    pub latest_session_id: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewTask {
+    pub project_id: String,
+    pub parent_task_id: Option<String>,
+    pub title: String,
+    pub detail: String,
+    pub status: String,
+    pub priority: String,
+    pub owner_agent_id: Option<String>,
+    pub due_at: Option<i64>,
+    pub blocked_reason: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TaskUpdatePatch {
+    pub project_id: Option<String>,
+    pub parent_task_id: Option<Option<String>>,
+    pub title: Option<String>,
+    pub detail: Option<String>,
+    pub status: Option<String>,
+    pub priority: Option<String>,
+    pub owner_agent_id: Option<Option<String>>,
+    pub due_at: Option<Option<i64>>,
+    pub blocked_reason: Option<Option<String>>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct GoalListFilter {
+    pub status: Option<String>,
+    pub owner_agent_id: Option<String>,
+    pub query: Option<String>,
+    pub limit: u32,
+    pub cursor: Option<String>,
+    pub sort: Option<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ProjectListFilter {
+    pub goal_id: Option<String>,
+    pub status: Option<String>,
+    pub owner_agent_id: Option<String>,
+    pub query: Option<String>,
+    pub limit: u32,
+    pub cursor: Option<String>,
+    pub sort: Option<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct TaskListFilter {
+    pub goal_id: Option<String>,
+    pub project_id: Option<String>,
+    pub status: Option<String>,
+    pub owner_agent_id: Option<String>,
+    pub query: Option<String>,
+    pub stale: Option<bool>,
+    pub blocked: Option<bool>,
+    pub unassigned: Option<bool>,
+    pub hierarchy_root_agent_id: Option<String>,
+    pub hierarchy_scope: Option<String>,
+    pub limit: u32,
+    pub cursor: Option<String>,
+    pub sort: Option<String>,
+    pub now_ms: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct BootstrapPresetRecord {
+    pub preset_key: String,
+    pub display_name: String,
+    pub description: String,
+    pub role_label: String,
+    pub provider_path: String,
+    pub default_model_provider: Option<String>,
+    pub default_model_id: Option<String>,
+    pub default_tool_profile: Option<String>,
+    pub default_workspace_root: Option<String>,
+    pub default_reports_to_agent_id: Option<String>,
+    pub setup_notes: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewBootstrapPreset {
+    pub preset_key: String,
+    pub display_name: String,
+    pub description: String,
+    pub role_label: String,
+    pub provider_path: String,
+    pub default_model_provider: Option<String>,
+    pub default_model_id: Option<String>,
+    pub default_tool_profile: Option<String>,
+    pub default_workspace_root: Option<String>,
+    pub default_reports_to_agent_id: Option<String>,
+    pub setup_notes: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct BootstrapPresetUpdatePatch {
+    pub display_name: Option<String>,
+    pub description: Option<String>,
+    pub role_label: Option<String>,
+    pub provider_path: Option<String>,
+    pub default_model_provider: Option<Option<String>>,
+    pub default_model_id: Option<Option<String>>,
+    pub default_tool_profile: Option<Option<String>>,
+    pub default_workspace_root: Option<Option<String>>,
+    pub default_reports_to_agent_id: Option<Option<String>>,
+    pub setup_notes: Option<Option<String>>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct BootstrapPresetListFilter {
+    pub query: Option<String>,
+    pub limit: u32,
+    pub cursor: Option<String>,
+    pub sort: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PageResult<T> {
+    pub items: Vec<T>,
+    pub next_cursor: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -928,7 +1209,8 @@ impl Storage {
         let mut stmt = conn.prepare(
             r#"
             SELECT
-              agent_id, name, workspace_root, model_provider, model_id, tool_profile, created_at, updated_at
+              agent_id, name, workspace_root, model_provider, model_id, tool_profile,
+              reports_to_agent_id, role_label, created_at, updated_at
             FROM agents
             ORDER BY updated_at DESC, agent_id ASC
             "#,
@@ -946,7 +1228,8 @@ impl Storage {
         let mut stmt = conn.prepare(
             r#"
             SELECT
-              agent_id, name, workspace_root, model_provider, model_id, tool_profile, created_at, updated_at
+              agent_id, name, workspace_root, model_provider, model_id, tool_profile,
+              reports_to_agent_id, role_label, created_at, updated_at
             FROM agents
             WHERE agent_id = ?1
             "#,
@@ -958,12 +1241,14 @@ impl Storage {
 
     pub fn create_agent(&self, new_agent: NewAgent) -> Result<AgentRecord> {
         let conn = self.connect()?;
+        validate_agent_manager_assignment(&conn, &new_agent.agent_id, new_agent.reports_to_agent_id.as_deref())?;
         let now = now_ms();
         conn.execute(
             r#"
             INSERT INTO agents (
-              agent_id, name, workspace_root, model_provider, model_id, tool_profile, created_at, updated_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+              agent_id, name, workspace_root, model_provider, model_id, tool_profile,
+              reports_to_agent_id, role_label, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
             "#,
             params![
                 new_agent.agent_id,
@@ -972,6 +1257,8 @@ impl Storage {
                 new_agent.model_provider,
                 new_agent.model_id,
                 new_agent.tool_profile,
+                new_agent.reports_to_agent_id,
+                new_agent.role_label,
                 now,
                 now
             ],
@@ -991,38 +1278,51 @@ impl Storage {
             && patch.model_provider.is_none()
             && patch.model_id.is_none()
             && patch.tool_profile.is_none()
+            && patch.reports_to_agent_id.is_none()
+            && patch.role_label.is_none()
         {
             return self.get_agent(agent_id);
         }
 
-        let conn = self.connect()?;
+        let mut conn = self.connect()?;
+        let tx = conn.transaction()?;
+        let current = match get_agent_with_conn(&tx, agent_id)? {
+            Some(record) => record,
+            None => return Ok(None),
+        };
+        let next_reports_to_agent_id = patch
+            .reports_to_agent_id
+            .clone()
+            .unwrap_or(current.reports_to_agent_id.clone());
+        validate_agent_manager_assignment(&tx, agent_id, next_reports_to_agent_id.as_deref())?;
         let now = now_ms();
-        let updated_rows = conn
-            .execute(
-                r#"
+        tx.execute(
+            r#"
             UPDATE agents
             SET name = COALESCE(?1, name),
                 workspace_root = COALESCE(?2, workspace_root),
                 model_provider = COALESCE(?3, model_provider),
                 model_id = COALESCE(?4, model_id),
                 tool_profile = COALESCE(?5, tool_profile),
-                updated_at = ?6
-            WHERE agent_id = ?7
+                reports_to_agent_id = ?6,
+                role_label = ?7,
+                updated_at = ?8
+            WHERE agent_id = ?9
             "#,
-                params![
-                    patch.name,
-                    patch.workspace_root,
-                    patch.model_provider,
-                    patch.model_id,
-                    patch.tool_profile,
-                    now,
-                    agent_id
-                ],
-            )
-            .context("failed to update agent")?;
-        if updated_rows == 0 {
-            return Ok(None);
-        }
+            params![
+                patch.name,
+                patch.workspace_root,
+                patch.model_provider,
+                patch.model_id,
+                patch.tool_profile,
+                next_reports_to_agent_id,
+                patch.role_label.clone().unwrap_or(current.role_label.clone()),
+                now,
+                agent_id
+            ],
+        )
+        .context("failed to update agent")?;
+        tx.commit().context("failed to commit agent update")?;
         self.get_agent(agent_id)
     }
 
@@ -1052,6 +1352,30 @@ impl Storage {
         )?;
         if session_refs > 0 {
             return Ok(RemoveAgentOutcome::HasSessions);
+        }
+
+        let hierarchy_refs: i64 = tx.query_row(
+            "SELECT COUNT(1) FROM agents WHERE reports_to_agent_id = ?1",
+            params![agent_id.as_str()],
+            |row| row.get(0),
+        )?;
+        let goal_refs: i64 = tx.query_row(
+            "SELECT COUNT(1) FROM goals WHERE owner_agent_id = ?1",
+            params![agent_id.as_str()],
+            |row| row.get(0),
+        )?;
+        let project_refs: i64 = tx.query_row(
+            "SELECT COUNT(1) FROM projects WHERE owner_agent_id = ?1",
+            params![agent_id.as_str()],
+            |row| row.get(0),
+        )?;
+        let task_refs: i64 = tx.query_row(
+            "SELECT COUNT(1) FROM tasks WHERE owner_agent_id = ?1",
+            params![agent_id.as_str()],
+            |row| row.get(0),
+        )?;
+        if hierarchy_refs + goal_refs + project_refs + task_refs > 0 {
+            return Ok(RemoveAgentOutcome::HasReferences);
         }
 
         tx.execute(
@@ -1531,6 +1855,716 @@ impl Storage {
             out.push(row?);
         }
         Ok(out)
+    }
+
+    pub fn list_goals(&self, filter: GoalListFilter) -> Result<PageResult<GoalRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              goal_id, slug, title, summary, status, owner_agent_id, target_date, created_at, updated_at
+            FROM goals
+            "#,
+        )?;
+        let rows = stmt.query_map([], map_goal_row)?;
+        let mut items = Vec::new();
+        for row in rows {
+            let record = row?;
+            if goal_matches_filter(&record, &filter) {
+                items.push(record);
+            }
+        }
+        sort_records_by_updated(&mut items, filter.sort.as_deref(), |item| {
+            (item.updated_at, item.goal_id.as_str())
+        })?;
+        Ok(page_records(items, filter.limit, filter.cursor.as_deref(), |item| {
+            (item.updated_at, item.goal_id.as_str())
+        })?)
+    }
+
+    pub fn get_goal(&self, goal_id: &str) -> Result<Option<GoalRecord>> {
+        let conn = self.connect()?;
+        get_goal_with_conn(&conn, goal_id)
+    }
+
+    pub fn create_goal(&self, new_goal: NewGoal) -> Result<GoalRecord> {
+        let conn = self.connect()?;
+        let slug = normalize_management_slug(&new_goal.slug)?;
+        validate_goal_status(&new_goal.status)?;
+        validate_optional_owner_agent(self, &conn, new_goal.owner_agent_id.as_deref())?;
+        let goal_id = uuid::Uuid::new_v4().to_string();
+        let now = now_ms();
+        conn.execute(
+            r#"
+            INSERT INTO goals (
+              goal_id, slug, title, summary, status, owner_agent_id, target_date, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            "#,
+            params![
+                goal_id,
+                slug,
+                new_goal.title.trim(),
+                new_goal.summary.trim(),
+                new_goal.status.trim(),
+                new_goal.owner_agent_id,
+                new_goal.target_date,
+                now,
+                now
+            ],
+        )
+        .context("failed to create goal")?;
+        self.get_goal(&goal_id)?
+            .context("created goal could not be reloaded")
+    }
+
+    pub fn update_goal(&self, goal_id: &str, patch: GoalUpdatePatch) -> Result<Option<GoalRecord>> {
+        if patch.slug.is_none()
+            && patch.title.is_none()
+            && patch.summary.is_none()
+            && patch.status.is_none()
+            && patch.owner_agent_id.is_none()
+            && patch.target_date.is_none()
+        {
+            return self.get_goal(goal_id);
+        }
+        let conn = self.connect()?;
+        let current = match get_goal_with_conn(&conn, goal_id)? {
+            Some(record) => record,
+            None => return Ok(None),
+        };
+        let next_slug = match patch.slug {
+            Some(value) => normalize_management_slug(&value)?,
+            None => current.slug,
+        };
+        let next_title = patch.title.unwrap_or(current.title);
+        let next_summary = patch.summary.unwrap_or(current.summary);
+        let next_status = patch.status.unwrap_or(current.status);
+        let next_owner_agent_id = patch.owner_agent_id.unwrap_or(current.owner_agent_id);
+        let next_target_date = patch.target_date.unwrap_or(current.target_date);
+        validate_goal_status(&next_status)?;
+        validate_optional_owner_agent(self, &conn, next_owner_agent_id.as_deref())?;
+        let now = now_ms();
+        let updated = conn.execute(
+            r#"
+            UPDATE goals
+            SET slug = ?1,
+                title = ?2,
+                summary = ?3,
+                status = ?4,
+                owner_agent_id = ?5,
+                target_date = ?6,
+                updated_at = ?7
+            WHERE goal_id = ?8
+            "#,
+            params![
+                next_slug,
+                next_title.trim(),
+                next_summary.trim(),
+                next_status.trim(),
+                next_owner_agent_id,
+                next_target_date,
+                now,
+                goal_id
+            ],
+        )?;
+        if updated == 0 {
+            return Ok(None);
+        }
+        self.get_goal(goal_id)
+    }
+
+    pub fn list_projects(&self, filter: ProjectListFilter) -> Result<PageResult<ProjectRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              project_id, goal_id, slug, name, summary, status, owner_agent_id, workspace_root,
+              budget_month_usd, created_at, updated_at
+            FROM projects
+            "#,
+        )?;
+        let rows = stmt.query_map([], map_project_row)?;
+        let mut items = Vec::new();
+        for row in rows {
+            let record = row?;
+            if project_matches_filter(&record, &filter) {
+                items.push(record);
+            }
+        }
+        sort_records_by_updated(&mut items, filter.sort.as_deref(), |item| {
+            (item.updated_at, item.project_id.as_str())
+        })?;
+        Ok(page_records(items, filter.limit, filter.cursor.as_deref(), |item| {
+            (item.updated_at, item.project_id.as_str())
+        })?)
+    }
+
+    pub fn get_project(&self, project_id: &str) -> Result<Option<ProjectRecord>> {
+        let conn = self.connect()?;
+        get_project_with_conn(&conn, project_id)
+    }
+
+    pub fn create_project(&self, new_project: NewProject) -> Result<ProjectRecord> {
+        let conn = self.connect()?;
+        ensure_goal_exists(&conn, &new_project.goal_id)?;
+        validate_project_status(&new_project.status)?;
+        validate_optional_owner_agent(self, &conn, new_project.owner_agent_id.as_deref())?;
+        validate_project_workspace_root(new_project.workspace_root.as_deref())?;
+        validate_budget_month_usd(new_project.budget_month_usd)?;
+        let project_id = uuid::Uuid::new_v4().to_string();
+        let now = now_ms();
+        conn.execute(
+            r#"
+            INSERT INTO projects (
+              project_id, goal_id, slug, name, summary, status, owner_agent_id, workspace_root,
+              budget_month_usd, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+            "#,
+            params![
+                project_id,
+                new_project.goal_id,
+                normalize_management_slug(&new_project.slug)?,
+                new_project.name.trim(),
+                new_project.summary.trim(),
+                new_project.status.trim(),
+                new_project.owner_agent_id,
+                new_project.workspace_root,
+                new_project.budget_month_usd,
+                now,
+                now
+            ],
+        )
+        .context("failed to create project")?;
+        self.get_project(&project_id)?
+            .context("created project could not be reloaded")
+    }
+
+    pub fn update_project(
+        &self,
+        project_id: &str,
+        patch: ProjectUpdatePatch,
+    ) -> Result<Option<ProjectRecord>> {
+        if patch.goal_id.is_none()
+            && patch.slug.is_none()
+            && patch.name.is_none()
+            && patch.summary.is_none()
+            && patch.status.is_none()
+            && patch.owner_agent_id.is_none()
+            && patch.workspace_root.is_none()
+            && patch.budget_month_usd.is_none()
+        {
+            return self.get_project(project_id);
+        }
+        let conn = self.connect()?;
+        let current = match get_project_with_conn(&conn, project_id)? {
+            Some(record) => record,
+            None => return Ok(None),
+        };
+        let next_goal_id = patch.goal_id.unwrap_or(current.goal_id);
+        ensure_goal_exists(&conn, &next_goal_id)?;
+        let next_slug = match patch.slug {
+            Some(value) => normalize_management_slug(&value)?,
+            None => current.slug,
+        };
+        let next_name = patch.name.unwrap_or(current.name);
+        let next_summary = patch.summary.unwrap_or(current.summary);
+        let next_status = patch.status.unwrap_or(current.status);
+        let next_owner_agent_id = patch.owner_agent_id.unwrap_or(current.owner_agent_id);
+        let next_workspace_root = patch.workspace_root.unwrap_or(current.workspace_root);
+        let next_budget_month_usd = patch.budget_month_usd.unwrap_or(current.budget_month_usd);
+        validate_project_status(&next_status)?;
+        validate_optional_owner_agent(self, &conn, next_owner_agent_id.as_deref())?;
+        validate_project_workspace_root(next_workspace_root.as_deref())?;
+        validate_budget_month_usd(next_budget_month_usd)?;
+        if next_status == PROJECT_STATUS_COMPLETED && has_open_tasks_in_project(&conn, project_id)? {
+            anyhow::bail!("project cannot be completed while it has open tasks");
+        }
+        let now = now_ms();
+        let updated = conn.execute(
+            r#"
+            UPDATE projects
+            SET goal_id = ?1,
+                slug = ?2,
+                name = ?3,
+                summary = ?4,
+                status = ?5,
+                owner_agent_id = ?6,
+                workspace_root = ?7,
+                budget_month_usd = ?8,
+                updated_at = ?9
+            WHERE project_id = ?10
+            "#,
+            params![
+                next_goal_id,
+                next_slug,
+                next_name.trim(),
+                next_summary.trim(),
+                next_status.trim(),
+                next_owner_agent_id,
+                next_workspace_root,
+                next_budget_month_usd,
+                now,
+                project_id
+            ],
+        )?;
+        if updated == 0 {
+            return Ok(None);
+        }
+        self.get_project(project_id)
+    }
+
+    pub fn list_tasks(&self, filter: TaskListFilter) -> Result<PageResult<TaskRecord>> {
+        let conn = self.connect()?;
+        let projects = load_all_projects(&conn)?;
+        let project_goal_by_id = projects
+            .iter()
+            .map(|item| (item.project_id.clone(), item.goal_id.clone()))
+            .collect::<std::collections::HashMap<_, _>>();
+        let hierarchy_agent_ids = if let Some(root_agent_id) = filter.hierarchy_root_agent_id.as_ref()
+        {
+            Some(agent_subtree_ids(&conn, root_agent_id)?)
+        } else {
+            None
+        };
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              task_id, project_id, parent_task_id, title, detail, status, priority, owner_agent_id,
+              due_at, blocked_reason, linked_board_card_id, linked_job_id, created_at, updated_at
+            FROM tasks
+            "#,
+        )?;
+        let rows = stmt.query_map([], map_task_row)?;
+        let mut items = Vec::new();
+        for row in rows {
+            let record = row?;
+            if task_matches_filter(
+                &record,
+                &filter,
+                &project_goal_by_id,
+                hierarchy_agent_ids.as_ref(),
+            ) {
+                items.push(record);
+            }
+        }
+        sort_records_by_updated(&mut items, filter.sort.as_deref(), |item| {
+            (item.updated_at, item.task_id.as_str())
+        })?;
+        Ok(page_records(items, filter.limit, filter.cursor.as_deref(), |item| {
+            (item.updated_at, item.task_id.as_str())
+        })?)
+    }
+
+    pub fn get_task(&self, task_id: &str) -> Result<Option<TaskRecord>> {
+        let conn = self.connect()?;
+        get_task_with_conn(&conn, task_id)
+    }
+
+    pub fn create_task(&self, new_task: NewTask) -> Result<TaskRecord> {
+        let conn = self.connect()?;
+        ensure_project_exists(&conn, &new_task.project_id)?;
+        validate_optional_owner_agent(self, &conn, new_task.owner_agent_id.as_deref())?;
+        validate_task_status(&new_task.status)?;
+        validate_task_priority(&new_task.priority)?;
+        validate_task_parent(
+            &conn,
+            &new_task.project_id,
+            new_task.parent_task_id.as_deref(),
+            None,
+        )?;
+        let blocked_reason = normalize_blocked_reason(&new_task.status, new_task.blocked_reason)?;
+        let task_id = uuid::Uuid::new_v4().to_string();
+        let now = now_ms();
+        conn.execute(
+            r#"
+            INSERT INTO tasks (
+              task_id, project_id, parent_task_id, title, detail, status, priority, owner_agent_id,
+              due_at, blocked_reason, linked_board_card_id, linked_job_id, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, NULL, NULL, ?11, ?12)
+            "#,
+            params![
+                task_id,
+                new_task.project_id,
+                new_task.parent_task_id,
+                new_task.title.trim(),
+                new_task.detail.trim(),
+                new_task.status.trim(),
+                new_task.priority.trim(),
+                new_task.owner_agent_id,
+                new_task.due_at,
+                blocked_reason,
+                now,
+                now
+            ],
+        )
+        .context("failed to create task")?;
+        self.get_task(&task_id)?
+            .context("created task could not be reloaded")
+    }
+
+    pub fn update_task(&self, task_id: &str, patch: TaskUpdatePatch) -> Result<Option<TaskRecord>> {
+        if patch.project_id.is_none()
+            && patch.parent_task_id.is_none()
+            && patch.title.is_none()
+            && patch.detail.is_none()
+            && patch.status.is_none()
+            && patch.priority.is_none()
+            && patch.owner_agent_id.is_none()
+            && patch.due_at.is_none()
+            && patch.blocked_reason.is_none()
+        {
+            return self.get_task(task_id);
+        }
+        let conn = self.connect()?;
+        let current = match get_task_with_conn(&conn, task_id)? {
+            Some(record) => record,
+            None => return Ok(None),
+        };
+        let next_project_id = patch.project_id.unwrap_or(current.project_id);
+        ensure_project_exists(&conn, &next_project_id)?;
+        let next_parent_task_id = patch.parent_task_id.unwrap_or(current.parent_task_id);
+        let next_title = patch.title.unwrap_or(current.title);
+        let next_detail = patch.detail.unwrap_or(current.detail);
+        let next_status = patch.status.unwrap_or(current.status);
+        let next_priority = patch.priority.unwrap_or(current.priority);
+        let next_owner_agent_id = patch.owner_agent_id.unwrap_or(current.owner_agent_id);
+        let next_due_at = patch.due_at.unwrap_or(current.due_at);
+        let next_blocked_reason =
+            normalize_blocked_reason(&next_status, patch.blocked_reason.unwrap_or(current.blocked_reason))?;
+        validate_optional_owner_agent(self, &conn, next_owner_agent_id.as_deref())?;
+        validate_task_status(&next_status)?;
+        validate_task_priority(&next_priority)?;
+        validate_task_parent(
+            &conn,
+            &next_project_id,
+            next_parent_task_id.as_deref(),
+            Some(task_id),
+        )?;
+        let now = now_ms();
+        let updated = conn.execute(
+            r#"
+            UPDATE tasks
+            SET project_id = ?1,
+                parent_task_id = ?2,
+                title = ?3,
+                detail = ?4,
+                status = ?5,
+                priority = ?6,
+                owner_agent_id = ?7,
+                due_at = ?8,
+                blocked_reason = ?9,
+                updated_at = ?10
+            WHERE task_id = ?11
+            "#,
+            params![
+                next_project_id,
+                next_parent_task_id,
+                next_title.trim(),
+                next_detail.trim(),
+                next_status.trim(),
+                next_priority.trim(),
+                next_owner_agent_id,
+                next_due_at,
+                next_blocked_reason,
+                now,
+                task_id
+            ],
+        )?;
+        if updated == 0 {
+            return Ok(None);
+        }
+        self.get_task(task_id)
+    }
+
+    pub fn link_task_board_card(
+        &self,
+        task_id: &str,
+        board_card_id: &str,
+        force_reassign: bool,
+    ) -> Result<Option<TaskRecord>> {
+        let mut conn = self.connect()?;
+        let tx = conn.transaction()?;
+        let current = match get_task_with_conn(&tx, task_id)? {
+            Some(record) => record,
+            None => return Ok(None),
+        };
+        if Self::get_board_card_tx(&tx, board_card_id)?.is_none() {
+            anyhow::bail!("board card not found");
+        }
+        let linked_task_id = find_task_id_by_link_target(&tx, "linked_board_card_id", board_card_id)?;
+        let now = now_ms();
+        if let Some(existing_task_id) = linked_task_id {
+            if existing_task_id != task_id {
+                if !force_reassign {
+                    anyhow::bail!("board card already linked to another task");
+                }
+                tx.execute(
+                    "UPDATE tasks SET linked_board_card_id = NULL, updated_at = ?1 WHERE task_id = ?2",
+                    params![now, existing_task_id],
+                )?;
+            }
+        }
+        if current.linked_board_card_id.as_deref() != Some(board_card_id) {
+            tx.execute(
+                "UPDATE tasks SET linked_board_card_id = ?1, updated_at = ?2 WHERE task_id = ?3",
+                params![board_card_id, now, task_id],
+            )?;
+        }
+        tx.commit()?;
+        self.get_task(task_id)
+    }
+
+    pub fn link_task_job(
+        &self,
+        task_id: &str,
+        job_id: &str,
+        force_reassign: bool,
+    ) -> Result<Option<TaskRecord>> {
+        let mut conn = self.connect()?;
+        let tx = conn.transaction()?;
+        let current = match get_task_with_conn(&tx, task_id)? {
+            Some(record) => record,
+            None => return Ok(None),
+        };
+        if get_job_with_conn(&tx, job_id)?.is_none() {
+            anyhow::bail!("job not found");
+        }
+        let linked_task_id = find_task_id_by_link_target(&tx, "linked_job_id", job_id)?;
+        let now = now_ms();
+        if let Some(existing_task_id) = linked_task_id {
+            if existing_task_id != task_id {
+                if !force_reassign {
+                    anyhow::bail!("job already linked to another task");
+                }
+                tx.execute(
+                    "UPDATE tasks SET linked_job_id = NULL, updated_at = ?1 WHERE task_id = ?2",
+                    params![now, existing_task_id],
+                )?;
+            }
+        }
+        if current.linked_job_id.as_deref() != Some(job_id) {
+            tx.execute(
+                "UPDATE tasks SET linked_job_id = ?1, updated_at = ?2 WHERE task_id = ?3",
+                params![job_id, now, task_id],
+            )?;
+        }
+        tx.commit()?;
+        self.get_task(task_id)
+    }
+
+    pub fn clear_task_links(
+        &self,
+        task_id: &str,
+        clear_board_card: bool,
+        clear_job: bool,
+    ) -> Result<Option<TaskRecord>> {
+        let conn = self.connect()?;
+        let current = match get_task_with_conn(&conn, task_id)? {
+            Some(record) => record,
+            None => return Ok(None),
+        };
+        let next_clear_board_card = clear_board_card || (!clear_board_card && !clear_job);
+        let next_clear_job = clear_job || (!clear_board_card && !clear_job);
+        let next_board_card_id = if next_clear_board_card {
+            None
+        } else {
+            current.linked_board_card_id.clone()
+        };
+        let next_job_id = if next_clear_job {
+            None
+        } else {
+            current.linked_job_id.clone()
+        };
+        if next_board_card_id == current.linked_board_card_id && next_job_id == current.linked_job_id {
+            return Ok(Some(current));
+        }
+        let now = now_ms();
+        conn.execute(
+            r#"
+            UPDATE tasks
+            SET linked_board_card_id = ?1,
+                linked_job_id = ?2,
+                updated_at = ?3
+            WHERE task_id = ?4
+            "#,
+            params![next_board_card_id, next_job_id, now, task_id],
+        )?;
+        self.get_task(task_id)
+    }
+
+    pub fn resolve_task_runtime_link(&self, task: &TaskRecord) -> Result<TaskRuntimeLinkRecord> {
+        let conn = self.connect()?;
+        let board_candidate = match task.linked_board_card_id.as_deref() {
+            Some(card_id) => resolve_board_runtime_candidate(&conn, card_id)?,
+            None => None,
+        };
+        let job_candidate = match task.linked_job_id.as_deref() {
+            Some(job_id) => resolve_job_runtime_candidate(&conn, job_id)?,
+            None => None,
+        };
+        Ok(select_runtime_link(board_candidate, job_candidate))
+    }
+
+    pub fn list_bootstrap_presets(
+        &self,
+        filter: BootstrapPresetListFilter,
+    ) -> Result<PageResult<BootstrapPresetRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              preset_key, display_name, description, role_label, provider_path, default_model_provider,
+              default_model_id, default_tool_profile, default_workspace_root, default_reports_to_agent_id,
+              setup_notes, created_at, updated_at
+            FROM bootstrap_presets
+            "#,
+        )?;
+        let rows = stmt.query_map([], map_bootstrap_preset_row)?;
+        let mut items = Vec::new();
+        for row in rows {
+            let record = row?;
+            if bootstrap_preset_matches_filter(&record, &filter) {
+                items.push(record);
+            }
+        }
+        sort_records_by_updated(&mut items, filter.sort.as_deref(), |item| {
+            (item.updated_at, item.preset_key.as_str())
+        })?;
+        Ok(page_records(items, filter.limit, filter.cursor.as_deref(), |item| {
+            (item.updated_at, item.preset_key.as_str())
+        })?)
+    }
+
+    pub fn get_bootstrap_preset(&self, preset_key: &str) -> Result<Option<BootstrapPresetRecord>> {
+        let conn = self.connect()?;
+        get_bootstrap_preset_with_conn(&conn, preset_key)
+    }
+
+    pub fn create_bootstrap_preset(
+        &self,
+        new_preset: NewBootstrapPreset,
+    ) -> Result<BootstrapPresetRecord> {
+        let conn = self.connect()?;
+        validate_bootstrap_preset_provider(
+            &new_preset.provider_path,
+            new_preset.default_model_provider.as_deref(),
+        )?;
+        validate_project_workspace_root(new_preset.default_workspace_root.as_deref())?;
+        validate_optional_owner_agent(self, &conn, new_preset.default_reports_to_agent_id.as_deref())?;
+        let preset_key = normalize_preset_key(&new_preset.preset_key)?;
+        let now = now_ms();
+        conn.execute(
+            r#"
+            INSERT INTO bootstrap_presets (
+              preset_key, display_name, description, role_label, provider_path, default_model_provider,
+              default_model_id, default_tool_profile, default_workspace_root, default_reports_to_agent_id,
+              setup_notes, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+            "#,
+            params![
+                preset_key,
+                new_preset.display_name.trim(),
+                new_preset.description.trim(),
+                new_preset.role_label.trim(),
+                new_preset.provider_path.trim(),
+                new_preset.default_model_provider,
+                new_preset.default_model_id,
+                new_preset.default_tool_profile,
+                new_preset.default_workspace_root,
+                new_preset.default_reports_to_agent_id,
+                new_preset.setup_notes,
+                now,
+                now
+            ],
+        )
+        .context("failed to create bootstrap preset")?;
+        self.get_bootstrap_preset(&preset_key)?
+            .context("created bootstrap preset could not be reloaded")
+    }
+
+    pub fn update_bootstrap_preset(
+        &self,
+        preset_key: &str,
+        patch: BootstrapPresetUpdatePatch,
+    ) -> Result<Option<BootstrapPresetRecord>> {
+        if patch.display_name.is_none()
+            && patch.description.is_none()
+            && patch.role_label.is_none()
+            && patch.provider_path.is_none()
+            && patch.default_model_provider.is_none()
+            && patch.default_model_id.is_none()
+            && patch.default_tool_profile.is_none()
+            && patch.default_workspace_root.is_none()
+            && patch.default_reports_to_agent_id.is_none()
+            && patch.setup_notes.is_none()
+        {
+            return self.get_bootstrap_preset(preset_key);
+        }
+        let conn = self.connect()?;
+        let current = match get_bootstrap_preset_with_conn(&conn, preset_key)? {
+            Some(record) => record,
+            None => return Ok(None),
+        };
+        let next_display_name = patch.display_name.unwrap_or(current.display_name);
+        let next_description = patch.description.unwrap_or(current.description);
+        let next_role_label = patch.role_label.unwrap_or(current.role_label);
+        let next_provider_path = patch.provider_path.unwrap_or(current.provider_path);
+        let next_default_model_provider = patch
+            .default_model_provider
+            .unwrap_or(current.default_model_provider);
+        let next_default_model_id = patch.default_model_id.unwrap_or(current.default_model_id);
+        let next_default_tool_profile = patch
+            .default_tool_profile
+            .unwrap_or(current.default_tool_profile);
+        let next_default_workspace_root = patch
+            .default_workspace_root
+            .unwrap_or(current.default_workspace_root);
+        let next_default_reports_to_agent_id = patch
+            .default_reports_to_agent_id
+            .unwrap_or(current.default_reports_to_agent_id);
+        let next_setup_notes = patch.setup_notes.unwrap_or(current.setup_notes);
+        validate_bootstrap_preset_provider(
+            &next_provider_path,
+            next_default_model_provider.as_deref(),
+        )?;
+        validate_project_workspace_root(next_default_workspace_root.as_deref())?;
+        validate_optional_owner_agent(self, &conn, next_default_reports_to_agent_id.as_deref())?;
+        let now = now_ms();
+        let updated = conn.execute(
+            r#"
+            UPDATE bootstrap_presets
+            SET display_name = ?1,
+                description = ?2,
+                role_label = ?3,
+                provider_path = ?4,
+                default_model_provider = ?5,
+                default_model_id = ?6,
+                default_tool_profile = ?7,
+                default_workspace_root = ?8,
+                default_reports_to_agent_id = ?9,
+                setup_notes = ?10,
+                updated_at = ?11
+            WHERE preset_key = ?12
+            "#,
+            params![
+                next_display_name.trim(),
+                next_description.trim(),
+                next_role_label.trim(),
+                next_provider_path.trim(),
+                next_default_model_provider,
+                next_default_model_id,
+                next_default_tool_profile,
+                next_default_workspace_root,
+                next_default_reports_to_agent_id,
+                next_setup_notes,
+                now,
+                preset_key
+            ],
+        )?;
+        if updated == 0 {
+            return Ok(None);
+        }
+        self.get_bootstrap_preset(preset_key)
     }
 
     pub fn create_agent_mail_thread(
@@ -4913,6 +5947,775 @@ impl Storage {
     }
 }
 
+const GOAL_STATUS_ACTIVE: &str = "active";
+const GOAL_STATUS_AT_RISK: &str = "at_risk";
+const GOAL_STATUS_COMPLETED: &str = "completed";
+const GOAL_STATUS_ARCHIVED: &str = "archived";
+const PROJECT_STATUS_ACTIVE: &str = "active";
+const PROJECT_STATUS_BLOCKED: &str = "blocked";
+const PROJECT_STATUS_COMPLETED: &str = "completed";
+const PROJECT_STATUS_ARCHIVED: &str = "archived";
+const TASK_STATUS_TODO: &str = "todo";
+const TASK_STATUS_IN_PROGRESS: &str = "in_progress";
+const TASK_STATUS_BLOCKED: &str = "blocked";
+const TASK_STATUS_DONE: &str = "done";
+const TASK_STATUS_ARCHIVED: &str = "archived";
+const TASK_PRIORITY_LOW: &str = "low";
+const TASK_PRIORITY_NORMAL: &str = "normal";
+const TASK_PRIORITY_HIGH: &str = "high";
+const TASK_PRIORITY_CRITICAL: &str = "critical";
+const STRATEGY_STALE_THRESHOLD_MS: i64 = 72 * 60 * 60_000;
+
+#[derive(Debug, Clone)]
+struct RuntimeCandidate {
+    latest_run_id: Option<String>,
+    latest_session_id: Option<String>,
+    sort_ms: i64,
+}
+
+fn get_agent_with_conn(conn: &Connection, agent_id: &str) -> Result<Option<AgentRecord>> {
+    let mut stmt = conn.prepare(
+        r#"
+        SELECT
+          agent_id, name, workspace_root, model_provider, model_id, tool_profile,
+          reports_to_agent_id, role_label, created_at, updated_at
+        FROM agents
+        WHERE agent_id = ?1
+        "#,
+    )?;
+    Ok(stmt
+        .query_row(params![agent_id], map_agent_row)
+        .optional()?)
+}
+
+fn get_goal_with_conn(conn: &Connection, goal_id: &str) -> Result<Option<GoalRecord>> {
+    let mut stmt = conn.prepare(
+        r#"
+        SELECT
+          goal_id, slug, title, summary, status, owner_agent_id, target_date, created_at, updated_at
+        FROM goals
+        WHERE goal_id = ?1
+        "#,
+    )?;
+    Ok(stmt
+        .query_row(params![goal_id], map_goal_row)
+        .optional()?)
+}
+
+fn get_project_with_conn(conn: &Connection, project_id: &str) -> Result<Option<ProjectRecord>> {
+    let mut stmt = conn.prepare(
+        r#"
+        SELECT
+          project_id, goal_id, slug, name, summary, status, owner_agent_id, workspace_root,
+          budget_month_usd, created_at, updated_at
+        FROM projects
+        WHERE project_id = ?1
+        "#,
+    )?;
+    Ok(stmt
+        .query_row(params![project_id], map_project_row)
+        .optional()?)
+}
+
+fn get_task_with_conn(conn: &Connection, task_id: &str) -> Result<Option<TaskRecord>> {
+    let mut stmt = conn.prepare(
+        r#"
+        SELECT
+          task_id, project_id, parent_task_id, title, detail, status, priority, owner_agent_id,
+          due_at, blocked_reason, linked_board_card_id, linked_job_id, created_at, updated_at
+        FROM tasks
+        WHERE task_id = ?1
+        "#,
+    )?;
+    Ok(stmt
+        .query_row(params![task_id], map_task_row)
+        .optional()?)
+}
+
+fn get_bootstrap_preset_with_conn(
+    conn: &Connection,
+    preset_key: &str,
+) -> Result<Option<BootstrapPresetRecord>> {
+    let mut stmt = conn.prepare(
+        r#"
+        SELECT
+          preset_key, display_name, description, role_label, provider_path, default_model_provider,
+          default_model_id, default_tool_profile, default_workspace_root, default_reports_to_agent_id,
+          setup_notes, created_at, updated_at
+        FROM bootstrap_presets
+        WHERE preset_key = ?1
+        "#,
+    )?;
+    Ok(stmt
+        .query_row(params![preset_key], map_bootstrap_preset_row)
+        .optional()?)
+}
+
+fn get_job_with_conn(conn: &Connection, job_id: &str) -> Result<Option<JobRecord>> {
+    let mut stmt = conn.prepare(
+        r#"
+        SELECT
+          job_id, agent_id, name, enabled, schedule_kind, interval_seconds, run_at_ms, next_run_at,
+          payload_json, max_retries, retry_backoff_ms, timeout_ms, lease_owner, lease_expires_at,
+          last_run_at, last_error, created_at, updated_at, deleted_at
+        FROM jobs
+        WHERE job_id = ?1 AND deleted_at IS NULL
+        "#,
+    )?;
+    Ok(stmt
+        .query_row(params![job_id], map_job_row)
+        .optional()?)
+}
+
+fn latest_run_for_session_with_conn(conn: &Connection, session_id: &str) -> Result<Option<RunRecord>> {
+    let mut stmt = conn.prepare(
+        r#"
+        SELECT
+          run_id, session_id, status, model_provider, model_id, started_at, ended_at, error_text,
+          usage_json, created_at
+        FROM runs
+        WHERE session_id = ?1
+        ORDER BY COALESCE(started_at, created_at) DESC, created_at DESC, run_id DESC
+        LIMIT 1
+        "#,
+    )?;
+    Ok(stmt
+        .query_row(params![session_id], map_run_row)
+        .optional()?)
+}
+
+fn load_all_projects(conn: &Connection) -> Result<Vec<ProjectRecord>> {
+    let mut stmt = conn.prepare(
+        r#"
+        SELECT
+          project_id, goal_id, slug, name, summary, status, owner_agent_id, workspace_root,
+          budget_month_usd, created_at, updated_at
+        FROM projects
+        "#,
+    )?;
+    let rows = stmt.query_map([], map_project_row)?;
+    let mut items = Vec::new();
+    for row in rows {
+        items.push(row?);
+    }
+    Ok(items)
+}
+
+fn ensure_goal_exists(conn: &Connection, goal_id: &str) -> Result<()> {
+    let exists = conn
+        .query_row(
+            "SELECT 1 FROM goals WHERE goal_id = ?1 LIMIT 1",
+            params![goal_id],
+            |_| Ok(()),
+        )
+        .optional()?
+        .is_some();
+    if exists {
+        Ok(())
+    } else {
+        anyhow::bail!("goal does not exist: {goal_id}");
+    }
+}
+
+fn ensure_project_exists(conn: &Connection, project_id: &str) -> Result<()> {
+    let exists = conn
+        .query_row(
+            "SELECT 1 FROM projects WHERE project_id = ?1 LIMIT 1",
+            params![project_id],
+            |_| Ok(()),
+        )
+        .optional()?
+        .is_some();
+    if exists {
+        Ok(())
+    } else {
+        anyhow::bail!("project does not exist: {project_id}");
+    }
+}
+
+fn validate_optional_owner_agent(
+    _storage: &Storage,
+    conn: &Connection,
+    owner_agent_id: Option<&str>,
+) -> Result<()> {
+    if let Some(agent_id) = owner_agent_id {
+        let exists = conn
+            .query_row(
+                "SELECT 1 FROM agents WHERE agent_id = ?1 LIMIT 1",
+                params![agent_id],
+                |_| Ok(()),
+            )
+            .optional()?
+            .is_some();
+        if !exists {
+            anyhow::bail!("agent does not exist: {agent_id}");
+        }
+    }
+    Ok(())
+}
+
+fn validate_agent_manager_assignment(
+    conn: &Connection,
+    agent_id: &str,
+    reports_to_agent_id: Option<&str>,
+) -> Result<()> {
+    let Some(manager_id) = reports_to_agent_id else {
+        return Ok(());
+    };
+    if manager_id == agent_id {
+        anyhow::bail!("reports_to_agent_id cannot reference the same agent");
+    }
+    let mut current = Some(manager_id.to_string());
+    while let Some(candidate) = current {
+        if candidate == agent_id {
+            anyhow::bail!("agent hierarchy cycle detected");
+        }
+        current = get_agent_with_conn(conn, &candidate)?
+            .map(|record| record.reports_to_agent_id)
+            .flatten();
+        if current.is_none()
+            && get_agent_with_conn(conn, &candidate)?.is_none()
+        {
+            anyhow::bail!("reports_to_agent_id does not exist: {manager_id}");
+        }
+    }
+    Ok(())
+}
+
+fn validate_goal_status(status: &str) -> Result<()> {
+    match status.trim() {
+        GOAL_STATUS_ACTIVE | GOAL_STATUS_AT_RISK | GOAL_STATUS_COMPLETED | GOAL_STATUS_ARCHIVED => {
+            Ok(())
+        }
+        _ => anyhow::bail!("invalid goal status"),
+    }
+}
+
+fn validate_project_status(status: &str) -> Result<()> {
+    match status.trim() {
+        PROJECT_STATUS_ACTIVE
+        | PROJECT_STATUS_BLOCKED
+        | PROJECT_STATUS_COMPLETED
+        | PROJECT_STATUS_ARCHIVED => Ok(()),
+        _ => anyhow::bail!("invalid project status"),
+    }
+}
+
+fn validate_task_status(status: &str) -> Result<()> {
+    match status.trim() {
+        TASK_STATUS_TODO
+        | TASK_STATUS_IN_PROGRESS
+        | TASK_STATUS_BLOCKED
+        | TASK_STATUS_DONE
+        | TASK_STATUS_ARCHIVED => Ok(()),
+        _ => anyhow::bail!("invalid task status"),
+    }
+}
+
+fn validate_task_priority(priority: &str) -> Result<()> {
+    match priority.trim() {
+        TASK_PRIORITY_LOW | TASK_PRIORITY_NORMAL | TASK_PRIORITY_HIGH | TASK_PRIORITY_CRITICAL => {
+            Ok(())
+        }
+        _ => anyhow::bail!("invalid task priority"),
+    }
+}
+
+fn validate_project_workspace_root(workspace_root: Option<&str>) -> Result<()> {
+    let Some(value) = workspace_root else {
+        return Ok(());
+    };
+    let trimmed = value.trim();
+    if trimmed.is_empty() || trimmed == "." || Path::new(trimmed).is_absolute() {
+        return Ok(());
+    }
+    anyhow::bail!("workspace_root must be null, '.', or an absolute path");
+}
+
+fn validate_budget_month_usd(value: Option<f64>) -> Result<()> {
+    let Some(value) = value else {
+        return Ok(());
+    };
+    if value < 0.0 {
+        anyhow::bail!("budget_month_usd must be non-negative");
+    }
+    let cents = value * 100.0;
+    if (cents.round() - cents).abs() > 1e-9 {
+        anyhow::bail!("budget_month_usd supports at most two decimal places");
+    }
+    Ok(())
+}
+
+fn validate_task_parent(
+    conn: &Connection,
+    project_id: &str,
+    parent_task_id: Option<&str>,
+    current_task_id: Option<&str>,
+) -> Result<()> {
+    let Some(parent_task_id) = parent_task_id else {
+        return Ok(());
+    };
+    if Some(parent_task_id) == current_task_id {
+        anyhow::bail!("task cannot parent itself");
+    }
+    let parent = get_task_with_conn(conn, parent_task_id)?
+        .context("parent task does not exist")?;
+    if parent.project_id != project_id {
+        anyhow::bail!("parent task must belong to the same project");
+    }
+    let mut cursor = parent.parent_task_id.clone();
+    while let Some(ancestor_id) = cursor {
+        if Some(ancestor_id.as_str()) == current_task_id {
+            anyhow::bail!("task hierarchy cycle detected");
+        }
+        cursor = get_task_with_conn(conn, &ancestor_id)?
+            .and_then(|item| item.parent_task_id);
+    }
+    Ok(())
+}
+
+fn normalize_blocked_reason(
+    status: &str,
+    blocked_reason: Option<String>,
+) -> Result<Option<String>> {
+    if status.trim() == TASK_STATUS_BLOCKED {
+        let normalized = blocked_reason
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .context("blocked_reason is required when task status is blocked")?;
+        return Ok(Some(normalized));
+    }
+    Ok(None)
+}
+
+fn has_open_tasks_in_project(conn: &Connection, project_id: &str) -> Result<bool> {
+    let count: i64 = conn.query_row(
+        r#"
+        SELECT COUNT(1)
+        FROM tasks
+        WHERE project_id = ?1
+          AND status IN (?2, ?3, ?4)
+        "#,
+        params![project_id, TASK_STATUS_TODO, TASK_STATUS_IN_PROGRESS, TASK_STATUS_BLOCKED],
+        |row| row.get(0),
+    )?;
+    Ok(count > 0)
+}
+
+fn normalize_management_slug(raw: &str) -> Result<String> {
+    let slug = raw.trim().to_ascii_lowercase();
+    if slug.len() < 3 || slug.len() > 64 {
+        anyhow::bail!("slug must be 3..64 characters");
+    }
+    if !slug
+        .chars()
+        .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '-')
+    {
+        anyhow::bail!("slug must contain only a-z, 0-9, or '-'");
+    }
+    Ok(slug)
+}
+
+fn normalize_preset_key(raw: &str) -> Result<String> {
+    let key = raw.trim().to_ascii_lowercase();
+    if key.len() < 3 || key.len() > 64 {
+        anyhow::bail!("preset_key must be 3..64 characters");
+    }
+    if !key
+        .chars()
+        .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || matches!(ch, '-' | '_'))
+    {
+        anyhow::bail!("preset_key must contain only a-z, 0-9, '-' or '_'");
+    }
+    Ok(key)
+}
+
+fn validate_bootstrap_preset_provider(
+    provider_path: &str,
+    default_model_provider: Option<&str>,
+) -> Result<()> {
+    let provider_path = provider_path.trim();
+    match provider_path {
+        "openai" => {
+            if let Some(provider) = default_model_provider {
+                if provider.trim() != "openai" {
+                    anyhow::bail!("openai presets require default_model_provider=openai");
+                }
+            }
+        }
+        "anthropic" => {
+            if let Some(provider) = default_model_provider {
+                if provider.trim() != "anthropic" {
+                    anyhow::bail!("anthropic presets require default_model_provider=anthropic");
+                }
+            }
+        }
+        "local" => {}
+        _ => anyhow::bail!("provider_path must be one of: openai, anthropic, local"),
+    }
+    Ok(())
+}
+
+fn goal_matches_filter(record: &GoalRecord, filter: &GoalListFilter) -> bool {
+    if let Some(status) = filter.status.as_deref() {
+        if record.status != status {
+            return false;
+        }
+    } else if record.status == GOAL_STATUS_ARCHIVED {
+        return false;
+    }
+    if let Some(owner_agent_id) = filter.owner_agent_id.as_deref() {
+        if record.owner_agent_id.as_deref() != Some(owner_agent_id) {
+            return false;
+        }
+    }
+    record_matches_query(filter.query.as_deref(), &[&record.slug, &record.title, &record.summary])
+}
+
+fn project_matches_filter(record: &ProjectRecord, filter: &ProjectListFilter) -> bool {
+    if let Some(goal_id) = filter.goal_id.as_deref() {
+        if record.goal_id != goal_id {
+            return false;
+        }
+    }
+    if let Some(status) = filter.status.as_deref() {
+        if record.status != status {
+            return false;
+        }
+    } else if record.status == PROJECT_STATUS_ARCHIVED {
+        return false;
+    }
+    if let Some(owner_agent_id) = filter.owner_agent_id.as_deref() {
+        if record.owner_agent_id.as_deref() != Some(owner_agent_id) {
+            return false;
+        }
+    }
+    record_matches_query(filter.query.as_deref(), &[&record.slug, &record.name, &record.summary])
+}
+
+fn task_matches_filter(
+    record: &TaskRecord,
+    filter: &TaskListFilter,
+    project_goal_by_id: &std::collections::HashMap<String, String>,
+    hierarchy_agent_ids: Option<&std::collections::HashSet<String>>,
+) -> bool {
+    if let Some(project_id) = filter.project_id.as_deref() {
+        if record.project_id != project_id {
+            return false;
+        }
+    }
+    if let Some(goal_id) = filter.goal_id.as_deref() {
+        if project_goal_by_id.get(&record.project_id).map(String::as_str) != Some(goal_id) {
+            return false;
+        }
+    }
+    if let Some(status) = filter.status.as_deref() {
+        if record.status != status {
+            return false;
+        }
+    } else if record.status == TASK_STATUS_ARCHIVED {
+        return false;
+    }
+    if let Some(owner_agent_id) = filter.owner_agent_id.as_deref() {
+        if record.owner_agent_id.as_deref() != Some(owner_agent_id) {
+            return false;
+        }
+    }
+    if let Some(blocked) = filter.blocked {
+        if blocked != (record.status == TASK_STATUS_BLOCKED) {
+            return false;
+        }
+    }
+    if let Some(unassigned) = filter.unassigned {
+        if unassigned != record.owner_agent_id.is_none() {
+            return false;
+        }
+    }
+    if let Some(stale) = filter.stale {
+        if stale != is_task_stale(record, filter.now_ms) {
+            return false;
+        }
+    }
+    if let Some(agent_ids) = hierarchy_agent_ids {
+        if filter.hierarchy_scope.as_deref() == Some("subtree") {
+            let Some(owner_agent_id) = record.owner_agent_id.as_ref() else {
+                return false;
+            };
+            if !agent_ids.contains(owner_agent_id) {
+                return false;
+            }
+        }
+    }
+    record_matches_query(filter.query.as_deref(), &[&record.title, &record.detail])
+}
+
+fn bootstrap_preset_matches_filter(
+    record: &BootstrapPresetRecord,
+    filter: &BootstrapPresetListFilter,
+) -> bool {
+    record_matches_query(
+        filter.query.as_deref(),
+        &[&record.preset_key, &record.display_name, &record.description, &record.role_label],
+    )
+}
+
+fn record_matches_query(query: Option<&str>, fields: &[&str]) -> bool {
+    let Some(query) = query.map(str::trim).filter(|value| !value.is_empty()) else {
+        return true;
+    };
+    let query = query.to_ascii_lowercase();
+    fields
+        .iter()
+        .any(|field| field.to_ascii_lowercase().contains(&query))
+}
+
+fn sort_records_by_updated<T, F>(
+    items: &mut [T],
+    sort: Option<&str>,
+    key_fn: F,
+) -> Result<()>
+where
+    F: Fn(&T) -> (i64, &str),
+{
+    match sort.unwrap_or("updated_at_desc") {
+        "updated_at_desc" => items.sort_by(|left, right| {
+            let left_key = key_fn(left);
+            let right_key = key_fn(right);
+            right_key
+                .0
+                .cmp(&left_key.0)
+                .then_with(|| left_key.1.cmp(right_key.1))
+        }),
+        "updated_at_asc" => items.sort_by(|left, right| {
+            let left_key = key_fn(left);
+            let right_key = key_fn(right);
+            left_key
+                .0
+                .cmp(&right_key.0)
+                .then_with(|| left_key.1.cmp(right_key.1))
+        }),
+        other => anyhow::bail!("unsupported sort: {other}"),
+    }
+    Ok(())
+}
+
+fn page_records<T, F>(
+    items: Vec<T>,
+    limit: u32,
+    cursor: Option<&str>,
+    key_fn: F,
+) -> Result<PageResult<T>>
+where
+    F: Fn(&T) -> (i64, &str),
+{
+    let limit = limit.clamp(1, 200) as usize;
+    let cursor = decode_page_cursor(cursor)?;
+    let start = if let Some((updated_at, record_id)) = cursor {
+        items.iter()
+            .position(|item| {
+                let key = key_fn(item);
+                key.0 == updated_at && key.1 == record_id
+            })
+            .map(|index| index + 1)
+            .unwrap_or(0)
+    } else {
+        0
+    };
+    let mut window = items.into_iter().skip(start).take(limit + 1).collect::<Vec<_>>();
+    let next_cursor = if window.len() > limit {
+        window.pop();
+        window
+            .last()
+            .map(|item| {
+                let key = key_fn(item);
+                encode_page_cursor(key.0, key.1)
+            })
+    } else {
+        None
+    };
+    Ok(PageResult {
+        items: window.into_iter().take(limit).collect(),
+        next_cursor,
+    })
+}
+
+fn decode_page_cursor(cursor: Option<&str>) -> Result<Option<(i64, String)>> {
+    let Some(cursor) = cursor.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(None);
+    };
+    let (updated_at, record_id) = cursor
+        .split_once(':')
+        .context("cursor must be formatted as '<updated_at>:<record_id>'")?;
+    let updated_at = updated_at
+        .parse::<i64>()
+        .context("cursor updated_at must be an integer")?;
+    Ok(Some((updated_at, record_id.to_string())))
+}
+
+fn encode_page_cursor(updated_at: i64, record_id: &str) -> String {
+    format!("{updated_at}:{record_id}")
+}
+
+fn is_task_stale(record: &TaskRecord, now_ms: i64) -> bool {
+    !matches!(record.status.as_str(), TASK_STATUS_DONE | TASK_STATUS_ARCHIVED)
+        && now_ms.saturating_sub(record.updated_at) > STRATEGY_STALE_THRESHOLD_MS
+}
+
+fn agent_subtree_ids(conn: &Connection, root_agent_id: &str) -> Result<std::collections::HashSet<String>> {
+    let mut stmt = conn.prepare(
+        r#"
+        SELECT
+          agent_id, name, workspace_root, model_provider, model_id, tool_profile,
+          reports_to_agent_id, role_label, created_at, updated_at
+        FROM agents
+        "#,
+    )?;
+    let rows = stmt.query_map([], map_agent_row)?;
+    let mut children_by_parent: std::collections::HashMap<Option<String>, Vec<String>> =
+        std::collections::HashMap::new();
+    let mut exists = false;
+    for row in rows {
+        let record = row?;
+        if record.agent_id == root_agent_id {
+            exists = true;
+        }
+        children_by_parent
+            .entry(record.reports_to_agent_id.clone())
+            .or_default()
+            .push(record.agent_id);
+    }
+    if !exists {
+        anyhow::bail!("hierarchy_root_agent_id does not exist");
+    }
+    let mut ids = std::collections::HashSet::new();
+    let mut stack = vec![root_agent_id.to_string()];
+    while let Some(agent_id) = stack.pop() {
+        if !ids.insert(agent_id.clone()) {
+            continue;
+        }
+        if let Some(children) = children_by_parent.get(&Some(agent_id)) {
+            stack.extend(children.iter().cloned());
+        }
+    }
+    Ok(ids)
+}
+
+fn find_task_id_by_link_target(
+    conn: &Connection,
+    column_name: &str,
+    target_id: &str,
+) -> Result<Option<String>> {
+    let query = match column_name {
+        "linked_board_card_id" => {
+            "SELECT task_id FROM tasks WHERE linked_board_card_id = ?1 LIMIT 1"
+        }
+        "linked_job_id" => "SELECT task_id FROM tasks WHERE linked_job_id = ?1 LIMIT 1",
+        _ => anyhow::bail!("unsupported task link lookup column"),
+    };
+    Ok(conn
+        .query_row(query, params![target_id], |row| row.get::<_, String>(0))
+        .optional()?)
+}
+
+fn resolve_board_runtime_candidate(
+    conn: &Connection,
+    card_id: &str,
+) -> Result<Option<RuntimeCandidate>> {
+    let mut stmt = conn.prepare(
+        r#"
+        SELECT
+          card_id, board_id, column_id, title, description, owner_kind, owner_agent_id, owner_human_id,
+          due_at, tags_json, script_markdown, linked_session_id, latest_run_id, position, created_at, updated_at, archived_at
+        FROM board_cards
+        WHERE card_id = ?1
+          AND archived_at IS NULL
+        "#,
+    )?;
+    let card = stmt
+        .query_row(params![card_id], map_board_card_row)
+        .optional()?;
+    let Some(card) = card else {
+        return Ok(None);
+    };
+    let run = match card.latest_run_id.as_deref() {
+        Some(run_id) => get_run_with_conn(conn, run_id)?,
+        None => None,
+    };
+    Ok(Some(RuntimeCandidate {
+        latest_run_id: card.latest_run_id,
+        latest_session_id: card.linked_session_id,
+        sort_ms: run
+            .as_ref()
+            .map(|item| item.started_at.unwrap_or(item.created_at))
+            .unwrap_or(0),
+    }))
+}
+
+fn resolve_job_runtime_candidate(conn: &Connection, job_id: &str) -> Result<Option<RuntimeCandidate>> {
+    let Some(job) = get_job_with_conn(conn, job_id)? else {
+        return Ok(None);
+    };
+    let payload: serde_json::Value = serde_json::from_str(&job.payload_json).unwrap_or_default();
+    let Some(session_id) = payload
+        .get("session_id")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+    else {
+        return Ok(None);
+    };
+    let latest_run = latest_run_for_session_with_conn(conn, &session_id)?;
+    Ok(Some(RuntimeCandidate {
+        latest_run_id: latest_run.as_ref().map(|item| item.run_id.clone()),
+        latest_session_id: Some(session_id),
+        sort_ms: latest_run
+            .as_ref()
+            .map(|item| item.started_at.unwrap_or(item.created_at))
+            .unwrap_or(0),
+    }))
+}
+
+fn select_runtime_link(
+    board_candidate: Option<RuntimeCandidate>,
+    job_candidate: Option<RuntimeCandidate>,
+) -> TaskRuntimeLinkRecord {
+    let selected = match (board_candidate, job_candidate) {
+        (Some(left), Some(right)) => {
+            if right.sort_ms > left.sort_ms {
+                right
+            } else {
+                left
+            }
+        }
+        (Some(candidate), None) | (None, Some(candidate)) => candidate,
+        (None, None) => RuntimeCandidate {
+            latest_run_id: None,
+            latest_session_id: None,
+            sort_ms: 0,
+        },
+    };
+    TaskRuntimeLinkRecord {
+        latest_run_id: selected.latest_run_id,
+        latest_session_id: selected.latest_session_id,
+    }
+}
+
+fn get_run_with_conn(conn: &Connection, run_id: &str) -> Result<Option<RunRecord>> {
+    let mut stmt = conn.prepare(
+        r#"
+        SELECT
+          run_id, session_id, status, model_provider, model_id, started_at, ended_at, error_text,
+          usage_json, created_at
+        FROM runs
+        WHERE run_id = ?1
+        "#,
+    )?;
+    Ok(stmt
+        .query_row(params![run_id], map_run_row)
+        .optional()?)
+}
+
 fn map_agent_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<AgentRecord> {
     Ok(AgentRecord {
         agent_id: row.get(0)?,
@@ -4921,8 +6724,77 @@ fn map_agent_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<AgentRecord> {
         model_provider: row.get(3)?,
         model_id: row.get(4)?,
         tool_profile: row.get(5)?,
-        created_at: row.get(6)?,
-        updated_at: row.get(7)?,
+        reports_to_agent_id: row.get(6)?,
+        role_label: row.get(7)?,
+        created_at: row.get(8)?,
+        updated_at: row.get(9)?,
+    })
+}
+
+fn map_goal_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<GoalRecord> {
+    Ok(GoalRecord {
+        goal_id: row.get(0)?,
+        slug: row.get(1)?,
+        title: row.get(2)?,
+        summary: row.get(3)?,
+        status: row.get(4)?,
+        owner_agent_id: row.get(5)?,
+        target_date: row.get(6)?,
+        created_at: row.get(7)?,
+        updated_at: row.get(8)?,
+    })
+}
+
+fn map_project_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<ProjectRecord> {
+    Ok(ProjectRecord {
+        project_id: row.get(0)?,
+        goal_id: row.get(1)?,
+        slug: row.get(2)?,
+        name: row.get(3)?,
+        summary: row.get(4)?,
+        status: row.get(5)?,
+        owner_agent_id: row.get(6)?,
+        workspace_root: row.get(7)?,
+        budget_month_usd: row.get(8)?,
+        created_at: row.get(9)?,
+        updated_at: row.get(10)?,
+    })
+}
+
+fn map_task_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<TaskRecord> {
+    Ok(TaskRecord {
+        task_id: row.get(0)?,
+        project_id: row.get(1)?,
+        parent_task_id: row.get(2)?,
+        title: row.get(3)?,
+        detail: row.get(4)?,
+        status: row.get(5)?,
+        priority: row.get(6)?,
+        owner_agent_id: row.get(7)?,
+        due_at: row.get(8)?,
+        blocked_reason: row.get(9)?,
+        linked_board_card_id: row.get(10)?,
+        linked_job_id: row.get(11)?,
+        created_at: row.get(12)?,
+        updated_at: row.get(13)?,
+    })
+}
+
+fn map_bootstrap_preset_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<BootstrapPresetRecord> {
+    Ok(BootstrapPresetRecord {
+        preset_key: row.get(0)?,
+        display_name: row.get(1)?,
+        description: row.get(2)?,
+        role_label: row.get(3)?,
+        provider_path: row.get(4)?,
+        default_model_provider: row.get(5)?,
+        default_model_id: row.get(6)?,
+        default_tool_profile: row.get(7)?,
+        default_workspace_root: row.get(8)?,
+        default_reports_to_agent_id: row.get(9)?,
+        setup_notes: row.get(10)?,
+        created_at: row.get(11)?,
+        updated_at: row.get(12)?,
     })
 }
 
@@ -5276,6 +7148,7 @@ fn now_ms() -> i64 {
 }
 
 const MIGRATION_0001: &str = include_str!("../../../migrations/0001_init.sql");
+const MIGRATION_0002: &str = include_str!("../../../migrations/0002_strategy_phase1.sql");
 
 #[cfg(test)]
 mod tests {
@@ -6309,6 +8182,8 @@ mod tests {
                 model_provider: "mock".to_string(),
                 model_id: "mock-echo-v1".to_string(),
                 tool_profile: "default".to_string(),
+                reports_to_agent_id: None,
+                role_label: None,
             })
             .expect("create removable agent");
         assert_eq!(created.agent_id, "Delete-Me");
@@ -6332,6 +8207,8 @@ mod tests {
                 model_provider: "mock".to_string(),
                 model_id: "mock-echo-v1".to_string(),
                 tool_profile: "default".to_string(),
+                reports_to_agent_id: None,
+                role_label: None,
             })
             .expect("create session-bound agent");
         storage
@@ -6784,6 +8661,8 @@ mod tests {
                 model_provider: "openai".to_string(),
                 model_id: "gpt-4.1".to_string(),
                 tool_profile: "default".to_string(),
+                reports_to_agent_id: None,
+                role_label: None,
             })
             .expect("create worker agent");
         let worker_session = storage
