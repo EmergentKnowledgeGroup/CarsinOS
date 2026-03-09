@@ -161,7 +161,7 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
     ).toBeVisible();
 
     await page.locator('[data-tour-id="nav-boards"]').click();
-    await page.getByText("Investigate gateway health").first().click();
+    await page.locator(".mc-card", { hasText: "Investigate gateway health" }).first().click();
     await expect(page.locator(".mc-board-strategy-panel")).toBeVisible();
     await page.getByRole("button", { name: "Open in Strategy" }).click();
     await expect(page.getByTestId("strategy-page")).toBeVisible();
