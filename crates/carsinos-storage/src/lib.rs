@@ -31,6 +31,8 @@ pub fn init(paths: &AppPaths) -> Result<()> {
     Ok(())
 }
 
+type MigrationAppliedCheck = fn(&Connection) -> Result<bool>;
+
 fn ensure_dirs(paths: &AppPaths) -> Result<()> {
     std::fs::create_dir_all(&paths.root).context("failed to create state root")?;
     std::fs::create_dir_all(&paths.attachments_dir)
@@ -40,20 +42,28 @@ fn ensure_dirs(paths: &AppPaths) -> Result<()> {
 }
 
 fn migrate(db_path: &Path) -> Result<()> {
-    let conn = Connection::open(db_path)
-        .with_context(|| format!("failed to open sqlite db at {}", db_path.display()))?;
-    conn.execute_batch(MIGRATION_0001)
-        .context("failed applying initial migration")?;
-    ensure_agent_hierarchy_columns(&conn)?;
-    conn.execute_batch(MIGRATION_0002)
-        .context("failed applying strategy migration")?;
-    ensure_bootstrap_preset_manager_column(&conn)?;
+    let mut conn = open_sqlite_connection(db_path)?;
+    ensure_schema_migrations_table(&conn)?;
+    apply_sql_migration(&mut conn, 1, MIGRATION_0001, "initial schema", None)?;
+    apply_sql_migration(
+        &mut conn,
+        2,
+        MIGRATION_0002,
+        "strategy phase 1 schema",
+        None,
+    )?;
+    apply_sql_migration(
+        &mut conn,
+        3,
+        MIGRATION_0003,
+        "strategy hierarchy cleanup",
+        Some(migration_0003_already_applied),
+    )?;
     Ok(())
 }
 
 fn seed_default_entities(db_path: &Path) -> Result<()> {
-    let mut conn = Connection::open(db_path)
-        .with_context(|| format!("failed to open sqlite db at {}", db_path.display()))?;
+    let mut conn = open_sqlite_connection(db_path)?;
     let tx = conn
         .transaction()
         .context("failed to start default-entity seed transaction")?;
@@ -105,32 +115,84 @@ fn seed_default_entities(db_path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn ensure_agent_hierarchy_columns(conn: &Connection) -> Result<()> {
-    if !column_exists(conn, "agents", "reports_to_agent_id")? {
-        conn.execute(
-            "ALTER TABLE agents ADD COLUMN reports_to_agent_id TEXT REFERENCES agents(agent_id)",
-            [],
-        )
-        .context("failed adding agents.reports_to_agent_id column")?;
-    }
-    if !column_exists(conn, "agents", "role_label")? {
-        conn.execute("ALTER TABLE agents ADD COLUMN role_label TEXT", [])
-            .context("failed adding agents.role_label column")?;
-    }
+fn open_sqlite_connection(db_path: &Path) -> Result<Connection> {
+    let conn = Connection::open(db_path)
+        .with_context(|| format!("failed to open sqlite db at {}", db_path.display()))?;
+    conn.pragma_update(None, "foreign_keys", "ON")
+        .with_context(|| {
+            format!(
+                "failed enabling sqlite foreign keys at {}",
+                db_path.display()
+            )
+        })?;
+    Ok(conn)
+}
+
+fn ensure_schema_migrations_table(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+          version INTEGER PRIMARY KEY,
+          applied_at INTEGER NOT NULL
+        );
+        "#,
+    )
+    .context("failed ensuring schema_migrations table")?;
     Ok(())
 }
 
-fn ensure_bootstrap_preset_manager_column(conn: &Connection) -> Result<()> {
-    if !column_exists(conn, "bootstrap_presets", "default_reports_to_agent_id")? {
-        conn.execute(
-            "ALTER TABLE bootstrap_presets ADD COLUMN default_reports_to_agent_id TEXT",
-            [],
-        )
-        .context("failed adding bootstrap_presets.default_reports_to_agent_id column")?;
-    } else if bootstrap_preset_manager_has_agent_fk(conn)? {
-        rebuild_bootstrap_presets_without_manager_fk(conn)?;
+fn apply_sql_migration(
+    conn: &mut Connection,
+    version: i64,
+    sql: &str,
+    label: &str,
+    already_applied: Option<MigrationAppliedCheck>,
+) -> Result<()> {
+    if migration_recorded(conn, version)? {
+        return Ok(());
     }
+    if let Some(check) = already_applied {
+        if check(conn)? {
+            record_migration(conn, version)?;
+            return Ok(());
+        }
+    }
+    let tx = conn
+        .transaction()
+        .with_context(|| format!("failed to start migration {version:04} transaction"))?;
+    tx.execute_batch(sql)
+        .with_context(|| format!("failed applying migration {version:04} ({label})"))?;
+    record_migration(&tx, version)?;
+    tx.commit()
+        .with_context(|| format!("failed to commit migration {version:04} ({label})"))?;
     Ok(())
+}
+
+fn migration_recorded(conn: &Connection, version: i64) -> Result<bool> {
+    let recorded = conn
+        .query_row(
+            "SELECT 1 FROM schema_migrations WHERE version = ?1 LIMIT 1",
+            params![version],
+            |_| Ok(()),
+        )
+        .optional()?
+        .is_some();
+    Ok(recorded)
+}
+
+fn record_migration(conn: &Connection, version: i64) -> Result<()> {
+    conn.execute(
+        "INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?1, ?2)",
+        params![version, now_ms()],
+    )
+    .with_context(|| format!("failed recording migration {version:04}"))?;
+    Ok(())
+}
+
+fn migration_0003_already_applied(conn: &Connection) -> Result<bool> {
+    Ok(column_exists(conn, "agents", "reports_to_agent_id")?
+        && column_exists(conn, "agents", "role_label")?
+        && !bootstrap_preset_manager_has_agent_fk(conn)?)
 }
 
 fn bootstrap_preset_manager_has_agent_fk(conn: &Connection) -> Result<bool> {
@@ -147,65 +209,6 @@ fn bootstrap_preset_manager_has_agent_fk(conn: &Connection) -> Result<bool> {
         }
     }
     Ok(false)
-}
-
-fn rebuild_bootstrap_presets_without_manager_fk(conn: &Connection) -> Result<()> {
-    conn.execute_batch(
-        r#"
-        BEGIN IMMEDIATE;
-        CREATE TABLE bootstrap_presets_rebuild (
-          preset_key TEXT PRIMARY KEY,
-          display_name TEXT NOT NULL,
-          description TEXT NOT NULL DEFAULT '',
-          role_label TEXT NOT NULL,
-          provider_path TEXT NOT NULL,
-          default_model_provider TEXT,
-          default_model_id TEXT,
-          default_tool_profile TEXT,
-          default_workspace_root TEXT,
-          default_reports_to_agent_id TEXT,
-          setup_notes TEXT,
-          created_at INTEGER NOT NULL,
-          updated_at INTEGER NOT NULL
-        );
-        INSERT INTO bootstrap_presets_rebuild (
-          preset_key,
-          display_name,
-          description,
-          role_label,
-          provider_path,
-          default_model_provider,
-          default_model_id,
-          default_tool_profile,
-          default_workspace_root,
-          default_reports_to_agent_id,
-          setup_notes,
-          created_at,
-          updated_at
-        )
-        SELECT
-          preset_key,
-          display_name,
-          description,
-          role_label,
-          provider_path,
-          default_model_provider,
-          default_model_id,
-          default_tool_profile,
-          default_workspace_root,
-          default_reports_to_agent_id,
-          setup_notes,
-          created_at,
-          updated_at
-        FROM bootstrap_presets;
-        DROP TABLE bootstrap_presets;
-        ALTER TABLE bootstrap_presets_rebuild RENAME TO bootstrap_presets;
-        CREATE INDEX IF NOT EXISTS idx_bootstrap_presets_updated
-        ON bootstrap_presets(updated_at DESC, preset_key ASC);
-        COMMIT;
-        "#,
-    )
-    .context("failed rebuilding bootstrap_presets without manager foreign key")
 }
 
 fn column_exists(conn: &Connection, table_name: &str, column_name: &str) -> Result<bool> {
@@ -2144,13 +2147,14 @@ impl Storage {
         {
             return self.get_project(project_id);
         }
-        let conn = self.connect()?;
-        let current = match get_project_with_conn(&conn, project_id)? {
+        let mut conn = self.connect()?;
+        let tx = conn.transaction()?;
+        let current = match get_project_with_conn(&tx, project_id)? {
             Some(record) => record,
             None => return Ok(None),
         };
         let next_goal_id = patch.goal_id.unwrap_or(current.goal_id);
-        ensure_goal_exists(&conn, &next_goal_id)?;
+        ensure_goal_exists(&tx, &next_goal_id)?;
         let next_slug = match patch.slug {
             Some(value) => normalize_management_slug(&value)?,
             None => current.slug,
@@ -2162,15 +2166,14 @@ impl Storage {
         let next_workspace_root = patch.workspace_root.unwrap_or(current.workspace_root);
         let next_budget_month_usd = patch.budget_month_usd.unwrap_or(current.budget_month_usd);
         validate_project_status(&next_status)?;
-        validate_optional_owner_agent(self, &conn, next_owner_agent_id.as_deref())?;
+        validate_optional_owner_agent(self, &tx, next_owner_agent_id.as_deref())?;
         validate_project_workspace_root(next_workspace_root.as_deref())?;
         validate_budget_month_usd(next_budget_month_usd)?;
-        if next_status == PROJECT_STATUS_COMPLETED && has_open_tasks_in_project(&conn, project_id)?
-        {
+        if next_status == PROJECT_STATUS_COMPLETED && has_open_tasks_in_project(&tx, project_id)? {
             anyhow::bail!("project cannot be completed while it has open tasks");
         }
         let now = now_ms();
-        let updated = conn.execute(
+        let updated = tx.execute(
             r#"
             UPDATE projects
             SET goal_id = ?1,
@@ -2200,7 +2203,10 @@ impl Storage {
         if updated == 0 {
             return Ok(None);
         }
-        self.get_project(project_id)
+        let updated_project = get_project_with_conn(&tx, project_id)?
+            .context("updated project could not be reloaded")?;
+        tx.commit().context("failed to commit project update")?;
+        Ok(Some(updated_project))
     }
 
     pub fn list_tasks(&self, filter: TaskListFilter) -> Result<PageResult<TaskRecord>> {
@@ -2251,21 +2257,28 @@ impl Storage {
     }
 
     pub fn create_task(&self, new_task: NewTask) -> Result<TaskRecord> {
-        let conn = self.connect()?;
-        ensure_project_accepts_task_changes(&conn, &new_task.project_id)?;
-        validate_optional_owner_agent(self, &conn, new_task.owner_agent_id.as_deref())?;
-        validate_task_status(&new_task.status)?;
-        validate_task_priority(&new_task.priority)?;
-        validate_task_parent(
-            &conn,
-            &new_task.project_id,
-            new_task.parent_task_id.as_deref(),
-            None,
-        )?;
-        let blocked_reason = normalize_blocked_reason(&new_task.status, new_task.blocked_reason)?;
+        let NewTask {
+            project_id,
+            parent_task_id,
+            title,
+            detail,
+            status,
+            priority,
+            owner_agent_id,
+            due_at,
+            blocked_reason,
+        } = new_task;
+        let mut conn = self.connect()?;
+        let tx = conn.transaction()?;
+        ensure_project_accepts_task_changes(&tx, &project_id)?;
+        validate_optional_owner_agent(self, &tx, owner_agent_id.as_deref())?;
+        validate_task_status(&status)?;
+        validate_task_priority(&priority)?;
+        validate_task_parent(&tx, &project_id, parent_task_id.as_deref(), None)?;
+        let blocked_reason = normalize_blocked_reason(&status, blocked_reason)?;
         let task_id = uuid::Uuid::new_v4().to_string();
         let now = now_ms();
-        conn.execute(
+        tx.execute(
             r#"
             INSERT INTO tasks (
               task_id, project_id, parent_task_id, title, detail, status, priority, owner_agent_id,
@@ -2273,23 +2286,25 @@ impl Storage {
             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, NULL, NULL, ?11, ?12)
             "#,
             params![
-                task_id,
-                new_task.project_id,
-                new_task.parent_task_id,
-                new_task.title.trim(),
-                new_task.detail.trim(),
-                new_task.status.trim(),
-                new_task.priority.trim(),
-                new_task.owner_agent_id,
-                new_task.due_at,
+                task_id.as_str(),
+                project_id,
+                parent_task_id,
+                title.trim(),
+                detail.trim(),
+                status.trim(),
+                priority.trim(),
+                owner_agent_id,
+                due_at,
                 blocked_reason,
                 now,
                 now
             ],
         )
         .context("failed to create task")?;
-        self.get_task(&task_id)?
-            .context("created task could not be reloaded")
+        let created =
+            get_task_with_conn(&tx, &task_id)?.context("created task could not be reloaded")?;
+        tx.commit().context("failed to commit task creation")?;
+        Ok(created)
     }
 
     pub fn update_task(&self, task_id: &str, patch: TaskUpdatePatch) -> Result<Option<TaskRecord>> {
@@ -2305,16 +2320,17 @@ impl Storage {
         {
             return self.get_task(task_id);
         }
-        let conn = self.connect()?;
-        let current = match get_task_with_conn(&conn, task_id)? {
+        let mut conn = self.connect()?;
+        let tx = conn.transaction()?;
+        let current = match get_task_with_conn(&tx, task_id)? {
             Some(record) => record,
             None => return Ok(None),
         };
         let next_project_id = patch
             .project_id
             .unwrap_or_else(|| current.project_id.clone());
-        ensure_project_accepts_task_changes(&conn, &next_project_id)?;
-        ensure_task_project_move_is_safe(&conn, task_id, &current.project_id, &next_project_id)?;
+        ensure_project_accepts_task_changes(&tx, &next_project_id)?;
+        ensure_task_project_move_is_safe(&tx, task_id, &current.project_id, &next_project_id)?;
         let next_parent_task_id = patch.parent_task_id.unwrap_or(current.parent_task_id);
         let next_title = patch.title.unwrap_or(current.title);
         let next_detail = patch.detail.unwrap_or(current.detail);
@@ -2326,17 +2342,17 @@ impl Storage {
             &next_status,
             patch.blocked_reason.unwrap_or(current.blocked_reason),
         )?;
-        validate_optional_owner_agent(self, &conn, next_owner_agent_id.as_deref())?;
+        validate_optional_owner_agent(self, &tx, next_owner_agent_id.as_deref())?;
         validate_task_status(&next_status)?;
         validate_task_priority(&next_priority)?;
         validate_task_parent(
-            &conn,
+            &tx,
             &next_project_id,
             next_parent_task_id.as_deref(),
             Some(task_id),
         )?;
         let now = now_ms();
-        let updated = conn.execute(
+        let updated = tx.execute(
             r#"
             UPDATE tasks
             SET project_id = ?1,
@@ -2368,7 +2384,10 @@ impl Storage {
         if updated == 0 {
             return Ok(None);
         }
-        self.get_task(task_id)
+        let updated_task =
+            get_task_with_conn(&tx, task_id)?.context("updated task could not be reloaded")?;
+        tx.commit().context("failed to commit task update")?;
+        Ok(Some(updated_task))
     }
 
     pub fn link_task_board_card(
@@ -5953,8 +5972,7 @@ impl Storage {
     }
 
     fn connect(&self) -> Result<Connection> {
-        Connection::open(&self.db_path)
-            .with_context(|| format!("failed to open sqlite db at {}", self.db_path.display()))
+        open_sqlite_connection(&self.db_path)
     }
 
     fn session_exists(&self, conn: &Connection, session_id: &str) -> Result<bool> {
@@ -6638,7 +6656,7 @@ where
                 key.0 == updated_at && key.1 == record_id
             })
             .map(|index| index + 1)
-            .unwrap_or(0)
+            .context("cursor does not match an existing record")?
     } else {
         0
     };
@@ -7278,6 +7296,7 @@ fn now_ms() -> i64 {
 
 const MIGRATION_0001: &str = include_str!("../../../migrations/0001_init.sql");
 const MIGRATION_0002: &str = include_str!("../../../migrations/0002_strategy_phase1.sql");
+const MIGRATION_0003: &str = include_str!("../../../migrations/0003_strategy_schema_cleanup.sql");
 
 #[cfg(test)]
 mod tests {
@@ -8258,7 +8277,7 @@ mod tests {
         let temp_dir = TempDir::new().expect("tempdir");
         let paths = AppPaths::from_root(temp_dir.path().to_path_buf());
         std::fs::create_dir_all(&paths.root).expect("create root");
-        let conn = Connection::open(&paths.db_path).expect("open legacy db");
+        let conn = open_sqlite_connection(&paths.db_path).expect("open legacy db");
         conn.execute_batch(
             r#"
             CREATE TABLE IF NOT EXISTS agents (
@@ -8277,7 +8296,7 @@ mod tests {
         drop(conn);
 
         init(&paths).expect("upgrade init");
-        let conn = Connection::open(&paths.db_path).expect("open upgraded db");
+        let conn = open_sqlite_connection(&paths.db_path).expect("open upgraded db");
         for table in [
             "auth_profiles",
             "notes",
@@ -8298,6 +8317,41 @@ mod tests {
                 .is_some();
             assert!(exists, "expected migrated table: {}", table);
         }
+        assert!(
+            column_exists(&conn, "agents", "reports_to_agent_id").expect("query reports_to column"),
+            "expected migrated column: agents.reports_to_agent_id"
+        );
+        assert!(
+            column_exists(&conn, "agents", "role_label").expect("query role_label column"),
+            "expected migrated column: agents.role_label"
+        );
+        assert!(
+            !bootstrap_preset_manager_has_agent_fk(&conn)
+                .expect("query bootstrap preset manager foreign key"),
+            "bootstrap preset manager column should not enforce a local agent foreign key"
+        );
+        let foreign_keys_enabled = conn
+            .query_row("PRAGMA foreign_keys", [], |row| row.get::<_, i64>(0))
+            .expect("query foreign_keys pragma");
+        assert_eq!(
+            foreign_keys_enabled, 1,
+            "sqlite foreign keys should be enabled"
+        );
+    }
+
+    #[test]
+    fn storage_connections_enable_foreign_keys() {
+        let (_temp_dir, storage) = test_storage();
+        let conn = storage
+            .connect()
+            .expect("open configured storage connection");
+        let foreign_keys_enabled = conn
+            .query_row("PRAGMA foreign_keys", [], |row| row.get::<_, i64>(0))
+            .expect("query foreign_keys pragma");
+        assert_eq!(
+            foreign_keys_enabled, 1,
+            "sqlite foreign keys should be enabled"
+        );
     }
 
     #[test]
