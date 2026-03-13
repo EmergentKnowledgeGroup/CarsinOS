@@ -19,6 +19,26 @@ use tokio::net::TcpListener;
 use tokio::time::{sleep, timeout, Duration};
 use tokio_tungstenite::tungstenite::Message;
 
+async fn bind_default_agent_memory_lane(gateway: &GatewayProcess, base_url: &str) -> Result<()> {
+    let response = gateway
+        .request(Method::POST, "/api/v1/agents/default")
+        .json(&json!({
+            "memory_binding": {
+                "binding_id": "default_numquam",
+                "provider_kind": "modelnumquamoblita",
+                "base_url": base_url,
+                "auth_mode": "none",
+                "enabled": true,
+                "trusted_local_operator_actions": true
+            }
+        }))
+        .send()
+        .await
+        .context("bind default agent memory lane request failed")?;
+    assert_eq!(response.status(), StatusCode::OK);
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn full_http_flow_persists_across_restart() -> Result<()> {
     let state_dir = TempDir::new().context("failed to create temp state directory")?;
@@ -481,6 +501,7 @@ async fn numquam_http_integration_wires_context_writeback_and_approval_process_l
         ],
     )
     .await?;
+    bind_default_agent_memory_lane(&gateway, integration_base_url.as_str()).await?;
 
     let created_session = gateway
         .request(Method::POST, "/api/v1/sessions")

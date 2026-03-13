@@ -96,6 +96,256 @@ export interface Agent {
   tool_profile?: string;
   reports_to_agent_id?: string | null;
   role_label?: string | null;
+  memory_binding?: AgentMemoryBindingResponse | null;
+}
+
+export interface AgentMemoryBindingResponse {
+  binding_id: string;
+  provider_kind: string;
+  base_url: string;
+  auth_mode: string;
+  auth_secret_ref?: string | null;
+  principal_id?: string | null;
+  principal_display_name?: string | null;
+  enabled: boolean;
+  trusted_local_operator_actions: boolean;
+}
+
+export interface AgentMemoryBindingRequest {
+  binding_id?: string;
+  provider_kind?: string;
+  base_url?: string;
+  auth_mode?: string;
+  auth_secret_ref?: string | null;
+  principal_id?: string | null;
+  principal_display_name?: string | null;
+  enabled?: boolean;
+  trusted_local_operator_actions?: boolean;
+}
+
+export interface UpdateAgentMemoryBindingRequest {
+  binding_id?: string;
+  provider_kind?: string;
+  base_url?: string;
+  auth_mode?: string;
+  auth_secret_ref?: string | null;
+  principal_id?: string | null;
+  principal_display_name?: string | null;
+  enabled?: boolean;
+  trusted_local_operator_actions?: boolean;
+}
+
+export interface AgentMemoryNativeSurfaceAvailabilityResponse {
+  cards: boolean;
+  card_detail: boolean;
+  atom_detail: boolean;
+  graph_overview: boolean;
+  graph_neighbors: boolean;
+  episodes: boolean;
+  turn_why: boolean;
+  citation_lookup: boolean;
+  runtime_health: boolean;
+  telemetry_summary: boolean;
+  telemetry_turns: boolean;
+  decision_reasons: boolean;
+}
+
+export interface AgentMemoryOrchestrationStatusResponse {
+  enabled: boolean;
+  transport: string;
+  health_status: string;
+  degrade_mode: boolean;
+  last_error_code: string | null;
+  last_error: string | null;
+}
+
+export interface AgentMemoryStatusResponse {
+  agent_id: string;
+  binding_status: string;
+  binding?: AgentMemoryBindingResponse | null;
+  native_surface_availability: AgentMemoryNativeSurfaceAvailabilityResponse;
+  orchestration: AgentMemoryOrchestrationStatusResponse;
+  native_runtime_status: Record<string, unknown> | null;
+  native_runtime_health_mismatch: boolean;
+}
+
+export interface GetAgentMemoryStatusResponse {
+  status: AgentMemoryStatusResponse;
+}
+
+export interface AgentMemoryJsonPayloadResponse<T = unknown> {
+  agent_id: string;
+  binding_id: string;
+  data: T;
+}
+
+export interface AgentMemoryCardSummary {
+  atom_id: string;
+  card_id?: string;
+  kind: string;
+  status?: string;
+  summary?: string;
+  contradiction?: string;
+  distance?: number;
+  via_edge_kind?: string;
+  [key: string]: unknown;
+}
+
+export interface AgentMemoryGraphLink {
+  source: string;
+  target: string;
+  kind: string;
+  [key: string]: unknown;
+}
+
+export interface AgentMemoryCardsPayload {
+  ok: boolean;
+  total: number;
+  cards: AgentMemoryCardSummary[];
+}
+
+export interface AgentMemoryCardDetailPayload {
+  ok: boolean;
+  card: AgentMemoryCardSummary & Record<string, unknown>;
+  atom?: Record<string, unknown> | null;
+  provenance_events?: Array<Record<string, unknown>>;
+  graph?: {
+    nodes?: AgentMemoryCardSummary[];
+    links?: AgentMemoryGraphLink[];
+    [key: string]: unknown;
+  } | null;
+}
+
+export interface AgentMemoryAtomDetailPayload {
+  ok: boolean;
+  atom: Record<string, unknown>;
+  card?: AgentMemoryCardSummary | null;
+  graph?: {
+    nodes?: AgentMemoryCardSummary[];
+    links?: AgentMemoryGraphLink[];
+    [key: string]: unknown;
+  } | null;
+}
+
+export interface AgentMemoryEpisodeSummary {
+  episode_id: string;
+  label?: string;
+  status?: string;
+  run_id?: string;
+  card_id?: string;
+  updated_at_utc?: string;
+  [key: string]: unknown;
+}
+
+export interface AgentMemoryEpisodesPayload {
+  ok: boolean;
+  total: number;
+  episodes: AgentMemoryEpisodeSummary[];
+}
+
+export interface AgentMemoryGraphMapPayload {
+  ok: boolean;
+  total: number;
+  nodes: AgentMemoryCardSummary[];
+  links: AgentMemoryGraphLink[];
+  truncated: boolean;
+  snapshot_available?: boolean;
+}
+
+export interface AgentMemoryGraphNeighborsPayload {
+  ok: boolean;
+  node: AgentMemoryCardSummary;
+  neighbors: AgentMemoryCardSummary[];
+  links: AgentMemoryGraphLink[];
+  depth: number;
+  node_limit: number;
+  link_limit: number;
+  requests_used: number;
+  truncated: boolean;
+  truncation?: {
+    node_limit_hit?: boolean;
+    link_limit_hit?: boolean;
+    request_budget_hit?: boolean;
+    dropped_shared_language?: boolean;
+    [key: string]: unknown;
+  };
+}
+
+export interface AgentMemoryWhyReason {
+  label?: string;
+  detail?: string;
+  [key: string]: unknown;
+}
+
+export interface AgentMemoryWhyEvidence {
+  source_id?: string;
+  excerpt?: string;
+  confidence?: number;
+  [key: string]: unknown;
+}
+
+export interface AgentMemoryWhyCitation {
+  token?: string;
+  citation_token?: string;
+  label?: string;
+  source_id?: string;
+  [key: string]: unknown;
+}
+
+export interface AgentMemoryTurnWhyPayload {
+  ok: boolean;
+  why: {
+    decision?: string;
+    decision_reason?: string;
+    evidence_time_window?: string;
+    top_evidence?: AgentMemoryWhyEvidence[];
+    reasons?: AgentMemoryWhyReason[];
+    citations?: AgentMemoryWhyCitation[];
+    citations_hidden?: boolean;
+    [key: string]: unknown;
+  };
+}
+
+export interface AgentMemoryCitationMatch {
+  line_number?: number;
+  excerpt?: string;
+  [key: string]: unknown;
+}
+
+export interface AgentMemoryCitationPayload {
+  ok: boolean;
+  citation?: string;
+  source_id?: string;
+  matches?: AgentMemoryCitationMatch[];
+  [key: string]: unknown;
+}
+
+export interface AgentMemoryRuntimeHealthPayload {
+  ok: boolean;
+  status: string;
+  checked_at?: string;
+  checks?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}
+
+export interface AgentMemoryTelemetrySummaryPayload {
+  ok: boolean;
+  limit: number;
+  summary: Array<Record<string, unknown>>;
+}
+
+export interface AgentMemoryTelemetryTurnsPayload {
+  ok: boolean;
+  limit: number;
+  turns: Array<Record<string, unknown>>;
+  warn_turns?: Array<Record<string, unknown>>;
+}
+
+export interface AgentMemoryDecisionReasonsPayload {
+  ok: boolean;
+  routes?: Array<Record<string, unknown>>;
+  memory_preferences?: Array<Record<string, unknown>>;
+  reasons?: Array<Record<string, unknown>>;
 }
 
 export interface CreateAgentResponse {
@@ -256,6 +506,144 @@ export interface StrategySummaryResponse {
   goal_progress: StrategyGoalProgressItemResponse[];
   critical_approval_backlog_count: number;
   critical_approval_backlog: StrategyApprovalBacklogItemResponse[];
+}
+
+export interface RunbookDeepLinkTargetResponse {
+  tab: string;
+  target_kind: string;
+  target_id: string | null;
+  context: string | null;
+}
+
+export interface RunbookEntityRefResponse {
+  entity_kind: string;
+  entity_id: string;
+  display_label: string;
+  deep_link: RunbookDeepLinkTargetResponse;
+}
+
+export interface RunbookExecutionRefResponse {
+  entity_kind: string;
+  entity_id: string;
+  created_at_ms: number;
+  started_at_ms: number | null;
+  waiting_since_ms: number | null;
+  finished_at_ms: number | null;
+}
+
+export interface RunbookDataAvailabilityResponse {
+  is_limited: boolean;
+  is_stale: boolean;
+  last_refresh_at_ms: number;
+  missing_source_kinds: string[];
+  stale_reason: string | null;
+}
+
+export interface RunbookWarningResponse {
+  warning_id: string;
+  warning_kind: string;
+  message: string;
+}
+
+export interface RunbookSourceFactResponse {
+  fact_id: string;
+  fact_kind: string;
+  entity_ref: RunbookEntityRefResponse | null;
+  occurred_at_ms: number | null;
+  partial: boolean;
+}
+
+export interface RunbookActionResponse {
+  action_id: string;
+  action_kind: string;
+  label: string;
+  availability: string;
+  disabled_reason: string | null;
+  target_entity_ref: RunbookEntityRefResponse | null;
+}
+
+export interface RunbookStepResponse {
+  step_id: string;
+  label: string;
+  kind: string;
+  state: string;
+  state_reason: string | null;
+  started_at_ms: number | null;
+  finished_at_ms: number | null;
+  waiting_since_ms: number | null;
+  linked_entity_refs: RunbookEntityRefResponse[];
+  action_refs: string[];
+  template_index: number;
+}
+
+export interface RunbookHistoryItemResponse {
+  history_id: string;
+  event_kind: string;
+  label: string;
+  detail: string | null;
+  occurred_at_ms: number;
+  step_id: string | null;
+  entity_refs: RunbookEntityRefResponse[];
+}
+
+export interface RunbookStatusCountsResponse {
+  pending: number;
+  active: number;
+  waiting: number;
+  blocked: number;
+  failed: number;
+  completed: number;
+  limited: number;
+}
+
+export interface RunbookSummaryItemResponse {
+  runbook_id: string;
+  runbook_kind: string;
+  anchor_kind: string;
+  anchor_id: string;
+  title: string;
+  status: string;
+  status_reason: string | null;
+  owner_agent_id: string | null;
+  owner_agent_label: string | null;
+  primary_entity_label: string;
+  updated_at_ms: number;
+  current_step_label: string | null;
+  warning_count: number;
+  linked_entities: RunbookEntityRefResponse[];
+  availability: RunbookDataAvailabilityResponse;
+}
+
+export interface ListRunbooksResponse {
+  generated_at_ms: number;
+  items: RunbookSummaryItemResponse[];
+  counts_by_status: RunbookStatusCountsResponse;
+  next_cursor: string | null;
+}
+
+export interface RunbookDetailResponse {
+  runbook_id: string;
+  runbook_kind: string;
+  template_id: string;
+  template_version: string;
+  anchor_kind: string;
+  anchor_id: string;
+  title: string;
+  status: string;
+  status_reason: string | null;
+  generated_at_ms: number;
+  selected_execution_ref: RunbookExecutionRefResponse | null;
+  active_step_id: string | null;
+  next_step_ids: string[];
+  linked_entities: RunbookEntityRefResponse[];
+  steps: RunbookStepResponse[];
+  history: RunbookHistoryItemResponse[];
+  actions: RunbookActionResponse[];
+  source_facts: RunbookSourceFactResponse[];
+  availability: RunbookDataAvailabilityResponse;
+  warnings: RunbookWarningResponse[];
+  owner_agent_id: string | null;
+  owner_agent_label: string | null;
 }
 
 export interface BootstrapPresetResponse {
@@ -920,4 +1308,312 @@ export interface CreateAgentMailFileLeaseResponse {
 
 export interface ReleaseAgentMailFileLeaseResponse {
   lease: AgentMailFileLeaseResponse;
+}
+
+export interface ListConnectorCatalogRequest {
+  source_kind?: string;
+  query?: string;
+}
+
+export interface ConnectorCatalogItemResponse {
+  catalog_item_id: string;
+  slug: string;
+  display_name: string;
+  source_kind: string;
+  summary: string;
+  publisher: string;
+  trust_class: string;
+  available_versions: string[];
+  marketplace_origin: string | null;
+  importable: boolean;
+  future_marketplace_metadata: unknown;
+}
+
+export interface ListConnectorCatalogResponse {
+  contract_version: string;
+  items: ConnectorCatalogItemResponse[];
+}
+
+export interface ListConnectorsRequest {
+  source_kind?: string;
+  status?: string;
+  trust_state?: string;
+  query?: string;
+  include_disabled?: boolean;
+}
+
+export interface ConnectorSourceResponse {
+  connector_id: string;
+  slug: string;
+  display_name: string;
+  source_kind: string;
+  origin_kind: string;
+  catalog_item_id: string | null;
+  current_version_id: string | null;
+  latest_imported_version_id: string | null;
+  status: string;
+  trust_state: string;
+  assigned_agent_count: number;
+  published_tool_count: number;
+  last_conversion_at: number | null;
+  last_review_at: number | null;
+  last_enabled_at: number | null;
+  last_disabled_at: number | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ConnectorVersionResponse {
+  version_id: string;
+  connector_id: string;
+  version_label: string;
+  source_digest: string;
+  raw_source_location: string | null;
+  import_metadata: unknown;
+  schema_summary: unknown;
+  latest_conversion_id: string | null;
+  external_reference_policy: string;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ConnectorWarningResponse {
+  code: string;
+  message: string;
+  blocking: boolean;
+  field?: string | null;
+}
+
+export interface ConnectorProposedToolResponse {
+  candidate_id: string;
+  operation_key: string;
+  proposed_tool_name: string;
+  display_name: string;
+  description?: string | null;
+  input_schema: unknown;
+  write_classification: string;
+  review_blocked: boolean;
+  review_block_reason?: string | null;
+}
+
+export interface ConnectorUnsupportedOperationResponse {
+  operation_key: string;
+  display_name: string;
+  reason: string;
+}
+
+export interface ConnectorConversionResponse {
+  conversion_id: string;
+  connector_id: string;
+  version_id: string;
+  status: string;
+  warnings: ConnectorWarningResponse[];
+  proposed_tools: ConnectorProposedToolResponse[];
+  write_capable_tools: number;
+  unsupported_operations: ConnectorUnsupportedOperationResponse[];
+  normalization_notes: string[];
+  diff_from_previous: unknown;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ConnectorPublishedToolResponse {
+  published_tool_id: string;
+  connector_id: string;
+  version_id: string;
+  conversion_id: string;
+  tool_name: string;
+  display_name: string;
+  tool_schema: unknown;
+  origin_metadata: unknown;
+  write_classification: string;
+  published_at: number;
+  unpublished_at: number | null;
+  superseded_by_published_tool_id: string | null;
+  deprecation_state: string;
+}
+
+export interface ConnectorAssignmentResponse {
+  assignment_id: string;
+  connector_id: string;
+  agent_id: string;
+  enabled: boolean;
+  auth_mode: string;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ConnectorAuthBindingResponse {
+  auth_binding_id: string;
+  connector_id: string;
+  agent_id: string | null;
+  auth_kind: string;
+  secret_ref?: string | null;
+  oauth_session_id?: string | null;
+  status: string;
+  auth_metadata: unknown;
+  last_success_at: number | null;
+  last_error: string | null;
+  last_rotated_at: number | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ConnectorInteractionResponse {
+  interaction_id: string;
+  connector_id: string;
+  agent_id: string | null;
+  interaction_kind: string;
+  status: string;
+  prompt_summary: string;
+  resume_token?: string | null;
+  expires_at: number | null;
+  consumed_at: number | null;
+  detail: unknown;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ConnectorHealthResponse {
+  connector_id: string;
+  status: string;
+  degraded_reason: string | null;
+  auth_required: boolean;
+  last_checked_at: number | null;
+  published_tool_count: number;
+  assigned_agent_count: number;
+}
+
+export interface ListConnectorsResponse {
+  contract_version: string;
+  items: ConnectorSourceResponse[];
+}
+
+export interface GetConnectorResponse {
+  connector: ConnectorSourceResponse;
+  versions: ConnectorVersionResponse[];
+  conversions: ConnectorConversionResponse[];
+  published_tools: ConnectorPublishedToolResponse[];
+  assignments: ConnectorAssignmentResponse[];
+  auth_bindings: ConnectorAuthBindingResponse[];
+  interactions: ConnectorInteractionResponse[];
+}
+
+export interface ImportConnectorRequest {
+  source_kind: string;
+  display_name: string;
+  slug?: string;
+  catalog_item_id?: string;
+  version_label?: string;
+  origin_kind?: string;
+  import_url?: string;
+  source_text?: string;
+  source_json?: unknown;
+  endpoint_url?: string;
+  external_reference_policy?: string;
+}
+
+export interface ImportConnectorResponse {
+  connector: ConnectorSourceResponse;
+  version: ConnectorVersionResponse;
+}
+
+export interface RunConnectorConversionRequest {
+  version_id?: string;
+}
+
+export interface RunConnectorConversionResponse {
+  connector: ConnectorSourceResponse;
+  version: ConnectorVersionResponse;
+  conversion: ConnectorConversionResponse;
+}
+
+export interface ConnectorAliasOverrideRequest {
+  candidate_id: string;
+  alias: string;
+}
+
+export interface PublishConnectorToolsRequest {
+  conversion_id: string;
+  selected_candidate_ids: string[];
+  alias_overrides?: ConnectorAliasOverrideRequest[];
+  enable_after_publish?: boolean;
+}
+
+export interface PublishConnectorToolsResponse {
+  connector: ConnectorSourceResponse;
+  version: ConnectorVersionResponse;
+  published_tools: ConnectorPublishedToolResponse[];
+}
+
+export interface UnpublishConnectorToolsRequest {
+  published_tool_ids: string[];
+}
+
+export interface UnpublishConnectorToolsResponse {
+  connector: ConnectorSourceResponse;
+  published_tools: ConnectorPublishedToolResponse[];
+}
+
+export interface RollbackConnectorVersionRequest {
+  version_id: string;
+}
+
+export interface RollbackConnectorVersionResponse {
+  connector: ConnectorSourceResponse;
+  version: ConnectorVersionResponse;
+  published_tools: ConnectorPublishedToolResponse[];
+}
+
+export interface SetConnectorStateRequest {
+  enabled: boolean;
+}
+
+export interface SetConnectorStateResponse {
+  connector: ConnectorSourceResponse;
+}
+
+export interface SetConnectorAssignmentRequest {
+  agent_id: string;
+  enabled?: boolean;
+  auth_mode?: string;
+}
+
+export interface SetConnectorAssignmentResponse {
+  assignment: ConnectorAssignmentResponse;
+}
+
+export interface UpsertConnectorAuthBindingRequest {
+  agent_id?: string;
+  auth_kind: string;
+  secret_ref?: string;
+  oauth_session_id?: string;
+  auth_metadata?: unknown;
+  status?: string;
+}
+
+export interface UpsertConnectorAuthBindingResponse {
+  binding: ConnectorAuthBindingResponse;
+}
+
+export interface ResumeConnectorInteractionRequest {
+  payload?: unknown;
+}
+
+export interface ResumeConnectorInteractionResponse {
+  interaction: ConnectorInteractionResponse;
+}
+
+export interface ListConnectorInteractionsResponse {
+  contract_version: string;
+  items: ConnectorInteractionResponse[];
+}
+
+export interface GetConnectorHealthResponse {
+  health: ConnectorHealthResponse;
+}
+
+export interface DescribeConnectorToolResponse {
+  connector: ConnectorSourceResponse;
+  published_tool: ConnectorPublishedToolResponse;
 }

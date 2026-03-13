@@ -48,6 +48,7 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
   const [corePrompt, setCorePrompt] = useState(loadCorePrompt);
   const [targetBoardId, setTargetBoardId] = useState(options.boards[0]?.board_id ?? "");
   const [busy, setBusy] = useState(false);
+  const [lastRunId, setLastRunId] = useState<string | null>(null);
   const [lastRunStatus, setLastRunStatus] = useState<string | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
 
@@ -88,6 +89,7 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
     setModelId(selectedAgent.model_id || "");
     setSessionId(null);
     setMessages([]);
+    setLastRunId(null);
     setLastRunStatus(null);
     setLastError(null);
   }, [selectedAgent]);
@@ -138,9 +140,35 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
   const startNewChat = useCallback(() => {
     setSessionId(null);
     setMessages([]);
+    setLastRunId(null);
     setLastRunStatus(null);
     setLastError(null);
   }, []);
+
+  const openSession = useCallback(
+    async (id: string, options?: { runId?: string | null }) => {
+      if (!id.trim()) {
+        return false;
+      }
+      setBusy(true);
+      setLastError(null);
+      try {
+        setSessionId(id);
+        setLastRunId(options?.runId ?? null);
+        setLastRunStatus(null);
+        await refreshMessages(id);
+        return true;
+      } catch (error: unknown) {
+        const text = String(error);
+        setLastError(text);
+        setNotice({ tone: "error", message: `Assistant session load failed: ${text}` });
+        return false;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [refreshMessages, setNotice]
+  );
 
   const injectCorePrompt = useCallback(async () => {
     const prompt = corePrompt.trim();
@@ -186,6 +214,7 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
     setBusy(true);
     setLastError(null);
     setLastRunStatus(null);
+    setLastRunId(null);
     try {
       const id = await ensureSession();
       await createSessionMessage(settings, id, {
@@ -199,6 +228,7 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
         model_id: modelId.trim(),
         auth_profile_id: authProfileId.trim() || undefined,
       });
+      setLastRunId(run.run.run_id);
       setLastRunStatus(run.run.status);
       await refreshMessages(id);
       setDraft("");
@@ -282,10 +312,12 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
     setTargetBoardId,
     lastAssistantMessage,
     busy,
+    lastRunId,
     lastRunStatus,
     lastError,
     send,
     startNewChat,
+    openSession,
     injectCorePrompt,
     sendLastAssistantToBoard,
   };

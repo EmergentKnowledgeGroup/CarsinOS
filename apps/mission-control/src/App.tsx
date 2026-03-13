@@ -19,8 +19,11 @@ import { useAgentMailController } from "./features/agentMail/useAgentMailControl
 import { useAssistantChatController } from "./features/assistant/useAssistantChatController";
 import { useBoardsController } from "./features/boards/useBoardsController";
 import { useCockpitController } from "./features/cockpit/useCockpitController";
+import { useConnectorsController } from "./features/connectors/useConnectorsController";
+import { useMemoryController } from "./features/memory/useMemoryController";
 import { OnboardingWizard } from "./features/onboarding/OnboardingWizard";
 import { useOnboardingController } from "./features/onboarding/useOnboardingController";
+import { useRunbookController } from "./features/runbook/useRunbookController";
 import { useStrategyController } from "./features/strategy/useStrategyController";
 import { SafeModePanel } from "./ui/SafeModePanel";
 import { ToastStack } from "./ui/Toast";
@@ -117,6 +120,27 @@ const GUIDED_TOUR_STEPS: GuidedTourStepDef[] = [
     body: "Track goals, projects, blocked work, stale work, ownership, and approval-linked tasks here.",
   },
   {
+    id: "runbook",
+    tab: "runbook",
+    targetId: "nav-runbook",
+    title: "Runbook = execution truth map",
+    body: "Use Runbook to inspect the canonical flow, linked artifacts, active step, and next valid step for real work already in the system.",
+  },
+  {
+    id: "memory",
+    tab: "memory",
+    targetId: "nav-memory",
+    title: "Memory = assistant memory truth",
+    body: "Use Memory to inspect one assistant-bound MNO lane at a time: cards, episodes, graph drilldown, turn why, citations, and runtime health.",
+  },
+  {
+    id: "connectors",
+    tab: "connectors",
+    targetId: "nav-connectors",
+    title: "Connectors = shared tool registry",
+    body: "Use Connectors to import sources, convert them into reviewable tools, publish the safe subset, and assign that same connector surface to every agent that should see it.",
+  },
+  {
     id: "help",
     tab: "help",
     targetId: "nav-help-shortcut",
@@ -189,6 +213,45 @@ export default function App() {
     optionalModulesEnabled && opsConfig.controls.incident_auto_trigger;
   const usageChartsEnabled = optionalModulesEnabled && opsConfig.controls.usage_charts;
   const strategyHubEnabled = optionalModulesEnabled && opsConfig.controls.strategy_hub;
+  const runbookHubEnabled = optionalModulesEnabled && opsConfig.controls.runbook_hub;
+  const memoryHubEnabled = optionalModulesEnabled && opsConfig.controls.memory_hub;
+  const connectorsHubEnabled =
+    optionalModulesEnabled && opsConfig.controls.connectors_hub;
+  const availableTabs = useMemo<MissionControlTab[]>(
+    () =>
+      [
+        "boards",
+        "calendar",
+        "focus",
+        "events",
+        "mail",
+        "chatrooms",
+        "assistant",
+        "team",
+        "cockpit",
+        "strategy",
+        ...(runbookHubEnabled ? (["runbook"] as MissionControlTab[]) : []),
+        ...(memoryHubEnabled ? (["memory"] as MissionControlTab[]) : []),
+        ...(connectorsHubEnabled ? (["connectors"] as MissionControlTab[]) : []),
+      ],
+    [connectorsHubEnabled, memoryHubEnabled, runbookHubEnabled]
+  );
+  const guidedTourSteps = useMemo(
+    () =>
+      GUIDED_TOUR_STEPS.filter((step) => {
+        if (step.id === "runbook" && !runbookHubEnabled) {
+          return false;
+        }
+        if (step.id === "memory" && !memoryHubEnabled) {
+          return false;
+        }
+        if (step.id === "connectors" && !connectorsHubEnabled) {
+          return false;
+        }
+        return true;
+      }),
+    [connectorsHubEnabled, memoryHubEnabled, runbookHubEnabled]
+  );
 
   const patchOpsControls = useCallback(
     (patch: Partial<OpsUxFeatureControls>) => {
@@ -223,6 +286,13 @@ export default function App() {
     tokenConfigured,
     setNotice,
   });
+  const assistantController = useAssistantChatController({
+    settings,
+    tokenConfigured,
+    agents,
+    boards,
+    setNotice,
+  });
 
   const missionControl = useMissionControlController({
     settings,
@@ -236,11 +306,23 @@ export default function App() {
     enabled: strategyHubEnabled,
     setNotice,
   });
-  const assistantController = useAssistantChatController({
+  const runbookController = useRunbookController({
     settings,
-    tokenConfigured,
     agents,
-    boards,
+    enabled: runbookHubEnabled,
+    setNotice,
+  });
+  const memoryController = useMemoryController({
+    settings,
+    agents,
+    enabled: memoryHubEnabled,
+    preferredAgentId: assistantController.selectedAgentId,
+    setNotice,
+  });
+  const connectorsController = useConnectorsController({
+    settings,
+    agents,
+    enabled: connectorsHubEnabled,
     setNotice,
   });
 
@@ -275,8 +357,9 @@ export default function App() {
     refreshBoard: boardsController.refreshBoard,
     setBoard: boardsController.setBoard,
     loadMissionControlReadModels: missionControl.loadMissionControlReadModels,
+    loadRunbookReadModels: runbookController.loadRunbookData,
     loadAgentMailReadModels: mailController.loadAgentMailReadModels,
-    });
+  });
 
   const onboarding = useOnboardingController({
     settings,
@@ -364,14 +447,32 @@ export default function App() {
   }, [onboarding.isOpen]);
 
   useEffect(() => {
+    if (activeTab === "runbook" && !runbookHubEnabled) {
+      setActiveTab("boards");
+    }
+  }, [activeTab, runbookHubEnabled, setActiveTab]);
+
+  useEffect(() => {
+    if (activeTab === "memory" && !memoryHubEnabled) {
+      setActiveTab("boards");
+    }
+  }, [activeTab, memoryHubEnabled, setActiveTab]);
+
+  useEffect(() => {
+    if (activeTab === "connectors" && !connectorsHubEnabled) {
+      setActiveTab("boards");
+    }
+  }, [activeTab, connectorsHubEnabled, setActiveTab]);
+
+  useEffect(() => {
     if (!guidedTourOpen) {
       return;
     }
-    const step = GUIDED_TOUR_STEPS[guidedTourStep];
+    const step = guidedTourSteps[guidedTourStep];
     if (step?.tab) {
       setActiveTab(step.tab);
     }
-  }, [guidedTourOpen, guidedTourStep, setActiveTab]);
+  }, [guidedTourOpen, guidedTourStep, guidedTourSteps, setActiveTab]);
 
   const visibleEvents = useMemo(
     () => filterVisibleEvents(eventStream, showRawEvents),
@@ -551,6 +652,8 @@ export default function App() {
       ) {
         queueMissionControlRefresh(settings);
         strategyController.queueRefresh(settings);
+        runbookController.queueRefresh(settings);
+        connectorsController.queueRefresh();
       }
       if (isAgentMailEvent) {
         queueAgentMailRefresh(settings);
@@ -576,6 +679,8 @@ export default function App() {
       setIncidentModeAutomatically,
       setEventStream,
       settings,
+      connectorsController,
+      runbookController,
       strategyController,
     ]
   );
@@ -591,7 +696,27 @@ export default function App() {
   const refreshAllReadModels = useCallback(() => {
     missionControl.queueMissionControlRefresh(settings);
     strategyController.queueRefresh(settings);
-  }, [missionControl, settings, strategyController]);
+    runbookController.queueRefresh(settings);
+    connectorsController.queueRefresh();
+  }, [
+    connectorsController,
+    missionControl,
+    runbookController,
+    settings,
+    strategyController,
+  ]);
+
+  useEffect(() => {
+    if (!runbookHubEnabled || !assistantController.lastRunId) {
+      return;
+    }
+    runbookController.queueRefresh(settings);
+  }, [
+    assistantController.lastRunId,
+    runbookController,
+    runbookHubEnabled,
+    settings,
+  ]);
 
   if (safeModeReason) {
     return <SafeModePanel reason={safeModeReason} onResume={resumeFromSafeMode} />;
@@ -601,6 +726,7 @@ export default function App() {
     <>
     <AppShell
       activeTab={activeTab}
+      availableTabs={availableTabs}
       onTabChange={setActiveTab}
       healthState={healthState}
       wsState={wsState}
@@ -668,6 +794,7 @@ export default function App() {
       navBadges={{
         focus: missionControl.approvalsById.size,
         mail: mailController.mailThreads.reduce((sum, t) => sum + (t.unread_count ?? 0), 0),
+        connectors: connectorsController.summary.pendingInteractions,
       }}
     >
       <OnboardingWizard controller={onboarding} agents={agents} />
@@ -686,6 +813,9 @@ export default function App() {
         assistantController={assistantController}
         cockpitController={cockpitController}
         strategyController={strategyController}
+        runbookController={runbookController}
+        memoryController={memoryController}
+        connectorsController={connectorsController}
         showRawEvents={showRawEvents}
         setShowRawEvents={setShowRawEvents}
         visibleEvents={visibleEvents}
@@ -698,12 +828,12 @@ export default function App() {
     </AppShell>
     <GuidedTourOverlay
       open={guidedTourOpen}
-      steps={GUIDED_TOUR_STEPS}
+      steps={guidedTourSteps}
       stepIndex={guidedTourStep}
       onPrev={() => setGuidedTourStep((value) => Math.max(0, value - 1))}
       onNext={() => {
         setGuidedTourStep((value) => {
-          if (value + 1 >= GUIDED_TOUR_STEPS.length) {
+          if (value + 1 >= guidedTourSteps.length) {
             closeGuidedTour();
             return value;
           }

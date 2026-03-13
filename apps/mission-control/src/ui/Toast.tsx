@@ -53,7 +53,7 @@ export function ToastStack({ toasts, onDismiss }: ToastStackProps) {
   if (visible.length === 0) return null;
 
   return (
-    <div className="mc-toast-stack">
+    <div className="mc-toast-stack" role="status" aria-live="polite">
       {visible.map((toast) => (
         <ToastEntry key={toast.id} toast={toast} onDismiss={onDismiss} />
       ))}

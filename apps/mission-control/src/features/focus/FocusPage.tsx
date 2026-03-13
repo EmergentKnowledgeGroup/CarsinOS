@@ -1,9 +1,10 @@
 import { useRef, useState } from "react";
 import clsx from "clsx";
-import { AlertCircle, AlertTriangle, CheckCircle, ChevronDown, ChevronRight, Info } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import type {
   ChannelRuntimeAdapterStatusResponse,
   MissionControlFocusItem,
+  RunbookSummaryItemResponse,
   TaskResponse,
 } from "../../types";
 import { Chip } from "../../ui/Chip";
@@ -14,6 +15,7 @@ import { Tabs } from "../../ui/Tabs";
 import { usePagination } from "../../ui/usePagination";
 import { formatDateTime, formatRelative } from "../../utils/datetime";
 import { redactSecrets } from "../../lib/redaction";
+import { RunbookLinkPanel } from "../runbook/RunbookLinkPanel";
 import { StrategyTaskContextPanel } from "../strategy/StrategyTaskContextPanel";
 import type { StrategyTaskContextSnapshot } from "../strategy/useStrategyController";
 
@@ -30,20 +32,6 @@ function formatContextDisplay(value: unknown): string {
     }
   }
   return redactSecrets(String(value));
-}
-
-function SeverityIcon({ severity }: { severity: string }) {
-  switch (severity) {
-    case "critical":
-    case "error":
-      return <AlertTriangle size={14} />;
-    case "warning":
-      return <AlertCircle size={14} />;
-    case "info":
-      return <Info size={14} />;
-    default:
-      return <CheckCircle size={14} />;
-  }
 }
 
 /** Extract human-readable context fields from an approval's action_payload. */
@@ -89,6 +77,11 @@ interface FocusPageProps {
   taskByJobId: Map<string, TaskResponse>;
   describeStrategyTask: (taskId: string) => StrategyTaskContextSnapshot | null;
   onOpenStrategyTask: (taskId: string) => boolean;
+  runbookEnabled: boolean;
+  getRunbookForFocusItem: (
+    item: MissionControlFocusItem
+  ) => RunbookSummaryItemResponse | null;
+  onOpenRunbookForFocusItem: (item: MissionControlFocusItem) => boolean;
 }
 
 export function FocusPage(props: FocusPageProps) {
@@ -168,10 +161,12 @@ export function FocusPage(props: FocusPageProps) {
               const linkedTaskContext = linkedTask
                 ? props.describeStrategyTask(linkedTask.task_id)
                 : null;
+              const linkedRunbook = props.runbookEnabled
+                ? props.getRunbookForFocusItem(item)
+                : null;
               return (
                 <article key={item.item_id} className={clsx("mc-focus-item", item.severity)}>
                   <div className="mc-focus-head">
-                    <SeverityIcon severity={item.severity} />
                     <Chip label={item.severity} tone={item.severity} />
                     <span>{item.category}</span>
                     <span title={formatDateTime(item.created_at)}>{formatRelative(item.created_at)}</span>
@@ -191,6 +186,19 @@ export function FocusPage(props: FocusPageProps) {
                       }
                       emptyMessage={null}
                       openLabel="Open task"
+                    />
+                  ) : null}
+                  {props.runbookEnabled ? (
+                    <RunbookLinkPanel
+                      compact
+                      className="mc-focus-runbook-panel"
+                      summary={linkedRunbook}
+                      emptyMessage={null}
+                      onOpen={
+                        linkedRunbook
+                          ? () => props.onOpenRunbookForFocusItem(item)
+                          : undefined
+                      }
                     />
                   ) : null}
                   {hasContext ? (
@@ -222,6 +230,7 @@ export function FocusPage(props: FocusPageProps) {
                           type="button"
                           disabled={!approvalId || isBusy}
                           aria-disabled={!approvalId || isBusy}
+                          title={!approvalId ? "No approval ID linked" : undefined}
                           onClick={() =>
                             approvalId
                               ? withBusy(item.item_id, () => props.onResolveFocusApproval(approvalId, "approve"))
@@ -235,6 +244,7 @@ export function FocusPage(props: FocusPageProps) {
                           className="danger"
                           disabled={!approvalId || isBusy}
                           aria-disabled={!approvalId || isBusy}
+                          title={!approvalId ? "No approval ID linked" : undefined}
                           onClick={() =>
                             approvalId
                               ? withBusy(item.item_id, () => props.onResolveFocusApproval(approvalId, "deny"))
@@ -250,6 +260,7 @@ export function FocusPage(props: FocusPageProps) {
                         type="button"
                         disabled={!jobId || isBusy}
                         aria-disabled={!jobId || isBusy}
+                        title={!jobId ? "No job ID linked" : undefined}
                         onClick={() =>
                           jobId ? withBusy(item.item_id, () => props.onRunCalendarJobNow(jobId)) : undefined
                         }
@@ -262,6 +273,7 @@ export function FocusPage(props: FocusPageProps) {
                         type="button"
                         disabled={!provider || isBusy}
                         aria-disabled={!provider || isBusy}
+                        title={!provider ? "No provider linked" : undefined}
                         onClick={() =>
                           provider
                             ? withBusy(item.item_id, () => props.onReconnectFocusChannel(provider))
@@ -269,6 +281,14 @@ export function FocusPage(props: FocusPageProps) {
                         }
                       >
                         {isBusy ? "Working..." : "Reconnect Channel"}
+                      </button>
+                    ) : null}
+                    {linkedRunbook ? (
+                      <button
+                        type="button"
+                        onClick={() => props.onOpenRunbookForFocusItem(item)}
+                      >
+                        Open Runbook
                       </button>
                     ) : null}
                   </InlineActions>

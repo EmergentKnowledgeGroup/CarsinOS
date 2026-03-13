@@ -9,7 +9,9 @@ import {
   MessagesSquare,
   Users,
   Gauge,
+  Brain,
   Compass,
+  Workflow,
   AlertTriangle,
   Sun,
   Moon,
@@ -30,7 +32,9 @@ const TAB_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
   "messages-square": MessagesSquare,
   users: Users,
   gauge: Gauge,
+  brain: Brain,
   compass: Compass,
+  workflow: Workflow,
 };
 
 export interface CommandAction {
@@ -43,6 +47,7 @@ export interface CommandAction {
 }
 
 interface CommandPaletteProps {
+  availableTabs: MissionControlTab[];
   open: boolean;
   onClose: () => void;
   onTabChange: (tab: MissionControlTab) => void;
@@ -70,6 +75,7 @@ export function CommandPalette(props: CommandPaletteProps) {
   const {
     currentThemeMode,
     density,
+    availableTabs,
     onClose,
     onOpenSettings,
     onRefresh,
@@ -86,7 +92,9 @@ export function CommandPalette(props: CommandPaletteProps) {
 
   // Build action list
   const actions = useMemo<CommandAction[]>(() => {
-    const navActions: CommandAction[] = MISSION_CONTROL_TABS.map((tab) => ({
+    const navActions: CommandAction[] = MISSION_CONTROL_TABS.filter((tab) =>
+      availableTabs.includes(tab.tab)
+    ).map((tab) => ({
       id: `nav-${tab.tab}`,
       label: `Go to ${tab.label}`,
       hint: tab.shortcut,
@@ -141,6 +149,7 @@ export function CommandPalette(props: CommandPaletteProps) {
   }, [
     currentThemeMode,
     density,
+    availableTabs,
     onOpenSettings,
     onRefresh,
     onTabChange,
@@ -232,6 +241,7 @@ export function CommandPalette(props: CommandPaletteProps) {
             placeholder="Type a command\u2026"
             spellCheck={false}
             autoComplete="off"
+            aria-label="Search commands"
           />
           <kbd className="mc-cmd-esc-hint">esc</kbd>
         </div>

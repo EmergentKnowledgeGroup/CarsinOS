@@ -1,16 +1,37 @@
-import { useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { Compass, Link2, Milestone, ShieldAlert, TimerReset } from "lucide-react";
 import { Modal } from "../../ui/Modal";
 import { Surface } from "../../ui/Surface";
 import { Chip } from "../../ui/Chip";
 import { EmptyState } from "../../ui/EmptyState";
-import type { Agent, GoalResponse, ProjectResponse, TaskResponse } from "../../types";
+import type {
+  Agent,
+  GoalResponse,
+  ProjectResponse,
+  RunbookSummaryItemResponse,
+  TaskResponse,
+} from "../../types";
 import { formatRelative, fromInputDateTimeValue, toInputDateTimeValue } from "../../utils/datetime";
+import { RunbookLinkPanel } from "../runbook/RunbookLinkPanel";
+import {
+  isGoalDraftDirty,
+  isProjectDraftDirty,
+  isTaskDraftDirty,
+} from "./strategyDraftState";
 import type { useStrategyController } from "./useStrategyController";
 
 interface StrategyPageProps {
   controller: ReturnType<typeof useStrategyController>;
   agents: Agent[];
+  runbookEnabled: boolean;
+  selectedTaskRunbook: RunbookSummaryItemResponse | null;
+  onOpenTaskRunbook: (taskId: string) => boolean;
 }
 
 interface GoalFormState {
@@ -221,7 +242,14 @@ function SummaryCard({
   );
 }
 
-export function StrategyPage({ controller, agents }: StrategyPageProps) {
+export function StrategyPage({
+  controller,
+  agents,
+  runbookEnabled,
+  selectedTaskRunbook,
+  onOpenTaskRunbook,
+}: StrategyPageProps) {
+  const selectedTaskId = controller.selectedTask?.task_id ?? null;
   const [goalModalMode, setGoalModalMode] = useState<"create" | "edit" | null>(null);
   const [goalForm, setGoalForm] = useState<GoalFormState>(EMPTY_GOAL_FORM);
   const [goalError, setGoalError] = useState<string | null>(null);
@@ -233,12 +261,108 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
   const [taskError, setTaskError] = useState<string | null>(null);
   const [forceBoardReassign, setForceBoardReassign] = useState(false);
   const [forceJobReassign, setForceJobReassign] = useState(false);
+  const goalBaseline =
+    goalModalMode === "edit" ? hydrateGoalForm(controller.selectedGoal) : EMPTY_GOAL_FORM;
+  const projectBaseline =
+    projectModalMode === "edit"
+      ? hydrateProjectForm(controller.selectedProject, controller.selectedGoalId)
+      : hydrateProjectForm(null, controller.selectedGoalId);
+  const taskBaseline =
+    taskMode === "create"
+      ? hydrateTaskForm(null, controller.selectedProjectId)
+      : hydrateTaskForm(
+          taskForm.task_id
+            ? controller.taskById.get(taskForm.task_id) ?? null
+            : controller.selectedTask,
+          taskForm.project_id || controller.selectedProjectId
+        );
+  const goalDirty =
+    goalModalMode !== null && isGoalDraftDirty(goalForm, goalBaseline);
+  const projectDirty =
+    projectModalMode !== null && isProjectDraftDirty(projectForm, projectBaseline);
+  const taskDirty =
+    taskMode === "create"
+      ? isTaskDraftDirty(taskForm, taskBaseline)
+      : taskForm.task_id !== "" && isTaskDraftDirty(taskForm, taskBaseline);
+  const hasUnsavedStrategyDraft = goalDirty || projectDirty || taskDirty;
   const activeTaskForm =
     taskMode === "edit" &&
     controller.selectedTask &&
-    taskForm.task_id !== controller.selectedTask.task_id
+    taskForm.task_id !== controller.selectedTask.task_id &&
+    !taskDirty
       ? hydrateTaskForm(controller.selectedTask, controller.selectedProjectId)
       : taskForm;
+
+  useEffect(() => {
+    if (!hasUnsavedStrategyDraft) {
+      return;
+    }
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedStrategyDraft]);
+
+  const confirmDiscard = useCallback(
+    (shouldGuard: boolean, message = "Discard unsaved Strategy changes?") => {
+      if (!shouldGuard) {
+        return true;
+      }
+      return window.confirm(message);
+    },
+    []
+  );
+
+  const discardTaskDraft = useCallback(() => {
+    setTaskError(null);
+    setTaskMode("edit");
+    setTaskForm(hydrateTaskForm(controller.selectedTask, controller.selectedProjectId));
+  }, [controller.selectedProjectId, controller.selectedTask]);
+
+  const runWithTaskDraftGuard = useCallback(
+    (action: () => void, message = "Discard the current Strategy task draft?") => {
+      if (!confirmDiscard(taskDirty, message)) {
+        return;
+      }
+      if (taskDirty) {
+        discardTaskDraft();
+      }
+      action();
+    },
+    [confirmDiscard, discardTaskDraft, taskDirty]
+  );
+
+  const runWithAnyDraftGuard = useCallback(
+    (action: () => void, message = "Discard unsaved Strategy changes?") => {
+      if (!confirmDiscard(hasUnsavedStrategyDraft, message)) {
+        return;
+      }
+      if (goalDirty) {
+        setGoalError(null);
+        setGoalForm(goalBaseline);
+      }
+      if (projectDirty) {
+        setProjectError(null);
+        setProjectForm(projectBaseline);
+      }
+      if (taskDirty) {
+        discardTaskDraft();
+      }
+      action();
+    },
+    [
+      confirmDiscard,
+      discardTaskDraft,
+      goalBaseline,
+      goalDirty,
+      hasUnsavedStrategyDraft,
+      projectBaseline,
+      projectDirty,
+      taskDirty,
+    ]
+  );
 
   const updateTaskForm = (
     updater: (current: TaskFormState) => TaskFormState
@@ -465,7 +589,7 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
             controller.summary?.blocked_tasks[0]?.title ??
             "No blocked tasks in the active management set."
           }
-          onClick={() => controller.applySummaryLens("blocked")}
+          onClick={() => runWithTaskDraftGuard(() => controller.applySummaryLens("blocked"))}
         />
         <SummaryCard
           icon={<TimerReset size={14} />}
@@ -475,7 +599,7 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
             controller.summary?.stale_tasks[0]?.title ??
             "Nothing has crossed the stale threshold."
           }
-          onClick={() => controller.applySummaryLens("stale")}
+          onClick={() => runWithTaskDraftGuard(() => controller.applySummaryLens("stale"))}
         />
         <SummaryCard
           icon={<Compass size={14} />}
@@ -489,11 +613,13 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
           onClick={
             topAgentSpend
               ? () =>
-                  controller.updateFilters({
-                    owner_agent_id: topAgentSpend.agent_id,
-                    blocked: false,
-                    stale: false,
-                  })
+                  runWithTaskDraftGuard(() =>
+                    controller.updateFilters({
+                      owner_agent_id: topAgentSpend.agent_id,
+                      blocked: false,
+                      stale: false,
+                    })
+                  )
               : undefined
           }
         />
@@ -513,8 +639,10 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
           onClick={
             topProjectSpend
               ? () => {
-                  controller.setSelectedGoalId(topProjectSpend.goal_id);
-                  controller.setSelectedProjectId(topProjectSpend.project_id);
+                  runWithTaskDraftGuard(() => {
+                    controller.setSelectedGoalId(topProjectSpend.goal_id);
+                    controller.setSelectedProjectId(topProjectSpend.project_id);
+                  });
                 }
               : undefined
           }
@@ -530,7 +658,10 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
           }
           onClick={
             lowestProgressGoal
-              ? () => controller.setSelectedGoalId(lowestProgressGoal.goal_id)
+              ? () =>
+                  runWithTaskDraftGuard(() =>
+                    controller.setSelectedGoalId(lowestProgressGoal.goal_id)
+                  )
               : undefined
           }
         />
@@ -548,8 +679,11 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
             const firstLinkedTask = controller.summary?.critical_approval_backlog.find(
               (item) => item.linked_task_id
             );
-            if (firstLinkedTask?.linked_task_id) {
-              controller.openTaskById(firstLinkedTask.linked_task_id);
+            const linkedTaskId = firstLinkedTask?.linked_task_id;
+            if (linkedTaskId) {
+              runWithTaskDraftGuard(() => {
+                controller.openTaskById(linkedTaskId);
+              });
             }
           }}
         />
@@ -566,9 +700,11 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
                 type="button"
                 className="ghost"
                 onClick={() => {
-                  setGoalError(null);
-                  setGoalForm(EMPTY_GOAL_FORM);
-                  setGoalModalMode("create");
+                  runWithAnyDraftGuard(() => {
+                    setGoalError(null);
+                    setGoalForm(EMPTY_GOAL_FORM);
+                    setGoalModalMode("create");
+                  });
                 }}
               >
                 New Goal
@@ -578,11 +714,13 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
                 className="ghost"
                 disabled={!controller.selectedGoalId}
                 onClick={() => {
-                  setProjectError(null);
-                  setProjectForm(
-                    hydrateProjectForm(null, controller.selectedGoalId)
-                  );
-                  setProjectModalMode("create");
+                  runWithAnyDraftGuard(() => {
+                    setProjectError(null);
+                    setProjectForm(
+                      hydrateProjectForm(null, controller.selectedGoalId)
+                    );
+                    setProjectModalMode("create");
+                  });
                 }}
               >
                 New Project
@@ -598,7 +736,9 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
                 className={`mc-strategy-goal-card${
                   goal.goal_id === controller.selectedGoalId ? " is-active" : ""
                 }`}
-                onClick={() => controller.setSelectedGoalId(goal.goal_id)}
+                onClick={() =>
+                  runWithAnyDraftGuard(() => controller.setSelectedGoalId(goal.goal_id))
+                }
               >
                 <div className="mc-strategy-goal-head">
                   <strong>{goal.title}</strong>
@@ -634,9 +774,11 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
                   type="button"
                   className="ghost"
                   onClick={() => {
-                    setGoalError(null);
-                    setGoalForm(hydrateGoalForm(controller.selectedGoal));
-                    setGoalModalMode("edit");
+                    runWithAnyDraftGuard(() => {
+                      setGoalError(null);
+                      setGoalForm(hydrateGoalForm(controller.selectedGoal));
+                      setGoalModalMode("edit");
+                    });
                   }}
                 >
                   Edit Goal
@@ -649,7 +791,11 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
                   className={`mc-strategy-project-card${
                     project.project_id === controller.selectedProjectId ? " is-active" : ""
                   }`}
-                  onClick={() => controller.setSelectedProjectId(project.project_id)}
+                  onClick={() =>
+                    runWithAnyDraftGuard(() =>
+                      controller.setSelectedProjectId(project.project_id)
+                    )
+                  }
                 >
                   <div className="mc-strategy-project-head">
                     <strong>{project.name}</strong>
@@ -682,17 +828,19 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
               <button
                 type="button"
                 className="ghost"
-                onClick={() => controller.applySummaryLens("all")}
+                onClick={() => runWithTaskDraftGuard(() => controller.applySummaryLens("all"))}
               >
                 Clear lens
               </button>
               <button
                 type="button"
-        onClick={() => {
-          setTaskError(null);
-          setTaskMode("create");
-          setTaskForm(hydrateTaskForm(null, controller.selectedProjectId));
-        }}
+                onClick={() => {
+                  runWithTaskDraftGuard(() => {
+                    setTaskError(null);
+                    setTaskMode("create");
+                    setTaskForm(hydrateTaskForm(null, controller.selectedProjectId));
+                  });
+                }}
                 disabled={!controller.selectedProjectId}
               >
                 New Task
@@ -706,7 +854,9 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
               <input
                 value={controller.taskFilters.query}
                 onChange={(event) =>
-                  controller.updateFilters({ query: event.target.value })
+                  runWithTaskDraftGuard(() =>
+                    controller.updateFilters({ query: event.target.value })
+                  )
                 }
                 placeholder="Search tasks, projects, goals, owners"
               />
@@ -716,7 +866,9 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
               <select
                 value={controller.taskFilters.status}
                 onChange={(event) =>
-                  controller.updateFilters({ status: event.target.value })
+                  runWithTaskDraftGuard(() =>
+                    controller.updateFilters({ status: event.target.value })
+                  )
                 }
               >
                 <option value="all">All</option>
@@ -732,7 +884,9 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
               <select
                 value={controller.taskFilters.owner_agent_id}
                 onChange={(event) =>
-                  controller.updateFilters({ owner_agent_id: event.target.value })
+                  runWithTaskDraftGuard(() =>
+                    controller.updateFilters({ owner_agent_id: event.target.value })
+                  )
                 }
               >
                 <option value="">All owners</option>
@@ -748,9 +902,11 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
               <select
                 value={controller.taskFilters.hierarchy_root_agent_id}
                 onChange={(event) =>
-                  controller.updateFilters({
-                    hierarchy_root_agent_id: event.target.value,
-                  })
+                  runWithTaskDraftGuard(() =>
+                    controller.updateFilters({
+                      hierarchy_root_agent_id: event.target.value,
+                    })
+                  )
                 }
               >
                 <option value="">All orgs</option>
@@ -768,8 +924,11 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
               className={`mc-strategy-filter-chip${
                 controller.taskFilters.blocked ? " is-active" : ""
               }`}
+              aria-pressed={controller.taskFilters.blocked}
               onClick={() =>
-                controller.updateFilters({ blocked: !controller.taskFilters.blocked })
+                runWithTaskDraftGuard(() =>
+                  controller.updateFilters({ blocked: !controller.taskFilters.blocked })
+                )
               }
             >
               Blocked
@@ -779,8 +938,11 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
               className={`mc-strategy-filter-chip${
                 controller.taskFilters.stale ? " is-active" : ""
               }`}
+              aria-pressed={controller.taskFilters.stale}
               onClick={() =>
-                controller.updateFilters({ stale: !controller.taskFilters.stale })
+                runWithTaskDraftGuard(() =>
+                  controller.updateFilters({ stale: !controller.taskFilters.stale })
+                )
               }
             >
               Stale
@@ -790,10 +952,13 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
               className={`mc-strategy-filter-chip${
                 controller.taskFilters.unassigned ? " is-active" : ""
               }`}
+              aria-pressed={controller.taskFilters.unassigned}
               onClick={() =>
-                controller.updateFilters({
-                  unassigned: !controller.taskFilters.unassigned,
-                })
+                runWithTaskDraftGuard(() =>
+                  controller.updateFilters({
+                    unassigned: !controller.taskFilters.unassigned,
+                  })
+                )
               }
             >
               Unassigned
@@ -803,10 +968,13 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
               className={`mc-strategy-filter-chip${
                 controller.taskFilters.include_archived ? " is-active" : ""
               }`}
+              aria-pressed={controller.taskFilters.include_archived}
               onClick={() =>
-                controller.updateFilters({
-                  include_archived: !controller.taskFilters.include_archived,
-                })
+                runWithTaskDraftGuard(() =>
+                  controller.updateFilters({
+                    include_archived: !controller.taskFilters.include_archived,
+                  })
+                )
               }
             >
               Include Archived
@@ -814,10 +982,13 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
             <button
               type="button"
               className="mc-strategy-filter-chip"
-              onClick={controller.resetFilters}
+              onClick={() => runWithTaskDraftGuard(controller.resetFilters)}
             >
               Reset
             </button>
+            {controller.isFilterTransitionPending ? (
+              <span className="mc-strategy-filter-pending" aria-label="Filtering\u2026">Filtering\u2026</span>
+            ) : null}
           </div>
 
           <div className="mc-strategy-task-list">
@@ -832,8 +1003,10 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
                     task.task_id === controller.selectedTaskId ? " is-active" : ""
                   }`}
                   onClick={() => {
-                    setTaskMode("edit");
-                    controller.setSelectedTaskId(task.task_id);
+                    runWithTaskDraftGuard(() => {
+                      setTaskMode("edit");
+                      controller.setSelectedTaskId(task.task_id);
+                    });
                   }}
                 >
                   <div className="mc-strategy-task-row-head">
@@ -877,21 +1050,39 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
           }
           headerRight={
             <div className="mc-strategy-inline-actions">
+              {controller.selectedGoal ? (
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
+                    runWithAnyDraftGuard(() => {
+                      setGoalError(null);
+                      setGoalForm(hydrateGoalForm(controller.selectedGoal));
+                      setGoalModalMode("edit");
+                    });
+                  }}
+                >
+                  Edit Goal
+                </button>
+              ) : null}
               {controller.selectedProject ? (
                 <button
                   type="button"
                   className="ghost"
                   onClick={() => {
-                    setProjectError(null);
-                    setProjectForm(
-                      hydrateProjectForm(controller.selectedProject, controller.selectedGoalId)
-                    );
-                    setProjectModalMode("edit");
+                    runWithAnyDraftGuard(() => {
+                      setProjectError(null);
+                      setProjectForm(
+                        hydrateProjectForm(controller.selectedProject, controller.selectedGoalId)
+                      );
+                      setProjectModalMode("edit");
+                    });
                   }}
                 >
                   Edit Project
                 </button>
               ) : null}
+              {taskDirty ? <Chip label="Unsaved draft" tone="warning" /> : null}
               <button type="button" onClick={() => void saveTask()}>
                 {controller.mutating ? "Saving..." : taskMode === "create" ? "Create Task" : "Save Task"}
               </button>
@@ -957,6 +1148,9 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
                       </option>
                     ))}
                   </select>
+                  {activeTaskForm.status !== "blocked" ? (
+                    <small className="mc-strategy-field-hint">Set to &ldquo;blocked&rdquo; to add a blocked reason.</small>
+                  ) : null}
                 </label>
                 <label>
                   Priority
@@ -1083,6 +1277,19 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
                 </label>
               ) : null}
 
+              {runbookEnabled ? (
+                <RunbookLinkPanel
+                  className="mc-strategy-runbook-panel"
+                  summary={selectedTaskRunbook}
+                  emptyMessage="Runbook appears here once this task has linked execution truth."
+                  onOpen={
+                    selectedTaskId
+                      ? () => onOpenTaskRunbook(selectedTaskId)
+                      : undefined
+                  }
+                />
+              ) : null}
+
               <div className="mc-strategy-link-card">
                 <div className="mc-strategy-subheader">
                   <div>
@@ -1159,11 +1366,13 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
                 type="button"
                 className="mc-strategy-metric-row"
                 onClick={() =>
-                  controller.updateFilters({
-                    owner_agent_id: item.agent_id,
-                    blocked: false,
-                    stale: false,
-                  })
+                  runWithTaskDraftGuard(() =>
+                    controller.updateFilters({
+                      owner_agent_id: item.agent_id,
+                      blocked: false,
+                      stale: false,
+                    })
+                  )
                 }
               >
                 <div>
@@ -1187,8 +1396,10 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
                 type="button"
                 className="mc-strategy-metric-row"
                 onClick={() => {
-                  controller.setSelectedGoalId(item.goal_id);
-                  controller.setSelectedProjectId(item.project_id);
+                  runWithTaskDraftGuard(() => {
+                    controller.setSelectedGoalId(item.goal_id);
+                    controller.setSelectedProjectId(item.project_id);
+                  });
                 }}
               >
                 <div>
@@ -1211,7 +1422,9 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
                 key={item.goal_id}
                 type="button"
                 className="mc-strategy-metric-row"
-                onClick={() => controller.setSelectedGoalId(item.goal_id)}
+                onClick={() =>
+                  runWithTaskDraftGuard(() => controller.setSelectedGoalId(item.goal_id))
+                }
               >
                 <div>
                   <strong>{item.title}</strong>
@@ -1241,8 +1454,11 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
                 type="button"
                 className="mc-strategy-metric-row"
                 onClick={() => {
-                  if (item.linked_task_id) {
-                    controller.openTaskById(item.linked_task_id);
+                  const linkedTaskId = item.linked_task_id;
+                  if (linkedTaskId) {
+                    runWithTaskDraftGuard(() => {
+                      controller.openTaskById(linkedTaskId);
+                    });
                   }
                 }}
               >
@@ -1264,12 +1480,26 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
 
       <Modal
         open={goalModalMode !== null}
-        onClose={() => setGoalModalMode(null)}
+        onClose={() => {
+          if (!confirmDiscard(goalDirty)) {
+            return;
+          }
+          setGoalModalMode(null);
+        }}
         title={goalModalMode === "create" ? "Create Goal" : "Edit Goal"}
         width="640px"
         footer={
           <>
-            <button type="button" className="ghost" onClick={() => setGoalModalMode(null)}>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                if (!confirmDiscard(goalDirty)) {
+                  return;
+                }
+                setGoalModalMode(null);
+              }}
+            >
               Cancel
             </button>
             <button type="button" onClick={() => void saveGoal()}>
@@ -1363,12 +1593,26 @@ export function StrategyPage({ controller, agents }: StrategyPageProps) {
 
       <Modal
         open={projectModalMode !== null}
-        onClose={() => setProjectModalMode(null)}
+        onClose={() => {
+          if (!confirmDiscard(projectDirty)) {
+            return;
+          }
+          setProjectModalMode(null);
+        }}
         title={projectModalMode === "create" ? "Create Project" : "Edit Project"}
         width="680px"
         footer={
           <>
-            <button type="button" className="ghost" onClick={() => setProjectModalMode(null)}>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                if (!confirmDiscard(projectDirty)) {
+                  return;
+                }
+                setProjectModalMode(null);
+              }}
+            >
               Cancel
             </button>
             <button type="button" onClick={() => void saveProject()}>

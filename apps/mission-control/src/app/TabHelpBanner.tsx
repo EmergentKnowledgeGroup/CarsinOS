@@ -117,6 +117,36 @@ const HELP_COPY: Record<HelpTab, HelpCopy> = {
       "Link a task to a board card or job when management should trace runtime execution.",
     ],
   },
+  runbook: {
+    title: "Runbook shows the live execution truth",
+    summary:
+      "Use Runbook to inspect active steps, approvals, blockers, failures, linked artifacts, and the next valid move across assistant runs, board cards, jobs, and strategy tasks.",
+    examples: [
+      "Open a blocked strategy task to see whether the real blocker is the task state, an approval wait, or a failed execution.",
+      "Inspect a board card run to follow the exact linked run, approvals, and completion path.",
+      "Use linked artifacts to jump back into Boards, Strategy, Assistant, or Calendar without guessing context.",
+    ],
+  },
+  memory: {
+    title: "Memory inspects one assistant lane at a time",
+    summary:
+      "Use Memory for assistant-bound MNO cards, episodes, graph drilldown, turn why, citations, and runtime health without cross-assistant leakage.",
+    examples: [
+      "Switch assistants to verify the selected lane has the correct MNO binding and health posture.",
+      "Open a graph node to inspect its local neighborhood instead of inventing client-side traversal.",
+      "Select a recent turn, inspect why, then open the citation drilldown for the exact evidence path.",
+    ],
+  },
+  connectors: {
+    title: "Connectors own the shared tool registry",
+    summary:
+      "Use Connectors to import external sources, convert them into reviewable tools, publish the safe subset, and assign that exact tool surface to agents consistently.",
+    examples: [
+      "Paste an OpenAPI document, run conversion, then publish only the operations you want live.",
+      "Enable one connector for Lyra and leave it disabled for other agents until auth is ready.",
+      "Resume a paused auth interaction without losing the connector review state.",
+    ],
+  },
 };
 
 export function TabHelpBanner(props: TabHelpBannerProps) {

@@ -83,6 +83,9 @@ pub trait ChannelAdapterLifecycle: Send + Sync {
     fn start(&self) -> Result<()>;
     fn stop(&self) -> Result<()>;
     fn health(&self) -> ChannelAdapterHealth;
+    fn is_enabled(&self) -> Result<bool> {
+        Ok(true)
+    }
 
     fn reconnect(&self) -> Result<()> {
         self.stop()?;

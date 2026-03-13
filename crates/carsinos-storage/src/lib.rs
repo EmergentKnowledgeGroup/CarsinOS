@@ -59,6 +59,20 @@ fn migrate(db_path: &Path) -> Result<()> {
         "strategy hierarchy cleanup",
         Some(migration_0003_already_applied),
     )?;
+    apply_sql_migration(
+        &mut conn,
+        4,
+        MIGRATION_0004,
+        "assistant memory binding schema",
+        Some(migration_0004_already_applied),
+    )?;
+    apply_sql_migration(
+        &mut conn,
+        5,
+        MIGRATION_0005,
+        "connector registry schema",
+        None,
+    )?;
     Ok(())
 }
 
@@ -193,6 +207,18 @@ fn migration_0003_already_applied(conn: &Connection) -> Result<bool> {
     Ok(column_exists(conn, "agents", "reports_to_agent_id")?
         && column_exists(conn, "agents", "role_label")?
         && !bootstrap_preset_manager_has_agent_fk(conn)?)
+}
+
+fn migration_0004_already_applied(conn: &Connection) -> Result<bool> {
+    Ok(column_exists(conn, "agents", "memory_binding_id")?
+        && column_exists(conn, "agents", "memory_provider_kind")?
+        && column_exists(conn, "agents", "memory_base_url")?
+        && column_exists(conn, "agents", "memory_auth_mode")?
+        && column_exists(conn, "agents", "memory_auth_secret_ref")?
+        && column_exists(conn, "agents", "memory_principal_id")?
+        && column_exists(conn, "agents", "memory_principal_display_name")?
+        && column_exists(conn, "agents", "memory_enabled")?
+        && column_exists(conn, "agents", "memory_trusted_local_operator_actions")?)
 }
 
 fn bootstrap_preset_manager_has_agent_fk(conn: &Connection) -> Result<bool> {
@@ -642,6 +668,45 @@ pub struct AuthProfileRecord {
 }
 
 #[derive(Debug, Clone)]
+pub struct AgentMemoryBindingRecord {
+    pub binding_id: String,
+    pub provider_kind: String,
+    pub base_url: String,
+    pub auth_mode: String,
+    pub auth_secret_ref: Option<String>,
+    pub principal_id: Option<String>,
+    pub principal_display_name: Option<String>,
+    pub enabled: bool,
+    pub trusted_local_operator_actions: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewAgentMemoryBinding {
+    pub binding_id: String,
+    pub provider_kind: String,
+    pub base_url: String,
+    pub auth_mode: String,
+    pub auth_secret_ref: Option<String>,
+    pub principal_id: Option<String>,
+    pub principal_display_name: Option<String>,
+    pub enabled: bool,
+    pub trusted_local_operator_actions: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct AgentMemoryBindingUpdatePatch {
+    pub binding_id: Option<String>,
+    pub provider_kind: Option<String>,
+    pub base_url: Option<String>,
+    pub auth_mode: Option<String>,
+    pub auth_secret_ref: Option<Option<String>>,
+    pub principal_id: Option<Option<String>>,
+    pub principal_display_name: Option<Option<String>>,
+    pub enabled: Option<bool>,
+    pub trusted_local_operator_actions: Option<bool>,
+}
+
+#[derive(Debug, Clone)]
 pub struct AgentRecord {
     pub agent_id: String,
     pub name: String,
@@ -651,6 +716,7 @@ pub struct AgentRecord {
     pub tool_profile: String,
     pub reports_to_agent_id: Option<String>,
     pub role_label: Option<String>,
+    pub memory_binding: Option<AgentMemoryBindingRecord>,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -665,6 +731,7 @@ pub struct NewAgent {
     pub tool_profile: String,
     pub reports_to_agent_id: Option<String>,
     pub role_label: Option<String>,
+    pub memory_binding: Option<NewAgentMemoryBinding>,
 }
 
 #[derive(Debug, Clone)]
@@ -676,6 +743,7 @@ pub struct AgentUpdatePatch {
     pub tool_profile: Option<String>,
     pub reports_to_agent_id: Option<Option<String>>,
     pub role_label: Option<Option<String>>,
+    pub memory_binding: Option<Option<AgentMemoryBindingUpdatePatch>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -900,6 +968,196 @@ pub struct BootstrapPresetListFilter {
     pub limit: u32,
     pub cursor: Option<String>,
     pub sort: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConnectorSourceRecord {
+    pub connector_id: String,
+    pub slug: String,
+    pub display_name: String,
+    pub source_kind: String,
+    pub origin_kind: String,
+    pub catalog_item_id: Option<String>,
+    pub current_version_id: Option<String>,
+    pub latest_imported_version_id: Option<String>,
+    pub status: String,
+    pub trust_state: String,
+    pub assigned_agent_count: usize,
+    pub published_tool_count: usize,
+    pub last_conversion_at: Option<i64>,
+    pub last_review_at: Option<i64>,
+    pub last_enabled_at: Option<i64>,
+    pub last_disabled_at: Option<i64>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConnectorVersionRecord {
+    pub version_id: String,
+    pub connector_id: String,
+    pub version_label: String,
+    pub source_digest: String,
+    pub raw_source_location: Option<String>,
+    pub import_metadata_json: String,
+    pub schema_summary_json: String,
+    pub latest_conversion_id: Option<String>,
+    pub external_reference_policy: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConnectorConversionRecord {
+    pub conversion_id: String,
+    pub connector_id: String,
+    pub version_id: String,
+    pub status: String,
+    pub warnings_json: String,
+    pub proposed_tools_json: String,
+    pub write_capable_tools: usize,
+    pub unsupported_operations_json: String,
+    pub normalization_notes_json: String,
+    pub diff_from_previous_json: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConnectorPublishedToolRecord {
+    pub published_tool_id: String,
+    pub connector_id: String,
+    pub version_id: String,
+    pub conversion_id: String,
+    pub tool_name: String,
+    pub display_name: String,
+    pub tool_schema_json: String,
+    pub origin_metadata_json: String,
+    pub write_classification: String,
+    pub published_at: i64,
+    pub unpublished_at: Option<i64>,
+    pub superseded_by_published_tool_id: Option<String>,
+    pub deprecation_state: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConnectorAssignmentRecord {
+    pub assignment_id: String,
+    pub connector_id: String,
+    pub agent_id: String,
+    pub enabled: bool,
+    pub auth_mode: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConnectorAuthBindingRecord {
+    pub auth_binding_id: String,
+    pub connector_id: String,
+    pub agent_id: Option<String>,
+    pub auth_kind: String,
+    pub secret_ref: Option<String>,
+    pub oauth_session_id: Option<String>,
+    pub status: String,
+    pub auth_metadata_json: String,
+    pub last_success_at: Option<i64>,
+    pub last_error: Option<String>,
+    pub last_rotated_at: Option<i64>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct ConnectorInteractionRecord {
+    pub interaction_id: String,
+    pub connector_id: String,
+    pub agent_id: Option<String>,
+    pub interaction_kind: String,
+    pub status: String,
+    pub prompt_summary: String,
+    pub resume_token: Option<String>,
+    pub expires_at: Option<i64>,
+    pub consumed_at: Option<i64>,
+    pub detail_json: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ConnectorListFilter {
+    pub source_kind: Option<String>,
+    pub status: Option<String>,
+    pub trust_state: Option<String>,
+    pub query: Option<String>,
+    pub include_disabled: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewConnectorImport {
+    pub display_name: String,
+    pub slug: String,
+    pub source_kind: String,
+    pub origin_kind: String,
+    pub catalog_item_id: Option<String>,
+    pub version_label: String,
+    pub source_digest: String,
+    pub raw_source_location: Option<String>,
+    pub import_metadata_json: String,
+    pub schema_summary_json: String,
+    pub external_reference_policy: String,
+    pub trust_state: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewConnectorConversion {
+    pub status: String,
+    pub warnings_json: String,
+    pub proposed_tools_json: String,
+    pub write_capable_tools: usize,
+    pub unsupported_operations_json: String,
+    pub normalization_notes_json: String,
+    pub diff_from_previous_json: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewConnectorPublishedTool {
+    pub tool_name: String,
+    pub display_name: String,
+    pub tool_schema_json: String,
+    pub origin_metadata_json: String,
+    pub write_classification: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewConnectorAssignment {
+    pub agent_id: String,
+    pub enabled: bool,
+    pub auth_mode: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewConnectorAuthBinding {
+    pub agent_id: Option<String>,
+    pub auth_kind: String,
+    pub secret_ref: Option<String>,
+    pub oauth_session_id: Option<String>,
+    pub status: String,
+    pub auth_metadata_json: String,
+    pub last_success_at: Option<i64>,
+    pub last_error: Option<String>,
+    pub last_rotated_at: Option<i64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewConnectorInteraction {
+    pub agent_id: Option<String>,
+    pub interaction_kind: String,
+    pub status: String,
+    pub prompt_summary: String,
+    pub resume_token: Option<String>,
+    pub expires_at: Option<i64>,
+    pub detail_json: String,
 }
 
 #[derive(Debug, Clone)]
@@ -1290,7 +1548,11 @@ impl Storage {
             r#"
             SELECT
               agent_id, name, workspace_root, model_provider, model_id, tool_profile,
-              reports_to_agent_id, role_label, created_at, updated_at
+              reports_to_agent_id, role_label,
+              memory_binding_id, memory_provider_kind, memory_base_url, memory_auth_mode,
+              memory_auth_secret_ref, memory_principal_id, memory_principal_display_name,
+              memory_enabled, memory_trusted_local_operator_actions,
+              created_at, updated_at
             FROM agents
             ORDER BY updated_at DESC, agent_id ASC
             "#,
@@ -1309,7 +1571,11 @@ impl Storage {
             r#"
             SELECT
               agent_id, name, workspace_root, model_provider, model_id, tool_profile,
-              reports_to_agent_id, role_label, created_at, updated_at
+              reports_to_agent_id, role_label,
+              memory_binding_id, memory_provider_kind, memory_base_url, memory_auth_mode,
+              memory_auth_secret_ref, memory_principal_id, memory_principal_display_name,
+              memory_enabled, memory_trusted_local_operator_actions,
+              created_at, updated_at
             FROM agents
             WHERE agent_id = ?1
             "#,
@@ -1326,13 +1592,22 @@ impl Storage {
             &new_agent.agent_id,
             new_agent.reports_to_agent_id.as_deref(),
         )?;
+        let memory_binding = normalize_new_agent_memory_binding(
+            new_agent.memory_binding,
+            &new_agent.agent_id,
+            &new_agent.name,
+        )?;
         let now = now_ms();
         conn.execute(
             r#"
             INSERT INTO agents (
               agent_id, name, workspace_root, model_provider, model_id, tool_profile,
-              reports_to_agent_id, role_label, created_at, updated_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+              reports_to_agent_id, role_label,
+              memory_binding_id, memory_provider_kind, memory_base_url, memory_auth_mode,
+              memory_auth_secret_ref, memory_principal_id, memory_principal_display_name,
+              memory_enabled, memory_trusted_local_operator_actions,
+              created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
             "#,
             params![
                 new_agent.agent_id,
@@ -1343,6 +1618,29 @@ impl Storage {
                 new_agent.tool_profile,
                 new_agent.reports_to_agent_id,
                 new_agent.role_label,
+                memory_binding.as_ref().map(|binding| binding.binding_id.as_str()),
+                memory_binding
+                    .as_ref()
+                    .map(|binding| binding.provider_kind.as_str()),
+                memory_binding.as_ref().map(|binding| binding.base_url.as_str()),
+                memory_binding.as_ref().map(|binding| binding.auth_mode.as_str()),
+                memory_binding
+                    .as_ref()
+                    .and_then(|binding| binding.auth_secret_ref.as_deref()),
+                memory_binding
+                    .as_ref()
+                    .and_then(|binding| binding.principal_id.as_deref()),
+                memory_binding
+                    .as_ref()
+                    .and_then(|binding| binding.principal_display_name.as_deref()),
+                memory_binding
+                    .as_ref()
+                    .map(|binding| i64::from(binding.enabled))
+                    .unwrap_or(0),
+                memory_binding
+                    .as_ref()
+                    .map(|binding| i64::from(binding.trusted_local_operator_actions))
+                    .unwrap_or(0),
                 now,
                 now
             ],
@@ -1364,6 +1662,7 @@ impl Storage {
             && patch.tool_profile.is_none()
             && patch.reports_to_agent_id.is_none()
             && patch.role_label.is_none()
+            && patch.memory_binding.is_none()
         {
             return self.get_agent(agent_id);
         }
@@ -1379,6 +1678,12 @@ impl Storage {
             .clone()
             .unwrap_or(current.reports_to_agent_id.clone());
         validate_agent_manager_assignment(&tx, agent_id, next_reports_to_agent_id.as_deref())?;
+        let next_memory_binding = normalize_updated_agent_memory_binding(
+            current.memory_binding.clone(),
+            patch.memory_binding.clone(),
+            agent_id,
+            patch.name.as_deref().unwrap_or(current.name.as_str()),
+        )?;
         let now = now_ms();
         tx.execute(
             r#"
@@ -1390,8 +1695,17 @@ impl Storage {
                 tool_profile = COALESCE(?5, tool_profile),
                 reports_to_agent_id = ?6,
                 role_label = ?7,
-                updated_at = ?8
-            WHERE agent_id = ?9
+                memory_binding_id = ?8,
+                memory_provider_kind = ?9,
+                memory_base_url = ?10,
+                memory_auth_mode = ?11,
+                memory_auth_secret_ref = ?12,
+                memory_principal_id = ?13,
+                memory_principal_display_name = ?14,
+                memory_enabled = ?15,
+                memory_trusted_local_operator_actions = ?16,
+                updated_at = ?17
+            WHERE agent_id = ?18
             "#,
             params![
                 patch.name,
@@ -1404,6 +1718,35 @@ impl Storage {
                     .role_label
                     .clone()
                     .unwrap_or(current.role_label.clone()),
+                next_memory_binding
+                    .as_ref()
+                    .map(|binding| binding.binding_id.as_str()),
+                next_memory_binding
+                    .as_ref()
+                    .map(|binding| binding.provider_kind.as_str()),
+                next_memory_binding
+                    .as_ref()
+                    .map(|binding| binding.base_url.as_str()),
+                next_memory_binding
+                    .as_ref()
+                    .map(|binding| binding.auth_mode.as_str()),
+                next_memory_binding
+                    .as_ref()
+                    .and_then(|binding| binding.auth_secret_ref.as_deref()),
+                next_memory_binding
+                    .as_ref()
+                    .and_then(|binding| binding.principal_id.as_deref()),
+                next_memory_binding
+                    .as_ref()
+                    .and_then(|binding| binding.principal_display_name.as_deref()),
+                next_memory_binding
+                    .as_ref()
+                    .map(|binding| i64::from(binding.enabled))
+                    .unwrap_or(0),
+                next_memory_binding
+                    .as_ref()
+                    .map(|binding| i64::from(binding.trusted_local_operator_actions))
+                    .unwrap_or(0),
                 now,
                 agent_id
             ],
@@ -2705,6 +3048,1005 @@ impl Storage {
             return Ok(None);
         }
         self.get_bootstrap_preset(preset_key)
+    }
+
+    pub fn list_connectors(
+        &self,
+        filter: ConnectorListFilter,
+    ) -> Result<Vec<ConnectorSourceRecord>> {
+        if let Some(status) = filter.status.as_deref() {
+            validate_connector_status(status)?;
+        }
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              cs.connector_id,
+              cs.slug,
+              cs.display_name,
+              cs.source_kind,
+              cs.origin_kind,
+              cs.catalog_item_id,
+              cs.current_version_id,
+              cs.latest_imported_version_id,
+              cs.status,
+              cs.trust_state,
+              (
+                SELECT COUNT(1)
+                FROM connector_assignments a
+                WHERE a.connector_id = cs.connector_id
+                  AND a.enabled = 1
+              ) AS assigned_agent_count,
+              (
+                SELECT COUNT(1)
+                FROM connector_published_tools pt
+                WHERE pt.connector_id = cs.connector_id
+                  AND pt.unpublished_at IS NULL
+                  AND (
+                    cs.current_version_id IS NULL
+                    OR pt.version_id = cs.current_version_id
+                  )
+              ) AS published_tool_count,
+              cs.last_conversion_at,
+              cs.last_review_at,
+              cs.last_enabled_at,
+              cs.last_disabled_at,
+              cs.created_at,
+              cs.updated_at
+            FROM connector_sources cs
+            "#,
+        )?;
+        let rows = stmt.query_map([], map_connector_source_row)?;
+        let mut items = Vec::new();
+        for row in rows {
+            let record = row?;
+            if connector_matches_filter(&record, &filter) {
+                items.push(record);
+            }
+        }
+        sort_records_by_updated(&mut items, Some("updated_at_desc"), |item| {
+            (item.updated_at, item.connector_id.as_str())
+        })?;
+        Ok(items)
+    }
+
+    pub fn get_connector(&self, connector_id: &str) -> Result<Option<ConnectorSourceRecord>> {
+        let conn = self.connect()?;
+        get_connector_with_conn(&conn, connector_id)
+    }
+
+    pub fn get_connector_by_slug(&self, slug: &str) -> Result<Option<ConnectorSourceRecord>> {
+        let conn = self.connect()?;
+        get_connector_by_slug_with_conn(&conn, slug)
+    }
+
+    pub fn list_connector_versions(
+        &self,
+        connector_id: &str,
+    ) -> Result<Vec<ConnectorVersionRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              version_id, connector_id, version_label, source_digest, raw_source_location,
+              import_metadata_json, schema_summary_json, latest_conversion_id,
+              external_reference_policy, created_at, updated_at
+            FROM connector_versions
+            WHERE connector_id = ?1
+            ORDER BY created_at DESC, version_id ASC
+            "#,
+        )?;
+        let rows = stmt.query_map(params![connector_id], map_connector_version_row)?;
+        let mut items = Vec::new();
+        for row in rows {
+            items.push(row?);
+        }
+        Ok(items)
+    }
+
+    pub fn get_connector_version(
+        &self,
+        version_id: &str,
+    ) -> Result<Option<ConnectorVersionRecord>> {
+        let conn = self.connect()?;
+        get_connector_version_with_conn(&conn, version_id)
+    }
+
+    pub fn list_connector_conversions(
+        &self,
+        connector_id: &str,
+        version_id: Option<&str>,
+    ) -> Result<Vec<ConnectorConversionRecord>> {
+        let conn = self.connect()?;
+        let query = if version_id.is_some() {
+            r#"
+            SELECT
+              conversion_id, connector_id, version_id, status, warnings_json, proposed_tools_json,
+              write_capable_tools, unsupported_operations_json, normalization_notes_json,
+              diff_from_previous_json, created_at, updated_at
+            FROM connector_conversions
+            WHERE connector_id = ?1 AND version_id = ?2
+            ORDER BY created_at DESC, conversion_id ASC
+            "#
+        } else {
+            r#"
+            SELECT
+              conversion_id, connector_id, version_id, status, warnings_json, proposed_tools_json,
+              write_capable_tools, unsupported_operations_json, normalization_notes_json,
+              diff_from_previous_json, created_at, updated_at
+            FROM connector_conversions
+            WHERE connector_id = ?1
+            ORDER BY created_at DESC, conversion_id ASC
+            "#
+        };
+        let mut stmt = conn.prepare(query)?;
+        let rows = if let Some(version_id) = version_id {
+            stmt.query_map(
+                params![connector_id, version_id],
+                map_connector_conversion_row,
+            )?
+        } else {
+            stmt.query_map(params![connector_id], map_connector_conversion_row)?
+        };
+        let mut items = Vec::new();
+        for row in rows {
+            items.push(row?);
+        }
+        Ok(items)
+    }
+
+    pub fn get_connector_conversion(
+        &self,
+        conversion_id: &str,
+    ) -> Result<Option<ConnectorConversionRecord>> {
+        let conn = self.connect()?;
+        get_connector_conversion_with_conn(&conn, conversion_id)
+    }
+
+    pub fn list_connector_published_tools(
+        &self,
+        connector_id: &str,
+        include_unpublished: bool,
+    ) -> Result<Vec<ConnectorPublishedToolRecord>> {
+        let conn = self.connect()?;
+        list_connector_published_tools_with_conn(&conn, connector_id, include_unpublished)
+    }
+
+    pub fn get_connector_published_tool(
+        &self,
+        published_tool_id: &str,
+    ) -> Result<Option<ConnectorPublishedToolRecord>> {
+        let conn = self.connect()?;
+        get_connector_published_tool_with_conn(&conn, published_tool_id)
+    }
+
+    pub fn get_connector_published_tool_by_name(
+        &self,
+        tool_name: &str,
+        include_unpublished: bool,
+    ) -> Result<Option<ConnectorPublishedToolRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              published_tool_id, connector_id, version_id, conversion_id, tool_name, display_name,
+              tool_schema_json, origin_metadata_json, write_classification, published_at,
+              unpublished_at, superseded_by_published_tool_id, deprecation_state
+            FROM connector_published_tools
+            WHERE tool_name = ?1
+            ORDER BY published_at DESC, published_tool_id ASC
+            "#,
+        )?;
+        let rows = stmt.query_map(params![tool_name], map_connector_published_tool_row)?;
+        for row in rows {
+            let record = row?;
+            if include_unpublished || record.unpublished_at.is_none() {
+                return Ok(Some(record));
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn list_connector_assignments(
+        &self,
+        connector_id: &str,
+    ) -> Result<Vec<ConnectorAssignmentRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              assignment_id, connector_id, agent_id, enabled, auth_mode, created_at, updated_at
+            FROM connector_assignments
+            WHERE connector_id = ?1
+            ORDER BY updated_at DESC, assignment_id ASC
+            "#,
+        )?;
+        let rows = stmt.query_map(params![connector_id], map_connector_assignment_row)?;
+        let mut items = Vec::new();
+        for row in rows {
+            items.push(row?);
+        }
+        Ok(items)
+    }
+
+    pub fn list_connector_auth_bindings(
+        &self,
+        connector_id: &str,
+    ) -> Result<Vec<ConnectorAuthBindingRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              auth_binding_id, connector_id, agent_id, auth_kind, secret_ref, oauth_session_id,
+              status, auth_metadata_json, last_success_at, last_error, last_rotated_at, created_at, updated_at
+            FROM connector_auth_bindings
+            WHERE connector_id = ?1
+            ORDER BY agent_id IS NOT NULL DESC, updated_at DESC, auth_binding_id ASC
+            "#,
+        )?;
+        let rows = stmt.query_map(params![connector_id], map_connector_auth_binding_row)?;
+        let mut items = Vec::new();
+        for row in rows {
+            items.push(row?);
+        }
+        Ok(items)
+    }
+
+    pub fn list_connector_interactions(
+        &self,
+        connector_id: Option<&str>,
+    ) -> Result<Vec<ConnectorInteractionRecord>> {
+        let conn = self.connect()?;
+        let query = if connector_id.is_some() {
+            r#"
+            SELECT
+              interaction_id, connector_id, agent_id, interaction_kind, status, prompt_summary,
+              resume_token, expires_at, consumed_at, detail_json, created_at, updated_at
+            FROM connector_interactions
+            WHERE connector_id = ?1
+            ORDER BY updated_at DESC, interaction_id ASC
+            "#
+        } else {
+            r#"
+            SELECT
+              interaction_id, connector_id, agent_id, interaction_kind, status, prompt_summary,
+              resume_token, expires_at, consumed_at, detail_json, created_at, updated_at
+            FROM connector_interactions
+            ORDER BY updated_at DESC, interaction_id ASC
+            "#
+        };
+        let mut stmt = conn.prepare(query)?;
+        let rows = if let Some(connector_id) = connector_id {
+            stmt.query_map(params![connector_id], map_connector_interaction_row)?
+        } else {
+            stmt.query_map([], map_connector_interaction_row)?
+        };
+        let mut items = Vec::new();
+        for row in rows {
+            items.push(row?);
+        }
+        Ok(items)
+    }
+
+    pub fn import_connector(
+        &self,
+        new_import: NewConnectorImport,
+    ) -> Result<(ConnectorSourceRecord, ConnectorVersionRecord)> {
+        let mut conn = self.connect()?;
+        let tx = conn.transaction()?;
+        let slug = normalize_management_slug(&new_import.slug)?;
+        let source_kind = normalize_connector_source_kind(&new_import.source_kind)?;
+        let origin_kind = normalize_connector_origin_kind(&new_import.origin_kind)?;
+        let trust_state = new_import.trust_state.trim().to_ascii_lowercase();
+        validate_connector_trust_state(&trust_state)?;
+        let external_reference_policy =
+            normalize_connector_external_reference_policy(&new_import.external_reference_policy)?;
+        let display_name = new_import.display_name.trim();
+        if display_name.is_empty() {
+            anyhow::bail!("display_name cannot be empty");
+        }
+        let import_metadata_json = normalize_connector_json_payload(
+            &new_import.import_metadata_json,
+            "import_metadata_json",
+        )?;
+        let schema_summary_json = normalize_connector_json_payload(
+            &new_import.schema_summary_json,
+            "schema_summary_json",
+        )?;
+        let version_label = new_import.version_label.trim();
+        if version_label.is_empty() {
+            anyhow::bail!("version_label cannot be empty");
+        }
+        let now = now_ms();
+        let existing = get_connector_by_slug_with_conn(&tx, &slug)?;
+        let connector_id = existing
+            .as_ref()
+            .map(|record| record.connector_id.clone())
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        let version_id = uuid::Uuid::new_v4().to_string();
+
+        if let Some(current) = existing.as_ref() {
+            if current.source_kind != source_kind {
+                anyhow::bail!("existing connector source_kind does not match import");
+            }
+            tx.execute(
+                r#"
+                UPDATE connector_sources
+                SET display_name = ?1,
+                    origin_kind = ?2,
+                    catalog_item_id = ?3,
+                    latest_imported_version_id = ?4,
+                    trust_state = ?5,
+                    updated_at = ?6
+                WHERE connector_id = ?7
+                "#,
+                params![
+                    display_name,
+                    origin_kind,
+                    new_import.catalog_item_id,
+                    version_id,
+                    trust_state,
+                    now,
+                    connector_id
+                ],
+            )?;
+        } else {
+            tx.execute(
+                r#"
+                INSERT INTO connector_sources (
+                  connector_id, slug, display_name, source_kind, origin_kind, catalog_item_id,
+                  current_version_id, latest_imported_version_id, status, trust_state,
+                  last_conversion_at, last_review_at, last_enabled_at, last_disabled_at,
+                  created_at, updated_at
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, NULL, ?7, ?8, ?9, NULL, NULL, NULL, NULL, ?10, ?11)
+                "#,
+                params![
+                    connector_id,
+                    slug,
+                    display_name,
+                    source_kind,
+                    origin_kind,
+                    new_import.catalog_item_id,
+                    version_id,
+                    CONNECTOR_STATUS_DRAFT,
+                    trust_state,
+                    now,
+                    now
+                ],
+            )?;
+        }
+
+        tx.execute(
+            r#"
+            INSERT INTO connector_versions (
+              version_id, connector_id, version_label, source_digest, raw_source_location,
+              import_metadata_json, schema_summary_json, latest_conversion_id,
+              external_reference_policy, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, NULL, ?8, ?9, ?10)
+            "#,
+            params![
+                version_id,
+                connector_id,
+                version_label,
+                new_import.source_digest.trim(),
+                new_import.raw_source_location,
+                import_metadata_json,
+                schema_summary_json,
+                external_reference_policy,
+                now,
+                now
+            ],
+        )?;
+
+        let connector = get_connector_with_conn(&tx, &connector_id)?
+            .context("imported connector could not be reloaded")?;
+        let version = get_connector_version_with_conn(&tx, &version_id)?
+            .context("imported connector version could not be reloaded")?;
+        tx.commit()?;
+        Ok((connector, version))
+    }
+
+    pub fn record_connector_conversion(
+        &self,
+        connector_id: &str,
+        version_id: &str,
+        new_conversion: NewConnectorConversion,
+    ) -> Result<ConnectorConversionRecord> {
+        let mut conn = self.connect()?;
+        let tx = conn.transaction()?;
+        let connector = get_connector_with_conn(&tx, connector_id)?
+            .with_context(|| format!("connector not found: {connector_id}"))?;
+        let version = get_connector_version_with_conn(&tx, version_id)?
+            .with_context(|| format!("connector version not found: {version_id}"))?;
+        if version.connector_id != connector.connector_id {
+            anyhow::bail!("version does not belong to connector");
+        }
+        validate_connector_conversion_status(&new_conversion.status)?;
+        let warnings_json =
+            normalize_connector_json_payload(&new_conversion.warnings_json, "warnings_json")?;
+        let proposed_tools_json = normalize_connector_json_payload(
+            &new_conversion.proposed_tools_json,
+            "proposed_tools_json",
+        )?;
+        let unsupported_operations_json = normalize_connector_json_payload(
+            &new_conversion.unsupported_operations_json,
+            "unsupported_operations_json",
+        )?;
+        let normalization_notes_json = normalize_connector_json_payload(
+            &new_conversion.normalization_notes_json,
+            "normalization_notes_json",
+        )?;
+        let diff_from_previous_json = normalize_connector_json_payload(
+            &new_conversion.diff_from_previous_json,
+            "diff_from_previous_json",
+        )?;
+        let conversion_id = uuid::Uuid::new_v4().to_string();
+        let now = now_ms();
+        tx.execute(
+            r#"
+            INSERT INTO connector_conversions (
+              conversion_id, connector_id, version_id, status, warnings_json, proposed_tools_json,
+              write_capable_tools, unsupported_operations_json, normalization_notes_json,
+              diff_from_previous_json, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+            "#,
+            params![
+                conversion_id,
+                connector_id,
+                version_id,
+                new_conversion.status.trim(),
+                warnings_json,
+                proposed_tools_json,
+                new_conversion.write_capable_tools as i64,
+                unsupported_operations_json,
+                normalization_notes_json,
+                diff_from_previous_json,
+                now,
+                now
+            ],
+        )?;
+        tx.execute(
+            r#"
+            UPDATE connector_versions
+            SET latest_conversion_id = ?1,
+                updated_at = ?2
+            WHERE version_id = ?3
+            "#,
+            params![conversion_id, now, version_id],
+        )?;
+        tx.execute(
+            r#"
+            UPDATE connector_sources
+            SET status = ?1,
+                last_conversion_at = ?2,
+                updated_at = ?3
+            WHERE connector_id = ?4
+            "#,
+            params![
+                if new_conversion.status.trim() == CONNECTOR_CONVERSION_SUCCEEDED {
+                    CONNECTOR_STATUS_CONVERTED
+                } else {
+                    CONNECTOR_STATUS_ERROR
+                },
+                now,
+                now,
+                connector_id
+            ],
+        )?;
+        let conversion = get_connector_conversion_with_conn(&tx, &conversion_id)?
+            .context("connector conversion could not be reloaded")?;
+        tx.commit()?;
+        Ok(conversion)
+    }
+
+    pub fn publish_connector_tools(
+        &self,
+        connector_id: &str,
+        conversion_id: &str,
+        selected_candidate_ids: &[String],
+        published_tools: &[NewConnectorPublishedTool],
+        enable_after_publish: bool,
+    ) -> Result<(
+        ConnectorSourceRecord,
+        ConnectorVersionRecord,
+        Vec<ConnectorPublishedToolRecord>,
+    )> {
+        if selected_candidate_ids.is_empty() || published_tools.is_empty() {
+            anyhow::bail!("at least one connector tool must be selected for publish");
+        }
+        if selected_candidate_ids.len() != published_tools.len() {
+            anyhow::bail!("selected candidate count must match published tool count");
+        }
+        let mut conn = self.connect()?;
+        let tx = conn.transaction()?;
+        let connector = get_connector_with_conn(&tx, connector_id)?
+            .with_context(|| format!("connector not found: {connector_id}"))?;
+        let conversion = get_connector_conversion_with_conn(&tx, conversion_id)?
+            .with_context(|| format!("connector conversion not found: {conversion_id}"))?;
+        if conversion.connector_id != connector.connector_id {
+            anyhow::bail!("conversion does not belong to connector");
+        }
+        if conversion.status != CONNECTOR_CONVERSION_SUCCEEDED {
+            anyhow::bail!("conversion must succeed before publish");
+        }
+        let version = get_connector_version_with_conn(&tx, &conversion.version_id)?
+            .context("connector version missing for publish")?;
+        let mut selected = Vec::new();
+        for tool in published_tools {
+            validate_connector_write_classification(&tool.write_classification)?;
+            selected.push((
+                tool.tool_name.trim().to_string(),
+                tool.display_name.trim().to_string(),
+                normalize_connector_json_payload(&tool.tool_schema_json, "tool_schema_json")?,
+                normalize_connector_json_payload(
+                    &tool.origin_metadata_json,
+                    "origin_metadata_json",
+                )?,
+                normalize_connector_deprecation_state(CONNECTOR_DEPRECATION_ACTIVE)?,
+                tool.write_classification.trim().to_string(),
+            ));
+        }
+        let now = now_ms();
+        let mut published = Vec::new();
+        for (
+            tool_name,
+            display_name,
+            tool_schema_json,
+            origin_metadata_json,
+            deprecation_state,
+            write_classification,
+        ) in selected
+        {
+            let tool_name_for_supersede = tool_name.clone();
+            let published_tool_id = uuid::Uuid::new_v4().to_string();
+            tx.execute(
+                r#"
+                INSERT INTO connector_published_tools (
+                  published_tool_id, connector_id, version_id, conversion_id, tool_name, display_name,
+                  tool_schema_json, origin_metadata_json, write_classification, published_at,
+                  unpublished_at, superseded_by_published_tool_id, deprecation_state
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, NULL, NULL, ?11)
+                "#,
+                params![
+                    published_tool_id,
+                    connector_id,
+                    version.version_id,
+                    conversion_id,
+                    tool_name,
+                    display_name,
+                    tool_schema_json,
+                    origin_metadata_json,
+                    write_classification,
+                    now,
+                    deprecation_state
+                ],
+            )?;
+            tx.execute(
+                r#"
+                UPDATE connector_published_tools
+                SET superseded_by_published_tool_id = ?1,
+                    deprecation_state = ?2
+                WHERE connector_id = ?3
+                  AND tool_name = ?4
+                  AND published_tool_id != ?1
+                  AND superseded_by_published_tool_id IS NULL
+                  AND unpublished_at IS NULL
+                "#,
+                params![
+                    published_tool_id,
+                    CONNECTOR_DEPRECATION_SUPERSEDED,
+                    connector_id,
+                    tool_name_for_supersede
+                ],
+            )?;
+            let record = get_connector_published_tool_with_conn(&tx, &published_tool_id)?
+                .context("published connector tool could not be reloaded")?;
+            published.push(record);
+        }
+        let keep_enabled = enable_after_publish
+            || (connector.current_version_id.is_some()
+                && connector.status == CONNECTOR_STATUS_ENABLED);
+        let next_status = if keep_enabled {
+            CONNECTOR_STATUS_ENABLED
+        } else {
+            CONNECTOR_STATUS_DISABLED
+        };
+        tx.execute(
+            r#"
+            UPDATE connector_sources
+            SET current_version_id = CASE WHEN ?1 = 1 THEN ?2 ELSE current_version_id END,
+                status = ?3,
+                last_review_at = ?4,
+                last_enabled_at = CASE WHEN ?1 = 1 THEN ?4 ELSE last_enabled_at END,
+                updated_at = ?5
+            WHERE connector_id = ?6
+            "#,
+            params![
+                if enable_after_publish { 1 } else { 0 },
+                version.version_id,
+                next_status,
+                now,
+                now,
+                connector_id
+            ],
+        )?;
+        let source = get_connector_with_conn(&tx, connector_id)?
+            .context("published connector source could not be reloaded")?;
+        tx.commit()?;
+        Ok((source, version, published))
+    }
+
+    pub fn unpublish_connector_tools(
+        &self,
+        connector_id: &str,
+        published_tool_ids: &[String],
+    ) -> Result<(ConnectorSourceRecord, Vec<ConnectorPublishedToolRecord>)> {
+        let mut conn = self.connect()?;
+        let tx = conn.transaction()?;
+        let now = now_ms();
+        for published_tool_id in published_tool_ids {
+            let Some(record) = get_connector_published_tool_with_conn(&tx, published_tool_id)?
+            else {
+                continue;
+            };
+            if record.connector_id != connector_id {
+                anyhow::bail!("published tool does not belong to connector");
+            }
+            tx.execute(
+                r#"
+                UPDATE connector_published_tools
+                SET unpublished_at = COALESCE(unpublished_at, ?1),
+                    deprecation_state = ?2
+                WHERE published_tool_id = ?3
+                "#,
+                params![now, CONNECTOR_DEPRECATION_UNPUBLISHED, published_tool_id],
+            )?;
+        }
+        tx.execute(
+            "UPDATE connector_sources SET updated_at = ?1, last_review_at = ?1 WHERE connector_id = ?2",
+            params![now, connector_id],
+        )?;
+        let source = get_connector_with_conn(&tx, connector_id)?
+            .context("connector source missing after unpublish")?;
+        let tools = list_connector_published_tools_with_conn(&tx, connector_id, true)?
+            .into_iter()
+            .filter(|item| {
+                published_tool_ids
+                    .iter()
+                    .any(|id| id == &item.published_tool_id)
+            })
+            .collect::<Vec<_>>();
+        tx.commit()?;
+        Ok((source, tools))
+    }
+
+    pub fn rollback_connector_version(
+        &self,
+        connector_id: &str,
+        version_id: &str,
+    ) -> Result<
+        Option<(
+            ConnectorSourceRecord,
+            ConnectorVersionRecord,
+            Vec<ConnectorPublishedToolRecord>,
+        )>,
+    > {
+        let mut conn = self.connect()?;
+        let tx = conn.transaction()?;
+        let Some(version) = get_connector_version_with_conn(&tx, version_id)? else {
+            return Ok(None);
+        };
+        if version.connector_id != connector_id {
+            anyhow::bail!("version does not belong to connector");
+        }
+        let tools = list_connector_published_tools_with_conn(&tx, connector_id, false)?
+            .into_iter()
+            .filter(|item| item.version_id == version_id)
+            .collect::<Vec<_>>();
+        if tools.is_empty() {
+            anyhow::bail!("rollback target version has no active published tools");
+        }
+        let now = now_ms();
+        tx.execute(
+            r#"
+            UPDATE connector_sources
+            SET current_version_id = ?1,
+                status = ?2,
+                last_enabled_at = ?3,
+                updated_at = ?4
+            WHERE connector_id = ?5
+            "#,
+            params![version_id, CONNECTOR_STATUS_ENABLED, now, now, connector_id],
+        )?;
+        let source = get_connector_with_conn(&tx, connector_id)?
+            .context("connector source missing after rollback")?;
+        tx.commit()?;
+        Ok(Some((source, version, tools)))
+    }
+
+    pub fn set_connector_enabled(
+        &self,
+        connector_id: &str,
+        enabled: bool,
+    ) -> Result<Option<ConnectorSourceRecord>> {
+        let conn = self.connect()?;
+        let current = match get_connector_with_conn(&conn, connector_id)? {
+            Some(record) => record,
+            None => return Ok(None),
+        };
+        if enabled && current.current_version_id.is_none() {
+            anyhow::bail!("connector cannot be enabled without a current_version_id");
+        }
+        let now = now_ms();
+        conn.execute(
+            r#"
+            UPDATE connector_sources
+            SET status = ?1,
+                last_enabled_at = CASE WHEN ?2 = 1 THEN ?3 ELSE last_enabled_at END,
+                last_disabled_at = CASE WHEN ?2 = 1 THEN last_disabled_at ELSE ?3 END,
+                updated_at = ?4
+            WHERE connector_id = ?5
+            "#,
+            params![
+                if enabled {
+                    CONNECTOR_STATUS_ENABLED
+                } else {
+                    CONNECTOR_STATUS_DISABLED
+                },
+                if enabled { 1 } else { 0 },
+                now,
+                now,
+                connector_id
+            ],
+        )?;
+        self.get_connector(connector_id)
+    }
+
+    pub fn upsert_connector_assignment(
+        &self,
+        connector_id: &str,
+        assignment: NewConnectorAssignment,
+    ) -> Result<ConnectorAssignmentRecord> {
+        let mut conn = self.connect()?;
+        let tx = conn.transaction()?;
+        let _connector = get_connector_with_conn(&tx, connector_id)?
+            .with_context(|| format!("connector not found: {connector_id}"))?;
+        validate_optional_owner_agent(self, &tx, Some(assignment.agent_id.as_str()))?;
+        validate_connector_assignment_auth_mode(&assignment.auth_mode)?;
+        let now = now_ms();
+        let existing = get_connector_assignment_with_conn(&tx, connector_id, &assignment.agent_id)?;
+        let assignment_id = existing
+            .as_ref()
+            .map(|item| item.assignment_id.clone())
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        if existing.is_some() {
+            tx.execute(
+                r#"
+                UPDATE connector_assignments
+                SET enabled = ?1,
+                    auth_mode = ?2,
+                    updated_at = ?3
+                WHERE assignment_id = ?4
+                "#,
+                params![
+                    if assignment.enabled { 1 } else { 0 },
+                    assignment.auth_mode.trim(),
+                    now,
+                    assignment_id
+                ],
+            )?;
+        } else {
+            tx.execute(
+                r#"
+                INSERT INTO connector_assignments (
+                  assignment_id, connector_id, agent_id, enabled, auth_mode, created_at, updated_at
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+                "#,
+                params![
+                    assignment_id,
+                    connector_id,
+                    assignment.agent_id.trim(),
+                    if assignment.enabled { 1 } else { 0 },
+                    assignment.auth_mode.trim(),
+                    now,
+                    now
+                ],
+            )?;
+        }
+        tx.execute(
+            "UPDATE connector_sources SET updated_at = ?1 WHERE connector_id = ?2",
+            params![now, connector_id],
+        )?;
+        let record = get_connector_assignment_with_conn(&tx, connector_id, &assignment.agent_id)?
+            .context("connector assignment could not be reloaded")?;
+        tx.commit()?;
+        Ok(record)
+    }
+
+    pub fn upsert_connector_auth_binding(
+        &self,
+        connector_id: &str,
+        binding: NewConnectorAuthBinding,
+    ) -> Result<ConnectorAuthBindingRecord> {
+        let mut conn = self.connect()?;
+        let tx = conn.transaction()?;
+        let _connector = get_connector_with_conn(&tx, connector_id)?
+            .with_context(|| format!("connector not found: {connector_id}"))?;
+        if let Some(agent_id) = binding.agent_id.as_deref() {
+            validate_optional_owner_agent(self, &tx, Some(agent_id))?;
+        }
+        let auth_kind = normalize_connector_auth_kind(&binding.auth_kind)?;
+        let status = normalize_connector_auth_status(&binding.status)?;
+        let auth_metadata_json =
+            normalize_connector_json_payload(&binding.auth_metadata_json, "auth_metadata_json")?;
+        let now = now_ms();
+        let existing =
+            get_connector_auth_binding_with_conn(&tx, connector_id, binding.agent_id.as_deref())?;
+        let auth_binding_id = existing
+            .as_ref()
+            .map(|item| item.auth_binding_id.clone())
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        if existing.is_some() {
+            tx.execute(
+                r#"
+                UPDATE connector_auth_bindings
+                SET auth_kind = ?1,
+                    secret_ref = ?2,
+                    oauth_session_id = ?3,
+                    status = ?4,
+                    auth_metadata_json = ?5,
+                    last_success_at = ?6,
+                    last_error = ?7,
+                    last_rotated_at = ?8,
+                    updated_at = ?9
+                WHERE auth_binding_id = ?10
+                "#,
+                params![
+                    auth_kind,
+                    binding.secret_ref,
+                    binding.oauth_session_id,
+                    status,
+                    auth_metadata_json,
+                    binding.last_success_at,
+                    binding.last_error,
+                    binding.last_rotated_at,
+                    now,
+                    auth_binding_id
+                ],
+            )?;
+        } else {
+            tx.execute(
+                r#"
+                INSERT INTO connector_auth_bindings (
+                  auth_binding_id, connector_id, agent_id, auth_kind, secret_ref, oauth_session_id,
+                  status, auth_metadata_json, last_success_at, last_error, last_rotated_at,
+                  created_at, updated_at
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+                "#,
+                params![
+                    auth_binding_id,
+                    connector_id,
+                    binding.agent_id,
+                    auth_kind,
+                    binding.secret_ref,
+                    binding.oauth_session_id,
+                    status,
+                    auth_metadata_json,
+                    binding.last_success_at,
+                    binding.last_error,
+                    binding.last_rotated_at,
+                    now,
+                    now
+                ],
+            )?;
+        }
+        tx.execute(
+            "UPDATE connector_sources SET updated_at = ?1 WHERE connector_id = ?2",
+            params![now, connector_id],
+        )?;
+        let record =
+            get_connector_auth_binding_with_conn(&tx, connector_id, binding.agent_id.as_deref())?
+                .context("connector auth binding could not be reloaded")?;
+        tx.commit()?;
+        Ok(record)
+    }
+
+    pub fn create_connector_interaction(
+        &self,
+        connector_id: &str,
+        interaction: NewConnectorInteraction,
+    ) -> Result<ConnectorInteractionRecord> {
+        let mut conn = self.connect()?;
+        let tx = conn.transaction()?;
+        let _connector = get_connector_with_conn(&tx, connector_id)?
+            .with_context(|| format!("connector not found: {connector_id}"))?;
+        if let Some(agent_id) = interaction.agent_id.as_deref() {
+            validate_optional_owner_agent(self, &tx, Some(agent_id))?;
+        }
+        let interaction_kind = normalize_connector_interaction_kind(&interaction.interaction_kind)?;
+        validate_connector_interaction_status(&interaction.status)?;
+        let detail_json =
+            normalize_connector_json_payload(&interaction.detail_json, "detail_json")?;
+        let prompt_summary = normalize_connector_prompt_summary(&interaction.prompt_summary)?;
+        let interaction_id = uuid::Uuid::new_v4().to_string();
+        let now = now_ms();
+        tx.execute(
+            r#"
+            INSERT INTO connector_interactions (
+              interaction_id, connector_id, agent_id, interaction_kind, status, prompt_summary,
+              resume_token, expires_at, consumed_at, detail_json, created_at, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, NULL, ?9, ?10, ?11)
+            "#,
+            params![
+                interaction_id,
+                connector_id,
+                interaction.agent_id,
+                interaction_kind,
+                interaction.status.trim(),
+                prompt_summary,
+                interaction.resume_token,
+                interaction.expires_at,
+                detail_json,
+                now,
+                now
+            ],
+        )?;
+        tx.execute(
+            "UPDATE connector_sources SET updated_at = ?1 WHERE connector_id = ?2",
+            params![now, connector_id],
+        )?;
+        let record = get_connector_interaction_with_conn(&tx, &interaction_id)?
+            .context("connector interaction could not be reloaded")?;
+        tx.commit()?;
+        Ok(record)
+    }
+
+    pub fn resume_connector_interaction(
+        &self,
+        interaction_id: &str,
+        status: &str,
+        detail_json: Option<&str>,
+    ) -> Result<Option<ConnectorInteractionRecord>> {
+        let conn = self.connect()?;
+        let current = match get_connector_interaction_with_conn(&conn, interaction_id)? {
+            Some(record) => record,
+            None => return Ok(None),
+        };
+        validate_connector_interaction_status(status)?;
+        let next_detail_json = match detail_json {
+            Some(value) => normalize_connector_json_payload(value, "detail_json")?,
+            None => current.detail_json.clone(),
+        };
+        let now = now_ms();
+        conn.execute(
+            r#"
+            UPDATE connector_interactions
+            SET status = ?1,
+                resume_token = NULL,
+                consumed_at = CASE WHEN ?1 IN (?2, ?3) THEN ?4 ELSE consumed_at END,
+                detail_json = ?5,
+                updated_at = ?6
+            WHERE interaction_id = ?7
+            "#,
+            params![
+                status.trim(),
+                CONNECTOR_INTERACTION_RESUMED,
+                CONNECTOR_INTERACTION_CANCELLED,
+                now,
+                next_detail_json,
+                now,
+                interaction_id
+            ],
+        )?;
+        self.get_connector_interaction(interaction_id)
+    }
+
+    pub fn get_connector_interaction(
+        &self,
+        interaction_id: &str,
+    ) -> Result<Option<ConnectorInteractionRecord>> {
+        let conn = self.connect()?;
+        get_connector_interaction_with_conn(&conn, interaction_id)
     }
 
     pub fn create_agent_mail_thread(
@@ -6102,6 +7444,32 @@ const TASK_PRIORITY_NORMAL: &str = "normal";
 const TASK_PRIORITY_HIGH: &str = "high";
 const TASK_PRIORITY_CRITICAL: &str = "critical";
 const STRATEGY_STALE_THRESHOLD_MS: i64 = 72 * 60 * 60_000;
+const CONNECTOR_STATUS_DRAFT: &str = "draft";
+const CONNECTOR_STATUS_CONVERTED: &str = "converted";
+const CONNECTOR_STATUS_UNDER_REVIEW: &str = "under_review";
+const CONNECTOR_STATUS_ENABLED: &str = "enabled";
+const CONNECTOR_STATUS_DISABLED: &str = "disabled";
+const CONNECTOR_STATUS_ERROR: &str = "error";
+const CONNECTOR_TRUST_TRUSTED_CURATED: &str = "trusted_curated";
+const CONNECTOR_TRUST_LOCAL_UNTRUSTED: &str = "local_untrusted";
+const CONNECTOR_TRUST_REVIEWED_LOCAL: &str = "reviewed_local";
+const CONNECTOR_TRUST_BLOCKED: &str = "blocked";
+const CONNECTOR_CONVERSION_PENDING: &str = "pending";
+const CONNECTOR_CONVERSION_RUNNING: &str = "running";
+const CONNECTOR_CONVERSION_SUCCEEDED: &str = "succeeded";
+const CONNECTOR_CONVERSION_FAILED: &str = "failed";
+const CONNECTOR_INTERACTION_PENDING: &str = "pending";
+const CONNECTOR_INTERACTION_WAITING: &str = "waiting_on_operator";
+const CONNECTOR_INTERACTION_RESUMED: &str = "resumed";
+const CONNECTOR_INTERACTION_CANCELLED: &str = "cancelled";
+const CONNECTOR_INTERACTION_EXPIRED: &str = "expired";
+const CONNECTOR_WRITE_READ_ONLY: &str = "read_only";
+const CONNECTOR_WRITE_OPERATOR_GATED: &str = "operator_write_gated";
+const CONNECTOR_WRITE_DESTRUCTIVE_GATED: &str = "destructive_write_gated";
+const CONNECTOR_WRITE_UNSAFE_BLOCKED: &str = "unsafe_blocked";
+const CONNECTOR_DEPRECATION_ACTIVE: &str = "active";
+const CONNECTOR_DEPRECATION_UNPUBLISHED: &str = "unpublished";
+const CONNECTOR_DEPRECATION_SUPERSEDED: &str = "superseded";
 
 #[derive(Debug, Clone)]
 struct RuntimeCandidate {
@@ -6115,7 +7483,11 @@ fn get_agent_with_conn(conn: &Connection, agent_id: &str) -> Result<Option<Agent
         r#"
         SELECT
           agent_id, name, workspace_root, model_provider, model_id, tool_profile,
-          reports_to_agent_id, role_label, created_at, updated_at
+          reports_to_agent_id, role_label,
+          memory_binding_id, memory_provider_kind, memory_base_url, memory_auth_mode,
+          memory_auth_secret_ref, memory_principal_id, memory_principal_display_name,
+          memory_enabled, memory_trusted_local_operator_actions,
+          created_at, updated_at
         FROM agents
         WHERE agent_id = ?1
         "#,
@@ -6182,6 +7554,263 @@ fn get_bootstrap_preset_with_conn(
     Ok(stmt
         .query_row(params![preset_key], map_bootstrap_preset_row)
         .optional()?)
+}
+
+fn get_connector_with_conn(
+    conn: &Connection,
+    connector_id: &str,
+) -> Result<Option<ConnectorSourceRecord>> {
+    let mut stmt = conn.prepare(
+        r#"
+        SELECT
+          cs.connector_id,
+          cs.slug,
+          cs.display_name,
+          cs.source_kind,
+          cs.origin_kind,
+          cs.catalog_item_id,
+          cs.current_version_id,
+          cs.latest_imported_version_id,
+          cs.status,
+          cs.trust_state,
+          (
+            SELECT COUNT(1)
+            FROM connector_assignments a
+            WHERE a.connector_id = cs.connector_id
+              AND a.enabled = 1
+          ) AS assigned_agent_count,
+          (
+            SELECT COUNT(1)
+            FROM connector_published_tools pt
+            WHERE pt.connector_id = cs.connector_id
+              AND pt.unpublished_at IS NULL
+              AND (
+                cs.current_version_id IS NULL
+                OR pt.version_id = cs.current_version_id
+              )
+          ) AS published_tool_count,
+          cs.last_conversion_at,
+          cs.last_review_at,
+          cs.last_enabled_at,
+          cs.last_disabled_at,
+          cs.created_at,
+          cs.updated_at
+        FROM connector_sources cs
+        WHERE cs.connector_id = ?1
+        "#,
+    )?;
+    Ok(stmt
+        .query_row(params![connector_id], map_connector_source_row)
+        .optional()?)
+}
+
+fn get_connector_by_slug_with_conn(
+    conn: &Connection,
+    slug: &str,
+) -> Result<Option<ConnectorSourceRecord>> {
+    let mut stmt = conn.prepare(
+        r#"
+        SELECT
+          cs.connector_id,
+          cs.slug,
+          cs.display_name,
+          cs.source_kind,
+          cs.origin_kind,
+          cs.catalog_item_id,
+          cs.current_version_id,
+          cs.latest_imported_version_id,
+          cs.status,
+          cs.trust_state,
+          (
+            SELECT COUNT(1)
+            FROM connector_assignments a
+            WHERE a.connector_id = cs.connector_id
+              AND a.enabled = 1
+          ) AS assigned_agent_count,
+          (
+            SELECT COUNT(1)
+            FROM connector_published_tools pt
+            WHERE pt.connector_id = cs.connector_id
+              AND pt.unpublished_at IS NULL
+              AND (
+                cs.current_version_id IS NULL
+                OR pt.version_id = cs.current_version_id
+              )
+          ) AS published_tool_count,
+          cs.last_conversion_at,
+          cs.last_review_at,
+          cs.last_enabled_at,
+          cs.last_disabled_at,
+          cs.created_at,
+          cs.updated_at
+        FROM connector_sources cs
+        WHERE LOWER(cs.slug) = LOWER(?1)
+        "#,
+    )?;
+    Ok(stmt
+        .query_row(params![slug], map_connector_source_row)
+        .optional()?)
+}
+
+fn get_connector_version_with_conn(
+    conn: &Connection,
+    version_id: &str,
+) -> Result<Option<ConnectorVersionRecord>> {
+    let mut stmt = conn.prepare(
+        r#"
+        SELECT
+          version_id, connector_id, version_label, source_digest, raw_source_location,
+          import_metadata_json, schema_summary_json, latest_conversion_id,
+          external_reference_policy, created_at, updated_at
+        FROM connector_versions
+        WHERE version_id = ?1
+        "#,
+    )?;
+    Ok(stmt
+        .query_row(params![version_id], map_connector_version_row)
+        .optional()?)
+}
+
+fn get_connector_conversion_with_conn(
+    conn: &Connection,
+    conversion_id: &str,
+) -> Result<Option<ConnectorConversionRecord>> {
+    let mut stmt = conn.prepare(
+        r#"
+        SELECT
+          conversion_id, connector_id, version_id, status, warnings_json, proposed_tools_json,
+          write_capable_tools, unsupported_operations_json, normalization_notes_json,
+          diff_from_previous_json, created_at, updated_at
+        FROM connector_conversions
+        WHERE conversion_id = ?1
+        "#,
+    )?;
+    Ok(stmt
+        .query_row(params![conversion_id], map_connector_conversion_row)
+        .optional()?)
+}
+
+fn get_connector_published_tool_with_conn(
+    conn: &Connection,
+    published_tool_id: &str,
+) -> Result<Option<ConnectorPublishedToolRecord>> {
+    let mut stmt = conn.prepare(
+        r#"
+        SELECT
+          published_tool_id, connector_id, version_id, conversion_id, tool_name, display_name,
+          tool_schema_json, origin_metadata_json, write_classification, published_at,
+          unpublished_at, superseded_by_published_tool_id, deprecation_state
+        FROM connector_published_tools
+        WHERE published_tool_id = ?1
+        "#,
+    )?;
+    Ok(stmt
+        .query_row(params![published_tool_id], map_connector_published_tool_row)
+        .optional()?)
+}
+
+fn get_connector_assignment_with_conn(
+    conn: &Connection,
+    connector_id: &str,
+    agent_id: &str,
+) -> Result<Option<ConnectorAssignmentRecord>> {
+    let mut stmt = conn.prepare(
+        r#"
+        SELECT
+          assignment_id, connector_id, agent_id, enabled, auth_mode, created_at, updated_at
+        FROM connector_assignments
+        WHERE connector_id = ?1 AND agent_id = ?2
+        "#,
+    )?;
+    Ok(stmt
+        .query_row(
+            params![connector_id, agent_id],
+            map_connector_assignment_row,
+        )
+        .optional()?)
+}
+
+fn get_connector_auth_binding_with_conn(
+    conn: &Connection,
+    connector_id: &str,
+    agent_id: Option<&str>,
+) -> Result<Option<ConnectorAuthBindingRecord>> {
+    let query = if agent_id.is_some() {
+        r#"
+        SELECT
+          auth_binding_id, connector_id, agent_id, auth_kind, secret_ref, oauth_session_id,
+          status, auth_metadata_json, last_success_at, last_error, last_rotated_at, created_at, updated_at
+        FROM connector_auth_bindings
+        WHERE connector_id = ?1 AND agent_id = ?2
+        ORDER BY updated_at DESC, auth_binding_id ASC
+        LIMIT 1
+        "#
+    } else {
+        r#"
+        SELECT
+          auth_binding_id, connector_id, agent_id, auth_kind, secret_ref, oauth_session_id,
+          status, auth_metadata_json, last_success_at, last_error, last_rotated_at, created_at, updated_at
+        FROM connector_auth_bindings
+        WHERE connector_id = ?1 AND agent_id IS NULL
+        ORDER BY updated_at DESC, auth_binding_id ASC
+        LIMIT 1
+        "#
+    };
+    let mut stmt = conn.prepare(query)?;
+    let binding = if let Some(agent_id) = agent_id {
+        stmt.query_row(
+            params![connector_id, agent_id],
+            map_connector_auth_binding_row,
+        )
+    } else {
+        stmt.query_row(params![connector_id], map_connector_auth_binding_row)
+    };
+    Ok(binding.optional()?)
+}
+
+fn get_connector_interaction_with_conn(
+    conn: &Connection,
+    interaction_id: &str,
+) -> Result<Option<ConnectorInteractionRecord>> {
+    let mut stmt = conn.prepare(
+        r#"
+        SELECT
+          interaction_id, connector_id, agent_id, interaction_kind, status, prompt_summary,
+          resume_token, expires_at, consumed_at, detail_json, created_at, updated_at
+        FROM connector_interactions
+        WHERE interaction_id = ?1
+        "#,
+    )?;
+    Ok(stmt
+        .query_row(params![interaction_id], map_connector_interaction_row)
+        .optional()?)
+}
+
+fn list_connector_published_tools_with_conn(
+    conn: &Connection,
+    connector_id: &str,
+    include_unpublished: bool,
+) -> Result<Vec<ConnectorPublishedToolRecord>> {
+    let mut stmt = conn.prepare(
+        r#"
+        SELECT
+          published_tool_id, connector_id, version_id, conversion_id, tool_name, display_name,
+          tool_schema_json, origin_metadata_json, write_classification, published_at,
+          unpublished_at, superseded_by_published_tool_id, deprecation_state
+        FROM connector_published_tools
+        WHERE connector_id = ?1
+        ORDER BY published_at DESC, published_tool_id ASC
+        "#,
+    )?;
+    let rows = stmt.query_map(params![connector_id], map_connector_published_tool_row)?;
+    let mut items = Vec::new();
+    for row in rows {
+        let record = row?;
+        if include_unpublished || record.unpublished_at.is_none() {
+            items.push(record);
+        }
+    }
+    Ok(items)
 }
 
 fn get_approval_with_conn(conn: &Connection, approval_id: &str) -> Result<Option<ApprovalRecord>> {
@@ -6383,6 +8012,196 @@ fn normalize_optional_agent_reference(value: Option<&str>) -> Option<String> {
         .filter(|item| !item.is_empty())
 }
 
+fn normalize_optional_text(value: Option<&str>) -> Option<String> {
+    value
+        .map(|item| item.trim().to_string())
+        .filter(|item| !item.is_empty())
+}
+
+fn normalize_agent_memory_binding_id(value: Option<&str>, agent_id: &str) -> Result<String> {
+    let normalized = value
+        .map(|item| item.trim().to_ascii_lowercase())
+        .filter(|item| !item.is_empty())
+        .unwrap_or_else(|| format!("mno-{agent_id}"));
+    if normalized.len() > 128
+        || !normalized
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
+    {
+        anyhow::bail!(
+            "memory binding_id must be 1..128 chars and contain only a-z, 0-9, '_' or '-'"
+        );
+    }
+    Ok(normalized)
+}
+
+fn normalize_agent_memory_provider_kind(value: Option<&str>) -> Result<String> {
+    let normalized = value
+        .map(|item| item.trim().to_ascii_lowercase())
+        .filter(|item| !item.is_empty())
+        .context("memory provider_kind is required")?;
+    if normalized.len() > 64
+        || !normalized
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
+    {
+        anyhow::bail!(
+            "memory provider_kind must be 1..64 chars and contain only a-z, 0-9, '_' or '-'"
+        );
+    }
+    Ok(normalized)
+}
+
+fn normalize_agent_memory_base_url(value: Option<&str>) -> Result<String> {
+    let normalized = value
+        .map(|item| item.trim().trim_end_matches('/').to_string())
+        .filter(|item| !item.is_empty())
+        .context("memory base_url is required")?;
+    if !(normalized.starts_with("http://") || normalized.starts_with("https://")) {
+        anyhow::bail!("memory base_url must start with http:// or https://");
+    }
+    Ok(normalized)
+}
+
+fn normalize_agent_memory_auth_mode(value: Option<&str>) -> Result<String> {
+    let normalized = value
+        .map(|item| item.trim().to_ascii_lowercase())
+        .filter(|item| !item.is_empty())
+        .context("memory auth_mode is required")?;
+    match normalized.as_str() {
+        "none" | "secret_ref" => Ok(normalized),
+        _ => anyhow::bail!("memory auth_mode must be one of: none, secret_ref"),
+    }
+}
+
+struct AgentMemoryBindingNormalizationInput<'a> {
+    binding_id: Option<&'a str>,
+    provider_kind: Option<&'a str>,
+    base_url: Option<&'a str>,
+    auth_mode: Option<&'a str>,
+    auth_secret_ref: Option<&'a str>,
+    principal_id: Option<&'a str>,
+    principal_display_name: Option<&'a str>,
+    enabled: bool,
+    trusted_local_operator_actions: bool,
+    agent_id: &'a str,
+    agent_name: &'a str,
+}
+
+fn normalize_agent_memory_binding(
+    input: AgentMemoryBindingNormalizationInput<'_>,
+) -> Result<AgentMemoryBindingRecord> {
+    let auth_mode = normalize_agent_memory_auth_mode(input.auth_mode)?;
+    let auth_secret_ref = normalize_optional_text(input.auth_secret_ref);
+    if auth_mode == "secret_ref" && auth_secret_ref.is_none() {
+        anyhow::bail!("memory auth_secret_ref is required when auth_mode=secret_ref");
+    }
+    Ok(AgentMemoryBindingRecord {
+        binding_id: normalize_agent_memory_binding_id(input.binding_id, input.agent_id)?,
+        provider_kind: normalize_agent_memory_provider_kind(input.provider_kind)?,
+        base_url: normalize_agent_memory_base_url(input.base_url)?,
+        auth_mode,
+        auth_secret_ref,
+        principal_id: normalize_optional_text(input.principal_id)
+            .or_else(|| Some(input.agent_id.to_string())),
+        principal_display_name: normalize_optional_text(input.principal_display_name)
+            .or_else(|| Some(input.agent_name.trim().to_string()).filter(|item| !item.is_empty())),
+        enabled: input.enabled,
+        trusted_local_operator_actions: input.trusted_local_operator_actions,
+    })
+}
+
+fn normalize_new_agent_memory_binding(
+    binding: Option<NewAgentMemoryBinding>,
+    agent_id: &str,
+    agent_name: &str,
+) -> Result<Option<AgentMemoryBindingRecord>> {
+    let Some(binding) = binding else {
+        return Ok(None);
+    };
+    Ok(Some(normalize_agent_memory_binding(
+        AgentMemoryBindingNormalizationInput {
+            binding_id: Some(binding.binding_id.as_str()),
+            provider_kind: Some(binding.provider_kind.as_str()),
+            base_url: Some(binding.base_url.as_str()),
+            auth_mode: Some(binding.auth_mode.as_str()),
+            auth_secret_ref: binding.auth_secret_ref.as_deref(),
+            principal_id: binding.principal_id.as_deref(),
+            principal_display_name: binding.principal_display_name.as_deref(),
+            enabled: binding.enabled,
+            trusted_local_operator_actions: binding.trusted_local_operator_actions,
+            agent_id,
+            agent_name,
+        },
+    )?))
+}
+
+fn normalize_updated_agent_memory_binding(
+    current: Option<AgentMemoryBindingRecord>,
+    patch: Option<Option<AgentMemoryBindingUpdatePatch>>,
+    agent_id: &str,
+    agent_name: &str,
+) -> Result<Option<AgentMemoryBindingRecord>> {
+    match patch {
+        None => Ok(current),
+        Some(None) => Ok(None),
+        Some(Some(patch)) => {
+            let current = current.unwrap_or(AgentMemoryBindingRecord {
+                binding_id: String::new(),
+                provider_kind: String::new(),
+                base_url: String::new(),
+                auth_mode: String::new(),
+                auth_secret_ref: None,
+                principal_id: None,
+                principal_display_name: None,
+                enabled: false,
+                trusted_local_operator_actions: false,
+            });
+            Ok(Some(normalize_agent_memory_binding(
+                AgentMemoryBindingNormalizationInput {
+                    binding_id: patch
+                        .binding_id
+                        .as_deref()
+                        .or(Some(current.binding_id.as_str())),
+                    provider_kind: patch
+                        .provider_kind
+                        .as_deref()
+                        .or(Some(current.provider_kind.as_str())),
+                    base_url: patch
+                        .base_url
+                        .as_deref()
+                        .or(Some(current.base_url.as_str())),
+                    auth_mode: patch
+                        .auth_mode
+                        .as_deref()
+                        .or(Some(current.auth_mode.as_str())),
+                    auth_secret_ref: match patch.auth_secret_ref {
+                        Some(Some(ref value)) => Some(value.as_str()),
+                        Some(None) => None,
+                        None => current.auth_secret_ref.as_deref(),
+                    },
+                    principal_id: match patch.principal_id {
+                        Some(Some(ref value)) => Some(value.as_str()),
+                        Some(None) => None,
+                        None => current.principal_id.as_deref(),
+                    },
+                    principal_display_name: match patch.principal_display_name {
+                        Some(Some(ref value)) => Some(value.as_str()),
+                        Some(None) => None,
+                        None => current.principal_display_name.as_deref(),
+                    },
+                    enabled: patch.enabled.unwrap_or(current.enabled),
+                    trusted_local_operator_actions: patch
+                        .trusted_local_operator_actions
+                        .unwrap_or(current.trusted_local_operator_actions),
+                    agent_id,
+                    agent_name,
+                },
+            )?))
+        }
+    }
+}
+
 fn validate_budget_month_usd(value: Option<f64>) -> Result<()> {
     let Some(value) = value else {
         return Ok(());
@@ -6395,6 +8214,170 @@ fn validate_budget_month_usd(value: Option<f64>) -> Result<()> {
         anyhow::bail!("budget_month_usd supports at most two decimal places");
     }
     Ok(())
+}
+
+fn normalize_connector_source_kind(raw: &str) -> Result<String> {
+    let value = raw.trim().to_ascii_lowercase();
+    match value.as_str() {
+        "mcp" | "openapi" | "graphql" => Ok(value),
+        _ => anyhow::bail!("source_kind must be one of: mcp, openapi, graphql"),
+    }
+}
+
+fn normalize_connector_origin_kind(raw: &str) -> Result<String> {
+    let value = raw.trim().to_ascii_lowercase();
+    match value.as_str() {
+        "curated" | "imported_local" | "imported_url" => Ok(value),
+        _ => anyhow::bail!("origin_kind must be one of: curated, imported_local, imported_url"),
+    }
+}
+
+fn validate_connector_status(status: &str) -> Result<()> {
+    match status.trim() {
+        CONNECTOR_STATUS_DRAFT
+        | CONNECTOR_STATUS_CONVERTED
+        | CONNECTOR_STATUS_UNDER_REVIEW
+        | CONNECTOR_STATUS_ENABLED
+        | CONNECTOR_STATUS_DISABLED
+        | CONNECTOR_STATUS_ERROR => Ok(()),
+        _ => anyhow::bail!("invalid connector status"),
+    }
+}
+
+fn validate_connector_trust_state(trust_state: &str) -> Result<()> {
+    match trust_state.trim() {
+        CONNECTOR_TRUST_TRUSTED_CURATED
+        | CONNECTOR_TRUST_LOCAL_UNTRUSTED
+        | CONNECTOR_TRUST_REVIEWED_LOCAL
+        | CONNECTOR_TRUST_BLOCKED => Ok(()),
+        _ => anyhow::bail!("invalid connector trust_state"),
+    }
+}
+
+fn validate_connector_conversion_status(status: &str) -> Result<()> {
+    match status.trim() {
+        CONNECTOR_CONVERSION_PENDING
+        | CONNECTOR_CONVERSION_RUNNING
+        | CONNECTOR_CONVERSION_SUCCEEDED
+        | CONNECTOR_CONVERSION_FAILED => Ok(()),
+        _ => anyhow::bail!("invalid connector conversion status"),
+    }
+}
+
+fn validate_connector_interaction_status(status: &str) -> Result<()> {
+    match status.trim() {
+        CONNECTOR_INTERACTION_PENDING
+        | CONNECTOR_INTERACTION_WAITING
+        | CONNECTOR_INTERACTION_RESUMED
+        | CONNECTOR_INTERACTION_CANCELLED
+        | CONNECTOR_INTERACTION_EXPIRED => Ok(()),
+        _ => anyhow::bail!("invalid connector interaction status"),
+    }
+}
+
+fn validate_connector_write_classification(value: &str) -> Result<()> {
+    match value.trim() {
+        CONNECTOR_WRITE_READ_ONLY
+        | CONNECTOR_WRITE_OPERATOR_GATED
+        | CONNECTOR_WRITE_DESTRUCTIVE_GATED
+        | CONNECTOR_WRITE_UNSAFE_BLOCKED => Ok(()),
+        _ => anyhow::bail!("invalid connector write_classification"),
+    }
+}
+
+fn validate_connector_assignment_auth_mode(value: &str) -> Result<()> {
+    match value.trim() {
+        "shared_default" | "agent_override" => Ok(()),
+        _ => anyhow::bail!("invalid connector assignment auth_mode"),
+    }
+}
+
+fn normalize_connector_external_reference_policy(raw: &str) -> Result<String> {
+    let value = raw.trim().to_ascii_lowercase();
+    match value.as_str() {
+        "inline_only" | "allowlisted_fetch" | "reject_external" => Ok(value),
+        _ => anyhow::bail!(
+            "external_reference_policy must be one of: inline_only, allowlisted_fetch, reject_external"
+        ),
+    }
+}
+
+fn normalize_connector_deprecation_state(raw: &str) -> Result<String> {
+    let value = raw.trim().to_ascii_lowercase();
+    match value.as_str() {
+        CONNECTOR_DEPRECATION_ACTIVE
+        | CONNECTOR_DEPRECATION_UNPUBLISHED
+        | CONNECTOR_DEPRECATION_SUPERSEDED => Ok(value),
+        _ => anyhow::bail!("invalid connector deprecation_state"),
+    }
+}
+
+fn normalize_connector_auth_kind(raw: &str) -> Result<String> {
+    let value = raw.trim().to_ascii_lowercase();
+    match value.as_str() {
+        "none" | "bearer" | "header" | "query" | "oauth_session" => Ok(value),
+        _ => anyhow::bail!("auth_kind must be one of: none, bearer, header, query, oauth_session"),
+    }
+}
+
+fn normalize_connector_auth_status(raw: &str) -> Result<String> {
+    let value = raw.trim().to_ascii_lowercase();
+    match value.as_str() {
+        "ready" | "pending" | "error" | "expired" | "unconfigured" => Ok(value),
+        _ => anyhow::bail!("invalid connector auth status"),
+    }
+}
+
+fn normalize_connector_interaction_kind(raw: &str) -> Result<String> {
+    let value = raw.trim().to_ascii_lowercase();
+    match value.as_str() {
+        "oauth" | "auth_repair" | "operator_input" => Ok(value),
+        _ => anyhow::bail!("interaction_kind must be one of: oauth, auth_repair, operator_input"),
+    }
+}
+
+fn normalize_connector_json_payload(raw: &str, field_name: &str) -> Result<String> {
+    let value: serde_json::Value =
+        serde_json::from_str(raw).with_context(|| format!("{field_name} must be valid JSON"))?;
+    serde_json::to_string(&value)
+        .with_context(|| format!("failed to normalize JSON field {field_name}"))
+}
+
+fn normalize_connector_prompt_summary(raw: &str) -> Result<String> {
+    let value = raw.trim();
+    if value.is_empty() {
+        anyhow::bail!("prompt_summary cannot be empty");
+    }
+    Ok(value.to_string())
+}
+
+fn connector_matches_filter(record: &ConnectorSourceRecord, filter: &ConnectorListFilter) -> bool {
+    if let Some(source_kind) = filter.source_kind.as_deref() {
+        if record.source_kind != source_kind {
+            return false;
+        }
+    }
+    if let Some(status) = filter.status.as_deref() {
+        if record.status != status {
+            return false;
+        }
+    } else if !filter.include_disabled && record.status == CONNECTOR_STATUS_DISABLED {
+        return false;
+    }
+    if let Some(trust_state) = filter.trust_state.as_deref() {
+        if record.trust_state != trust_state {
+            return false;
+        }
+    }
+    record_matches_query(
+        filter.query.as_deref(),
+        &[
+            &record.slug,
+            &record.display_name,
+            &record.source_kind,
+            &record.origin_kind,
+        ],
+    )
 }
 
 fn validate_task_parent(
@@ -6759,7 +8742,11 @@ fn agent_subtree_ids(
         r#"
         SELECT
           agent_id, name, workspace_root, model_provider, model_id, tool_profile,
-          reports_to_agent_id, role_label, created_at, updated_at
+          reports_to_agent_id, role_label,
+          memory_binding_id, memory_provider_kind, memory_base_url, memory_auth_mode,
+          memory_auth_secret_ref, memory_principal_id, memory_principal_display_name,
+          memory_enabled, memory_trusted_local_operator_actions,
+          created_at, updated_at
         FROM agents
         "#,
     )?;
@@ -6911,6 +8898,31 @@ fn get_run_with_conn(conn: &Connection, run_id: &str) -> Result<Option<RunRecord
 }
 
 fn map_agent_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<AgentRecord> {
+    let binding_id: Option<String> = row.get(8)?;
+    let provider_kind: Option<String> = row.get(9)?;
+    let base_url: Option<String> = row.get(10)?;
+    let auth_mode: Option<String> = row.get(11)?;
+    let auth_secret_ref: Option<String> = row.get(12)?;
+    let principal_id: Option<String> = row.get(13)?;
+    let principal_display_name: Option<String> = row.get(14)?;
+    let enabled: i64 = row.get(15)?;
+    let trusted_local_operator_actions: i64 = row.get(16)?;
+    let memory_binding = match (binding_id, provider_kind, base_url, auth_mode) {
+        (Some(binding_id), Some(provider_kind), Some(base_url), Some(auth_mode)) => {
+            Some(AgentMemoryBindingRecord {
+                binding_id,
+                provider_kind,
+                base_url,
+                auth_mode,
+                auth_secret_ref,
+                principal_id,
+                principal_display_name,
+                enabled: enabled != 0,
+                trusted_local_operator_actions: trusted_local_operator_actions != 0,
+            })
+        }
+        _ => None,
+    };
     Ok(AgentRecord {
         agent_id: row.get(0)?,
         name: row.get(1)?,
@@ -6920,8 +8932,9 @@ fn map_agent_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<AgentRecord> {
         tool_profile: row.get(5)?,
         reports_to_agent_id: row.get(6)?,
         role_label: row.get(7)?,
-        created_at: row.get(8)?,
-        updated_at: row.get(9)?,
+        memory_binding,
+        created_at: row.get(17)?,
+        updated_at: row.get(18)?,
     })
 }
 
@@ -6989,6 +9002,141 @@ fn map_bootstrap_preset_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Bootstr
         setup_notes: row.get(10)?,
         created_at: row.get(11)?,
         updated_at: row.get(12)?,
+    })
+}
+
+fn map_connector_source_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<ConnectorSourceRecord> {
+    let assigned_agent_count: i64 = row.get(10)?;
+    let published_tool_count: i64 = row.get(11)?;
+    Ok(ConnectorSourceRecord {
+        connector_id: row.get(0)?,
+        slug: row.get(1)?,
+        display_name: row.get(2)?,
+        source_kind: row.get(3)?,
+        origin_kind: row.get(4)?,
+        catalog_item_id: row.get(5)?,
+        current_version_id: row.get(6)?,
+        latest_imported_version_id: row.get(7)?,
+        status: row.get(8)?,
+        trust_state: row.get(9)?,
+        assigned_agent_count: assigned_agent_count.max(0) as usize,
+        published_tool_count: published_tool_count.max(0) as usize,
+        last_conversion_at: row.get(12)?,
+        last_review_at: row.get(13)?,
+        last_enabled_at: row.get(14)?,
+        last_disabled_at: row.get(15)?,
+        created_at: row.get(16)?,
+        updated_at: row.get(17)?,
+    })
+}
+
+fn map_connector_version_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<ConnectorVersionRecord> {
+    Ok(ConnectorVersionRecord {
+        version_id: row.get(0)?,
+        connector_id: row.get(1)?,
+        version_label: row.get(2)?,
+        source_digest: row.get(3)?,
+        raw_source_location: row.get(4)?,
+        import_metadata_json: row.get(5)?,
+        schema_summary_json: row.get(6)?,
+        latest_conversion_id: row.get(7)?,
+        external_reference_policy: row.get(8)?,
+        created_at: row.get(9)?,
+        updated_at: row.get(10)?,
+    })
+}
+
+fn map_connector_conversion_row(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<ConnectorConversionRecord> {
+    let write_capable_tools: i64 = row.get(6)?;
+    Ok(ConnectorConversionRecord {
+        conversion_id: row.get(0)?,
+        connector_id: row.get(1)?,
+        version_id: row.get(2)?,
+        status: row.get(3)?,
+        warnings_json: row.get(4)?,
+        proposed_tools_json: row.get(5)?,
+        write_capable_tools: write_capable_tools.max(0) as usize,
+        unsupported_operations_json: row.get(7)?,
+        normalization_notes_json: row.get(8)?,
+        diff_from_previous_json: row.get(9)?,
+        created_at: row.get(10)?,
+        updated_at: row.get(11)?,
+    })
+}
+
+fn map_connector_published_tool_row(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<ConnectorPublishedToolRecord> {
+    Ok(ConnectorPublishedToolRecord {
+        published_tool_id: row.get(0)?,
+        connector_id: row.get(1)?,
+        version_id: row.get(2)?,
+        conversion_id: row.get(3)?,
+        tool_name: row.get(4)?,
+        display_name: row.get(5)?,
+        tool_schema_json: row.get(6)?,
+        origin_metadata_json: row.get(7)?,
+        write_classification: row.get(8)?,
+        published_at: row.get(9)?,
+        unpublished_at: row.get(10)?,
+        superseded_by_published_tool_id: row.get(11)?,
+        deprecation_state: row.get(12)?,
+    })
+}
+
+fn map_connector_assignment_row(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<ConnectorAssignmentRecord> {
+    let enabled: i64 = row.get(3)?;
+    Ok(ConnectorAssignmentRecord {
+        assignment_id: row.get(0)?,
+        connector_id: row.get(1)?,
+        agent_id: row.get(2)?,
+        enabled: enabled != 0,
+        auth_mode: row.get(4)?,
+        created_at: row.get(5)?,
+        updated_at: row.get(6)?,
+    })
+}
+
+fn map_connector_auth_binding_row(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<ConnectorAuthBindingRecord> {
+    Ok(ConnectorAuthBindingRecord {
+        auth_binding_id: row.get(0)?,
+        connector_id: row.get(1)?,
+        agent_id: row.get(2)?,
+        auth_kind: row.get(3)?,
+        secret_ref: row.get(4)?,
+        oauth_session_id: row.get(5)?,
+        status: row.get(6)?,
+        auth_metadata_json: row.get(7)?,
+        last_success_at: row.get(8)?,
+        last_error: row.get(9)?,
+        last_rotated_at: row.get(10)?,
+        created_at: row.get(11)?,
+        updated_at: row.get(12)?,
+    })
+}
+
+fn map_connector_interaction_row(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<ConnectorInteractionRecord> {
+    Ok(ConnectorInteractionRecord {
+        interaction_id: row.get(0)?,
+        connector_id: row.get(1)?,
+        agent_id: row.get(2)?,
+        interaction_kind: row.get(3)?,
+        status: row.get(4)?,
+        prompt_summary: row.get(5)?,
+        resume_token: row.get(6)?,
+        expires_at: row.get(7)?,
+        consumed_at: row.get(8)?,
+        detail_json: row.get(9)?,
+        created_at: row.get(10)?,
+        updated_at: row.get(11)?,
     })
 }
 
@@ -7344,6 +9492,8 @@ fn now_ms() -> i64 {
 const MIGRATION_0001: &str = include_str!("../../../migrations/0001_init.sql");
 const MIGRATION_0002: &str = include_str!("../../../migrations/0002_strategy_phase1.sql");
 const MIGRATION_0003: &str = include_str!("../../../migrations/0003_strategy_schema_cleanup.sql");
+const MIGRATION_0004: &str = include_str!("../../../migrations/0004_agent_memory_bindings.sql");
+const MIGRATION_0005: &str = include_str!("../../../migrations/0005_connector_registry.sql");
 
 #[cfg(test)]
 mod tests {
@@ -8414,6 +10564,7 @@ mod tests {
                 tool_profile: "default".to_string(),
                 reports_to_agent_id: None,
                 role_label: None,
+                memory_binding: None,
             })
             .expect("create removable agent");
         assert_eq!(created.agent_id, "Delete-Me");
@@ -8439,6 +10590,7 @@ mod tests {
                 tool_profile: "default".to_string(),
                 reports_to_agent_id: None,
                 role_label: None,
+                memory_binding: None,
             })
             .expect("create session-bound agent");
         storage
@@ -8472,6 +10624,7 @@ mod tests {
                 tool_profile: "default".to_string(),
                 reports_to_agent_id: None,
                 role_label: Some("Manager".to_string()),
+                memory_binding: None,
             })
             .expect("create preset manager");
         storage
@@ -8509,6 +10662,7 @@ mod tests {
                 tool_profile: "default".to_string(),
                 reports_to_agent_id: None,
                 role_label: None,
+                memory_binding: None,
             })
             .expect("create job owner agent");
         let board_agent = storage
@@ -8521,6 +10675,7 @@ mod tests {
                 tool_profile: "default".to_string(),
                 reports_to_agent_id: None,
                 role_label: None,
+                memory_binding: None,
             })
             .expect("create board owner agent");
 
@@ -8912,6 +11067,182 @@ mod tests {
             Some(card.card_id.as_str())
         );
         assert!(cleared_job.linked_job_id.is_none());
+    }
+
+    #[test]
+    fn connector_registry_import_publish_and_rollback_flow_works() {
+        let (_temp_dir, storage) = test_storage();
+        let (connector, version_v1) = storage
+            .import_connector(NewConnectorImport {
+                display_name: "GitHub".to_string(),
+                slug: "github".to_string(),
+                source_kind: "openapi".to_string(),
+                origin_kind: "imported_local".to_string(),
+                catalog_item_id: None,
+                version_label: "v1".to_string(),
+                source_digest: "digest-v1".to_string(),
+                raw_source_location: Some("inline".to_string()),
+                import_metadata_json: r#"{"source_kind":"openapi","endpoint_url":"https://api.example.test","source_json":{"paths":{}}}"#.to_string(),
+                schema_summary_json: r#"{"operation_count":1}"#.to_string(),
+                external_reference_policy: "inline_only".to_string(),
+                trust_state: "local_untrusted".to_string(),
+            })
+            .expect("import connector");
+        assert_eq!(connector.slug, "github");
+        assert_eq!(connector.status, CONNECTOR_STATUS_DRAFT);
+
+        let conversion_v1 = storage
+            .record_connector_conversion(
+                &connector.connector_id,
+                &version_v1.version_id,
+                NewConnectorConversion {
+                    status: CONNECTOR_CONVERSION_SUCCEEDED.to_string(),
+                    warnings_json: "[]".to_string(),
+                    proposed_tools_json: r#"[{"candidate_id":"cand-1","operation_key":"listIssues","proposed_tool_name":"connector.github.list-issues","display_name":"List Issues","description":"Lists issues","input_schema":{"type":"object","properties":{}},"write_classification":"read_only","review_blocked":false,"review_block_reason":null,"origin_metadata":{"source_kind":"openapi","endpoint_url":"https://api.example.test","path":"/issues","method":"GET"}}]"#.to_string(),
+                    write_capable_tools: 0,
+                    unsupported_operations_json: "[]".to_string(),
+                    normalization_notes_json: r#"["source_kind=openapi"]"#.to_string(),
+                    diff_from_previous_json: r#"{"added":["connector.github.list-issues"],"removed":[],"unchanged":[]}"#.to_string(),
+                },
+            )
+            .expect("record conversion");
+        assert_eq!(conversion_v1.status, CONNECTOR_CONVERSION_SUCCEEDED);
+
+        let (published_connector, _published_version, published_tools) = storage
+            .publish_connector_tools(
+                &connector.connector_id,
+                &conversion_v1.conversion_id,
+                &[String::from("cand-1")],
+                &[NewConnectorPublishedTool {
+                    tool_name: "connector.github.list-issues".to_string(),
+                    display_name: "List Issues".to_string(),
+                    tool_schema_json: r#"{"type":"object","properties":{}}"#.to_string(),
+                    origin_metadata_json: r#"{"source_kind":"openapi","endpoint_url":"https://api.example.test","path":"/issues","method":"GET"}"#.to_string(),
+                    write_classification: CONNECTOR_WRITE_READ_ONLY.to_string(),
+                }],
+                true,
+            )
+            .expect("publish connector tools");
+        assert_eq!(published_connector.status, CONNECTOR_STATUS_ENABLED);
+        assert_eq!(published_tools.len(), 1);
+
+        let assignment = storage
+            .upsert_connector_assignment(
+                &connector.connector_id,
+                NewConnectorAssignment {
+                    agent_id: "default".to_string(),
+                    enabled: true,
+                    auth_mode: "shared_default".to_string(),
+                },
+            )
+            .expect("upsert assignment");
+        assert_eq!(assignment.agent_id, "default");
+
+        let auth_binding = storage
+            .upsert_connector_auth_binding(
+                &connector.connector_id,
+                NewConnectorAuthBinding {
+                    agent_id: None,
+                    auth_kind: "bearer".to_string(),
+                    secret_ref: Some("connector/github".to_string()),
+                    oauth_session_id: None,
+                    status: "ready".to_string(),
+                    auth_metadata_json: r#"{"header_name":"authorization"}"#.to_string(),
+                    last_success_at: Some(now_ms()),
+                    last_error: None,
+                    last_rotated_at: Some(now_ms()),
+                },
+            )
+            .expect("upsert auth binding");
+        assert_eq!(auth_binding.auth_kind, "bearer");
+
+        let interaction = storage
+            .create_connector_interaction(
+                &connector.connector_id,
+                NewConnectorInteraction {
+                    agent_id: Some("default".to_string()),
+                    interaction_kind: "auth_repair".to_string(),
+                    status: CONNECTOR_INTERACTION_WAITING.to_string(),
+                    prompt_summary: "Repair auth".to_string(),
+                    resume_token: Some("resume-token".to_string()),
+                    expires_at: Some(now_ms() + 60_000),
+                    detail_json: r#"{"reason":"missing token"}"#.to_string(),
+                },
+            )
+            .expect("create interaction");
+        let resumed = storage
+            .resume_connector_interaction(
+                &interaction.interaction_id,
+                CONNECTOR_INTERACTION_RESUMED,
+                Some(r#"{"reason":"fixed"}"#),
+            )
+            .expect("resume interaction")
+            .expect("interaction exists");
+        assert_eq!(resumed.status, CONNECTOR_INTERACTION_RESUMED);
+        assert!(resumed.resume_token.is_none());
+        assert!(resumed.consumed_at.is_some());
+
+        let (_connector_v2, version_v2) = storage
+            .import_connector(NewConnectorImport {
+                display_name: "GitHub".to_string(),
+                slug: "github".to_string(),
+                source_kind: "openapi".to_string(),
+                origin_kind: "imported_local".to_string(),
+                catalog_item_id: None,
+                version_label: "v2".to_string(),
+                source_digest: "digest-v2".to_string(),
+                raw_source_location: Some("inline".to_string()),
+                import_metadata_json: r#"{"source_kind":"openapi","endpoint_url":"https://api.example.test","source_json":{"paths":{}}}"#.to_string(),
+                schema_summary_json: r#"{"operation_count":1}"#.to_string(),
+                external_reference_policy: "inline_only".to_string(),
+                trust_state: "reviewed_local".to_string(),
+            })
+            .expect("import second version");
+        let conversion_v2 = storage
+            .record_connector_conversion(
+                &connector.connector_id,
+                &version_v2.version_id,
+                NewConnectorConversion {
+                    status: CONNECTOR_CONVERSION_SUCCEEDED.to_string(),
+                    warnings_json: "[]".to_string(),
+                    proposed_tools_json: r#"[{"candidate_id":"cand-2","operation_key":"createIssue","proposed_tool_name":"connector.github.create-issue","display_name":"Create Issue","description":"Creates issue","input_schema":{"type":"object","properties":{"title":{"type":"string"}}},"write_classification":"operator_write_gated","review_blocked":false,"review_block_reason":null,"origin_metadata":{"source_kind":"openapi","endpoint_url":"https://api.example.test","path":"/issues","method":"POST"}}]"#.to_string(),
+                    write_capable_tools: 1,
+                    unsupported_operations_json: "[]".to_string(),
+                    normalization_notes_json: r#"["source_kind=openapi"]"#.to_string(),
+                    diff_from_previous_json: r#"{"added":["connector.github.create-issue"],"removed":["connector.github.list-issues"],"unchanged":[]}"#.to_string(),
+                },
+            )
+            .expect("record v2 conversion");
+        storage
+            .publish_connector_tools(
+                &connector.connector_id,
+                &conversion_v2.conversion_id,
+                &[String::from("cand-2")],
+                &[NewConnectorPublishedTool {
+                    tool_name: "connector.github.create-issue".to_string(),
+                    display_name: "Create Issue".to_string(),
+                    tool_schema_json: r#"{"type":"object","properties":{"title":{"type":"string"}}}"#.to_string(),
+                    origin_metadata_json: r#"{"source_kind":"openapi","endpoint_url":"https://api.example.test","path":"/issues","method":"POST"}"#.to_string(),
+                    write_classification: CONNECTOR_WRITE_OPERATOR_GATED.to_string(),
+                }],
+                true,
+            )
+            .expect("publish v2");
+
+        let (rolled_back_connector, rolled_back_version, rolled_back_tools) = storage
+            .rollback_connector_version(&connector.connector_id, &version_v1.version_id)
+            .expect("rollback version")
+            .expect("version exists");
+        assert_eq!(
+            rolled_back_connector.current_version_id.as_deref(),
+            Some(version_v1.version_id.as_str())
+        );
+        assert_eq!(rolled_back_version.version_id, version_v1.version_id);
+        assert_eq!(rolled_back_tools.len(), 1);
+        assert_eq!(
+            rolled_back_tools[0].tool_name,
+            "connector.github.list-issues"
+        );
     }
 
     #[test]
@@ -9348,6 +11679,7 @@ mod tests {
                 tool_profile: "default".to_string(),
                 reports_to_agent_id: None,
                 role_label: None,
+                memory_binding: None,
             })
             .expect("create worker agent");
         let worker_session = storage

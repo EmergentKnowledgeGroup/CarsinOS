@@ -375,7 +375,7 @@ export function MailPage(props: MailPageProps) {
                         )
                       }
                     >
-                      {isBusyAction(ackKey) ? "Acking..." : "Ack"}
+                      {isBusyAction(ackKey) ? "Acknowledging\u2026" : "Acknowledge"}
                     </button>
                   </div>
                   <pre>{message.body_text}</pre>
@@ -392,7 +392,7 @@ export function MailPage(props: MailPageProps) {
                           (recipient) => recipient.acked_at !== null
                         ).length
                       }
-                      /{message.recipients.length} acked
+                      /{message.recipients.length} acknowledged
                     </span>
                   </div>
                   {message.attachments.length > 0 ? (
@@ -451,6 +451,7 @@ export function MailPage(props: MailPageProps) {
                   type="button"
                   className={composeOptionsOpen ? "mc-options-active" : "ghost"}
                   onClick={() => setComposeOptionsOpen(!composeOptionsOpen)}
+                  aria-expanded={composeOptionsOpen}
                 >
                   Options
                 </button>

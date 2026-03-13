@@ -9,6 +9,10 @@ use std::time::Duration;
 const AGENT_SDK_AUTH_MODE: &str = "agent_sdk";
 const HEADLESS_DEFAULT_COMMAND: &str = "claude";
 const HEADLESS_DEFAULT_TIMEOUT_MS: u64 = 45_000;
+const PROVIDER_VLLM_API_BASE_URL_ENV: &str = "CARSINOS_PROVIDER_VLLM_API_BASE_URL";
+const PROVIDER_OLLAMA_API_BASE_URL_ENV: &str = "CARSINOS_PROVIDER_OLLAMA_API_BASE_URL";
+const PROVIDER_VLLM_DEFAULT_API_BASE_URL: &str = "http://127.0.0.1:8000";
+const PROVIDER_OLLAMA_DEFAULT_API_BASE_URL: &str = "http://127.0.0.1:11434";
 
 #[derive(Debug, Clone)]
 pub struct ProviderAuthProfile {
@@ -503,15 +507,22 @@ async fn complete_vllm(client: &Client, request: CompletionRequest) -> Result<Co
             )
         })?;
         (
-            auth.api_base_url
-                .as_deref()
-                .unwrap_or("http://127.0.0.1:8000")
-                .trim_end_matches('/')
-                .to_string(),
+            provider_api_base_url(
+                Some(auth),
+                PROVIDER_VLLM_API_BASE_URL_ENV,
+                PROVIDER_VLLM_DEFAULT_API_BASE_URL,
+            ),
             Some(token),
         )
     } else {
-        ("http://127.0.0.1:8000".to_string(), None)
+        (
+            provider_api_base_url(
+                None,
+                PROVIDER_VLLM_API_BASE_URL_ENV,
+                PROVIDER_VLLM_DEFAULT_API_BASE_URL,
+            ),
+            None,
+        )
     };
     complete_openai_compatible(
         client,
@@ -569,15 +580,22 @@ async fn complete_ollama(
             )
         })?;
         (
-            auth.api_base_url
-                .as_deref()
-                .unwrap_or("http://127.0.0.1:11434")
-                .trim_end_matches('/')
-                .to_string(),
+            provider_api_base_url(
+                Some(auth),
+                PROVIDER_OLLAMA_API_BASE_URL_ENV,
+                PROVIDER_OLLAMA_DEFAULT_API_BASE_URL,
+            ),
             Some(token),
         )
     } else {
-        ("http://127.0.0.1:11434".to_string(), None)
+        (
+            provider_api_base_url(
+                None,
+                PROVIDER_OLLAMA_API_BASE_URL_ENV,
+                PROVIDER_OLLAMA_DEFAULT_API_BASE_URL,
+            ),
+            None,
+        )
     };
     let url = format!("{base_url}/api/chat");
     let body = json!({
@@ -688,6 +706,26 @@ fn normalize_provider_http_error(provider: &str, status: StatusCode, body: &str)
         status.as_u16(),
         body
     )
+}
+
+fn provider_api_base_url(
+    auth_profile: Option<&ProviderAuthProfile>,
+    env_var: &str,
+    default: &str,
+) -> String {
+    auth_profile
+        .and_then(|auth| auth.api_base_url.as_ref())
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .or_else(|| {
+            std::env::var(env_var)
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        })
+        .unwrap_or_else(|| default.to_string())
+        .trim_end_matches('/')
+        .to_string()
 }
 
 fn provider_error_class_from_status(status: StatusCode) -> ProviderErrorClass {
@@ -979,6 +1017,12 @@ mod tests {
     use super::*;
     use httpmock::Method::POST;
     use httpmock::MockServer;
+    use std::future::Future;
+    use std::sync::Mutex;
+    use tokio::sync::Mutex as AsyncMutex;
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+    static ASYNC_ENV_LOCK: AsyncMutex<()> = AsyncMutex::const_new(());
 
     fn resolve_python_command() -> Option<String> {
         if let Ok(explicit) = std::env::var("PYTHON") {
@@ -997,6 +1041,53 @@ mod tests {
             }
         }
         None
+    }
+
+    fn with_env_vars<T>(values: &[(&str, Option<&str>)], run: impl FnOnce() -> T) -> T {
+        let _guard = ENV_LOCK.lock().expect("env lock");
+        let previous = values
+            .iter()
+            .map(|(key, _)| ((*key).to_string(), std::env::var(key).ok()))
+            .collect::<Vec<_>>();
+        for (key, value) in values {
+            match value {
+                Some(raw) => std::env::set_var(key, raw),
+                None => std::env::remove_var(key),
+            }
+        }
+        let result = run();
+        for (key, value) in previous {
+            match value {
+                Some(raw) => std::env::set_var(&key, raw),
+                None => std::env::remove_var(&key),
+            }
+        }
+        result
+    }
+
+    async fn with_env_vars_async<T>(
+        values: &[(&str, Option<&str>)],
+        run: impl Future<Output = T>,
+    ) -> T {
+        let _guard = ASYNC_ENV_LOCK.lock().await;
+        let previous = values
+            .iter()
+            .map(|(key, _)| ((*key).to_string(), std::env::var(key).ok()))
+            .collect::<Vec<_>>();
+        for (key, value) in values {
+            match value {
+                Some(raw) => std::env::set_var(key, raw),
+                None => std::env::remove_var(key),
+            }
+        }
+        let result = run.await;
+        for (key, value) in previous {
+            match value {
+                Some(raw) => std::env::set_var(&key, raw),
+                None => std::env::remove_var(&key),
+            }
+        }
+        result
     }
 
     #[tokio::test]
@@ -1307,6 +1398,126 @@ mod tests {
 
         mock.assert_async().await;
         assert_eq!(response.output_text, "vllm says hi");
+    }
+
+    #[test]
+    fn provider_api_base_url_uses_env_override_when_profile_base_is_missing() {
+        with_env_vars(
+            &[
+                (
+                    PROVIDER_VLLM_API_BASE_URL_ENV,
+                    Some("http://env-vllm:9000/"),
+                ),
+                (
+                    PROVIDER_OLLAMA_API_BASE_URL_ENV,
+                    Some("http://env-ollama:9500/"),
+                ),
+            ],
+            || {
+                assert_eq!(
+                    provider_api_base_url(
+                        None,
+                        PROVIDER_VLLM_API_BASE_URL_ENV,
+                        PROVIDER_VLLM_DEFAULT_API_BASE_URL,
+                    ),
+                    "http://env-vllm:9000"
+                );
+                assert_eq!(
+                    provider_api_base_url(
+                        None,
+                        PROVIDER_OLLAMA_API_BASE_URL_ENV,
+                        PROVIDER_OLLAMA_DEFAULT_API_BASE_URL,
+                    ),
+                    "http://env-ollama:9500"
+                );
+            },
+        );
+    }
+
+    #[tokio::test]
+    async fn vllm_provider_uses_env_api_base_when_profile_base_is_missing() {
+        let server = MockServer::start_async().await;
+        let server_base_url = server.base_url();
+        let mock = server
+            .mock_async(|when, then| {
+                when.method(POST).path("/v1/chat/completions");
+                then.status(200).json_body(json!({
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "vllm env says hi"
+                            }
+                        }
+                    ]
+                }));
+            })
+            .await;
+
+        let registry = ProviderRegistry::new();
+        let response = with_env_vars_async(
+            &[(
+                PROVIDER_VLLM_API_BASE_URL_ENV,
+                Some(server_base_url.as_str()),
+            )],
+            registry.complete(CompletionRequest {
+                model_provider: "vllm".to_string(),
+                model_id: "vllm-model".to_string(),
+                input: "hello".to_string(),
+                auth_profile: Some(ProviderAuthProfile {
+                    auth_profile_id: Some("p5-env".to_string()),
+                    auth_mode: "api_key".to_string(),
+                    risk_level: "low".to_string(),
+                    api_base_url: None,
+                    credentials_json: r#"{"api_key":"test-token"}"#.to_string(),
+                }),
+            }),
+        )
+        .await
+        .expect("vllm completion");
+
+        mock.assert_async().await;
+        assert_eq!(response.output_text, "vllm env says hi");
+    }
+
+    #[tokio::test]
+    async fn ollama_provider_uses_env_api_base_when_profile_base_is_missing() {
+        let server = MockServer::start_async().await;
+        let server_base_url = server.base_url();
+        let mock = server
+            .mock_async(|when, then| {
+                when.method(POST).path("/api/chat");
+                then.status(200).json_body(json!({
+                    "message": {
+                        "content": "ollama env says hi"
+                    }
+                }));
+            })
+            .await;
+
+        let registry = ProviderRegistry::new();
+        let response = with_env_vars_async(
+            &[(
+                PROVIDER_OLLAMA_API_BASE_URL_ENV,
+                Some(server_base_url.as_str()),
+            )],
+            registry.complete(CompletionRequest {
+                model_provider: "ollama".to_string(),
+                model_id: "llama3.2".to_string(),
+                input: "hello".to_string(),
+                auth_profile: Some(ProviderAuthProfile {
+                    auth_profile_id: Some("p4-env".to_string()),
+                    auth_mode: "api_key".to_string(),
+                    risk_level: "low".to_string(),
+                    api_base_url: None,
+                    credentials_json: r#"{"api_key":"test-token"}"#.to_string(),
+                }),
+            }),
+        )
+        .await
+        .expect("ollama completion");
+
+        mock.assert_async().await;
+        assert_eq!(response.output_text, "ollama env says hi");
     }
 
     #[tokio::test]

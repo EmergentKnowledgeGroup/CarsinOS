@@ -36,10 +36,14 @@ export function useBoardsController(options: UseBoardsControllerOptions) {
 
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
   const [board, setBoard] = useState<BoardDetail | null>(null);
+  const [loading, setLoading] = useState(false);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [cardEditor, setCardEditor] = useState<CardEditorDraft>(emptyEditorDraft());
   const [selectedPreviewUrl, setSelectedPreviewUrl] = useState<string | null>(null);
   const [dragCardId, setDragCardId] = useState<string | null>(null);
+  const [editorBusyAction, setEditorBusyAction] = useState<
+    "save" | "run" | "upload" | "move" | null
+  >(null);
   const boardRefreshTimer = useRef<number | null>(null);
 
   const cardsByColumn = useMemo(() => toCardsByColumn(board), [board]);
@@ -124,12 +128,15 @@ export function useBoardsController(options: UseBoardsControllerOptions) {
     async (boardId: string) => {
       try {
         setActiveBoardId(boardId);
+        setLoading(true);
         await refreshBoard(boardId, settings);
       } catch (error) {
         setNotice({
           tone: "critical",
           message: `Board load failed: ${String(error)}`,
         });
+      } finally {
+        setLoading(false);
       }
     },
     [refreshBoard, setNotice, settings]
@@ -185,6 +192,7 @@ export function useBoardsController(options: UseBoardsControllerOptions) {
       return;
     }
     try {
+      setEditorBusyAction("save");
       const response = await updateBoardCard(settings, activeBoardId, selectedCardId, {
         title: cardEditor.title.trim(),
         description: cardEditor.description.trim() || null,
@@ -204,6 +212,8 @@ export function useBoardsController(options: UseBoardsControllerOptions) {
       setNotice({ tone: "info", message: "Card updated." });
     } catch (error) {
       setNotice({ tone: "error", message: `Card update failed: ${String(error)}` });
+    } finally {
+      setEditorBusyAction((current) => (current === "save" ? null : current));
     }
   }, [activeBoardId, cardEditor, selectedCardId, setNotice, settings]);
 
@@ -212,6 +222,7 @@ export function useBoardsController(options: UseBoardsControllerOptions) {
       return;
     }
     try {
+      setEditorBusyAction("run");
       const response = await runBoardCard(settings, activeBoardId, selectedCardId);
       setBoard((previous) => (previous ? withUpsertCard(previous, response.card) : previous));
       setNotice({
@@ -220,8 +231,25 @@ export function useBoardsController(options: UseBoardsControllerOptions) {
       });
     } catch (error) {
       setNotice({ tone: "error", message: `Run failed: ${String(error)}` });
+    } finally {
+      setEditorBusyAction((current) => (current === "run" ? null : current));
     }
   }, [activeBoardId, selectedCardId, setNotice, settings]);
+
+  const moveSelectedCardToColumn = useCallback(
+    async (columnId: string) => {
+      if (!selectedCardId || !selectedCard || selectedCard.column_id === columnId) {
+        return;
+      }
+      try {
+        setEditorBusyAction("move");
+        await handleDropCard(selectedCardId, columnId);
+      } finally {
+        setEditorBusyAction((current) => (current === "move" ? null : current));
+      }
+    },
+    [handleDropCard, selectedCard, selectedCardId]
+  );
 
   const uploadAsset = useCallback(
     async (file: File) => {
@@ -229,6 +257,7 @@ export function useBoardsController(options: UseBoardsControllerOptions) {
         return;
       }
       try {
+        setEditorBusyAction("upload");
         const contentBase64 = await fileToBase64(file);
         const response = await uploadBoardCardAsset(settings, activeBoardId, selectedCardId, {
           filename: file.name,
@@ -239,6 +268,8 @@ export function useBoardsController(options: UseBoardsControllerOptions) {
         setNotice({ tone: "info", message: `Asset uploaded: ${response.asset.filename}` });
       } catch (error) {
         setNotice({ tone: "error", message: `Asset upload failed: ${String(error)}` });
+      } finally {
+        setEditorBusyAction((current) => (current === "upload" ? null : current));
       }
     },
     [activeBoardId, selectedCardId, setNotice, settings]
@@ -358,6 +389,7 @@ export function useBoardsController(options: UseBoardsControllerOptions) {
     setActiveBoardId,
     board,
     setBoard,
+    loading,
     selectedCardId,
     setSelectedCardId,
     selectCard,
@@ -367,6 +399,8 @@ export function useBoardsController(options: UseBoardsControllerOptions) {
     setSelectedPreviewUrl,
     dragCardId,
     setDragCardId,
+    editorBusy: editorBusyAction !== null,
+    editorBusyAction,
     cardsByColumn,
     selectedCard,
     columns,
@@ -377,6 +411,7 @@ export function useBoardsController(options: UseBoardsControllerOptions) {
     handleCreateCard,
     saveCardDraft,
     runCard,
+    moveSelectedCardToColumn,
     uploadAsset,
     previewAsset,
     applyGatewayBoardEvent,

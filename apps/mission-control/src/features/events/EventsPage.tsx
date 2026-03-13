@@ -127,7 +127,7 @@ export function EventsPage(props: EventsPageProps) {
             <EventItem key={event.event_id} event={event} />
           ))}
           {filtered.length === 0 ? (
-            <EmptyState message="No events captured yet." />
+            <EmptyState message={props.visibleEvents.length === 0 ? "Listening for events\u2026" : "No events match the current filter."} />
           ) : null}
         </div>
         <Pagination currentPage={eventsPage} totalPages={pagination.totalPages} onPageChange={setEventsPage} />

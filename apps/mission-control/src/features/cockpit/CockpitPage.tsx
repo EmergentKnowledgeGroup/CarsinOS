@@ -1,10 +1,18 @@
-import { useState, useCallback, type ReactNode } from "react";
+import {
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  type ReactNode,
+} from "react";
 import clsx from "clsx";
 import {
   COCKPIT_WIDGET_PALETTE,
   type CockpitPageLayoutV2,
   type CockpitWidgetKind,
   type CockpitWidgetLayoutV2,
+  RUNBOOK_COCKPIT_WIDGET_KINDS,
   STRATEGY_COCKPIT_WIDGET_KINDS,
 } from "./cockpitLayout";
 import { CockpitCanvas } from "./CockpitCanvas";
@@ -14,7 +22,7 @@ import { CustomWidgetBuilderModal } from "./CustomWidgetBuilderModal";
 import { EmptyState } from "../../ui/EmptyState";
 import { Modal } from "../../ui/Modal";
 import type { RuntimeConnectionSettings } from "../../types";
-import { loadOpsUxRuntimeConfig } from "../../lib/opsUxConfig";
+import { useOpsUxRuntimeConfigValue } from "../../lib/opsUxConfig";
 import {
   Plus,
   Pencil,
@@ -22,6 +30,10 @@ import {
   Trash2,
   Copy,
   GripVertical,
+  MoveDown,
+  MoveLeft,
+  MoveRight,
+  MoveUp,
 } from "lucide-react";
 
 interface CockpitPageProps {
@@ -41,14 +53,22 @@ interface CockpitPageProps {
   onAddCockpitWidget: (widget: CockpitWidgetKind) => void;
   onAddCustomWidget: (widget: CockpitWidgetLayoutV2) => void;
   onRemoveCockpitWidget: (instanceId: string) => void;
+  onNudgeCockpitWidget: (
+    instanceId: string,
+    delta: { x?: number; y?: number }
+  ) => void;
   onLayoutChange: (layout: Array<{ i: string; x: number; y: number; w: number; h: number }>) => void;
   renderCockpitWidget: (widget: CockpitWidgetLayoutV2) => ReactNode;
   settings: RuntimeConnectionSettings;
   strategyEnabled?: boolean;
+  runbookEnabled?: boolean;
 }
 
 const STRATEGY_WIDGET_KIND_SET = new Set<CockpitWidgetKind>(
   STRATEGY_COCKPIT_WIDGET_KINDS
+);
+const RUNBOOK_WIDGET_KIND_SET = new Set<CockpitWidgetKind>(
+  RUNBOOK_COCKPIT_WIDGET_KINDS
 );
 
 export function CockpitPage(props: CockpitPageProps) {
@@ -57,21 +77,57 @@ export function CockpitPage(props: CockpitPageProps) {
   const [customBuilderOpen, setCustomBuilderOpen] = useState(false);
   const [contextMenuPageId, setContextMenuPageId] = useState<string | null>(null);
   const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
+  const [contextMenuTriggerPageId, setContextMenuTriggerPageId] = useState<string | null>(null);
   const [renamingPageId, setRenamingPageId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const opsUxRuntime = useOpsUxRuntimeConfigValue();
+  const contextMenuRef = useRef<HTMLDivElement | null>(null);
 
   const handlePageContext = useCallback(
-    (e: React.MouseEvent, pageId: string) => {
+    (e: React.MouseEvent | React.KeyboardEvent, pageId: string) => {
       e.preventDefault();
       setContextMenuPageId(pageId);
-      setContextMenuPos({ x: e.clientX, y: e.clientY });
+      setContextMenuTriggerPageId(pageId);
+      if ("clientX" in e) {
+        setContextMenuPos({ x: e.clientX, y: e.clientY });
+        return;
+      }
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      setContextMenuPos({ x: rect.right + 8, y: rect.top + rect.height / 2 });
     },
     [],
   );
 
   const closeContextMenu = useCallback(() => {
     setContextMenuPageId(null);
-  }, []);
+    const triggerPageId = contextMenuTriggerPageId;
+    setContextMenuTriggerPageId(null);
+    if (!triggerPageId) {
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      const trigger = document.querySelector<HTMLElement>(
+        `[data-cockpit-page-tab="${triggerPageId}"]`
+      );
+      trigger?.focus();
+    });
+  }, [contextMenuTriggerPageId]);
+
+  useEffect(() => {
+    if (!contextMenuPageId) {
+      return;
+    }
+    const firstButton = contextMenuRef.current?.querySelector<HTMLElement>("button");
+    firstButton?.focus();
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeContextMenu();
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [closeContextMenu, contextMenuPageId]);
 
   const startRename = useCallback(
     (pageId: string, currentName: string) => {
@@ -90,23 +146,42 @@ export function CockpitPage(props: CockpitPageProps) {
   }, [renamingPageId, renameValue, props]);
 
   const strategyEnabled =
-    props.strategyEnabled ?? loadOpsUxRuntimeConfig().config.controls.strategy_hub;
+    props.strategyEnabled ?? opsUxRuntime.config.controls.strategy_hub;
+  const runbookEnabled =
+    props.runbookEnabled ?? opsUxRuntime.config.controls.runbook_hub;
   const visibleWidgets = props.activeCockpitPage.widgets.filter(
     (widget) => {
-      if (widget.widget === "custom" || strategyEnabled) {
+      if (widget.widget === "custom") {
         return true;
       }
-      return !STRATEGY_WIDGET_KIND_SET.has(widget.widget);
+      if (!strategyEnabled && STRATEGY_WIDGET_KIND_SET.has(widget.widget)) {
+        return false;
+      }
+      if (!runbookEnabled && RUNBOOK_WIDGET_KIND_SET.has(widget.widget)) {
+        return false;
+      }
+      return true;
     }
   );
-  const hiddenStrategyWidgetCount =
+  const hiddenWidgetCount =
     props.activeCockpitPage.widgets.length - visibleWidgets.length;
   const hasWidgets = visibleWidgets.length > 0;
-  const availableWidgetKinds = strategyEnabled
-    ? undefined
-    : COCKPIT_WIDGET_PALETTE.filter(
-        (entry) => !STRATEGY_WIDGET_KIND_SET.has(entry.widget)
-      ).map((entry) => entry.widget);
+  const availableWidgetKinds =
+    strategyEnabled && runbookEnabled
+      ? undefined
+      : COCKPIT_WIDGET_PALETTE.filter((entry) => {
+          if (!strategyEnabled && STRATEGY_WIDGET_KIND_SET.has(entry.widget)) {
+            return false;
+          }
+          if (!runbookEnabled && RUNBOOK_WIDGET_KIND_SET.has(entry.widget)) {
+            return false;
+          }
+          return true;
+        }).map((entry) => entry.widget);
+  const visibleWidgetIds = useMemo(
+    () => visibleWidgets.map((widget) => widget.instance_id),
+    [visibleWidgets]
+  );
 
   return (
     <section className="mc-cockpit-grid">
@@ -144,7 +219,15 @@ export function CockpitPage(props: CockpitPageProps) {
                 )}
                 onClick={() => props.onSetActiveCockpitPageId(page.page_id)}
                 onContextMenu={(e) => handlePageContext(e, page.page_id)}
+                onKeyDown={(event) => {
+                  if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
+                    handlePageContext(event, page.page_id);
+                  }
+                }}
                 title={page.name}
+                aria-label={`Cockpit page: ${page.name}`}
+                aria-current={isActive ? "page" : undefined}
+                data-cockpit-page-tab={page.page_id}
               >
                 <span className="mc-cockpit-page-tab-letter">{letter}</span>
               </button>
@@ -217,9 +300,45 @@ export function CockpitPage(props: CockpitPageProps) {
               >
                 <header className="mc-cockpit-widget-head">
                   {props.editMode ? (
-                    <span className="mc-widget-drag-handle">
-                      <GripVertical size={14} />
-                    </span>
+                    <div className="mc-widget-edit-controls">
+                      <span className="mc-widget-drag-handle" aria-hidden="true">
+                        <GripVertical size={14} />
+                      </span>
+                      <div className="mc-widget-nudge-controls" aria-label="Move widget">
+                        <button
+                          type="button"
+                          className="mc-widget-remove-btn"
+                          title="Move widget left"
+                          onClick={() => props.onNudgeCockpitWidget(widget.instance_id, { x: -1 })}
+                        >
+                          <MoveLeft size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          className="mc-widget-remove-btn"
+                          title="Move widget up"
+                          onClick={() => props.onNudgeCockpitWidget(widget.instance_id, { y: -1 })}
+                        >
+                          <MoveUp size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          className="mc-widget-remove-btn"
+                          title="Move widget right"
+                          onClick={() => props.onNudgeCockpitWidget(widget.instance_id, { x: 1 })}
+                        >
+                          <MoveRight size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          className="mc-widget-remove-btn"
+                          title="Move widget down"
+                          onClick={() => props.onNudgeCockpitWidget(widget.instance_id, { y: 1 })}
+                        >
+                          <MoveDown size={14} />
+                        </button>
+                      </div>
+                    </div>
                   ) : null}
                   <h3>{widget.title}</h3>
                   {props.editMode ? (
@@ -233,6 +352,12 @@ export function CockpitPage(props: CockpitPageProps) {
                     </button>
                   ) : null}
                 </header>
+                {props.editMode ? (
+                  <div className="mc-cockpit-widget-order-hint">
+                    Position {visibleWidgetIds.indexOf(widget.instance_id) + 1} of{" "}
+                    {visibleWidgetIds.length}
+                  </div>
+                ) : null}
                 {props.renderCockpitWidget(widget)}
               </div>
             ))}
@@ -242,8 +367,8 @@ export function CockpitPage(props: CockpitPageProps) {
             <EmptyState
               className="mc-cockpit-empty-message"
               message={
-                hiddenStrategyWidgetCount > 0
-                  ? "This page only contains Strategy widgets. Enable Strategy Hub to display them."
+                hiddenWidgetCount > 0
+                  ? "This page only contains hidden optional-module widgets. Enable the required hub to display them."
                   : "Your dashboard is empty."
               }
             />
@@ -271,11 +396,14 @@ export function CockpitPage(props: CockpitPageProps) {
         <>
           <div className="mc-context-backdrop" onClick={closeContextMenu} />
           <div
+            ref={contextMenuRef}
             className="mc-context-menu"
             style={{ left: contextMenuPos.x, top: contextMenuPos.y }}
+            role="menu"
           >
             <button
               type="button"
+              role="menuitem"
               onClick={() => {
                 const page = props.cockpitPages.find(
                   (p) => p.page_id === contextMenuPageId,
@@ -288,6 +416,7 @@ export function CockpitPage(props: CockpitPageProps) {
             </button>
             <button
               type="button"
+              role="menuitem"
               onClick={() => {
                 props.onDuplicateCockpitPage(contextMenuPageId);
                 closeContextMenu();
@@ -300,6 +429,7 @@ export function CockpitPage(props: CockpitPageProps) {
               <button
                 type="button"
                 className="danger"
+                role="menuitem"
                 onClick={() => {
                   props.onDeleteCockpitPage(contextMenuPageId);
                   closeContextMenu();

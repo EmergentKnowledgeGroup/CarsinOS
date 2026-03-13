@@ -4,7 +4,10 @@ interface ChipProps {
   label: string;
   tone?: string;
   className?: string;
+  title?: string;
   onClick?: () => void;
+  /** For toggle chips — conveys pressed state to assistive tech */
+  ariaPressed?: boolean;
 }
 
 export function Chip(props: ChipProps) {
@@ -19,6 +22,8 @@ export function Chip(props: ChipProps) {
         props.className
       )}
       onClick={props.onClick}
+      title={props.title}
+      aria-pressed={props.ariaPressed}
     >
       {props.label}
     </Tag>
