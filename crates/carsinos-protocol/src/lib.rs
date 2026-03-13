@@ -171,6 +171,19 @@ pub struct ToolCapabilitySandboxResponse {
     pub network_allowlist_count: usize,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToolCapabilityConnectorOriginResponse {
+    pub connector_id: String,
+    pub connector_slug: String,
+    pub connector_display_name: String,
+    pub version_id: String,
+    pub published_tool_id: String,
+    pub source_kind: String,
+    pub write_classification: String,
+    pub trust_state: String,
+    pub read_only_mirror: bool,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ToolCapabilityResponse {
     pub tool_name: String,
@@ -180,6 +193,8 @@ pub struct ToolCapabilityResponse {
     pub timeout_ms: Option<u64>,
     pub enabled: bool,
     pub sandbox: ToolCapabilitySandboxResponse,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub connector: Option<ToolCapabilityConnectorOriginResponse>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -341,6 +356,360 @@ pub struct RollbackPluginResponse {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct ListConnectorCatalogQuery {
+    pub source_kind: Option<String>,
+    pub query: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectorCatalogItemResponse {
+    pub catalog_item_id: String,
+    pub slug: String,
+    pub display_name: String,
+    pub source_kind: String,
+    pub summary: String,
+    pub publisher: String,
+    pub trust_class: String,
+    pub available_versions: Vec<String>,
+    pub marketplace_origin: Option<String>,
+    pub importable: bool,
+    pub future_marketplace_metadata: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListConnectorCatalogResponse {
+    pub contract_version: String,
+    pub items: Vec<ConnectorCatalogItemResponse>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListConnectorsQuery {
+    pub source_kind: Option<String>,
+    pub status: Option<String>,
+    pub trust_state: Option<String>,
+    pub query: Option<String>,
+    pub include_disabled: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectorSourceResponse {
+    pub connector_id: String,
+    pub slug: String,
+    pub display_name: String,
+    pub source_kind: String,
+    pub origin_kind: String,
+    pub catalog_item_id: Option<String>,
+    pub current_version_id: Option<String>,
+    pub latest_imported_version_id: Option<String>,
+    pub status: String,
+    pub trust_state: String,
+    pub assigned_agent_count: usize,
+    pub published_tool_count: usize,
+    pub last_conversion_at: Option<i64>,
+    pub last_review_at: Option<i64>,
+    pub last_enabled_at: Option<i64>,
+    pub last_disabled_at: Option<i64>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectorVersionResponse {
+    pub version_id: String,
+    pub connector_id: String,
+    pub version_label: String,
+    pub source_digest: String,
+    pub raw_source_location: Option<String>,
+    pub import_metadata: serde_json::Value,
+    pub schema_summary: serde_json::Value,
+    pub latest_conversion_id: Option<String>,
+    pub external_reference_policy: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectorWarningResponse {
+    pub code: String,
+    pub message: String,
+    pub blocking: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub field: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectorProposedToolResponse {
+    pub candidate_id: String,
+    pub operation_key: String,
+    pub proposed_tool_name: String,
+    pub display_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub input_schema: serde_json::Value,
+    pub write_classification: String,
+    pub review_blocked: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub review_block_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectorUnsupportedOperationResponse {
+    pub operation_key: String,
+    pub display_name: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectorConversionResponse {
+    pub conversion_id: String,
+    pub connector_id: String,
+    pub version_id: String,
+    pub status: String,
+    pub warnings: Vec<ConnectorWarningResponse>,
+    pub proposed_tools: Vec<ConnectorProposedToolResponse>,
+    pub write_capable_tools: usize,
+    pub unsupported_operations: Vec<ConnectorUnsupportedOperationResponse>,
+    pub normalization_notes: Vec<String>,
+    pub diff_from_previous: serde_json::Value,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectorPublishedToolResponse {
+    pub published_tool_id: String,
+    pub connector_id: String,
+    pub version_id: String,
+    pub conversion_id: String,
+    pub tool_name: String,
+    pub display_name: String,
+    pub tool_schema: serde_json::Value,
+    pub origin_metadata: serde_json::Value,
+    pub write_classification: String,
+    pub published_at: i64,
+    pub unpublished_at: Option<i64>,
+    pub superseded_by_published_tool_id: Option<String>,
+    pub deprecation_state: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectorAssignmentResponse {
+    pub assignment_id: String,
+    pub connector_id: String,
+    pub agent_id: String,
+    pub enabled: bool,
+    pub auth_mode: String,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectorAuthBindingResponse {
+    pub auth_binding_id: String,
+    pub connector_id: String,
+    pub agent_id: Option<String>,
+    pub auth_kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secret_ref: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub oauth_session_id: Option<String>,
+    pub status: String,
+    pub auth_metadata: serde_json::Value,
+    pub last_success_at: Option<i64>,
+    pub last_error: Option<String>,
+    pub last_rotated_at: Option<i64>,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectorInteractionResponse {
+    pub interaction_id: String,
+    pub connector_id: String,
+    pub agent_id: Option<String>,
+    pub interaction_kind: String,
+    pub status: String,
+    pub prompt_summary: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resume_token: Option<String>,
+    pub expires_at: Option<i64>,
+    pub consumed_at: Option<i64>,
+    pub detail: serde_json::Value,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectorHealthResponse {
+    pub connector_id: String,
+    pub status: String,
+    pub degraded_reason: Option<String>,
+    pub auth_required: bool,
+    pub last_checked_at: Option<i64>,
+    pub published_tool_count: usize,
+    pub assigned_agent_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListConnectorsResponse {
+    pub contract_version: String,
+    pub items: Vec<ConnectorSourceResponse>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GetConnectorResponse {
+    pub connector: ConnectorSourceResponse,
+    pub versions: Vec<ConnectorVersionResponse>,
+    pub conversions: Vec<ConnectorConversionResponse>,
+    pub published_tools: Vec<ConnectorPublishedToolResponse>,
+    pub assignments: Vec<ConnectorAssignmentResponse>,
+    pub auth_bindings: Vec<ConnectorAuthBindingResponse>,
+    pub interactions: Vec<ConnectorInteractionResponse>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ImportConnectorRequest {
+    pub source_kind: String,
+    pub display_name: String,
+    pub slug: Option<String>,
+    pub catalog_item_id: Option<String>,
+    pub version_label: Option<String>,
+    pub origin_kind: Option<String>,
+    pub import_url: Option<String>,
+    pub source_text: Option<String>,
+    pub source_json: Option<serde_json::Value>,
+    pub endpoint_url: Option<String>,
+    pub external_reference_policy: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ImportConnectorResponse {
+    pub connector: ConnectorSourceResponse,
+    pub version: ConnectorVersionResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RunConnectorConversionRequest {
+    pub version_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RunConnectorConversionResponse {
+    pub connector: ConnectorSourceResponse,
+    pub version: ConnectorVersionResponse,
+    pub conversion: ConnectorConversionResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ConnectorAliasOverrideRequest {
+    pub candidate_id: String,
+    pub alias: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct PublishConnectorToolsRequest {
+    pub conversion_id: String,
+    pub selected_candidate_ids: Vec<String>,
+    #[serde(default)]
+    pub alias_overrides: Vec<ConnectorAliasOverrideRequest>,
+    pub enable_after_publish: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PublishConnectorToolsResponse {
+    pub connector: ConnectorSourceResponse,
+    pub version: ConnectorVersionResponse,
+    pub published_tools: Vec<ConnectorPublishedToolResponse>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UnpublishConnectorToolsRequest {
+    pub published_tool_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UnpublishConnectorToolsResponse {
+    pub connector: ConnectorSourceResponse,
+    pub published_tools: Vec<ConnectorPublishedToolResponse>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RollbackConnectorVersionRequest {
+    pub version_id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RollbackConnectorVersionResponse {
+    pub connector: ConnectorSourceResponse,
+    pub version: ConnectorVersionResponse,
+    pub published_tools: Vec<ConnectorPublishedToolResponse>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SetConnectorStateRequest {
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SetConnectorStateResponse {
+    pub connector: ConnectorSourceResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SetConnectorAssignmentRequest {
+    pub agent_id: String,
+    pub enabled: Option<bool>,
+    pub auth_mode: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SetConnectorAssignmentResponse {
+    pub assignment: ConnectorAssignmentResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpsertConnectorAuthBindingRequest {
+    pub agent_id: Option<String>,
+    pub auth_kind: String,
+    pub secret_ref: Option<String>,
+    pub oauth_session_id: Option<String>,
+    pub auth_metadata: Option<serde_json::Value>,
+    pub status: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct UpsertConnectorAuthBindingResponse {
+    pub binding: ConnectorAuthBindingResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ResumeConnectorInteractionRequest {
+    pub payload: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ResumeConnectorInteractionResponse {
+    pub interaction: ConnectorInteractionResponse,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListConnectorInteractionsResponse {
+    pub contract_version: String,
+    pub items: Vec<ConnectorInteractionResponse>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GetConnectorHealthResponse {
+    pub health: ConnectorHealthResponse,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DescribeConnectorToolResponse {
+    pub connector: ConnectorSourceResponse,
+    pub published_tool: ConnectorPublishedToolResponse,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct ListSkillsQuery {
     pub include_disabled: Option<bool>,
 }
@@ -371,8 +740,96 @@ pub struct AgentResponse {
     pub tool_profile: String,
     pub reports_to_agent_id: Option<String>,
     pub role_label: Option<String>,
+    pub memory_binding: Option<AgentMemoryBindingResponse>,
     pub created_at: i64,
     pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentMemoryBindingResponse {
+    pub binding_id: String,
+    pub provider_kind: String,
+    pub base_url: String,
+    pub auth_mode: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth_secret_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub principal_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub principal_display_name: Option<String>,
+    pub enabled: bool,
+    pub trusted_local_operator_actions: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AgentMemoryBindingRequest {
+    pub binding_id: Option<String>,
+    pub provider_kind: Option<String>,
+    pub base_url: Option<String>,
+    pub auth_mode: Option<String>,
+    #[serde(default)]
+    pub auth_secret_ref: Option<String>,
+    #[serde(default)]
+    pub principal_id: Option<String>,
+    #[serde(default)]
+    pub principal_display_name: Option<String>,
+    #[serde(default)]
+    pub enabled: Option<bool>,
+    #[serde(default)]
+    pub trusted_local_operator_actions: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UpdateAgentMemoryBindingRequest {
+    pub binding_id: Option<String>,
+    pub provider_kind: Option<String>,
+    pub base_url: Option<String>,
+    pub auth_mode: Option<String>,
+    pub auth_secret_ref: Option<Option<String>>,
+    pub principal_id: Option<Option<String>>,
+    pub principal_display_name: Option<Option<String>>,
+    pub enabled: Option<bool>,
+    pub trusted_local_operator_actions: Option<bool>,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct AgentMemoryNativeSurfaceAvailabilityResponse {
+    pub cards: bool,
+    pub card_detail: bool,
+    pub atom_detail: bool,
+    pub graph_overview: bool,
+    pub graph_neighbors: bool,
+    pub episodes: bool,
+    pub turn_why: bool,
+    pub citation_lookup: bool,
+    pub runtime_health: bool,
+    pub telemetry_summary: bool,
+    pub telemetry_turns: bool,
+    pub decision_reasons: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AgentMemoryStatusResponse {
+    pub agent_id: String,
+    pub binding_status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub binding: Option<AgentMemoryBindingResponse>,
+    pub native_surface_availability: AgentMemoryNativeSurfaceAvailabilityResponse,
+    pub orchestration: NumquamIntegrationStatusResponse,
+    pub native_runtime_status: Option<serde_json::Value>,
+    pub native_runtime_health_mismatch: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GetAgentMemoryStatusResponse {
+    pub status: AgentMemoryStatusResponse,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AgentMemoryJsonPayloadResponse {
+    pub agent_id: String,
+    pub binding_id: String,
+    pub data: serde_json::Value,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -395,6 +852,7 @@ pub struct CreateAgentRequest {
     pub tool_profile: Option<String>,
     pub reports_to_agent_id: Option<String>,
     pub role_label: Option<String>,
+    pub memory_binding: Option<AgentMemoryBindingRequest>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -411,6 +869,7 @@ pub struct UpdateAgentRequest {
     pub tool_profile: Option<String>,
     pub reports_to_agent_id: Option<Option<String>>,
     pub role_label: Option<Option<String>>,
+    pub memory_binding: Option<Option<UpdateAgentMemoryBindingRequest>>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1051,6 +1510,170 @@ pub struct StrategySummaryQuery {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct ListRunbooksQuery {
+    pub kind: Option<String>,
+    pub status: Option<String>,
+    pub owner_agent_id: Option<String>,
+    pub query: Option<String>,
+    pub linked_task_id: Option<String>,
+    pub linked_project_id: Option<String>,
+    pub linked_goal_id: Option<String>,
+    pub limit: Option<u32>,
+    pub cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunbookDeepLinkTargetResponse {
+    pub tab: String,
+    pub target_kind: String,
+    pub target_id: Option<String>,
+    pub context: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunbookEntityRefResponse {
+    pub entity_kind: String,
+    pub entity_id: String,
+    pub display_label: String,
+    pub deep_link: RunbookDeepLinkTargetResponse,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunbookExecutionRefResponse {
+    pub entity_kind: String,
+    pub entity_id: String,
+    pub created_at_ms: i64,
+    pub started_at_ms: Option<i64>,
+    pub waiting_since_ms: Option<i64>,
+    pub finished_at_ms: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunbookDataAvailabilityResponse {
+    pub is_limited: bool,
+    pub is_stale: bool,
+    pub last_refresh_at_ms: i64,
+    pub missing_source_kinds: Vec<String>,
+    pub stale_reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunbookWarningResponse {
+    pub warning_id: String,
+    pub warning_kind: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunbookSourceFactResponse {
+    pub fact_id: String,
+    pub fact_kind: String,
+    pub entity_ref: Option<RunbookEntityRefResponse>,
+    pub occurred_at_ms: Option<i64>,
+    pub partial: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunbookActionResponse {
+    pub action_id: String,
+    pub action_kind: String,
+    pub label: String,
+    pub availability: String,
+    pub disabled_reason: Option<String>,
+    pub target_entity_ref: Option<RunbookEntityRefResponse>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunbookStepResponse {
+    pub step_id: String,
+    pub label: String,
+    pub kind: String,
+    pub state: String,
+    pub state_reason: Option<String>,
+    pub started_at_ms: Option<i64>,
+    pub finished_at_ms: Option<i64>,
+    pub waiting_since_ms: Option<i64>,
+    pub linked_entity_refs: Vec<RunbookEntityRefResponse>,
+    pub action_refs: Vec<String>,
+    pub template_index: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunbookHistoryItemResponse {
+    pub history_id: String,
+    pub event_kind: String,
+    pub label: String,
+    pub detail: Option<String>,
+    pub occurred_at_ms: i64,
+    pub step_id: Option<String>,
+    pub entity_refs: Vec<RunbookEntityRefResponse>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunbookStatusCountsResponse {
+    pub pending: u64,
+    pub active: u64,
+    pub waiting: u64,
+    pub blocked: u64,
+    pub failed: u64,
+    pub completed: u64,
+    pub limited: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunbookSummaryItemResponse {
+    pub runbook_id: String,
+    pub runbook_kind: String,
+    pub anchor_kind: String,
+    pub anchor_id: String,
+    pub title: String,
+    pub status: String,
+    pub status_reason: Option<String>,
+    pub owner_agent_id: Option<String>,
+    pub owner_agent_label: Option<String>,
+    pub primary_entity_label: String,
+    pub updated_at_ms: i64,
+    pub current_step_label: Option<String>,
+    pub warning_count: u32,
+    pub linked_entities: Vec<RunbookEntityRefResponse>,
+    pub availability: RunbookDataAvailabilityResponse,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListRunbooksResponse {
+    pub generated_at_ms: i64,
+    pub items: Vec<RunbookSummaryItemResponse>,
+    pub counts_by_status: RunbookStatusCountsResponse,
+    pub next_cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunbookDetailResponse {
+    pub runbook_id: String,
+    pub runbook_kind: String,
+    pub template_id: String,
+    pub template_version: String,
+    pub anchor_kind: String,
+    pub anchor_id: String,
+    pub title: String,
+    pub status: String,
+    pub status_reason: Option<String>,
+    pub generated_at_ms: i64,
+    pub selected_execution_ref: Option<RunbookExecutionRefResponse>,
+    pub active_step_id: Option<String>,
+    pub next_step_ids: Vec<String>,
+    pub linked_entities: Vec<RunbookEntityRefResponse>,
+    pub steps: Vec<RunbookStepResponse>,
+    pub history: Vec<RunbookHistoryItemResponse>,
+    pub actions: Vec<RunbookActionResponse>,
+    pub source_facts: Vec<RunbookSourceFactResponse>,
+    pub availability: RunbookDataAvailabilityResponse,
+    pub warnings: Vec<RunbookWarningResponse>,
+    pub owner_agent_id: Option<String>,
+    pub owner_agent_label: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct ListBootstrapPresetsQuery {
     pub limit: Option<u32>,
     pub cursor: Option<String>,
@@ -1509,6 +2132,8 @@ pub struct AssistantToolCapabilityItem {
     pub tool_name: String,
     pub risk_level: String,
     pub requires_approval: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub connector: Option<ToolCapabilityConnectorOriginResponse>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1756,6 +2381,8 @@ fn default_runtime_provider_kill_switch_scope() -> String {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeDiscordDeploymentConfig {
+    #[serde(default = "default_runtime_channel_enabled")]
+    pub enabled: bool,
     #[serde(default)]
     pub bot_token_secret_ref: Option<String>,
     #[serde(default = "default_runtime_discord_operation_mode")]
@@ -1782,6 +2409,8 @@ fn default_runtime_discord_operation_mode() -> String {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeTelegramDeploymentConfig {
+    #[serde(default = "default_runtime_channel_enabled")]
+    pub enabled: bool,
     #[serde(default)]
     pub bot_token_secret_ref: Option<String>,
     #[serde(default = "default_runtime_telegram_operation_mode")]
@@ -1808,6 +2437,10 @@ fn default_runtime_telegram_operation_mode() -> String {
 
 fn default_runtime_telegram_webhook_mode() -> String {
     "long_poll".to_string()
+}
+
+fn default_runtime_channel_enabled() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

@@ -30,6 +30,7 @@ import type {
 import type { useStrategyController } from "../strategy/useStrategyController";
 import { applyBootstrapPresetToDraft } from "../strategy/bootstrapPresetUtils";
 import { managerChainLabel } from "../strategy/strategyOrg";
+import { isEligibleManagerForAgent } from "./teamManagerValidation";
 
 const PAGE_SIZE = 5;
 
@@ -233,8 +234,24 @@ export function TeamPage({
   }, [agents]);
 
   const managerOptions = useMemo(
-    () => agents.filter((agent) => agent.agent_id !== form.agent_id),
-    [agents, form.agent_id]
+    () =>
+      agents.filter((agent) =>
+        isEligibleManagerForAgent(
+          form.agent_id,
+          agent.agent_id,
+          strategyController.org.subtreeIdsByAgentId
+        )
+      ),
+    [agents, form.agent_id, strategyController.org.subtreeIdsByAgentId]
+  );
+  const managerSelectionInvalid = useMemo(
+    () =>
+      !isEligibleManagerForAgent(
+        form.agent_id,
+        form.reports_to_agent_id,
+        strategyController.org.subtreeIdsByAgentId
+      ),
+    [form.agent_id, form.reports_to_agent_id, strategyController.org.subtreeIdsByAgentId]
   );
 
   const providerOptions = useMemo(() => {
@@ -414,6 +431,10 @@ export function TeamPage({
       setError("Agent ID and Name are required.");
       return;
     }
+    if (managerSelectionInvalid) {
+      setError("Reports To cannot point to the same agent or one of its own descendants.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -448,7 +469,7 @@ export function TeamPage({
     } finally {
       setSaving(false);
     }
-  }, [closeModal, form, modalMode, refreshAll, settings]);
+  }, [closeModal, form, managerSelectionInvalid, modalMode, refreshAll, settings]);
 
   const exportPreset = useCallback(
     async (presetKey: string) => {
@@ -701,6 +722,11 @@ export function TeamPage({
                 {agent.workspace_root ? (
                   <div className="mc-team-card-meta">Workspace: {agent.workspace_root}</div>
                 ) : null}
+                {agent.memory_binding?.enabled ? (
+                  <div className="mc-team-card-meta">
+                    Memory lane: {agent.memory_binding.binding_id}
+                  </div>
+                ) : null}
                 {agent.reports_to_agent_id ? (
                   <div className="mc-team-card-meta">
                     Reports to{" "}
@@ -713,6 +739,9 @@ export function TeamPage({
                   <span className="mc-chip mc-chip-muted">
                     {agent.tool_profile ?? "standard"}
                   </span>
+                  {agent.memory_binding?.enabled ? (
+                    <span className="mc-chip mc-chip-muted">memory bound</span>
+                  ) : null}
                   {agent.role_label ? (
                     <span className="mc-chip mc-chip-muted">{agent.role_label}</span>
                   ) : null}
@@ -847,6 +876,11 @@ export function TeamPage({
                   </option>
                 ))}
               </select>
+              {managerSelectionInvalid ? (
+                <small className="mc-form-error">
+                  This manager choice would create an agent hierarchy cycle.
+                </small>
+              ) : null}
             </label>
           </div>
 

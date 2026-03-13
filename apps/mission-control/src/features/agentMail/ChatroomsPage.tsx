@@ -241,7 +241,7 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
                     )
                   }
                 >
-                  {isBusyAction(`ack:${message.message_id}`) ? "Acking..." : "Ack"}
+                  {isBusyAction(`ack:${message.message_id}`) ? "Acknowledging\u2026" : "Acknowledge"}
                 </button>
               </div>
               <pre>{message.body_text}</pre>
@@ -362,7 +362,7 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
                 </select>
               </label>
               <AgentPicker
-                label="Mention recipients (optional)"
+                label="Additional recipients (optional)"
                 agents={props.agents}
                 value={props.chatComposeRecipients}
                 onChange={props.onChatComposeRecipientsChange}
@@ -437,7 +437,7 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
                 runBusyAction("mod:ack-all-unread", () => props.onAcknowledgeRoomUnread())
               }
             >
-              {isBusyAction("mod:ack-all-unread") ? "Working..." : "Ack All Unread"}
+              {isBusyAction("mod:ack-all-unread") ? "Working\u2026" : "Acknowledge All Unread"}
             </button>
             <button
               type="button"
@@ -445,8 +445,9 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
               onClick={() =>
                 runBusyAction("mod:reserve-workspace", () => props.onReserveSelectedRoomWorkspace())
               }
+              title="Claim an exclusive file-lock workspace for this room"
             >
-              {isBusyAction("mod:reserve-workspace") ? "Working..." : "Reserve Workspace"}
+              {isBusyAction("mod:reserve-workspace") ? "Working\u2026" : "Reserve Workspace"}
             </button>
           </div>
         </section>

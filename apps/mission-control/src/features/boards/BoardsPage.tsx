@@ -1,12 +1,26 @@
-import { useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type { Agent, BoardCard, BoardColumn, TaskResponse } from "../../types";
+import type {
+  Agent,
+  BoardCard,
+  BoardColumn,
+  RunbookSummaryItemResponse,
+  TaskResponse,
+} from "../../types";
 import { formatBytes } from "../../utils/files";
 import { Modal } from "../../ui/Modal";
 import { Pagination } from "../../ui/Pagination";
 import { Tabs } from "../../ui/Tabs";
 import { TagPicker } from "../../ui/TagPicker";
 import { usePagination } from "../../ui/usePagination";
+import { RunbookLinkPanel } from "../runbook/RunbookLinkPanel";
 import { StrategyTaskContextPanel } from "../strategy/StrategyTaskContextPanel";
 import type { StrategyTaskContextSnapshot } from "../strategy/useStrategyController";
 import { BoardLane } from "./BoardLane";
@@ -17,6 +31,7 @@ const ASSETS_PAGE_SIZE = 6;
 interface BoardsPageProps {
   boards: Array<{ board_id: string; name: string }>;
   activeBoardId: string | null;
+  loading?: boolean;
   onBoardChange: (boardId: string) => Promise<void>;
   columns: BoardColumn[];
   cardsByColumn: Map<string, BoardCard[]>;
@@ -32,13 +47,19 @@ interface BoardsPageProps {
   agents: Agent[];
   onSaveCardDraft: () => Promise<void>;
   onRunCard: () => Promise<void>;
+  onMoveCardToColumn: (columnId: string) => Promise<void>;
   onUploadAsset: (file: File) => Promise<void>;
   onPreviewAsset: (cardId: string, cardAssetId: string) => Promise<void>;
   selectedPreviewUrl: string | null;
+  editorBusy: boolean;
+  editorBusyAction: "save" | "run" | "upload" | "move" | null;
   strategyReady: boolean;
   linkedTaskByCardId: Map<string, TaskResponse>;
   describeStrategyTask: (taskId: string) => StrategyTaskContextSnapshot | null;
   onOpenStrategyTask: (taskId: string) => boolean;
+  runbookEnabled: boolean;
+  runbookByCardId: Map<string, RunbookSummaryItemResponse>;
+  onOpenBoardCardRunbook: (cardId: string) => boolean;
 }
 
 type OwnerFilter = "all" | "unassigned" | string;
@@ -46,6 +67,7 @@ type OwnerFilter = "all" | "unassigned" | string;
 export function BoardsPage({
   boards,
   activeBoardId,
+  loading,
   onBoardChange,
   columns,
   cardsByColumn,
@@ -61,13 +83,19 @@ export function BoardsPage({
   agents,
   onSaveCardDraft,
   onRunCard,
+  onMoveCardToColumn,
   onUploadAsset,
   onPreviewAsset,
   selectedPreviewUrl,
+  editorBusy,
+  editorBusyAction,
   strategyReady,
   linkedTaskByCardId,
   describeStrategyTask,
   onOpenStrategyTask,
+  runbookEnabled,
+  runbookByCardId,
+  onOpenBoardCardRunbook,
 }: BoardsPageProps) {
   const [editorTab, setEditorTab] = useState<"details" | "script" | "assets">("details");
   const [assetsPage, setAssetsPage] = useState(1);
@@ -78,6 +106,11 @@ export function BoardsPage({
   const [newCardOwnerKind, setNewCardOwnerKind] = useState("unassigned");
   const [newCardOwnerAgentId, setNewCardOwnerAgentId] = useState("");
   const [newCardOwnerHumanId, setNewCardOwnerHumanId] = useState("");
+  const [moveTargetColumnId, setMoveTargetColumnId] = useState("");
+
+  useEffect(() => {
+    setMoveTargetColumnId(selectedCard?.column_id ?? "");
+  }, [selectedCard]);
 
   const knownTags = useMemo(() => {
     const tags = new Set<string>();
@@ -194,9 +227,17 @@ export function BoardsPage({
   const linkedTask = selectedCard
     ? linkedTaskByCardId.get(selectedCard.card_id) ?? null
     : null;
+  const selectedCardRunbook = selectedCard
+    ? runbookByCardId.get(selectedCard.card_id) ?? null
+    : null;
   const linkedTaskContext = linkedTask
     ? describeStrategyTask(linkedTask.task_id)
     : null;
+  const canMoveSelectedCard =
+    Boolean(selectedCard) &&
+    Boolean(moveTargetColumnId) &&
+    moveTargetColumnId !== selectedCard?.column_id &&
+    !editorBusy;
 
   return (
     <section className="mc-board-full">
@@ -243,6 +284,7 @@ export function BoardsPage({
         </label>
       </div>
 
+      {loading ? <div className="mc-board-loading">Loading board\u2026</div> : null}
       <div className="mc-board-scroll" ref={boardScrollerRef}>
         <div
           className="mc-board-canvas"
@@ -272,6 +314,9 @@ export function BoardsPage({
                   strategyReady={strategyReady}
                   linkedTaskByCardId={linkedTaskByCardId}
                   onOpenStrategyTask={onOpenStrategyTask}
+                  runbookEnabled={runbookEnabled}
+                  runbookByCardId={runbookByCardId}
+                  onOpenBoardCardRunbook={onOpenBoardCardRunbook}
                 />
               </div>
             );
@@ -291,11 +336,11 @@ export function BoardsPage({
             <button type="button" className="ghost" onClick={() => onSelectCard(null)}>
               Close
             </button>
-            <button type="button" onClick={() => void onRunCard()}>
-              Run Card
+            <button type="button" disabled={editorBusy} onClick={() => void onRunCard()}>
+              {editorBusyAction === "run" ? "Running..." : "Run Card"}
             </button>
-            <button type="button" onClick={() => void onSaveCardDraft()}>
-              Save Card
+            <button type="button" disabled={editorBusy} onClick={() => void onSaveCardDraft()}>
+              {editorBusyAction === "save" ? "Saving..." : "Save Card"}
             </button>
           </>
         }
@@ -315,6 +360,7 @@ export function BoardsPage({
             <label className="mc-modal-field">
               Title
               <input
+                disabled={editorBusy}
                 value={cardEditor.title}
                 onChange={(event) =>
                   setCardEditor((previous) => ({
@@ -328,6 +374,7 @@ export function BoardsPage({
             <label className="mc-modal-field">
               Description
               <textarea
+                disabled={editorBusy}
                 value={cardEditor.description}
                 onChange={(event) =>
                   setCardEditor((previous) => ({
@@ -349,10 +396,23 @@ export function BoardsPage({
                 }
               />
             ) : null}
+            {runbookEnabled ? (
+              <RunbookLinkPanel
+                className="mc-board-runbook-panel"
+                summary={selectedCardRunbook}
+                emptyMessage="Runbook appears once this card has a linked run, session, or strategy execution path."
+                onOpen={
+                  selectedCard
+                    ? () => onOpenBoardCardRunbook(selectedCard.card_id)
+                    : undefined
+                }
+              />
+            ) : null}
 
             <label className="mc-modal-field">
               Owner
               <select
+                disabled={editorBusy}
                 value={
                   cardEditor.ownerKind === "agent" && cardEditor.ownerAgentId
                     ? `agent:${cardEditor.ownerAgentId}`
@@ -395,6 +455,7 @@ export function BoardsPage({
               <label className="mc-modal-field">
                 Human ID
                 <input
+                  disabled={editorBusy}
                   value={cardEditor.ownerHumanId}
                   onChange={(event) =>
                     setCardEditor((previous) => ({
@@ -408,9 +469,34 @@ export function BoardsPage({
 
             <div className="mc-field-grid">
               <label className="mc-modal-field">
+                Move To Column
+                <div className="mc-board-inline-actions">
+                  <select
+                    disabled={editorBusy}
+                    value={moveTargetColumnId}
+                    onChange={(event) => setMoveTargetColumnId(event.target.value)}
+                  >
+                    {columns.map((column) => (
+                      <option key={column.column_id} value={column.column_id}>
+                        {column.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="ghost"
+                    disabled={!canMoveSelectedCard}
+                    onClick={() => void onMoveCardToColumn(moveTargetColumnId)}
+                  >
+                    {editorBusyAction === "move" ? "Moving..." : "Move"}
+                  </button>
+                </div>
+              </label>
+              <label className="mc-modal-field">
                 Due
                 <input
                   type="datetime-local"
+                  disabled={editorBusy}
                   value={cardEditor.dueAt}
                   onChange={(event) =>
                     setCardEditor((previous) => ({
@@ -438,6 +524,7 @@ export function BoardsPage({
           <div className="mc-card-editor-script">
             <textarea
               className="mc-script-area"
+              disabled={editorBusy}
               value={cardEditor.scriptMarkdown}
               onChange={(event) =>
                 setCardEditor((previous) => ({
@@ -453,6 +540,7 @@ export function BoardsPage({
             <label className="upload-pill">
               <input
                 type="file"
+                disabled={editorBusy}
                 onChange={(event) => {
                   const file = event.target.files?.[0];
                   if (!file) return;
@@ -462,6 +550,9 @@ export function BoardsPage({
               />
               Upload Asset
             </label>
+            {editorBusyAction === "upload" ? (
+              <p className="mc-board-inline-hint">Uploading asset...</p>
+            ) : null}
             <ul className="mc-asset-list">
               {visibleAssets.map((asset) => (
                 <li key={asset.card_asset_id}>

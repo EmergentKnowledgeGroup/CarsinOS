@@ -3,7 +3,7 @@ import {
   test,
   type APIRequestContext,
   type Page,
-} from "@playwright/test";
+} from "./testHarness";
 
 const E2E_APP_URL = "/?e2e=1";
 const GATEWAY_URL = "http://127.0.0.1:19789";

@@ -16,8 +16,15 @@ export const STRATEGY_COCKPIT_WIDGET_KINDS = [
   "approval_backlog",
 ] as const;
 
+export const RUNBOOK_COCKPIT_WIDGET_KINDS = [
+  "runbook_summary",
+  "runbook_attention",
+] as const;
+
 export type StrategyCockpitWidgetKind =
   (typeof STRATEGY_COCKPIT_WIDGET_KINDS)[number];
+export type RunbookCockpitWidgetKind =
+  (typeof RUNBOOK_COCKPIT_WIDGET_KINDS)[number];
 
 export type CockpitWidgetKind =
   | "health"
@@ -29,7 +36,8 @@ export type CockpitWidgetKind =
   | "skills"
   | "plugins"
   | "events"
-  | StrategyCockpitWidgetKind;
+  | StrategyCockpitWidgetKind
+  | RunbookCockpitWidgetKind;
 
 const COCKPIT_WIDGET_KINDS: CockpitWidgetKind[] = [
   "health",
@@ -42,6 +50,7 @@ const COCKPIT_WIDGET_KINDS: CockpitWidgetKind[] = [
   "plugins",
   "events",
   ...STRATEGY_COCKPIT_WIDGET_KINDS,
+  ...RUNBOOK_COCKPIT_WIDGET_KINDS,
 ];
 
 /* ── v2 position model ────────────────────────────────────────────────────── */
@@ -76,6 +85,8 @@ export const WIDGET_SIZE_CONSTRAINTS: Record<CockpitWidgetKind, WidgetSizeConstr
   goal_progress:     { minW: 4, minH: 3, defaultW: 6, defaultH: 4 },
   project_spend:     { minW: 4, minH: 3, defaultW: 6, defaultH: 4 },
   approval_backlog:  { minW: 4, minH: 3, defaultW: 6, defaultH: 4 },
+  runbook_summary:   { minW: 6, minH: 3, defaultW: 12, defaultH: 3 },
+  runbook_attention: { minW: 4, minH: 3, defaultW: 6, defaultH: 4 },
 };
 
 const CUSTOM_WIDGET_SIZE_CONSTRAINTS: WidgetSizeConstraint = {
@@ -226,6 +237,18 @@ export const COCKPIT_WIDGET_PALETTE: CockpitWidgetPaletteEntry[] = [
     title: "Approval Backlog",
     description: "Watch critical approvals and open the linked task when one is attached.",
     icon: "badge-alert",
+  },
+  {
+    widget: "runbook_summary",
+    title: "Runbook Summary",
+    description: "Watch live runbook state counts sourced from the shared runbook read model.",
+    icon: "workflow",
+  },
+  {
+    widget: "runbook_attention",
+    title: "Runbook Attention",
+    description: "Surface waiting, blocked, failed, and limited runbooks with direct open actions.",
+    icon: "list-filter",
   },
 ];
 

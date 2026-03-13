@@ -168,6 +168,10 @@ SQLite with migrations in `/migrations/0001_init.sql`. 50+ tables covering agent
 
 Full list in README.md.
 
+## Frontend Claudit (UX/UI Audit)
+
+A comprehensive frontend audit is tracked in [`frontend_claudit.md`](./frontend_claudit.md). This file contains 131 verified findings (4 retracted) across 21 sections covering 16 frontend features + shared UI primitives + API layer + cross-cutting patterns. All 182 finding IDs verified against source code with line references. Severity: 4 Critical, 33 High, 61 Medium, 33 Low. Reference this file when doing any frontend UI/UX work — it is the canonical list of known gaps, accessibility issues, missing states, and inconsistent patterns.
+
 ## Tech Stack
 
 **Backend**: Rust 2021, Axum 0.8, Tokio, rusqlite 0.37, serde, tracing, reqwest, clap 4, jsonwebtoken, keyring

@@ -1,6 +1,7 @@
 import type { MissionControlTab } from "../../app/useAppController";
 import type { BoardSummary } from "../../app/useRuntimeConnectionController";
-import type { Agent } from "../../types";
+import type { Agent, RunbookSummaryItemResponse } from "../../types";
+import { RunbookLinkPanel } from "../runbook/RunbookLinkPanel";
 import type { useAssistantChatController } from "./useAssistantChatController";
 
 interface AssistantChatPageProps {
@@ -8,6 +9,9 @@ interface AssistantChatPageProps {
   boards: BoardSummary[];
   onTabChange: (tab: MissionControlTab) => void;
   controller: ReturnType<typeof useAssistantChatController>;
+  runbookEnabled: boolean;
+  runbookSummary: RunbookSummaryItemResponse | null;
+  onOpenAssistantRunbook: (runId: string) => boolean;
 }
 
 function formatTimestamp(unixMs: number): string {
@@ -20,6 +24,7 @@ function formatTimestamp(unixMs: number): string {
 
 export function AssistantChatPage(props: AssistantChatPageProps) {
   const c = props.controller;
+  const assistantRunId = c.lastRunId;
 
   return (
     <section className="mc-assistant-page" data-tour-id="assistant-page">
@@ -104,7 +109,8 @@ export function AssistantChatPage(props: AssistantChatPageProps) {
           >
             Insert Core Prompt
           </button>
-          {c.sessionId ? <span className="chip">session: {c.sessionId}</span> : null}
+          {c.sessionId ? <span className="chip" title={c.sessionId}>session: {c.sessionId.slice(0, 8)}</span> : null}
+          {c.lastRunId ? <span className="chip" title={c.lastRunId}>run: {c.lastRunId.slice(0, 8)}</span> : null}
           {c.lastRunStatus ? <span className="chip">run: {c.lastRunStatus}</span> : null}
         </div>
       </article>
@@ -148,6 +154,18 @@ export function AssistantChatPage(props: AssistantChatPageProps) {
           </div>
 
           {c.lastError ? <p className="mc-form-error">{c.lastError}</p> : null}
+          {props.runbookEnabled ? (
+            <RunbookLinkPanel
+              className="mc-assistant-runbook-panel"
+              summary={props.runbookSummary}
+              emptyMessage={null}
+              onOpen={
+                assistantRunId
+                  ? () => props.onOpenAssistantRunbook(assistantRunId)
+                  : undefined
+              }
+            />
+          ) : null}
 
           <div className="mc-assistant-compose">
             <textarea
@@ -167,6 +185,7 @@ export function AssistantChatPage(props: AssistantChatPageProps) {
             <button type="button" onClick={() => void c.send()} disabled={c.busy || !c.draft.trim()}>
               {c.busy ? "Running..." : "Send"}
             </button>
+            <kbd className="mc-shortcut-hint">{"\u2318\u21A9"}</kbd>
           </div>
         </article>
       </div>

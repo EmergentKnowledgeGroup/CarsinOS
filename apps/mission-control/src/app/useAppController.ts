@@ -22,6 +22,9 @@ export type MissionControlTab =
   | "team"
   | "cockpit"
   | "strategy"
+  | "runbook"
+  | "memory"
+  | "connectors"
   | "help";
 
 export interface EventStreamItem {

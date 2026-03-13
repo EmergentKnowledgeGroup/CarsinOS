@@ -34,6 +34,9 @@ interface UseRuntimeConnectionControllerOptions {
   loadMissionControlReadModels: (
     runtimeSettings?: RuntimeConnectionSettings
   ) => Promise<void>;
+  loadRunbookReadModels: (
+    runtimeSettings?: RuntimeConnectionSettings
+  ) => Promise<void>;
   loadAgentMailReadModels: (runtimeSettings?: RuntimeConnectionSettings) => Promise<void>;
 }
 
@@ -55,6 +58,7 @@ export function useRuntimeConnectionController(options: UseRuntimeConnectionCont
     refreshBoard,
     setBoard,
     loadMissionControlReadModels,
+    loadRunbookReadModels,
     loadAgentMailReadModels,
   } = options;
 
@@ -94,6 +98,7 @@ export function useRuntimeConnectionController(options: UseRuntimeConnectionCont
 
       await Promise.all([
         loadMissionControlReadModels(runtimeSettings),
+        loadRunbookReadModels(runtimeSettings),
         loadAgentMailReadModels(runtimeSettings),
       ]);
     },
@@ -101,6 +106,7 @@ export function useRuntimeConnectionController(options: UseRuntimeConnectionCont
       activeBoardId,
       loadAgentMailReadModels,
       loadMissionControlReadModels,
+      loadRunbookReadModels,
       refreshBoard,
       setActiveBoardId,
       setAgents,

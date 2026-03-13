@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page } from "./testHarness";
 
 const E2E_APP_URL = "/?e2e=1";
 const GATEWAY_URL = "http://127.0.0.1:19789";

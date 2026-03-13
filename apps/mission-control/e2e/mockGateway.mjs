@@ -166,6 +166,7 @@ const agents = [
     tool_profile: "standard",
     role_label: "Operations Director",
     reports_to_agent_id: null,
+    memory_binding: null,
   },
   {
     agent_id: "lyra",
@@ -176,8 +177,403 @@ const agents = [
     tool_profile: "default",
     role_label: "Reliability Lead",
     reports_to_agent_id: "agent-root",
+    memory_binding: {
+      binding_id: "mno-lyra",
+      provider_kind: "modelnumquamoblita",
+      base_url: "http://127.0.0.1:4411",
+      auth_mode: "none",
+      auth_secret_ref: null,
+      principal_id: "lyra-operator",
+      principal_display_name: "Lyra",
+      enabled: true,
+      trusted_local_operator_actions: true,
+    },
   },
 ];
+
+function createAgentMemoryLane(agentId, labelPrefix) {
+  const checkedAt = new Date(Date.now() - 15_000).toISOString();
+  const nodeA = {
+    atom_id: `atm-${agentId}-01`,
+    card_id: `mem-card-${agentId}-01`,
+    kind: "preference_card",
+    status: "active",
+    summary: `${labelPrefix} prefers a narrow, operator-readable incident summary.`,
+  };
+  const nodeB = {
+    atom_id: `atm-${agentId}-02`,
+    card_id: `mem-card-${agentId}-02`,
+    kind: "event_card",
+    status: "active",
+    summary: `${labelPrefix} resolved the gateway heartbeat drift during the last reliability pass.`,
+  };
+  const nodeC = {
+    atom_id: `atm-${agentId}-03`,
+    card_id: `mem-card-${agentId}-03`,
+    kind: "continuity_card",
+    status: "active",
+    summary: `${labelPrefix} carries forward reliability context between operator sessions.`,
+  };
+  const graphLinks = [
+    {
+      source: nodeA.atom_id,
+      target: nodeB.atom_id,
+      kind: "supports",
+    },
+    {
+      source: nodeB.atom_id,
+      target: nodeC.atom_id,
+      kind: "continuity",
+    },
+  ];
+  const turnId = `turn-${agentId}-001`;
+  const citationToken = `cite-${agentId}-001`;
+  return {
+    status: {
+      agent_id: agentId,
+      binding_status: "available",
+      binding: cloneSeed(
+        agents.find((agent) => agent.agent_id === agentId)?.memory_binding ?? null
+      ),
+      native_surface_availability: {
+        cards: true,
+        card_detail: true,
+        atom_detail: true,
+        graph_overview: true,
+        graph_neighbors: true,
+        episodes: true,
+        turn_why: true,
+        citation_lookup: true,
+        runtime_health: true,
+        telemetry_summary: true,
+        telemetry_turns: true,
+        decision_reasons: true,
+      },
+      orchestration: {
+        enabled: true,
+        transport: "http",
+        health_status: "ok",
+        degrade_mode: false,
+        last_error_code: null,
+        last_error: null,
+      },
+      native_runtime_status: {
+        ok: true,
+        status: "ok",
+        checked_at: checkedAt,
+        checks: [
+          { name: "store", status: "ok" },
+          { name: "review_queue", status: "ok" },
+        ],
+      },
+      native_runtime_health_mismatch: false,
+    },
+    cardsPayload: {
+      ok: true,
+      total: 3,
+      cards: [nodeA, nodeB, nodeC],
+    },
+    cardDetails: {
+      [nodeA.card_id]: {
+        ok: true,
+        card: nodeA,
+        atom: {
+          atom_id: nodeA.atom_id,
+          kind: nodeA.kind,
+          status: nodeA.status,
+          summary: nodeA.summary,
+          tags: ["operator", "summary"],
+        },
+        provenance_events: [
+          {
+            kind: "turn_writeback",
+            source_kind: "turn",
+            source_id: turnId,
+          },
+        ],
+        graph: {
+          nodes: [nodeA, nodeB],
+          links: [graphLinks[0]],
+        },
+      },
+      [nodeB.card_id]: {
+        ok: true,
+        card: nodeB,
+        atom: {
+          atom_id: nodeB.atom_id,
+          kind: nodeB.kind,
+          status: nodeB.status,
+          summary: nodeB.summary,
+          tags: ["incident", "repair"],
+        },
+        provenance_events: [
+          {
+            kind: "episode_review",
+            source_kind: "episode",
+            source_id: `episode-${agentId}-001`,
+          },
+        ],
+        graph: {
+          nodes: [nodeA, nodeB, nodeC],
+          links: graphLinks,
+        },
+      },
+      [nodeC.card_id]: {
+        ok: true,
+        card: nodeC,
+        atom: {
+          atom_id: nodeC.atom_id,
+          kind: nodeC.kind,
+          status: nodeC.status,
+          summary: nodeC.summary,
+          tags: ["continuity"],
+        },
+        provenance_events: [],
+        graph: {
+          nodes: [nodeB, nodeC],
+          links: [graphLinks[1]],
+        },
+      },
+    },
+    atomDetails: {
+      [nodeA.atom_id]: {
+        ok: true,
+        atom: {
+          atom_id: nodeA.atom_id,
+          kind: nodeA.kind,
+          status: nodeA.status,
+          summary: nodeA.summary,
+          label: "Operator preference",
+        },
+        card: nodeA,
+        graph: {
+          nodes: [nodeA, nodeB],
+          links: [graphLinks[0]],
+        },
+      },
+      [nodeB.atom_id]: {
+        ok: true,
+        atom: {
+          atom_id: nodeB.atom_id,
+          kind: nodeB.kind,
+          status: nodeB.status,
+          summary: nodeB.summary,
+          label: "Incident event",
+        },
+        card: nodeB,
+        graph: {
+          nodes: [nodeA, nodeB, nodeC],
+          links: graphLinks,
+        },
+      },
+      [nodeC.atom_id]: {
+        ok: true,
+        atom: {
+          atom_id: nodeC.atom_id,
+          kind: nodeC.kind,
+          status: nodeC.status,
+          summary: nodeC.summary,
+          label: "Continuity record",
+        },
+        card: nodeC,
+        graph: {
+          nodes: [nodeB, nodeC],
+          links: [graphLinks[1]],
+        },
+      },
+    },
+    episodesPayload: {
+      ok: true,
+      total: 2,
+      episodes: [
+        {
+          episode_id: `episode-${agentId}-001`,
+          label: `${labelPrefix} heartbeat recovery`,
+          status: "reviewed",
+          run_id: "run-assistant-001",
+          card_id: nodeB.card_id,
+          updated_at_utc: checkedAt,
+        },
+        {
+          episode_id: `episode-${agentId}-002`,
+          label: `${labelPrefix} operator continuity refresh`,
+          status: "active",
+          run_id: "run-strategy-001",
+          card_id: nodeC.card_id,
+          updated_at_utc: checkedAt,
+        },
+      ],
+    },
+    graphMapPayload: {
+      ok: true,
+      total: 3,
+      nodes: [nodeA, nodeB, nodeC],
+      links: graphLinks,
+      truncated: false,
+      snapshot_available: true,
+    },
+    graphNeighborsByAtomId: {
+      [nodeA.atom_id]: {
+        ok: true,
+        node: nodeA,
+        neighbors: [
+          {
+            ...nodeB,
+            distance: 1,
+            via_edge_kind: "supports",
+          },
+        ],
+        links: [graphLinks[0]],
+        depth: 1,
+        node_limit: 36,
+        link_limit: 72,
+        requests_used: 1,
+        truncated: false,
+        truncation: {
+          node_limit_hit: false,
+          link_limit_hit: false,
+          request_budget_hit: false,
+          dropped_shared_language: false,
+        },
+      },
+      [nodeB.atom_id]: {
+        ok: true,
+        node: nodeB,
+        neighbors: [
+          {
+            ...nodeA,
+            distance: 1,
+            via_edge_kind: "supports",
+          },
+          {
+            ...nodeC,
+            distance: 1,
+            via_edge_kind: "continuity",
+          },
+        ],
+        links: graphLinks,
+        depth: 1,
+        node_limit: 36,
+        link_limit: 72,
+        requests_used: 1,
+        truncated: false,
+        truncation: {
+          node_limit_hit: false,
+          link_limit_hit: false,
+          request_budget_hit: false,
+          dropped_shared_language: false,
+        },
+      },
+      [nodeC.atom_id]: {
+        ok: true,
+        node: nodeC,
+        neighbors: [
+          {
+            ...nodeB,
+            distance: 1,
+            via_edge_kind: "continuity",
+          },
+        ],
+        links: [graphLinks[1]],
+        depth: 1,
+        node_limit: 36,
+        link_limit: 72,
+        requests_used: 1,
+        truncated: false,
+        truncation: {
+          node_limit_hit: false,
+          link_limit_hit: false,
+          request_budget_hit: false,
+          dropped_shared_language: false,
+        },
+      },
+    },
+    runtimeHealthPayload: {
+      ok: true,
+      status: "ok",
+      checked_at: checkedAt,
+      checks: [
+        { name: "store", status: "ok" },
+        { name: "continuity", status: "ok" },
+      ],
+    },
+    telemetrySummaryPayload: {
+      ok: true,
+      limit: 12,
+      summary: [
+        { label: "context.build", route: "ltm_light", count: 4 },
+        { label: "writeback.propose", route: "proposal_review", count: 2 },
+      ],
+    },
+    telemetryTurnsPayload: {
+      ok: true,
+      limit: 12,
+      turns: [
+        {
+          turn_id: turnId,
+          route: "ltm_light",
+          decision_reason: `${labelPrefix} memory route selected due to continuity evidence.`,
+          latency_ms: 182,
+          created_at_utc: checkedAt,
+        },
+      ],
+      warn_turns: [],
+    },
+    decisionReasonsPayload: {
+      ok: true,
+      routes: [{ route: "ltm_light", count: 4 }],
+      memory_preferences: [{ label: "operator readability", weight: 0.92 }],
+      reasons: [
+        {
+          label: "Continuity preference retained",
+          reason: `${labelPrefix} keeps reliability context lane-local and readable.`,
+        },
+      ],
+    },
+    whyByTurnId: {
+      [turnId]: {
+        ok: true,
+        why: {
+          decision: "ltm_light",
+          decision_reason: `${labelPrefix} used continuity evidence from the reliability lane.`,
+          evidence_time_window: "7d",
+          top_evidence: [
+            {
+              source_id: nodeB.atom_id,
+              excerpt: nodeB.summary,
+              confidence: 0.92,
+            },
+          ],
+          citations: [
+            {
+              citation_token: citationToken,
+              label: "runtime card excerpt",
+              source_id: nodeB.atom_id,
+            },
+          ],
+          citations_hidden: false,
+        },
+      },
+    },
+    citationsByToken: {
+      [citationToken]: {
+        ok: true,
+        citation: "runtime card excerpt",
+        source_id: nodeB.atom_id,
+        matches: [
+          {
+            line_number: 18,
+            excerpt: nodeB.summary,
+          },
+        ],
+      },
+    },
+  };
+}
+
+const agentMemoryLanes = {
+  lyra: createAgentMemoryLane("lyra", "Lyra"),
+};
 
 const strategyGoals = [
   {
@@ -302,9 +698,408 @@ const channelStatuses = [
 ];
 
 const authProfiles = [];
+const connectorCatalog = [
+  {
+    catalog_item_id: "catalog-github-openapi",
+    slug: "github-rest",
+    display_name: "GitHub REST",
+    source_kind: "openapi",
+    summary: "Curated REST scaffold for GitHub-style OpenAPI imports.",
+    publisher: "carsinOS",
+    trust_class: "trusted_curated",
+    available_versions: ["v1"],
+    marketplace_origin: "built-in",
+    importable: true,
+    future_marketplace_metadata: {},
+  },
+  {
+    catalog_item_id: "catalog-linear-graphql",
+    slug: "linear-graphql",
+    display_name: "Linear GraphQL",
+    source_kind: "graphql",
+    summary: "GraphQL connector scaffold for operator-safe issue orchestration.",
+    publisher: "carsinOS",
+    trust_class: "trusted_curated",
+    available_versions: ["v1"],
+    marketplace_origin: "built-in",
+    importable: true,
+    future_marketplace_metadata: {},
+  },
+  {
+    catalog_item_id: "catalog-slack-mcp",
+    slug: "slack-mcp",
+    display_name: "Slack MCP",
+    source_kind: "mcp",
+    summary: "MCP tool scaffold for Slack-compatible tool servers.",
+    publisher: "carsinOS",
+    trust_class: "trusted_curated",
+    available_versions: ["v1"],
+    marketplace_origin: "built-in",
+    importable: true,
+    future_marketplace_metadata: {},
+  },
+];
+const connectorSources = [];
+const connectorVersions = [];
+const connectorConversions = [];
+const connectorPublishedTools = [];
+const connectorAssignments = [];
+const connectorAuthBindings = [];
+const connectorInteractions = [];
 const providerOrder = new Map();
 let usageMode = "available";
 let usageUpdatedAtMs = Date.now();
+
+function cloneSeed(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function replaceArray(target, seed) {
+  target.splice(0, target.length, ...cloneSeed(seed));
+}
+
+const seedState = {
+  board: cloneSeed(board),
+  columns: cloneSeed(columns),
+  cards: cloneSeed(cards),
+  jobs: cloneSeed(jobs),
+  agents: cloneSeed(agents),
+  agentMemoryLanes: cloneSeed(agentMemoryLanes),
+  strategyGoals: cloneSeed(strategyGoals),
+  strategyProjects: cloneSeed(strategyProjects),
+  strategyTasks: cloneSeed(strategyTasks),
+  bootstrapPresets: cloneSeed(bootstrapPresets),
+  approvals: cloneSeed(approvals),
+  channelStatuses: cloneSeed(channelStatuses),
+  authProfiles: cloneSeed(authProfiles),
+  connectorSources: cloneSeed(connectorSources),
+  connectorVersions: cloneSeed(connectorVersions),
+  connectorConversions: cloneSeed(connectorConversions),
+  connectorPublishedTools: cloneSeed(connectorPublishedTools),
+  connectorAssignments: cloneSeed(connectorAssignments),
+  connectorAuthBindings: cloneSeed(connectorAuthBindings),
+  connectorInteractions: cloneSeed(connectorInteractions),
+};
+
+function resetMockState() {
+  Object.assign(board, cloneSeed(seedState.board));
+  replaceArray(columns, seedState.columns);
+  replaceArray(cards, seedState.cards);
+  replaceArray(jobs, seedState.jobs);
+  replaceArray(agents, seedState.agents);
+  Object.keys(agentMemoryLanes).forEach((key) => {
+    delete agentMemoryLanes[key];
+  });
+  Object.assign(agentMemoryLanes, cloneSeed(seedState.agentMemoryLanes));
+  replaceArray(strategyGoals, seedState.strategyGoals);
+  replaceArray(strategyProjects, seedState.strategyProjects);
+  replaceArray(strategyTasks, seedState.strategyTasks);
+  replaceArray(bootstrapPresets, seedState.bootstrapPresets);
+  replaceArray(approvals, seedState.approvals);
+  replaceArray(channelStatuses, seedState.channelStatuses);
+  replaceArray(authProfiles, seedState.authProfiles);
+  replaceArray(connectorSources, seedState.connectorSources);
+  replaceArray(connectorVersions, seedState.connectorVersions);
+  replaceArray(connectorConversions, seedState.connectorConversions);
+  replaceArray(connectorPublishedTools, seedState.connectorPublishedTools);
+  replaceArray(connectorAssignments, seedState.connectorAssignments);
+  replaceArray(connectorAuthBindings, seedState.connectorAuthBindings);
+  replaceArray(connectorInteractions, seedState.connectorInteractions);
+  providerOrder.clear();
+  nextAuthProfileCounter = 1;
+  nextEventCounter = 1;
+  nextCardCounter = 2;
+  nextRunCounter = 1;
+  nextJobRunCounter = 1;
+  usageMode = "available";
+  usageUpdatedAtMs = Date.now();
+}
+
+const CONNECTOR_READ_METHODS = new Set(["get", "head"]);
+
+function normalizeConnectorSlug(value) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64);
+}
+
+function normalizeOperationSlug(value) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function parseConnectorSourceDocument(payload) {
+  if (payload.source_json && typeof payload.source_json === "object") {
+    return cloneSeed(payload.source_json);
+  }
+  const sourceText = String(payload.source_text ?? "").trim();
+  if (!sourceText) {
+    return {};
+  }
+  return JSON.parse(sourceText);
+}
+
+function connectorById(connectorId) {
+  return connectorSources.find((item) => item.connector_id === connectorId) ?? null;
+}
+
+function connectorVersionById(versionId) {
+  return connectorVersions.find((item) => item.version_id === versionId) ?? null;
+}
+
+function connectorConversionById(conversionId) {
+  return connectorConversions.find((item) => item.conversion_id === conversionId) ?? null;
+}
+
+function connectorPublishedToolById(publishedToolId) {
+  return (
+    connectorPublishedTools.find((item) => item.published_tool_id === publishedToolId) ?? null
+  );
+}
+
+function listConnectorVersions(connectorId) {
+  return connectorVersions
+    .filter((item) => item.connector_id === connectorId)
+    .sort((left, right) => right.created_at - left.created_at);
+}
+
+function listConnectorConversions(connectorId) {
+  return connectorConversions
+    .filter((item) => item.connector_id === connectorId)
+    .sort((left, right) => right.created_at - left.created_at);
+}
+
+function listConnectorPublishedTools(connectorId) {
+  return connectorPublishedTools
+    .filter((item) => item.connector_id === connectorId)
+    .sort((left, right) => right.published_at - left.published_at);
+}
+
+function listConnectorAssignments(connectorId) {
+  return connectorAssignments
+    .filter((item) => item.connector_id === connectorId)
+    .sort((left, right) => left.agent_id.localeCompare(right.agent_id));
+}
+
+function listConnectorAuthBindings(connectorId) {
+  return connectorAuthBindings
+    .filter((item) => item.connector_id === connectorId)
+    .sort((left, right) => right.updated_at - left.updated_at);
+}
+
+function listConnectorInteractions(connectorId = null) {
+  return connectorInteractions
+    .filter((item) => !connectorId || item.connector_id === connectorId)
+    .sort((left, right) => right.updated_at - left.updated_at);
+}
+
+function recomputeConnectorStats(connectorId) {
+  const connector = connectorById(connectorId);
+  if (!connector) {
+    return null;
+  }
+  connector.published_tool_count = listConnectorPublishedTools(connectorId).filter(
+    (item) => item.unpublished_at == null
+  ).length;
+  connector.assigned_agent_count = listConnectorAssignments(connectorId).filter(
+    (item) => item.enabled
+  ).length;
+  connector.updated_at = Date.now();
+  return connector;
+}
+
+function buildConnectorHealth(connectorId) {
+  const connector = connectorById(connectorId);
+  if (!connector) {
+    return null;
+  }
+  const bindings = listConnectorAuthBindings(connectorId).filter((item) =>
+    item.status === "ready" || item.status === "configured"
+  );
+  const authRequired =
+    connector.status === "enabled" &&
+    connector.published_tool_count > 0 &&
+    bindings.length === 0;
+  return {
+    connector_id: connector.connector_id,
+    status: connector.status,
+    degraded_reason: authRequired ? "Connector is enabled but missing a ready auth binding." : null,
+    auth_required: authRequired,
+    last_checked_at: Date.now(),
+    published_tool_count: connector.published_tool_count,
+    assigned_agent_count: connector.assigned_agent_count,
+  };
+}
+
+function upsertPendingAuthInteraction(connector, agentId = null) {
+  const existing = connectorInteractions.find(
+    (item) =>
+      item.connector_id === connector.connector_id &&
+      item.status === "pending" &&
+      item.interaction_kind === "auth_repair" &&
+      item.agent_id === agentId
+  );
+  if (existing) {
+    existing.updated_at = Date.now();
+    return existing;
+  }
+  const created = {
+    interaction_id: randomUUID(),
+    connector_id: connector.connector_id,
+    agent_id: agentId,
+    interaction_kind: "auth_repair",
+    status: "pending",
+    prompt_summary: `Reconnect auth for ${connector.display_name}`,
+    resume_token: `resume-${connector.connector_id}`,
+    expires_at: Date.now() + 30 * 60_000,
+    consumed_at: null,
+    detail: {
+      source_kind: connector.source_kind,
+    },
+    created_at: Date.now(),
+    updated_at: Date.now(),
+  };
+  connectorInteractions.push(created);
+  return created;
+}
+
+function createConnectorConversion(connector, version) {
+  const sourceDocument =
+    version.import_metadata?.source_json && typeof version.import_metadata.source_json === "object"
+      ? version.import_metadata.source_json
+      : {};
+  const proposedTools = [];
+  if (connector.source_kind === "openapi") {
+    const paths = sourceDocument.paths && typeof sourceDocument.paths === "object"
+      ? sourceDocument.paths
+      : {};
+    Object.entries(paths).forEach(([path, methods]) => {
+      if (!methods || typeof methods !== "object") {
+        return;
+      }
+      Object.entries(methods).forEach(([method, operation]) => {
+        const normalizedMethod = method.toLowerCase();
+        if (!["get", "post", "put", "patch", "delete", "head"].includes(normalizedMethod)) {
+          return;
+        }
+        const operationId = String(
+          operation?.operationId ?? `${normalizedMethod}-${path}`
+        );
+        const operationSlug = normalizeOperationSlug(operationId || `${normalizedMethod}-${path}`);
+        proposedTools.push({
+          candidate_id: `cand-${connector.connector_id}-${operationSlug}`,
+          operation_key: operationId,
+          proposed_tool_name: `connector.${connector.slug}.${operationSlug}`,
+          display_name: operation?.summary ?? operationId,
+          description: operation?.description ?? `${normalizedMethod.toUpperCase()} ${path}`,
+          input_schema: {
+            type: "object",
+            properties: {},
+          },
+          write_classification: CONNECTOR_READ_METHODS.has(normalizedMethod)
+            ? "read_only"
+            : "operator_write_gated",
+          review_blocked: false,
+          review_block_reason: null,
+        });
+      });
+    });
+  } else if (connector.source_kind === "graphql") {
+    const operations = Array.isArray(sourceDocument.operations)
+      ? sourceDocument.operations
+      : [];
+    operations.forEach((operation) => {
+      const operationName = String(operation?.name ?? operation?.operation_key ?? "graphql-operation");
+      const operationSlug = normalizeOperationSlug(operationName);
+      proposedTools.push({
+        candidate_id: `cand-${connector.connector_id}-${operationSlug}`,
+        operation_key: operationName,
+        proposed_tool_name: `connector.${connector.slug}.${operationSlug}`,
+        display_name: operation?.display_name ?? operationName,
+        description: operation?.description ?? "GraphQL operation",
+        input_schema: operation?.input_schema ?? {
+          type: "object",
+          properties: {},
+        },
+        write_classification:
+          String(operation?.kind ?? "query").toLowerCase() === "query"
+            ? "read_only"
+            : "operator_write_gated",
+        review_blocked: false,
+        review_block_reason: null,
+      });
+    });
+  } else if (connector.source_kind === "mcp") {
+    const tools = Array.isArray(sourceDocument.tools) ? sourceDocument.tools : [];
+    tools.forEach((tool) => {
+      const toolName = String(tool?.name ?? "mcp-tool");
+      const operationSlug = normalizeOperationSlug(toolName);
+      proposedTools.push({
+        candidate_id: `cand-${connector.connector_id}-${operationSlug}`,
+        operation_key: toolName,
+        proposed_tool_name: `connector.${connector.slug}.${operationSlug}`,
+        display_name: tool?.display_name ?? toolName,
+        description: tool?.description ?? "MCP tool",
+        input_schema: tool?.input_schema ?? {
+          type: "object",
+          properties: {},
+        },
+        write_classification:
+          tool?.write_classification === "read_only"
+            ? "read_only"
+            : "operator_write_gated",
+        review_blocked: false,
+        review_block_reason: null,
+      });
+    });
+  }
+  const conversion = {
+    conversion_id: randomUUID(),
+    connector_id: connector.connector_id,
+    version_id: version.version_id,
+    status: "succeeded",
+    warnings:
+      proposedTools.length === 0
+        ? [
+            {
+              code: "NO_OPERATIONS",
+              message: "No reviewable operations were found in the connector source.",
+              blocking: true,
+            },
+          ]
+        : [],
+    proposed_tools: proposedTools,
+    write_capable_tools: proposedTools.filter(
+      (item) => item.write_classification !== "read_only"
+    ).length,
+    unsupported_operations: [],
+    normalization_notes: [
+      `source_kind=${connector.source_kind}`,
+      `connector_slug=${connector.slug}`,
+    ],
+    diff_from_previous: {
+      previous_conversion_id:
+        connectorConversions.find((item) => item.connector_id === connector.connector_id)
+          ?.conversion_id ?? null,
+      proposed_tool_count: proposedTools.length,
+    },
+    created_at: Date.now(),
+    updated_at: Date.now(),
+  };
+  connectorConversions.push(conversion);
+  version.latest_conversion_id = conversion.conversion_id;
+  version.updated_at = Date.now();
+  connector.last_conversion_at = Date.now();
+  connector.status = proposedTools.length > 0 ? "converted" : "draft";
+  connector.updated_at = Date.now();
+  return conversion;
+}
 
 function findBoard(boardId) {
   return boardId === board.board_id ? board : null;
@@ -475,6 +1270,839 @@ function getStrategySummaryPayload() {
       },
     ],
   };
+}
+
+function getAgentLabel(agentId) {
+  if (!agentId) {
+    return null;
+  }
+  return agents.find((item) => item.agent_id === agentId)?.name ?? agentId;
+}
+
+function createRunbookDeepLinkTarget(tab, targetKind, targetId = null, context = null) {
+  return {
+    tab,
+    target_kind: targetKind,
+    target_id: targetId,
+    context,
+  };
+}
+
+function createRunbookEntityRef(entityKind, entityId, displayLabel, deepLink) {
+  return {
+    entity_kind: entityKind,
+    entity_id: entityId,
+    display_label: displayLabel,
+    deep_link: deepLink,
+  };
+}
+
+function getRunbookRecords() {
+  const now = Date.now();
+  const heartbeatCard = cards[0];
+  const heartbeatJob = jobs[0];
+  const activeTask = strategyTasks.find((item) => item.task_id === "task-ops-1") ?? strategyTasks[0];
+  const blockedTask = strategyTasks.find((item) => item.task_id === "task-ops-2") ?? strategyTasks[0];
+  const gatewayProject = strategyProjects.find((item) => item.project_id === "project-gateway")
+    ?? strategyProjects[0];
+  const reliabilityGoal = strategyGoals.find((item) => item.goal_id === "goal-reliability")
+    ?? strategyGoals[0];
+  const assistantSessionRef = createRunbookEntityRef(
+    "session",
+    "session-assistant-001",
+    "Incident recovery session",
+    createRunbookDeepLinkTarget("assistant", "session", "session-assistant-001", "runbook")
+  );
+  const assistantApprovalRef = createRunbookEntityRef(
+    "approval",
+    approvals[0]?.approval_id ?? "approval-runbook-001",
+    approvals[0]?.request_summary ?? "Await operator approval",
+    createRunbookDeepLinkTarget("focus", "approval", approvals[0]?.approval_id ?? null, "runbook")
+  );
+  const heartbeatCardRef = createRunbookEntityRef(
+    "board_card",
+    heartbeatCard.card_id,
+    heartbeatCard.title,
+    createRunbookDeepLinkTarget("boards", "board_card", heartbeatCard.card_id, "runbook")
+  );
+  const heartbeatJobRef = createRunbookEntityRef(
+    "job",
+    heartbeatJob.job_id,
+    heartbeatJob.name,
+    createRunbookDeepLinkTarget("calendar", "job", heartbeatJob.job_id, "runbook")
+  );
+  const activeTaskRef = createRunbookEntityRef(
+    "task",
+    activeTask.task_id,
+    activeTask.title,
+    createRunbookDeepLinkTarget("strategy", "task", activeTask.task_id, "runbook")
+  );
+  const blockedTaskRef = createRunbookEntityRef(
+    "task",
+    blockedTask.task_id,
+    blockedTask.title,
+    createRunbookDeepLinkTarget("strategy", "task", blockedTask.task_id, "runbook")
+  );
+  const gatewayProjectRef = createRunbookEntityRef(
+    "project",
+    gatewayProject.project_id,
+    gatewayProject.name,
+    createRunbookDeepLinkTarget("strategy", "project", gatewayProject.project_id, "runbook")
+  );
+  const reliabilityGoalRef = createRunbookEntityRef(
+    "goal",
+    reliabilityGoal.goal_id,
+    reliabilityGoal.title,
+    createRunbookDeepLinkTarget("strategy", "goal", reliabilityGoal.goal_id, "runbook")
+  );
+
+  return [
+    {
+      updated_at_ms: now - 5_000,
+      primary_entity_label: "Incident recovery session",
+      detail: {
+        runbook_id: "assistant_session_run:run-assistant-001",
+        runbook_kind: "assistant_session_run",
+        template_id: "assistant-session-run",
+        template_version: "mc-runbook-v1",
+        anchor_kind: "run",
+        anchor_id: "run-assistant-001",
+        title: "Approval gate for incident recovery session",
+        status: "waiting",
+        status_reason: "Shell command approval is still pending.",
+        generated_at_ms: now,
+        selected_execution_ref: {
+          entity_kind: "run",
+          entity_id: "run-assistant-001",
+          created_at_ms: now - 18_000,
+          started_at_ms: now - 17_000,
+          waiting_since_ms: now - 8_000,
+          finished_at_ms: null,
+        },
+        active_step_id: "approval_wait",
+        next_step_ids: ["run_executing"],
+        linked_entities: [assistantSessionRef, assistantApprovalRef],
+        steps: [
+          {
+            step_id: "session_intake",
+            label: "Receive operator request",
+            kind: "intake",
+            state: "completed",
+            state_reason: null,
+            started_at_ms: now - 18_000,
+            finished_at_ms: now - 17_000,
+            waiting_since_ms: null,
+            linked_entity_refs: [assistantSessionRef],
+            action_refs: ["open_assistant_session"],
+            template_index: 0,
+          },
+          {
+            step_id: "approval_wait",
+            label: "Await approval",
+            kind: "approval",
+            state: "waiting",
+            state_reason: "Operator approval is required before execution can continue.",
+            started_at_ms: now - 17_000,
+            finished_at_ms: null,
+            waiting_since_ms: now - 8_000,
+            linked_entity_refs: [assistantApprovalRef],
+            action_refs: ["open_approval", "open_assistant_session"],
+            template_index: 1,
+          },
+          {
+            step_id: "run_executing",
+            label: "Execute run",
+            kind: "execution",
+            state: "pending",
+            state_reason: null,
+            started_at_ms: null,
+            finished_at_ms: null,
+            waiting_since_ms: null,
+            linked_entity_refs: [assistantSessionRef],
+            action_refs: ["open_assistant_session"],
+            template_index: 2,
+          },
+        ],
+        history: [
+          {
+            history_id: "assistant-history-001",
+            event_kind: "session.created",
+            label: "Session created",
+            detail: "Operator created a recovery session.",
+            occurred_at_ms: now - 18_000,
+            step_id: "session_intake",
+            entity_refs: [assistantSessionRef],
+          },
+          {
+            history_id: "assistant-history-002",
+            event_kind: "approval.requested",
+            label: "Approval requested",
+            detail: "Shell command execution requires operator approval.",
+            occurred_at_ms: now - 8_000,
+            step_id: "approval_wait",
+            entity_refs: [assistantApprovalRef],
+          },
+        ],
+        actions: [
+          {
+            action_id: "open_assistant_session",
+            action_kind: "open_session",
+            label: "Open session",
+            availability: "enabled",
+            disabled_reason: null,
+            target_entity_ref: assistantSessionRef,
+          },
+          {
+            action_id: "open_approval",
+            action_kind: "open_approval",
+            label: "Review approval",
+            availability: "enabled",
+            disabled_reason: null,
+            target_entity_ref: assistantApprovalRef,
+          },
+        ],
+        source_facts: [
+          {
+            fact_id: "assistant-fact-run",
+            fact_kind: "run_record",
+            entity_ref: assistantSessionRef,
+            occurred_at_ms: now - 18_000,
+            partial: false,
+          },
+          {
+            fact_id: "assistant-fact-approval",
+            fact_kind: "approval_record",
+            entity_ref: assistantApprovalRef,
+            occurred_at_ms: now - 8_000,
+            partial: false,
+          },
+        ],
+        availability: {
+          is_limited: false,
+          is_stale: false,
+          last_refresh_at_ms: now - 2_000,
+          missing_source_kinds: [],
+          stale_reason: null,
+        },
+        warnings: [
+          {
+            warning_id: "assistant-warning-approval-pending",
+            warning_kind: "approval_pending",
+            message: "Operator approval is still pending for the next command.",
+          },
+        ],
+        owner_agent_id: "agent-root",
+        owner_agent_label: getAgentLabel("agent-root"),
+      },
+    },
+    {
+      updated_at_ms: heartbeatCard.updated_at,
+      primary_entity_label: heartbeatCard.title,
+      detail: {
+        runbook_id: `board_card_run:${heartbeatCard.card_id}`,
+        runbook_kind: "board_card_run",
+        template_id: "board-card-run",
+        template_version: "mc-runbook-v1",
+        anchor_kind: "card",
+        anchor_id: heartbeatCard.card_id,
+        title: heartbeatCard.title,
+        status: "completed",
+        status_reason: "Gateway heartbeat validation was captured on the board card.",
+        generated_at_ms: now,
+        selected_execution_ref: {
+          entity_kind: "board_card",
+          entity_id: heartbeatCard.card_id,
+          created_at_ms: heartbeatCard.created_at,
+          started_at_ms: heartbeatCard.created_at,
+          waiting_since_ms: null,
+          finished_at_ms: heartbeatCard.updated_at,
+        },
+        active_step_id: "card_run_completed",
+        next_step_ids: [],
+        linked_entities: [heartbeatCardRef, activeTaskRef],
+        steps: [
+          {
+            step_id: "card_created",
+            label: "Card created",
+            kind: "card_state",
+            state: "completed",
+            state_reason: null,
+            started_at_ms: heartbeatCard.created_at,
+            finished_at_ms: heartbeatCard.created_at,
+            waiting_since_ms: null,
+            linked_entity_refs: [heartbeatCardRef],
+            action_refs: ["open_board_card"],
+            template_index: 0,
+          },
+          {
+            step_id: "card_investigation",
+            label: "Investigate card",
+            kind: "card_state",
+            state: "completed",
+            state_reason: null,
+            started_at_ms: heartbeatCard.created_at + 10_000,
+            finished_at_ms: heartbeatCard.updated_at - 15_000,
+            waiting_since_ms: null,
+            linked_entity_refs: [heartbeatCardRef, activeTaskRef],
+            action_refs: ["open_board_card", "open_linked_task"],
+            template_index: 1,
+          },
+          {
+            step_id: "card_run_completed",
+            label: "Complete card execution",
+            kind: "card_state",
+            state: "completed",
+            state_reason: null,
+            started_at_ms: heartbeatCard.updated_at - 15_000,
+            finished_at_ms: heartbeatCard.updated_at,
+            waiting_since_ms: null,
+            linked_entity_refs: [heartbeatCardRef],
+            action_refs: ["open_board_card"],
+            template_index: 2,
+          },
+        ],
+        history: [
+          {
+            history_id: "board-history-001",
+            event_kind: "board.card.created",
+            label: "Board card created",
+            detail: heartbeatCard.description,
+            occurred_at_ms: heartbeatCard.created_at,
+            step_id: "card_created",
+            entity_refs: [heartbeatCardRef],
+          },
+          {
+            history_id: "board-history-002",
+            event_kind: "board.card.completed",
+            label: "Board card completed",
+            detail: "The investigation outcome was recorded on the board.",
+            occurred_at_ms: heartbeatCard.updated_at,
+            step_id: "card_run_completed",
+            entity_refs: [heartbeatCardRef],
+          },
+        ],
+        actions: [
+          {
+            action_id: "open_board_card",
+            action_kind: "open_board_card",
+            label: "Open board card",
+            availability: "enabled",
+            disabled_reason: null,
+            target_entity_ref: heartbeatCardRef,
+          },
+          {
+            action_id: "open_linked_task",
+            action_kind: "open_task",
+            label: "Open linked task",
+            availability: "enabled",
+            disabled_reason: null,
+            target_entity_ref: activeTaskRef,
+          },
+        ],
+        source_facts: [
+          {
+            fact_id: "board-fact-card",
+            fact_kind: "board_card_record",
+            entity_ref: heartbeatCardRef,
+            occurred_at_ms: heartbeatCard.updated_at,
+            partial: false,
+          },
+          {
+            fact_id: "board-fact-task",
+            fact_kind: "task_link",
+            entity_ref: activeTaskRef,
+            occurred_at_ms: activeTask.updated_at,
+            partial: false,
+          },
+        ],
+        availability: {
+          is_limited: false,
+          is_stale: true,
+          last_refresh_at_ms: now - 180_000,
+          missing_source_kinds: [],
+          stale_reason: "Board card timeline is older than the live event window.",
+        },
+        warnings: [],
+        owner_agent_id: heartbeatCard.owner_agent_id,
+        owner_agent_label: getAgentLabel(heartbeatCard.owner_agent_id),
+      },
+    },
+    {
+      updated_at_ms: now - 12_000,
+      primary_entity_label: heartbeatJob.name,
+      detail: {
+        runbook_id: `scheduled_job_run:${heartbeatJob.job_id}`,
+        runbook_kind: "scheduled_job_run",
+        template_id: "scheduled-job-run",
+        template_version: "mc-runbook-v1",
+        anchor_kind: "job",
+        anchor_id: heartbeatJob.job_id,
+        title: heartbeatJob.name,
+        status: "active",
+        status_reason: "Heartbeat execution is currently processing.",
+        generated_at_ms: now,
+        selected_execution_ref: {
+          entity_kind: "job_run",
+          entity_id: "job-run-heartbeat-001",
+          created_at_ms: now - 30_000,
+          started_at_ms: now - 28_000,
+          waiting_since_ms: null,
+          finished_at_ms: null,
+        },
+        active_step_id: "job_processing",
+        next_step_ids: ["approval_wait", "job_run_succeeded", "job_run_failed"],
+        linked_entities: [heartbeatJobRef, activeTaskRef],
+        steps: [
+          {
+            step_id: "job_scheduled",
+            label: "Schedule job",
+            kind: "job_state",
+            state: "completed",
+            state_reason: null,
+            started_at_ms: heartbeatJob.created_at,
+            finished_at_ms: heartbeatJob.created_at,
+            waiting_since_ms: null,
+            linked_entity_refs: [heartbeatJobRef],
+            action_refs: ["open_job"],
+            template_index: 0,
+          },
+          {
+            step_id: "job_processing",
+            label: "Process job",
+            kind: "job_state",
+            state: "active",
+            state_reason: "The current execution is still running.",
+            started_at_ms: now - 28_000,
+            finished_at_ms: null,
+            waiting_since_ms: null,
+            linked_entity_refs: [heartbeatJobRef, activeTaskRef],
+            action_refs: ["open_job", "open_linked_task"],
+            template_index: 1,
+          },
+          {
+            step_id: "job_run_succeeded",
+            label: "Mark success",
+            kind: "job_state",
+            state: "pending",
+            state_reason: null,
+            started_at_ms: null,
+            finished_at_ms: null,
+            waiting_since_ms: null,
+            linked_entity_refs: [heartbeatJobRef],
+            action_refs: ["open_job"],
+            template_index: 2,
+          },
+          {
+            step_id: "job_run_failed",
+            label: "Handle failure",
+            kind: "job_state",
+            state: "pending",
+            state_reason: null,
+            started_at_ms: null,
+            finished_at_ms: null,
+            waiting_since_ms: null,
+            linked_entity_refs: [heartbeatJobRef],
+            action_refs: ["open_job"],
+            template_index: 3,
+          },
+        ],
+        history: [
+          {
+            history_id: "job-history-001",
+            event_kind: "job.created",
+            label: "Job created",
+            detail: "Recurring heartbeat job was registered.",
+            occurred_at_ms: heartbeatJob.created_at,
+            step_id: "job_scheduled",
+            entity_refs: [heartbeatJobRef],
+          },
+          {
+            history_id: "job-history-002",
+            event_kind: "job.run.started",
+            label: "Job run started",
+            detail: "Manual execution triggered from Mission Control.",
+            occurred_at_ms: now - 28_000,
+            step_id: "job_processing",
+            entity_refs: [heartbeatJobRef],
+          },
+        ],
+        actions: [
+          {
+            action_id: "open_job",
+            action_kind: "open_job",
+            label: "Open job",
+            availability: "enabled",
+            disabled_reason: null,
+            target_entity_ref: heartbeatJobRef,
+          },
+          {
+            action_id: "open_linked_task",
+            action_kind: "open_task",
+            label: "Open linked task",
+            availability: "enabled",
+            disabled_reason: null,
+            target_entity_ref: activeTaskRef,
+          },
+        ],
+        source_facts: [
+          {
+            fact_id: "job-fact-job",
+            fact_kind: "job_record",
+            entity_ref: heartbeatJobRef,
+            occurred_at_ms: heartbeatJob.updated_at,
+            partial: false,
+          },
+          {
+            fact_id: "job-fact-task",
+            fact_kind: "task_link",
+            entity_ref: activeTaskRef,
+            occurred_at_ms: activeTask.updated_at,
+            partial: false,
+          },
+        ],
+        availability: {
+          is_limited: false,
+          is_stale: false,
+          last_refresh_at_ms: now - 1_000,
+          missing_source_kinds: [],
+          stale_reason: null,
+        },
+        warnings: [],
+        owner_agent_id: heartbeatJob.agent_id,
+        owner_agent_label: getAgentLabel(heartbeatJob.agent_id),
+      },
+    },
+    {
+      updated_at_ms: blockedTask.updated_at,
+      primary_entity_label: blockedTask.title,
+      detail: {
+        runbook_id: `strategy_task_execution:${blockedTask.task_id}`,
+        runbook_kind: "strategy_task_execution",
+        template_id: "strategy-task-execution",
+        template_version: "mc-runbook-v1",
+        anchor_kind: "task",
+        anchor_id: blockedTask.task_id,
+        title: blockedTask.title,
+        status: "blocked",
+        status_reason: blockedTask.blocked_reason,
+        generated_at_ms: now,
+        selected_execution_ref: null,
+        active_step_id: "blocked",
+        next_step_ids: ["resume_execution"],
+        linked_entities: [blockedTaskRef, gatewayProjectRef, reliabilityGoalRef],
+        steps: [
+          {
+            step_id: "task_created",
+            label: "Create task",
+            kind: "task_state",
+            state: "completed",
+            state_reason: null,
+            started_at_ms: blockedTask.created_at,
+            finished_at_ms: blockedTask.created_at,
+            waiting_since_ms: null,
+            linked_entity_refs: [blockedTaskRef],
+            action_refs: ["open_task"],
+            template_index: 0,
+          },
+          {
+            step_id: "blocked",
+            label: "Blocked",
+            kind: "task_state",
+            state: "blocked",
+            state_reason: blockedTask.blocked_reason,
+            started_at_ms: blockedTask.updated_at - 60_000,
+            finished_at_ms: null,
+            waiting_since_ms: blockedTask.updated_at - 60_000,
+            linked_entity_refs: [blockedTaskRef, gatewayProjectRef, reliabilityGoalRef],
+            action_refs: ["open_task", "open_project", "open_goal"],
+            template_index: 1,
+          },
+          {
+            step_id: "resume_execution",
+            label: "Resume execution",
+            kind: "task_state",
+            state: "pending",
+            state_reason: null,
+            started_at_ms: null,
+            finished_at_ms: null,
+            waiting_since_ms: null,
+            linked_entity_refs: [blockedTaskRef],
+            action_refs: ["open_task"],
+            template_index: 2,
+          },
+        ],
+        history: [
+          {
+            history_id: "task-history-001",
+            event_kind: "task.created",
+            label: "Task created",
+            detail: blockedTask.detail,
+            occurred_at_ms: blockedTask.created_at,
+            step_id: "task_created",
+            entity_refs: [blockedTaskRef],
+          },
+          {
+            history_id: "task-history-002",
+            event_kind: "task.blocked",
+            label: "Task blocked",
+            detail: blockedTask.blocked_reason,
+            occurred_at_ms: blockedTask.updated_at,
+            step_id: "blocked",
+            entity_refs: [blockedTaskRef, gatewayProjectRef, reliabilityGoalRef],
+          },
+        ],
+        actions: [
+          {
+            action_id: "open_task",
+            action_kind: "open_task",
+            label: "Open task",
+            availability: "enabled",
+            disabled_reason: null,
+            target_entity_ref: blockedTaskRef,
+          },
+          {
+            action_id: "open_project",
+            action_kind: "open_project",
+            label: "Open project",
+            availability: "enabled",
+            disabled_reason: null,
+            target_entity_ref: gatewayProjectRef,
+          },
+          {
+            action_id: "open_goal",
+            action_kind: "open_goal",
+            label: "Open goal",
+            availability: "enabled",
+            disabled_reason: null,
+            target_entity_ref: reliabilityGoalRef,
+          },
+        ],
+        source_facts: [
+          {
+            fact_id: "task-fact-task",
+            fact_kind: "task_record",
+            entity_ref: blockedTaskRef,
+            occurred_at_ms: blockedTask.updated_at,
+            partial: false,
+          },
+          {
+            fact_id: "task-fact-project",
+            fact_kind: "project_record",
+            entity_ref: gatewayProjectRef,
+            occurred_at_ms: gatewayProject.updated_at,
+            partial: false,
+          },
+          {
+            fact_id: "task-fact-goal",
+            fact_kind: "goal_record",
+            entity_ref: reliabilityGoalRef,
+            occurred_at_ms: reliabilityGoal.updated_at,
+            partial: false,
+          },
+        ],
+        availability: {
+          is_limited: false,
+          is_stale: false,
+          last_refresh_at_ms: now - 3_000,
+          missing_source_kinds: [],
+          stale_reason: null,
+        },
+        warnings: [
+          {
+            warning_id: "task-warning-blocked",
+            warning_kind: "upstream_blocker",
+            message: blockedTask.blocked_reason ?? "Task is waiting on an upstream blocker.",
+          },
+        ],
+        owner_agent_id: blockedTask.owner_agent_id,
+        owner_agent_label: getAgentLabel(blockedTask.owner_agent_id),
+      },
+    },
+  ];
+}
+
+function compareRunbookRecords(left, right) {
+  return (right.updated_at_ms - left.updated_at_ms)
+    || left.detail.title.localeCompare(right.detail.title)
+    || left.detail.runbook_id.localeCompare(right.detail.runbook_id);
+}
+
+function buildRunbookSummary(record) {
+  const activeStep = record.detail.active_step_id
+    ? record.detail.steps.find((item) => item.step_id === record.detail.active_step_id) ?? null
+    : null;
+  return {
+    runbook_id: record.detail.runbook_id,
+    runbook_kind: record.detail.runbook_kind,
+    anchor_kind: record.detail.anchor_kind,
+    anchor_id: record.detail.anchor_id,
+    title: record.detail.title,
+    status: record.detail.status,
+    status_reason: record.detail.status_reason,
+    owner_agent_id: record.detail.owner_agent_id,
+    owner_agent_label: record.detail.owner_agent_label,
+    primary_entity_label: record.primary_entity_label,
+    updated_at_ms: record.updated_at_ms,
+    current_step_label: activeStep?.label ?? null,
+    warning_count: record.detail.warnings.length,
+    linked_entities: record.detail.linked_entities,
+    availability: record.detail.availability,
+  };
+}
+
+function buildRunbookStatusCounts(records) {
+  const counts = {
+    pending: 0,
+    active: 0,
+    waiting: 0,
+    blocked: 0,
+    failed: 0,
+    completed: 0,
+    limited: 0,
+  };
+  for (const record of records) {
+    if (Object.hasOwn(counts, record.detail.status)) {
+      counts[record.detail.status] += 1;
+    }
+  }
+  return counts;
+}
+
+function runbookHasEntity(detail, entityKind, entityId) {
+  if (detail.anchor_kind === entityKind && detail.anchor_id === entityId) {
+    return true;
+  }
+  return detail.linked_entities.some(
+    (entity) => entity.entity_kind === entityKind && entity.entity_id === entityId
+  );
+}
+
+function runbookMatchesSearch(record, query) {
+  if (!query) {
+    return true;
+  }
+  const haystack = [
+    record.detail.title,
+    record.primary_entity_label,
+    record.detail.status_reason ?? "",
+    record.detail.owner_agent_label ?? "",
+    ...record.detail.linked_entities.map((entity) => entity.display_label),
+  ]
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(query);
+}
+
+function buildRunbookListPayload(requestUrl) {
+  const kind = requestUrl.searchParams.get("kind")?.trim() || null;
+  const status = requestUrl.searchParams.get("status")?.trim() || null;
+  const ownerAgentId = requestUrl.searchParams.get("owner_agent_id")?.trim() || null;
+  const query = requestUrl.searchParams.get("query")?.trim().toLowerCase() || "";
+  const linkedTaskId = requestUrl.searchParams.get("linked_task_id")?.trim() || null;
+  const linkedProjectId = requestUrl.searchParams.get("linked_project_id")?.trim() || null;
+  const linkedGoalId = requestUrl.searchParams.get("linked_goal_id")?.trim() || null;
+  const limitRaw = Number(requestUrl.searchParams.get("limit") ?? "50");
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0
+    ? Math.min(200, Math.trunc(limitRaw))
+    : 50;
+  const cursor = requestUrl.searchParams.get("cursor")?.trim() || null;
+  const records = getRunbookRecords()
+    .sort(compareRunbookRecords)
+    .filter((record) => !kind || record.detail.runbook_kind === kind)
+    .filter((record) => !status || record.detail.status === status)
+    .filter((record) => !ownerAgentId || record.detail.owner_agent_id === ownerAgentId)
+    .filter((record) => runbookMatchesSearch(record, query))
+    .filter((record) => !linkedTaskId || runbookHasEntity(record.detail, "task", linkedTaskId))
+    .filter((record) => !linkedProjectId || runbookHasEntity(record.detail, "project", linkedProjectId))
+    .filter((record) => !linkedGoalId || runbookHasEntity(record.detail, "goal", linkedGoalId));
+  const countsByStatus = buildRunbookStatusCounts(records);
+
+  let startIndex = 0;
+  if (cursor) {
+    const cursorIndex = records.findIndex((record) => record.detail.runbook_id === cursor);
+    if (cursorIndex < 0) {
+      return { error: "invalid_cursor" };
+    }
+    startIndex = cursorIndex + 1;
+  }
+
+  const page = records.slice(startIndex, startIndex + limit);
+  return {
+    generated_at_ms: Date.now(),
+    items: page.map(buildRunbookSummary),
+    counts_by_status: countsByStatus,
+    next_cursor:
+      startIndex + page.length < records.length
+        ? page[page.length - 1]?.detail.runbook_id ?? null
+        : null,
+  };
+}
+
+function getRunbookDetailPayload(runbookKind, anchorId) {
+  return getRunbookRecords().find(
+    (record) => record.detail.runbook_kind === runbookKind && record.detail.anchor_id === anchorId
+  )?.detail ?? null;
+}
+
+function emptyMemorySurfaceAvailability() {
+  return {
+    cards: false,
+    card_detail: false,
+    atom_detail: false,
+    graph_overview: false,
+    graph_neighbors: false,
+    episodes: false,
+    turn_why: false,
+    citation_lookup: false,
+    runtime_health: false,
+    telemetry_summary: false,
+    telemetry_turns: false,
+    decision_reasons: false,
+  };
+}
+
+function emptyMemoryOrchestration() {
+  return {
+    enabled: false,
+    transport: "http",
+    health_status: "down",
+    degrade_mode: false,
+    last_error_code: null,
+    last_error: null,
+  };
+}
+
+function getAgentMemoryLane(agentId) {
+  return agentMemoryLanes[agentId] ?? null;
+}
+
+function getAgentMemoryStatusPayload(agent) {
+  const lane = getAgentMemoryLane(agent.agent_id);
+  if (!agent.memory_binding || !agent.memory_binding.enabled || !lane) {
+    return {
+      agent_id: agent.agent_id,
+      binding_status: "unconfigured",
+      binding: agent.memory_binding ?? null,
+      native_surface_availability: emptyMemorySurfaceAvailability(),
+      orchestration: emptyMemoryOrchestration(),
+      native_runtime_status: null,
+      native_runtime_health_mismatch: false,
+    };
+  }
+  return cloneSeed(lane.status);
+}
+
+function sendAgentMemoryJson(res, agentId, data) {
+  const lane = getAgentMemoryLane(agentId);
+  const bindingId =
+    lane?.status?.binding?.binding_id ??
+    agents.find((agent) => agent.agent_id === agentId)?.memory_binding?.binding_id ??
+    `memory-${agentId}`;
+  sendJson(res, 200, {
+    agent_id: agentId,
+    binding_id: bindingId,
+    data,
+  });
 }
 
 function closeAllWsConnections(code = 1012, reason = "e2e-ws-flap") {
@@ -819,6 +2447,15 @@ async function routeRequest(req, res) {
     return;
   }
 
+  if (req.method === "POST" && requestUrl.pathname === "/api/v1/e2e/reset") {
+    resetMockState();
+    sendJson(res, 200, {
+      ok: true,
+      reset_at_ms: Date.now(),
+    });
+    return;
+  }
+
   if (req.method === "GET" && requestUrl.pathname === "/api/v1/health") {
     sendJson(res, 200, {
       status: "ok",
@@ -1131,6 +2768,10 @@ async function routeRequest(req, res) {
         payload.reports_to_agent_id === null || payload.reports_to_agent_id === undefined
           ? null
           : String(payload.reports_to_agent_id),
+      memory_binding:
+        payload.memory_binding && typeof payload.memory_binding === "object"
+          ? cloneSeed(payload.memory_binding)
+          : null,
     };
     agents.push(created);
     sendJson(res, 200, {
@@ -1171,9 +2812,730 @@ async function routeRequest(req, res) {
     ) {
       existing.reports_to_agent_id = payload.reports_to_agent_id;
     }
+    if (payload.memory_binding === null || typeof payload.memory_binding === "object") {
+      existing.memory_binding =
+        payload.memory_binding === null ? null : cloneSeed(payload.memory_binding);
+    }
     sendJson(res, 200, {
       agent: existing,
     });
+    return;
+  }
+
+  const agentMemoryStatusMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/agents\/([^/]+)\/memory\/status$/
+  );
+  if (req.method === "GET" && agentMemoryStatusMatch) {
+    const agentId = decodeURIComponent(agentMemoryStatusMatch[1]);
+    const agent = agents.find((item) => item.agent_id === agentId);
+    if (!agent) {
+      sendJson(res, 404, { error: "agent not found" });
+      return;
+    }
+    sendJson(res, 200, {
+      status: getAgentMemoryStatusPayload(agent),
+    });
+    return;
+  }
+
+  const agentMemoryCardsMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/agents\/([^/]+)\/memory\/cards$/
+  );
+  if (req.method === "GET" && agentMemoryCardsMatch) {
+    const agentId = decodeURIComponent(agentMemoryCardsMatch[1]);
+    const lane = getAgentMemoryLane(agentId);
+    if (!lane) {
+      sendJson(res, 424, { error: "assistant memory is unconfigured" });
+      return;
+    }
+    const query = (requestUrl.searchParams.get("q") ?? "").trim().toLowerCase();
+    const statusFilter = (requestUrl.searchParams.get("status") ?? "all").trim().toLowerCase();
+    const filteredCards = lane.cardsPayload.cards.filter((card) => {
+      if (statusFilter !== "all" && String(card.status ?? "").toLowerCase() !== statusFilter) {
+        return false;
+      }
+      if (!query) {
+        return true;
+      }
+      const haystack = [card.summary, card.atom_id, card.kind]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+    sendAgentMemoryJson(res, agentId, {
+      ok: true,
+      total: filteredCards.length,
+      cards: filteredCards,
+    });
+    return;
+  }
+
+  const agentMemoryCardMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/agents\/([^/]+)\/memory\/cards\/([^/]+)$/
+  );
+  if (req.method === "GET" && agentMemoryCardMatch) {
+    const agentId = decodeURIComponent(agentMemoryCardMatch[1]);
+    const cardId = decodeURIComponent(agentMemoryCardMatch[2]);
+    const lane = getAgentMemoryLane(agentId);
+    const detail = lane?.cardDetails?.[cardId] ?? null;
+    if (!detail) {
+      sendJson(res, 404, { error: "memory card not found" });
+      return;
+    }
+    sendAgentMemoryJson(res, agentId, detail);
+    return;
+  }
+
+  const agentMemoryAtomMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/agents\/([^/]+)\/memory\/atom\/([^/]+)$/
+  );
+  if (req.method === "GET" && agentMemoryAtomMatch) {
+    const agentId = decodeURIComponent(agentMemoryAtomMatch[1]);
+    const atomId = decodeURIComponent(agentMemoryAtomMatch[2]);
+    const lane = getAgentMemoryLane(agentId);
+    const detail = lane?.atomDetails?.[atomId] ?? null;
+    if (!detail) {
+      sendJson(res, 404, { error: "memory atom not found" });
+      return;
+    }
+    sendAgentMemoryJson(res, agentId, detail);
+    return;
+  }
+
+  const agentMemoryEpisodesMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/agents\/([^/]+)\/memory\/episodes$/
+  );
+  if (req.method === "GET" && agentMemoryEpisodesMatch) {
+    const agentId = decodeURIComponent(agentMemoryEpisodesMatch[1]);
+    const lane = getAgentMemoryLane(agentId);
+    if (!lane) {
+      sendJson(res, 424, { error: "assistant memory is unconfigured" });
+      return;
+    }
+    const query = (requestUrl.searchParams.get("q") ?? "").trim().toLowerCase();
+    const episodes = lane.episodesPayload.episodes.filter((episode) => {
+      if (!query) {
+        return true;
+      }
+      const haystack = [episode.label, episode.run_id, episode.card_id]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+    sendAgentMemoryJson(res, agentId, {
+      ok: true,
+      total: episodes.length,
+      episodes,
+    });
+    return;
+  }
+
+  const agentMemoryGraphMapMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/agents\/([^/]+)\/memory\/graph-map$/
+  );
+  if (req.method === "GET" && agentMemoryGraphMapMatch) {
+    const agentId = decodeURIComponent(agentMemoryGraphMapMatch[1]);
+    const lane = getAgentMemoryLane(agentId);
+    if (!lane) {
+      sendJson(res, 424, { error: "assistant memory is unconfigured" });
+      return;
+    }
+    sendAgentMemoryJson(res, agentId, lane.graphMapPayload);
+    return;
+  }
+
+  const agentMemoryNeighborsMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/agents\/([^/]+)\/memory\/graph\/neighbors$/
+  );
+  if (req.method === "GET" && agentMemoryNeighborsMatch) {
+    const agentId = decodeURIComponent(agentMemoryNeighborsMatch[1]);
+    const lane = getAgentMemoryLane(agentId);
+    const atomId = (requestUrl.searchParams.get("atom_id") ?? "").trim();
+    if (!lane) {
+      sendJson(res, 424, { error: "assistant memory is unconfigured" });
+      return;
+    }
+    if (!atomId) {
+      sendJson(res, 400, { error: "atom_id is required" });
+      return;
+    }
+    const payload = lane.graphNeighborsByAtomId[atomId];
+    if (!payload) {
+      sendJson(res, 404, { error: "memory graph neighborhood not found" });
+      return;
+    }
+    sendAgentMemoryJson(res, agentId, payload);
+    return;
+  }
+
+  const agentMemoryWhyMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/agents\/([^/]+)\/memory\/turns\/([^/]+)\/why$/
+  );
+  if (req.method === "GET" && agentMemoryWhyMatch) {
+    const agentId = decodeURIComponent(agentMemoryWhyMatch[1]);
+    const turnId = decodeURIComponent(agentMemoryWhyMatch[2]);
+    const lane = getAgentMemoryLane(agentId);
+    const payload = lane?.whyByTurnId?.[turnId] ?? null;
+    if (!payload) {
+      sendJson(res, 404, { error: "memory why not found" });
+      return;
+    }
+    sendAgentMemoryJson(res, agentId, payload);
+    return;
+  }
+
+  const agentMemoryCitationMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/agents\/([^/]+)\/memory\/citations\/([^/]+)$/
+  );
+  if (req.method === "GET" && agentMemoryCitationMatch) {
+    const agentId = decodeURIComponent(agentMemoryCitationMatch[1]);
+    const citationToken = decodeURIComponent(agentMemoryCitationMatch[2]);
+    const lane = getAgentMemoryLane(agentId);
+    const payload = lane?.citationsByToken?.[citationToken] ?? null;
+    if (!payload) {
+      sendJson(res, 404, { error: "memory citation not found" });
+      return;
+    }
+    sendAgentMemoryJson(res, agentId, payload);
+    return;
+  }
+
+  const agentMemoryRuntimeHealthMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/agents\/([^/]+)\/memory\/runtime\/health$/
+  );
+  if (req.method === "GET" && agentMemoryRuntimeHealthMatch) {
+    const agentId = decodeURIComponent(agentMemoryRuntimeHealthMatch[1]);
+    const lane = getAgentMemoryLane(agentId);
+    if (!lane) {
+      sendJson(res, 424, { error: "assistant memory is unconfigured" });
+      return;
+    }
+    sendAgentMemoryJson(res, agentId, lane.runtimeHealthPayload);
+    return;
+  }
+
+  const agentMemoryTelemetrySummaryMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/agents\/([^/]+)\/memory\/runtime\/telemetry\/summary$/
+  );
+  if (req.method === "GET" && agentMemoryTelemetrySummaryMatch) {
+    const agentId = decodeURIComponent(agentMemoryTelemetrySummaryMatch[1]);
+    const lane = getAgentMemoryLane(agentId);
+    if (!lane) {
+      sendJson(res, 424, { error: "assistant memory is unconfigured" });
+      return;
+    }
+    sendAgentMemoryJson(res, agentId, lane.telemetrySummaryPayload);
+    return;
+  }
+
+  const agentMemoryTelemetryTurnsMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/agents\/([^/]+)\/memory\/runtime\/telemetry\/turns$/
+  );
+  if (req.method === "GET" && agentMemoryTelemetryTurnsMatch) {
+    const agentId = decodeURIComponent(agentMemoryTelemetryTurnsMatch[1]);
+    const lane = getAgentMemoryLane(agentId);
+    if (!lane) {
+      sendJson(res, 424, { error: "assistant memory is unconfigured" });
+      return;
+    }
+    sendAgentMemoryJson(res, agentId, lane.telemetryTurnsPayload);
+    return;
+  }
+
+  const agentMemoryDecisionReasonsMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/agents\/([^/]+)\/memory\/runtime\/decision-reasons$/
+  );
+  if (req.method === "GET" && agentMemoryDecisionReasonsMatch) {
+    const agentId = decodeURIComponent(agentMemoryDecisionReasonsMatch[1]);
+    const lane = getAgentMemoryLane(agentId);
+    if (!lane) {
+      sendJson(res, 424, { error: "assistant memory is unconfigured" });
+      return;
+    }
+    sendAgentMemoryJson(res, agentId, lane.decisionReasonsPayload);
+    return;
+  }
+
+  if (req.method === "GET" && requestUrl.pathname === "/api/v1/connectors/catalog") {
+    sendJson(res, 200, {
+      contract_version: "connector-registry-v1",
+      items: connectorCatalog,
+    });
+    return;
+  }
+
+  if (req.method === "GET" && requestUrl.pathname === "/api/v1/connectors") {
+    sendJson(res, 200, {
+      contract_version: "connector-registry-v1",
+      items: connectorSources,
+    });
+    return;
+  }
+
+  if (req.method === "GET" && requestUrl.pathname === "/api/v1/connectors/interactions") {
+    sendJson(res, 200, {
+      contract_version: "connector-registry-v1",
+      items: listConnectorInteractions(),
+    });
+    return;
+  }
+
+  if (req.method === "POST" && requestUrl.pathname === "/api/v1/connectors/import") {
+    const payload = await readJson(req);
+    const displayName = String(payload.display_name ?? "").trim();
+    const sourceKind = String(payload.source_kind ?? "").trim().toLowerCase();
+    if (!displayName) {
+      sendJson(res, 400, { error: "display_name is required" });
+      return;
+    }
+    if (!["openapi", "graphql", "mcp"].includes(sourceKind)) {
+      sendJson(res, 400, { error: "source_kind must be openapi, graphql, or mcp" });
+      return;
+    }
+    let sourceDocument = {};
+    try {
+      sourceDocument = parseConnectorSourceDocument(payload);
+    } catch (error) {
+      sendJson(res, 400, { error: String(error instanceof Error ? error.message : error) });
+      return;
+    }
+    const slug =
+      normalizeConnectorSlug(payload.slug || displayName) || `connector-${connectorSources.length + 1}`;
+    const connectorId = `connector-${slug}`;
+    const now = Date.now();
+    const connector = {
+      connector_id: connectorId,
+      slug,
+      display_name: displayName,
+      source_kind: sourceKind,
+      origin_kind: String(payload.origin_kind ?? (payload.catalog_item_id ? "curated" : "imported_local")),
+      catalog_item_id:
+        payload.catalog_item_id == null ? null : String(payload.catalog_item_id),
+      current_version_id: null,
+      latest_imported_version_id: null,
+      status: "draft",
+      trust_state: payload.catalog_item_id ? "trusted_curated" : "local_untrusted",
+      assigned_agent_count: 0,
+      published_tool_count: 0,
+      last_conversion_at: null,
+      last_review_at: null,
+      last_enabled_at: null,
+      last_disabled_at: null,
+      created_at: now,
+      updated_at: now,
+    };
+    const version = {
+      version_id: randomUUID(),
+      connector_id: connectorId,
+      version_label: String(payload.version_label ?? "v1"),
+      source_digest: randomUUID().replaceAll("-", ""),
+      raw_source_location:
+        payload.import_url != null
+          ? String(payload.import_url)
+          : payload.endpoint_url != null
+            ? String(payload.endpoint_url)
+            : null,
+      import_metadata: {
+        source_kind: sourceKind,
+        catalog_item_id: connector.catalog_item_id,
+        import_url: payload.import_url ?? null,
+        endpoint_url: payload.endpoint_url ?? null,
+        source_json: sourceDocument,
+      },
+      schema_summary: {
+        source_kind: sourceKind,
+      },
+      latest_conversion_id: null,
+      external_reference_policy: String(payload.external_reference_policy ?? "inline_only"),
+      created_at: now,
+      updated_at: now,
+    };
+    connector.latest_imported_version_id = version.version_id;
+    connectorSources.push(connector);
+    connectorVersions.push(version);
+    sendJson(res, 200, {
+      connector,
+      version,
+    });
+    return;
+  }
+
+  const connectorDetailMatch = requestUrl.pathname.match(/^\/api\/v1\/connectors\/([^/]+)$/);
+  if (req.method === "GET" && connectorDetailMatch) {
+    const connectorId = decodeURIComponent(connectorDetailMatch[1]);
+    const connector = connectorById(connectorId);
+    if (!connector) {
+      sendJson(res, 404, { error: "connector not found" });
+      return;
+    }
+    sendJson(res, 200, {
+      connector,
+      versions: listConnectorVersions(connectorId),
+      conversions: listConnectorConversions(connectorId),
+      published_tools: listConnectorPublishedTools(connectorId),
+      assignments: listConnectorAssignments(connectorId),
+      auth_bindings: listConnectorAuthBindings(connectorId),
+      interactions: listConnectorInteractions(connectorId),
+    });
+    return;
+  }
+
+  const connectorConvertMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/connectors\/([^/]+)\/convert$/
+  );
+  if (req.method === "POST" && connectorConvertMatch) {
+    const connectorId = decodeURIComponent(connectorConvertMatch[1]);
+    const payload = await readJson(req);
+    const connector = connectorById(connectorId);
+    if (!connector) {
+      sendJson(res, 404, { error: "connector not found" });
+      return;
+    }
+    const version =
+      (payload.version_id ? connectorVersionById(String(payload.version_id)) : null) ??
+      (connector.latest_imported_version_id
+        ? connectorVersionById(connector.latest_imported_version_id)
+        : null) ??
+      (connector.current_version_id ? connectorVersionById(connector.current_version_id) : null);
+    if (!version) {
+      sendJson(res, 400, { error: "connector has no version to convert" });
+      return;
+    }
+    const conversion = createConnectorConversion(connector, version);
+    recomputeConnectorStats(connectorId);
+    sendJson(res, 200, {
+      connector,
+      version,
+      conversion,
+    });
+    return;
+  }
+
+  const connectorPublishMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/connectors\/([^/]+)\/publish$/
+  );
+  if (req.method === "POST" && connectorPublishMatch) {
+    const connectorId = decodeURIComponent(connectorPublishMatch[1]);
+    const payload = await readJson(req);
+    const connector = connectorById(connectorId);
+    const conversion = connectorConversionById(String(payload.conversion_id ?? ""));
+    if (!connector) {
+      sendJson(res, 404, { error: "connector not found" });
+      return;
+    }
+    if (!conversion || conversion.connector_id !== connectorId) {
+      sendJson(res, 404, { error: "connector conversion not found" });
+      return;
+    }
+    const version = connectorVersionById(conversion.version_id);
+    if (!version) {
+      sendJson(res, 404, { error: "connector version not found" });
+      return;
+    }
+    const selectedIds = Array.isArray(payload.selected_candidate_ids)
+      ? payload.selected_candidate_ids.map((item) => String(item))
+      : [];
+    const aliasOverrides = new Map(
+      Array.isArray(payload.alias_overrides)
+        ? payload.alias_overrides.map((item) => [
+            String(item.candidate_id),
+            String(item.alias ?? ""),
+          ])
+        : []
+    );
+    const published = conversion.proposed_tools
+      .filter((candidate) => selectedIds.includes(candidate.candidate_id))
+      .map((candidate) => {
+        const alias = aliasOverrides.get(candidate.candidate_id)?.trim();
+        const created = {
+          published_tool_id: randomUUID(),
+          connector_id: connectorId,
+          version_id: version.version_id,
+          conversion_id: conversion.conversion_id,
+          tool_name: alias || candidate.proposed_tool_name,
+          display_name: candidate.display_name,
+          tool_schema: candidate.input_schema,
+          origin_metadata: {
+            operation_key: candidate.operation_key,
+            description: candidate.description ?? null,
+            source_kind: connector.source_kind,
+          },
+          write_classification: candidate.write_classification,
+          published_at: Date.now(),
+          unpublished_at: null,
+          superseded_by_published_tool_id: null,
+          deprecation_state: "active",
+        };
+        connectorPublishedTools.push(created);
+        return created;
+      });
+    connector.current_version_id = version.version_id;
+    connector.last_review_at = Date.now();
+    connector.status = payload.enable_after_publish ? "enabled" : "converted";
+    if (payload.enable_after_publish) {
+      connector.last_enabled_at = Date.now();
+      if (listConnectorAuthBindings(connectorId).length === 0) {
+        upsertPendingAuthInteraction(connector, null);
+      }
+    }
+    recomputeConnectorStats(connectorId);
+    sendJson(res, 200, {
+      connector,
+      version,
+      published_tools: listConnectorPublishedTools(connectorId),
+    });
+    return;
+  }
+
+  const connectorUnpublishMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/connectors\/([^/]+)\/unpublish$/
+  );
+  if (req.method === "POST" && connectorUnpublishMatch) {
+    const connectorId = decodeURIComponent(connectorUnpublishMatch[1]);
+    const payload = await readJson(req);
+    const connector = connectorById(connectorId);
+    if (!connector) {
+      sendJson(res, 404, { error: "connector not found" });
+      return;
+    }
+    const selectedIds = Array.isArray(payload.published_tool_ids)
+      ? payload.published_tool_ids.map((item) => String(item))
+      : [];
+    selectedIds.forEach((publishedToolId) => {
+      const tool = connectorPublishedToolById(publishedToolId);
+      if (tool && tool.connector_id === connectorId) {
+        tool.unpublished_at = Date.now();
+        tool.deprecation_state = "unpublished";
+      }
+    });
+    recomputeConnectorStats(connectorId);
+    sendJson(res, 200, {
+      connector,
+      published_tools: listConnectorPublishedTools(connectorId),
+    });
+    return;
+  }
+
+  const connectorRollbackMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/connectors\/([^/]+)\/rollback$/
+  );
+  if (req.method === "POST" && connectorRollbackMatch) {
+    const connectorId = decodeURIComponent(connectorRollbackMatch[1]);
+    const payload = await readJson(req);
+    const connector = connectorById(connectorId);
+    const version = connectorVersionById(String(payload.version_id ?? ""));
+    if (!connector) {
+      sendJson(res, 404, { error: "connector not found" });
+      return;
+    }
+    if (!version || version.connector_id !== connectorId) {
+      sendJson(res, 404, { error: "connector version not found" });
+      return;
+    }
+    connector.current_version_id = version.version_id;
+    connector.status = "enabled";
+    connector.last_enabled_at = Date.now();
+    recomputeConnectorStats(connectorId);
+    sendJson(res, 200, {
+      connector,
+      version,
+      published_tools: listConnectorPublishedTools(connectorId).filter(
+        (item) => item.version_id === version.version_id
+      ),
+    });
+    return;
+  }
+
+  const connectorStateMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/connectors\/([^/]+)\/state$/
+  );
+  if (req.method === "POST" && connectorStateMatch) {
+    const connectorId = decodeURIComponent(connectorStateMatch[1]);
+    const payload = await readJson(req);
+    const connector = connectorById(connectorId);
+    if (!connector) {
+      sendJson(res, 404, { error: "connector not found" });
+      return;
+    }
+    const nextEnabled = Boolean(payload.enabled);
+    connector.status = nextEnabled ? "enabled" : "disabled";
+    if (nextEnabled) {
+      connector.last_enabled_at = Date.now();
+      if (listConnectorAuthBindings(connectorId).length === 0) {
+        upsertPendingAuthInteraction(connector, null);
+      }
+    } else {
+      connector.last_disabled_at = Date.now();
+    }
+    connector.updated_at = Date.now();
+    recomputeConnectorStats(connectorId);
+    sendJson(res, 200, {
+      connector,
+    });
+    return;
+  }
+
+  const connectorAssignmentMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/connectors\/([^/]+)\/assignments$/
+  );
+  if (req.method === "POST" && connectorAssignmentMatch) {
+    const connectorId = decodeURIComponent(connectorAssignmentMatch[1]);
+    const payload = await readJson(req);
+    const connector = connectorById(connectorId);
+    const agentId = String(payload.agent_id ?? "").trim();
+    if (!connector) {
+      sendJson(res, 404, { error: "connector not found" });
+      return;
+    }
+    if (!agentId) {
+      sendJson(res, 400, { error: "agent_id is required" });
+      return;
+    }
+    const existing =
+      connectorAssignments.find(
+        (item) => item.connector_id === connectorId && item.agent_id === agentId
+      ) ?? null;
+    if (existing) {
+      existing.enabled = payload.enabled !== false;
+      existing.auth_mode = String(payload.auth_mode ?? existing.auth_mode);
+      existing.updated_at = Date.now();
+      recomputeConnectorStats(connectorId);
+      sendJson(res, 200, { assignment: existing });
+      return;
+    }
+    const assignment = {
+      assignment_id: randomUUID(),
+      connector_id: connectorId,
+      agent_id: agentId,
+      enabled: payload.enabled !== false,
+      auth_mode: String(payload.auth_mode ?? "shared_default"),
+      created_at: Date.now(),
+      updated_at: Date.now(),
+    };
+    connectorAssignments.push(assignment);
+    recomputeConnectorStats(connectorId);
+    sendJson(res, 200, { assignment });
+    return;
+  }
+
+  const connectorAuthBindingMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/connectors\/([^/]+)\/auth-bindings$/
+  );
+  if (req.method === "POST" && connectorAuthBindingMatch) {
+    const connectorId = decodeURIComponent(connectorAuthBindingMatch[1]);
+    const payload = await readJson(req);
+    const connector = connectorById(connectorId);
+    if (!connector) {
+      sendJson(res, 404, { error: "connector not found" });
+      return;
+    }
+    const agentId =
+      payload.agent_id == null || String(payload.agent_id).trim() === ""
+        ? null
+        : String(payload.agent_id).trim();
+    const existing =
+      connectorAuthBindings.find(
+        (item) => item.connector_id === connectorId && item.agent_id === agentId
+      ) ?? null;
+    if (existing) {
+      existing.auth_kind = String(payload.auth_kind ?? existing.auth_kind);
+      existing.secret_ref =
+        payload.secret_ref == null || String(payload.secret_ref).trim() === ""
+          ? null
+          : String(payload.secret_ref).trim();
+      existing.oauth_session_id =
+        payload.oauth_session_id == null || String(payload.oauth_session_id).trim() === ""
+          ? null
+          : String(payload.oauth_session_id).trim();
+      existing.status = String(payload.status ?? existing.status);
+      existing.auth_metadata =
+        payload.auth_metadata && typeof payload.auth_metadata === "object"
+          ? cloneSeed(payload.auth_metadata)
+          : {};
+      existing.updated_at = Date.now();
+      existing.last_success_at = Date.now();
+      sendJson(res, 200, { binding: existing });
+      return;
+    }
+    const binding = {
+      auth_binding_id: randomUUID(),
+      connector_id: connectorId,
+      agent_id: agentId,
+      auth_kind: String(payload.auth_kind ?? "none"),
+      secret_ref:
+        payload.secret_ref == null || String(payload.secret_ref).trim() === ""
+          ? null
+          : String(payload.secret_ref).trim(),
+      oauth_session_id:
+        payload.oauth_session_id == null || String(payload.oauth_session_id).trim() === ""
+          ? null
+          : String(payload.oauth_session_id).trim(),
+      status: String(payload.status ?? "ready"),
+      auth_metadata:
+        payload.auth_metadata && typeof payload.auth_metadata === "object"
+          ? cloneSeed(payload.auth_metadata)
+          : {},
+      last_success_at: Date.now(),
+      last_error: null,
+      last_rotated_at: Date.now(),
+      created_at: Date.now(),
+      updated_at: Date.now(),
+    };
+    connectorAuthBindings.push(binding);
+    sendJson(res, 200, { binding });
+    return;
+  }
+
+  const connectorHealthMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/connectors\/([^/]+)\/health$/
+  );
+  if (req.method === "GET" && connectorHealthMatch) {
+    const connectorId = decodeURIComponent(connectorHealthMatch[1]);
+    const health = buildConnectorHealth(connectorId);
+    if (!health) {
+      sendJson(res, 404, { error: "connector not found" });
+      return;
+    }
+    sendJson(res, 200, { health });
+    return;
+  }
+
+  const connectorToolDetailMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/connectors\/([^/]+)\/tools\/([^/]+)$/
+  );
+  if (req.method === "GET" && connectorToolDetailMatch) {
+    const connectorId = decodeURIComponent(connectorToolDetailMatch[1]);
+    const publishedToolId = decodeURIComponent(connectorToolDetailMatch[2]);
+    const connector = connectorById(connectorId);
+    const publishedTool = connectorPublishedToolById(publishedToolId);
+    if (!connector || !publishedTool || publishedTool.connector_id !== connectorId) {
+      sendJson(res, 404, { error: "connector tool not found" });
+      return;
+    }
+    sendJson(res, 200, {
+      connector,
+      published_tool: publishedTool,
+    });
+    return;
+  }
+
+  const connectorInteractionResumeMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/connectors\/interactions\/([^/]+)\/resume$/
+  );
+  if (req.method === "POST" && connectorInteractionResumeMatch) {
+    const interactionId = decodeURIComponent(connectorInteractionResumeMatch[1]);
+    const interaction = connectorInteractions.find((item) => item.interaction_id === interactionId);
+    if (!interaction) {
+      sendJson(res, 404, { error: "interaction not found" });
+      return;
+    }
+    interaction.status = "resumed";
+    interaction.consumed_at = Date.now();
+    interaction.updated_at = Date.now();
+    interaction.resume_token = null;
+    sendJson(res, 200, { interaction });
     return;
   }
 
@@ -1246,6 +3608,31 @@ async function routeRequest(req, res) {
 
   if (req.method === "GET" && requestUrl.pathname === "/api/v1/mission-control/usage") {
     sendJson(res, 200, buildMissionControlUsage(requestUrl));
+    return;
+  }
+
+  if (req.method === "GET" && requestUrl.pathname === "/api/v1/mission-control/runbooks") {
+    const payload = buildRunbookListPayload(requestUrl);
+    if (payload.error) {
+      sendJson(res, 400, payload);
+      return;
+    }
+    sendJson(res, 200, payload);
+    return;
+  }
+
+  const runbookDetailMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/mission-control\/runbooks\/([^/]+)\/([^/]+)$/
+  );
+  if (req.method === "GET" && runbookDetailMatch) {
+    const runbookKind = decodeURIComponent(runbookDetailMatch[1]);
+    const anchorId = decodeURIComponent(runbookDetailMatch[2]);
+    const detail = getRunbookDetailPayload(runbookKind, anchorId);
+    if (!detail) {
+      sendJson(res, 404, { error: "runbook not found" });
+      return;
+    }
+    sendJson(res, 200, detail);
     return;
   }
 

@@ -4,7 +4,7 @@ import { Chip } from "../../ui/Chip";
 import { EmptyState } from "../../ui/EmptyState";
 import { InlineActions } from "../../ui/InlineActions";
 import { useWidgetPagination } from "./useWidgetPagination";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
 import type {
   Agent,
   AuthProfileResponse,
@@ -19,6 +19,8 @@ import type {
   PluginManifestResponse,
   PluginRuntimeStatusResponse,
   ProjectResponse,
+  RunbookStatusCountsResponse,
+  RunbookSummaryItemResponse,
   SkillResponse,
   StatusResponse,
   StrategySummaryResponse,
@@ -27,6 +29,8 @@ import type { EventStreamItem } from "../../app/useAppController";
 import { CustomWidgetRenderer } from "./CustomWidgetRenderer";
 import type { CockpitWidgetLayoutV2 } from "./cockpitLayout";
 import type { RuntimeConnectionSettings } from "../../types";
+import { getRunbookAttentionItems } from "../runbook/runbookSummaryUtils";
+import { RUNBOOK_COCKPIT_ATTENTION_LIMIT } from "../runbook/runbookConfig";
 
 type StrategyAvailability =
   | "disabled"
@@ -34,6 +38,7 @@ type StrategyAvailability =
   | "ready"
   | "unsupported"
   | "error";
+type RunbookAvailability = StrategyAvailability;
 
 interface CockpitWidgetRendererProps {
   widget: CockpitWidgetLayoutV2;
@@ -93,6 +98,11 @@ interface CockpitWidgetRendererProps {
   onOpenStrategyTask: (taskId: string) => boolean;
   onSelectStrategyGoal: (goalId: string) => void;
   onSelectStrategyProject: (projectId: string) => void;
+  runbookEnabled: boolean;
+  runbookAvailability: RunbookAvailability;
+  runbookCountsByStatus: RunbookStatusCountsResponse;
+  runbookItems: RunbookSummaryItemResponse[];
+  onOpenRunbook: (runbookKind: string, anchorId: string) => boolean;
   onRefreshAll: () => void;
   onRunCalendarJobNow: (jobId: string) => Promise<void>;
   onToggleCalendarJob: (jobId: string, enabled: boolean) => Promise<void>;
@@ -139,9 +149,10 @@ function PaginationControls({
   );
 }
 
-const LIST_ITEM_HEIGHT = 44;
-const COMPACT_ITEM_HEIGHT = 38;
-const EVENT_ITEM_HEIGHT = 32;
+/** Standard row height for list-style widgets (jobs, channels, breakers, focus). */
+const LIST_ITEM_HEIGHT = 40;
+/** Compact row height for dense widgets (events, providers, skills, plugins). */
+const COMPACT_ITEM_HEIGHT = 32;
 const MONEY_FORMATTERS = new Map<string, Intl.NumberFormat>();
 const TOKEN_FORMATTER = new Intl.NumberFormat("en-US", {
   notation: "compact",
@@ -192,7 +203,7 @@ function getStrategyStateMessage(
   strategyAvailability: StrategyAvailability
 ): string | null {
   if (!strategyEnabled || strategyAvailability === "disabled") {
-    return "Enable Strategy Hub in Runtime Controls to use this widget.";
+    return "Enable Strategy Hub in Settings \u2192 Runtime Controls to use this widget.";
   }
   if (strategyAvailability === "loading") {
     return "Strategy data is loading.";
@@ -207,6 +218,33 @@ function getStrategyStateMessage(
 }
 
 function renderStrategyState(message: string) {
+  return (
+    <article className="mc-cockpit-widget-body">
+      <EmptyState message={message} />
+    </article>
+  );
+}
+
+function getRunbookStateMessage(
+  runbookEnabled: boolean,
+  runbookAvailability: RunbookAvailability
+): string | null {
+  if (!runbookEnabled || runbookAvailability === "disabled") {
+    return "Enable Runbook Hub in Settings \u2192 Runtime Controls to use this widget.";
+  }
+  if (runbookAvailability === "loading") {
+    return "Runbook data is loading.";
+  }
+  if (runbookAvailability === "unsupported") {
+    return "This gateway does not expose Runbook data yet.";
+  }
+  if (runbookAvailability === "error") {
+    return "Runbook data failed to load.";
+  }
+  return null;
+}
+
+function renderRunbookState(message: string) {
   return (
     <article className="mc-cockpit-widget-body">
       <EmptyState message={message} />
@@ -233,6 +271,7 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
   const goalProgressListRef = useRef<HTMLDivElement>(null);
   const projectSpendListRef = useRef<HTMLDivElement>(null);
   const approvalBacklogListRef = useRef<HTMLDivElement>(null);
+  const runbookAttentionRef = useRef<HTMLDivElement>(null);
 
   const strategySummary = props.strategySummary;
   const blockedTasks = strategySummary?.blocked_tasks ?? [];
@@ -244,6 +283,14 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
     props.strategyEnabled,
     props.strategyAvailability
   );
+  const runbookStateMessage = getRunbookStateMessage(
+    props.runbookEnabled,
+    props.runbookAvailability
+  );
+  const runbookAttentionItems = getRunbookAttentionItems(
+    props.runbookItems,
+    RUNBOOK_COCKPIT_ATTENTION_LIMIT
+  );
 
   const focusPagination = useWidgetPagination(props.incidentFocusItems.length, focusListRef, LIST_ITEM_HEIGHT);
   const breakerCorePagination = useWidgetPagination(props.openBreakers.length, breakerCoreRef, COMPACT_ITEM_HEIGHT);
@@ -251,9 +298,9 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
   const jobsPagination = useWidgetPagination(props.calendarJobs.length, jobsListRef, LIST_ITEM_HEIGHT);
   const channelsPagination = useWidgetPagination(props.channelStatuses.length, channelsListRef, LIST_ITEM_HEIGHT);
   const profilesPagination = useWidgetPagination(props.orderedProviderProfiles.length, profilesListRef, LIST_ITEM_HEIGHT);
-  const skillsPagination = useWidgetPagination(props.skills.length, skillsListRef, LIST_ITEM_HEIGHT);
-  const pluginsPagination = useWidgetPagination(props.plugins.length, pluginsListRef, LIST_ITEM_HEIGHT);
-  const eventsPagination = useWidgetPagination(props.visibleEvents.length, eventsListRef, EVENT_ITEM_HEIGHT);
+  const skillsPagination = useWidgetPagination(props.skills.length, skillsListRef, COMPACT_ITEM_HEIGHT);
+  const pluginsPagination = useWidgetPagination(props.plugins.length, pluginsListRef, COMPACT_ITEM_HEIGHT);
+  const eventsPagination = useWidgetPagination(props.visibleEvents.length, eventsListRef, COMPACT_ITEM_HEIGHT);
   const blockedPagination = useWidgetPagination(blockedTasks.length, blockedListRef, LIST_ITEM_HEIGHT);
   const stalePagination = useWidgetPagination(staleTasks.length, staleListRef, LIST_ITEM_HEIGHT);
   const goalProgressPagination = useWidgetPagination(goalProgressItems.length, goalProgressListRef, LIST_ITEM_HEIGHT);
@@ -261,6 +308,11 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
   const approvalBacklogPagination = useWidgetPagination(
     approvalBacklogItems.length,
     approvalBacklogListRef,
+    LIST_ITEM_HEIGHT
+  );
+  const runbookAttentionPagination = useWidgetPagination(
+    runbookAttentionItems.length,
+    runbookAttentionRef,
     LIST_ITEM_HEIGHT
   );
 
@@ -399,10 +451,11 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
               </div>
 
               {props.usageFreshness !== "fresh" ? (
-                <p className="mc-usage-stale-note">
+                <p className={`mc-usage-stale-note ${props.usageFreshness === "limited" ? "mc-stale-critical" : "mc-stale-warn"}`}>
+                  <AlertTriangle size={12} />
                   {props.usageFreshness === "limited"
-                    ? "Data is older than 60 minutes. Trend claims are limited."
-                    : "Data is older than 15 minutes. Validate before acting."}
+                    ? " Data is older than 60 minutes. Trend claims are limited."
+                    : " Data is older than 15 minutes. Validate before acting."}
                 </p>
               ) : null}
 
@@ -1072,6 +1125,93 @@ export function CockpitWidgetRenderer(props: CockpitWidgetRendererProps) {
           page={approvalBacklogPagination.page}
           totalPages={approvalBacklogPagination.totalPages}
           onSetPage={approvalBacklogPagination.setPage}
+        />
+      </article>
+    );
+  }
+
+  if (widget.widget === "runbook_summary") {
+    if (runbookStateMessage) {
+      return renderRunbookState(runbookStateMessage);
+    }
+    return (
+      <article className="mc-cockpit-widget-body">
+        <div className="mc-health-grid">
+          <div>
+            <strong>Pending</strong>
+            <p>{props.runbookCountsByStatus.pending}</p>
+          </div>
+          <div>
+            <strong>Active</strong>
+            <p>{props.runbookCountsByStatus.active}</p>
+          </div>
+          <div>
+            <strong>Waiting</strong>
+            <p>{props.runbookCountsByStatus.waiting}</p>
+          </div>
+          <div>
+            <strong>Blocked</strong>
+            <p>{props.runbookCountsByStatus.blocked}</p>
+          </div>
+          <div>
+            <strong>Failed</strong>
+            <p>{props.runbookCountsByStatus.failed}</p>
+          </div>
+          <div>
+            <strong>Completed</strong>
+            <p>{props.runbookCountsByStatus.completed}</p>
+          </div>
+        </div>
+        <p className="mc-usage-footnote">
+          {props.runbookItems.length > 0
+            ? `Newest update ${formatRelative(props.runbookItems[0].updated_at_ms)}.`
+            : "No runbook snapshots are available yet."}
+        </p>
+      </article>
+    );
+  }
+
+  if (widget.widget === "runbook_attention") {
+    if (runbookStateMessage) {
+      return renderRunbookState(runbookStateMessage);
+    }
+    const items = runbookAttentionItems.slice(
+      runbookAttentionPagination.startIndex,
+      runbookAttentionPagination.endIndex
+    );
+    return (
+      <article className="mc-cockpit-widget-body">
+        <div className="mc-widget-list-container" ref={runbookAttentionRef}>
+          <ul className="mc-cockpit-list">
+            {items.map((item) => (
+              <li key={item.runbook_id}>
+                <div>
+                  <strong>{item.title}</strong>
+                  <p>
+                    {joinParts([
+                      item.status.replaceAll("_", " "),
+                      item.current_step_label ?? undefined,
+                      item.status_reason ?? undefined,
+                    ])}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => props.onOpenRunbook(item.runbook_kind, item.anchor_id)}
+                >
+                  Open Runbook
+                </button>
+              </li>
+            ))}
+            {runbookAttentionItems.length === 0 ? (
+              <li>No runbooks currently need attention.</li>
+            ) : null}
+          </ul>
+        </div>
+        <PaginationControls
+          page={runbookAttentionPagination.page}
+          totalPages={runbookAttentionPagination.totalPages}
+          onSetPage={runbookAttentionPagination.setPage}
         />
       </article>
     );

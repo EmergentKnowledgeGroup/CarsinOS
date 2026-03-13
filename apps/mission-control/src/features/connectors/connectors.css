@@ -1,0 +1,441 @@
+.mc-connectors-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.mc-connectors-state {
+  max-width: 44rem;
+}
+
+.mc-connectors-summary-strip {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+}
+
+.mc-connectors-summary-card {
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line));
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(145deg, rgba(16, 185, 129, 0.11), transparent 45%),
+    linear-gradient(180deg, rgba(59, 130, 246, 0.08), transparent 72%),
+    var(--bg-raised);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  box-shadow: var(--shadow-sm);
+}
+
+.mc-connectors-summary-kicker,
+.mc-connectors-inline-chips,
+.mc-connectors-card-meta,
+.mc-connectors-list-meta,
+.mc-connectors-tool-meta,
+.mc-connectors-surface-actions,
+.mc-connectors-toolbar,
+.mc-connectors-toolbar-stacked,
+.mc-connectors-toggle-row,
+.mc-connectors-section-head,
+.mc-connectors-json-head,
+.mc-connectors-card-head,
+.mc-connectors-list-title,
+.mc-connectors-health-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.mc-connectors-sort-label {
+  font-size: 0.65rem;
+  color: var(--ink-muted);
+  white-space: nowrap;
+  margin-left: auto;
+}
+
+.mc-connectors-summary-kicker {
+  font-size: var(--type-caption);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-secondary);
+}
+
+.mc-connectors-summary-card strong {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.mc-connectors-summary-card p {
+  margin: 0;
+  color: var(--ink-secondary);
+}
+
+.mc-connectors-layout {
+  display: grid;
+  gap: var(--space-5);
+  grid-template-columns: minmax(18rem, 0.95fr) minmax(0, 1.35fr);
+}
+
+.mc-connectors-column,
+.mc-connectors-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.mc-connectors-column-wide {
+  min-width: 0;
+}
+
+.mc-connectors-panel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 20%),
+    var(--surface);
+}
+
+.mc-connectors-hero {
+  position: sticky;
+  top: calc(var(--space-4) + 3.5rem);
+}
+
+.mc-connectors-toolbar {
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+.mc-connectors-toolbar > input {
+  flex: 1 1 auto;
+}
+
+.mc-connectors-toolbar-stacked,
+.mc-connectors-toggle-row,
+.mc-connectors-section-head,
+.mc-connectors-json-head,
+.mc-connectors-card-head,
+.mc-connectors-list-row,
+.mc-connectors-tool-head {
+  justify-content: space-between;
+}
+
+.mc-connectors-form-grid,
+.mc-connectors-detail-grid {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.mc-connectors-form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.mc-connectors-detail-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.mc-connectors-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.mc-connectors-field span {
+  font-size: var(--type-caption);
+  color: var(--ink-secondary);
+}
+
+.mc-connectors-field-span,
+.mc-connectors-json-panel,
+.mc-connectors-json-stack,
+.mc-connectors-note-stack,
+.mc-connectors-overview,
+.mc-connectors-candidate-main {
+  min-width: 0;
+}
+
+.mc-connectors-field-span {
+  grid-column: 1 / -1;
+}
+
+.mc-connectors-card-list,
+.mc-connectors-list,
+.mc-connectors-json-stack,
+.mc-connectors-note-stack,
+.mc-connectors-candidate-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.mc-connectors-card,
+.mc-connectors-list-row,
+.mc-connectors-candidate,
+.mc-connectors-tool-row,
+.mc-connectors-json-panel,
+.mc-connectors-checkbox-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent),
+    color-mix(in srgb, var(--surface) 80%, var(--bg-raised));
+}
+
+.mc-connectors-card,
+.mc-connectors-tool-button {
+  appearance: none;
+  width: 100%;
+  color: inherit;
+  text-align: left;
+  padding: var(--space-4);
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.mc-connectors-card:hover,
+.mc-connectors-tool-button:hover {
+  transform: translateY(-1px);
+  border-color: var(--line-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.mc-connectors-card.is-selected,
+.mc-connectors-tool-row.is-selected,
+.mc-connectors-candidate.is-selected {
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--line));
+  box-shadow: 0 0 0 1px var(--accent-glow), var(--shadow-sm);
+  background:
+    linear-gradient(135deg, rgba(255, 106, 19, 0.12), transparent 58%),
+    color-mix(in srgb, var(--surface) 74%, var(--bg-raised));
+}
+
+.mc-connectors-card p,
+.mc-connectors-list-row p,
+.mc-connectors-candidate p,
+.mc-connectors-note-stack p {
+  margin: var(--space-2) 0 0;
+  color: var(--ink-secondary);
+}
+
+.mc-connectors-inline-chips,
+.mc-connectors-surface-actions,
+.mc-connectors-tool-meta,
+.mc-connectors-card-meta,
+.mc-connectors-list-meta {
+  flex-wrap: wrap;
+}
+
+.mc-connectors-card-meta,
+.mc-connectors-list-meta,
+.mc-connectors-tool-meta {
+  margin-top: var(--space-3);
+  font-size: var(--type-caption);
+  color: var(--ink-secondary);
+}
+
+.mc-connectors-list-row,
+.mc-connectors-tool-row,
+.mc-connectors-candidate {
+  padding: var(--space-4);
+}
+
+.mc-connectors-list-row,
+.mc-connectors-tool-row {
+  gap: var(--space-4);
+}
+
+.mc-connectors-list-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.mc-connectors-shared-binding {
+  border-left: 3px solid var(--accent, #22c55e);
+  background: color-mix(in srgb, var(--accent, #22c55e) 4%, var(--surface));
+}
+
+.mc-connectors-tool-row,
+.mc-connectors-candidate {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.mc-connectors-tool-button {
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+
+.mc-connectors-tool-check,
+.mc-connectors-checkbox {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  color: var(--ink-secondary);
+}
+
+.mc-connectors-checkbox-card {
+  padding: var(--space-4);
+}
+
+.mc-connectors-candidate.is-blocked {
+  border-style: dashed;
+  opacity: 0.72;
+}
+
+.mc-connectors-warning-list,
+.mc-connectors-warning {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.mc-connectors-warning {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--warn) 34%, var(--line));
+  background:
+    linear-gradient(135deg, rgba(245, 158, 11, 0.14), transparent 58%),
+    color-mix(in srgb, var(--surface) 78%, var(--bg-raised));
+}
+
+.mc-connectors-inline-error {
+  margin: 0;
+  color: var(--danger);
+}
+
+.mc-connectors-note-stack p {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface) 74%, var(--bg-raised));
+}
+
+.mc-connectors-fact-grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+}
+
+.mc-connectors-fact-grid dt {
+  font-size: var(--type-micro);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+}
+
+.mc-connectors-fact-grid dd {
+  margin: var(--space-1) 0 0;
+}
+
+.mc-connectors-health-strip {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.mc-connectors-health-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--surface) 74%, var(--bg-raised));
+}
+
+.mc-connectors-health-stat strong {
+  font-size: var(--type-caption);
+  color: var(--ink-secondary);
+}
+
+.mc-connectors-json-panel {
+  overflow: hidden;
+}
+
+.mc-connectors-json-panel summary,
+.mc-connectors-json-head {
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.mc-connectors-json-panel summary {
+  cursor: pointer;
+}
+
+.mc-connectors-json-panel h3 {
+  margin: 0;
+}
+
+.mc-connectors-json-panel pre {
+  margin: 0;
+  padding: var(--space-4);
+  overflow: auto;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  background: color-mix(in srgb, var(--bg) 82%, black 12%);
+}
+
+.mc-connectors-overview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.mc-connectors-surface-actions button,
+.mc-connectors-toggle-row button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.mc-connectors-toolbar input,
+.mc-connectors-form-grid input,
+.mc-connectors-form-grid select,
+.mc-connectors-form-grid textarea,
+.mc-connectors-field input,
+.mc-connectors-field select,
+.mc-connectors-field textarea {
+  width: 100%;
+}
+
+.mc-connectors-empty {
+  margin: 0;
+}
+
+@media (max-width: 1180px) {
+  .mc-connectors-layout,
+  .mc-connectors-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mc-connectors-hero {
+    position: static;
+  }
+}
+
+@media (max-width: 900px) {
+  .mc-connectors-form-grid,
+  .mc-connectors-fact-grid,
+  .mc-connectors-health-strip {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mc-connectors-list-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mc-connectors-toolbar,
+  .mc-connectors-toolbar-stacked,
+  .mc-connectors-toggle-row,
+  .mc-connectors-section-head,
+  .mc-connectors-json-head,
+  .mc-connectors-card-head,
+  .mc-connectors-list-title {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

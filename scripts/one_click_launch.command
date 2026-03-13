@@ -18,7 +18,7 @@ if [[ -t 0 ]]; then
   esac
 fi
 
-if ! "${REPO_ROOT}/scripts/one_click_launch.sh" "${MODE}"; then
+if ! bash "${REPO_ROOT}/scripts/one_click_launch.sh" "${MODE}"; then
   echo
   echo "Launch failed. Check logs under runtime/oneclick-state/logs/."
   echo "Press Enter to close."
