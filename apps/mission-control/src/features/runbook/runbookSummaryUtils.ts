@@ -162,5 +162,8 @@ export function getRunbookAttentionItems(
   statuses: string[] = ["waiting", "blocked", "failed", "limited", "active"]
 ): RunbookSummaryItemResponse[] {
   const allowed = new Set(statuses);
-  return items.filter((item) => allowed.has(item.status)).slice(0, limit);
+  const normalizedLimit = Number.isFinite(limit)
+    ? Math.max(0, Math.floor(limit))
+    : items.length;
+  return items.filter((item) => allowed.has(item.status)).slice(0, normalizedLimit);
 }

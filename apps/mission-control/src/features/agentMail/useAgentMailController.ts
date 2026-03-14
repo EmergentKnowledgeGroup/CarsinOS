@@ -70,7 +70,7 @@ export function readThreadScopedFiles(
   if (!threadId) {
     return [];
   }
-  return filesByThreadId[threadId] ?? [];
+  return filesByThreadId[threadId] ? [...filesByThreadId[threadId]] : [];
 }
 
 export function writeThreadScopedFiles(
@@ -91,7 +91,7 @@ export function writeThreadScopedFiles(
   }
   return {
     ...filesByThreadId,
-    [threadId]: files,
+    [threadId]: [...files],
   };
 }
 

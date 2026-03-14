@@ -56,4 +56,13 @@ describe("teamManagerValidation", () => {
       isEligibleManagerForAgent("agent-unknown", "agent-root", subtreeIdsByAgentId)
     ).toBe(true);
   });
+
+  it("normalizes surrounding whitespace in non-empty ids", () => {
+    expect(
+      wouldCreateManagerCycle(" agent-manager ", " agent-report ", subtreeIdsByAgentId)
+    ).toBe(true);
+    expect(
+      isEligibleManagerForAgent(" agent-report ", " agent-root ", subtreeIdsByAgentId)
+    ).toBe(true);
+  });
 });

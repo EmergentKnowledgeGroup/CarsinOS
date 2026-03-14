@@ -88,7 +88,7 @@ export function Modal({ open, onClose, title, subtitle, children, footer, width 
     if (!open) return;
     triggerRef.current = document.activeElement;
     document.addEventListener("keydown", handleKeyDown);
-    requestAnimationFrame(() => {
+    const frameId = requestAnimationFrame(() => {
       const modal = modalRef.current;
       if (!modal) {
         return;
@@ -111,6 +111,7 @@ export function Modal({ open, onClose, title, subtitle, children, footer, width 
       }
     });
     return () => {
+      cancelAnimationFrame(frameId);
       document.removeEventListener("keydown", handleKeyDown);
       if (triggerRef.current instanceof HTMLElement) {
         triggerRef.current.focus();

@@ -607,13 +607,16 @@ body::before {
   bottom: 0;
   left: 0;
   height: 2px;
+  width: 100%;
   background: var(--info, #3498db);
+  transform-origin: left;
+  will-change: transform;
   animation: mc-undo-timer 10s linear forwards;
 }
 
 @keyframes mc-undo-timer {
-  from { width: 100%; }
-  to { width: 0%; }
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
 }
 
 .mc-live-feed-storage-note {
@@ -2285,11 +2288,11 @@ button.danger:hover {
 }
 
 .mc-stale-warn {
-  color: var(--tone-warning, #b8860b);
+  color: var(--warn, #b8860b);
 }
 
 .mc-stale-critical {
-  color: var(--tone-error, #c0392b);
+  color: var(--danger, #c0392b);
   font-weight: 600;
 }
 

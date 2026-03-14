@@ -311,6 +311,7 @@ export function CockpitPage(props: CockpitPageProps) {
                         <button
                           type="button"
                           className="mc-widget-nudge-btn"
+                          aria-label="Move widget left"
                           title="Move widget left"
                           onClick={() => props.onNudgeCockpitWidget(widget.instance_id, { x: -1 })}
                         >
@@ -319,6 +320,7 @@ export function CockpitPage(props: CockpitPageProps) {
                         <button
                           type="button"
                           className="mc-widget-nudge-btn"
+                          aria-label="Move widget up"
                           title="Move widget up"
                           onClick={() => props.onNudgeCockpitWidget(widget.instance_id, { y: -1 })}
                         >
@@ -327,6 +329,7 @@ export function CockpitPage(props: CockpitPageProps) {
                         <button
                           type="button"
                           className="mc-widget-nudge-btn"
+                          aria-label="Move widget right"
                           title="Move widget right"
                           onClick={() => props.onNudgeCockpitWidget(widget.instance_id, { x: 1 })}
                         >
@@ -335,6 +338,7 @@ export function CockpitPage(props: CockpitPageProps) {
                         <button
                           type="button"
                           className="mc-widget-nudge-btn"
+                          aria-label="Move widget down"
                           title="Move widget down"
                           onClick={() => props.onNudgeCockpitWidget(widget.instance_id, { y: 1 })}
                         >

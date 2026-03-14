@@ -233,9 +233,11 @@ export function BoardsPage({
   const linkedTaskContext = linkedTask
     ? describeStrategyTask(linkedTask.task_id)
     : null;
+  const hasMoveTargetColumn = columns.some((column) => column.column_id === moveTargetColumnId);
   const canMoveSelectedCard =
     Boolean(selectedCard) &&
     Boolean(moveTargetColumnId) &&
+    hasMoveTargetColumn &&
     moveTargetColumnId !== selectedCard?.column_id &&
     !editorBusy;
 
@@ -486,7 +488,12 @@ export function BoardsPage({
                     type="button"
                     className="ghost"
                     disabled={!canMoveSelectedCard}
-                    onClick={() => void onMoveCardToColumn(moveTargetColumnId)}
+                    onClick={() => {
+                      if (!hasMoveTargetColumn) {
+                        return;
+                      }
+                      void onMoveCardToColumn(moveTargetColumnId);
+                    }}
                   >
                     {editorBusyAction === "move" ? "Moving..." : "Move"}
                   </button>
