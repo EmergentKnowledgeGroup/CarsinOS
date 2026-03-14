@@ -43,7 +43,8 @@ export function RunbookLinkPanel({
   }
 
   const currentStepLabel = getRunbookCurrentStepLabel(summary);
-  const isLimited = summary.availability.is_limited || summary.warning_count > 0;
+  const showLimitedChip =
+    summary.availability.is_limited && summary.status !== "limited";
 
   return (
     <div className={clsx("mc-runbook-link-card", compact && "is-compact", className)}>
@@ -57,7 +58,7 @@ export function RunbookLinkPanel({
             label={summary.status.replaceAll("_", " ")}
             tone={getRunbookStatusTone(summary.status)}
           />
-          {isLimited ? <Chip label="limited" tone="warning" /> : null}
+          {showLimitedChip ? <Chip label="limited" tone="warning" /> : null}
         </div>
       </div>
       <strong>{summary.primary_entity_label}</strong>

@@ -1462,7 +1462,8 @@ button.danger:hover {
   gap: 0.22rem;
 }
 
-.mc-widget-remove-btn {
+.mc-widget-remove-btn,
+.mc-widget-nudge-btn {
   width: 24px;
   height: 24px;
   border-radius: var(--radius-sm);
@@ -1480,6 +1481,11 @@ button.danger:hover {
 .mc-widget-remove-btn:hover {
   background: var(--danger-bg);
   color: var(--danger);
+}
+
+.mc-widget-nudge-btn:hover {
+  background: var(--surface);
+  color: var(--ink-primary);
 }
 
 .mc-cockpit-widget-body {
@@ -4957,7 +4963,7 @@ button.danger:hover {
 
 .mc-runbook-detail {
   position: sticky;
-  top: calc(var(--space-4) + 3.5rem);
+  top: calc(var(--toolbar-height) + var(--space-4));
   align-self: start;
 }
 
@@ -5073,7 +5079,7 @@ button.danger:hover {
   gap: var(--space-4);
 }
 
-@media (max-width: 640px) {
+@media (max-width: 960px) {
   .mc-runbook-grid,
   .mc-runbook-detail-grid {
     grid-template-columns: 1fr;
@@ -5083,6 +5089,10 @@ button.danger:hover {
   .mc-runbook-detail-grid,
   .mc-runbook-filter-bar {
     gap: var(--space-4);
+  }
+
+  .mc-runbook-filter-bar {
+    grid-template-columns: 1fr;
   }
 
   .mc-runbook-detail {
@@ -5226,7 +5236,7 @@ button.danger:hover {
 }
 
 .mc-runbook-refresh-btn.is-spinning svg {
-  animation: mc-spin 0.8s linear;
+  animation: mc-spin 0.8s linear infinite;
 }
 
 @keyframes mc-spin {

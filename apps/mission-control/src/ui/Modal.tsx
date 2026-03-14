@@ -89,11 +89,25 @@ export function Modal({ open, onClose, title, subtitle, children, footer, width 
     triggerRef.current = document.activeElement;
     document.addEventListener("keydown", handleKeyDown);
     requestAnimationFrame(() => {
-      const [first] = getTabbableElements(modalRef.current);
+      const modal = modalRef.current;
+      if (!modal) {
+        return;
+      }
+      const activeElement =
+        document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      if (activeElement && modal.contains(activeElement)) {
+        return;
+      }
+      const autofocusTarget = modal.querySelector<HTMLElement>("[autofocus]");
+      if (autofocusTarget && isTabbable(autofocusTarget)) {
+        autofocusTarget.focus();
+        return;
+      }
+      const [first] = getTabbableElements(modal);
       if (first) {
         first.focus();
       } else {
-        modalRef.current?.focus();
+        modal.focus();
       }
     });
     return () => {

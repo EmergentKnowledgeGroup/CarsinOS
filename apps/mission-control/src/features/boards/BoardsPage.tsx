@@ -110,7 +110,7 @@ export function BoardsPage({
 
   useEffect(() => {
     setMoveTargetColumnId(selectedCard?.column_id ?? "");
-  }, [selectedCard]);
+  }, [selectedCard?.card_id, selectedCard?.column_id]);
 
   const knownTags = useMemo(() => {
     const tags = new Set<string>();

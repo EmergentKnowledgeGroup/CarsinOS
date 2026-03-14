@@ -139,6 +139,33 @@ describe("opsUxRuntimeConfig", () => {
     unsubscribe();
   });
 
+  it("isolates storage listeners that throw", () => {
+    const badListener = vi.fn(() => {
+      throw new Error("storage listener broke");
+    });
+    const goodListener = vi.fn();
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const unsubscribeBad = subscribeOpsUxRuntimeConfig(badListener);
+    const unsubscribeGood = subscribeOpsUxRuntimeConfig(goodListener);
+    const next = withOpsUxControlPatch(DEFAULT_OPSUX_RUNTIME_CONFIG, {
+      connectors_hub: true,
+    });
+
+    window.localStorage.setItem(STORAGE_KEYS.opsUxRuntimeConfigV1, JSON.stringify(next));
+    window.dispatchEvent(
+      new StorageEvent("storage", {
+        key: STORAGE_KEYS.opsUxRuntimeConfigV1,
+        newValue: JSON.stringify(next),
+      })
+    );
+
+    expect(badListener).toHaveBeenCalledTimes(1);
+    expect(goodListener).toHaveBeenCalledTimes(1);
+    expect(consoleError).toHaveBeenCalledTimes(1);
+    unsubscribeBad();
+    unsubscribeGood();
+  });
+
   it("returns a stable snapshot object when storage state has not changed", () => {
     const first = loadOpsUxRuntimeConfig();
     const second = loadOpsUxRuntimeConfig();

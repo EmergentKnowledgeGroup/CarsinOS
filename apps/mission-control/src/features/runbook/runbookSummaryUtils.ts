@@ -42,6 +42,9 @@ function addEntityEntry(
   const key = entityKey(entity.entity_kind, entity.entity_id);
   const current = target.get(key);
   if (current) {
+    if (current.some((entry) => entry.runbook_id === item.runbook_id)) {
+      return;
+    }
     current.push(item);
     return;
   }

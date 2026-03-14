@@ -126,7 +126,7 @@ describe("runbookSummaryUtils", () => {
     expect(index.byApprovalId.get("approval-1")?.runbook_id).toBe(
       "assistant_session_run:run-1"
     );
-    expect(getRunbookSummariesForEntity(index, "task", "task-1")).toHaveLength(3);
+    expect(getRunbookSummariesForEntity(index, "task", "task-1")).toHaveLength(2);
   });
 
   it("derives compact display helpers", () => {

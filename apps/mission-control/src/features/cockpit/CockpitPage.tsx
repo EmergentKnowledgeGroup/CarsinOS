@@ -150,19 +150,21 @@ export function CockpitPage(props: CockpitPageProps) {
     props.strategyEnabled ?? opsUxRuntime.config.controls.strategy_hub;
   const runbookEnabled =
     props.runbookEnabled ?? opsUxRuntime.config.controls.runbook_hub;
-  const visibleWidgets = props.activeCockpitPage.widgets.filter(
-    (widget) => {
-      if (widget.widget === "custom") {
+  const visibleWidgets = useMemo(
+    () =>
+      props.activeCockpitPage.widgets.filter((widget) => {
+        if (widget.widget === "custom") {
+          return true;
+        }
+        if (!strategyEnabled && STRATEGY_WIDGET_KIND_SET.has(widget.widget)) {
+          return false;
+        }
+        if (!runbookEnabled && RUNBOOK_WIDGET_KIND_SET.has(widget.widget)) {
+          return false;
+        }
         return true;
-      }
-      if (!strategyEnabled && STRATEGY_WIDGET_KIND_SET.has(widget.widget)) {
-        return false;
-      }
-      if (!runbookEnabled && RUNBOOK_WIDGET_KIND_SET.has(widget.widget)) {
-        return false;
-      }
-      return true;
-    }
+      }),
+    [props.activeCockpitPage.widgets, runbookEnabled, strategyEnabled]
   );
   const hiddenWidgetCount =
     props.activeCockpitPage.widgets.length - visibleWidgets.length;
@@ -308,7 +310,7 @@ export function CockpitPage(props: CockpitPageProps) {
                       <div className="mc-widget-nudge-controls" aria-label="Move widget">
                         <button
                           type="button"
-                          className="mc-widget-remove-btn"
+                          className="mc-widget-nudge-btn"
                           title="Move widget left"
                           onClick={() => props.onNudgeCockpitWidget(widget.instance_id, { x: -1 })}
                         >
@@ -316,7 +318,7 @@ export function CockpitPage(props: CockpitPageProps) {
                         </button>
                         <button
                           type="button"
-                          className="mc-widget-remove-btn"
+                          className="mc-widget-nudge-btn"
                           title="Move widget up"
                           onClick={() => props.onNudgeCockpitWidget(widget.instance_id, { y: -1 })}
                         >
@@ -324,7 +326,7 @@ export function CockpitPage(props: CockpitPageProps) {
                         </button>
                         <button
                           type="button"
-                          className="mc-widget-remove-btn"
+                          className="mc-widget-nudge-btn"
                           title="Move widget right"
                           onClick={() => props.onNudgeCockpitWidget(widget.instance_id, { x: 1 })}
                         >
@@ -332,7 +334,7 @@ export function CockpitPage(props: CockpitPageProps) {
                         </button>
                         <button
                           type="button"
-                          className="mc-widget-remove-btn"
+                          className="mc-widget-nudge-btn"
                           title="Move widget down"
                           onClick={() => props.onNudgeCockpitWidget(widget.instance_id, { y: 1 })}
                         >

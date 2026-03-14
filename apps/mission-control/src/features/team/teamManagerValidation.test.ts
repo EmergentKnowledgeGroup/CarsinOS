@@ -47,4 +47,13 @@ describe("teamManagerValidation", () => {
     expect(isEligibleManagerForAgent("", "agent-root", subtreeIdsByAgentId)).toBe(true);
     expect(isEligibleManagerForAgent("agent-root", "   ", subtreeIdsByAgentId)).toBe(true);
   });
+
+  it("handles unknown agent ids gracefully", () => {
+    expect(
+      wouldCreateManagerCycle("agent-unknown", "agent-root", subtreeIdsByAgentId)
+    ).toBe(false);
+    expect(
+      isEligibleManagerForAgent("agent-unknown", "agent-root", subtreeIdsByAgentId)
+    ).toBe(true);
+  });
 });

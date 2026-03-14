@@ -247,13 +247,20 @@ export function useAgentMailController(options: UseAgentMailControllerOptions) {
     [mailAttachmentFilesByThreadId, selectedMailThreadIdEffective]
   );
 
-  const setMailAttachmentFiles = useCallback(
-    (files: File[]) => {
+  const setMailAttachmentFilesForThread = useCallback(
+    (threadId: string | null, files: File[]) => {
       setMailAttachmentFilesByThreadId((current) =>
-        writeThreadScopedFiles(current, selectedMailThreadIdEffective, files)
+        writeThreadScopedFiles(current, threadId, files)
       );
     },
-    [selectedMailThreadIdEffective]
+    []
+  );
+
+  const setMailAttachmentFiles = useCallback(
+    (files: File[]) => {
+      setMailAttachmentFilesForThread(selectedMailThreadIdEffective, files);
+    },
+    [selectedMailThreadIdEffective, setMailAttachmentFilesForThread]
   );
 
   const chatAttachmentFiles = useMemo(
@@ -261,13 +268,20 @@ export function useAgentMailController(options: UseAgentMailControllerOptions) {
     [chatAttachmentFilesByThreadId, selectedRoomThreadIdEffective]
   );
 
-  const setChatAttachmentFiles = useCallback(
-    (files: File[]) => {
+  const setChatAttachmentFilesForThread = useCallback(
+    (threadId: string | null, files: File[]) => {
       setChatAttachmentFilesByThreadId((current) =>
-        writeThreadScopedFiles(current, selectedRoomThreadIdEffective, files)
+        writeThreadScopedFiles(current, threadId, files)
       );
     },
-    [selectedRoomThreadIdEffective]
+    []
+  );
+
+  const setChatAttachmentFiles = useCallback(
+    (files: File[]) => {
+      setChatAttachmentFilesForThread(selectedRoomThreadIdEffective, files);
+    },
+    [selectedRoomThreadIdEffective, setChatAttachmentFilesForThread]
   );
 
   useEffect(() => {
@@ -454,11 +468,11 @@ export function useAgentMailController(options: UseAgentMailControllerOptions) {
         if (options.context === "mail") {
           setMailComposeBody("");
           setMailComposeRecipients("");
-          setMailAttachmentFiles([]);
+          setMailAttachmentFilesForThread(threadId, []);
         } else {
           setChatComposeBody("");
           setChatComposeRecipients("");
-          setChatAttachmentFiles([]);
+          setChatAttachmentFilesForThread(threadId, []);
         }
         setNotice({
           tone: failedUploads > 0 ? "error" : "info",
@@ -479,8 +493,8 @@ export function useAgentMailController(options: UseAgentMailControllerOptions) {
     },
     [
       queueAgentMailRefresh,
-      setChatAttachmentFiles,
-      setMailAttachmentFiles,
+      setChatAttachmentFilesForThread,
+      setMailAttachmentFilesForThread,
       setNotice,
       settings,
     ]

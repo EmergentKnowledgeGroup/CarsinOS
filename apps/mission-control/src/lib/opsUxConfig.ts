@@ -286,7 +286,12 @@ export function subscribeOpsUxRuntimeConfig(listener: OpsUxRuntimeConfigListener
     if (event.key !== STORAGE_KEYS.opsUxRuntimeConfigV1) {
       return;
     }
-    listener(loadOpsUxRuntimeConfig());
+    const loadedConfig = loadOpsUxRuntimeConfig();
+    try {
+      listener(loadedConfig);
+    } catch (error) {
+      console.error("opsUxRuntimeConfig storage listener failed", error);
+    }
   };
 
   window.addEventListener("storage", handleStorage);

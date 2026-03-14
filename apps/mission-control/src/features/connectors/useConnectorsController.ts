@@ -364,6 +364,7 @@ export function useConnectorsController(options: UseConnectorsControllerOptions)
       preferredConnectorId?: string
     ) => {
       if (!enabled) {
+        listRequestIdRef.current += 1;
         setAvailability("disabled");
         setAvailabilityMessage("Connectors are disabled in Config > Reliability + Rollout.");
         setCatalog([]);
