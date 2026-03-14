@@ -249,7 +249,6 @@ export function StrategyPage({
   selectedTaskRunbook,
   onOpenTaskRunbook,
 }: StrategyPageProps) {
-  const selectedTaskId = controller.selectedTask?.task_id ?? null;
   const [goalModalMode, setGoalModalMode] = useState<"create" | "edit" | null>(null);
   const [goalForm, setGoalForm] = useState<GoalFormState>(EMPTY_GOAL_FORM);
   const [goalError, setGoalError] = useState<string | null>(null);
@@ -261,6 +260,8 @@ export function StrategyPage({
   const [taskError, setTaskError] = useState<string | null>(null);
   const [forceBoardReassign, setForceBoardReassign] = useState(false);
   const [forceJobReassign, setForceJobReassign] = useState(false);
+  const selectedTaskId =
+    taskMode === "edit" ? controller.selectedTask?.task_id ?? null : null;
   const goalBaseline =
     goalModalMode === "edit" ? hydrateGoalForm(controller.selectedGoal) : EMPTY_GOAL_FORM;
   const projectBaseline =
@@ -838,6 +839,7 @@ export function StrategyPage({
                   runWithTaskDraftGuard(() => {
                     setTaskError(null);
                     setTaskMode("create");
+                    controller.setSelectedTaskId("");
                     setTaskForm(hydrateTaskForm(null, controller.selectedProjectId));
                   });
                 }}
@@ -1277,7 +1279,7 @@ export function StrategyPage({
                 </label>
               ) : null}
 
-              {runbookEnabled ? (
+              {runbookEnabled && taskMode === "edit" ? (
                 <RunbookLinkPanel
                   className="mc-strategy-runbook-panel"
                   summary={selectedTaskRunbook}
@@ -1343,10 +1345,12 @@ export function StrategyPage({
                     <span>Force job reassignment if already linked</span>
                   </label>
                 </div>
-                <div className="mc-strategy-runtime-meta">
-                  <span>Latest run: {controller.selectedTask?.latest_run_id ?? "n/a"}</span>
-                  <span>Latest session: {controller.selectedTask?.latest_session_id ?? "n/a"}</span>
-                </div>
+                {taskMode === "edit" ? (
+                  <div className="mc-strategy-runtime-meta">
+                    <span>Latest run: {controller.selectedTask?.latest_run_id ?? "n/a"}</span>
+                    <span>Latest session: {controller.selectedTask?.latest_session_id ?? "n/a"}</span>
+                  </div>
+                ) : null}
               </div>
 
               {taskError ? <p className="mc-settings-inline-error">{taskError}</p> : null}

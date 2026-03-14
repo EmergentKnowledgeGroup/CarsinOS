@@ -337,6 +337,27 @@ export function useConnectorsController(options: UseConnectorsControllerOptions)
     [installedConnectors, pausedInteractions.length]
   );
 
+  const invalidateConnectorScopedRequests = useCallback(() => {
+    detailRequestIdRef.current += 1;
+    healthRequestIdRef.current += 1;
+    toolDetailRequestIdRef.current += 1;
+  }, []);
+
+  const resetConnectorScopedState = useCallback(() => {
+    setSelectedVersionId("");
+    setSelectedPublishedToolId("");
+    setSelectedPublishedToolIds([]);
+    setSelectedConnectorDetail(null);
+    setDetailError(null);
+    setDetailLoading(false);
+    setHealth(null);
+    setHealthError(null);
+    setHealthLoading(false);
+    setSelectedToolDetail(null);
+    setToolDetailError(null);
+    setToolDetailLoading(false);
+  }, []);
+
   const loadIndexData = useCallback(
     async (
       runtimeSettings: RuntimeConnectionSettings = settings,
@@ -349,12 +370,8 @@ export function useConnectorsController(options: UseConnectorsControllerOptions)
         setInstalledConnectors([]);
         setInteractions([]);
         setSelectedConnectorId("");
-        setSelectedConnectorDetail(null);
-        setDetailError(null);
-        setHealth(null);
-        setHealthError(null);
-        setSelectedToolDetail(null);
-        setToolDetailError(null);
+        invalidateConnectorScopedRequests();
+        resetConnectorScopedState();
         return;
       }
 
@@ -411,7 +428,7 @@ export function useConnectorsController(options: UseConnectorsControllerOptions)
         setAvailabilityMessage(normalizeConnectorErrorMessage(error));
       }
     },
-    [enabled, settings]
+    [enabled, invalidateConnectorScopedRequests, resetConnectorScopedState, settings]
   );
 
   const loadConnectorDetail = useCallback(
@@ -420,6 +437,8 @@ export function useConnectorsController(options: UseConnectorsControllerOptions)
       runtimeSettings: RuntimeConnectionSettings = settings
     ) => {
       if (!enabled || !connectorId.trim()) {
+        detailRequestIdRef.current += 1;
+        setDetailLoading(false);
         setSelectedConnectorDetail(null);
         setDetailError(null);
         return;
@@ -455,6 +474,8 @@ export function useConnectorsController(options: UseConnectorsControllerOptions)
       runtimeSettings: RuntimeConnectionSettings = settings
     ) => {
       if (!enabled || !connectorId.trim()) {
+        healthRequestIdRef.current += 1;
+        setHealthLoading(false);
         setHealth(null);
         setHealthError(null);
         return;
@@ -491,6 +512,8 @@ export function useConnectorsController(options: UseConnectorsControllerOptions)
       runtimeSettings: RuntimeConnectionSettings = settings
     ) => {
       if (!enabled || !connectorId.trim() || !publishedToolId.trim()) {
+        toolDetailRequestIdRef.current += 1;
+        setToolDetailLoading(false);
         setSelectedToolDetail(null);
         setToolDetailError(null);
         return;
@@ -542,21 +565,23 @@ export function useConnectorsController(options: UseConnectorsControllerOptions)
 
   useEffect(() => {
     if (!selectedConnectorId) {
-      setSelectedConnectorDetail(null);
-      setDetailError(null);
-      setHealth(null);
-      setHealthError(null);
-      setSelectedVersionId("");
-      setSelectedPublishedToolId("");
-      setSelectedPublishedToolIds([]);
-      setSelectedToolDetail(null);
-      setToolDetailError(null);
+      invalidateConnectorScopedRequests();
+      resetConnectorScopedState();
       return;
     }
 
+    invalidateConnectorScopedRequests();
+    resetConnectorScopedState();
     void loadConnectorDetail(selectedConnectorId, settings);
     void loadConnectorHealth(selectedConnectorId, settings);
-  }, [loadConnectorDetail, loadConnectorHealth, selectedConnectorId, settings]);
+  }, [
+    invalidateConnectorScopedRequests,
+    loadConnectorDetail,
+    loadConnectorHealth,
+    resetConnectorScopedState,
+    selectedConnectorId,
+    settings,
+  ]);
 
   useEffect(() => {
     const nextVersionId = resolveSelectedVersionId(selectedConnectorDetail, selectedVersionId);
@@ -906,6 +931,9 @@ export function useConnectorsController(options: UseConnectorsControllerOptions)
         conversion_id: selectedConversion.conversion_id,
         selected_candidate_ids: publishDraft.selected_candidate_ids,
         alias_overrides: Object.entries(publishDraft.alias_overrides)
+          .filter(([candidateId]) =>
+            publishDraft.selected_candidate_ids.includes(candidateId)
+          )
           .map(([candidate_id, alias]) => ({
             candidate_id,
             alias: alias.trim(),

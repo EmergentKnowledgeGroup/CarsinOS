@@ -52,7 +52,7 @@ test.describe("mission-control memory lane integration", () => {
   }) => {
     await completeLocalOnboarding(page);
 
-    await expect(page.locator('[data-tour-id="nav-memory"]')).toHaveCount(0);
+    await expect(page.locator('[data-tour-id="nav-memory"]')).toBeHidden();
 
     await page.locator('[data-tour-id="nav-config"]').click();
     await page.getByRole("checkbox", { name: "Memory hub module" }).check();

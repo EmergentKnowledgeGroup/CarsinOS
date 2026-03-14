@@ -28,4 +28,23 @@ describe("teamManagerValidation", () => {
       isEligibleManagerForAgent("agent-report", "agent-root", subtreeIdsByAgentId)
     ).toBe(true);
   });
+
+  it("allows unrelated manager assignments", () => {
+    const unrelatedSubtree = new Map(subtreeIdsByAgentId);
+    unrelatedSubtree.set("agent-external", ["agent-external"]);
+
+    expect(
+      wouldCreateManagerCycle("agent-manager", "agent-external", unrelatedSubtree)
+    ).toBe(false);
+    expect(
+      isEligibleManagerForAgent("agent-manager", "agent-external", unrelatedSubtree)
+    ).toBe(true);
+  });
+
+  it("handles empty and whitespace ids without creating false cycles", () => {
+    expect(wouldCreateManagerCycle("", "agent-root", subtreeIdsByAgentId)).toBe(false);
+    expect(wouldCreateManagerCycle("   ", "agent-root", subtreeIdsByAgentId)).toBe(false);
+    expect(isEligibleManagerForAgent("", "agent-root", subtreeIdsByAgentId)).toBe(true);
+    expect(isEligibleManagerForAgent("agent-root", "   ", subtreeIdsByAgentId)).toBe(true);
+  });
 });

@@ -98,11 +98,12 @@ export function CockpitPage(props: CockpitPageProps) {
     [],
   );
 
-  const closeContextMenu = useCallback(() => {
+  const closeContextMenu = useCallback((options: { restoreFocus?: boolean } = {}) => {
+    const shouldRestoreFocus = options.restoreFocus ?? true;
     setContextMenuPageId(null);
     const triggerPageId = contextMenuTriggerPageId;
     setContextMenuTriggerPageId(null);
-    if (!triggerPageId) {
+    if (!shouldRestoreFocus || !triggerPageId) {
       return;
     }
     window.requestAnimationFrame(() => {
@@ -133,7 +134,7 @@ export function CockpitPage(props: CockpitPageProps) {
     (pageId: string, currentName: string) => {
       setRenamingPageId(pageId);
       setRenameValue(currentName);
-      closeContextMenu();
+      closeContextMenu({ restoreFocus: false });
     },
     [closeContextMenu],
   );
@@ -394,7 +395,7 @@ export function CockpitPage(props: CockpitPageProps) {
       {/* ── CONTEXT MENU ── */}
       {contextMenuPageId ? (
         <>
-          <div className="mc-context-backdrop" onClick={closeContextMenu} />
+          <div className="mc-context-backdrop" onClick={() => closeContextMenu()} />
           <div
             ref={contextMenuRef}
             className="mc-context-menu"

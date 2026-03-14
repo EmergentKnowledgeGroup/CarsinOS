@@ -50,6 +50,12 @@ const REACTION_EMOJI_ALIASES: Record<string, string> = {
   ":fire:": "🔥",
   ":hourglass:": "⏳",
   ":beetle:": "🐞",
+  ":heart:": "❤️",
+  ":clap:": "👏",
+  ":thinking:": "🤔",
+  ":100:": "💯",
+  ":raised_hands:": "🙌",
+  ":x:": "❌",
 };
 
 export function normalizeReactionEmoji(emoji: string): string {

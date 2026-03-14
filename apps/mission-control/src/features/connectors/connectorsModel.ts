@@ -1,3 +1,4 @@
+import { GatewayApiError } from "../../lib/api";
 import type {
   ConnectorAssignmentResponse,
   ConnectorAuthBindingResponse,
@@ -16,6 +17,21 @@ export function normalizeConnectorErrorMessage(error: unknown): string {
 }
 
 export function isConnectorUnsupportedError(error: unknown): boolean {
+  if (error instanceof GatewayApiError && error.kind === "http") {
+    const path = error.path?.toLowerCase() ?? "";
+    const isRegistrySurfacePath =
+      path === "/api/v1/connectors" ||
+      path === "/api/v1/connectors/" ||
+      path.startsWith("/api/v1/connectors?") ||
+      path.startsWith("/api/v1/connectors/catalog") ||
+      path.startsWith("/api/v1/connectors/interactions");
+    if (error.status === 404 && isRegistrySurfacePath) {
+      return true;
+    }
+    if (error.status != null) {
+      return false;
+    }
+  }
   const message = normalizeConnectorErrorMessage(error).toLowerCase();
   return CONNECTOR_UNSUPPORTED_STATUS_FRAGMENTS.some((fragment) =>
     message.includes(fragment)

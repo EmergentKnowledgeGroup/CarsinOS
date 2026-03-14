@@ -142,8 +142,8 @@ function renderCockpitWidget(
       onSelectStrategyProject={strategyActions.selectProject}
       runbookEnabled={props.runbookController.enabled}
       runbookAvailability={props.runbookController.availability}
-      runbookCountsByStatus={props.runbookController.countsByStatus}
-      runbookItems={props.runbookController.items}
+      runbookCountsByStatus={props.runbookController.allCountsByStatus}
+      runbookItems={props.runbookController.allItems}
       onOpenRunbook={strategyActions.openRunbook}
       onRefreshAll={() => missionControl.queueMissionControlRefresh(settings)}
       onRunCalendarJobNow={missionControl.runCalendarJobNow}
@@ -351,7 +351,11 @@ export function AppContent(props: AppContentProps) {
       }
     }
     if (target.tab === "assistant" && target.target_id) {
-      openAssistantContext(target.target_kind, target.target_id);
+      openAssistantContext(
+        target.target_kind,
+        target.target_id,
+        target.context?.trim() || null
+      );
       return;
     }
     if (

@@ -8,13 +8,20 @@ interface TagPickerProps {
   /** Known tags to suggest (aggregated from existing cards) */
   suggestions: string[];
   label?: string;
+  disabled?: boolean;
 }
 
 /**
  * Multi-select tag picker with chip toggles and an "add new" input.
  * Replaces CSV text input for board card tags.
  */
-export function TagPicker({ value, onChange, suggestions, label }: TagPickerProps) {
+export function TagPicker({
+  value,
+  onChange,
+  suggestions,
+  label,
+  disabled = false,
+}: TagPickerProps) {
   const [newTag, setNewTag] = useState("");
 
   const selected = new Set(
@@ -25,6 +32,9 @@ export function TagPicker({ value, onChange, suggestions, label }: TagPickerProp
   );
 
   const toggle = (tag: string) => {
+    if (disabled) {
+      return;
+    }
     const next = new Set(selected);
     if (next.has(tag)) {
       next.delete(tag);
@@ -35,6 +45,9 @@ export function TagPicker({ value, onChange, suggestions, label }: TagPickerProp
   };
 
   const addNewTag = () => {
+    if (disabled) {
+      return;
+    }
     const trimmed = newTag.trim();
     if (!trimmed) return;
     const next = new Set(selected);
@@ -62,6 +75,7 @@ export function TagPicker({ value, onChange, suggestions, label }: TagPickerProp
             key={tag}
             type="button"
             className={clsx("chip", "mc-agent-chip", selected.has(tag) && "mc-agent-chip-selected")}
+            disabled={disabled}
             onClick={() => toggle(tag)}
           >
             {tag}
@@ -71,12 +85,13 @@ export function TagPicker({ value, onChange, suggestions, label }: TagPickerProp
       <div className="mc-tag-add-row">
         <input
           value={newTag}
+          disabled={disabled}
           onChange={(e) => setNewTag(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Add new tag..."
           className="mc-tag-add-input"
         />
-        <button type="button" onClick={addNewTag} disabled={!newTag.trim()}>
+        <button type="button" onClick={addNewTag} disabled={disabled || !newTag.trim()}>
           Add
         </button>
       </div>

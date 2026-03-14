@@ -101,7 +101,11 @@ function readStorage(): Storage | null {
 
 function emitOpsUxRuntimeConfig(value: LoadedOpsUxRuntimeConfig): void {
   for (const listener of opsUxRuntimeConfigListeners) {
-    listener(value);
+    try {
+      listener(value);
+    } catch (error) {
+      console.error("ops ux config listener failed", error);
+    }
   }
 }
 
@@ -250,10 +254,11 @@ export function saveOpsUxRuntimeConfig(config: OpsUxRuntimeConfig): { ok: boolea
     return { ok: false, error: "Local storage unavailable; config not persisted." };
   }
 
+  let loadedConfig: LoadedOpsUxRuntimeConfig;
   try {
     const serialized = JSON.stringify(config);
     storage.setItem(STORAGE_KEYS.opsUxRuntimeConfigV1, serialized);
-    const loadedConfig = {
+    loadedConfig = {
       config,
       degraded: false,
       error: null,
@@ -262,11 +267,11 @@ export function saveOpsUxRuntimeConfig(config: OpsUxRuntimeConfig): { ok: boolea
       key: serialized,
       value: loadedConfig,
     };
-    emitOpsUxRuntimeConfig(loadedConfig);
-    return { ok: true, error: null };
   } catch {
     return { ok: false, error: "Failed to persist runtime config to local storage." };
   }
+  emitOpsUxRuntimeConfig(loadedConfig);
+  return { ok: true, error: null };
 }
 
 export function subscribeOpsUxRuntimeConfig(listener: OpsUxRuntimeConfigListener): () => void {

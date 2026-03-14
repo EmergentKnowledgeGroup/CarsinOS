@@ -150,7 +150,12 @@ function ToolSelectionRow({
   return (
     <div className={`mc-connectors-tool-row${selected ? " is-selected" : ""}`}>
       <label className="mc-connectors-tool-check">
-        <input type="checkbox" checked={checked} onChange={onToggle} />
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={onToggle}
+          aria-label={`Select published tool ${tool.display_name}`}
+        />
       </label>
       <button type="button" className="mc-connectors-tool-button" onClick={onSelect}>
         <div className="mc-connectors-tool-head">
@@ -832,6 +837,7 @@ export function ConnectorsPage({ controller }: ConnectorsPageProps) {
                                   type="checkbox"
                                   checked={selected}
                                   disabled={candidate.review_blocked}
+                                  aria-label={`Select publish candidate ${candidate.display_name}`}
                                   onChange={() =>
                                     controller.togglePublishCandidate(candidate.candidate_id)
                                   }

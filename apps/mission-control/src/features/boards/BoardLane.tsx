@@ -101,6 +101,9 @@ export function BoardLane(props: BoardLaneProps) {
                 aria-pressed={props.selectedCardId === card.card_id}
                 onClick={() => props.onSelectCard(card.card_id)}
                 onKeyDown={(event) => {
+                  if (event.target !== event.currentTarget) {
+                    return;
+                  }
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
                     props.onSelectCard(card.card_id);

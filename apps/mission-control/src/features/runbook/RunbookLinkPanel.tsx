@@ -64,7 +64,9 @@ export function RunbookLinkPanel({
       {currentStepLabel ? (
         <p className="mc-runbook-link-step">Current step: {currentStepLabel}</p>
       ) : null}
-      {!compact && summary.status_reason ? (
+      {!compact &&
+      summary.status_reason &&
+      summary.status_reason !== currentStepLabel ? (
         <p className="mc-runbook-link-reason">{summary.status_reason}</p>
       ) : null}
       {onOpen ? (

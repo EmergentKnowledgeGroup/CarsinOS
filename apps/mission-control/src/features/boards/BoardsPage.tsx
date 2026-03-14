@@ -511,6 +511,7 @@ export function BoardsPage({
             <TagPicker
               label="Tags"
               value={cardEditor.tagsCsv}
+              disabled={editorBusy}
               onChange={(next) =>
                 setCardEditor((previous) => ({
                   ...previous,

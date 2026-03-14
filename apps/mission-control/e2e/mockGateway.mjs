@@ -1959,10 +1959,14 @@ function buildRunbookStatusCounts(records) {
     failed: 0,
     completed: 0,
     limited: 0,
+    _unexpected: 0,
   };
   for (const record of records) {
     if (Object.hasOwn(counts, record.detail.status)) {
       counts[record.detail.status] += 1;
+    } else {
+      counts._unexpected += 1;
+      console.warn("unexpected runbook status in mock gateway", record.detail.status, record);
     }
   }
   return counts;

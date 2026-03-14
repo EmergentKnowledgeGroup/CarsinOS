@@ -60,4 +60,29 @@ describe("strategyDraftState", () => {
 
     expect(isTaskDraftDirty(changed, baseline)).toBe(true);
   });
+
+  it("does not mark equal drafts dirty when key insertion order differs", () => {
+    const baseline = {
+      goal_id: "goal-1",
+      slug: "ops",
+      name: "Ops",
+      summary: "",
+      status: "active",
+      owner_agent_id: "",
+      workspace_root: ".",
+      budget_month_usd: "",
+    };
+    const reordered = {
+      workspace_root: ".",
+      goal_id: "goal-1",
+      summary: "",
+      name: "Ops",
+      slug: "ops",
+      status: "active",
+      owner_agent_id: "",
+      budget_month_usd: "",
+    };
+
+    expect(isProjectDraftDirty(reordered, baseline)).toBe(false);
+  });
 });

@@ -52,6 +52,15 @@ const DEFAULT_FILTERS: RunbookFilters = {
   query: "",
 };
 
+function isDefaultFilters(filters: RunbookFilters): boolean {
+  return (
+    filters.kind === DEFAULT_FILTERS.kind &&
+    filters.status === DEFAULT_FILTERS.status &&
+    filters.owner_agent_id === DEFAULT_FILTERS.owner_agent_id &&
+    filters.query === DEFAULT_FILTERS.query
+  );
+}
+
 function normalizeErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -114,7 +123,10 @@ export function useRunbookController(options: UseRunbookControllerOptions) {
     [deferredQuery, filters]
   );
   const [items, setItems] = useState<RunbookSummaryItemResponse[]>([]);
+  const [allItems, setAllItems] = useState<RunbookSummaryItemResponse[]>([]);
   const [countsByStatus, setCountsByStatus] =
+    useState<RunbookStatusCountsResponse>(EMPTY_COUNTS);
+  const [allCountsByStatus, setAllCountsByStatus] =
     useState<RunbookStatusCountsResponse>(EMPTY_COUNTS);
   const [generatedAtMs, setGeneratedAtMs] = useState<number | null>(null);
   const [selectedRunbookKind, setSelectedRunbookKind] = useState<string>("");
@@ -148,6 +160,8 @@ export function useRunbookController(options: UseRunbookControllerOptions) {
       runtimeSettings: RuntimeConnectionSettings = settings
     ) => {
       if (!enabled || !runbookKind.trim() || !anchorId.trim()) {
+        detailRequestIdRef.current += 1;
+        setDetailLoading(false);
         setDetail(null);
         setDetailError(null);
         return;
@@ -184,11 +198,16 @@ export function useRunbookController(options: UseRunbookControllerOptions) {
       nextFilters: RunbookFilters = effectiveFilters
     ) => {
       if (!enabled) {
+        listRequestIdRef.current += 1;
+        detailRequestIdRef.current += 1;
         setAvailability("disabled");
         setAvailabilityMessage("Runbook hub is disabled in Config.");
         setItems([]);
+        setAllItems([]);
         setCountsByStatus(EMPTY_COUNTS);
+        setAllCountsByStatus(EMPTY_COUNTS);
         setGeneratedAtMs(null);
+        setDetailLoading(false);
         setDetail(null);
         setDetailError(null);
         return;
@@ -199,12 +218,19 @@ export function useRunbookController(options: UseRunbookControllerOptions) {
       setAvailabilityMessage(null);
 
       try {
-        const response = await fetchAllRunbooks(runtimeSettings, nextFilters);
+        const [response, globalResponse] = await Promise.all([
+          fetchAllRunbooks(runtimeSettings, nextFilters),
+          isDefaultFilters(nextFilters)
+            ? Promise.resolve<Awaited<ReturnType<typeof fetchAllRunbooks>> | null>(null)
+            : fetchAllRunbooks(runtimeSettings, DEFAULT_FILTERS),
+        ]);
         if (listRequestIdRef.current !== requestId) {
           return;
         }
         setItems(response.items);
         setCountsByStatus(response.countsByStatus);
+        setAllItems(globalResponse?.items ?? response.items);
+        setAllCountsByStatus(globalResponse?.countsByStatus ?? response.countsByStatus);
         setGeneratedAtMs(response.generatedAtMs);
         setLastRefreshAtMs(Date.now());
         setAvailability("ready");
@@ -217,6 +243,8 @@ export function useRunbookController(options: UseRunbookControllerOptions) {
           setSelectedRunbookKind(preferredItem.runbook_kind);
           setSelectedAnchorId(preferredItem.anchor_id);
         } else {
+          detailRequestIdRef.current += 1;
+          setDetailLoading(false);
           setSelectedRunbookKind("");
           setSelectedAnchorId("");
           setDetail(null);
@@ -232,8 +260,12 @@ export function useRunbookController(options: UseRunbookControllerOptions) {
             "The connected gateway does not expose the Runbook surface yet."
           );
           setItems([]);
+          setAllItems([]);
           setCountsByStatus(EMPTY_COUNTS);
+          setAllCountsByStatus(EMPTY_COUNTS);
           setGeneratedAtMs(null);
+          detailRequestIdRef.current += 1;
+          setDetailLoading(false);
           setDetail(null);
           setDetailError(null);
           return;
@@ -269,6 +301,8 @@ export function useRunbookController(options: UseRunbookControllerOptions) {
 
   useEffect(() => {
     if (!selectedRunbookKind || !selectedAnchorId) {
+      detailRequestIdRef.current += 1;
+      setDetailLoading(false);
       setDetail(null);
       setDetailError(null);
       return;
@@ -384,7 +418,9 @@ export function useRunbookController(options: UseRunbookControllerOptions) {
     setFilters: updateFilters,
     resetFilters,
     items,
+    allItems,
     countsByStatus,
+    allCountsByStatus,
     generatedAtMs,
     lastRefreshAtMs,
     isStale,

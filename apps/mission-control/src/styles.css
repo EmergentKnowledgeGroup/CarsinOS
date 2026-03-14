@@ -5073,6 +5073,24 @@ button.danger:hover {
   gap: var(--space-4);
 }
 
+@media (max-width: 640px) {
+  .mc-runbook-grid,
+  .mc-runbook-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mc-runbook-grid,
+  .mc-runbook-detail-grid,
+  .mc-runbook-filter-bar {
+    gap: var(--space-4);
+  }
+
+  .mc-runbook-detail {
+    position: static;
+    top: auto;
+  }
+}
+
 .mc-runbook-flow {
   display: flex;
   flex-direction: column;

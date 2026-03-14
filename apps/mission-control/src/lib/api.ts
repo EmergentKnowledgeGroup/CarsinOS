@@ -245,8 +245,8 @@ async function fetchWithTimeout(
 
 async function buildHttpError(path: string, response: Response): Promise<GatewayApiError> {
   const responseBody = await response.text();
-  const suffix = responseBody ? `: ${responseBody}` : "";
-  return createGatewayApiError(`${response.status} ${response.statusText}${suffix}`, {
+  const message = `${response.status} ${response.statusText}`.trim() || String(response.status);
+  return createGatewayApiError(message, {
     kind: "http",
     path,
     status: response.status,

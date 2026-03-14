@@ -45,6 +45,7 @@ export function useBoardsController(options: UseBoardsControllerOptions) {
     "save" | "run" | "upload" | "move" | null
   >(null);
   const boardRefreshTimer = useRef<number | null>(null);
+  const boardLoadSeq = useRef(0);
 
   const cardsByColumn = useMemo(() => toCardsByColumn(board), [board]);
 
@@ -99,12 +100,51 @@ export function useBoardsController(options: UseBoardsControllerOptions) {
     };
   }, [selectedPreviewUrl]);
 
-  const refreshBoard = useCallback(
-    async (boardId: string, runtimeSettings: RuntimeConnectionSettings = settings) => {
-      const detail = await getBoard(runtimeSettings, boardId);
-      setBoard(detail);
+  const loadBoard = useCallback(
+    async (
+      boardId: string,
+      runtimeSettings: RuntimeConnectionSettings = settings,
+      options: { activateBoard?: boolean } = {}
+    ) => {
+      const requestSeq = ++boardLoadSeq.current;
+      if (options.activateBoard) {
+        setActiveBoardId(boardId);
+        setSelectedCardId(null);
+        setLoading(true);
+      }
+      try {
+        const detail = await getBoard(runtimeSettings, boardId);
+        if (requestSeq !== boardLoadSeq.current) {
+          return false;
+        }
+        setBoard(detail);
+        setSelectedCardId((current) =>
+          current && detail.cards.some((card) => card.card_id === current) ? current : null
+        );
+        return true;
+      } catch (error) {
+        if (requestSeq !== boardLoadSeq.current) {
+          return false;
+        }
+        if (options.activateBoard) {
+          setBoard(null);
+          setSelectedCardId(null);
+        }
+        throw error;
+      } finally {
+        if (options.activateBoard && requestSeq === boardLoadSeq.current) {
+          setLoading(false);
+        }
+      }
     },
     [settings]
+  );
+
+  const refreshBoard = useCallback(
+    async (boardId: string, runtimeSettings: RuntimeConnectionSettings = settings) => {
+      await loadBoard(boardId, runtimeSettings);
+    },
+    [loadBoard, settings]
   );
 
   const queueBoardRefresh = useCallback(
@@ -127,19 +167,15 @@ export function useBoardsController(options: UseBoardsControllerOptions) {
   const handleBoardChange = useCallback(
     async (boardId: string) => {
       try {
-        setActiveBoardId(boardId);
-        setLoading(true);
-        await refreshBoard(boardId, settings);
+        await loadBoard(boardId, settings, { activateBoard: true });
       } catch (error) {
         setNotice({
           tone: "critical",
           message: `Board load failed: ${String(error)}`,
         });
-      } finally {
-        setLoading(false);
       }
     },
-    [refreshBoard, setNotice, settings]
+    [loadBoard, setNotice, settings]
   );
 
   const handleDropCard = useCallback(

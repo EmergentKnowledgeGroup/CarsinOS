@@ -48,6 +48,10 @@ function addEntityEntry(
   target.set(key, [item]);
 }
 
+/**
+ * Anchor maps use last-wins semantics via setAnchorEntry, while byEntityKey
+ * intentionally accumulates every matching item via addEntityEntry.
+ */
 export function buildRunbookSummaryIndex(
   items: RunbookSummaryItemResponse[]
 ): RunbookSummaryIndex {
@@ -116,10 +120,11 @@ export function getRunbookSummariesForEntity(
   entityKind: string,
   entityId: string | null | undefined
 ): RunbookSummaryItemResponse[] {
-  if (!entityId?.trim()) {
+  const trimmedEntityId = entityId?.trim();
+  if (!trimmedEntityId) {
     return [];
   }
-  return index.byEntityKey.get(entityKey(entityKind, entityId.trim())) ?? [];
+  return index.byEntityKey.get(entityKey(entityKind, trimmedEntityId)) ?? [];
 }
 
 export function getRunbookStatusTone(status: string): RunbookStatusTone {

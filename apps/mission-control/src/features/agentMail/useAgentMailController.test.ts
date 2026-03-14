@@ -9,6 +9,8 @@ describe("useAgentMailController helpers", () => {
   it("normalizes known reaction shortcodes to emoji glyphs", () => {
     expect(normalizeReactionEmoji(":+1:")).toBe("👍");
     expect(normalizeReactionEmoji(":rocket:")).toBe("🚀");
+    expect(normalizeReactionEmoji(":heart:")).toBe("❤️");
+    expect(normalizeReactionEmoji(":thinking:")).toBe("🤔");
     expect(normalizeReactionEmoji("👍")).toBe("👍");
   });
 

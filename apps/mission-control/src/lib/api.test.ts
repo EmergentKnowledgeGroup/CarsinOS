@@ -124,6 +124,7 @@ describe("request URL resolution", () => {
       kind: "http",
       status: 404,
       path: "/api/v1/boards/board-1/cards/card-1/assets/asset-1",
+      message: "404 Not Found",
       responseBody: "missing asset",
     } satisfies Partial<GatewayApiError>);
   });

@@ -1,6 +1,42 @@
 import { useEffect, useCallback, useRef, useId, type ReactNode } from "react";
 import { X } from "lucide-react";
 
+function isTabbable(element: HTMLElement): boolean {
+  if (element.tabIndex < 0) {
+    return false;
+  }
+  if ("disabled" in element && element.disabled) {
+    return false;
+  }
+  if (
+    element.hasAttribute("disabled") ||
+    element.hasAttribute("hidden") ||
+    element.hasAttribute("inert") ||
+    element.getAttribute("aria-hidden") === "true"
+  ) {
+    return false;
+  }
+  if (element instanceof HTMLInputElement && element.type === "hidden") {
+    return false;
+  }
+  const style = window.getComputedStyle(element);
+  if (style.display === "none" || style.visibility === "hidden") {
+    return false;
+  }
+  return element.getClientRects().length > 0;
+}
+
+function getTabbableElements(root: HTMLElement | null): HTMLElement[] {
+  if (!root) {
+    return [];
+  }
+  return Array.from(
+    root.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    )
+  ).filter(isTabbable);
+}
+
 interface ModalProps {
   open: boolean;
   onClose: () => void;
@@ -21,6 +57,7 @@ interface ModalProps {
  */
 export function Modal({ open, onClose, title, subtitle, children, footer, width }: ModalProps) {
   const titleId = useId();
+  const subtitleId = useId();
   const modalRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<Element | null>(null);
 
@@ -31,9 +68,7 @@ export function Modal({ open, onClose, title, subtitle, children, footer, width 
         return;
       }
       if (e.key === "Tab" && modalRef.current) {
-        const focusable = modalRef.current.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-        );
+        const focusable = getTabbableElements(modalRef.current);
         if (focusable.length === 0) return;
         const first = focusable[0];
         const last = focusable[focusable.length - 1];
@@ -54,10 +89,12 @@ export function Modal({ open, onClose, title, subtitle, children, footer, width 
     triggerRef.current = document.activeElement;
     document.addEventListener("keydown", handleKeyDown);
     requestAnimationFrame(() => {
-      const first = modalRef.current?.querySelector<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      );
-      first?.focus();
+      const [first] = getTabbableElements(modalRef.current);
+      if (first) {
+        first.focus();
+      } else {
+        modalRef.current?.focus();
+      }
     });
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
@@ -77,13 +114,19 @@ export function Modal({ open, onClose, title, subtitle, children, footer, width 
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        aria-describedby={subtitle ? subtitleId : undefined}
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         style={width ? { width: `min(${width}, calc(100vw - 2rem))` } : undefined}
       >
         <div className="mc-modal-header">
           <div>
             <h2 id={titleId}>{title}</h2>
-            {subtitle ? <p className="mc-modal-subtitle">{subtitle}</p> : null}
+            {subtitle ? (
+              <p id={subtitleId} className="mc-modal-subtitle">
+                {subtitle}
+              </p>
+            ) : null}
           </div>
           <button type="button" className="mc-topbar-icon-btn" onClick={onClose} aria-label="Close">
             <X size={18} />

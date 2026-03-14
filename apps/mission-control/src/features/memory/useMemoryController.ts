@@ -166,6 +166,16 @@ function createEmptyScopedResponse<T>(): ScopedResponseState<T> {
   };
 }
 
+function createSuccessResult() {
+  return { ok: true as const };
+}
+
+function createFailureResult(error: unknown) {
+  return { ok: false as const, error };
+}
+
+type MemoryLoadResult = ReturnType<typeof createSuccessResult> | ReturnType<typeof createFailureResult>;
+
 function pickTurnId(value: Record<string, unknown>): string | null {
   const candidates = [value.turn_id, value.id, value.turnId];
   for (const candidate of candidates) {
@@ -418,12 +428,54 @@ export function useMemoryController(options: UseMemoryControllerOptions) {
     setSelectedCitationTokenState("");
   }, []);
 
+  const clearScopedResponses = useCallback(() => {
+    setCardDetailState(createEmptyScopedResponse());
+    setAtomDetailState(createEmptyScopedResponse());
+    setGraphNeighborsState(createEmptyScopedResponse());
+    setTurnWhyState(createEmptyScopedResponse());
+    setCitationState(createEmptyScopedResponse());
+    setCardDetailErrorState(EMPTY_SCOPED_ERROR);
+    setAtomDetailErrorState(EMPTY_SCOPED_ERROR);
+    setGraphErrorState(EMPTY_SCOPED_ERROR);
+    setWhyErrorState(EMPTY_SCOPED_ERROR);
+    setCitationErrorState(EMPTY_SCOPED_ERROR);
+  }, []);
+
+  const invalidateInFlightRequests = useCallback(() => {
+    listRequestIdRef.current += 1;
+    cardRequestIdRef.current += 1;
+    atomRequestIdRef.current += 1;
+    graphRequestIdRef.current += 1;
+    whyRequestIdRef.current += 1;
+    citationRequestIdRef.current += 1;
+  }, []);
+
+  const resetVisibleMemoryState = useCallback(
+    (nextAvailability: MemoryAvailability, nextMessage: string | null) => {
+      setAvailability(nextAvailability);
+      setAvailabilityMessage(nextMessage);
+      setStatus(null);
+      clearCoreBundle();
+      clearScopedResponses();
+    },
+    [clearCoreBundle, clearScopedResponses]
+  );
+
   const setSelectedAgentId = useCallback(
     (nextAgentId: string) => {
-      setSelectedAgentIdState(nextAgentId);
+      invalidateInFlightRequests();
+      resetVisibleMemoryState(
+        enabled ? "loading" : "disabled",
+        enabled
+          ? nextAgentId.trim()
+            ? null
+            : "Waiting for an assistant selection."
+          : "Memory hub is disabled in Config."
+      );
       resetLaneSelections();
+      setSelectedAgentIdState(nextAgentId);
     },
-    [resetLaneSelections]
+    [enabled, invalidateInFlightRequests, resetLaneSelections, resetVisibleMemoryState]
   );
 
   const setSelectedCardId = useCallback((nextCardId: string) => {
@@ -451,21 +503,17 @@ export function useMemoryController(options: UseMemoryControllerOptions) {
     async (
       runtimeSettings: RuntimeConnectionSettings = settings,
       targetAgentId = selectedAgentId
-    ) => {
+    ): Promise<MemoryLoadResult> => {
       if (!enabled) {
-        setAvailability("disabled");
-        setAvailabilityMessage("Memory hub is disabled in Config.");
-        setStatus(null);
-        clearCoreBundle();
-        return;
+        invalidateInFlightRequests();
+        resetVisibleMemoryState("disabled", "Memory hub is disabled in Config.");
+        return createSuccessResult();
       }
 
       if (!targetAgentId.trim()) {
-        setAvailability("loading");
-        setAvailabilityMessage("Waiting for an assistant selection.");
-        setStatus(null);
-        clearCoreBundle();
-        return;
+        invalidateInFlightRequests();
+        resetVisibleMemoryState("loading", "Waiting for an assistant selection.");
+        return createSuccessResult();
       }
 
       const requestId = ++listRequestIdRef.current;
@@ -475,7 +523,7 @@ export function useMemoryController(options: UseMemoryControllerOptions) {
       try {
         const nextStatus = await getAgentMemoryStatus(runtimeSettings, targetAgentId);
         if (listRequestIdRef.current !== requestId) {
-          return;
+          return createSuccessResult();
         }
 
         const nextBindingKey = getMemoryBindingCacheKey(targetAgentId, nextStatus);
@@ -496,7 +544,7 @@ export function useMemoryController(options: UseMemoryControllerOptions) {
 
         if (!canLoadMemoryReadSurfaces(nextStatus)) {
           clearCoreBundle();
-          return;
+          return createSuccessResult();
         }
 
         const [
@@ -547,7 +595,7 @@ export function useMemoryController(options: UseMemoryControllerOptions) {
         ]);
 
         if (listRequestIdRef.current !== requestId) {
-          return;
+          return createSuccessResult();
         }
 
         const nextBundle: MemoryCoreBundle = {
@@ -564,9 +612,10 @@ export function useMemoryController(options: UseMemoryControllerOptions) {
           ...current,
           ...nextBundle,
         }));
+        return createSuccessResult();
       } catch (error: unknown) {
         if (listRequestIdRef.current !== requestId) {
-          return;
+          return createSuccessResult();
         }
         if (isMemoryUnsupportedError(error)) {
           setAvailability("unsupported");
@@ -579,6 +628,8 @@ export function useMemoryController(options: UseMemoryControllerOptions) {
         }
         setStatus(null);
         clearCoreBundle();
+        clearScopedResponses();
+        return createFailureResult(error);
       }
     },
     [
@@ -586,8 +637,11 @@ export function useMemoryController(options: UseMemoryControllerOptions) {
       cardQuery,
       cardStatusFilter,
       clearCoreBundle,
+      clearScopedResponses,
       enabled,
       episodeQuery,
+      invalidateInFlightRequests,
+      resetVisibleMemoryState,
       selectedAgentId,
       settings,
       updateCache,
@@ -595,12 +649,11 @@ export function useMemoryController(options: UseMemoryControllerOptions) {
   );
 
   const refresh = useCallback(async () => {
-    try {
-      await loadMemoryData(settings, selectedAgentId);
-    } catch (error: unknown) {
+    const result = await loadMemoryData(settings, selectedAgentId);
+    if (!result.ok) {
       setNotice({
         tone: "error",
-        message: `Memory refresh failed: ${normalizeMemoryErrorMessage(error)}`,
+        message: `Memory refresh failed: ${normalizeMemoryErrorMessage(result.error)}`,
       });
     }
   }, [loadMemoryData, selectedAgentId, setNotice, settings]);

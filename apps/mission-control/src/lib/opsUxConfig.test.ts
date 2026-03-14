@@ -97,6 +97,28 @@ describe("opsUxRuntimeConfig", () => {
     unsubscribe();
   });
 
+  it("does not fail persistence when one listener throws", () => {
+    const badListener = vi.fn(() => {
+      throw new Error("listener broke");
+    });
+    const goodListener = vi.fn();
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const unsubscribeBad = subscribeOpsUxRuntimeConfig(badListener);
+    const unsubscribeGood = subscribeOpsUxRuntimeConfig(goodListener);
+    const next = withOpsUxControlPatch(DEFAULT_OPSUX_RUNTIME_CONFIG, {
+      runbook_hub: true,
+    });
+
+    const result = saveOpsUxRuntimeConfig(next);
+
+    expect(result).toEqual({ ok: true, error: null });
+    expect(badListener).toHaveBeenCalledTimes(1);
+    expect(goodListener).toHaveBeenCalledTimes(1);
+    expect(consoleError).toHaveBeenCalledTimes(1);
+    unsubscribeBad();
+    unsubscribeGood();
+  });
+
   it("reloads listeners when storage changes outside the current save path", () => {
     const listener = vi.fn();
     const unsubscribe = subscribeOpsUxRuntimeConfig(listener);

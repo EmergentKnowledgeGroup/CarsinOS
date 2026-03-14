@@ -147,16 +147,17 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
 
   const openSession = useCallback(
     async (id: string, options?: { runId?: string | null }) => {
-      if (!id.trim()) {
+      const normalizedId = id.trim();
+      if (!normalizedId) {
         return false;
       }
       setBusy(true);
       setLastError(null);
       try {
-        setSessionId(id);
+        await refreshMessages(normalizedId);
+        setSessionId(normalizedId);
         setLastRunId(options?.runId ?? null);
         setLastRunStatus(null);
-        await refreshMessages(id);
         return true;
       } catch (error: unknown) {
         const text = String(error);

@@ -250,9 +250,9 @@ export function LiveFeedDrawer(props: LiveFeedDrawerProps) {
           <span>Unread: {props.unreadCount}</span>
           {(props.approvalsCount > 0 || props.openBreakersCount > 0) ? (
             <span className="mc-live-feed-collapsed-detail">
-              {props.openBreakersCount > 0 ? `${props.openBreakersCount} breaker${props.openBreakersCount !== 1 ? "s" : ""}` : null}
-              {props.openBreakersCount > 0 && props.approvalsCount > 0 ? " \u00B7 " : null}
               {props.approvalsCount > 0 ? `${props.approvalsCount} approval${props.approvalsCount !== 1 ? "s" : ""}` : null}
+              {props.approvalsCount > 0 && props.openBreakersCount > 0 ? " \u00B7 " : null}
+              {props.openBreakersCount > 0 ? `${props.openBreakersCount} breaker${props.openBreakersCount !== 1 ? "s" : ""}` : null}
             </span>
           ) : null}
         </div>
