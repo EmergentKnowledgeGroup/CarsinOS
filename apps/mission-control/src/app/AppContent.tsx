@@ -12,16 +12,26 @@ import { CockpitPage } from "../features/cockpit/CockpitPage";
 import { useCockpitController } from "../features/cockpit/useCockpitController";
 import { type CockpitWidgetLayoutV2 } from "../features/cockpit/cockpitLayout";
 import { CockpitWidgetRenderer } from "../features/cockpit/CockpitWidgetRenderer";
+import { ConnectorsPage } from "../features/connectors/ConnectorsPage";
+import { useConnectorsController } from "../features/connectors/useConnectorsController";
 import { EventsPage } from "../features/events/EventsPage";
 import { FocusPage } from "../features/focus/FocusPage";
 import { TeamPage } from "../features/team/TeamPage";
 import { HelpDocsPage } from "../features/help/HelpDocsPage";
+import { MemoryPage } from "../features/memory/MemoryPage";
+import { useMemoryController } from "../features/memory/useMemoryController";
+import { RunbookPage } from "../features/runbook/RunbookPage";
+import { useRunbookController } from "../features/runbook/useRunbookController";
 import { StrategyPage } from "../features/strategy/StrategyPage";
 import { useStrategyController } from "../features/strategy/useStrategyController";
 import { useMissionControlController } from "./useMissionControlController";
 import { TabHelpBanner } from "./TabHelpBanner";
 import type { EventStreamItem, MissionControlTab } from "./useAppController";
-import type { Agent, RuntimeConnectionSettings } from "../types";
+import type {
+  Agent,
+  MissionControlFocusItem,
+  RuntimeConnectionSettings,
+} from "../types";
 import type { BoardSummary } from "./useRuntimeConnectionController";
 import type { ErrorEventContext } from "../lib/errorRecovery";
 import { AppErrorBoundary } from "../ui/AppErrorBoundary";
@@ -41,6 +51,9 @@ interface AppContentProps {
   assistantController: ReturnType<typeof useAssistantChatController>;
   cockpitController: ReturnType<typeof useCockpitController>;
   strategyController: ReturnType<typeof useStrategyController>;
+  runbookController: ReturnType<typeof useRunbookController>;
+  memoryController: ReturnType<typeof useMemoryController>;
+  connectorsController: ReturnType<typeof useConnectorsController>;
   showRawEvents: boolean;
   setShowRawEvents: Dispatch<SetStateAction<boolean>>;
   visibleEvents: EventStreamItem[];
@@ -73,6 +86,7 @@ function renderCockpitWidget(
     openTask: (taskId: string) => boolean;
     selectGoal: (goalId: string) => void;
     selectProject: (projectId: string) => void;
+    openRunbook: (runbookKind: string, anchorId: string) => boolean;
   }
 ) {
   const {
@@ -126,6 +140,11 @@ function renderCockpitWidget(
       onOpenStrategyTask={strategyActions.openTask}
       onSelectStrategyGoal={strategyActions.selectGoal}
       onSelectStrategyProject={strategyActions.selectProject}
+      runbookEnabled={props.runbookController.enabled}
+      runbookAvailability={props.runbookController.availability}
+      runbookCountsByStatus={props.runbookController.allCountsByStatus}
+      runbookItems={props.runbookController.allItems}
+      onOpenRunbook={strategyActions.openRunbook}
       onRefreshAll={() => missionControl.queueMissionControlRefresh(settings)}
       onRunCalendarJobNow={missionControl.runCalendarJobNow}
       onToggleCalendarJob={missionControl.toggleCalendarJob}
@@ -211,6 +230,16 @@ export function AppContent(props: AppContentProps) {
   const strategyReady =
     props.strategyController.enabled &&
     props.strategyController.availability === "ready";
+  const runbookReady =
+    props.runbookController.enabled &&
+    props.runbookController.availability === "ready";
+  const openRunbook = (runbookKind: string, anchorId: string) => {
+    const opened = props.runbookController.openRunbook(runbookKind, anchorId);
+    if (opened) {
+      props.onTabChange("runbook");
+    }
+    return opened;
+  };
   const openStrategyTask = (taskId: string) => {
     const opened = props.strategyController.openTaskById(taskId);
     if (opened) {
@@ -225,6 +254,124 @@ export function AppContent(props: AppContentProps) {
   const selectStrategyProject = (projectId: string) => {
     props.strategyController.setSelectedProjectId(projectId);
     props.onTabChange("strategy");
+  };
+  const openAssistantContext = (
+    targetKind: string,
+    targetId: string,
+    runId?: string | null
+  ) => {
+    props.onTabChange("assistant");
+    if (targetKind === "session") {
+      void props.assistantController.openSession(targetId, {
+        runId: runId ?? null,
+      });
+      return;
+    }
+    if (targetKind === "run") {
+      const linkedSession =
+        props.runbookController
+          .findFirstSummaryForEntity("run", targetId)
+          ?.linked_entities.find((entity) => entity.entity_kind === "session")
+          ?.entity_id ??
+        props.runbookController.getRunSummary(targetId)?.linked_entities.find(
+          (entity) => entity.entity_kind === "session"
+        )?.entity_id;
+      if (linkedSession) {
+        void props.assistantController.openSession(linkedSession, { runId: targetId });
+      }
+    }
+  };
+  const openAssistantAgent = (agentId: string) => {
+    props.assistantController.setSelectedAgentId(agentId);
+    props.onTabChange("assistant");
+  };
+  const getFocusRunbook = (item: MissionControlFocusItem) => {
+    const approvalId = String(item.action_payload.approval_id ?? "").trim();
+    const taskId = String(item.action_payload.task_id ?? "").trim();
+    const jobId = String(item.action_payload.job_id ?? "").trim();
+    const runId = String(item.action_payload.run_id ?? "").trim();
+    if (approvalId) {
+      return props.runbookController.getApprovalSummary(approvalId);
+    }
+    if (taskId) {
+      return props.runbookController.getTaskSummary(taskId);
+    }
+    if (jobId) {
+      return props.runbookController.getJobSummary(jobId);
+    }
+    if (runId) {
+      return props.runbookController.getRunSummary(runId);
+    }
+    return null;
+  };
+  const openFocusRunbook = (item: MissionControlFocusItem) => {
+    const summary = getFocusRunbook(item);
+    if (summary) {
+      return openRunbook(summary.runbook_kind, summary.anchor_id);
+    }
+    const taskId = String(item.action_payload.task_id ?? "").trim();
+    if (taskId) {
+      return openRunbook("strategy_task_execution", taskId);
+    }
+    const jobId = String(item.action_payload.job_id ?? "").trim();
+    if (jobId) {
+      return openRunbook("scheduled_job_run", jobId);
+    }
+    const runId = String(item.action_payload.run_id ?? "").trim();
+    if (runId) {
+      return openRunbook("assistant_session_run", runId);
+    }
+    return false;
+  };
+  const openRunbookDeepLink = (target: {
+    tab: string;
+    target_kind: string;
+    target_id: string | null;
+    context: string | null;
+  }) => {
+    if (target.tab === "strategy" && target.target_id) {
+      if (target.target_kind === "task") {
+        openStrategyTask(target.target_id);
+        return;
+      }
+      if (target.target_kind === "goal") {
+        selectStrategyGoal(target.target_id);
+        return;
+      }
+      if (target.target_kind === "project") {
+        selectStrategyProject(target.target_id);
+        return;
+      }
+    }
+    if (target.tab === "runbook" && target.target_id) {
+      const [runbookKind, anchorId] = target.target_id.split(":", 2);
+      if (runbookKind && anchorId) {
+        openRunbook(runbookKind, anchorId);
+        return;
+      }
+    }
+    if (target.tab === "assistant" && target.target_id) {
+      openAssistantContext(
+        target.target_kind,
+        target.target_id,
+        target.context?.trim() || null
+      );
+      return;
+    }
+    if (
+      target.tab === "boards" &&
+      target.target_id &&
+      (target.target_kind === "card" || target.target_kind === "board_card")
+    ) {
+      props.boardsController.selectCard(target.target_id);
+      props.onTabChange("boards");
+      return;
+    }
+    if (target.tab === "focus" && target.target_id) {
+      props.onTabChange("focus");
+      return;
+    }
+    props.onTabChange(target.tab as MissionControlTab);
   };
 
   return (
@@ -274,6 +421,7 @@ export function AppContent(props: AppContentProps) {
         <BoardsPage
           boards={props.boards}
           activeBoardId={props.boardsController.activeBoardId}
+          loading={props.boardsController.loading}
           onBoardChange={props.boardsController.handleBoardChange}
           columns={props.boardsController.columns}
           cardsByColumn={props.boardsController.cardsByColumn}
@@ -289,13 +437,19 @@ export function AppContent(props: AppContentProps) {
           agents={props.agents}
           onSaveCardDraft={props.boardsController.saveCardDraft}
           onRunCard={props.boardsController.runCard}
+          onMoveCardToColumn={props.boardsController.moveSelectedCardToColumn}
           onUploadAsset={props.boardsController.uploadAsset}
           onPreviewAsset={props.boardsController.previewAsset}
           selectedPreviewUrl={props.boardsController.selectedPreviewUrl}
+          editorBusy={props.boardsController.editorBusy}
+          editorBusyAction={props.boardsController.editorBusyAction}
           strategyReady={strategyReady}
           linkedTaskByCardId={props.strategyController.taskByBoardCardId}
           describeStrategyTask={props.strategyController.describeTaskContext}
           onOpenStrategyTask={openStrategyTask}
+          runbookEnabled={runbookReady}
+          runbookByCardId={props.runbookController.summaryIndex.byBoardCardId}
+          onOpenBoardCardRunbook={(cardId) => openRunbook("board_card_run", cardId)}
         />
       </TabBoundaryPane>
 
@@ -326,6 +480,9 @@ export function AppContent(props: AppContentProps) {
           taskByJobId={props.strategyController.taskByJobId}
           describeStrategyTask={props.strategyController.describeTaskContext}
           onOpenStrategyTask={openStrategyTask}
+          runbookEnabled={runbookReady}
+          runbookByJobId={props.runbookController.summaryIndex.byJobId}
+          onOpenJobRunbook={(jobId) => openRunbook("scheduled_job_run", jobId)}
         />
       </TabBoundaryPane>
 
@@ -358,6 +515,9 @@ export function AppContent(props: AppContentProps) {
           taskByJobId={props.strategyController.taskByJobId}
           describeStrategyTask={props.strategyController.describeTaskContext}
           onOpenStrategyTask={openStrategyTask}
+          runbookEnabled={runbookReady}
+          getRunbookForFocusItem={getFocusRunbook}
+          onOpenRunbookForFocusItem={openFocusRunbook}
         />
       </TabBoundaryPane>
 
@@ -539,6 +699,17 @@ export function AppContent(props: AppContentProps) {
           boards={props.boards}
           onTabChange={props.onTabChange}
           controller={props.assistantController}
+          runbookEnabled={runbookReady}
+          runbookSummary={
+            props.assistantController.lastRunId
+              ? props.runbookController.getRunSummary(props.assistantController.lastRunId)
+              : props.assistantController.sessionId
+                ? props.runbookController.getSessionSummary(
+                    props.assistantController.sessionId
+                  )
+                : null
+          }
+          onOpenAssistantRunbook={(runId) => openRunbook("assistant_session_run", runId)}
         />
       </TabBoundaryPane>
 
@@ -609,15 +780,19 @@ export function AppContent(props: AppContentProps) {
           onAddCockpitWidget={props.cockpitController.addCockpitWidget}
           onAddCustomWidget={props.cockpitController.addCustomWidget}
           onRemoveCockpitWidget={props.cockpitController.removeCockpitWidget}
+          onNudgeCockpitWidget={props.cockpitController.nudgeCockpitWidget}
           onLayoutChange={props.cockpitController.handleLayoutChange}
           renderCockpitWidget={(widget) =>
             renderCockpitWidget(widget, props, {
               openTask: openStrategyTask,
               selectGoal: selectStrategyGoal,
               selectProject: selectStrategyProject,
+              openRunbook,
             })
           }
           settings={props.settings}
+          strategyEnabled={props.strategyController.enabled}
+          runbookEnabled={props.runbookController.enabled}
         />
       </TabBoundaryPane>
 
@@ -640,7 +815,80 @@ export function AppContent(props: AppContentProps) {
         <StrategyPage
           controller={props.strategyController}
           agents={props.agents}
+          runbookEnabled={runbookReady}
+          selectedTaskRunbook={
+            props.strategyController.selectedTask
+              ? props.runbookController.getTaskSummary(
+                  props.strategyController.selectedTask.task_id
+                )
+              : null
+          }
+          onOpenTaskRunbook={(taskId) => openRunbook("strategy_task_execution", taskId)}
         />
+      </TabBoundaryPane>
+
+      <TabBoundaryPane
+        tab="runbook"
+        active={active === "runbook"}
+        resetVersion={props.tabResetVersion.runbook ?? 0}
+        forceCrashToken={forceCrashToken}
+        title="This tab crashed."
+        subtitle="Runbook ran into an unexpected runtime error. Retry, reset this tab, or reload."
+        events={tabEvents}
+        onResetTabState={props.onResetTabState}
+        onEnterSafeMode={props.onEnterSafeMode}
+      >
+        <TabHelpBanner
+          tab="runbook"
+          onOpenDocs={props.onOpenHelpDocs}
+          onStartTour={props.onStartGuidedTour}
+        />
+        <RunbookPage
+          controller={props.runbookController}
+          agents={props.agents}
+          onOpenDeepLink={openRunbookDeepLink}
+        />
+      </TabBoundaryPane>
+
+      <TabBoundaryPane
+        tab="memory"
+        active={active === "memory"}
+        resetVersion={props.tabResetVersion.memory ?? 0}
+        forceCrashToken={forceCrashToken}
+        title="This tab crashed."
+        subtitle="Memory ran into an unexpected runtime error. Retry, reset this tab, or reload."
+        events={tabEvents}
+        onResetTabState={props.onResetTabState}
+        onEnterSafeMode={props.onEnterSafeMode}
+      >
+        <TabHelpBanner
+          tab="memory"
+          onOpenDocs={props.onOpenHelpDocs}
+          onStartTour={props.onStartGuidedTour}
+        />
+        <MemoryPage
+          controller={props.memoryController}
+          onOpenAssistant={openAssistantAgent}
+        />
+      </TabBoundaryPane>
+
+      <TabBoundaryPane
+        tab="connectors"
+        active={active === "connectors"}
+        resetVersion={props.tabResetVersion.connectors ?? 0}
+        forceCrashToken={forceCrashToken}
+        title="This tab crashed."
+        subtitle="Connectors ran into an unexpected runtime error. Retry, reset this tab, or reload."
+        events={tabEvents}
+        onResetTabState={props.onResetTabState}
+        onEnterSafeMode={props.onEnterSafeMode}
+      >
+        <TabHelpBanner
+          tab="connectors"
+          onOpenDocs={props.onOpenHelpDocs}
+          onStartTour={props.onStartGuidedTour}
+        />
+        <ConnectorsPage controller={props.connectorsController} />
       </TabBoundaryPane>
 
       <TabBoundaryPane

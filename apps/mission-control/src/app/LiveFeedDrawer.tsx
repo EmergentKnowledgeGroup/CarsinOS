@@ -49,7 +49,7 @@ const DOMAIN_FILTERS: Array<{ id: LiveFeedDomain; label: string }> = [
 
 const SEVERITY_FILTERS: Array<{ id: LiveFeedSeverityFilter; label: string }> = [
   { id: "all", label: "All" },
-  { id: "critical_high", label: "Critical+High" },
+  { id: "critical_high", label: "Critical & High" },
   { id: "critical", label: "Critical" },
   { id: "high", label: "High" },
   { id: "normal", label: "Normal" },
@@ -246,7 +246,16 @@ export function LiveFeedDrawer(props: LiveFeedDrawerProps) {
           </div>
         </>
       ) : (
-        <div className="mc-live-feed-collapsed">Unread: {props.unreadCount}</div>
+        <div className="mc-live-feed-collapsed">
+          <span>Unread: {props.unreadCount}</span>
+          {(props.approvalsCount > 0 || props.openBreakersCount > 0) ? (
+            <span className="mc-live-feed-collapsed-detail">
+              {props.approvalsCount > 0 ? `${props.approvalsCount} approval${props.approvalsCount !== 1 ? "s" : ""}` : null}
+              {props.approvalsCount > 0 && props.openBreakersCount > 0 ? " \u00B7 " : null}
+              {props.openBreakersCount > 0 ? `${props.openBreakersCount} breaker${props.openBreakersCount !== 1 ? "s" : ""}` : null}
+            </span>
+          ) : null}
+        </div>
       )}
     </aside>
   );

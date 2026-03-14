@@ -3,6 +3,7 @@ import { MISSION_CONTROL_TABS } from "./tabs";
 import type { MissionControlTab } from "./useAppController";
 
 interface UseKeyboardShortcutsOptions {
+  availableTabs: MissionControlTab[];
   onTabChange: (tab: MissionControlTab) => void;
   onToggleIncidentMode: () => void;
   onToggleLiveFeed: () => void;
@@ -22,6 +23,7 @@ function isEditableTarget(e: KeyboardEvent): boolean {
 
 export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions) {
   const {
+    availableTabs,
     onTabChange,
     onToggleIncidentMode,
     onToggleLiveFeed,
@@ -65,7 +67,9 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions) {
 
       // Tab shortcuts — only when not editing and no overlay
       if (!overlayOpen && !isEditableTarget(e) && !meta && !e.altKey && !e.shiftKey) {
-        const match = MISSION_CONTROL_TABS.find((item) => item.shortcut === e.key);
+        const match = MISSION_CONTROL_TABS.find(
+          (item) => item.shortcut === e.key && availableTabs.includes(item.tab)
+        );
         if (match) {
           e.preventDefault();
           onTabChange(match.tab);
@@ -73,6 +77,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions) {
       }
     },
     [
+      availableTabs,
       onTabChange,
       onToggleIncidentMode,
       onToggleLiveFeed,

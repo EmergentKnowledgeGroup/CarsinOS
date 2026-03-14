@@ -3,6 +3,7 @@ import { Play, Pause, Zap, Clock, CalendarDays } from "lucide-react";
 import type {
   MissionControlCalendarJob,
   MissionControlCalendarWeekResponse,
+  RunbookSummaryItemResponse,
   TaskResponse,
 } from "../../types";
 import { Chip } from "../../ui/Chip";
@@ -10,6 +11,7 @@ import { Tabs } from "../../ui/Tabs";
 import { Pagination } from "../../ui/Pagination";
 import { usePagination } from "../../ui/usePagination";
 import { formatRelative } from "../../utils/datetime";
+import { RunbookLinkPanel } from "../runbook/RunbookLinkPanel";
 import { StrategyTaskContextPanel } from "../strategy/StrategyTaskContextPanel";
 import type { StrategyTaskContextSnapshot } from "../strategy/useStrategyController";
 
@@ -24,6 +26,9 @@ interface CalendarPageProps {
   taskByJobId: Map<string, TaskResponse>;
   describeStrategyTask: (taskId: string) => StrategyTaskContextSnapshot | null;
   onOpenStrategyTask: (taskId: string) => boolean;
+  runbookEnabled: boolean;
+  runbookByJobId: Map<string, RunbookSummaryItemResponse>;
+  onOpenJobRunbook: (jobId: string) => boolean;
 }
 
 const TABS = [
@@ -70,11 +75,17 @@ function WeekGrid({
   onRunNow,
   strategyReady,
   taskByJobId,
+  runbookEnabled,
+  runbookByJobId,
+  onOpenJobRunbook,
 }: {
   calendarWeek: MissionControlCalendarWeekResponse | null;
   onRunNow: (jobId: string) => Promise<void>;
   strategyReady: boolean;
   taskByJobId: Map<string, TaskResponse>;
+  runbookEnabled: boolean;
+  runbookByJobId: Map<string, RunbookSummaryItemResponse>;
+  onOpenJobRunbook: (jobId: string) => boolean;
 }) {
   const { daySlots, alwaysRunning, nextUp } = useMemo(() => {
     if (!calendarWeek)
@@ -154,6 +165,11 @@ function WeekGrid({
                 {strategyReady && taskByJobId.has(job.job_id) ? (
                   <span className="mc-cal-linked-badge">Task linked</span>
                 ) : null}
+                {runbookEnabled && runbookByJobId.has(job.job_id) ? (
+                  <span className="mc-cal-linked-badge">
+                    Runbook
+                  </span>
+                ) : null}
               </button>
             ))}
           </div>
@@ -192,6 +208,9 @@ function WeekGrid({
                   {strategyReady && taskByJobId.has(job.job_id) ? (
                     <span className="mc-cal-job-link-badge">Task</span>
                   ) : null}
+                  {runbookEnabled && runbookByJobId.has(job.job_id) ? (
+                    <span className="mc-cal-job-link-badge">Runbook</span>
+                  ) : null}
                 </button>
               ))}
                 {dayJobs.length === 0 ? (
@@ -224,6 +243,15 @@ function WeekGrid({
                 {strategyReady && taskByJobId.has(job.job_id) ? (
                   <span className="mc-cal-next-badge">Task linked</span>
                 ) : null}
+                {runbookEnabled && runbookByJobId.has(job.job_id) ? (
+                  <button
+                    type="button"
+                    className="mc-cal-next-badge"
+                    onClick={() => onOpenJobRunbook(job.job_id)}
+                  >
+                    Runbook
+                  </button>
+                ) : null}
               </div>
             ))}
           </div>
@@ -243,6 +271,9 @@ function ScheduleTable({
   taskByJobId,
   describeStrategyTask,
   onOpenStrategyTask,
+  runbookEnabled,
+  runbookByJobId,
+  onOpenJobRunbook,
 }: {
   jobs: MissionControlCalendarJob[];
   onRunNow: (jobId: string) => Promise<void>;
@@ -251,6 +282,9 @@ function ScheduleTable({
   taskByJobId: Map<string, TaskResponse>;
   describeStrategyTask: (taskId: string) => StrategyTaskContextSnapshot | null;
   onOpenStrategyTask: (taskId: string) => boolean;
+  runbookEnabled: boolean;
+  runbookByJobId: Map<string, RunbookSummaryItemResponse>;
+  onOpenJobRunbook: (jobId: string) => boolean;
 }) {
   const [page, setPage] = useState(1);
   const [busyJobActions, setBusyJobActions] = useState<Set<string>>(new Set());
@@ -290,6 +324,9 @@ function ScheduleTable({
           <tbody>
             {visible.map((job) => {
               const linkedTask = strategyReady ? taskByJobId.get(job.job_id) ?? null : null;
+              const runbookSummary = runbookEnabled
+                ? runbookByJobId.get(job.job_id) ?? null
+                : null;
               const linkedTaskContext = linkedTask
                 ? describeStrategyTask(linkedTask.task_id)
                 : null;
@@ -311,6 +348,19 @@ function ScheduleTable({
                         }
                         emptyMessage={null}
                         openLabel="Open task"
+                      />
+                    ) : null}
+                    {runbookEnabled ? (
+                      <RunbookLinkPanel
+                        compact
+                        className="mc-cal-runbook-panel"
+                        summary={runbookSummary}
+                        emptyMessage={null}
+                        onOpen={
+                          runbookSummary
+                            ? () => onOpenJobRunbook(job.job_id)
+                            : undefined
+                        }
                       />
                     ) : null}
                   </td>
@@ -346,7 +396,7 @@ function ScheduleTable({
                             }
                             title="Run now"
                           >
-                            <Play size={13} />
+                            {runBusy ? <span className="mc-btn-busy">Running\u2026</span> : <Play size={13} />}
                           </button>
                           <button
                             type="button"
@@ -357,7 +407,7 @@ function ScheduleTable({
                             }
                             title={job.enabled ? "Pause" : "Resume"}
                           >
-                            <Pause size={13} />
+                            {toggleBusy ? <span className="mc-btn-busy">Working\u2026</span> : <Pause size={13} />}
                           </button>
                         </>
                       );
@@ -393,6 +443,9 @@ function ActiveJobsList({
   taskByJobId,
   describeStrategyTask,
   onOpenStrategyTask,
+  runbookEnabled,
+  runbookByJobId,
+  onOpenJobRunbook,
 }: {
   alwaysRunning: MissionControlCalendarJob[];
   nextUp: MissionControlCalendarJob[];
@@ -402,6 +455,9 @@ function ActiveJobsList({
   taskByJobId: Map<string, TaskResponse>;
   describeStrategyTask: (taskId: string) => StrategyTaskContextSnapshot | null;
   onOpenStrategyTask: (taskId: string) => boolean;
+  runbookEnabled: boolean;
+  runbookByJobId: Map<string, RunbookSummaryItemResponse>;
+  onOpenJobRunbook: (jobId: string) => boolean;
 }) {
   const [busyJobActions, setBusyJobActions] = useState<Set<string>>(new Set());
   const busyJobActionsRef = useRef<Set<string>>(new Set());
@@ -436,6 +492,9 @@ function ActiveJobsList({
             {alwaysRunning.map((job) => (
               (() => {
                 const linkedTask = strategyReady ? taskByJobId.get(job.job_id) ?? null : null;
+                const runbookSummary = runbookEnabled
+                  ? runbookByJobId.get(job.job_id) ?? null
+                  : null;
                 const linkedTaskContext = linkedTask
                   ? describeStrategyTask(linkedTask.task_id)
                   : null;
@@ -461,6 +520,19 @@ function ActiveJobsList({
                           }
                           emptyMessage={null}
                           openLabel="Open task"
+                        />
+                      ) : null}
+                      {runbookEnabled ? (
+                        <RunbookLinkPanel
+                          compact
+                          className="mc-cal-runbook-panel"
+                          summary={runbookSummary}
+                          emptyMessage={null}
+                          onOpen={
+                            runbookSummary
+                              ? () => onOpenJobRunbook(job.job_id)
+                              : undefined
+                          }
                         />
                       ) : null}
                     </div>
@@ -521,6 +593,9 @@ function ActiveJobsList({
             {nextUp.map((job) => (
               (() => {
                 const linkedTask = strategyReady ? taskByJobId.get(job.job_id) ?? null : null;
+                const runbookSummary = runbookEnabled
+                  ? runbookByJobId.get(job.job_id) ?? null
+                  : null;
                 const linkedTaskContext = linkedTask
                   ? describeStrategyTask(linkedTask.task_id)
                   : null;
@@ -546,6 +621,19 @@ function ActiveJobsList({
                           }
                           emptyMessage={null}
                           openLabel="Open task"
+                        />
+                      ) : null}
+                      {runbookEnabled ? (
+                        <RunbookLinkPanel
+                          compact
+                          className="mc-cal-runbook-panel"
+                          summary={runbookSummary}
+                          emptyMessage={null}
+                          onOpen={
+                            runbookSummary
+                              ? () => onOpenJobRunbook(job.job_id)
+                              : undefined
+                          }
                         />
                       ) : null}
                     </div>
@@ -609,6 +697,9 @@ export function CalendarPage(props: CalendarPageProps) {
           onRunNow={props.onRunCalendarJobNow}
           strategyReady={props.strategyReady}
           taskByJobId={props.taskByJobId}
+          runbookEnabled={props.runbookEnabled}
+          runbookByJobId={props.runbookByJobId}
+          onOpenJobRunbook={props.onOpenJobRunbook}
         />
       ) : null}
 
@@ -621,6 +712,9 @@ export function CalendarPage(props: CalendarPageProps) {
           taskByJobId={props.taskByJobId}
           describeStrategyTask={props.describeStrategyTask}
           onOpenStrategyTask={props.onOpenStrategyTask}
+          runbookEnabled={props.runbookEnabled}
+          runbookByJobId={props.runbookByJobId}
+          onOpenJobRunbook={props.onOpenJobRunbook}
         />
       ) : null}
 
@@ -634,6 +728,9 @@ export function CalendarPage(props: CalendarPageProps) {
           taskByJobId={props.taskByJobId}
           describeStrategyTask={props.describeStrategyTask}
           onOpenStrategyTask={props.onOpenStrategyTask}
+          runbookEnabled={props.runbookEnabled}
+          runbookByJobId={props.runbookByJobId}
+          onOpenJobRunbook={props.onOpenJobRunbook}
         />
       ) : null}
     </div>

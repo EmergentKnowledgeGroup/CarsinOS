@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page } from "./testHarness";
 
 const E2E_APP_URL = "/?e2e=1";
 const GATEWAY_URL = "http://127.0.0.1:19789";
@@ -210,11 +210,12 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
     await page.locator('[data-tour-id="nav-calendar"]').click();
     await page.locator('[data-tour-id="nav-boards"]').click();
 
-    await expect(page.getByText("Crash Recovery")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "This tab crashed." })).toBeVisible();
+    const crashAlert = page.getByRole("alert");
+    await expect(crashAlert.getByText("Crash Recovery")).toBeVisible();
+    await expect(crashAlert.getByRole("heading", { name: "This tab crashed." })).toBeVisible();
 
     await page.getByRole("button", { name: "Retry" }).click();
-    await expect(page.getByText("Crash Recovery")).toBeHidden();
+    await expect(crashAlert).toBeHidden();
     await expect(page.getByText("Investigate gateway health")).toBeVisible();
   });
 

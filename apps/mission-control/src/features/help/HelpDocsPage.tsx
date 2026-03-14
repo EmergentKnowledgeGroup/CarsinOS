@@ -115,6 +115,45 @@ const HELP_SECTIONS: HelpSection[] = [
     caution: "Strategy manages intent and ownership; Boards and Calendar still execute the work.",
   },
   {
+    tab: "runbook",
+    title: "Runbook",
+    whatItDoes:
+      "Canonical execution map for assistant runs, board card runs, scheduled jobs, and linked strategy task execution.",
+    goodFor: [
+      "Finding the active step and next valid step",
+      "Following approvals, warnings, and missing-source limits",
+      "Jumping between the execution truth and linked Mission Control surfaces",
+    ],
+    caution:
+      "Runbook is a derived truth surface; it shows execution state but does not replace the source tabs that own editing.",
+  },
+  {
+    tab: "memory",
+    title: "Memory",
+    whatItDoes:
+      "Assistant-bound MNO inspection surface for cards, episodes, graph drilldown, turn explainability, citations, and runtime telemetry.",
+    goodFor: [
+      "Verifying one assistant lane at a time",
+      "Inspecting graph neighborhoods without client-side traversal drift",
+      "Tracing a turn back to why + citation evidence",
+    ],
+    caution:
+      "Memory is lane-scoped by assistant; switching assistants should change the entire dataset you are inspecting.",
+  },
+  {
+    tab: "connectors",
+    title: "Connectors",
+    whatItDoes:
+      "Canonical connector/source registry for import, conversion, review, publish, auth, and assignment before tools reach agents.",
+    goodFor: [
+      "Importing OpenAPI, GraphQL, or MCP sources into one shared registry",
+      "Reviewing candidate operations before they become live tools",
+      "Assigning the same reviewed connector surface to multiple agents consistently",
+    ],
+    caution:
+      "Connectors own registry state and publication; agents should only see published tools, not raw imported sources.",
+  },
+  {
     tab: "cockpit",
     title: "Cockpit",
     whatItDoes: "Custom dashboard builder for operational command views.",
@@ -153,7 +192,7 @@ export function HelpDocsPage(props: HelpDocsPageProps) {
             <header>
               <h3>{section.title}</h3>
               <button type="button" className="ghost" onClick={() => props.onOpenTab(section.tab)}>
-                <BookOpen size={14} /> Open
+                <BookOpen size={14} /> Open {section.title}
               </button>
             </header>
             <p>{section.whatItDoes}</p>

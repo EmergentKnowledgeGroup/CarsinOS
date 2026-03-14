@@ -23,7 +23,10 @@ import {
   Gauge,
   Settings,
   BookOpen,
+  Brain,
+  Cable,
   Compass,
+  Workflow,
   Sun,
   Moon,
   X,
@@ -52,11 +55,15 @@ const NAV_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
   bot: Bot,
   gauge: Gauge,
   compass: Compass,
+  workflow: Workflow,
+  brain: Brain,
+  cable: Cable,
   "book-open": BookOpen,
 };
 
 interface AppShellProps {
   activeTab: MissionControlTab;
+  availableTabs: MissionControlTab[];
   onTabChange: (tab: MissionControlTab) => void;
   healthState: string;
   wsState: string;
@@ -201,6 +208,7 @@ export function AppShell(props: AppShellProps) {
 
   // Keyboard shortcuts
   useKeyboardShortcuts({
+    availableTabs: props.availableTabs,
     onTabChange: props.onTabChange,
     onToggleIncidentMode: toggleIncidentMode,
     onToggleLiveFeed: props.liveFeedEnabled
@@ -231,7 +239,9 @@ export function AppShell(props: AppShellProps) {
       {/* ── NAV RAIL ── */}
       <nav className="mc-nav-rail">
         <div className="mc-nav-brand">MC</div>
-        {MISSION_CONTROL_TABS.map((item) => {
+        {MISSION_CONTROL_TABS.filter((item) =>
+          props.availableTabs.includes(item.tab)
+        ).map((item) => {
           const Icon = NAV_ICONS[item.icon];
           const badgeCount = props.navBadges?.[item.tab] ?? 0;
           const badgeTone = item.tab === "focus" ? "danger" : "accent";
@@ -294,7 +304,7 @@ export function AppShell(props: AppShellProps) {
             <Chip label={`Breakers: ${props.openBreakerCount}`} tone={props.openBreakerCount > 0 ? "error" : "up"} onClick={() => props.onTabChange("focus")} />
             <Chip label={`Approvals: ${props.approvalsCount}`} tone={props.approvalsCount > 0 ? "checking" : "up"} onClick={() => props.onTabChange("focus")} />
             <Chip label={`Jobs: ${props.jobsDue}`} tone="" onClick={() => props.onTabChange("calendar")} />
-            <Chip label={props.schedulerRunning ? "Sched: ON" : "Sched: OFF"} tone={props.schedulerRunning ? "up" : "down"} onClick={() => props.onTabChange("calendar")} />
+            <Chip label={props.schedulerRunning ? "Sched: ON" : "Sched: OFF"} tone={props.schedulerRunning ? "up" : "warning"} onClick={() => props.onTabChange("calendar")} />
           </div>
           <div className="mc-topbar-right">
             <label className="mc-incident-toggle">
@@ -302,6 +312,7 @@ export function AppShell(props: AppShellProps) {
                 type="checkbox"
                 checked={props.incidentMode}
                 onChange={(e) => props.onIncidentModeChange(e.target.checked)}
+                aria-label="Toggle incident mode"
               />
               <span className={clsx("mc-incident-dot", props.incidentMode && "mc-incident-active")} />
             </label>
@@ -359,7 +370,7 @@ export function AppShell(props: AppShellProps) {
             <button type="button" className="mc-topbar-icon-btn" onClick={() => setSettingsOpen(true)} title="Settings">
               <Settings size={16} />
             </button>
-            <span className={clsx("mc-connection-dot", `mc-connection-dot-${connectionTone}`)} title={`ws: ${props.wsState}`} />
+            <span className={clsx("mc-connection-dot", `mc-connection-dot-${connectionTone}`)} title={`ws: ${props.wsState}`} aria-label={`Connection status: ${props.wsState}`} role="status" />
           </div>
         </header>
 
@@ -374,6 +385,7 @@ export function AppShell(props: AppShellProps) {
 
       {/* ── COMMAND PALETTE ── */}
       <CommandPalette
+        availableTabs={props.availableTabs}
         open={cmdPaletteOpen}
         onClose={() => setCmdPaletteOpen(false)}
         onTabChange={(tab) => { props.onTabChange(tab); setCmdPaletteOpen(false); }}
@@ -500,6 +512,36 @@ export function AppShell(props: AppShellProps) {
                   />
                   <span>Strategy hub module</span>
                 </label>
+                <label className="mc-settings-toggle">
+                  <input
+                    type="checkbox"
+                    checked={props.opsUxConfig.controls.runbook_hub}
+                    onChange={(event) =>
+                      patchOpsControl("runbook_hub", event.target.checked)
+                    }
+                  />
+                  <span>Runbook hub module</span>
+                </label>
+                <label className="mc-settings-toggle">
+                  <input
+                    type="checkbox"
+                    checked={props.opsUxConfig.controls.memory_hub}
+                    onChange={(event) =>
+                      patchOpsControl("memory_hub", event.target.checked)
+                    }
+                  />
+                  <span>Memory hub module</span>
+                </label>
+                <label className="mc-settings-toggle">
+                  <input
+                    type="checkbox"
+                    checked={props.opsUxConfig.controls.connectors_hub}
+                    onChange={(event) =>
+                      patchOpsControl("connectors_hub", event.target.checked)
+                    }
+                  />
+                  <span>Connectors hub module</span>
+                </label>
                 <div className="mc-modal-status-row">
                   <Chip
                     label={`live feed: ${
@@ -545,6 +587,48 @@ export function AppShell(props: AppShellProps) {
                     tone={
                       !props.opsUxConfig.controls.global_kill_switch &&
                       props.opsUxConfig.controls.strategy_hub
+                        ? "checking"
+                        : "down"
+                    }
+                  />
+                  <Chip
+                    label={`runbook hub: ${
+                      !props.opsUxConfig.controls.global_kill_switch &&
+                      props.opsUxConfig.controls.runbook_hub
+                        ? "enabled"
+                        : "disabled"
+                    }`}
+                    tone={
+                      !props.opsUxConfig.controls.global_kill_switch &&
+                      props.opsUxConfig.controls.runbook_hub
+                        ? "checking"
+                        : "down"
+                    }
+                  />
+                  <Chip
+                    label={`memory hub: ${
+                      !props.opsUxConfig.controls.global_kill_switch &&
+                      props.opsUxConfig.controls.memory_hub
+                        ? "enabled"
+                        : "disabled"
+                    }`}
+                    tone={
+                      !props.opsUxConfig.controls.global_kill_switch &&
+                      props.opsUxConfig.controls.memory_hub
+                        ? "checking"
+                        : "down"
+                    }
+                  />
+                  <Chip
+                    label={`connectors hub: ${
+                      !props.opsUxConfig.controls.global_kill_switch &&
+                      props.opsUxConfig.controls.connectors_hub
+                        ? "enabled"
+                        : "disabled"
+                    }`}
+                    tone={
+                      !props.opsUxConfig.controls.global_kill_switch &&
+                      props.opsUxConfig.controls.connectors_hub
                         ? "checking"
                         : "down"
                     }

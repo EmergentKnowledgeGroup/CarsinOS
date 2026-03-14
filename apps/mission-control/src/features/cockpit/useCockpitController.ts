@@ -99,21 +99,53 @@ export function useCockpitController() {
     }));
   };
 
+  const nudgeCockpitWidget = (
+    instanceId: string,
+    delta: Partial<Pick<CockpitWidgetPosition, "x" | "y">>,
+  ) => {
+    updateActivePage((page) => ({
+      ...page,
+      widgets: page.widgets.map((widget) => {
+        if (widget.instance_id !== instanceId) {
+          return widget;
+        }
+        return {
+          ...widget,
+          position: {
+            ...widget.position,
+            x: Math.max(0, widget.position.x + (delta.x ?? 0)),
+            y: Math.max(0, widget.position.y + (delta.y ?? 0)),
+          },
+        };
+      }),
+    }));
+  };
+
   const handleLayoutChange = (
     rglLayout: Array<{ i: string; x: number; y: number; w: number; h: number }>,
   ) => {
     const byId = new Map(rglLayout.map((entry) => [entry.i, entry] as const));
-    updateActivePage((page) => ({
-      ...page,
-      widgets: page.widgets.map((w) => {
+    updateActivePage((page) => {
+      let changed = false;
+      const widgets = page.widgets.map((w) => {
         const match = byId.get(w.instance_id);
         if (!match) return w;
+        if (
+          w.position.x === match.x &&
+          w.position.y === match.y &&
+          w.position.w === match.w &&
+          w.position.h === match.h
+        ) {
+          return w;
+        }
+        changed = true;
         return {
           ...w,
           position: { x: match.x, y: match.y, w: match.w, h: match.h },
         };
-      }),
-    }));
+      });
+      return changed ? { ...page, widgets } : page;
+    });
   };
 
   const renameCockpitPage = (pageId: string, name: string) => {
@@ -233,6 +265,7 @@ export function useCockpitController() {
     addCustomWidget,
     removeCockpitWidget,
     updateWidgetPosition,
+    nudgeCockpitWidget,
     handleLayoutChange,
     renameCockpitPage,
     renameActivePage,

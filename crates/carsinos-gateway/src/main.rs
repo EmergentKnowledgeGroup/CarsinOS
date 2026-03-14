@@ -23,7 +23,9 @@ use carsinos_protocol::{
     AckAgentMailMessageRequest, AckAgentMailMessageResponse, AgentMailAttachmentResponse,
     AgentMailFileLeaseResponse, AgentMailMessageRecipientResponse, AgentMailMessageResponse,
     AgentMailThreadDetailResponse, AgentMailThreadParticipantResponse,
-    AgentMailThreadSummaryResponse, AgentResponse, AnthropicSetupTokenIngestRequest,
+    AgentMailThreadSummaryResponse, AgentMemoryBindingRequest, AgentMemoryBindingResponse,
+    AgentMemoryJsonPayloadResponse, AgentMemoryNativeSurfaceAvailabilityResponse,
+    AgentMemoryStatusResponse, AgentResponse, AnthropicSetupTokenIngestRequest,
     AnthropicSetupTokenIngestResponse, AnthropicSetupTokenValidateRequest,
     AnthropicSetupTokenValidateResponse, ApprovalResponse, AssistantMemoryScope,
     AssistantTaskHandle, AssistantToolCapabilitiesResponse, AssistantToolCapabilityItem,
@@ -32,6 +34,10 @@ use carsinos_protocol::{
     AuthProfileResponse, BoardAutomationRuleResponse, BoardCardAssetResponse, BoardCardResponse,
     BoardColumnResponse, BoardDetailResponse, BoardSummaryResponse, BootstrapPresetResponse,
     ChannelRuntimeAdapterStatusResponse, CircuitBreakerStateResponse, ClearTaskLinksRequest,
+    ConnectorAssignmentResponse, ConnectorAuthBindingResponse, ConnectorCatalogItemResponse,
+    ConnectorConversionResponse, ConnectorHealthResponse, ConnectorInteractionResponse,
+    ConnectorProposedToolResponse, ConnectorPublishedToolResponse, ConnectorSourceResponse,
+    ConnectorUnsupportedOperationResponse, ConnectorVersionResponse, ConnectorWarningResponse,
     CreateAgentMailFileLeaseRequest, CreateAgentMailFileLeaseResponse,
     CreateAgentMailThreadRequest, CreateAgentMailThreadResponse, CreateAgentRequest,
     CreateAgentResponse, CreateApprovalRequest, CreateApprovalResponse, CreateAuthProfileRequest,
@@ -41,12 +47,14 @@ use carsinos_protocol::{
     CreateMessageResponse, CreateNoteRequest, CreateNoteResponse, CreateProjectRequest,
     CreateProjectResponse, CreateRunRequest, CreateRunResponse, CreateSessionRequest,
     CreateSessionResponse, CreateTaskRequest, CreateTaskResponse, DeleteRuntimeSecretRequest,
-    DeleteRuntimeSecretResponse, DiscordChannelConfig, ExportBootstrapPresetResponse,
-    FailureReasonCountResponse, GetAgentProviderProfileOrderResponse, GetAgentResponse,
-    GetBoardAutomationRuleResponse, GetBootstrapPresetResponse, GetChannelConfigResponse,
-    GetChannelRuntimeStatusResponse, GetGoalResponse, GetNoteResponse, GetProjectResponse,
-    GetRuntimeConfigResponse, GetRuntimeTrustContractLockResponse, GetTaskResponse, HealthResponse,
-    ImportBootstrapPresetRequest, ImportBootstrapPresetResponse, IngestChannelMessageResponse,
+    DeleteRuntimeSecretResponse, DescribeConnectorToolResponse, DiscordChannelConfig,
+    ExportBootstrapPresetResponse, FailureReasonCountResponse, GetAgentMemoryStatusResponse,
+    GetAgentProviderProfileOrderResponse, GetAgentResponse, GetBoardAutomationRuleResponse,
+    GetBootstrapPresetResponse, GetChannelConfigResponse, GetChannelRuntimeStatusResponse,
+    GetConnectorHealthResponse, GetConnectorResponse, GetGoalResponse, GetNoteResponse,
+    GetProjectResponse, GetRuntimeConfigResponse, GetRuntimeTrustContractLockResponse,
+    GetTaskResponse, HealthResponse, ImportBootstrapPresetRequest, ImportBootstrapPresetResponse,
+    ImportConnectorRequest, ImportConnectorResponse, IngestChannelMessageResponse,
     IngestDiscordMessageRequest, IngestTelegramMessageRequest, InstallPluginRequest,
     InstallPluginResponse, JobResponse, JobRunResponse, JobStatusResponse,
     LinkTaskBoardCardRequest, LinkTaskJobRequest, ListAgentMailFileLeasesQuery,
@@ -54,15 +62,16 @@ use carsinos_protocol::{
     ListAgentMailThreadsQuery, ListAgentMailThreadsResponse, ListAgentsResponse,
     ListApprovalsQuery, ListApprovalsResponse, ListAuthProfilesQuery, ListAuthProfilesResponse,
     ListBoardAutomationRulesResponse, ListBoardsResponse, ListBootstrapPresetsQuery,
-    ListBootstrapPresetsResponse, ListGoalsQuery, ListGoalsResponse, ListJobHistoryQuery,
-    ListJobHistoryResponse, ListJobsQuery, ListJobsResponse, ListMessagesQuery,
-    ListMessagesResponse, ListNotesQuery, ListNotesResponse, ListPluginRuntimeStatusResponse,
-    ListPluginsQuery, ListPluginsResponse, ListProjectsQuery, ListProjectsResponse,
-    ListProviderCapabilitiesQuery, ListProviderCapabilitiesResponse, ListProviderModelsQuery,
-    ListProviderModelsResponse, ListSessionsQuery, ListSessionsResponse, ListSkillsQuery,
-    ListSkillsResponse, ListTasksQuery, ListTasksResponse, ListToolCapabilitiesQuery,
-    ListToolCapabilitiesResponse, MessageResponse, MetricsResponse,
-    MissionControlCalendarWeekJobResponse, MissionControlCalendarWeekQuery,
+    ListBootstrapPresetsResponse, ListConnectorCatalogQuery, ListConnectorCatalogResponse,
+    ListConnectorInteractionsResponse, ListConnectorsQuery, ListConnectorsResponse, ListGoalsQuery,
+    ListGoalsResponse, ListJobHistoryQuery, ListJobHistoryResponse, ListJobsQuery,
+    ListJobsResponse, ListMessagesQuery, ListMessagesResponse, ListNotesQuery, ListNotesResponse,
+    ListPluginRuntimeStatusResponse, ListPluginsQuery, ListPluginsResponse, ListProjectsQuery,
+    ListProjectsResponse, ListProviderCapabilitiesQuery, ListProviderCapabilitiesResponse,
+    ListProviderModelsQuery, ListProviderModelsResponse, ListRunbooksQuery, ListRunbooksResponse,
+    ListSessionsQuery, ListSessionsResponse, ListSkillsQuery, ListSkillsResponse, ListTasksQuery,
+    ListTasksResponse, ListToolCapabilitiesQuery, ListToolCapabilitiesResponse, MessageResponse,
+    MetricsResponse, MissionControlCalendarWeekJobResponse, MissionControlCalendarWeekQuery,
     MissionControlCalendarWeekResponse, MissionControlFocusItemResponse, MissionControlFocusQuery,
     MissionControlFocusResponse, MissionControlUsageBudgetThresholdResponse,
     MissionControlUsageByAgentResponse, MissionControlUsageByCardResponse,
@@ -74,14 +83,22 @@ use carsinos_protocol::{
     OpenAiOauthStartResponse, PluginArtifactResponse, PluginCapabilityResponse,
     PluginCompatibilityResponse, PluginLimitsResponse, PluginManifestResponse,
     PluginPermissionsResponse, PluginRuntimeStatusResponse, ProviderCapabilityResponse,
-    ProviderModelResponse, ReconnectChannelRuntimeRequest, ReconnectChannelRuntimeResponse,
+    ProviderModelResponse, PublishConnectorToolsRequest, PublishConnectorToolsResponse,
+    ReconnectChannelRuntimeRequest, ReconnectChannelRuntimeResponse,
     RefreshRuntimeTrustContractLockRequest, RefreshRuntimeTrustContractLockResponse,
     ReleaseAgentMailFileLeaseRequest, ReleaseAgentMailFileLeaseResponse, RemoveAgentResponse,
     RemoveJobResponse, ResolveApprovalRequest, ResolveApprovalResponse,
-    ResolveChannelApprovalActionRequest, RollbackPluginRequest, RollbackPluginResponse,
+    ResolveChannelApprovalActionRequest, ResumeConnectorInteractionRequest,
+    ResumeConnectorInteractionResponse, RollbackConnectorVersionRequest,
+    RollbackConnectorVersionResponse, RollbackPluginRequest, RollbackPluginResponse,
     RollbackRuntimeConfigRequest, RollbackRuntimeConfigResponse, RunBoardAutomationRuleResponse,
-    RunBoardCardRequest, RunBoardCardResponse, RunJobNowResponse, RunMemoryWhyRequest,
-    RunMemoryWhyResponse, RunResponse, RuntimeAutonomyGuardrailsConfig, RuntimeChannelsConfig,
+    RunBoardCardRequest, RunBoardCardResponse, RunConnectorConversionRequest,
+    RunConnectorConversionResponse, RunJobNowResponse, RunMemoryWhyRequest, RunMemoryWhyResponse,
+    RunResponse, RunbookActionResponse, RunbookDataAvailabilityResponse,
+    RunbookDeepLinkTargetResponse, RunbookDetailResponse, RunbookEntityRefResponse,
+    RunbookExecutionRefResponse, RunbookHistoryItemResponse, RunbookSourceFactResponse,
+    RunbookStatusCountsResponse, RunbookStepResponse, RunbookSummaryItemResponse,
+    RunbookWarningResponse, RuntimeAutonomyGuardrailsConfig, RuntimeChannelsConfig,
     RuntimeConfigResponse, RuntimeDiscordDeploymentConfig, RuntimeExtensionsConfig,
     RuntimeGlobalConfig, RuntimeMemoryConfig, RuntimeNumquamConfig, RuntimeProviderPolicyConfig,
     RuntimeSecurityOpsConfig, RuntimeTelegramDeploymentConfig, RuntimeTrustContractLockResponse,
@@ -89,25 +106,29 @@ use carsinos_protocol::{
     SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult, SendAgentMailMessageRequest,
     SendAgentMailMessageResponse, SessionDetailResponse, SessionSummary,
     SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse,
-    SetBoardAutomationRuleStateRequest, SetBoardAutomationRuleStateResponse, SkillResponse,
-    StatusResponse, StrategyApprovalBacklogItemResponse, StrategyGoalProgressItemResponse,
-    StrategySpendByAgentItemResponse, StrategySpendByProjectItemResponse, StrategySummaryQuery,
-    StrategySummaryResponse, StrategyTaskListItemResponse, SyncMemorySourceItemResponse,
-    SyncMemorySourcesRequest, SyncMemorySourcesResponse, TaskLinkMutationResponse,
-    TelegramChannelConfig, ToolCapabilityResponse, ToolCapabilitySandboxResponse,
-    UpdateAgentRequest, UpdateAgentResponse, UpdateAuthProfileStateRequest,
-    UpdateAuthProfileStateResponse, UpdateBoardCardRequest, UpdateBoardCardResponse,
-    UpdateBootstrapPresetRequest, UpdateBootstrapPresetResponse, UpdateChannelConfigRequest,
-    UpdateChannelConfigResponse, UpdateGoalRequest, UpdateGoalResponse, UpdateJobRequest,
-    UpdateJobResponse, UpdateNoteRequest, UpdateNoteResponse, UpdatePluginRequest,
-    UpdatePluginResponse, UpdateProjectRequest, UpdateProjectResponse, UpdateRuntimeConfigRequest,
-    UpdateRuntimeConfigResponse, UpdateSkillStateRequest, UpdateSkillStateResponse,
-    UpdateTaskRequest, UpdateTaskResponse, UploadAgentMailAttachmentRequest,
-    UploadAgentMailAttachmentResponse, UploadBoardCardAssetRequest, UploadBoardCardAssetResponse,
-    UpsertBoardAutomationRuleRequest, UpsertBoardAutomationRuleResponse,
-    UpsertRuntimeSecretRequest, UpsertRuntimeSecretResponse, WsEventFrame,
-    ASSISTANT_TOOL_CONTRACT_VERSION, HEARTBEAT_OUTPUT_ALERT_PREFIX, HEARTBEAT_OUTPUT_OK,
-    JOB_MODE_HEARTBEAT_RUN,
+    SetBoardAutomationRuleStateRequest, SetBoardAutomationRuleStateResponse,
+    SetConnectorAssignmentRequest, SetConnectorAssignmentResponse, SetConnectorStateRequest,
+    SetConnectorStateResponse, SkillResponse, StatusResponse, StrategyApprovalBacklogItemResponse,
+    StrategyGoalProgressItemResponse, StrategySpendByAgentItemResponse,
+    StrategySpendByProjectItemResponse, StrategySummaryQuery, StrategySummaryResponse,
+    StrategyTaskListItemResponse, SyncMemorySourceItemResponse, SyncMemorySourcesRequest,
+    SyncMemorySourcesResponse, TaskLinkMutationResponse, TelegramChannelConfig,
+    ToolCapabilityConnectorOriginResponse, ToolCapabilityResponse, ToolCapabilitySandboxResponse,
+    UnpublishConnectorToolsRequest, UnpublishConnectorToolsResponse,
+    UpdateAgentMemoryBindingRequest, UpdateAgentRequest, UpdateAgentResponse,
+    UpdateAuthProfileStateRequest, UpdateAuthProfileStateResponse, UpdateBoardCardRequest,
+    UpdateBoardCardResponse, UpdateBootstrapPresetRequest, UpdateBootstrapPresetResponse,
+    UpdateChannelConfigRequest, UpdateChannelConfigResponse, UpdateGoalRequest, UpdateGoalResponse,
+    UpdateJobRequest, UpdateJobResponse, UpdateNoteRequest, UpdateNoteResponse,
+    UpdatePluginRequest, UpdatePluginResponse, UpdateProjectRequest, UpdateProjectResponse,
+    UpdateRuntimeConfigRequest, UpdateRuntimeConfigResponse, UpdateSkillStateRequest,
+    UpdateSkillStateResponse, UpdateTaskRequest, UpdateTaskResponse,
+    UploadAgentMailAttachmentRequest, UploadAgentMailAttachmentResponse,
+    UploadBoardCardAssetRequest, UploadBoardCardAssetResponse, UpsertBoardAutomationRuleRequest,
+    UpsertBoardAutomationRuleResponse, UpsertConnectorAuthBindingRequest,
+    UpsertConnectorAuthBindingResponse, UpsertRuntimeSecretRequest, UpsertRuntimeSecretResponse,
+    WsEventFrame, ASSISTANT_TOOL_CONTRACT_VERSION, HEARTBEAT_OUTPUT_ALERT_PREFIX,
+    HEARTBEAT_OUTPUT_OK, JOB_MODE_HEARTBEAT_RUN,
 };
 use carsinos_providers::{
     parse_provider_error_class as parse_provider_error_class_normalized,
@@ -115,19 +136,25 @@ use carsinos_providers::{
     CompletionUsageMetrics, ProviderAuthProfile, ProviderRegistry,
 };
 use carsinos_storage::{
-    AgentMailThreadListFilter, AgentRecord, AgentUpdatePatch, AppPaths, ApprovalRecord,
-    ApprovalResolveResult, AssistantWorkerPatch, AssistantWorkerRecord, AuthProfileRecord,
-    BoardCardAssetRecord, BoardCardRecord, BoardCardUpdatePatch, BoardColumnRecord, BoardRecord,
+    AgentMailThreadListFilter, AgentMemoryBindingRecord, AgentMemoryBindingUpdatePatch,
+    AgentRecord, AgentUpdatePatch, AppPaths, ApprovalRecord, ApprovalResolveResult,
+    AssistantWorkerPatch, AssistantWorkerRecord, AuthProfileRecord, BoardCardAssetRecord,
+    BoardCardRecord, BoardCardUpdatePatch, BoardColumnRecord, BoardRecord,
     BootstrapPresetListFilter, BootstrapPresetRecord, BootstrapPresetUpdatePatch,
-    CircuitBreakerStateRecord, CircuitBreakerStateUpsert, DailyAuthProfileUsageIncrement,
-    GoalListFilter, GoalRecord, GoalUpdatePatch, JobRecord, JobRunRecord, JobUpdatePatch,
-    MessageRecord, NewAgent, NewAgentMailAttachment, NewAgentMailFileLease, NewAgentMailMessage,
-    NewAgentMailThread, NewApproval, NewAssistantToolCallAudit, NewAssistantWorker, NewAuthProfile,
-    NewBoardCard, NewBoardCardAsset, NewBootstrapPreset, NewGoal, NewJob, NewMessage, NewNote,
-    NewProject, NewRun, NewSecurityAuditEvent, NewSession, NewTask, NoteRecord, ProjectListFilter,
-    ProjectRecord, ProjectUpdatePatch, RemoveAgentOutcome, RunRecord, SecurityAuditEventListFilter,
+    CircuitBreakerStateRecord, CircuitBreakerStateUpsert, ConnectorAssignmentRecord,
+    ConnectorAuthBindingRecord, ConnectorConversionRecord, ConnectorInteractionRecord,
+    ConnectorListFilter, ConnectorPublishedToolRecord, ConnectorSourceRecord,
+    ConnectorVersionRecord, DailyAuthProfileUsageIncrement, GoalListFilter, GoalRecord,
+    GoalUpdatePatch, JobRecord, JobRunRecord, JobUpdatePatch, MessageRecord, NewAgent,
+    NewAgentMailAttachment, NewAgentMailFileLease, NewAgentMailMessage, NewAgentMailThread,
+    NewAgentMemoryBinding, NewApproval, NewAssistantToolCallAudit, NewAssistantWorker,
+    NewAuthProfile, NewBoardCard, NewBoardCardAsset, NewBootstrapPreset, NewConnectorAssignment,
+    NewConnectorAuthBinding, NewConnectorConversion, NewConnectorImport, NewConnectorInteraction,
+    NewConnectorPublishedTool, NewGoal, NewJob, NewMessage, NewNote, NewProject, NewRun,
+    NewSecurityAuditEvent, NewSession, NewTask, NoteRecord, ProjectListFilter, ProjectRecord,
+    ProjectUpdatePatch, RemoveAgentOutcome, RunRecord, SecurityAuditEventListFilter,
     SecurityAuditEventRecord, SessionRecord, Storage, TaskListFilter, TaskRecord,
-    TaskRuntimeLinkRecord, TaskUpdatePatch,
+    TaskRuntimeLinkRecord, TaskUpdatePatch, ToolCallRecord,
 };
 use carsinos_tools::{
     ChannelActionRequest, ExecRequest, FsReadRequest, FsWriteMode, FsWriteRequest, LocalToolRunner,
@@ -160,6 +187,9 @@ use tracing_subscriber::fmt::writer::{BoxMakeWriter, MakeWriterExt};
 use tracing_subscriber::EnvFilter;
 use url::Url;
 
+mod runbook;
+use runbook::{get_runbook_detail, list_runbooks};
+
 #[derive(Clone)]
 struct AppState {
     auth_mode: AuthMode,
@@ -175,7 +205,7 @@ struct AppState {
     providers: ProviderRegistry,
     tool_registry: Arc<ToolRegistry>,
     tool_concurrency: Arc<Semaphore>,
-    channel_tool_allowed_providers: Arc<HashSet<String>>,
+    channel_tool_allowed_provider_override: Option<Arc<HashSet<String>>>,
     channel_runtime: Arc<ChannelRuntimeManager>,
     internal_channel_ingest_token: Arc<String>,
     tool_runner: LocalToolRunner,
@@ -517,6 +547,7 @@ struct ChannelRuntimeStatusRecord {
     healthy: bool,
     detail: Option<String>,
     last_error: Option<String>,
+    disabled_by_config: bool,
     reconnect_attempts: u64,
     updated_at: i64,
 }
@@ -568,6 +599,7 @@ impl ChannelRuntimeManager {
                     healthy: false,
                     detail: Some("adapter not started".to_string()),
                     last_error: None,
+                    disabled_by_config: false,
                     reconnect_attempts: 0,
                     updated_at: now,
                 },
@@ -600,7 +632,20 @@ impl ChannelRuntimeManager {
             },
             None,
             false,
+            false,
         );
+        if !adapter.is_enabled()? {
+            let _ = adapter.stop();
+            self.update_status(
+                &provider_id,
+                ChannelAdapterLifecycleState::Stopped,
+                disabled_channel_adapter_health(&provider_id),
+                None,
+                false,
+                true,
+            );
+            return Ok(());
+        }
         if let Err(err) = adapter.start() {
             let message = err.to_string();
             self.update_status(
@@ -611,6 +656,7 @@ impl ChannelRuntimeManager {
                     detail: Some(message.clone()),
                 },
                 Some(message),
+                false,
                 false,
             );
             return Err(err);
@@ -626,12 +672,49 @@ impl ChannelRuntimeManager {
         } else {
             health.detail.clone()
         };
-        self.update_status(&provider_id, lifecycle_state, health, last_error, false);
+        self.update_status(
+            &provider_id,
+            lifecycle_state,
+            health,
+            last_error,
+            false,
+            false,
+        );
         Ok(())
     }
 
     fn reconcile(&self) {
         for (provider, adapter) in self.adapters.iter() {
+            match adapter.is_enabled() {
+                Ok(false) => {
+                    let _ = adapter.stop();
+                    self.update_status(
+                        provider,
+                        ChannelAdapterLifecycleState::Stopped,
+                        disabled_channel_adapter_health(provider),
+                        None,
+                        false,
+                        true,
+                    );
+                    continue;
+                }
+                Err(err) => {
+                    let message = err.to_string();
+                    self.update_status(
+                        provider,
+                        ChannelAdapterLifecycleState::Degraded,
+                        ChannelAdapterHealth {
+                            healthy: false,
+                            detail: Some(message.clone()),
+                        },
+                        Some(message),
+                        false,
+                        false,
+                    );
+                    continue;
+                }
+                Ok(true) => {}
+            }
             let health = adapter.health();
             if health.healthy {
                 self.update_status(
@@ -639,6 +722,7 @@ impl ChannelRuntimeManager {
                     ChannelAdapterLifecycleState::Running,
                     health,
                     None,
+                    false,
                     false,
                 );
                 continue;
@@ -653,6 +737,7 @@ impl ChannelRuntimeManager {
                 },
                 health.detail.clone(),
                 true,
+                false,
             );
 
             match adapter.reconnect() {
@@ -665,6 +750,7 @@ impl ChannelRuntimeManager {
                             post_health,
                             None,
                             false,
+                            false,
                         );
                     } else {
                         self.update_status(
@@ -672,6 +758,7 @@ impl ChannelRuntimeManager {
                             ChannelAdapterLifecycleState::Degraded,
                             post_health.clone(),
                             post_health.detail.clone(),
+                            false,
                             false,
                         );
                     }
@@ -687,6 +774,7 @@ impl ChannelRuntimeManager {
                         },
                         Some(message),
                         false,
+                        false,
                     );
                 }
             }
@@ -699,6 +787,20 @@ impl ChannelRuntimeManager {
             .adapters
             .get(&provider_id)
             .ok_or_else(|| anyhow::anyhow!("unknown channel adapter provider: {provider_id}"))?;
+        if !adapter.is_enabled()? {
+            let _ = adapter.stop();
+            self.update_status(
+                &provider_id,
+                ChannelAdapterLifecycleState::Stopped,
+                disabled_channel_adapter_health(&provider_id),
+                None,
+                false,
+                true,
+            );
+            return self
+                .status(provider)
+                .ok_or_else(|| anyhow::anyhow!("channel runtime status missing for provider"));
+        }
         self.update_status(
             &provider_id,
             ChannelAdapterLifecycleState::Reconnecting,
@@ -708,6 +810,7 @@ impl ChannelRuntimeManager {
             },
             None,
             true,
+            false,
         );
         if let Err(err) = adapter.reconnect() {
             let message = err.to_string();
@@ -719,6 +822,7 @@ impl ChannelRuntimeManager {
                     detail: Some(message.clone()),
                 },
                 Some(message),
+                false,
                 false,
             );
             return Err(err);
@@ -734,7 +838,14 @@ impl ChannelRuntimeManager {
         } else {
             health.detail.clone()
         };
-        self.update_status(&provider_id, lifecycle_state, health, last_error, false);
+        self.update_status(
+            &provider_id,
+            lifecycle_state,
+            health,
+            last_error,
+            false,
+            false,
+        );
         self.status(provider)
             .ok_or_else(|| anyhow::anyhow!("channel runtime status missing for provider"))
     }
@@ -770,6 +881,7 @@ impl ChannelRuntimeManager {
         health: ChannelAdapterHealth,
         last_error: Option<String>,
         increment_reconnect: bool,
+        disabled_by_config: bool,
     ) {
         let mut guard = match self.statuses.write() {
             Ok(guard) => guard,
@@ -784,6 +896,7 @@ impl ChannelRuntimeManager {
                 healthy: health.healthy,
                 detail: health.detail.clone(),
                 last_error: last_error.clone(),
+                disabled_by_config,
                 reconnect_attempts: 0,
                 updated_at: now,
             });
@@ -794,7 +907,15 @@ impl ChannelRuntimeManager {
         entry.healthy = health.healthy;
         entry.detail = health.detail;
         entry.last_error = last_error;
+        entry.disabled_by_config = disabled_by_config;
         entry.updated_at = now;
+    }
+}
+
+fn disabled_channel_adapter_health(provider: &str) -> ChannelAdapterHealth {
+    ChannelAdapterHealth {
+        healthy: false,
+        detail: Some(format!("{provider} adapter is disabled by runtime config")),
     }
 }
 
@@ -853,6 +974,11 @@ impl TelegramRuntimeAdapter {
         let transport_client = build_telegram_transport_client(&config, &self.secret_store)
             .with_context(|| "telegram transport initialization failed")?;
         Ok((webhook_mode, operation_mode, transport_client))
+    }
+
+    fn is_enabled_in_runtime_config(&self) -> AnyResult<bool> {
+        let config = load_runtime_config_from_storage(&self.storage)?;
+        Ok(config.channels.telegram.enabled)
     }
 }
 
@@ -920,6 +1046,10 @@ impl ChannelAdapterLifecycle for TelegramRuntimeAdapter {
             },
         }
     }
+
+    fn is_enabled(&self) -> AnyResult<bool> {
+        self.is_enabled_in_runtime_config()
+    }
 }
 
 #[derive(Clone)]
@@ -955,6 +1085,11 @@ impl DiscordRuntimeAdapter {
         let transport_client = build_discord_transport_client(&config, &self.secret_store)
             .with_context(|| "discord transport initialization failed")?;
         Ok((operation_mode, transport_client))
+    }
+
+    fn is_enabled_in_runtime_config(&self) -> AnyResult<bool> {
+        let config = load_runtime_config_from_storage(&self.storage)?;
+        Ok(config.channels.discord.enabled)
     }
 }
 
@@ -1018,6 +1153,10 @@ impl ChannelAdapterLifecycle for DiscordRuntimeAdapter {
                 detail: Some(err.to_string()),
             },
         }
+    }
+
+    fn is_enabled(&self) -> AnyResult<bool> {
+        self.is_enabled_in_runtime_config()
     }
 }
 
@@ -1106,6 +1245,9 @@ struct ToolExecutionMetadata {
     timeout_ms: Option<u64>,
     plugin_id: Option<String>,
     plugin_raw_args: Option<String>,
+    connector_id: Option<String>,
+    connector_published_tool_id: Option<String>,
+    connector_raw_args: Option<String>,
     origin: String,
 }
 
@@ -1155,9 +1297,21 @@ impl ToolDefinition {
             timeout_ms: self.timeout_ms,
             plugin_id: None,
             plugin_raw_args: None,
+            connector_id: None,
+            connector_published_tool_id: None,
+            connector_raw_args: None,
             origin: "core".to_string(),
         }
     }
+}
+
+#[derive(Debug, Clone)]
+struct ConnectorParsedTool {
+    connector_id: String,
+    published_tool_id: String,
+    tool_name: String,
+    write_classification: String,
+    timeout_ms: Option<u64>,
 }
 
 #[derive(Clone, Default)]
@@ -1339,11 +1493,55 @@ impl ToolRegistry {
                     timeout_ms: manifest.limits.timeout_ms,
                     plugin_id: Some(plugin_id.clone()),
                     plugin_raw_args: Some(raw_args.to_string()),
+                    connector_id: None,
+                    connector_published_tool_id: None,
+                    connector_raw_args: None,
                     origin: format!("plugin:{plugin_id}"),
                 },
             });
         }
         None
+    }
+
+    fn parse_line_with_plugins_and_connectors(
+        &self,
+        line: &str,
+        plugin_registry: Option<&PluginRegistry>,
+        connectors: &[ConnectorParsedTool],
+    ) -> Option<ParsedToolInvocation> {
+        if let Some(invocation) = self.parse_line_with_plugins(line, plugin_registry) {
+            return Some(invocation);
+        }
+        let stripped = line.strip_prefix("tool.")?;
+        let mut parts = stripped.splitn(2, |value: char| value.is_whitespace());
+        let command = parts.next()?.trim();
+        if command.is_empty() {
+            return None;
+        }
+        let raw_args = parts.next().unwrap_or_default().trim_start();
+        let connector = connectors
+            .iter()
+            .find(|item| item.tool_name.trim() == command)?;
+        let (risk_level, requires_approval) =
+            connector_risk_and_approval(&connector.write_classification);
+        Some(ParsedToolInvocation {
+            request: ToolRequest::Process(ProcessRequest {
+                action: "connector_tool".to_string(),
+                session_id: None,
+            }),
+            metadata: ToolExecutionMetadata {
+                tool_name: connector.tool_name.clone(),
+                risk_level: risk_level.to_string(),
+                requires_approval,
+                timeout_ms: connector.timeout_ms,
+                plugin_id: None,
+                plugin_raw_args: None,
+                connector_id: Some(connector.connector_id.clone()),
+                connector_published_tool_id: Some(connector.published_tool_id.clone()),
+                connector_raw_args: Some(raw_args.to_string()),
+                origin: format!("connector:{}", connector.connector_id),
+            },
+        })
     }
 }
 
@@ -2777,7 +2975,8 @@ async fn main() -> AnyResult<()> {
     let tool_registry = Arc::new(ToolRegistry::from_env());
     let tool_concurrency_limit = usize_env("CARSINOS_TOOL_MAX_CONCURRENCY", 32).clamp(1, 512);
     let tool_concurrency = Arc::new(Semaphore::new(tool_concurrency_limit));
-    let channel_tool_allowed_providers = Arc::new(load_channel_tool_allowed_providers_from_env());
+    let channel_tool_allowed_provider_override =
+        load_channel_tool_allowed_provider_override_from_env().map(Arc::new);
     let tool_runner = LocalToolRunner::default();
     let secret_store = SecretStore::from_env();
     let channel_runtime = Arc::new(ChannelRuntimeManager::default_with_storage(
@@ -2807,7 +3006,7 @@ async fn main() -> AnyResult<()> {
         skill_count,
         tool_registry_entries = tool_registry.len(),
         tool_concurrency_limit,
-        channel_tool_allowed_providers = ?channel_tool_allowed_providers,
+        channel_tool_allowed_provider_override = ?channel_tool_allowed_provider_override,
         skill_dirs = ?skill_dirs,
         trust_lock_path = %trust_contract_lock_path.display(),
         trust_lock_hash = %trust_contract_lock_record.trust_hash,
@@ -2829,7 +3028,7 @@ async fn main() -> AnyResult<()> {
         providers,
         tool_registry: tool_registry.clone(),
         tool_concurrency: tool_concurrency.clone(),
-        channel_tool_allowed_providers: channel_tool_allowed_providers.clone(),
+        channel_tool_allowed_provider_override: channel_tool_allowed_provider_override.clone(),
         channel_runtime: channel_runtime.clone(),
         internal_channel_ingest_token: Arc::new(uuid::Uuid::new_v4().to_string()),
         tool_runner,
@@ -3720,6 +3919,1290 @@ async fn fetch_provider_models_from_upstream(
     Ok(normalize_provider_models(raw_models))
 }
 
+const CONNECTOR_TOOL_TIMEOUT_DEFAULT_MS: u64 = 15_000;
+const CONNECTOR_INTERACTION_TTL_DEFAULT_MS: i64 = 10 * 60_000;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct StoredConnectorCandidate {
+    candidate_id: String,
+    operation_key: String,
+    proposed_tool_name: String,
+    display_name: String,
+    #[serde(default)]
+    description: Option<String>,
+    input_schema: serde_json::Value,
+    write_classification: String,
+    review_blocked: bool,
+    #[serde(default)]
+    review_block_reason: Option<String>,
+    #[serde(default)]
+    origin_metadata: serde_json::Value,
+}
+
+#[derive(Debug, Clone)]
+struct ConnectorRuntimeToolBinding {
+    connector: ConnectorSourceRecord,
+    version: ConnectorVersionRecord,
+    published_tool: ConnectorPublishedToolRecord,
+    assignment: Option<ConnectorAssignmentRecord>,
+    shared_auth_binding: Option<ConnectorAuthBindingRecord>,
+    agent_auth_binding: Option<ConnectorAuthBindingRecord>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct ConnectorResolvedAuth {
+    headers: Vec<(String, String)>,
+    query_pairs: Vec<(String, String)>,
+}
+
+fn connector_tool_timeout_ms() -> u64 {
+    optional_u64_env("CARSINOS_CONNECTOR_TOOL_TIMEOUT_MS")
+        .unwrap_or(CONNECTOR_TOOL_TIMEOUT_DEFAULT_MS)
+}
+
+fn connector_interaction_ttl_ms() -> i64 {
+    optional_i64_env("CARSINOS_CONNECTOR_INTERACTION_TTL_MS")
+        .unwrap_or(CONNECTOR_INTERACTION_TTL_DEFAULT_MS)
+        .max(30_000)
+}
+
+fn connector_risk_and_approval(write_classification: &str) -> (&'static str, bool) {
+    match write_classification.trim() {
+        "read_only" => ("low", false),
+        "operator_write_gated" => ("medium", true),
+        "destructive_write_gated" => ("high", true),
+        "unsafe_blocked" => ("high", true),
+        _ => ("high", true),
+    }
+}
+
+fn connector_catalog_items() -> Vec<ConnectorCatalogItemResponse> {
+    vec![
+        ConnectorCatalogItemResponse {
+            catalog_item_id: "github-openapi".to_string(),
+            slug: "github".to_string(),
+            display_name: "GitHub OpenAPI".to_string(),
+            source_kind: "openapi".to_string(),
+            summary: "REST connector scaffold for GitHub-style OpenAPI imports.".to_string(),
+            publisher: "carsinOS".to_string(),
+            trust_class: "curated".to_string(),
+            available_versions: vec!["v1".to_string()],
+            marketplace_origin: None,
+            importable: true,
+            future_marketplace_metadata: serde_json::json!({
+                "category": "developer",
+                "curated": true,
+            }),
+        },
+        ConnectorCatalogItemResponse {
+            catalog_item_id: "linear-graphql".to_string(),
+            slug: "linear".to_string(),
+            display_name: "Linear GraphQL".to_string(),
+            source_kind: "graphql".to_string(),
+            summary: "GraphQL operations scaffold for issue-tracking workflows.".to_string(),
+            publisher: "carsinOS".to_string(),
+            trust_class: "curated".to_string(),
+            available_versions: vec!["v1".to_string()],
+            marketplace_origin: None,
+            importable: true,
+            future_marketplace_metadata: serde_json::json!({
+                "category": "project-management",
+                "curated": true,
+            }),
+        },
+        ConnectorCatalogItemResponse {
+            catalog_item_id: "generic-mcp".to_string(),
+            slug: "generic-mcp".to_string(),
+            display_name: "Generic MCP".to_string(),
+            source_kind: "mcp".to_string(),
+            summary: "HTTP JSON-RPC MCP connector scaffold for compatible tool servers."
+                .to_string(),
+            publisher: "carsinOS".to_string(),
+            trust_class: "curated".to_string(),
+            available_versions: vec!["v1".to_string()],
+            marketplace_origin: None,
+            importable: true,
+            future_marketplace_metadata: serde_json::json!({
+                "category": "runtime",
+                "curated": true,
+            }),
+        },
+    ]
+}
+
+fn canonical_json_string(value: &serde_json::Value) -> AnyResult<String> {
+    serde_json::to_string(value).map_err(|err| anyhow::anyhow!("failed serializing JSON: {err}"))
+}
+
+fn import_request_origin_kind(request: &ImportConnectorRequest) -> String {
+    request
+        .origin_kind
+        .as_deref()
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| {
+            if request
+                .catalog_item_id
+                .as_ref()
+                .is_some_and(|value| !value.trim().is_empty())
+            {
+                "curated".to_string()
+            } else if request
+                .import_url
+                .as_ref()
+                .is_some_and(|value| !value.trim().is_empty())
+            {
+                "imported_url".to_string()
+            } else {
+                "imported_local".to_string()
+            }
+        })
+}
+
+fn import_request_slug(request: &ImportConnectorRequest) -> AnyResult<String> {
+    let fallback = request
+        .display_name
+        .trim()
+        .to_ascii_lowercase()
+        .replace(' ', "-");
+    let slug = request
+        .slug
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(&fallback);
+    let normalized = slug
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '-' {
+                ch
+            } else if ch.is_ascii_uppercase() {
+                ch.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>();
+    let collapsed = normalized
+        .split('-')
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("-");
+    if collapsed.len() < 3 || collapsed.len() > 64 {
+        anyhow::bail!("connector slug must normalize to 3..64 characters");
+    }
+    Ok(collapsed)
+}
+
+fn parse_connector_source_document(
+    request: &ImportConnectorRequest,
+) -> AnyResult<serde_json::Value> {
+    if let Some(value) = request.source_json.clone() {
+        return Ok(value);
+    }
+    if let Some(source_text) = request
+        .source_text
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return serde_json::from_str(source_text)
+            .map_err(|err| anyhow::anyhow!("source_text must be valid JSON: {err}"));
+    }
+    Ok(serde_json::Value::Object(serde_json::Map::new()))
+}
+
+fn summarize_source_document(
+    source_kind: &str,
+    source_document: &serde_json::Value,
+) -> serde_json::Value {
+    match source_kind {
+        "openapi" => {
+            let operation_count = source_document
+                .get("paths")
+                .and_then(|value| value.as_object())
+                .map(|paths| {
+                    paths
+                        .values()
+                        .filter_map(|path_item| path_item.as_object())
+                        .map(|item| {
+                            item.keys()
+                                .filter(|method| {
+                                    matches!(
+                                        method.as_str(),
+                                        "get" | "post" | "put" | "patch" | "delete" | "head"
+                                    )
+                                })
+                                .count()
+                        })
+                        .sum::<usize>()
+                })
+                .unwrap_or(0);
+            serde_json::json!({
+                "title": source_document.get("info").and_then(|info| info.get("title")).and_then(|value| value.as_str()),
+                "operation_count": operation_count,
+            })
+        }
+        "graphql" => {
+            let operation_count = source_document
+                .get("operations")
+                .and_then(|value| value.as_array())
+                .map(Vec::len)
+                .unwrap_or(0);
+            serde_json::json!({
+                "operation_count": operation_count,
+                "has_operations": operation_count > 0,
+            })
+        }
+        "mcp" => {
+            let tool_count = source_document
+                .get("tools")
+                .and_then(|value| value.as_array())
+                .map(Vec::len)
+                .unwrap_or(0);
+            serde_json::json!({
+                "tool_count": tool_count,
+            })
+        }
+        _ => serde_json::json!({}),
+    }
+}
+
+fn prepare_connector_import(request: &ImportConnectorRequest) -> AnyResult<NewConnectorImport> {
+    let source_kind = request.source_kind.trim().to_ascii_lowercase();
+    if !matches!(source_kind.as_str(), "mcp" | "openapi" | "graphql") {
+        anyhow::bail!("source_kind must be one of: mcp, openapi, graphql");
+    }
+    let display_name = request.display_name.trim();
+    if display_name.is_empty() {
+        anyhow::bail!("display_name cannot be empty");
+    }
+    let slug = import_request_slug(request)?;
+    let source_document = parse_connector_source_document(request)?;
+    let import_metadata = serde_json::json!({
+        "source_kind": source_kind,
+        "catalog_item_id": request.catalog_item_id.as_ref().map(|value| value.trim()).filter(|value| !value.is_empty()),
+        "import_url": request.import_url.as_ref().map(|value| value.trim()).filter(|value| !value.is_empty()),
+        "endpoint_url": request.endpoint_url.as_ref().map(|value| value.trim().trim_end_matches('/')).filter(|value| !value.is_empty()),
+        "source_json": source_document,
+    });
+    let import_metadata_json = canonical_json_string(&import_metadata)?;
+    let schema_summary_json = canonical_json_string(&summarize_source_document(
+        &source_kind,
+        import_metadata
+            .get("source_json")
+            .unwrap_or(&serde_json::Value::Null),
+    ))?;
+    let source_digest = {
+        let mut digest = Sha256::new();
+        digest.update(import_metadata_json.as_bytes());
+        format!("{:x}", digest.finalize())
+    };
+    Ok(NewConnectorImport {
+        display_name: display_name.to_string(),
+        slug,
+        source_kind,
+        origin_kind: import_request_origin_kind(request),
+        catalog_item_id: request
+            .catalog_item_id
+            .as_ref()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty()),
+        version_label: request
+            .version_label
+            .as_ref()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| "v1".to_string()),
+        source_digest,
+        raw_source_location: request
+            .import_url
+            .as_ref()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .or_else(|| {
+                request
+                    .endpoint_url
+                    .as_ref()
+                    .map(|value| value.trim().to_string())
+                    .filter(|value| !value.is_empty())
+            }),
+        import_metadata_json,
+        schema_summary_json,
+        external_reference_policy: request
+            .external_reference_policy
+            .as_deref()
+            .map(|value| value.trim().to_ascii_lowercase())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| "inline_only".to_string()),
+        trust_state: if request.catalog_item_id.is_some() {
+            "trusted_curated".to_string()
+        } else {
+            "local_untrusted".to_string()
+        },
+    })
+}
+
+fn connector_input_schema_from_parameters(parameters: &[serde_json::Value]) -> serde_json::Value {
+    let mut properties = serde_json::Map::new();
+    let mut required = Vec::new();
+    for parameter in parameters {
+        let Some(name) = parameter.get("name").and_then(|value| value.as_str()) else {
+            continue;
+        };
+        if parameter.get("required").and_then(|value| value.as_bool()) == Some(true) {
+            required.push(name.to_string());
+        }
+        properties.insert(
+            name.to_string(),
+            parameter
+                .get("schema")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!({ "type": "string" })),
+        );
+    }
+    serde_json::json!({
+        "type": "object",
+        "properties": properties,
+        "required": required,
+    })
+}
+
+fn operation_slug_from_key(raw: &str) -> String {
+    raw.to_ascii_lowercase()
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '-' })
+        .collect::<String>()
+        .split('-')
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
+}
+
+fn build_openapi_candidates(
+    connector: &ConnectorSourceRecord,
+    version: &ConnectorVersionRecord,
+    source_document: &serde_json::Value,
+    existing_tool_names: &HashSet<String>,
+) -> AnyResult<(
+    Vec<StoredConnectorCandidate>,
+    Vec<ConnectorWarningResponse>,
+    Vec<ConnectorUnsupportedOperationResponse>,
+)> {
+    let mut candidates = Vec::new();
+    let mut warnings = Vec::new();
+    let mut unsupported = Vec::new();
+    let endpoint_url = parse_storage_json_value(&version.import_metadata_json)
+        .get("endpoint_url")
+        .and_then(|value| value.as_str())
+        .map(str::to_string);
+    let Some(paths) = source_document
+        .get("paths")
+        .and_then(|value| value.as_object())
+    else {
+        anyhow::bail!("openapi connector source_json.paths must be an object");
+    };
+    for (path, path_item) in paths {
+        let Some(path_object) = path_item.as_object() else {
+            continue;
+        };
+        for method in ["get", "post", "put", "patch", "delete", "head"] {
+            let Some(operation) = path_object.get(method).and_then(|value| value.as_object())
+            else {
+                continue;
+            };
+            let operation_key = operation
+                .get("operationId")
+                .and_then(|value| value.as_str())
+                .map(str::to_string)
+                .unwrap_or_else(|| format!("{method} {path}"));
+            let operation_slug = operation_slug_from_key(&operation_key);
+            if operation_slug.is_empty() {
+                unsupported.push(ConnectorUnsupportedOperationResponse {
+                    operation_key: operation_key.clone(),
+                    display_name: format!("{method} {path}"),
+                    reason: "unable to derive deterministic operation slug".to_string(),
+                });
+                continue;
+            }
+            let tool_name = format!("connector.{}.{}", connector.slug, operation_slug);
+            let path_params = path.matches('{').count();
+            let query_params = operation
+                .get("parameters")
+                .and_then(|value| value.as_array())
+                .cloned()
+                .unwrap_or_default();
+            let input_schema = operation
+                .get("requestBody")
+                .and_then(|value| value.get("content"))
+                .and_then(|value| value.get("application/json"))
+                .and_then(|value| value.get("schema"))
+                .cloned()
+                .or_else(|| {
+                    if query_params.is_empty() {
+                        None
+                    } else {
+                        Some(connector_input_schema_from_parameters(&query_params))
+                    }
+                })
+                .unwrap_or_else(|| serde_json::json!({ "type": "object", "properties": {} }));
+            let write_classification = match method {
+                "get" | "head" => "read_only",
+                "delete" => "destructive_write_gated",
+                _ => "operator_write_gated",
+            };
+            let collision = existing_tool_names.contains(&tool_name);
+            if collision {
+                warnings.push(ConnectorWarningResponse {
+                    code: "tool_name_collision".to_string(),
+                    message: format!(
+                        "tool name '{tool_name}' collides with an existing live capability"
+                    ),
+                    blocking: true,
+                    field: Some("proposed_tool_name".to_string()),
+                });
+            }
+            candidates.push(StoredConnectorCandidate {
+                candidate_id: format!("{}:{}", version.version_id, operation_slug),
+                operation_key: operation_key.clone(),
+                proposed_tool_name: tool_name.clone(),
+                display_name: operation
+                    .get("summary")
+                    .and_then(|value| value.as_str())
+                    .map(str::to_string)
+                    .unwrap_or_else(|| format!("{} {}", method.to_ascii_uppercase(), path)),
+                description: operation
+                    .get("description")
+                    .and_then(|value| value.as_str())
+                    .map(str::to_string),
+                input_schema,
+                write_classification: write_classification.to_string(),
+                review_blocked: collision,
+                review_block_reason: collision.then_some(
+                    "tool name collides with an existing core, plugin, or connector tool"
+                        .to_string(),
+                ),
+                origin_metadata: serde_json::json!({
+                    "source_kind": "openapi",
+                    "connector_id": connector.connector_id,
+                    "version_id": version.version_id,
+                    "path": path,
+                    "method": method.to_ascii_uppercase(),
+                    "endpoint_url": endpoint_url,
+                    "path_param_count": path_params,
+                    "parameters": query_params,
+                }),
+            });
+        }
+    }
+    Ok((candidates, warnings, unsupported))
+}
+
+fn build_graphql_candidates(
+    connector: &ConnectorSourceRecord,
+    version: &ConnectorVersionRecord,
+    source_document: &serde_json::Value,
+    existing_tool_names: &HashSet<String>,
+) -> AnyResult<(
+    Vec<StoredConnectorCandidate>,
+    Vec<ConnectorWarningResponse>,
+    Vec<ConnectorUnsupportedOperationResponse>,
+)> {
+    let mut candidates = Vec::new();
+    let mut warnings = Vec::new();
+    let endpoint_url = parse_storage_json_value(&version.import_metadata_json)
+        .get("endpoint_url")
+        .and_then(|value| value.as_str())
+        .map(str::to_string);
+    let operations = source_document
+        .get("operations")
+        .and_then(|value| value.as_array())
+        .cloned()
+        .context("graphql connector source_json.operations must be an array")?;
+    for operation in operations {
+        let Some(name) = operation.get("name").and_then(|value| value.as_str()) else {
+            continue;
+        };
+        let operation_slug = operation_slug_from_key(name);
+        if operation_slug.is_empty() {
+            continue;
+        }
+        let tool_name = format!("connector.{}.{}", connector.slug, operation_slug);
+        let operation_type = operation
+            .get("operation_type")
+            .and_then(|value| value.as_str())
+            .unwrap_or("query");
+        let write_classification = if operation_type.eq_ignore_ascii_case("query") {
+            "read_only"
+        } else {
+            "operator_write_gated"
+        };
+        let collision = existing_tool_names.contains(&tool_name);
+        if collision {
+            warnings.push(ConnectorWarningResponse {
+                code: "tool_name_collision".to_string(),
+                message: format!(
+                    "tool name '{tool_name}' collides with an existing live capability"
+                ),
+                blocking: true,
+                field: Some("proposed_tool_name".to_string()),
+            });
+        }
+        candidates.push(StoredConnectorCandidate {
+            candidate_id: format!("{}:{}", version.version_id, operation_slug),
+            operation_key: name.to_string(),
+            proposed_tool_name: tool_name,
+            display_name: operation
+                .get("display_name")
+                .and_then(|value| value.as_str())
+                .unwrap_or(name)
+                .to_string(),
+            description: operation
+                .get("description")
+                .and_then(|value| value.as_str())
+                .map(str::to_string),
+            input_schema: operation
+                .get("input_schema")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!({ "type": "object", "properties": {} })),
+            write_classification: write_classification.to_string(),
+            review_blocked: collision,
+            review_block_reason: collision.then_some(
+                "tool name collides with an existing core, plugin, or connector tool".to_string(),
+            ),
+            origin_metadata: serde_json::json!({
+                "source_kind": "graphql",
+                "connector_id": connector.connector_id,
+                "version_id": version.version_id,
+                "operation_name": name,
+                "operation_type": operation_type,
+                "document": operation.get("document").cloned(),
+                "endpoint_url": endpoint_url,
+            }),
+        });
+    }
+    Ok((candidates, warnings, Vec::new()))
+}
+
+fn build_mcp_candidates(
+    connector: &ConnectorSourceRecord,
+    version: &ConnectorVersionRecord,
+    source_document: &serde_json::Value,
+    existing_tool_names: &HashSet<String>,
+) -> AnyResult<(
+    Vec<StoredConnectorCandidate>,
+    Vec<ConnectorWarningResponse>,
+    Vec<ConnectorUnsupportedOperationResponse>,
+)> {
+    let mut candidates = Vec::new();
+    let mut warnings = Vec::new();
+    let endpoint_url = parse_storage_json_value(&version.import_metadata_json)
+        .get("endpoint_url")
+        .and_then(|value| value.as_str())
+        .map(str::to_string);
+    let tools = source_document
+        .get("tools")
+        .and_then(|value| value.as_array())
+        .cloned()
+        .context("mcp connector source_json.tools must be an array")?;
+    for tool in tools {
+        let Some(name) = tool.get("name").and_then(|value| value.as_str()) else {
+            continue;
+        };
+        let operation_slug = operation_slug_from_key(name);
+        if operation_slug.is_empty() {
+            continue;
+        }
+        let tool_name = format!("connector.{}.{}", connector.slug, operation_slug);
+        let write_classification = tool
+            .get("write_classification")
+            .and_then(|value| value.as_str())
+            .unwrap_or("read_only");
+        let review_blocked =
+            existing_tool_names.contains(&tool_name) || write_classification == "unsafe_blocked";
+        if existing_tool_names.contains(&tool_name) {
+            warnings.push(ConnectorWarningResponse {
+                code: "tool_name_collision".to_string(),
+                message: format!(
+                    "tool name '{tool_name}' collides with an existing live capability"
+                ),
+                blocking: true,
+                field: Some("proposed_tool_name".to_string()),
+            });
+        }
+        candidates.push(StoredConnectorCandidate {
+            candidate_id: format!("{}:{}", version.version_id, operation_slug),
+            operation_key: name.to_string(),
+            proposed_tool_name: tool_name,
+            display_name: tool
+                .get("display_name")
+                .and_then(|value| value.as_str())
+                .unwrap_or(name)
+                .to_string(),
+            description: tool
+                .get("description")
+                .and_then(|value| value.as_str())
+                .map(str::to_string),
+            input_schema: tool
+                .get("input_schema")
+                .cloned()
+                .unwrap_or_else(|| serde_json::json!({ "type": "object", "properties": {} })),
+            write_classification: write_classification.to_string(),
+            review_blocked,
+            review_block_reason: if write_classification == "unsafe_blocked" {
+                Some("unsafe_blocked operations cannot be published".to_string())
+            } else if existing_tool_names
+                .contains(&format!("connector.{}.{}", connector.slug, operation_slug))
+            {
+                Some(
+                    "tool name collides with an existing core, plugin, or connector tool"
+                        .to_string(),
+                )
+            } else {
+                None
+            },
+            origin_metadata: serde_json::json!({
+                "source_kind": "mcp",
+                "connector_id": connector.connector_id,
+                "version_id": version.version_id,
+                "mcp_tool_name": name,
+                "endpoint_url": endpoint_url,
+            }),
+        });
+    }
+    Ok((candidates, warnings, Vec::new()))
+}
+
+fn other_live_tool_names(
+    state: &AppState,
+    connector_id: Option<&str>,
+) -> AnyResult<HashSet<String>> {
+    let mut names = state
+        .tool_registry
+        .definitions
+        .values()
+        .map(|definition| definition.tool_name.to_string())
+        .collect::<HashSet<_>>();
+    let plugin_registry = state
+        .plugin_registry
+        .try_read()
+        .map_err(|_| anyhow::anyhow!("plugin registry is busy"))?;
+    for manifest in plugin_registry.list_manifests() {
+        if !manifest.enabled {
+            continue;
+        }
+        for tool in manifest.capabilities.tools {
+            names.insert(tool.name);
+        }
+    }
+    drop(plugin_registry);
+    for connector in state.storage.list_connectors(ConnectorListFilter {
+        include_disabled: true,
+        ..Default::default()
+    })? {
+        if connector_id.is_some() && connector_id == Some(connector.connector_id.as_str()) {
+            continue;
+        }
+        if connector.current_version_id.is_none() {
+            continue;
+        }
+        for tool in state
+            .storage
+            .list_connector_published_tools(&connector.connector_id, false)?
+            .into_iter()
+            .filter(|item| {
+                Some(item.version_id.as_str()) == connector.current_version_id.as_deref()
+            })
+        {
+            names.insert(tool.tool_name);
+        }
+    }
+    Ok(names)
+}
+
+fn build_connector_conversion_plan(
+    state: &AppState,
+    connector: &ConnectorSourceRecord,
+    version: &ConnectorVersionRecord,
+) -> AnyResult<NewConnectorConversion> {
+    let metadata = parse_storage_json_value(&version.import_metadata_json);
+    let source_document = metadata
+        .get("source_json")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
+    let existing_tool_names = other_live_tool_names(state, Some(&connector.connector_id))?;
+    let (candidates, mut warnings, unsupported) = match connector.source_kind.as_str() {
+        "openapi" => {
+            build_openapi_candidates(connector, version, &source_document, &existing_tool_names)?
+        }
+        "graphql" => {
+            build_graphql_candidates(connector, version, &source_document, &existing_tool_names)?
+        }
+        "mcp" => build_mcp_candidates(connector, version, &source_document, &existing_tool_names)?,
+        other => anyhow::bail!("unsupported connector source kind: {other}"),
+    };
+    let active_tools = state
+        .storage
+        .list_connector_published_tools(&connector.connector_id, false)?
+        .into_iter()
+        .filter(|item| Some(item.version_id.as_str()) == connector.current_version_id.as_deref())
+        .map(|item| item.tool_name)
+        .collect::<HashSet<_>>();
+    let next_tool_names = candidates
+        .iter()
+        .map(|item| item.proposed_tool_name.clone())
+        .collect::<HashSet<_>>();
+    let diff_from_previous = serde_json::json!({
+        "added": next_tool_names.difference(&active_tools).cloned().collect::<Vec<_>>(),
+        "removed": active_tools.difference(&next_tool_names).cloned().collect::<Vec<_>>(),
+        "unchanged": next_tool_names.intersection(&active_tools).cloned().collect::<Vec<_>>(),
+    });
+    if candidates.is_empty() {
+        warnings.push(ConnectorWarningResponse {
+            code: "no_candidates".to_string(),
+            message: "no connector operations converted into reviewable tools".to_string(),
+            blocking: true,
+            field: None,
+        });
+    }
+    let write_capable_tools = candidates
+        .iter()
+        .filter(|item| item.write_classification != "read_only")
+        .count();
+    Ok(NewConnectorConversion {
+        status: "succeeded".to_string(),
+        warnings_json: canonical_json_string(&serde_json::to_value(&warnings)?)?,
+        proposed_tools_json: canonical_json_string(&serde_json::to_value(&candidates)?)?,
+        write_capable_tools,
+        unsupported_operations_json: canonical_json_string(&serde_json::to_value(&unsupported)?)?,
+        normalization_notes_json: canonical_json_string(&serde_json::json!([
+            format!("source_kind={}", connector.source_kind),
+            format!("connector_slug={}", connector.slug),
+        ]))?,
+        diff_from_previous_json: canonical_json_string(&diff_from_previous)?,
+    })
+}
+
+fn parse_stored_connector_candidates(raw: &str) -> AnyResult<Vec<StoredConnectorCandidate>> {
+    serde_json::from_str(raw)
+        .map_err(|err| anyhow::anyhow!("invalid stored connector candidate payload: {err}"))
+}
+
+fn connector_auth_required(version: &ConnectorVersionRecord) -> bool {
+    parse_storage_json_value(&version.import_metadata_json)
+        .get("auth_required")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false)
+}
+
+fn load_connector_runtime_tools(
+    state: &AppState,
+    agent_id: Option<&str>,
+    include_disabled: bool,
+) -> AnyResult<Vec<ConnectorRuntimeToolBinding>> {
+    let mut bindings = Vec::new();
+    let connectors = state.storage.list_connectors(ConnectorListFilter {
+        include_disabled: true,
+        ..Default::default()
+    })?;
+    for connector in connectors {
+        if !include_disabled && connector.status != "enabled" {
+            continue;
+        }
+        let Some(current_version_id) = connector.current_version_id.as_deref() else {
+            continue;
+        };
+        let assignment = if let Some(agent_id) = agent_id {
+            state
+                .storage
+                .list_connector_assignments(&connector.connector_id)?
+                .into_iter()
+                .find(|item| item.agent_id == agent_id && item.enabled)
+        } else {
+            None
+        };
+        if agent_id.is_some() && assignment.is_none() {
+            continue;
+        }
+        let Some(version) = state.storage.get_connector_version(current_version_id)? else {
+            continue;
+        };
+        let shared_auth_binding = state
+            .storage
+            .list_connector_auth_bindings(&connector.connector_id)?
+            .into_iter()
+            .find(|item| item.agent_id.is_none());
+        let agent_auth_binding = if let Some(agent_id) = agent_id {
+            state
+                .storage
+                .list_connector_auth_bindings(&connector.connector_id)?
+                .into_iter()
+                .find(|item| item.agent_id.as_deref() == Some(agent_id))
+        } else {
+            None
+        };
+        for published_tool in state
+            .storage
+            .list_connector_published_tools(&connector.connector_id, false)?
+            .into_iter()
+            .filter(|item| item.version_id == version.version_id)
+        {
+            bindings.push(ConnectorRuntimeToolBinding {
+                connector: connector.clone(),
+                version: version.clone(),
+                published_tool,
+                assignment: assignment.clone(),
+                shared_auth_binding: shared_auth_binding.clone(),
+                agent_auth_binding: agent_auth_binding.clone(),
+            });
+        }
+    }
+    Ok(bindings)
+}
+
+fn connector_origin_from_binding(
+    binding: &ConnectorRuntimeToolBinding,
+) -> ToolCapabilityConnectorOriginResponse {
+    ToolCapabilityConnectorOriginResponse {
+        connector_id: binding.connector.connector_id.clone(),
+        connector_slug: binding.connector.slug.clone(),
+        connector_display_name: binding.connector.display_name.clone(),
+        version_id: binding.version.version_id.clone(),
+        published_tool_id: binding.published_tool.published_tool_id.clone(),
+        source_kind: binding.connector.source_kind.clone(),
+        write_classification: binding.published_tool.write_classification.clone(),
+        trust_state: binding.connector.trust_state.clone(),
+        read_only_mirror: true,
+    }
+}
+
+fn connector_capability_response(binding: &ConnectorRuntimeToolBinding) -> ToolCapabilityResponse {
+    let (risk_level, requires_approval) =
+        connector_risk_and_approval(&binding.published_tool.write_classification);
+    ToolCapabilityResponse {
+        tool_name: binding.published_tool.tool_name.clone(),
+        origin: format!("connector:{}", binding.connector.slug),
+        risk_level: risk_level.to_string(),
+        requires_approval,
+        timeout_ms: Some(connector_tool_timeout_ms()),
+        enabled: binding.connector.status == "enabled",
+        sandbox: ToolCapabilitySandboxResponse {
+            allowed_roots: Vec::new(),
+            network_policy: "allowlist".to_string(),
+            network_allowlist_count: 1,
+        },
+        connector: Some(connector_origin_from_binding(binding)),
+    }
+}
+
+fn resolve_connector_auth_context(
+    state: &AppState,
+    binding: &ConnectorRuntimeToolBinding,
+) -> AnyResult<ConnectorResolvedAuth> {
+    let selected = binding
+        .agent_auth_binding
+        .as_ref()
+        .or(binding.shared_auth_binding.as_ref());
+    let Some(auth_binding) = selected else {
+        return Ok(ConnectorResolvedAuth::default());
+    };
+    let metadata = parse_storage_json_value(&auth_binding.auth_metadata_json);
+    let Some(secret_ref) = auth_binding.secret_ref.as_deref() else {
+        return Ok(ConnectorResolvedAuth::default());
+    };
+    let secret_value = state.secret_store.get_raw(secret_ref)?.unwrap_or_default();
+    let secret_json = serde_json::from_str::<serde_json::Value>(&secret_value).ok();
+    let mut resolved = ConnectorResolvedAuth::default();
+    match auth_binding.auth_kind.as_str() {
+        "none" => {}
+        "bearer" => {
+            let token = secret_json
+                .as_ref()
+                .and_then(|value| value.get("token"))
+                .and_then(|value| value.as_str())
+                .unwrap_or(secret_value.as_str())
+                .trim()
+                .to_string();
+            if !token.is_empty() {
+                resolved
+                    .headers
+                    .push(("authorization".to_string(), format!("Bearer {token}")));
+            }
+        }
+        "header" => {
+            let header_name = metadata
+                .get("header_name")
+                .and_then(|value| value.as_str())
+                .unwrap_or("x-api-key")
+                .to_ascii_lowercase();
+            let header_value = secret_json
+                .as_ref()
+                .and_then(|value| value.get("value"))
+                .and_then(|value| value.as_str())
+                .unwrap_or(secret_value.as_str())
+                .trim()
+                .to_string();
+            if !header_value.is_empty() {
+                resolved.headers.push((header_name, header_value));
+            }
+        }
+        "query" => {
+            let param_name = metadata
+                .get("param_name")
+                .and_then(|value| value.as_str())
+                .unwrap_or("api_key")
+                .to_string();
+            let param_value = secret_json
+                .as_ref()
+                .and_then(|value| value.get("value"))
+                .and_then(|value| value.as_str())
+                .unwrap_or(secret_value.as_str())
+                .trim()
+                .to_string();
+            if !param_value.is_empty() {
+                resolved.query_pairs.push((param_name, param_value));
+            }
+        }
+        "oauth_session" => {}
+        _ => {}
+    }
+    Ok(resolved)
+}
+
+async fn create_connector_auth_interaction(
+    state: &AppState,
+    binding: &ConnectorRuntimeToolBinding,
+    agent_id: Option<&str>,
+    reason: &str,
+) -> AnyResult<ConnectorInteractionRecord> {
+    let now = current_time_ms();
+    state.storage.create_connector_interaction(
+        &binding.connector.connector_id,
+        NewConnectorInteraction {
+            agent_id: agent_id.map(str::to_string),
+            interaction_kind: "auth_repair".to_string(),
+            status: "waiting_on_operator".to_string(),
+            prompt_summary: format!(
+                "Connector '{}' requires auth repair before '{}' can run ({reason}).",
+                binding.connector.display_name, binding.published_tool.tool_name
+            ),
+            resume_token: Some(format!(
+                "connector-resume-{}-{}",
+                binding.connector.connector_id,
+                rand_seed_suffix()
+            )),
+            expires_at: Some(now + connector_interaction_ttl_ms()),
+            detail_json: canonical_json_string(&serde_json::json!({
+                "reason": reason,
+                "tool_name": binding.published_tool.tool_name,
+            }))?,
+        },
+    )
+}
+
+async fn execute_connector_tool_request(
+    state: &AppState,
+    binding: &ConnectorRuntimeToolBinding,
+    args_json: &str,
+) -> Result<ToolResult, ToolError> {
+    let parsed_args = if args_json.trim().is_empty() {
+        serde_json::Value::Object(serde_json::Map::new())
+    } else {
+        serde_json::from_str::<serde_json::Value>(args_json)
+            .unwrap_or_else(|_| serde_json::json!({ "raw_args": args_json.trim() }))
+    };
+    if connector_auth_required(&binding.version)
+        && binding.agent_auth_binding.is_none()
+        && binding.shared_auth_binding.is_none()
+    {
+        let _ = create_connector_auth_interaction(
+            state,
+            binding,
+            binding
+                .assignment
+                .as_ref()
+                .map(|item| item.agent_id.as_str()),
+            "missing auth binding",
+        )
+        .await;
+        return Err(ToolError::PolicyDenied(
+            "CONNECTOR_AUTH_REQUIRED:connector auth binding missing".to_string(),
+        ));
+    }
+    let auth = resolve_connector_auth_context(state, binding).map_err(|err| {
+        ToolError::Failed(format!("failed resolving connector auth context: {err}"))
+    })?;
+    let origin_metadata = parse_storage_json_value(&binding.published_tool.origin_metadata_json);
+    match binding.connector.source_kind.as_str() {
+        "openapi" => {
+            execute_openapi_connector_call(
+                &state.provider_models_http_client,
+                &origin_metadata,
+                parsed_args,
+                auth,
+                &binding.published_tool.tool_name,
+            )
+            .await
+        }
+        "graphql" => {
+            execute_graphql_connector_call(
+                &state.provider_models_http_client,
+                &origin_metadata,
+                parsed_args,
+                auth,
+                &binding.published_tool.tool_name,
+            )
+            .await
+        }
+        "mcp" => {
+            execute_mcp_connector_call(
+                &state.provider_models_http_client,
+                &origin_metadata,
+                parsed_args,
+                auth,
+                &binding.published_tool.tool_name,
+            )
+            .await
+        }
+        other => Err(ToolError::NotImplemented(format!(
+            "unsupported connector source kind: {other}"
+        ))),
+    }
+}
+
+fn apply_connector_auth(
+    mut request: reqwest::RequestBuilder,
+    auth: &ConnectorResolvedAuth,
+) -> reqwest::RequestBuilder {
+    for (key, value) in &auth.headers {
+        request = request.header(key.as_str(), value.as_str());
+    }
+    request
+}
+
+fn apply_connector_query_auth(url: &mut Url, auth: &ConnectorResolvedAuth) {
+    if !auth.query_pairs.is_empty() {
+        let mut pairs = url.query_pairs_mut();
+        for (key, value) in &auth.query_pairs {
+            pairs.append_pair(key, value);
+        }
+        drop(pairs);
+    }
+}
+
+async fn execute_openapi_connector_call(
+    client: &reqwest::Client,
+    origin_metadata: &serde_json::Value,
+    parsed_args: serde_json::Value,
+    auth: ConnectorResolvedAuth,
+    tool_name: &str,
+) -> Result<ToolResult, ToolError> {
+    let endpoint_url = origin_metadata
+        .get("endpoint_url")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| {
+            ToolError::InvalidRequest("openapi connector missing endpoint_url".to_string())
+        })?;
+    let path = origin_metadata
+        .get("path")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| ToolError::InvalidRequest("openapi connector missing path".to_string()))?;
+    let method = origin_metadata
+        .get("method")
+        .and_then(|value| value.as_str())
+        .unwrap_or("GET");
+    let mut url = Url::parse(endpoint_url).map_err(|err| {
+        ToolError::InvalidRequest(format!("invalid connector endpoint URL: {err}"))
+    })?;
+    url.set_path(&format!("{}{}", url.path().trim_end_matches('/'), path));
+    apply_connector_query_auth(&mut url, &auth);
+    let mut request = client.request(
+        reqwest::Method::from_bytes(method.as_bytes())
+            .map_err(|err| ToolError::InvalidRequest(format!("invalid method: {err}")))?,
+        url.clone(),
+    );
+    request = apply_connector_auth(request, &auth);
+    if method != "GET" && method != "HEAD" {
+        request = request.json(&parsed_args);
+    } else if let Some(object) = parsed_args.as_object() {
+        request = request.query(object);
+    }
+    let response = request
+        .send()
+        .await
+        .map_err(|err| ToolError::Failed(format!("connector request failed: {err}")))?;
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .map_err(|err| ToolError::Failed(format!("connector response read failed: {err}")))?;
+    if !status.is_success() {
+        return Err(ToolError::Failed(format!(
+            "connector upstream returned status {}: {}",
+            status.as_u16(),
+            body
+        )));
+    }
+    let value = serde_json::from_str::<serde_json::Value>(&body)
+        .unwrap_or_else(|_| serde_json::json!({ "text": body }));
+    Ok(ToolResult {
+        tool: carsinos_tools::ToolName::Process,
+        output: serde_json::json!({
+            "connector_tool": tool_name,
+            "result": value,
+            "status": status.as_u16(),
+        }),
+        truncated: false,
+    })
+}
+
+async fn execute_graphql_connector_call(
+    client: &reqwest::Client,
+    origin_metadata: &serde_json::Value,
+    parsed_args: serde_json::Value,
+    auth: ConnectorResolvedAuth,
+    tool_name: &str,
+) -> Result<ToolResult, ToolError> {
+    let endpoint_url = origin_metadata
+        .get("endpoint_url")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| {
+            ToolError::InvalidRequest("graphql connector missing endpoint_url".to_string())
+        })?;
+    let document = origin_metadata
+        .get("document")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| {
+            ToolError::InvalidRequest("graphql connector missing document".to_string())
+        })?;
+    let operation_name = origin_metadata
+        .get("operation_name")
+        .and_then(|value| value.as_str())
+        .unwrap_or(tool_name);
+    let mut url = Url::parse(endpoint_url).map_err(|err| {
+        ToolError::InvalidRequest(format!("invalid connector endpoint URL: {err}"))
+    })?;
+    apply_connector_query_auth(&mut url, &auth);
+    let mut request = client.post(url.clone());
+    request = apply_connector_auth(request, &auth);
+    let variables = parsed_args.get("variables").cloned().unwrap_or(parsed_args);
+    let response = request
+        .json(&serde_json::json!({
+            "query": document,
+            "operationName": operation_name,
+            "variables": variables,
+        }))
+        .send()
+        .await
+        .map_err(|err| ToolError::Failed(format!("connector request failed: {err}")))?;
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .map_err(|err| ToolError::Failed(format!("connector response read failed: {err}")))?;
+    if !status.is_success() {
+        return Err(ToolError::Failed(format!(
+            "connector upstream returned status {}: {}",
+            status.as_u16(),
+            body
+        )));
+    }
+    let value = serde_json::from_str::<serde_json::Value>(&body)
+        .unwrap_or_else(|_| serde_json::json!({ "text": body }));
+    Ok(ToolResult {
+        tool: carsinos_tools::ToolName::Process,
+        output: serde_json::json!({
+            "connector_tool": tool_name,
+            "result": value,
+            "status": status.as_u16(),
+        }),
+        truncated: false,
+    })
+}
+
+async fn execute_mcp_connector_call(
+    client: &reqwest::Client,
+    origin_metadata: &serde_json::Value,
+    parsed_args: serde_json::Value,
+    auth: ConnectorResolvedAuth,
+    tool_name: &str,
+) -> Result<ToolResult, ToolError> {
+    let endpoint_url = origin_metadata
+        .get("endpoint_url")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| {
+            ToolError::InvalidRequest("mcp connector missing endpoint_url".to_string())
+        })?;
+    let mcp_tool_name = origin_metadata
+        .get("mcp_tool_name")
+        .and_then(|value| value.as_str())
+        .unwrap_or(tool_name);
+    let mut url = Url::parse(endpoint_url).map_err(|err| {
+        ToolError::InvalidRequest(format!("invalid connector endpoint URL: {err}"))
+    })?;
+    let request_id = current_time_ms();
+    let initialize_payload = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": request_id,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {}
+        }
+    });
+    apply_connector_query_auth(&mut url, &auth);
+    let mut init_request = client.post(url.clone()).json(&initialize_payload);
+    init_request = apply_connector_auth(init_request, &auth);
+    let init_response = init_request
+        .send()
+        .await
+        .map_err(|err| ToolError::Failed(format!("mcp initialize failed: {err}")))?;
+    if !init_response.status().is_success() {
+        return Err(ToolError::Failed(format!(
+            "mcp initialize returned status {}",
+            init_response.status().as_u16()
+        )));
+    }
+    let call_payload = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": request_id + 1,
+        "method": "tools/call",
+        "params": {
+            "name": mcp_tool_name,
+            "arguments": parsed_args
+        }
+    });
+    let mut call_request = client.post(url.clone()).json(&call_payload);
+    call_request = apply_connector_auth(call_request, &auth);
+    let response = call_request
+        .send()
+        .await
+        .map_err(|err| ToolError::Failed(format!("mcp tools/call failed: {err}")))?;
+    let status = response.status();
+    let body = response
+        .text()
+        .await
+        .map_err(|err| ToolError::Failed(format!("mcp response read failed: {err}")))?;
+    if !status.is_success() {
+        return Err(ToolError::Failed(format!(
+            "mcp upstream returned status {}: {}",
+            status.as_u16(),
+            body
+        )));
+    }
+    let value = serde_json::from_str::<serde_json::Value>(&body)
+        .unwrap_or_else(|_| serde_json::json!({ "text": body }));
+    Ok(ToolResult {
+        tool: carsinos_tools::ToolName::Process,
+        output: serde_json::json!({
+            "connector_tool": tool_name,
+            "result": value,
+            "status": status.as_u16(),
+        }),
+        truncated: false,
+    })
+}
+
 async fn list_tool_capabilities(
     headers: HeaderMap,
     State(state): State<AppState>,
@@ -3769,6 +5252,7 @@ async fn list_tool_capabilities(
             timeout_ms: definition.timeout_ms,
             enabled: true,
             sandbox: core_sandbox.clone(),
+            connector: None,
         })
         .collect::<Vec<_>>();
 
@@ -3786,8 +5270,15 @@ async fn list_tool_capabilities(
                     network_policy: manifest.permissions.network_policy.clone(),
                     network_allowlist_count: manifest.permissions.network_allowlist.len(),
                 },
+                connector: None,
             });
         }
+    }
+
+    let connector_items = load_connector_runtime_tools(&state, None, true)
+        .map_err(|err| internal_err_with_error("listing connector capabilities failed", err))?;
+    for binding in connector_items {
+        items.push(connector_capability_response(&binding));
     }
 
     if !include_disabled {
@@ -3805,6 +5296,564 @@ async fn list_tool_capabilities(
     Ok(Json(ListToolCapabilitiesResponse {
         contract_version: "tool.capabilities.v1".to_string(),
         items,
+    }))
+}
+
+async fn list_connector_catalog(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Query(query): Query<ListConnectorCatalogQuery>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
+    let mut items = connector_catalog_items();
+    if let Some(source_kind) = query.source_kind.as_deref() {
+        let source_kind = source_kind.trim().to_ascii_lowercase();
+        if !source_kind.is_empty() {
+            items.retain(|item| item.source_kind == source_kind);
+        }
+    }
+    if let Some(needle) = query.query.as_deref() {
+        let needle = needle.trim().to_ascii_lowercase();
+        if !needle.is_empty() {
+            items.retain(|item| {
+                [
+                    item.slug.as_str(),
+                    item.display_name.as_str(),
+                    item.summary.as_str(),
+                ]
+                .iter()
+                .any(|field| field.to_ascii_lowercase().contains(&needle))
+            });
+        }
+    }
+    Ok(Json(ListConnectorCatalogResponse {
+        contract_version: "connector.catalog.v1".to_string(),
+        items,
+    }))
+}
+
+async fn list_connectors(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Query(query): Query<ListConnectorsQuery>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
+    let items = state
+        .storage
+        .list_connectors(ConnectorListFilter {
+            source_kind: query
+                .source_kind
+                .map(normalize_optional_string)
+                .transpose()?,
+            status: query.status.map(normalize_optional_string).transpose()?,
+            trust_state: query
+                .trust_state
+                .map(normalize_optional_string)
+                .transpose()?,
+            query: query.query.map(normalize_optional_string).transpose()?,
+            include_disabled: query.include_disabled.unwrap_or(false),
+        })
+        .map_err(|err| internal_err_with_error("listing connectors failed", err))?
+        .into_iter()
+        .map(to_connector_source_response)
+        .collect::<Vec<_>>();
+    Ok(Json(ListConnectorsResponse {
+        contract_version: "connector.registry.v1".to_string(),
+        items,
+    }))
+}
+
+async fn get_connector(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(connector_id): Path<String>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
+    let connector = state
+        .storage
+        .get_connector(connector_id.trim())
+        .map_err(|err| internal_err_with_error("loading connector failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "connector not found"))?;
+    let versions = state
+        .storage
+        .list_connector_versions(&connector.connector_id)
+        .map_err(|err| internal_err_with_error("listing connector versions failed", err))?
+        .into_iter()
+        .map(to_connector_version_response)
+        .collect();
+    let conversions = state
+        .storage
+        .list_connector_conversions(&connector.connector_id, None)
+        .map_err(|err| internal_err_with_error("listing connector conversions failed", err))?
+        .into_iter()
+        .map(to_connector_conversion_response)
+        .collect();
+    let published_tools = state
+        .storage
+        .list_connector_published_tools(&connector.connector_id, true)
+        .map_err(|err| internal_err_with_error("listing connector published tools failed", err))?
+        .into_iter()
+        .map(to_connector_published_tool_response)
+        .collect();
+    let assignments = state
+        .storage
+        .list_connector_assignments(&connector.connector_id)
+        .map_err(|err| internal_err_with_error("listing connector assignments failed", err))?
+        .into_iter()
+        .map(to_connector_assignment_response)
+        .collect();
+    let auth_bindings = state
+        .storage
+        .list_connector_auth_bindings(&connector.connector_id)
+        .map_err(|err| internal_err_with_error("listing connector auth bindings failed", err))?
+        .into_iter()
+        .map(to_connector_auth_binding_response)
+        .collect();
+    let interactions = state
+        .storage
+        .list_connector_interactions(Some(&connector.connector_id))
+        .map_err(|err| internal_err_with_error("listing connector interactions failed", err))?
+        .into_iter()
+        .map(to_connector_interaction_response)
+        .collect();
+    Ok(Json(GetConnectorResponse {
+        connector: to_connector_source_response(connector),
+        versions,
+        conversions,
+        published_tools,
+        assignments,
+        auth_bindings,
+        interactions,
+    }))
+}
+
+async fn import_connector(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<ImportConnectorRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let prepared = prepare_connector_import(&request)
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+    let (connector, version) = state
+        .storage
+        .import_connector(prepared)
+        .map_err(|err| internal_err_with_error("importing connector failed", err))?;
+    Ok((
+        StatusCode::CREATED,
+        Json(ImportConnectorResponse {
+            connector: to_connector_source_response(connector),
+            version: to_connector_version_response(version),
+        }),
+    ))
+}
+
+async fn run_connector_conversion(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(connector_id): Path<String>,
+    Json(request): Json<RunConnectorConversionRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let connector = state
+        .storage
+        .get_connector(connector_id.trim())
+        .map_err(|err| internal_err_with_error("loading connector failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "connector not found"))?;
+    let version_id = request
+        .version_id
+        .or_else(|| connector.latest_imported_version_id.clone())
+        .or_else(|| connector.current_version_id.clone())
+        .ok_or_else(|| {
+            api_error(
+                StatusCode::BAD_REQUEST,
+                "connector has no version to convert",
+            )
+        })?;
+    let version = state
+        .storage
+        .get_connector_version(&version_id)
+        .map_err(|err| internal_err_with_error("loading connector version failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "connector version not found"))?;
+    let new_conversion = build_connector_conversion_plan(&state, &connector, &version)
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+    let conversion = state
+        .storage
+        .record_connector_conversion(&connector.connector_id, &version.version_id, new_conversion)
+        .map_err(|err| internal_err_with_error("recording connector conversion failed", err))?;
+    let refreshed_connector = state
+        .storage
+        .get_connector(&connector.connector_id)
+        .map_err(|err| internal_err_with_error("reloading connector failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "connector not found"))?;
+    let refreshed_version = state
+        .storage
+        .get_connector_version(&version.version_id)
+        .map_err(|err| internal_err_with_error("reloading connector version failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "connector version not found"))?;
+    Ok(Json(RunConnectorConversionResponse {
+        connector: to_connector_source_response(refreshed_connector),
+        version: to_connector_version_response(refreshed_version),
+        conversion: to_connector_conversion_response(conversion),
+    }))
+}
+
+async fn publish_connector_tools(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(connector_id): Path<String>,
+    Json(request): Json<PublishConnectorToolsRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let connector = state
+        .storage
+        .get_connector(connector_id.trim())
+        .map_err(|err| internal_err_with_error("loading connector failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "connector not found"))?;
+    let conversion = state
+        .storage
+        .get_connector_conversion(request.conversion_id.trim())
+        .map_err(|err| internal_err_with_error("loading connector conversion failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "connector conversion not found"))?;
+    if conversion.connector_id != connector.connector_id {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "conversion does not belong to connector",
+        ));
+    }
+    let candidates = parse_stored_connector_candidates(&conversion.proposed_tools_json)
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+    let alias_overrides = request
+        .alias_overrides
+        .iter()
+        .map(|item| (item.candidate_id.trim(), item.alias.trim()))
+        .filter(|(_, alias)| !alias.is_empty())
+        .map(|(candidate_id, alias)| (candidate_id.to_string(), alias.to_string()))
+        .collect::<HashMap<_, _>>();
+    let existing_tool_names = other_live_tool_names(&state, Some(&connector.connector_id))
+        .map_err(|err| internal_err_with_error("checking connector tool collisions failed", err))?;
+    let mut selected = Vec::new();
+    for candidate_id in &request.selected_candidate_ids {
+        let candidate = candidates
+            .iter()
+            .find(|item| item.candidate_id == candidate_id.trim())
+            .ok_or_else(|| {
+                api_error(StatusCode::BAD_REQUEST, "selected candidate was not found")
+            })?;
+        if candidate.review_blocked {
+            return Err(api_error(
+                StatusCode::BAD_REQUEST,
+                candidate
+                    .review_block_reason
+                    .as_deref()
+                    .unwrap_or("selected connector candidate is blocked"),
+            ));
+        }
+        let tool_name = alias_overrides
+            .get(candidate.candidate_id.as_str())
+            .cloned()
+            .unwrap_or_else(|| candidate.proposed_tool_name.clone());
+        if existing_tool_names.contains(&tool_name) {
+            return Err(api_error(
+                StatusCode::CONFLICT,
+                "selected connector tool name collides with an existing live capability",
+            ));
+        }
+        selected.push(NewConnectorPublishedTool {
+            tool_name,
+            display_name: candidate.display_name.clone(),
+            tool_schema_json: canonical_json_string(&candidate.input_schema).map_err(|err| {
+                internal_err_with_error("serializing connector tool schema failed", err)
+            })?,
+            origin_metadata_json: canonical_json_string(&candidate.origin_metadata).map_err(
+                |err| internal_err_with_error("serializing connector origin metadata failed", err),
+            )?,
+            write_classification: candidate.write_classification.clone(),
+        });
+    }
+    let (connector, version, published_tools) = state
+        .storage
+        .publish_connector_tools(
+            &connector.connector_id,
+            &conversion.conversion_id,
+            &request.selected_candidate_ids,
+            &selected,
+            request.enable_after_publish.unwrap_or(false),
+        )
+        .map_err(|err| internal_err_with_error("publishing connector tools failed", err))?;
+    Ok(Json(PublishConnectorToolsResponse {
+        connector: to_connector_source_response(connector),
+        version: to_connector_version_response(version),
+        published_tools: published_tools
+            .into_iter()
+            .map(to_connector_published_tool_response)
+            .collect(),
+    }))
+}
+
+async fn unpublish_connector_tools(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(connector_id): Path<String>,
+    Json(request): Json<UnpublishConnectorToolsRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let (connector, published_tools) = state
+        .storage
+        .unpublish_connector_tools(connector_id.trim(), &request.published_tool_ids)
+        .map_err(|err| internal_err_with_error("unpublishing connector tools failed", err))?;
+    Ok(Json(UnpublishConnectorToolsResponse {
+        connector: to_connector_source_response(connector),
+        published_tools: published_tools
+            .into_iter()
+            .map(to_connector_published_tool_response)
+            .collect(),
+    }))
+}
+
+async fn rollback_connector_version(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(connector_id): Path<String>,
+    Json(request): Json<RollbackConnectorVersionRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let (connector, version, published_tools) = state
+        .storage
+        .rollback_connector_version(connector_id.trim(), request.version_id.trim())
+        .map_err(|err| internal_err_with_error("rolling back connector version failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "connector version not found"))?;
+    Ok(Json(RollbackConnectorVersionResponse {
+        connector: to_connector_source_response(connector),
+        version: to_connector_version_response(version),
+        published_tools: published_tools
+            .into_iter()
+            .map(to_connector_published_tool_response)
+            .collect(),
+    }))
+}
+
+async fn set_connector_state(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(connector_id): Path<String>,
+    Json(request): Json<SetConnectorStateRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let connector = state
+        .storage
+        .set_connector_enabled(connector_id.trim(), request.enabled)
+        .map_err(|err| internal_err_with_error("setting connector state failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "connector not found"))?;
+    Ok(Json(SetConnectorStateResponse {
+        connector: to_connector_source_response(connector),
+    }))
+}
+
+async fn set_connector_assignment(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(connector_id): Path<String>,
+    Json(request): Json<SetConnectorAssignmentRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let assignment = state
+        .storage
+        .upsert_connector_assignment(
+            connector_id.trim(),
+            NewConnectorAssignment {
+                agent_id: request.agent_id.trim().to_ascii_lowercase(),
+                enabled: request.enabled.unwrap_or(true),
+                auth_mode: request
+                    .auth_mode
+                    .unwrap_or_else(|| "shared_default".to_string()),
+            },
+        )
+        .map_err(|err| internal_err_with_error("upserting connector assignment failed", err))?;
+    Ok(Json(SetConnectorAssignmentResponse {
+        assignment: to_connector_assignment_response(assignment),
+    }))
+}
+
+async fn upsert_connector_auth_binding(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(connector_id): Path<String>,
+    Json(request): Json<UpsertConnectorAuthBindingRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let binding = state
+        .storage
+        .upsert_connector_auth_binding(
+            connector_id.trim(),
+            NewConnectorAuthBinding {
+                agent_id: request
+                    .agent_id
+                    .map(|value| value.trim().to_ascii_lowercase())
+                    .filter(|value| !value.is_empty()),
+                auth_kind: request.auth_kind,
+                secret_ref: request
+                    .secret_ref
+                    .map(|value| value.trim().to_string())
+                    .filter(|value| !value.is_empty()),
+                oauth_session_id: request
+                    .oauth_session_id
+                    .map(|value| value.trim().to_string())
+                    .filter(|value| !value.is_empty()),
+                status: request.status.unwrap_or_else(|| "ready".to_string()),
+                auth_metadata_json: canonical_json_string(
+                    request
+                        .auth_metadata
+                        .as_ref()
+                        .unwrap_or(&serde_json::json!({})),
+                )
+                .map_err(|err| internal_err_with_error("serializing auth metadata failed", err))?,
+                last_success_at: None,
+                last_error: None,
+                last_rotated_at: Some(current_time_ms()),
+            },
+        )
+        .map_err(|err| internal_err_with_error("upserting connector auth binding failed", err))?;
+    Ok(Json(UpsertConnectorAuthBindingResponse {
+        binding: to_connector_auth_binding_response(binding),
+    }))
+}
+
+async fn list_connector_interactions(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
+    let items = state
+        .storage
+        .list_connector_interactions(None)
+        .map_err(|err| internal_err_with_error("listing connector interactions failed", err))?
+        .into_iter()
+        .map(to_connector_interaction_response)
+        .collect();
+    Ok(Json(ListConnectorInteractionsResponse {
+        contract_version: "connector.interactions.v1".to_string(),
+        items,
+    }))
+}
+
+async fn resume_connector_interaction(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(interaction_id): Path<String>,
+    Json(request): Json<ResumeConnectorInteractionRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN])?;
+    let detail_json = request
+        .payload
+        .as_ref()
+        .map(canonical_json_string)
+        .transpose()
+        .map_err(|err| {
+            internal_err_with_error("serializing interaction resume payload failed", err)
+        })?;
+    let interaction = state
+        .storage
+        .resume_connector_interaction(interaction_id.trim(), "resumed", detail_json.as_deref())
+        .map_err(|err| internal_err_with_error("resuming connector interaction failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "connector interaction not found"))?;
+    Ok(Json(ResumeConnectorInteractionResponse {
+        interaction: to_connector_interaction_response(interaction),
+    }))
+}
+
+async fn get_connector_health(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(connector_id): Path<String>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
+    let connector = state
+        .storage
+        .get_connector(connector_id.trim())
+        .map_err(|err| internal_err_with_error("loading connector failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "connector not found"))?;
+    let Some(current_version_id) = connector.current_version_id.as_deref() else {
+        return Ok(Json(GetConnectorHealthResponse {
+            health: to_connector_health_response(
+                &connector,
+                false,
+                Some("connector has no live version".to_string()),
+                Some(current_time_ms()),
+            ),
+        }));
+    };
+    let version = state
+        .storage
+        .get_connector_version(current_version_id)
+        .map_err(|err| internal_err_with_error("loading connector version failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "connector version not found"))?;
+    let shared_auth_binding = state
+        .storage
+        .list_connector_auth_bindings(&connector.connector_id)
+        .map_err(|err| internal_err_with_error("listing connector auth bindings failed", err))?
+        .into_iter()
+        .find(|item| item.agent_id.is_none());
+    let auth_required = connector_auth_required(&version) && shared_auth_binding.is_none();
+    let degraded_reason = if connector.status != "enabled" {
+        Some(format!("connector status is {}", connector.status))
+    } else if connector.published_tool_count == 0 {
+        Some("connector has no published tools".to_string())
+    } else if auth_required {
+        Some("connector requires auth binding".to_string())
+    } else {
+        None
+    };
+    Ok(Json(GetConnectorHealthResponse {
+        health: to_connector_health_response(
+            &connector,
+            auth_required,
+            degraded_reason,
+            Some(current_time_ms()),
+        ),
+    }))
+}
+
+async fn describe_connector_tool(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path((connector_id, published_tool_id)): Path<(String, String)>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
+    let connector = state
+        .storage
+        .get_connector(connector_id.trim())
+        .map_err(|err| internal_err_with_error("loading connector failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "connector not found"))?;
+    let published_tool = state
+        .storage
+        .get_connector_published_tool(published_tool_id.trim())
+        .map_err(|err| internal_err_with_error("loading connector published tool failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "connector published tool not found"))?;
+    if published_tool.connector_id != connector.connector_id {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "published tool does not belong to connector",
+        ));
+    }
+    Ok(Json(DescribeConnectorToolResponse {
+        connector: to_connector_source_response(connector),
+        published_tool: to_connector_published_tool_response(published_tool),
     }))
 }
 
@@ -6445,6 +8494,54 @@ fn build_app(state: AppState) -> Router {
         )
         .route("/api/v1/providers/models", get(list_provider_models))
         .route("/api/v1/tools/capabilities", get(list_tool_capabilities))
+        .route("/api/v1/connectors/catalog", get(list_connector_catalog))
+        .route("/api/v1/connectors", get(list_connectors))
+        .route("/api/v1/connectors/import", post(import_connector))
+        .route(
+            "/api/v1/connectors/interactions",
+            get(list_connector_interactions),
+        )
+        .route(
+            "/api/v1/connectors/interactions/{interaction_id}/resume",
+            post(resume_connector_interaction),
+        )
+        .route("/api/v1/connectors/{connector_id}", get(get_connector))
+        .route(
+            "/api/v1/connectors/{connector_id}/convert",
+            post(run_connector_conversion),
+        )
+        .route(
+            "/api/v1/connectors/{connector_id}/publish",
+            post(publish_connector_tools),
+        )
+        .route(
+            "/api/v1/connectors/{connector_id}/unpublish",
+            post(unpublish_connector_tools),
+        )
+        .route(
+            "/api/v1/connectors/{connector_id}/rollback",
+            post(rollback_connector_version),
+        )
+        .route(
+            "/api/v1/connectors/{connector_id}/state",
+            post(set_connector_state),
+        )
+        .route(
+            "/api/v1/connectors/{connector_id}/assignments",
+            post(set_connector_assignment),
+        )
+        .route(
+            "/api/v1/connectors/{connector_id}/auth-bindings",
+            post(upsert_connector_auth_binding),
+        )
+        .route(
+            "/api/v1/connectors/{connector_id}/health",
+            get(get_connector_health),
+        )
+        .route(
+            "/api/v1/connectors/{connector_id}/tools/{published_tool_id}",
+            get(describe_connector_tool),
+        )
         .route("/api/v1/extensions/plugins", get(list_plugins))
         .route(
             "/api/v1/extensions/plugins/status",
@@ -6468,6 +8565,58 @@ fn build_app(state: AppState) -> Router {
         .route(
             "/api/v1/agents/{agent_id}",
             get(get_agent).post(update_agent),
+        )
+        .route(
+            "/api/v1/agents/{agent_id}/memory/status",
+            get(get_agent_memory_status),
+        )
+        .route(
+            "/api/v1/agents/{agent_id}/memory/cards",
+            get(list_agent_memory_cards),
+        )
+        .route(
+            "/api/v1/agents/{agent_id}/memory/cards/{card_id}",
+            get(get_agent_memory_card),
+        )
+        .route(
+            "/api/v1/agents/{agent_id}/memory/atom/{atom_id}",
+            get(get_agent_memory_atom),
+        )
+        .route(
+            "/api/v1/agents/{agent_id}/memory/episodes",
+            get(list_agent_memory_episodes),
+        )
+        .route(
+            "/api/v1/agents/{agent_id}/memory/graph-map",
+            get(get_agent_memory_graph_map),
+        )
+        .route(
+            "/api/v1/agents/{agent_id}/memory/graph/neighbors",
+            get(get_agent_memory_graph_neighbors),
+        )
+        .route(
+            "/api/v1/agents/{agent_id}/memory/turns/{turn_id}/why",
+            get(get_agent_memory_turn_why),
+        )
+        .route(
+            "/api/v1/agents/{agent_id}/memory/citations/{citation_token}",
+            get(get_agent_memory_citation),
+        )
+        .route(
+            "/api/v1/agents/{agent_id}/memory/runtime/health",
+            get(get_agent_memory_runtime_health),
+        )
+        .route(
+            "/api/v1/agents/{agent_id}/memory/runtime/telemetry/summary",
+            get(get_agent_memory_telemetry_summary),
+        )
+        .route(
+            "/api/v1/agents/{agent_id}/memory/runtime/telemetry/turns",
+            get(get_agent_memory_telemetry_turns),
+        )
+        .route(
+            "/api/v1/agents/{agent_id}/memory/runtime/decision-reasons",
+            get(get_agent_memory_decision_reasons),
         )
         .route("/api/v1/agents/{agent_id}/remove", post(remove_agent))
         .route("/api/v1/boards", get(list_boards))
@@ -6656,6 +8805,11 @@ fn build_app(state: AppState) -> Router {
         .route(
             "/api/v1/mission-control/strategy/summary",
             get(strategy_summary),
+        )
+        .route("/api/v1/mission-control/runbooks", get(list_runbooks))
+        .route(
+            "/api/v1/mission-control/runbooks/{runbook_kind}/{anchor_id}",
+            get(get_runbook_detail),
         )
         .route(
             "/api/v1/agent-mail/threads",
@@ -6865,6 +9019,86 @@ fn tags_to_json(tags: Option<Vec<String>>) -> Option<String> {
     })
 }
 
+fn to_agent_memory_binding_response(
+    record: AgentMemoryBindingRecord,
+) -> AgentMemoryBindingResponse {
+    AgentMemoryBindingResponse {
+        binding_id: record.binding_id,
+        provider_kind: record.provider_kind,
+        base_url: record.base_url,
+        auth_mode: record.auth_mode,
+        auth_secret_ref: record.auth_secret_ref,
+        principal_id: record.principal_id,
+        principal_display_name: record.principal_display_name,
+        enabled: record.enabled,
+        trusted_local_operator_actions: record.trusted_local_operator_actions,
+    }
+}
+
+const AGENT_MEMORY_PROVIDER_KIND_MNO: &str = "modelnumquamoblita";
+
+fn normalize_agent_memory_provider_kind_for_gateway(
+    value: &str,
+) -> std::result::Result<String, (StatusCode, Json<ApiError>)> {
+    let normalized = value.trim().to_ascii_lowercase();
+    match normalized.as_str() {
+        "mno" | AGENT_MEMORY_PROVIDER_KIND_MNO => Ok(AGENT_MEMORY_PROVIDER_KIND_MNO.to_string()),
+        _ => Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "memory_binding.provider_kind must be 'modelnumquamoblita'",
+        )),
+    }
+}
+
+fn normalize_agent_memory_base_url_for_gateway(
+    value: &str,
+) -> std::result::Result<String, (StatusCode, Json<ApiError>)> {
+    let normalized = value.trim().trim_end_matches('/').to_string();
+    let parsed = Url::parse(&normalized).map_err(|_| {
+        api_error(
+            StatusCode::BAD_REQUEST,
+            "memory_binding.base_url must be a valid URL",
+        )
+    })?;
+    match parsed.scheme() {
+        "http" | "https" => {}
+        _ => {
+            return Err(api_error(
+                StatusCode::BAD_REQUEST,
+                "memory_binding.base_url must use http:// or https://",
+            ))
+        }
+    }
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "memory_binding.base_url must not include embedded credentials",
+        ));
+    }
+    Ok(normalized)
+}
+
+fn is_trusted_local_memory_base_url(base_url: &str) -> bool {
+    Url::parse(base_url)
+        .ok()
+        .and_then(|url| url.host_str().map(|host| host.to_ascii_lowercase()))
+        .map(|host| matches!(host.as_str(), "localhost" | "127.0.0.1" | "::1"))
+        .unwrap_or(false)
+}
+
+fn normalize_agent_memory_auth_mode_for_gateway(
+    value: &str,
+) -> std::result::Result<String, (StatusCode, Json<ApiError>)> {
+    let normalized = value.trim().to_ascii_lowercase();
+    match normalized.as_str() {
+        "none" | "secret_ref" => Ok(normalized),
+        _ => Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "memory_binding.auth_mode must be one of: none, secret_ref",
+        )),
+    }
+}
+
 fn to_agent_response(record: AgentRecord) -> AgentResponse {
     AgentResponse {
         agent_id: record.agent_id,
@@ -6875,9 +9109,169 @@ fn to_agent_response(record: AgentRecord) -> AgentResponse {
         tool_profile: record.tool_profile,
         reports_to_agent_id: record.reports_to_agent_id,
         role_label: record.role_label,
+        memory_binding: record.memory_binding.map(to_agent_memory_binding_response),
         created_at: record.created_at,
         updated_at: record.updated_at,
     }
+}
+
+fn to_new_agent_memory_binding(
+    request: Option<AgentMemoryBindingRequest>,
+) -> std::result::Result<Option<NewAgentMemoryBinding>, (StatusCode, Json<ApiError>)> {
+    let Some(request) = request else {
+        return Ok(None);
+    };
+    let provider_kind = normalize_agent_memory_provider_kind_for_gateway(
+        request
+            .provider_kind
+            .map(|value| value.trim().to_ascii_lowercase())
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                api_error(
+                    StatusCode::BAD_REQUEST,
+                    "memory_binding.provider_kind is required",
+                )
+            })?
+            .as_str(),
+    )?;
+    let base_url = normalize_agent_memory_base_url_for_gateway(
+        request
+            .base_url
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                api_error(
+                    StatusCode::BAD_REQUEST,
+                    "memory_binding.base_url is required",
+                )
+            })?
+            .as_str(),
+    )?;
+    let auth_mode = normalize_agent_memory_auth_mode_for_gateway(
+        request
+            .auth_mode
+            .map(|value| value.trim().to_ascii_lowercase())
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                api_error(
+                    StatusCode::BAD_REQUEST,
+                    "memory_binding.auth_mode is required",
+                )
+            })?
+            .as_str(),
+    )?;
+    let auth_secret_ref = request
+        .auth_secret_ref
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    if auth_mode == "secret_ref" {
+        validate_secret_ref(&auth_secret_ref, "memory_binding.auth_secret_ref")
+            .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+    }
+    let trusted_local_operator_actions = request.trusted_local_operator_actions.unwrap_or(false);
+    if trusted_local_operator_actions && !is_trusted_local_memory_base_url(&base_url) {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "memory_binding.trusted_local_operator_actions requires a localhost or loopback base_url",
+        ));
+    }
+    Ok(Some(NewAgentMemoryBinding {
+        binding_id: request
+            .binding_id
+            .map(|value| value.trim().to_ascii_lowercase())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_default(),
+        provider_kind,
+        base_url,
+        auth_mode,
+        auth_secret_ref,
+        principal_id: request
+            .principal_id
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty()),
+        principal_display_name: request
+            .principal_display_name
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty()),
+        enabled: request.enabled.unwrap_or(true),
+        trusted_local_operator_actions,
+    }))
+}
+
+fn to_agent_memory_binding_patch(
+    request: Option<Option<UpdateAgentMemoryBindingRequest>>,
+) -> std::result::Result<Option<Option<AgentMemoryBindingUpdatePatch>>, (StatusCode, Json<ApiError>)>
+{
+    request
+        .map(|request| {
+            request
+                .map(|binding| {
+                    let provider_kind = binding
+                        .provider_kind
+                        .as_ref()
+                        .map(|value| normalize_agent_memory_provider_kind_for_gateway(value.as_str()))
+                        .transpose()?;
+                    let base_url = binding
+                        .base_url
+                        .as_ref()
+                        .map(|value| normalize_agent_memory_base_url_for_gateway(value.as_str()))
+                        .transpose()?;
+                    let auth_mode = binding
+                        .auth_mode
+                        .as_ref()
+                        .map(|value| normalize_agent_memory_auth_mode_for_gateway(value.as_str()))
+                        .transpose()?;
+                    let auth_secret_ref = binding.auth_secret_ref.map(|value| {
+                        value
+                            .map(|inner| inner.trim().to_string())
+                            .filter(|inner| !inner.is_empty())
+                    });
+                    if let Some(Some(secret_ref)) = auth_secret_ref.as_ref() {
+                        validate_secret_ref(
+                            &Some(secret_ref.clone()),
+                            "memory_binding.auth_secret_ref",
+                        )
+                        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+                    }
+                    if binding.trusted_local_operator_actions.unwrap_or(false) {
+                        let trusted_base_url = base_url
+                            .as_deref()
+                            .or(binding.base_url.as_deref())
+                            .map(is_trusted_local_memory_base_url)
+                            .unwrap_or(false);
+                        if !trusted_base_url {
+                            return Err(api_error(
+                                StatusCode::BAD_REQUEST,
+                                "memory_binding.trusted_local_operator_actions requires a localhost or loopback base_url",
+                            ));
+                        }
+                    }
+                    Ok(AgentMemoryBindingUpdatePatch {
+            binding_id: binding
+                .binding_id
+                .map(|value| value.trim().to_ascii_lowercase())
+                .filter(|value| !value.is_empty()),
+                        provider_kind,
+                        base_url,
+                        auth_mode,
+                        auth_secret_ref,
+            principal_id: binding.principal_id.map(|value| {
+                value
+                    .map(|inner| inner.trim().to_string())
+                    .filter(|inner| !inner.is_empty())
+            }),
+            principal_display_name: binding.principal_display_name.map(|value| {
+                value
+                    .map(|inner| inner.trim().to_string())
+                    .filter(|inner| !inner.is_empty())
+            }),
+            enabled: binding.enabled,
+            trusted_local_operator_actions: binding.trusted_local_operator_actions,
+                    })
+                })
+                .transpose()
+        })
+        .transpose()
 }
 
 fn to_goal_response(record: GoalRecord, progress_pct: u8) -> carsinos_protocol::GoalResponse {
@@ -6951,6 +9345,175 @@ fn to_bootstrap_preset_response(record: BootstrapPresetRecord) -> BootstrapPrese
         setup_notes: record.setup_notes,
         created_at: record.created_at,
         updated_at: record.updated_at,
+    }
+}
+
+fn parse_storage_json_value(raw: &str) -> serde_json::Value {
+    serde_json::from_str(raw).unwrap_or(serde_json::Value::Null)
+}
+
+fn to_connector_source_response(record: ConnectorSourceRecord) -> ConnectorSourceResponse {
+    ConnectorSourceResponse {
+        connector_id: record.connector_id,
+        slug: record.slug,
+        display_name: record.display_name,
+        source_kind: record.source_kind,
+        origin_kind: record.origin_kind,
+        catalog_item_id: record.catalog_item_id,
+        current_version_id: record.current_version_id,
+        latest_imported_version_id: record.latest_imported_version_id,
+        status: record.status,
+        trust_state: record.trust_state,
+        assigned_agent_count: record.assigned_agent_count,
+        published_tool_count: record.published_tool_count,
+        last_conversion_at: record.last_conversion_at,
+        last_review_at: record.last_review_at,
+        last_enabled_at: record.last_enabled_at,
+        last_disabled_at: record.last_disabled_at,
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+    }
+}
+
+fn to_connector_version_response(record: ConnectorVersionRecord) -> ConnectorVersionResponse {
+    ConnectorVersionResponse {
+        version_id: record.version_id,
+        connector_id: record.connector_id,
+        version_label: record.version_label,
+        source_digest: record.source_digest,
+        raw_source_location: record.raw_source_location,
+        import_metadata: parse_storage_json_value(&record.import_metadata_json),
+        schema_summary: parse_storage_json_value(&record.schema_summary_json),
+        latest_conversion_id: record.latest_conversion_id,
+        external_reference_policy: record.external_reference_policy,
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+    }
+}
+
+fn connector_warning_responses(raw: &str) -> Vec<ConnectorWarningResponse> {
+    serde_json::from_str(raw).unwrap_or_default()
+}
+
+fn connector_proposed_tool_responses(raw: &str) -> Vec<ConnectorProposedToolResponse> {
+    serde_json::from_str(raw).unwrap_or_default()
+}
+
+fn connector_unsupported_operation_responses(
+    raw: &str,
+) -> Vec<ConnectorUnsupportedOperationResponse> {
+    serde_json::from_str(raw).unwrap_or_default()
+}
+
+fn to_connector_conversion_response(
+    record: ConnectorConversionRecord,
+) -> ConnectorConversionResponse {
+    ConnectorConversionResponse {
+        conversion_id: record.conversion_id,
+        connector_id: record.connector_id,
+        version_id: record.version_id,
+        status: record.status,
+        warnings: connector_warning_responses(&record.warnings_json),
+        proposed_tools: connector_proposed_tool_responses(&record.proposed_tools_json),
+        write_capable_tools: record.write_capable_tools,
+        unsupported_operations: connector_unsupported_operation_responses(
+            &record.unsupported_operations_json,
+        ),
+        normalization_notes: serde_json::from_str(&record.normalization_notes_json)
+            .unwrap_or_default(),
+        diff_from_previous: parse_storage_json_value(&record.diff_from_previous_json),
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+    }
+}
+
+fn to_connector_published_tool_response(
+    record: ConnectorPublishedToolRecord,
+) -> ConnectorPublishedToolResponse {
+    ConnectorPublishedToolResponse {
+        published_tool_id: record.published_tool_id,
+        connector_id: record.connector_id,
+        version_id: record.version_id,
+        conversion_id: record.conversion_id,
+        tool_name: record.tool_name,
+        display_name: record.display_name,
+        tool_schema: parse_storage_json_value(&record.tool_schema_json),
+        origin_metadata: parse_storage_json_value(&record.origin_metadata_json),
+        write_classification: record.write_classification,
+        published_at: record.published_at,
+        unpublished_at: record.unpublished_at,
+        superseded_by_published_tool_id: record.superseded_by_published_tool_id,
+        deprecation_state: record.deprecation_state,
+    }
+}
+
+fn to_connector_assignment_response(
+    record: ConnectorAssignmentRecord,
+) -> ConnectorAssignmentResponse {
+    ConnectorAssignmentResponse {
+        assignment_id: record.assignment_id,
+        connector_id: record.connector_id,
+        agent_id: record.agent_id,
+        enabled: record.enabled,
+        auth_mode: record.auth_mode,
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+    }
+}
+
+fn to_connector_auth_binding_response(
+    record: ConnectorAuthBindingRecord,
+) -> ConnectorAuthBindingResponse {
+    ConnectorAuthBindingResponse {
+        auth_binding_id: record.auth_binding_id,
+        connector_id: record.connector_id,
+        agent_id: record.agent_id,
+        auth_kind: record.auth_kind,
+        secret_ref: record.secret_ref,
+        oauth_session_id: record.oauth_session_id,
+        status: record.status,
+        auth_metadata: parse_storage_json_value(&record.auth_metadata_json),
+        last_success_at: record.last_success_at,
+        last_error: record.last_error,
+        last_rotated_at: record.last_rotated_at,
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+    }
+}
+
+fn to_connector_interaction_response(
+    record: ConnectorInteractionRecord,
+) -> ConnectorInteractionResponse {
+    ConnectorInteractionResponse {
+        interaction_id: record.interaction_id,
+        connector_id: record.connector_id,
+        agent_id: record.agent_id,
+        interaction_kind: record.interaction_kind,
+        status: record.status,
+        prompt_summary: record.prompt_summary,
+        resume_token: record.resume_token,
+        expires_at: record.expires_at,
+        consumed_at: record.consumed_at,
+        detail: parse_storage_json_value(&record.detail_json),
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+    }
+}
+
+fn to_connector_health_response(
+    connector: &ConnectorSourceRecord,
+    auth_required: bool,
+    degraded_reason: Option<String>,
+    last_checked_at: Option<i64>,
+) -> ConnectorHealthResponse {
+    ConnectorHealthResponse {
+        connector_id: connector.connector_id.clone(),
+        status: connector.status.clone(),
+        degraded_reason,
+        auth_required,
+        last_checked_at,
+        published_tool_count: connector.published_tool_count,
+        assigned_agent_count: connector.assigned_agent_count,
     }
 }
 
@@ -7234,6 +9797,7 @@ async fn create_agent(
         .role_label
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
+    let memory_binding = to_new_agent_memory_binding(request.memory_binding)?;
 
     let record = state
         .storage
@@ -7246,6 +9810,7 @@ async fn create_agent(
             tool_profile,
             reports_to_agent_id,
             role_label,
+            memory_binding,
         })
         .map_err(|err| {
             if err.to_string().to_ascii_lowercase().contains("unique") {
@@ -7307,6 +9872,7 @@ async fn update_agent(
                 .map(|inner| inner.trim().to_string())
                 .filter(|inner| !inner.is_empty())
         }),
+        memory_binding: to_agent_memory_binding_patch(request.memory_binding)?,
     };
     let record = state
         .storage
@@ -9879,7 +12445,7 @@ async fn create_auth_profile(
             credentials_json,
         })
         .map_err(|err| {
-            if err.to_string().contains("UNIQUE constraint failed") {
+            if is_unique_constraint_violation(&err, None) {
                 api_error(
                     StatusCode::CONFLICT,
                     "auth profile display_name already exists for this provider",
@@ -10262,6 +12828,11 @@ async fn openai_oauth_start(
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .or_else(|| {
+            load_runtime_config(&state)
+                .ok()
+                .and_then(|config| runtime_openai_oauth_redirect_uri(&config))
+        })
+        .or_else(|| {
             std::env::var("CARSINOS_OPENAI_OAUTH_REDIRECT_URI")
                 .ok()
                 .map(|value| value.trim().to_string())
@@ -10470,7 +13041,14 @@ async fn openai_oauth_finish(
             credentials_json,
         })
         .map_err(|err| {
-            if err.to_string().contains("UNIQUE constraint failed") {
+            if is_unique_constraint_violation(&err, None) {
+                if let Err(cleanup_err) = state.secret_store.delete(&secret_ref) {
+                    warn!(
+                        error = ?cleanup_err,
+                        secret_ref = %secret_ref,
+                        "failed cleaning up oauth secret after duplicate auth profile conflict"
+                    );
+                }
                 api_error(
                     StatusCode::CONFLICT,
                     "auth profile display_name already exists for this provider",
@@ -10583,7 +13161,14 @@ async fn anthropic_setup_token_ingest(
             credentials_json,
         })
         .map_err(|err| {
-            if err.to_string().contains("UNIQUE constraint failed") {
+            if is_unique_constraint_violation(&err, None) {
+                if let Err(cleanup_err) = state.secret_store.delete(&secret_ref) {
+                    warn!(
+                        error = ?cleanup_err,
+                        secret_ref = %secret_ref,
+                        "failed cleaning up anthropic setup-token secret after duplicate auth profile conflict"
+                    );
+                }
                 api_error(
                     StatusCode::CONFLICT,
                     "auth profile display_name already exists for this provider",
@@ -11542,10 +14127,7 @@ fn get_or_create_channel_session(
     }) {
         Ok(created) => Ok(created),
         Err(err) => {
-            if err
-                .to_string()
-                .contains("UNIQUE constraint failed: sessions.session_key")
-            {
+            if is_unique_constraint_violation(&err, Some("sessions.session_key")) {
                 if let Some(existing) = state.storage.get_session_by_key(session_key)? {
                     return Ok(existing);
                 }
@@ -13886,6 +16468,9 @@ async fn mission_control_focus(
     }
 
     for status in state.channel_runtime.statuses() {
+        if status.disabled_by_config {
+            continue;
+        }
         let provider = status.provider.clone();
         if status.healthy
             && matches!(
@@ -14048,61 +16633,73 @@ fn assistant_tool_capabilities_payload(
                 tool_name: ASSISTANT_TOOL_CAPABILITIES_GET.to_string(),
                 risk_level: "low".to_string(),
                 requires_approval: false,
+                connector: None,
             },
             AssistantToolCapabilityItem {
                 tool_name: ASSISTANT_TOOL_WORKER_SPAWN.to_string(),
                 risk_level: "high".to_string(),
                 requires_approval: true,
+                connector: None,
             },
             AssistantToolCapabilityItem {
                 tool_name: ASSISTANT_TOOL_WORKER_UPDATE.to_string(),
                 risk_level: "high".to_string(),
                 requires_approval: true,
+                connector: None,
             },
             AssistantToolCapabilityItem {
                 tool_name: ASSISTANT_TOOL_WORKER_LIST.to_string(),
                 risk_level: "low".to_string(),
                 requires_approval: false,
+                connector: None,
             },
             AssistantToolCapabilityItem {
                 tool_name: ASSISTANT_TOOL_WORKER_STATUS.to_string(),
                 risk_level: "low".to_string(),
                 requires_approval: false,
+                connector: None,
             },
             AssistantToolCapabilityItem {
                 tool_name: ASSISTANT_TOOL_WORKER_ASSIGN.to_string(),
                 risk_level: "medium".to_string(),
                 requires_approval: false,
+                connector: None,
             },
             AssistantToolCapabilityItem {
                 tool_name: ASSISTANT_TOOL_WORKER_JOIN.to_string(),
                 risk_level: "low".to_string(),
                 requires_approval: false,
+                connector: None,
             },
             AssistantToolCapabilityItem {
                 tool_name: ASSISTANT_TOOL_WORKER_CLOSE.to_string(),
                 risk_level: "medium".to_string(),
                 requires_approval: false,
+                connector: None,
             },
             AssistantToolCapabilityItem {
                 tool_name: ASSISTANT_TOOL_APPROVALS_LIST.to_string(),
                 risk_level: "low".to_string(),
                 requires_approval: false,
+                connector: None,
             },
             AssistantToolCapabilityItem {
                 tool_name: ASSISTANT_TOOL_MAIL_THREAD_CREATE.to_string(),
                 risk_level: "low".to_string(),
                 requires_approval: false,
+                connector: None,
             },
             AssistantToolCapabilityItem {
                 tool_name: ASSISTANT_TOOL_MAIL_SEND.to_string(),
                 risk_level: "medium".to_string(),
                 requires_approval: false,
+                connector: None,
             },
             AssistantToolCapabilityItem {
                 tool_name: ASSISTANT_TOOL_MAIL_INBOX_FETCH.to_string(),
                 risk_level: "low".to_string(),
                 requires_approval: false,
+                connector: None,
             },
         ],
         limits: assistant_tool_limits(runtime_config),
@@ -15536,6 +18133,7 @@ async fn apply_assistant_worker_approval_action(
                 tool_profile: "default".to_string(),
                 reports_to_agent_id: None,
                 role_label: None,
+                memory_binding: None,
             })
             .map_err(|err| {
                 internal_err_with_error("creating assistant worker agent failed", err)
@@ -15607,6 +18205,7 @@ async fn apply_assistant_worker_approval_action(
                         tool_profile: None,
                         reports_to_agent_id: None,
                         role_label: None,
+                        memory_binding: None,
                     },
                 )
                 .map_err(|err| {
@@ -17898,7 +20497,7 @@ async fn run_memory_why(
         .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "run not found"))?;
     let runtime_config = load_runtime_config(&state)
         .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
-    let client = resolve_numquam_client(&state, &runtime_config)
+    let client = resolve_numquam_client_for_session(&state, &runtime_config, &run.session_id)
         .map_err(|err| internal_err_with_error("resolving numquam client failed", err))?
         .ok_or_else(|| {
             api_error(
@@ -18186,14 +20785,6 @@ async fn resolve_approval(
         {
             let runtime_config = load_runtime_config(&state)
                 .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
-            let client = resolve_numquam_client(&state, &runtime_config)
-                .map_err(|err| internal_err_with_error("resolving numquam client failed", err))?
-                .ok_or_else(|| {
-                    api_error(
-                        StatusCode::FAILED_DEPENDENCY,
-                        "numquam integration is disabled for memory writeback resolve",
-                    )
-                })?;
             let run = state
                 .storage
                 .get_run(&existing_record.run_id)
@@ -18201,6 +20792,15 @@ async fn resolve_approval(
                     internal_err_with_error("loading run for memory writeback resolve failed", err)
                 })?
                 .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "run not found for approval"))?;
+            let client =
+                resolve_numquam_client_for_session(&state, &runtime_config, &run.session_id)
+                    .map_err(|err| internal_err_with_error("resolving numquam client failed", err))?
+                    .ok_or_else(|| {
+                        api_error(
+                            StatusCode::FAILED_DEPENDENCY,
+                            "numquam integration is disabled for memory writeback resolve",
+                        )
+                    })?;
             let request_json: serde_json::Value =
                 serde_json::from_str(&existing_record.request_json).map_err(|_| {
                     api_error(
@@ -18707,27 +21307,50 @@ fn scheduler_lock_state_response(state: &AppState) -> SchedulerLockStateResponse
     }
 }
 
+fn numquam_agent_breaker_target(agent_id: &str) -> String {
+    format!("agent:{}", agent_id.trim())
+}
+
 async fn current_numquam_status(
     state: &AppState,
     runtime_config: Option<&RuntimeConfigResponse>,
 ) -> NumquamIntegrationStatusResponse {
     let runtime = state.numquam_runtime_status.read().await.clone();
-    let breaker_record = state
+    let breaker_records = state
         .storage
-        .get_circuit_breaker_state(CIRCUIT_BREAKER_SCOPE_NUMQUAM, NUMQUAM_BREAKER_TARGET)
-        .ok()
-        .flatten();
+        .list_circuit_breaker_states(64, Some(CIRCUIT_BREAKER_SCOPE_NUMQUAM))
+        .unwrap_or_default();
     let now_ms = current_time_ms();
-    let breaker_open = breaker_record
-        .as_ref()
-        .map(|record| {
-            record.state == CIRCUIT_BREAKER_STATE_OPEN
-                && record
-                    .cooldown_until
-                    .map(|value| value > now_ms)
-                    .unwrap_or(true)
-        })
-        .unwrap_or(false);
+    let active_breaker = breaker_records.iter().find(|record| {
+        record.state == CIRCUIT_BREAKER_STATE_OPEN
+            && record
+                .cooldown_until
+                .map(|value| value > now_ms)
+                .unwrap_or(true)
+    });
+    let breaker_record = breaker_records
+        .iter()
+        .find(|record| record.target_id == NUMQUAM_BREAKER_TARGET)
+        .or(active_breaker)
+        .or_else(|| breaker_records.first());
+    let breaker_open = active_breaker.is_some();
+    let breaker_cooldown_until = active_breaker
+        .and_then(|record| record.cooldown_until)
+        .or_else(|| breaker_record.and_then(|record| record.cooldown_until));
+    let breaker_consecutive_failures = active_breaker
+        .map(|record| record.consecutive_failures)
+        .or_else(|| breaker_record.map(|record| record.consecutive_failures))
+        .unwrap_or(0);
+    let breaker_last_error_code = active_breaker
+        .and_then(|record| record.last_error_code.clone())
+        .or_else(|| breaker_record.and_then(|record| record.last_error_code.clone()));
+    let breaker_last_error = active_breaker.map(|record| {
+        format!(
+            "Numquam breaker is open for target '{}' until {}",
+            record.target_id,
+            record.cooldown_until.unwrap_or(0)
+        )
+    });
     let fallback_transport = runtime_config
         .map(|config| config.memory.numquam.transport.clone())
         .filter(|value| !value.trim().is_empty())
@@ -18757,22 +21380,801 @@ async fn current_numquam_status(
         supported_schema_versions: runtime.supported_schema_versions,
         degrade_mode: runtime.degrade_mode || breaker_open,
         breaker_open,
-        breaker_cooldown_until: breaker_record
-            .as_ref()
-            .and_then(|record| record.cooldown_until),
-        breaker_consecutive_failures: breaker_record
-            .as_ref()
-            .map(|record| record.consecutive_failures)
-            .unwrap_or(0),
+        breaker_cooldown_until,
+        breaker_consecutive_failures,
         required_operations_missing: runtime.required_operations_missing,
         last_check_at: runtime.last_check_at,
-        last_error_code: runtime.last_error_code.or_else(|| {
-            breaker_record
-                .as_ref()
-                .and_then(|record| record.last_error_code.clone())
-        }),
-        last_error: runtime.last_error,
+        last_error_code: runtime.last_error_code.or(breaker_last_error_code),
+        last_error: runtime.last_error.or(breaker_last_error),
     }
+}
+
+#[allow(dead_code)]
+fn numquam_error_looks_unauthorized(message: &str) -> bool {
+    let normalized = message.to_ascii_lowercase();
+    normalized.contains("status=401")
+        || normalized.contains("status=403")
+        || normalized.contains("auth_secret_ref")
+        || normalized.contains("missing/empty secret")
+        || normalized.contains("unauthorized")
+        || normalized.contains("forbidden")
+}
+
+#[allow(dead_code)]
+async fn probe_numquam_status_for_client(
+    client: &NumquamClient,
+) -> NumquamIntegrationStatusResponse {
+    let mut status = NumquamIntegrationStatusResponse {
+        enabled: true,
+        transport: client.transport.as_str().to_string(),
+        health_status: "unknown".to_string(),
+        ..NumquamIntegrationStatusResponse::default()
+    };
+    match (client.capabilities_get().await, client.health_get().await) {
+        (Ok(capabilities), Ok(health)) => {
+            status.contract_version = capabilities
+                .data
+                .as_ref()
+                .map(|value| value.contract_version.clone())
+                .filter(|value| !value.trim().is_empty());
+            status.supported_schema_versions = capabilities
+                .data
+                .as_ref()
+                .map(|value| value.supported_schema_versions.clone())
+                .unwrap_or_default();
+            if !capabilities.ok {
+                status.health_status = "degraded".to_string();
+                status.degrade_mode = true;
+                status.last_error_code =
+                    capabilities.error.as_ref().map(|value| value.code.clone());
+                status.last_error = capabilities
+                    .error
+                    .as_ref()
+                    .map(|value| value.message.clone());
+                return status;
+            }
+            if !health.ok {
+                status.health_status = "degraded".to_string();
+                status.degrade_mode = true;
+                status.last_error_code = health.error.as_ref().map(|value| value.code.clone());
+                status.last_error = health.error.as_ref().map(|value| value.message.clone());
+                return status;
+            }
+            if let (Some(capabilities_data), Some(health_data)) =
+                (capabilities.data.as_ref(), health.data.as_ref())
+            {
+                status.required_operations_missing =
+                    numquam_required_ops_missing(capabilities_data);
+                let health_status = health_data.status.trim().to_ascii_lowercase();
+                let transport_supported = numquam_transport_supported_by_capabilities(
+                    client.transport,
+                    capabilities_data,
+                );
+                let contract_version_ok =
+                    capabilities_data.contract_version.trim() == NUMQUAM_CONTRACT_VERSION;
+                let schema_supported = capabilities_data
+                    .supported_schema_versions
+                    .iter()
+                    .any(|value| value.trim() == NUMQUAM_CONTRACT_VERSION);
+                let fully_healthy = health_status == "ok"
+                    && transport_supported
+                    && contract_version_ok
+                    && schema_supported
+                    && status.required_operations_missing.is_empty();
+                status.health_status = if fully_healthy {
+                    "ok".to_string()
+                } else if health_status.is_empty() {
+                    "degraded".to_string()
+                } else {
+                    health_status
+                };
+                status.degrade_mode = !fully_healthy || status.health_status != "ok";
+                if !fully_healthy {
+                    status.last_error_code = Some("CONTRACT_VERSION_UNSUPPORTED".to_string());
+                    status.last_error =
+                        Some("assistant-bound Numquam handshake mismatch".to_string());
+                }
+            } else {
+                status.health_status = "degraded".to_string();
+                status.degrade_mode = true;
+                status.last_error_code = Some("INTERNAL_ERROR".to_string());
+                status.last_error = Some("Numquam handshake missing response data".to_string());
+            }
+        }
+        (Err(err), _) | (_, Err(err)) => {
+            status.health_status = "degraded".to_string();
+            status.degrade_mode = true;
+            status.last_error_code = Some(if numquam_error_looks_unauthorized(&err.to_string()) {
+                "AUTH_REQUIRED".to_string()
+            } else {
+                "DEPENDENCY_UNAVAILABLE".to_string()
+            });
+            status.last_error = Some(err.to_string());
+        }
+    }
+    status
+}
+
+async fn probe_agent_memory_surface(
+    client: &NumquamClient,
+    path: &str,
+    query: &[(String, String)],
+    accept_bad_request: bool,
+) -> bool {
+    match client.get_native_json(path, query).await {
+        Ok((status, _)) => {
+            status.is_success() || (accept_bad_request && status == StatusCode::BAD_REQUEST)
+        }
+        Err(_) => false,
+    }
+}
+
+async fn build_agent_memory_status(
+    state: &AppState,
+    agent_id: &str,
+) -> std::result::Result<AgentMemoryStatusResponse, (StatusCode, Json<ApiError>)> {
+    let agent = state
+        .storage
+        .get_agent(agent_id)
+        .map_err(|err| internal_err_with_error("loading agent memory binding failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "agent not found"))?;
+    let binding = agent
+        .memory_binding
+        .clone()
+        .map(to_agent_memory_binding_response);
+    if !binding.as_ref().map(|value| value.enabled).unwrap_or(false) {
+        return Ok(AgentMemoryStatusResponse {
+            agent_id: agent.agent_id,
+            binding_status: "unconfigured".to_string(),
+            binding,
+            native_surface_availability: AgentMemoryNativeSurfaceAvailabilityResponse::default(),
+            orchestration: NumquamIntegrationStatusResponse::default(),
+            native_runtime_status: None,
+            native_runtime_health_mismatch: false,
+        });
+    }
+
+    let runtime_config = load_runtime_config(state)
+        .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
+    let client = match resolve_numquam_client_for_agent(state, &runtime_config, &agent.agent_id) {
+        Ok(Some(client)) => client,
+        Ok(None) => {
+            return Ok(AgentMemoryStatusResponse {
+                agent_id: agent.agent_id,
+                binding_status: "unconfigured".to_string(),
+                binding,
+                native_surface_availability: AgentMemoryNativeSurfaceAvailabilityResponse::default(
+                ),
+                orchestration: NumquamIntegrationStatusResponse::default(),
+                native_runtime_status: None,
+                native_runtime_health_mismatch: false,
+            })
+        }
+        Err(err) => {
+            let binding_status = if numquam_error_looks_unauthorized(&err.to_string()) {
+                "unauthorized"
+            } else {
+                "unavailable"
+            };
+            return Ok(AgentMemoryStatusResponse {
+                agent_id: agent.agent_id,
+                binding_status: binding_status.to_string(),
+                binding,
+                native_surface_availability: AgentMemoryNativeSurfaceAvailabilityResponse::default(
+                ),
+                orchestration: NumquamIntegrationStatusResponse {
+                    enabled: true,
+                    transport: runtime_config.memory.numquam.transport.clone(),
+                    health_status: "degraded".to_string(),
+                    degrade_mode: true,
+                    last_error_code: Some(if binding_status == "unauthorized" {
+                        "AUTH_REQUIRED".to_string()
+                    } else {
+                        "DEPENDENCY_UNAVAILABLE".to_string()
+                    }),
+                    last_error: Some(err.to_string()),
+                    ..NumquamIntegrationStatusResponse::default()
+                },
+                native_runtime_status: None,
+                native_runtime_health_mismatch: false,
+            });
+        }
+    };
+
+    let orchestration = probe_numquam_status_for_client(&client).await;
+    let cards = probe_agent_memory_surface(
+        &client,
+        "/api/memory/cards",
+        &[
+            ("status".to_string(), "all".to_string()),
+            ("limit".to_string(), "1".to_string()),
+        ],
+        false,
+    )
+    .await;
+    let atoms = probe_agent_memory_surface(
+        &client,
+        "/api/memory/atoms",
+        &[
+            ("status".to_string(), "all".to_string()),
+            ("limit".to_string(), "1".to_string()),
+        ],
+        false,
+    )
+    .await;
+    let graph_overview = probe_agent_memory_surface(
+        &client,
+        "/api/memory/graph-map",
+        &[
+            ("status".to_string(), "all".to_string()),
+            ("limit".to_string(), "1".to_string()),
+        ],
+        false,
+    )
+    .await;
+    let graph_neighbors =
+        probe_agent_memory_surface(&client, "/api/memory/graph/neighbors", &[], true).await;
+    let episodes = probe_agent_memory_surface(
+        &client,
+        "/api/memory/episodes",
+        &[("status".to_string(), "all".to_string())],
+        false,
+    )
+    .await;
+    let telemetry_summary = probe_agent_memory_surface(
+        &client,
+        "/api/runtime/telemetry/summary",
+        &[("limit".to_string(), "1".to_string())],
+        false,
+    )
+    .await;
+    let telemetry_turns = probe_agent_memory_surface(
+        &client,
+        "/api/runtime/telemetry/turns",
+        &[("limit".to_string(), "1".to_string())],
+        false,
+    )
+    .await;
+    let decision_reasons =
+        probe_agent_memory_surface(&client, "/api/runtime/decision-reasons", &[], false).await;
+    let (runtime_health, native_runtime_status) =
+        match client.get_native_json("/api/runtime/health", &[]).await {
+            Ok((status, payload)) if status.is_success() => (true, Some(payload)),
+            _ => (false, None),
+        };
+    let native_surface_availability = AgentMemoryNativeSurfaceAvailabilityResponse {
+        cards,
+        card_detail: cards,
+        atom_detail: atoms,
+        graph_overview,
+        graph_neighbors,
+        episodes,
+        turn_why: orchestration.enabled
+            && orchestration.last_error_code.as_deref() != Some("AUTH_REQUIRED"),
+        citation_lookup: orchestration.enabled
+            && orchestration.last_error_code.as_deref() != Some("AUTH_REQUIRED"),
+        runtime_health,
+        telemetry_summary,
+        telemetry_turns,
+        decision_reasons,
+    };
+    let required_read_surfaces_ok = native_surface_availability.cards
+        && native_surface_availability.atom_detail
+        && native_surface_availability.graph_overview
+        && native_surface_availability.episodes
+        && native_surface_availability.runtime_health;
+    let native_runtime_health_mismatch = native_runtime_status
+        .as_ref()
+        .and_then(|payload| payload.get("status"))
+        .and_then(|value| value.as_str())
+        .map(|value| !value.eq_ignore_ascii_case(orchestration.health_status.as_str()))
+        .unwrap_or(false);
+    let binding_status = if orchestration.last_error_code.as_deref() == Some("AUTH_REQUIRED") {
+        "unauthorized"
+    } else if !orchestration.enabled {
+        "unconfigured"
+    } else if orchestration.health_status == "ok" && required_read_surfaces_ok {
+        "available"
+    } else if orchestration.health_status == "ok" || orchestration.degrade_mode {
+        "degraded"
+    } else {
+        "unavailable"
+    };
+
+    Ok(AgentMemoryStatusResponse {
+        agent_id: agent.agent_id,
+        binding_status: binding_status.to_string(),
+        binding,
+        native_surface_availability,
+        orchestration,
+        native_runtime_status,
+        native_runtime_health_mismatch,
+    })
+}
+
+async fn load_agent_memory_client(
+    state: &AppState,
+    agent_id: &str,
+) -> std::result::Result<
+    (AgentRecord, AgentMemoryBindingRecord, NumquamClient),
+    (StatusCode, Json<ApiError>),
+> {
+    let agent = state
+        .storage
+        .get_agent(agent_id)
+        .map_err(|err| internal_err_with_error("loading agent memory binding failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "agent not found"))?;
+    let binding = agent.memory_binding.clone().ok_or_else(|| {
+        api_error(
+            StatusCode::FAILED_DEPENDENCY,
+            "assistant memory is unconfigured",
+        )
+    })?;
+    if !binding.enabled {
+        return Err(api_error(
+            StatusCode::FAILED_DEPENDENCY,
+            "assistant memory binding is disabled",
+        ));
+    }
+    let runtime_config = load_runtime_config(state)
+        .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
+    let client = resolve_numquam_client_for_agent(state, &runtime_config, &agent.agent_id)
+        .map_err(|err| internal_err_with_error("resolving assistant memory client failed", err))?
+        .ok_or_else(|| {
+            api_error(
+                StatusCode::FAILED_DEPENDENCY,
+                "assistant memory is unconfigured",
+            )
+        })?;
+    Ok((agent, binding, client))
+}
+
+fn trimmed_query_value(query: &HashMap<String, String>, key: &str) -> Option<String> {
+    query
+        .get(key)
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn encode_url_path_segment(value: &str) -> String {
+    url::form_urlencoded::byte_serialize(value.as_bytes()).collect()
+}
+
+fn query_u32(query: &HashMap<String, String>, key: &str, min: u32, max: u32) -> Option<String> {
+    let parsed = trimmed_query_value(query, key)?.parse::<u32>().ok()?;
+    Some(parsed.clamp(min, max).to_string())
+}
+
+fn query_bool(query: &HashMap<String, String>, key: &str) -> Option<String> {
+    let value = trimmed_query_value(query, key)?;
+    match value.to_ascii_lowercase().as_str() {
+        "1" | "true" | "yes" => Some("true".to_string()),
+        "0" | "false" | "no" => Some("false".to_string()),
+        _ => None,
+    }
+}
+
+fn native_proxy_error(
+    path: &str,
+    status: StatusCode,
+    payload: &serde_json::Value,
+) -> (StatusCode, Json<ApiError>) {
+    let message = payload
+        .get("error")
+        .and_then(|value| value.as_str())
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .or_else(|| {
+            payload
+                .get("detail")
+                .and_then(|value| value.as_str())
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        })
+        .unwrap_or_else(|| format!("assistant memory upstream request failed for {path}"));
+    let mapped = if status.is_server_error() {
+        StatusCode::BAD_GATEWAY
+    } else {
+        status
+    };
+    api_error(mapped, &message)
+}
+
+async fn proxy_agent_memory_native_get(
+    state: &AppState,
+    agent_id: &str,
+    path: &str,
+    query: Vec<(String, String)>,
+) -> std::result::Result<Json<AgentMemoryJsonPayloadResponse>, (StatusCode, Json<ApiError>)> {
+    let (agent, binding, client) = load_agent_memory_client(state, agent_id).await?;
+    let (status, data) = client
+        .get_native_json(path, &query)
+        .await
+        .map_err(|err| internal_err_with_error("assistant memory upstream request failed", err))?;
+    if !status.is_success() {
+        return Err(native_proxy_error(path, status, &data));
+    }
+    Ok(Json(AgentMemoryJsonPayloadResponse {
+        agent_id: agent.agent_id,
+        binding_id: binding.binding_id,
+        data,
+    }))
+}
+
+async fn get_agent_memory_status(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(agent_id): Path<String>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "agent.memory.status",
+        &format!("agent:{agent_id}:memory"),
+    )?;
+    let status = build_agent_memory_status(&state, agent_id.trim()).await?;
+    Ok(Json(GetAgentMemoryStatusResponse { status }))
+}
+
+async fn list_agent_memory_cards(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(agent_id): Path<String>,
+    Query(query): Query<HashMap<String, String>>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "agent.memory.cards",
+        &format!("agent:{agent_id}:memory.cards"),
+    )?;
+    let mut native_query = Vec::new();
+    if let Some(value) = trimmed_query_value(&query, "kind") {
+        native_query.push(("kind".to_string(), value));
+    }
+    native_query.push((
+        "status".to_string(),
+        trimmed_query_value(&query, "status").unwrap_or_else(|| "all".to_string()),
+    ));
+    native_query.push((
+        "contradiction".to_string(),
+        trimmed_query_value(&query, "contradiction").unwrap_or_else(|| "all".to_string()),
+    ));
+    if let Some(value) = trimmed_query_value(&query, "q") {
+        native_query.push(("q".to_string(), value));
+    }
+    if let Some(value) = query_u32(&query, "offset", 0, 10_000) {
+        native_query.push(("offset".to_string(), value));
+    }
+    native_query.push((
+        "limit".to_string(),
+        query_u32(&query, "limit", 1, 200).unwrap_or_else(|| "60".to_string()),
+    ));
+    proxy_agent_memory_native_get(&state, agent_id.trim(), "/api/memory/cards", native_query).await
+}
+
+async fn get_agent_memory_card(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path((agent_id, card_id)): Path<(String, String)>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "agent.memory.card.get",
+        &format!("agent:{agent_id}:memory.card:{card_id}"),
+    )?;
+    proxy_agent_memory_native_get(
+        &state,
+        agent_id.trim(),
+        &format!(
+            "/api/memory/cards/{}",
+            encode_url_path_segment(card_id.trim())
+        ),
+        Vec::new(),
+    )
+    .await
+}
+
+async fn get_agent_memory_atom(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path((agent_id, atom_id)): Path<(String, String)>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "agent.memory.atom.get",
+        &format!("agent:{agent_id}:memory.atom:{atom_id}"),
+    )?;
+    proxy_agent_memory_native_get(
+        &state,
+        agent_id.trim(),
+        &format!(
+            "/api/memory/atom/{}",
+            encode_url_path_segment(atom_id.trim())
+        ),
+        Vec::new(),
+    )
+    .await
+}
+
+async fn list_agent_memory_episodes(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(agent_id): Path<String>,
+    Query(query): Query<HashMap<String, String>>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "agent.memory.episodes",
+        &format!("agent:{agent_id}:memory.episodes"),
+    )?;
+    let mut native_query = vec![(
+        "status".to_string(),
+        trimmed_query_value(&query, "status").unwrap_or_else(|| "all".to_string()),
+    )];
+    if let Some(value) = trimmed_query_value(&query, "q") {
+        native_query.push(("q".to_string(), value));
+    }
+    if let Some(value) = trimmed_query_value(&query, "run_id") {
+        native_query.push(("run_id".to_string(), value));
+    }
+    proxy_agent_memory_native_get(
+        &state,
+        agent_id.trim(),
+        "/api/memory/episodes",
+        native_query,
+    )
+    .await
+}
+
+async fn get_agent_memory_graph_map(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(agent_id): Path<String>,
+    Query(query): Query<HashMap<String, String>>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "agent.memory.graph_map",
+        &format!("agent:{agent_id}:memory.graph_map"),
+    )?;
+    let mut native_query = vec![(
+        "status".to_string(),
+        trimmed_query_value(&query, "status").unwrap_or_else(|| "all".to_string()),
+    )];
+    if let Some(value) = trimmed_query_value(&query, "q") {
+        native_query.push(("q".to_string(), value));
+    }
+    native_query.push((
+        "limit".to_string(),
+        query_u32(&query, "limit", 1, 500).unwrap_or_else(|| "60".to_string()),
+    ));
+    proxy_agent_memory_native_get(
+        &state,
+        agent_id.trim(),
+        "/api/memory/graph-map",
+        native_query,
+    )
+    .await
+}
+
+async fn get_agent_memory_graph_neighbors(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(agent_id): Path<String>,
+    Query(query): Query<HashMap<String, String>>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "agent.memory.graph_neighbors",
+        &format!("agent:{agent_id}:memory.graph_neighbors"),
+    )?;
+    let atom_id = trimmed_query_value(&query, "atom_id")
+        .ok_or_else(|| api_error(StatusCode::BAD_REQUEST, "atom_id is required"))?;
+    let mut native_query = vec![("atom_id".to_string(), atom_id)];
+    if let Some(value) = query_u32(&query, "depth", 1, 3) {
+        native_query.push(("depth".to_string(), value));
+    }
+    if let Some(value) = query_u32(&query, "node_limit", 1, 500) {
+        native_query.push(("node_limit".to_string(), value));
+    }
+    if let Some(value) = query_u32(&query, "link_limit", 1, 1_000) {
+        native_query.push(("link_limit".to_string(), value));
+    }
+    if let Some(value) = query_bool(&query, "include_root_detail") {
+        native_query.push(("include_root_detail".to_string(), value));
+    }
+    if let Some(value) = query_bool(&query, "include_shared_language") {
+        native_query.push(("include_shared_language".to_string(), value));
+    }
+    proxy_agent_memory_native_get(
+        &state,
+        agent_id.trim(),
+        "/api/memory/graph/neighbors",
+        native_query,
+    )
+    .await
+}
+
+async fn get_agent_memory_turn_why(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path((agent_id, turn_id)): Path<(String, String)>,
+    Query(query): Query<HashMap<String, String>>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "agent.memory.turn_why",
+        &format!("agent:{agent_id}:memory.turn:{turn_id}:why"),
+    )?;
+    let mut native_query = Vec::new();
+    if let Some(value) = query_bool(&query, "citations") {
+        native_query.push(("citations".to_string(), value));
+    }
+    proxy_agent_memory_native_get(
+        &state,
+        agent_id.trim(),
+        &format!("/api/turns/{}/why", encode_url_path_segment(turn_id.trim())),
+        native_query,
+    )
+    .await
+}
+
+async fn get_agent_memory_citation(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path((agent_id, citation_token)): Path<(String, String)>,
+    Query(query): Query<HashMap<String, String>>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "agent.memory.citation",
+        &format!("agent:{agent_id}:memory.citation"),
+    )?;
+    let mut native_query = Vec::new();
+    if let Some(value) = query_u32(&query, "context_window", 1, 50) {
+        native_query.push(("context_window".to_string(), value));
+    }
+    proxy_agent_memory_native_get(
+        &state,
+        agent_id.trim(),
+        &format!(
+            "/api/archive/citation/{}",
+            encode_url_path_segment(citation_token.trim())
+        ),
+        native_query,
+    )
+    .await
+}
+
+async fn get_agent_memory_runtime_health(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(agent_id): Path<String>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "agent.memory.runtime_health",
+        &format!("agent:{agent_id}:memory.runtime_health"),
+    )?;
+    proxy_agent_memory_native_get(&state, agent_id.trim(), "/api/runtime/health", Vec::new()).await
+}
+
+async fn get_agent_memory_telemetry_summary(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(agent_id): Path<String>,
+    Query(query): Query<HashMap<String, String>>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "agent.memory.telemetry_summary",
+        &format!("agent:{agent_id}:memory.telemetry_summary"),
+    )?;
+    let mut native_query = Vec::new();
+    if let Some(value) = query_u32(&query, "limit", 1, 500) {
+        native_query.push(("limit".to_string(), value));
+    }
+    proxy_agent_memory_native_get(
+        &state,
+        agent_id.trim(),
+        "/api/runtime/telemetry/summary",
+        native_query,
+    )
+    .await
+}
+
+async fn get_agent_memory_telemetry_turns(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(agent_id): Path<String>,
+    Query(query): Query<HashMap<String, String>>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "agent.memory.telemetry_turns",
+        &format!("agent:{agent_id}:memory.telemetry_turns"),
+    )?;
+    let mut native_query = Vec::new();
+    if let Some(value) = query_u32(&query, "limit", 1, 500) {
+        native_query.push(("limit".to_string(), value));
+    }
+    proxy_agent_memory_native_get(
+        &state,
+        agent_id.trim(),
+        "/api/runtime/telemetry/turns",
+        native_query,
+    )
+    .await
+}
+
+async fn get_agent_memory_decision_reasons(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(agent_id): Path<String>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "agent.memory.decision_reasons",
+        &format!("agent:{agent_id}:memory.decision_reasons"),
+    )?;
+    proxy_agent_memory_native_get(
+        &state,
+        agent_id.trim(),
+        "/api/runtime/decision-reasons",
+        Vec::new(),
+    )
+    .await
 }
 
 fn collect_breaker_summary(
@@ -19080,10 +22482,28 @@ async fn execute_run(
     enforce_run_wall_time_budget(started, autonomy_guardrails.max_run_ms)?;
 
     let plugin_registry_snapshot = state.plugin_registry.read().await.clone();
+    let session_agent_id = state
+        .storage
+        .get_session(&run.session_id)?
+        .map(|session| session.agent_id)
+        .unwrap_or_else(|| "default".to_string());
+    let connector_tool_bindings =
+        load_connector_runtime_tools(state, Some(session_agent_id.as_str()), false)?;
+    let connector_tools = connector_tool_bindings
+        .iter()
+        .map(|binding| ConnectorParsedTool {
+            connector_id: binding.connector.connector_id.clone(),
+            published_tool_id: binding.published_tool.published_tool_id.clone(),
+            tool_name: binding.published_tool.tool_name.clone(),
+            write_classification: binding.published_tool.write_classification.clone(),
+            timeout_ms: Some(connector_tool_timeout_ms()),
+        })
+        .collect::<Vec<_>>();
     let tool_requests = parse_tool_requests_from_input(
         &input,
         state.tool_registry.as_ref(),
         Some(&plugin_registry_snapshot),
+        &connector_tools,
     )?;
     if (tool_requests.len() as u64) > autonomy_guardrails.max_tool_calls_per_run {
         return Err(budget_error(
@@ -19129,6 +22549,8 @@ async fn execute_run(
                 "raw_args": raw_args
             })
             .to_string()
+        } else if let Some(raw_args) = tool_metadata.connector_raw_args.as_ref() {
+            raw_args.to_string()
         } else {
             serde_json::to_string(&request).unwrap_or_else(|_| "{}".to_string())
         };
@@ -19332,7 +22754,12 @@ async fn execute_run(
             }
         }
 
-        let execution_attempt = if tool_metadata.plugin_id.is_some() {
+        let execution_attempt = if tool_metadata.connector_id.is_some() {
+            match execute_connector_tool_invocation(state, run, &tool_metadata, &args_json).await {
+                Ok(result) => ToolExecutionAttempt::Success(result),
+                Err(tool_err) => ToolExecutionAttempt::ToolError(tool_err),
+            }
+        } else if tool_metadata.plugin_id.is_some() {
             match execute_plugin_tool_invocation(state, run, &tool_metadata, &args_json).await {
                 Ok(result) => ToolExecutionAttempt::Success(result),
                 Err(tool_err) => ToolExecutionAttempt::ToolError(tool_err),
@@ -19368,6 +22795,37 @@ async fn execute_run(
             ToolExecutionAttempt::ToolError(tool_err) => {
                 let (error_code, retryable) = tool_error_code_and_retryable(&tool_err);
                 let error_text = format!("tool execution failed: {tool_err}");
+                if error_text.contains("CONNECTOR_AUTH_REQUIRED:") {
+                    let duration_ms = tool_started.elapsed().as_millis() as u64;
+                    let envelope = tool_error_envelope(
+                        &tool_metadata,
+                        "blocked",
+                        "CONNECTOR_AUTH_REQUIRED",
+                        &error_text,
+                        duration_ms,
+                        false,
+                    );
+                    let _ = state.storage.finish_tool_call(
+                        &tool_call.tool_call_id,
+                        "blocked",
+                        Some(envelope.to_string()),
+                        Some(error_text.clone()),
+                    );
+                    emit_extension_hook_point(
+                        state,
+                        run,
+                        HookPoint::ToolAfter,
+                        Some(tool_name),
+                        serde_json::json!({
+                            "tool_call_id": &tool_call.tool_call_id,
+                            "status": "blocked",
+                            "error_code": "CONNECTOR_AUTH_REQUIRED",
+                            "duration_ms": duration_ms
+                        }),
+                    )
+                    .await;
+                    anyhow::bail!("{error_text}");
+                }
                 let fingerprint = tool_error_fingerprint(tool_name, error_code, &error_text);
                 let streak_count = state.tool_error_breaker.record_failure(&fingerprint);
                 let duration_ms = tool_started.elapsed().as_millis() as u64;
@@ -19568,11 +23026,11 @@ async fn execute_run(
     let mut memory_context_text = None;
     let use_numquam = memory_blend_mode != "local_fallback_only";
     if use_numquam {
-        refresh_numquam_handshake_state(state).await;
-        match resolve_numquam_client(state, &runtime_config) {
+        match resolve_numquam_client_for_agent(state, &runtime_config, agent_id) {
             Ok(Some(client)) => {
                 memory_metadata.enabled = true;
                 memory_metadata.transport = Some(client.transport.as_str().to_string());
+                let numquam_breaker_target = numquam_agent_breaker_target(agent_id);
                 let run_mode = infer_run_memory_mode(state, &run.session_id);
                 let policy = build_numquam_context_policy(
                     state,
@@ -19602,7 +23060,7 @@ async fn execute_run(
                     "Numquam context policy selected"
                 );
 
-                let handshake_status = state.numquam_runtime_status.read().await.clone();
+                let handshake_status = probe_numquam_status_for_client(&client).await;
                 if handshake_status.degrade_mode {
                     memory_metadata.context_degrade_mode = true;
                     memory_metadata.context_error_code = handshake_status
@@ -19629,10 +23087,35 @@ async fn execute_run(
                             "health_status": handshake_status.health_status
                         })),
                     );
+                    let breaker_state = record_circuit_breaker_failure(
+                        state,
+                        CIRCUIT_BREAKER_SCOPE_NUMQUAM,
+                        &numquam_breaker_target,
+                        memory_metadata.context_error_code.as_deref(),
+                        autonomy_guardrails
+                            .max_consecutive_failures_before_breaker
+                            .max(1),
+                    )?;
+                    if breaker_state.state == CIRCUIT_BREAKER_STATE_OPEN {
+                        emit_event(
+                            state,
+                            "run.guardrail",
+                            serde_json::json!({
+                                "run_id": &run.run_id,
+                                "session_id": &run.session_id,
+                                "reason_code": REASON_BREAKER_NUMQUAM_OPEN,
+                                "scope": CIRCUIT_BREAKER_SCOPE_NUMQUAM,
+                                "target_id": &numquam_breaker_target,
+                                "cooldown_until": breaker_state.cooldown_until,
+                                "consecutive_failures": breaker_state.consecutive_failures,
+                                "last_error_code": breaker_state.last_error_code
+                            }),
+                        );
+                    }
                 } else if let Some(active_breaker) = get_active_circuit_breaker_state(
                     state,
                     CIRCUIT_BREAKER_SCOPE_NUMQUAM,
-                    NUMQUAM_BREAKER_TARGET,
+                    &numquam_breaker_target,
                 )? {
                     memory_metadata.context_error_code =
                         Some(REASON_BREAKER_NUMQUAM_OPEN.to_string());
@@ -19648,7 +23131,7 @@ async fn execute_run(
                             "session_id": &run.session_id,
                             "reason_code": REASON_BREAKER_NUMQUAM_OPEN,
                             "scope": CIRCUIT_BREAKER_SCOPE_NUMQUAM,
-                            "target_id": NUMQUAM_BREAKER_TARGET,
+                            "target_id": &numquam_breaker_target,
                             "cooldown_until": active_breaker.cooldown_until,
                             "consecutive_failures": active_breaker.consecutive_failures,
                             "last_error_code": active_breaker.last_error_code
@@ -19683,7 +23166,7 @@ async fn execute_run(
                                 let _ = reset_circuit_breaker_state_on_success(
                                     state,
                                     CIRCUIT_BREAKER_SCOPE_NUMQUAM,
-                                    NUMQUAM_BREAKER_TARGET,
+                                    &numquam_breaker_target,
                                 );
                                 if envelope.degrade_mode {
                                     warn!(
@@ -19767,7 +23250,7 @@ async fn execute_run(
                                 let breaker_state = record_circuit_breaker_failure(
                                     state,
                                     CIRCUIT_BREAKER_SCOPE_NUMQUAM,
-                                    NUMQUAM_BREAKER_TARGET,
+                                    &numquam_breaker_target,
                                     Some(error.code.as_str()),
                                     autonomy_guardrails
                                         .max_consecutive_failures_before_breaker
@@ -19782,7 +23265,7 @@ async fn execute_run(
                                             "session_id": &run.session_id,
                                             "reason_code": REASON_BREAKER_NUMQUAM_OPEN,
                                             "scope": CIRCUIT_BREAKER_SCOPE_NUMQUAM,
-                                            "target_id": NUMQUAM_BREAKER_TARGET,
+                                            "target_id": &numquam_breaker_target,
                                             "cooldown_until": breaker_state.cooldown_until,
                                             "consecutive_failures": breaker_state.consecutive_failures,
                                             "last_error_code": breaker_state.last_error_code
@@ -19798,7 +23281,7 @@ async fn execute_run(
                             let breaker_state = record_circuit_breaker_failure(
                                 state,
                                 CIRCUIT_BREAKER_SCOPE_NUMQUAM,
-                                NUMQUAM_BREAKER_TARGET,
+                                &numquam_breaker_target,
                                 Some(error_code.as_str()),
                                 autonomy_guardrails
                                     .max_consecutive_failures_before_breaker
@@ -19813,7 +23296,7 @@ async fn execute_run(
                                         "session_id": &run.session_id,
                                         "reason_code": REASON_BREAKER_NUMQUAM_OPEN,
                                         "scope": CIRCUIT_BREAKER_SCOPE_NUMQUAM,
-                                        "target_id": NUMQUAM_BREAKER_TARGET,
+                                        "target_id": &numquam_breaker_target,
                                         "cooldown_until": breaker_state.cooldown_until,
                                         "consecutive_failures": breaker_state.consecutive_failures,
                                         "last_error_code": breaker_state.last_error_code
@@ -20241,7 +23724,7 @@ async fn execute_run(
 
     if use_numquam {
         let mut writeback_metadata = RunMemoryWritebackMetadata::default();
-        match resolve_numquam_client(state, &runtime_config) {
+        match resolve_numquam_client_for_agent(state, &runtime_config, agent_id) {
             Ok(Some(client)) => {
                 let writeback_result = client
                     .writeback_propose(
@@ -20514,19 +23997,69 @@ async fn execute_run_with_status_handling(
 }
 
 impl NumquamClient {
+    fn default_principal_id() -> &'static str {
+        "carsinos_gateway"
+    }
+
+    fn default_principal_display_name() -> &'static str {
+        "carsinOS Gateway"
+    }
+
+    fn normalized_optional_value(value: Option<&str>) -> Option<String> {
+        value
+            .map(|raw| raw.trim().to_string())
+            .filter(|raw| !raw.is_empty())
+    }
+
+    fn normalized_optional_base_url(value: Option<&str>) -> Option<String> {
+        value
+            .map(|raw| raw.trim().trim_end_matches('/').to_string())
+            .filter(|raw| !raw.is_empty())
+    }
+
+    fn env_optional_value(key: &str) -> Option<String> {
+        Self::normalized_optional_value(std::env::var(key).ok().as_deref())
+    }
+
+    fn env_optional_base_url(key: &str) -> Option<String> {
+        Self::normalized_optional_base_url(std::env::var(key).ok().as_deref())
+    }
+
+    fn resolve_principal_identity(
+        preferred_principal_id: Option<&str>,
+        preferred_principal_display_name: Option<&str>,
+        fallback_principal_id: Option<&str>,
+        fallback_principal_display_name: Option<&str>,
+    ) -> (String, String) {
+        let principal_id = Self::normalized_optional_value(preferred_principal_id)
+            .or_else(|| Self::normalized_optional_value(fallback_principal_id))
+            .or_else(|| Self::env_optional_value("CARSINOS_NUMQUAM_PRINCIPAL_ID"))
+            .unwrap_or_else(|| Self::default_principal_id().to_string());
+        let principal_display_name =
+            Self::normalized_optional_value(preferred_principal_display_name)
+                .or_else(|| Self::normalized_optional_value(fallback_principal_display_name))
+                .or_else(|| Self::env_optional_value("CARSINOS_NUMQUAM_PRINCIPAL_NAME"))
+                .unwrap_or_else(|| Self::default_principal_display_name().to_string());
+        (principal_id, principal_display_name)
+    }
+
+    fn resolve_mcp_url(integration_base_url: &str) -> String {
+        Self::env_optional_value("CARSINOS_NUMQUAM_MCP_URL")
+            .unwrap_or_else(|| format!("{integration_base_url}/mcp"))
+    }
+
     fn from_env() -> AnyResult<Option<Self>> {
-        let base_url_raw = std::env::var("CARSINOS_NUMQUAM_BASE_URL").ok();
-        let base_url = base_url_raw
-            .as_ref()
-            .map(|value| value.trim())
-            .filter(|value| !value.is_empty())
-            .map(|value| value.trim_end_matches('/').to_string());
+        let base_url = Self::env_optional_base_url("CARSINOS_NUMQUAM_BASE_URL");
         let enabled = bool_env("CARSINOS_NUMQUAM_ENABLED", false) || base_url.is_some();
         if !enabled {
             return Ok(None);
         }
 
-        let integration_base_url = base_url.unwrap_or_else(|| "http://127.0.0.1:7340".to_string());
+        let integration_base_url = base_url.ok_or_else(|| {
+            anyhow::anyhow!(
+                "CARSINOS_NUMQUAM_BASE_URL is required when CARSINOS_NUMQUAM_ENABLED=true"
+            )
+        })?;
         let transport_raw = std::env::var("CARSINOS_NUMQUAM_TRANSPORT")
             .unwrap_or_else(|_| "dual".to_string())
             .to_ascii_lowercase();
@@ -20549,19 +24082,9 @@ impl NumquamClient {
             .ok()
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty());
-        let principal_id = std::env::var("CARSINOS_NUMQUAM_PRINCIPAL_ID")
-            .unwrap_or_else(|_| "carsinos_gateway".to_string())
-            .trim()
-            .to_string();
-        let principal_display_name = std::env::var("CARSINOS_NUMQUAM_PRINCIPAL_NAME")
-            .unwrap_or_else(|_| "carsinOS Gateway".to_string())
-            .trim()
-            .to_string();
-        let mcp_url = std::env::var("CARSINOS_NUMQUAM_MCP_URL")
-            .ok()
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty())
-            .unwrap_or_else(|| format!("{integration_base_url}/mcp"));
+        let (principal_id, principal_display_name) =
+            Self::resolve_principal_identity(None, None, None, None);
+        let mcp_url = Self::resolve_mcp_url(&integration_base_url);
 
         let http_client = reqwest::Client::builder()
             .timeout(request_timeout)
@@ -20595,15 +24118,9 @@ impl NumquamClient {
 
         let integration_base_url = config
             .integration_base_url
-            .as_ref()
-            .map(|value| value.trim().trim_end_matches('/').to_string())
-            .filter(|value| !value.is_empty())
-            .or_else(|| {
-                std::env::var("CARSINOS_NUMQUAM_BASE_URL")
-                    .ok()
-                    .map(|value| value.trim().trim_end_matches('/').to_string())
-                    .filter(|value| !value.is_empty())
-            })
+            .as_deref()
+            .and_then(|value| Self::normalized_optional_base_url(Some(value)))
+            .or_else(|| Self::env_optional_base_url("CARSINOS_NUMQUAM_BASE_URL"))
             .ok_or_else(|| {
                 anyhow::anyhow!(
                     "memory.numquam.integration_base_url is required when memory.numquam.enabled=true"
@@ -20663,41 +24180,144 @@ impl NumquamClient {
                 .filter(|value| !value.is_empty())
         };
 
-        let principal_id = config
-            .principal_id
-            .as_ref()
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty())
-            .or_else(|| {
-                std::env::var("CARSINOS_NUMQUAM_PRINCIPAL_ID")
-                    .ok()
-                    .map(|value| value.trim().to_string())
-                    .filter(|value| !value.is_empty())
-            })
-            .unwrap_or_else(|| "carsinos_gateway".to_string());
-        let principal_display_name = config
-            .principal_display_name
-            .as_ref()
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty())
-            .or_else(|| {
-                std::env::var("CARSINOS_NUMQUAM_PRINCIPAL_NAME")
-                    .ok()
-                    .map(|value| value.trim().to_string())
-                    .filter(|value| !value.is_empty())
-            })
-            .unwrap_or_else(|| "carsinOS Gateway".to_string());
-        let mcp_url = std::env::var("CARSINOS_NUMQUAM_MCP_URL")
-            .ok()
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty())
-            .unwrap_or_else(|| format!("{integration_base_url}/mcp"));
+        let (principal_id, principal_display_name) = Self::resolve_principal_identity(
+            config.principal_id.as_deref(),
+            config.principal_display_name.as_deref(),
+            None,
+            None,
+        );
+        let mcp_url = Self::resolve_mcp_url(&integration_base_url);
 
         let http_client = reqwest::Client::builder()
             .timeout(request_timeout)
             .build()
             .context("failed building Numquam HTTP client from runtime config")?;
 
+        Ok(Some(Self {
+            transport,
+            integration_base_url,
+            mcp_url,
+            token,
+            principal_id,
+            principal_display_name,
+            request_timeout,
+            context_build_timeout,
+            writeback_propose_timeout,
+            writeback_resolve_timeout,
+            handshake_timeout,
+            http_client,
+        }))
+    }
+
+    fn from_agent_binding(
+        runtime_config: &RuntimeConfigResponse,
+        binding: &AgentMemoryBindingRecord,
+        secret_store: &SecretStore,
+    ) -> AnyResult<Option<Self>> {
+        if !binding.enabled {
+            return Ok(None);
+        }
+        if binding.provider_kind != AGENT_MEMORY_PROVIDER_KIND_MNO {
+            anyhow::bail!(
+                "assistant memory provider_kind must be '{}' (got {})",
+                AGENT_MEMORY_PROVIDER_KIND_MNO,
+                binding.provider_kind
+            );
+        }
+
+        let transport_raw = runtime_config
+            .memory
+            .numquam
+            .transport
+            .trim()
+            .to_ascii_lowercase();
+        let transport = match transport_raw.as_str() {
+            "http" => NumquamTransport::Http,
+            "mcp" => NumquamTransport::Mcp,
+            "dual" => NumquamTransport::Dual,
+            other => anyhow::bail!(
+                "invalid memory.numquam.transport value: {other} (expected http|mcp|dual)"
+            ),
+        };
+        let context_build_timeout = Duration::from_millis(
+            runtime_config
+                .memory
+                .numquam
+                .context_build_timeout_ms
+                .clamp(200, 120_000),
+        );
+        let writeback_propose_timeout = Duration::from_millis(
+            runtime_config
+                .memory
+                .numquam
+                .writeback_propose_timeout_ms
+                .clamp(200, 120_000),
+        );
+        let writeback_resolve_timeout = Duration::from_millis(
+            runtime_config
+                .memory
+                .numquam
+                .writeback_resolve_timeout_ms
+                .clamp(200, 120_000),
+        );
+        let handshake_timeout = Duration::from_millis(
+            runtime_config
+                .memory
+                .numquam
+                .handshake_timeout_ms
+                .clamp(200, 120_000),
+        );
+        let request_timeout = [
+            context_build_timeout,
+            writeback_propose_timeout,
+            writeback_resolve_timeout,
+            handshake_timeout,
+        ]
+        .into_iter()
+        .max()
+        .unwrap_or(Duration::from_millis(4_000));
+        let token = match binding.auth_mode.trim() {
+            "none" => None,
+            "secret_ref" => {
+                let secret_ref = binding.auth_secret_ref.as_deref().ok_or_else(|| {
+                    anyhow::anyhow!("assistant memory binding missing auth_secret_ref")
+                })?;
+                let secret_key = secret_key_from_secret_ref(secret_ref)?;
+                Some(
+                    secret_store
+                        .get_raw(&secret_key)?
+                        .map(|value| value.trim().to_string())
+                        .filter(|value| !value.is_empty())
+                        .ok_or_else(|| {
+                            anyhow::anyhow!(
+                                "assistant memory auth_secret_ref points to missing/empty secret: {}",
+                                secret_ref
+                            )
+                        })?,
+                )
+            }
+            other => anyhow::bail!(
+                "assistant memory auth_mode must be one of: none, secret_ref (got {other})"
+            ),
+        };
+        let integration_base_url =
+            Self::normalized_optional_base_url(Some(binding.base_url.as_str()))
+                .ok_or_else(|| anyhow::anyhow!("assistant memory binding base_url is required"))?;
+        let mcp_url = Self::resolve_mcp_url(&integration_base_url);
+        let (principal_id, principal_display_name) = Self::resolve_principal_identity(
+            binding.principal_id.as_deref(),
+            binding.principal_display_name.as_deref(),
+            runtime_config.memory.numquam.principal_id.as_deref(),
+            runtime_config
+                .memory
+                .numquam
+                .principal_display_name
+                .as_deref(),
+        );
+        let http_client = reqwest::Client::builder()
+            .timeout(request_timeout)
+            .build()
+            .context("failed building assistant-bound Numquam HTTP client")?;
         Ok(Some(Self {
             transport,
             integration_base_url,
@@ -21357,6 +24977,47 @@ impl NumquamClient {
         Ok(envelope)
     }
 
+    async fn get_native_json(
+        &self,
+        path: &str,
+        query: &[(String, String)],
+    ) -> AnyResult<(StatusCode, serde_json::Value)> {
+        let url = format!("{}{}", self.integration_base_url, path);
+        let mut request = self.http_client.get(url).timeout(self.request_timeout);
+        if let Some(token) = self.token.as_deref() {
+            request = request.bearer_auth(token);
+        }
+        if !query.is_empty() {
+            request = request.query(query);
+        }
+        let response = request
+            .send()
+            .await
+            .with_context(|| format!("Numquam native GET request failed for path {path}"))?;
+        let status = response.status();
+        let body = response
+            .text()
+            .await
+            .context("failed reading Numquam native GET response body")?;
+        let json = if body.trim().is_empty() {
+            serde_json::Value::Null
+        } else {
+            serde_json::from_str::<serde_json::Value>(&body).with_context(|| {
+                let clipped = if body.len() > 300 {
+                    &body[..300]
+                } else {
+                    &body
+                };
+                format!(
+                    "failed parsing Numquam native JSON response (status={} body={})",
+                    status.as_u16(),
+                    clipped
+                )
+            })?
+        };
+        Ok((status, json))
+    }
+
     async fn post_integration_mcp<T: DeserializeOwned>(
         &self,
         tool_name: &str,
@@ -21468,7 +25129,7 @@ fn resolve_numquam_client(
         Ok(Some(client)) => Ok(Some(client)),
         Ok(None) => Ok(state.numquam_client.clone()),
         Err(err) => {
-            if state.numquam_client.is_some() {
+            if !runtime_config.memory.numquam.enabled && state.numquam_client.is_some() {
                 warn!(
                     error = %err,
                     "runtime Numquam config failed; falling back to env compatibility client"
@@ -21479,6 +25140,33 @@ fn resolve_numquam_client(
             }
         }
     }
+}
+
+fn resolve_numquam_client_for_agent(
+    state: &AppState,
+    runtime_config: &RuntimeConfigResponse,
+    agent_id: &str,
+) -> AnyResult<Option<NumquamClient>> {
+    let agent = state
+        .storage
+        .get_agent(agent_id)?
+        .with_context(|| format!("assistant agent not found for Numquam binding: {agent_id}"))?;
+    let Some(binding) = agent.memory_binding.as_ref() else {
+        return Ok(None);
+    };
+    NumquamClient::from_agent_binding(runtime_config, binding, &state.secret_store)
+}
+
+fn resolve_numquam_client_for_session(
+    state: &AppState,
+    runtime_config: &RuntimeConfigResponse,
+    session_id: &str,
+) -> AnyResult<Option<NumquamClient>> {
+    let session = state
+        .storage
+        .get_session(session_id)?
+        .with_context(|| format!("session not found for Numquam binding: {session_id}"))?;
+    resolve_numquam_client_for_agent(state, runtime_config, &session.agent_id)
 }
 
 fn validate_numquam_writeback_propose_payload(payload: &serde_json::Value) -> AnyResult<()> {
@@ -22686,7 +26374,7 @@ fn heartbeat_input_contains_tool_directive(
     input: &str,
     tool_registry: &ToolRegistry,
 ) -> AnyResult<bool> {
-    if !parse_tool_requests_from_input(input, tool_registry, None)?.is_empty() {
+    if !parse_tool_requests_from_input(input, tool_registry, None, &[])?.is_empty() {
         return Ok(true);
     }
     for raw_line in input.lines() {
@@ -23150,11 +26838,17 @@ fn dispatch_channel_ingest_reply(
     if !matches!(action.as_str(), "send" | "reply") {
         anyhow::bail!("unsupported ingest reply action: {}", action);
     }
-    if !state
-        .channel_tool_allowed_providers
-        .contains(provider.as_str())
-    {
-        anyhow::bail!("ingest reply provider '{}' is disabled by policy", provider);
+    let runtime_config = load_runtime_config(state)?;
+    let policy_outcome = evaluate_channel_provider_policy(
+        &runtime_config,
+        state.channel_tool_allowed_provider_override.as_deref(),
+        &provider,
+    );
+    if policy_outcome != ChannelProviderPolicyOutcome::Allowed {
+        anyhow::bail!(
+            "{}",
+            channel_provider_policy_reason(&provider, policy_outcome)
+        );
     }
     if content_text.trim().is_empty() {
         anyhow::bail!("ingest reply content is empty");
@@ -23175,7 +26869,6 @@ fn dispatch_channel_ingest_reply(
     let mut delivery_mode = DISCORD_OPERATION_MODE_SHIM;
 
     if provider == "telegram" {
-        let runtime_config = load_runtime_config(state)?;
         if normalize_telegram_operation_mode(&runtime_config.channels.telegram.operation_mode)
             == TELEGRAM_OPERATION_MODE_TRANSPORT
         {
@@ -23190,21 +26883,19 @@ fn dispatch_channel_ingest_reply(
             chunk_count = transport_message_ids.len();
             delivery_mode = TELEGRAM_OPERATION_MODE_TRANSPORT;
         }
-    } else if provider == "discord" {
-        let runtime_config = load_runtime_config(state)?;
-        if normalize_discord_operation_mode(&runtime_config.channels.discord.operation_mode)
+    } else if provider == "discord"
+        && normalize_discord_operation_mode(&runtime_config.channels.discord.operation_mode)
             == DISCORD_OPERATION_MODE_TRANSPORT
-        {
-            transport_message_ids = send_discord_chunks_via_transport(
-                &runtime_config,
-                &state.secret_store,
-                target,
-                &action,
-                &chunks,
-            )?;
-            chunk_count = transport_message_ids.len();
-            delivery_mode = DISCORD_OPERATION_MODE_TRANSPORT;
-        }
+    {
+        transport_message_ids = send_discord_chunks_via_transport(
+            &runtime_config,
+            &state.secret_store,
+            target,
+            &action,
+            &chunks,
+        )?;
+        chunk_count = transport_message_ids.len();
+        delivery_mode = DISCORD_OPERATION_MODE_TRANSPORT;
     }
 
     Ok((chunk_count, delivery_mode, transport_message_ids))
@@ -23264,12 +26955,15 @@ fn dispatch_scheduler_delivery(
             "INVALID_INPUT",
         );
     }
-    if !state
-        .channel_tool_allowed_providers
-        .contains(provider.as_str())
-    {
+    let runtime_config = load_runtime_config(state)?;
+    let policy_outcome = evaluate_channel_provider_policy(
+        &runtime_config,
+        state.channel_tool_allowed_provider_override.as_deref(),
+        &provider,
+    );
+    if policy_outcome != ChannelProviderPolicyOutcome::Allowed {
         return deny(
-            format!("delivery provider '{}' is disabled by policy", provider),
+            channel_provider_policy_reason(&provider, policy_outcome),
             "AUTH_FORBIDDEN",
         );
     }
@@ -23294,7 +26988,6 @@ fn dispatch_scheduler_delivery(
     let mut transport_message_ids: Vec<String> = Vec::new();
     let mut delivery_mode = DISCORD_OPERATION_MODE_SHIM;
     if provider == "telegram" {
-        let runtime_config = load_runtime_config(state)?;
         if normalize_telegram_operation_mode(&runtime_config.channels.telegram.operation_mode)
             == TELEGRAM_OPERATION_MODE_TRANSPORT
         {
@@ -23315,24 +27008,20 @@ fn dispatch_scheduler_delivery(
             chunk_count = transport_message_ids.len();
             delivery_mode = TELEGRAM_OPERATION_MODE_TRANSPORT;
         }
-    } else if provider == "discord" {
-        let runtime_config = load_runtime_config(state)?;
-        if normalize_discord_operation_mode(&runtime_config.channels.discord.operation_mode)
+    } else if provider == "discord"
+        && normalize_discord_operation_mode(&runtime_config.channels.discord.operation_mode)
             == DISCORD_OPERATION_MODE_TRANSPORT
-        {
-            transport_message_ids = send_discord_chunks_via_transport(
-                &runtime_config,
-                &state.secret_store,
-                target_id,
-                &action,
-                &chunks,
-            )
-            .with_context(|| {
-                format!("discord transport delivery failed for target {}", target_id)
-            })?;
-            chunk_count = transport_message_ids.len();
-            delivery_mode = DISCORD_OPERATION_MODE_TRANSPORT;
-        }
+    {
+        transport_message_ids = send_discord_chunks_via_transport(
+            &runtime_config,
+            &state.secret_store,
+            target_id,
+            &action,
+            &chunks,
+        )
+        .with_context(|| format!("discord transport delivery failed for target {}", target_id))?;
+        chunk_count = transport_message_ids.len();
+        delivery_mode = DISCORD_OPERATION_MODE_TRANSPORT;
     }
 
     emit_event(
@@ -24309,6 +27998,7 @@ fn default_runtime_config() -> RuntimeConfigResponse {
         providers: default_runtime_provider_policies(),
         channels: RuntimeChannelsConfig {
             discord: RuntimeDiscordDeploymentConfig {
+                enabled: true,
                 bot_token_secret_ref: None,
                 operation_mode: DISCORD_OPERATION_MODE_SHIM.to_string(),
                 api_base_url: None,
@@ -24324,6 +28014,7 @@ fn default_runtime_config() -> RuntimeConfigResponse {
                 staging_channel_ids: Vec::new(),
             },
             telegram: RuntimeTelegramDeploymentConfig {
+                enabled: true,
                 bot_token_secret_ref: None,
                 operation_mode: "shim".to_string(),
                 api_base_url: None,
@@ -24518,6 +28209,17 @@ fn normalize_runtime_global_for_trust_lock(global: &RuntimeGlobalConfig) -> Runt
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty()),
     }
+}
+
+fn runtime_openai_oauth_redirect_uri(config: &RuntimeConfigResponse) -> Option<String> {
+    config.global.public_base_url.as_ref().and_then(|value| {
+        let trimmed = value.trim().trim_end_matches('/');
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(format!("{trimmed}/auth/callback"))
+        }
+    })
 }
 
 fn runtime_trust_contract_hash(global: &RuntimeGlobalConfig) -> AnyResult<String> {
@@ -24747,6 +28449,17 @@ fn validate_runtime_config(config: &RuntimeConfigResponse) -> AnyResult<()> {
             "invalid tls_termination_mode: {} (expected edge|gateway|passthrough)",
             config.global.tls_termination_mode
         ),
+    }
+    if let Some(public_base_url) = &config.global.public_base_url {
+        let trimmed = public_base_url.trim();
+        if trimmed.is_empty() {
+            anyhow::bail!("global.public_base_url cannot be empty when provided");
+        }
+        if !(trimmed.starts_with("http://") || trimmed.starts_with("https://")) {
+            anyhow::bail!(
+                "global.public_base_url must start with http:// or https:// when provided"
+            );
+        }
     }
 
     let mut seen_provider_ids = HashSet::new();
@@ -25652,8 +29365,8 @@ async fn execute_channel_action_tool(
         );
         return Err(ToolError::InvalidRequest(reason));
     }
-    if !state.channel_tool_allowed_providers.contains(&provider) {
-        let reason = format!("channel provider '{}' is not allowlisted", provider);
+    if !matches!(provider.as_str(), "telegram" | "discord") {
+        let reason = format!("unsupported channel provider '{}'", provider);
         record_security_audit_internal(
             state,
             "channel.tool_action.execute",
@@ -25672,8 +29385,15 @@ async fn execute_channel_action_tool(
         );
         return Err(ToolError::PolicyDenied(reason));
     }
-    if !matches!(provider.as_str(), "telegram" | "discord") {
-        let reason = format!("unsupported channel provider '{}'", provider);
+    let runtime_config = load_runtime_config(state)
+        .map_err(|err| ToolError::Failed(format!("failed loading runtime config: {err}")))?;
+    let policy_outcome = evaluate_channel_provider_policy(
+        &runtime_config,
+        state.channel_tool_allowed_provider_override.as_deref(),
+        &provider,
+    );
+    if policy_outcome != ChannelProviderPolicyOutcome::Allowed {
+        let reason = channel_provider_policy_reason(&provider, policy_outcome);
         record_security_audit_internal(
             state,
             "channel.tool_action.execute",
@@ -25786,8 +29506,6 @@ async fn execute_channel_action_tool(
     let mut transport_dispatched = false;
     let mut fallback_reason: Option<String> = None;
 
-    let runtime_config = load_runtime_config(state)
-        .map_err(|err| ToolError::Failed(format!("failed loading runtime config: {err}")))?;
     if provider == "telegram" {
         let transport_enabled =
             normalize_telegram_operation_mode(&runtime_config.channels.telegram.operation_mode)
@@ -26188,10 +29906,49 @@ async fn execute_plugin_tool_invocation(
     }
 }
 
+async fn execute_connector_tool_invocation(
+    state: &AppState,
+    run: &RunRecord,
+    tool_metadata: &ToolExecutionMetadata,
+    args_json: &str,
+) -> Result<ToolResult, ToolError> {
+    let connector_id = tool_metadata.connector_id.as_ref().ok_or_else(|| {
+        ToolError::InvalidRequest("connector tool metadata missing connector_id".to_string())
+    })?;
+    let published_tool_id = tool_metadata
+        .connector_published_tool_id
+        .as_ref()
+        .ok_or_else(|| {
+            ToolError::InvalidRequest(
+                "connector tool metadata missing published_tool_id".to_string(),
+            )
+        })?;
+    let session = state
+        .storage
+        .get_session(&run.session_id)
+        .map_err(|err| ToolError::Failed(format!("loading session failed: {err}")))?
+        .ok_or_else(|| ToolError::InvalidRequest("session not found".to_string()))?;
+    let binding = load_connector_runtime_tools(state, Some(session.agent_id.as_str()), false)
+        .map_err(|err| ToolError::Failed(format!("loading connector tools failed: {err}")))?
+        .into_iter()
+        .find(|item| {
+            item.connector.connector_id == *connector_id
+                && item.published_tool.published_tool_id == *published_tool_id
+        })
+        .ok_or_else(|| {
+            ToolError::PolicyDenied(format!(
+                "connector tool '{}' is not enabled for agent '{}'",
+                tool_metadata.tool_name, session.agent_id
+            ))
+        })?;
+    execute_connector_tool_request(state, &binding, args_json).await
+}
+
 fn parse_tool_requests_from_input(
     input: &str,
     tool_registry: &ToolRegistry,
     plugin_registry: Option<&PluginRegistry>,
+    connectors: &[ConnectorParsedTool],
 ) -> AnyResult<Vec<ParsedToolInvocation>> {
     let mut requests = Vec::new();
     for raw_line in input.lines() {
@@ -26199,7 +29956,9 @@ fn parse_tool_requests_from_input(
         if line.is_empty() {
             continue;
         }
-        if let Some(parsed) = tool_registry.parse_line_with_plugins(line, plugin_registry) {
+        if let Some(parsed) =
+            tool_registry.parse_line_with_plugins_and_connectors(line, plugin_registry, connectors)
+        {
             requests.push(parsed);
         }
     }
@@ -27230,13 +30989,24 @@ fn api_error_rate_limited(
 }
 
 fn internal_err(message: &str, err: anyhow::Error) -> StatusCode {
-    error!(error = %err, "{message}");
+    error!(error = ?err, "{message}");
     StatusCode::INTERNAL_SERVER_ERROR
 }
 
 fn internal_err_with_error(message: &str, err: anyhow::Error) -> (StatusCode, Json<ApiError>) {
-    error!(error = %err, "{message}");
+    error!(error = ?err, "{message}");
     api_error(StatusCode::INTERNAL_SERVER_ERROR, "internal server error")
+}
+
+fn error_chain_contains(err: &anyhow::Error, needle: &str) -> bool {
+    err.chain().any(|cause| cause.to_string().contains(needle))
+}
+
+fn is_unique_constraint_violation(err: &anyhow::Error, constraint: Option<&str>) -> bool {
+    if !error_chain_contains(err, "UNIQUE constraint failed") {
+        return false;
+    }
+    constraint.is_none_or(|value| error_chain_contains(err, value))
 }
 
 fn require_bearer_auth_with_error(
@@ -28447,17 +32217,61 @@ fn load_operator_allowlist_from_env() -> Vec<String> {
     }
 }
 
-fn load_channel_tool_allowed_providers_from_env() -> HashSet<String> {
-    let configured = std::env::var("CARSINOS_TOOL_CHANNEL_ALLOWED_PROVIDERS")
-        .unwrap_or_else(|_| "telegram,discord".to_string());
-    let parsed = parse_csv_set_lower(&configured);
-    if parsed.is_empty() {
-        let mut defaults = HashSet::new();
-        defaults.insert("telegram".to_string());
-        defaults.insert("discord".to_string());
-        defaults
-    } else {
-        parsed
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ChannelProviderPolicyOutcome {
+    Allowed,
+    DisabledByRuntimeConfig,
+    DisabledByOverride,
+}
+
+fn load_channel_tool_allowed_provider_override_from_env() -> Option<HashSet<String>> {
+    std::env::var("CARSINOS_TOOL_CHANNEL_ALLOWED_PROVIDERS")
+        .ok()
+        .map(|value| parse_csv_set_lower(&value))
+}
+
+fn runtime_channel_provider_enabled(config: &RuntimeConfigResponse, provider: &str) -> bool {
+    match provider.trim().to_ascii_lowercase().as_str() {
+        "discord" => config.channels.discord.enabled,
+        "telegram" => config.channels.telegram.enabled,
+        _ => false,
+    }
+}
+
+fn evaluate_channel_provider_policy(
+    config: &RuntimeConfigResponse,
+    override_allowlist: Option<&HashSet<String>>,
+    provider: &str,
+) -> ChannelProviderPolicyOutcome {
+    let provider_id = provider.trim().to_ascii_lowercase();
+    if !runtime_channel_provider_enabled(config, &provider_id) {
+        return ChannelProviderPolicyOutcome::DisabledByRuntimeConfig;
+    }
+    if let Some(allowlist) = override_allowlist {
+        if !allowlist.contains(provider_id.as_str()) {
+            return ChannelProviderPolicyOutcome::DisabledByOverride;
+        }
+    }
+    ChannelProviderPolicyOutcome::Allowed
+}
+
+fn channel_provider_policy_reason(provider: &str, outcome: ChannelProviderPolicyOutcome) -> String {
+    match outcome {
+        ChannelProviderPolicyOutcome::Allowed => {
+            format!("channel provider '{}' is allowed by policy", provider)
+        }
+        ChannelProviderPolicyOutcome::DisabledByRuntimeConfig => {
+            format!(
+                "channel provider '{}' is disabled by runtime config",
+                provider
+            )
+        }
+        ChannelProviderPolicyOutcome::DisabledByOverride => {
+            format!(
+                "channel provider '{}' is disabled by channel policy override",
+                provider
+            )
+        }
     }
 }
 
@@ -28678,6 +32492,13 @@ fn optional_u64_env(name: &str) -> Option<u64> {
         .filter(|value| *value > 0)
 }
 
+fn optional_i64_env(name: &str) -> Option<i64> {
+    std::env::var(name)
+        .ok()
+        .and_then(|raw| raw.trim().parse::<i64>().ok())
+        .filter(|value| *value > 0)
+}
+
 fn usize_env(name: &str, default: usize) -> usize {
     match std::env::var(name) {
         Ok(raw) => raw.trim().parse::<usize>().unwrap_or(default),
@@ -28705,6 +32526,31 @@ mod tests {
     use tempfile::TempDir;
     use tokio::net::TcpListener;
     use tower::util::ServiceExt;
+
+    static ENV_LOCK: std::sync::LazyLock<std::sync::Mutex<()>> =
+        std::sync::LazyLock::new(|| std::sync::Mutex::new(()));
+
+    fn with_env_vars<T>(values: &[(&str, Option<&str>)], run: impl FnOnce() -> T) -> T {
+        let _guard = ENV_LOCK.lock().expect("env lock");
+        let original = values
+            .iter()
+            .map(|(key, _)| ((*key).to_string(), std::env::var(key).ok()))
+            .collect::<Vec<_>>();
+        for (key, value) in values {
+            match value {
+                Some(raw) => std::env::set_var(key, raw),
+                None => std::env::remove_var(key),
+            }
+        }
+        let result = run();
+        for (key, value) in original {
+            match value {
+                Some(raw) => std::env::set_var(&key, raw),
+                None => std::env::remove_var(&key),
+            }
+        }
+        result
+    }
 
     struct TestContext {
         _temp_dir: TempDir,
@@ -28745,9 +32591,9 @@ mod tests {
     }
 
     fn test_context_with_numquam(numquam_client: NumquamClient) -> TestContext {
-        build_test_context(
+        let ctx = build_test_context(
             vec![],
-            Some(numquam_client),
+            Some(numquam_client.clone()),
             AuthMode::StaticBearer,
             None,
             "test-token".to_string(),
@@ -28755,7 +32601,59 @@ mod tests {
             false,
             HashSet::new(),
             vec![],
-        )
+        );
+        let mut runtime_config = load_runtime_config(&ctx.state).expect("load test runtime config");
+        runtime_config.memory.numquam.enabled = true;
+        runtime_config.memory.numquam.transport = numquam_client.transport.as_str().to_string();
+        let runtime_payload =
+            serde_json::to_string(&runtime_config).expect("serialize test runtime config");
+        ctx.storage
+            .set_app_kv_json(APP_KV_RUNTIME_CONFIG, runtime_payload)
+            .expect("persist test runtime config");
+        let secret_ref = numquam_client.token.as_ref().map(|_| {
+            let secret_key = format!("runtime.test.numquam.{}", uuid::Uuid::new_v4());
+            let secret_ref = format!("secret://{secret_key}");
+            ctx.secret_store
+                .set_raw(
+                    &secret_key,
+                    numquam_client.token.as_deref().unwrap_or_default(),
+                )
+                .expect("store numquam test secret");
+            secret_ref
+        });
+        let _ = ctx
+            .storage
+            .update_agent(
+                "default",
+                AgentUpdatePatch {
+                    name: None,
+                    workspace_root: None,
+                    model_provider: None,
+                    model_id: None,
+                    tool_profile: None,
+                    reports_to_agent_id: None,
+                    role_label: None,
+                    memory_binding: Some(Some(AgentMemoryBindingUpdatePatch {
+                        binding_id: Some("default_numquam".to_string()),
+                        provider_kind: Some(AGENT_MEMORY_PROVIDER_KIND_MNO.to_string()),
+                        base_url: Some(numquam_client.integration_base_url.clone()),
+                        auth_mode: Some(if secret_ref.is_some() {
+                            "secret_ref".to_string()
+                        } else {
+                            "none".to_string()
+                        }),
+                        auth_secret_ref: Some(secret_ref),
+                        principal_id: Some(Some(numquam_client.principal_id.clone())),
+                        principal_display_name: Some(Some(
+                            numquam_client.principal_display_name.clone(),
+                        )),
+                        enabled: Some(true),
+                        trusted_local_operator_actions: Some(true),
+                    })),
+                },
+            )
+            .expect("bind default numquam test agent");
+        ctx
     }
 
     fn test_context_with_jwt(secret: &str, revoked_jti: HashSet<String>) -> TestContext {
@@ -28908,9 +32806,6 @@ mod tests {
         let skill_registry = Arc::new(RwLock::new(SkillRegistry::new()));
         let tool_registry = Arc::new(ToolRegistry::permissive_for_tests());
         let tool_concurrency = Arc::new(Semaphore::new(64));
-        let mut channel_tool_allowed_providers = HashSet::new();
-        channel_tool_allowed_providers.insert("telegram".to_string());
-        channel_tool_allowed_providers.insert("discord".to_string());
         let channel_runtime = Arc::new(ChannelRuntimeManager::default_with_storage(
             storage.clone(),
             secret_store.clone(),
@@ -28953,7 +32848,7 @@ mod tests {
             providers: ProviderRegistry::new(),
             tool_registry,
             tool_concurrency,
-            channel_tool_allowed_providers: Arc::new(channel_tool_allowed_providers),
+            channel_tool_allowed_provider_override: None,
             channel_runtime,
             internal_channel_ingest_token: Arc::new(uuid::Uuid::new_v4().to_string()),
             tool_runner: LocalToolRunner::default(),
@@ -29003,6 +32898,8 @@ mod tests {
         context_degrade: bool,
         health_status: String,
         drop_required_operation: Option<String>,
+        native_runtime_status: String,
+        disabled_native_surfaces: HashSet<String>,
     }
 
     impl NumquamStubConfig {
@@ -29012,6 +32909,8 @@ mod tests {
                 context_degrade: false,
                 health_status: "ok".to_string(),
                 drop_required_operation: None,
+                native_runtime_status: "ok".to_string(),
+                disabled_native_surfaces: HashSet::new(),
             }
         }
     }
@@ -29061,6 +32960,34 @@ mod tests {
             .route(
                 "/api/integration/v1/capabilities",
                 get(numquam_stub_capabilities),
+            )
+            .route("/api/memory/atoms", get(numquam_stub_atoms))
+            .route("/api/memory/cards", get(numquam_stub_cards))
+            .route("/api/memory/cards/{card_id}", get(numquam_stub_card_detail))
+            .route("/api/memory/atom/{atom_id}", get(numquam_stub_atom_detail))
+            .route("/api/memory/episodes", get(numquam_stub_episodes))
+            .route("/api/memory/graph-map", get(numquam_stub_graph_map))
+            .route(
+                "/api/memory/graph/neighbors",
+                get(numquam_stub_graph_neighbors),
+            )
+            .route("/api/turns/{turn_id}/why", get(numquam_stub_turn_why))
+            .route(
+                "/api/archive/citation/{citation_token}",
+                get(numquam_stub_citation),
+            )
+            .route("/api/runtime/health", get(numquam_stub_runtime_health))
+            .route(
+                "/api/runtime/telemetry/summary",
+                get(numquam_stub_telemetry_summary),
+            )
+            .route(
+                "/api/runtime/telemetry/turns",
+                get(numquam_stub_telemetry_turns),
+            )
+            .route(
+                "/api/runtime/decision-reasons",
+                get(numquam_stub_decision_reasons),
             )
             .route("/mcp", post(numquam_stub_mcp))
             .with_state(app_state);
@@ -29302,6 +33229,468 @@ mod tests {
                 "operations": ops
             }
         }))
+    }
+
+    fn numquam_stub_surface_disabled(state: &NumquamStubState, surface: &str) -> bool {
+        state.config.disabled_native_surfaces.contains(surface)
+    }
+
+    fn numquam_stub_not_found(surface: &str) -> (StatusCode, Json<serde_json::Value>) {
+        (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({
+                "error": format!("{surface} unavailable")
+            })),
+        )
+    }
+
+    async fn numquam_stub_atoms(
+        AxumState(state): AxumState<NumquamStubState>,
+    ) -> impl IntoResponse {
+        if numquam_stub_surface_disabled(&state, "atoms") {
+            return numquam_stub_not_found("atoms");
+        }
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "ok": true,
+                "atoms": [{
+                    "atom_id": "atm_stub_root",
+                    "kind": "event_card",
+                    "canonical_text": "User prefers tea during focused sessions."
+                }]
+            })),
+        )
+    }
+
+    async fn numquam_stub_cards(
+        AxumState(state): AxumState<NumquamStubState>,
+        Query(query): Query<HashMap<String, String>>,
+    ) -> impl IntoResponse {
+        if numquam_stub_surface_disabled(&state, "cards") {
+            return numquam_stub_not_found("cards");
+        }
+        let limit = query_u32(&query, "limit", 1, 200)
+            .and_then(|value| value.parse::<u32>().ok())
+            .unwrap_or(60);
+        let q = trimmed_query_value(&query, "q").unwrap_or_default();
+        let cards = vec![serde_json::json!({
+            "card_id": "card_atm_stub_root",
+            "atom_id": "atm_stub_root",
+            "kind": "event_card",
+            "status": "active",
+            "summary": "User prefers tea during focused sessions.",
+            "contradiction": false
+        })];
+        let filtered = if q.is_empty() {
+            cards
+        } else {
+            cards
+                .into_iter()
+                .filter(|item| {
+                    item["summary"]
+                        .as_str()
+                        .unwrap_or_default()
+                        .to_ascii_lowercase()
+                        .contains(&q.to_ascii_lowercase())
+                })
+                .collect::<Vec<_>>()
+        };
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "ok": true,
+                "total": filtered.len(),
+                "limit": limit,
+                "cards": filtered
+            })),
+        )
+    }
+
+    async fn numquam_stub_card_detail(
+        AxumState(state): AxumState<NumquamStubState>,
+        Path(card_id): Path<String>,
+    ) -> impl IntoResponse {
+        if numquam_stub_surface_disabled(&state, "card_detail") {
+            return numquam_stub_not_found("card_detail");
+        }
+        if card_id.trim() != "card_atm_stub_root" {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({ "error": "card not found" })),
+            );
+        }
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "ok": true,
+                "card": {
+                    "card_id": "card_atm_stub_root",
+                    "atom_id": "atm_stub_root",
+                    "kind": "event_card",
+                    "status": "active",
+                    "summary": "User prefers tea during focused sessions."
+                },
+                "atom": {
+                    "atom_id": "atm_stub_root",
+                    "kind": "event_card",
+                    "status": "active",
+                    "summary": "User prefers tea during focused sessions."
+                },
+                "provenance_events": [{
+                    "source_id": "conv_stub",
+                    "message_id": "msg_stub_1",
+                    "event_kind": "conversation_import"
+                }],
+                "graph": {
+                    "conflicts": [],
+                    "constellations": ["tea_focus"]
+                }
+            })),
+        )
+    }
+
+    async fn numquam_stub_atom_detail(
+        AxumState(state): AxumState<NumquamStubState>,
+        Path(atom_id): Path<String>,
+    ) -> impl IntoResponse {
+        if numquam_stub_surface_disabled(&state, "atom_detail") {
+            return numquam_stub_not_found("atom_detail");
+        }
+        if atom_id.trim() != "atm_stub_root" {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({ "error": "atom not found" })),
+            );
+        }
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "ok": true,
+                "atom": {
+                    "atom_id": "atm_stub_root",
+                    "kind": "event_card",
+                    "status": "active",
+                    "summary": "User prefers tea during focused sessions."
+                },
+                "provenance_events": [{
+                    "source_id": "conv_stub",
+                    "message_id": "msg_stub_1",
+                    "event_kind": "conversation_import"
+                }],
+                "graph": {
+                    "conflicts": [],
+                    "constellations": ["tea_focus"]
+                }
+            })),
+        )
+    }
+
+    async fn numquam_stub_episodes(
+        AxumState(state): AxumState<NumquamStubState>,
+        Query(query): Query<HashMap<String, String>>,
+    ) -> impl IntoResponse {
+        if numquam_stub_surface_disabled(&state, "episodes") {
+            return numquam_stub_not_found("episodes");
+        }
+        let status = trimmed_query_value(&query, "status").unwrap_or_else(|| "all".to_string());
+        let episode_status = if status == "all" {
+            "approved".to_string()
+        } else {
+            status.clone()
+        };
+        let episodes = vec![serde_json::json!({
+            "episode_id": "ep_stub_1",
+            "status": episode_status,
+            "title": "Tea preference confirmed",
+            "summary": "Assistant retained the user's tea preference with evidence.",
+            "run_id": "run_stub_1",
+            "updated_at": Utc::now().to_rfc3339()
+        })];
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "ok": true,
+                "total": episodes.len(),
+                "episodes": episodes
+            })),
+        )
+    }
+
+    async fn numquam_stub_graph_map(
+        AxumState(state): AxumState<NumquamStubState>,
+        Query(query): Query<HashMap<String, String>>,
+    ) -> impl IntoResponse {
+        if numquam_stub_surface_disabled(&state, "graph_map") {
+            return numquam_stub_not_found("graph_map");
+        }
+        let limit = query_u32(&query, "limit", 1, 500)
+            .and_then(|value| value.parse::<u32>().ok())
+            .unwrap_or(60);
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "ok": true,
+                "total": 2,
+                "snapshot_available": true,
+                "truncated": false,
+                "nodes": [{
+                    "atom_id": "atm_stub_root",
+                    "card_id": "card_atm_stub_root",
+                    "kind": "event_card",
+                    "status": "active",
+                    "summary": "User prefers tea during focused sessions."
+                }, {
+                    "atom_id": "atm_stub_neighbor",
+                    "card_id": "card_atm_stub_neighbor",
+                    "kind": "event_card",
+                    "status": "active",
+                    "summary": "Tea preference reinforced by later turns."
+                }],
+                "links": [{
+                    "source": "atm_stub_root",
+                    "target": "atm_stub_neighbor",
+                    "kind": "constellation"
+                }],
+                "limit": limit
+            })),
+        )
+    }
+
+    async fn numquam_stub_graph_neighbors(
+        AxumState(state): AxumState<NumquamStubState>,
+        Query(query): Query<HashMap<String, String>>,
+    ) -> impl IntoResponse {
+        if numquam_stub_surface_disabled(&state, "graph_neighbors") {
+            return numquam_stub_not_found("graph_neighbors");
+        }
+        let Some(atom_id) = trimmed_query_value(&query, "atom_id") else {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": "atom_id is required" })),
+            );
+        };
+        if atom_id != "atm_stub_root" {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({ "error": "atom not found" })),
+            );
+        }
+        let depth = query_u32(&query, "depth", 1, 2)
+            .and_then(|value| value.parse::<u32>().ok())
+            .unwrap_or(1);
+        let node_limit = query_u32(&query, "node_limit", 1, 500)
+            .and_then(|value| value.parse::<u32>().ok())
+            .unwrap_or(60);
+        let link_limit = query_u32(&query, "link_limit", 1, 1_000)
+            .and_then(|value| value.parse::<u32>().ok())
+            .unwrap_or(120);
+        let include_root_detail = query_bool(&query, "include_root_detail")
+            .map(|value| value == "true")
+            .unwrap_or(true);
+        let node = if include_root_detail {
+            serde_json::json!({
+                "atom_id": "atm_stub_root",
+                "card_id": "card_atm_stub_root",
+                "kind": "event_card",
+                "status": "active",
+                "summary": "User prefers tea during focused sessions."
+            })
+        } else {
+            serde_json::json!({
+                "atom_id": "atm_stub_root",
+                "kind": "event_card"
+            })
+        };
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "ok": true,
+                "node": node,
+                "neighbors": [{
+                    "atom_id": "atm_stub_neighbor",
+                    "card_id": "card_atm_stub_neighbor",
+                    "kind": "event_card",
+                    "status": "active",
+                    "summary": "Tea preference reinforced by later turns.",
+                    "distance": 1,
+                    "via_edge_kind": "constellation"
+                }],
+                "links": [{
+                    "source": "atm_stub_root",
+                    "target": "atm_stub_neighbor",
+                    "kind": "constellation"
+                }],
+                "depth": depth,
+                "node_limit": node_limit,
+                "link_limit": link_limit,
+                "requests_used": 1,
+                "truncated": false,
+                "truncation": {
+                    "node_limit_hit": false,
+                    "link_limit_hit": false,
+                    "request_budget_hit": false,
+                    "dropped_shared_language": false
+                }
+            })),
+        )
+    }
+
+    async fn numquam_stub_turn_why(
+        AxumState(state): AxumState<NumquamStubState>,
+        Path(turn_id): Path<String>,
+        Query(query): Query<HashMap<String, String>>,
+    ) -> impl IntoResponse {
+        if numquam_stub_surface_disabled(&state, "turn_why") {
+            return numquam_stub_not_found("turn_why");
+        }
+        let include_citations = query_bool(&query, "citations")
+            .map(|value| value == "true")
+            .unwrap_or(false);
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "ok": true,
+                "why": {
+                    "turn_id": turn_id,
+                    "decision": "memory_assist",
+                    "decision_reason": "explicit_memory_request",
+                    "evidence_time_window": {
+                        "label": "recent",
+                        "start": "2026-03-12T00:00:00Z",
+                        "end": "2026-03-12T00:05:00Z"
+                    },
+                    "top_evidence": [{
+                        "section": "fact",
+                        "summary": "User prefers tea during focused sessions.",
+                        "confidence": 0.88
+                    }],
+                    "citations": if include_citations {
+                        serde_json::json!(["conv_stub#msg_stub_1"])
+                    } else {
+                        serde_json::json!([])
+                    },
+                    "citations_hidden": !include_citations
+                }
+            })),
+        )
+    }
+
+    async fn numquam_stub_citation(
+        AxumState(state): AxumState<NumquamStubState>,
+        Path(citation_token): Path<String>,
+    ) -> impl IntoResponse {
+        if numquam_stub_surface_disabled(&state, "citation") {
+            return numquam_stub_not_found("citation");
+        }
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "ok": true,
+                "citation": citation_token,
+                "source_id": "conv_stub",
+                "matches": [{
+                    "atom_id": "atm_stub_root",
+                    "source_id": "conv_stub",
+                    "message_id": "msg_stub_1",
+                    "timestamp": "2026-03-12T00:00:00Z",
+                    "excerpt": "User prefers tea during focused sessions."
+                }]
+            })),
+        )
+    }
+
+    async fn numquam_stub_runtime_health(
+        AxumState(state): AxumState<NumquamStubState>,
+    ) -> impl IntoResponse {
+        if numquam_stub_surface_disabled(&state, "runtime_health") {
+            return numquam_stub_not_found("runtime_health");
+        }
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "ok": true,
+                "status": state.config.native_runtime_status,
+                "checked_at": Utc::now().to_rfc3339(),
+                "checks": [{
+                    "id": "retriever",
+                    "status": "ok",
+                    "detail": "stub retriever ready"
+                }]
+            })),
+        )
+    }
+
+    async fn numquam_stub_telemetry_summary(
+        AxumState(state): AxumState<NumquamStubState>,
+        Query(query): Query<HashMap<String, String>>,
+    ) -> impl IntoResponse {
+        if numquam_stub_surface_disabled(&state, "telemetry_summary") {
+            return numquam_stub_not_found("telemetry_summary");
+        }
+        let limit = query_u32(&query, "limit", 1, 500)
+            .and_then(|value| value.parse::<u32>().ok())
+            .unwrap_or(40);
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "ok": true,
+                "limit": limit,
+                "summary": {
+                    "route_counts": { "ltm_light": 2 },
+                    "memory_preference_counts": { "memory_assist": 2 },
+                    "mode_counts": { "interactive": 2 },
+                    "warning_code_counts": { "NONE": 2 }
+                }
+            })),
+        )
+    }
+
+    async fn numquam_stub_telemetry_turns(
+        AxumState(state): AxumState<NumquamStubState>,
+        Query(query): Query<HashMap<String, String>>,
+    ) -> impl IntoResponse {
+        if numquam_stub_surface_disabled(&state, "telemetry_turns") {
+            return numquam_stub_not_found("telemetry_turns");
+        }
+        let limit = query_u32(&query, "limit", 1, 500)
+            .and_then(|value| value.parse::<u32>().ok())
+            .unwrap_or(40);
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "ok": true,
+                "limit": limit,
+                "warn_turns": 0,
+                "turns": [{
+                    "turn_id": "turn_stub_1",
+                    "decision": "memory_assist",
+                    "route": "ltm_light",
+                    "warning_codes": []
+                }]
+            })),
+        )
+    }
+
+    async fn numquam_stub_decision_reasons(
+        AxumState(state): AxumState<NumquamStubState>,
+    ) -> impl IntoResponse {
+        if numquam_stub_surface_disabled(&state, "decision_reasons") {
+            return numquam_stub_not_found("decision_reasons");
+        }
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "ok": true,
+                "routes": ["ltm_light", "chat_first"],
+                "memory_preferences": ["memory_assist", "chat_first"],
+                "reasons": [
+                    "explicit_memory_request",
+                    "casual_prompt_no_recall",
+                    "memory_signal_probe"
+                ]
+            })),
+        )
     }
 
     async fn numquam_stub_mcp(
@@ -29546,6 +33935,24 @@ mod tests {
         build_test_numquam_client_with_transport(base_url, NumquamTransport::Http)
     }
 
+    fn build_test_agent_memory_binding_record(
+        base_url: &str,
+        principal_id: Option<&str>,
+        principal_display_name: Option<&str>,
+    ) -> AgentMemoryBindingRecord {
+        AgentMemoryBindingRecord {
+            binding_id: format!("binding-{}", uuid::Uuid::new_v4()),
+            provider_kind: AGENT_MEMORY_PROVIDER_KIND_MNO.to_string(),
+            base_url: base_url.to_string(),
+            auth_mode: "none".to_string(),
+            auth_secret_ref: None,
+            principal_id: principal_id.map(|value| value.to_string()),
+            principal_display_name: principal_display_name.map(|value| value.to_string()),
+            enabled: true,
+            trusted_local_operator_actions: false,
+        }
+    }
+
     fn build_test_numquam_client_unreachable() -> NumquamClient {
         NumquamClient {
             transport: NumquamTransport::Http,
@@ -29587,6 +33994,153 @@ mod tests {
                 .build()
                 .expect("numquam test client"),
         }
+    }
+
+    #[test]
+    fn numquam_from_env_requires_base_url_when_enabled() {
+        with_env_vars(
+            &[
+                ("CARSINOS_NUMQUAM_ENABLED", Some("true")),
+                ("CARSINOS_NUMQUAM_BASE_URL", None),
+                ("CARSINOS_NUMQUAM_TOKEN", None),
+                ("CARSINOS_NUMQUAM_PRINCIPAL_ID", None),
+                ("CARSINOS_NUMQUAM_PRINCIPAL_NAME", None),
+                ("CARSINOS_NUMQUAM_MCP_URL", None),
+            ],
+            || {
+                let err = NumquamClient::from_env().expect_err("missing base url should fail");
+                assert!(
+                    err.to_string()
+                        .contains("CARSINOS_NUMQUAM_BASE_URL is required"),
+                    "unexpected error: {err:#}"
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn assistant_bound_numquam_client_inherits_runtime_identity_defaults() {
+        let ctx = test_context();
+        let mut runtime_config = default_runtime_config();
+        runtime_config.memory.numquam.principal_id = Some("runtime-operator".to_string());
+        runtime_config.memory.numquam.principal_display_name = Some("Runtime Operator".to_string());
+        let binding = build_test_agent_memory_binding_record("http://127.0.0.1:7340", None, None);
+
+        let client =
+            NumquamClient::from_agent_binding(&runtime_config, &binding, &ctx.secret_store)
+                .expect("build client")
+                .expect("client configured");
+
+        assert_eq!(client.principal_id, "runtime-operator");
+        assert_eq!(client.principal_display_name, "Runtime Operator");
+    }
+
+    #[test]
+    fn assistant_bound_numquam_client_prefers_binding_identity_over_runtime_defaults() {
+        let ctx = test_context();
+        let mut runtime_config = default_runtime_config();
+        runtime_config.memory.numquam.principal_id = Some("runtime-operator".to_string());
+        runtime_config.memory.numquam.principal_display_name = Some("Runtime Operator".to_string());
+        let binding = build_test_agent_memory_binding_record(
+            "http://127.0.0.1:7340",
+            Some("binding-operator"),
+            Some("Binding Operator"),
+        );
+
+        let client =
+            NumquamClient::from_agent_binding(&runtime_config, &binding, &ctx.secret_store)
+                .expect("build client")
+                .expect("client configured");
+
+        assert_eq!(client.principal_id, "binding-operator");
+        assert_eq!(client.principal_display_name, "Binding Operator");
+    }
+
+    #[test]
+    fn resolve_numquam_client_keeps_env_compat_fallback_only_when_runtime_config_is_disabled() {
+        let compat_client = build_test_numquam_client("http://127.0.0.1:7340");
+        let ctx = test_context_with_numquam(compat_client.clone());
+
+        let resolved = resolve_numquam_client(&ctx.state, &default_runtime_config())
+            .expect("resolve numquam client")
+            .expect("compat client should remain available");
+
+        assert_eq!(
+            resolved.integration_base_url,
+            compat_client.integration_base_url
+        );
+        assert_eq!(resolved.principal_id, compat_client.principal_id);
+    }
+
+    #[test]
+    fn resolve_numquam_client_rejects_invalid_explicit_runtime_config_without_env_fallback() {
+        let compat_client = build_test_numquam_client("http://127.0.0.1:7340");
+        let ctx = test_context_with_numquam(compat_client);
+        let mut runtime_config = default_runtime_config();
+        runtime_config.memory.numquam.enabled = true;
+        runtime_config.memory.numquam.integration_base_url = None;
+
+        let err = resolve_numquam_client(&ctx.state, &runtime_config)
+            .expect_err("invalid explicit runtime config should fail");
+
+        assert!(
+            err.to_string()
+                .contains("memory.numquam.integration_base_url is required"),
+            "unexpected error: {err:#}"
+        );
+    }
+
+    fn create_test_agent(
+        ctx: &TestContext,
+        agent_id: &str,
+        name: &str,
+        memory_binding: Option<NewAgentMemoryBinding>,
+    ) -> AgentRecord {
+        ctx.storage
+            .create_agent(NewAgent {
+                agent_id: agent_id.to_string(),
+                name: name.to_string(),
+                workspace_root: ".".to_string(),
+                model_provider: "openai".to_string(),
+                model_id: "gpt-4.1-mini".to_string(),
+                tool_profile: "default".to_string(),
+                reports_to_agent_id: None,
+                role_label: None,
+                memory_binding,
+            })
+            .expect("create test agent")
+    }
+
+    fn create_test_agent_memory_binding(
+        base_url: &str,
+        auth_mode: &str,
+        auth_secret_ref: Option<&str>,
+    ) -> NewAgentMemoryBinding {
+        NewAgentMemoryBinding {
+            binding_id: format!("binding_{}", uuid::Uuid::new_v4()),
+            provider_kind: AGENT_MEMORY_PROVIDER_KIND_MNO.to_string(),
+            base_url: base_url.to_string(),
+            auth_mode: auth_mode.to_string(),
+            auth_secret_ref: auth_secret_ref.map(|value| value.to_string()),
+            principal_id: Some("test_operator".to_string()),
+            principal_display_name: Some("Test Operator".to_string()),
+            enabled: true,
+            trusted_local_operator_actions: true,
+        }
+    }
+
+    fn create_test_session_for_agent(
+        ctx: &TestContext,
+        agent_id: &str,
+        title: &str,
+    ) -> SessionRecord {
+        ctx.storage
+            .create_session(NewSession {
+                session_key: None,
+                agent_id: agent_id.to_string(),
+                title: Some(title.to_string()),
+            })
+            .expect("create test session")
     }
 
     #[derive(Clone)]
@@ -29972,10 +34526,35 @@ mod tests {
 
     #[test]
     fn bool_env_falls_back_to_default_for_invalid_values() {
-        std::env::set_var("CARSINOS_TEST_BOOL_ENV", "invalid");
-        assert!(bool_env("CARSINOS_TEST_BOOL_ENV", true));
-        assert!(!bool_env("CARSINOS_TEST_BOOL_ENV", false));
-        std::env::remove_var("CARSINOS_TEST_BOOL_ENV");
+        with_env_vars(&[("CARSINOS_TEST_BOOL_ENV", Some("invalid"))], || {
+            assert!(bool_env("CARSINOS_TEST_BOOL_ENV", true));
+            assert!(!bool_env("CARSINOS_TEST_BOOL_ENV", false));
+        });
+    }
+
+    #[test]
+    fn channel_provider_policy_uses_runtime_config_as_authority_and_env_as_narrowing_override() {
+        let config = default_runtime_config();
+        assert_eq!(
+            evaluate_channel_provider_policy(&config, None, "telegram"),
+            ChannelProviderPolicyOutcome::Allowed
+        );
+
+        let mut runtime_disabled = config.clone();
+        runtime_disabled.channels.telegram.enabled = false;
+        let mut allow_override = HashSet::new();
+        allow_override.insert("telegram".to_string());
+        assert_eq!(
+            evaluate_channel_provider_policy(&runtime_disabled, Some(&allow_override), "telegram"),
+            ChannelProviderPolicyOutcome::DisabledByRuntimeConfig
+        );
+
+        let mut discord_only = HashSet::new();
+        discord_only.insert("discord".to_string());
+        assert_eq!(
+            evaluate_channel_provider_policy(&config, Some(&discord_only), "telegram"),
+            ChannelProviderPolicyOutcome::DisabledByOverride
+        );
     }
 
     #[test]
@@ -30004,6 +34583,7 @@ tool.process status abc123
 "#,
             &registry,
             None,
+            &[],
         )
         .expect("parse tool requests");
         assert_eq!(invocations.len(), 5);
@@ -30036,6 +34616,7 @@ tool.process status abc123
             "tool.exec echo hi\ntool.process status abc",
             &registry,
             None,
+            &[],
         )
         .expect("parse tool requests");
         assert_eq!(invocations.len(), 2);
@@ -30060,6 +34641,7 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
 "#,
             &registry,
             None,
+            &[],
         )
         .expect("parse channel action tools");
         assert_eq!(invocations.len(), 4);
@@ -31848,6 +36430,280 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     }
 
     #[tokio::test]
+    async fn agent_memory_status_returns_unconfigured_without_binding() {
+        let ctx = test_context();
+        let agent = create_test_agent(&ctx, "memory_unconfigured", "Memory Unconfigured", None);
+
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/agents/{}/memory/status", agent.agent_id),
+                Body::empty(),
+            ))
+            .await
+            .expect("agent memory status");
+        assert_eq!(response.status(), StatusCode::OK);
+        let payload = parse_json(response).await;
+        assert_eq!(payload["status"]["binding_status"], "unconfigured");
+        assert_eq!(payload["status"]["binding"], serde_json::Value::Null);
+        assert_eq!(
+            payload["status"]["native_surface_availability"]["cards"],
+            false
+        );
+    }
+
+    #[tokio::test]
+    async fn agent_memory_status_returns_unauthorized_when_secret_is_missing() {
+        let ctx = test_context();
+        let binding = create_test_agent_memory_binding(
+            "http://127.0.0.1:9",
+            "secret_ref",
+            Some("secret://runtime.mno.missing"),
+        );
+        let agent = create_test_agent(
+            &ctx,
+            "memory_unauthorized",
+            "Memory Unauthorized",
+            Some(binding),
+        );
+
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/agents/{}/memory/status", agent.agent_id),
+                Body::empty(),
+            ))
+            .await
+            .expect("agent memory status");
+        assert_eq!(response.status(), StatusCode::OK);
+        let payload = parse_json(response).await;
+        assert_eq!(payload["status"]["binding_status"], "unauthorized");
+        assert_eq!(
+            payload["status"]["orchestration"]["last_error_code"],
+            "AUTH_REQUIRED"
+        );
+    }
+
+    #[tokio::test]
+    async fn agent_memory_status_and_cards_wrapper_use_bound_native_lane() {
+        let stub = spawn_numquam_stub(NumquamStubConfig::healthy()).await;
+        let ctx = test_context();
+        let binding = create_test_agent_memory_binding(&stub.base_url, "none", None);
+        let expected_binding_id = binding.binding_id.clone();
+        let agent = create_test_agent(
+            &ctx,
+            "memory_bound_available",
+            "Memory Bound Available",
+            Some(binding),
+        );
+
+        let status_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/agents/{}/memory/status", agent.agent_id),
+                Body::empty(),
+            ))
+            .await
+            .expect("agent memory status");
+        assert_eq!(status_response.status(), StatusCode::OK);
+        let status_payload = parse_json(status_response).await;
+        assert_eq!(status_payload["status"]["binding_status"], "available");
+        assert_eq!(
+            status_payload["status"]["native_surface_availability"]["cards"],
+            true
+        );
+        assert_eq!(
+            status_payload["status"]["native_surface_availability"]["graph_overview"],
+            true
+        );
+        assert_eq!(
+            status_payload["status"]["native_runtime_status"]["status"],
+            "ok"
+        );
+
+        let cards_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/agents/{}/memory/cards?limit=5", agent.agent_id),
+                Body::empty(),
+            ))
+            .await
+            .expect("agent memory cards");
+        assert_eq!(cards_response.status(), StatusCode::OK);
+        let cards_payload = parse_json(cards_response).await;
+        assert_eq!(cards_payload["agent_id"], agent.agent_id);
+        assert_eq!(cards_payload["binding_id"], expected_binding_id);
+        assert_eq!(
+            cards_payload["data"]["cards"][0]["card_id"],
+            "card_atm_stub_root"
+        );
+    }
+
+    #[tokio::test]
+    async fn unbound_agent_run_does_not_fallback_to_global_numquam_client() {
+        let stub = spawn_numquam_stub(NumquamStubConfig::healthy()).await;
+        let ctx = test_context_with_numquam(build_test_numquam_client(&stub.base_url));
+        let agent = create_test_agent(&ctx, "memory_unbound_run", "Memory Unbound Run", None);
+        let session = create_test_session_for_agent(&ctx, &agent.agent_id, "unbound-memory-run");
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{}/messages", session.session_id),
+                Body::from(r#"{"role":"user","content_text":"recall my tea preference"}"#),
+            ))
+            .await
+            .expect("create message");
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{}/runs", session.session_id),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("create run");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+        let run_payload = parse_json(run_response).await;
+        let run_id = run_payload["run"]["run_id"]
+            .as_str()
+            .expect("run id")
+            .to_string();
+        let usage_json = run_payload["run"]["usage_json"]
+            .as_str()
+            .expect("usage_json");
+        let usage_value: serde_json::Value =
+            serde_json::from_str(usage_json).expect("parse usage_json");
+        assert!(usage_value.get("memory").is_none());
+
+        let why_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/runs/{run_id}/memory/why"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("run memory why");
+        assert_eq!(why_response.status(), StatusCode::FAILED_DEPENDENCY);
+    }
+
+    #[tokio::test]
+    async fn numquam_breaker_is_isolated_per_agent_binding() {
+        let stub = spawn_numquam_stub(NumquamStubConfig::healthy()).await;
+        let ctx = test_context();
+        let failing_agent = create_test_agent(
+            &ctx,
+            "memory_breaker_fail",
+            "Memory Breaker Fail",
+            Some(create_test_agent_memory_binding(
+                "http://127.0.0.1:9",
+                "none",
+                None,
+            )),
+        );
+        let healthy_agent = create_test_agent(
+            &ctx,
+            "memory_breaker_ok",
+            "Memory Breaker Ok",
+            Some(create_test_agent_memory_binding(
+                &stub.base_url,
+                "none",
+                None,
+            )),
+        );
+        let failing_session =
+            create_test_session_for_agent(&ctx, &failing_agent.agent_id, "failing-memory");
+        let healthy_session =
+            create_test_session_for_agent(&ctx, &healthy_agent.agent_id, "healthy-memory");
+
+        for index in 0..3 {
+            let _ = ctx
+                .app
+                .clone()
+                .oneshot(auth_request(
+                    "POST",
+                    &format!("/api/v1/sessions/{}/messages", failing_session.session_id),
+                    Body::from(format!(
+                        r#"{{"role":"user","content_text":"failing breaker message {}"}}"#,
+                        index
+                    )),
+                ))
+                .await
+                .expect("create failing message");
+            let run_response = ctx
+                .app
+                .clone()
+                .oneshot(auth_request(
+                    "POST",
+                    &format!("/api/v1/sessions/{}/runs", failing_session.session_id),
+                    Body::from("{}"),
+                ))
+                .await
+                .expect("create failing run");
+            assert_eq!(run_response.status(), StatusCode::CREATED);
+        }
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{}/messages", healthy_session.session_id),
+                Body::from(
+                    r#"{"role":"user","content_text":"healthy route should still recall tea"}"#,
+                ),
+            ))
+            .await
+            .expect("create healthy message");
+        let healthy_run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{}/runs", healthy_session.session_id),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("create healthy run");
+        assert_eq!(healthy_run_response.status(), StatusCode::CREATED);
+        let healthy_run_payload = parse_json(healthy_run_response).await;
+        let usage_json = healthy_run_payload["run"]["usage_json"]
+            .as_str()
+            .expect("healthy usage_json");
+        let usage_value: serde_json::Value =
+            serde_json::from_str(usage_json).expect("parse healthy usage_json");
+        assert_eq!(usage_value["memory"]["enabled"], true);
+        assert_eq!(
+            usage_value["memory"]["evidence"][0]["evidence_id"],
+            "ev_stub_1"
+        );
+
+        let status_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request("GET", "/api/v1/status", Body::empty()))
+            .await
+            .expect("status response");
+        assert_eq!(status_response.status(), StatusCode::OK);
+        let status_payload = parse_json(status_response).await;
+        assert_eq!(status_payload["numquam"]["breaker_open"], true);
+    }
+
+    #[tokio::test]
     async fn high_risk_tool_requests_are_gated_by_approval() {
         let ctx = test_context();
         let create_response = ctx
@@ -32596,7 +37452,7 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         assert!(resume_json["run"]["error_text"]
             .as_str()
             .unwrap_or_default()
-            .contains("not allowlisted"));
+            .contains("unsupported channel provider"));
 
         let tool_calls = ctx
             .storage
@@ -32633,6 +37489,159 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                 && item["decision"] == "deny"
                 && item["run_id"] == run_id
         }));
+    }
+
+    #[tokio::test]
+    async fn channel_action_tool_rejects_runtime_disabled_provider_after_approval() {
+        let ctx = test_context();
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    r#"{
+                        "channels": {
+                            "discord": {
+                                "enabled": true,
+                                "bot_token_secret_ref": null,
+                                "application_id": null,
+                                "intents": ["guilds","guild_messages","direct_messages"],
+                                "staging_guild_ids": [],
+                                "staging_channel_ids": []
+                            },
+                            "telegram": {
+                                "enabled": false,
+                                "bot_token_secret_ref": null,
+                                "webhook_mode": "long_poll",
+                                "webhook_url": null,
+                                "staging_chat_ids": []
+                            }
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("runtime update");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"channel-action-runtime-disabled"}"#),
+            ))
+            .await
+            .expect("create session");
+        let create_json = parse_json(create_response).await;
+        let session_id = create_json["session"]["session_id"]
+            .as_str()
+            .expect("session_id")
+            .to_string();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(
+                    r#"{"role":"user","content_text":"tool.channel_send telegram:1001|hello disabled"}"#,
+                ),
+            ))
+            .await
+            .expect("create message");
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("create run");
+        let run_json = parse_json(run_response).await;
+        let run_id = run_json["run"]["run_id"]
+            .as_str()
+            .expect("run_id")
+            .to_string();
+        assert_eq!(run_json["run"]["status"], "failed");
+
+        let approvals_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/approvals?status=requested",
+                Body::empty(),
+            ))
+            .await
+            .expect("list approvals");
+        let approvals_json = parse_json(approvals_response).await;
+        let approval = approvals_json["items"]
+            .as_array()
+            .expect("approval items")
+            .iter()
+            .find(|item| item["run_id"] == run_id)
+            .cloned()
+            .expect("approval for run");
+        let approval_id = approval["approval_id"].as_str().expect("approval id");
+
+        let resolve_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/approvals/{approval_id}/resolve"),
+                Body::from(r#"{"decision":"approve","decided_via":"api"}"#),
+            ))
+            .await
+            .expect("resolve approval");
+        assert_eq!(resolve_response.status(), StatusCode::OK);
+
+        let resume_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/runs/{run_id}/resume"),
+                Body::empty(),
+            ))
+            .await
+            .expect("resume run");
+        let resume_json = parse_json(resume_response).await;
+        assert_eq!(resume_json["run"]["status"], "failed");
+        assert!(resume_json["run"]["error_text"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("disabled by runtime config"));
+
+        let tool_calls = ctx
+            .storage
+            .list_tool_calls(&run_id, 10)
+            .expect("list tool calls");
+        let tool_call = tool_calls
+            .iter()
+            .find(|item| item.status == "failed")
+            .expect("failed tool call after denied resume");
+        let result_json = tool_call
+            .result_json
+            .as_ref()
+            .expect("tool error json envelope");
+        let result_value: serde_json::Value =
+            serde_json::from_str(result_json).expect("parse tool error envelope");
+        assert_eq!(result_value["status"], "error");
+        assert_eq!(result_value["tool_name"], "channel.send");
+        assert_eq!(result_value["error"]["code"], "POLICY_DENY");
+        assert!(result_value["error"]["message"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("disabled by runtime config"));
     }
 
     #[tokio::test]
@@ -32899,6 +37908,103 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .expect("enabled profile array");
         assert_eq!(enabled_profiles.len(), 1);
         assert_eq!(enabled_profiles[0]["auth_profile_id"], primary_id);
+    }
+
+    #[test]
+    fn unique_constraint_detection_walks_anyhow_error_chain() {
+        let ctx = test_context();
+        ctx.storage
+            .create_auth_profile(NewAuthProfile {
+                provider: AUTH_PROVIDER_ANTHROPIC.to_string(),
+                display_name: "claude-primary".to_string(),
+                auth_mode: AUTH_MODE_CLAUDE_CONSUMER_OAUTH.to_string(),
+                risk_level: "high".to_string(),
+                enabled: true,
+                kill_switch_scope: KILL_SWITCH_SCOPE_PROFILE.to_string(),
+                api_base_url: Some("https://api.anthropic.com".to_string()),
+                credentials_json: serde_json::json!({
+                    "access_token": "token-1",
+                    "token": "token-1"
+                })
+                .to_string(),
+            })
+            .expect("create initial auth profile");
+
+        let err = ctx
+            .storage
+            .create_auth_profile(NewAuthProfile {
+                provider: AUTH_PROVIDER_ANTHROPIC.to_string(),
+                display_name: "claude-primary".to_string(),
+                auth_mode: AUTH_MODE_CLAUDE_CONSUMER_OAUTH.to_string(),
+                risk_level: "high".to_string(),
+                enabled: true,
+                kill_switch_scope: KILL_SWITCH_SCOPE_PROFILE.to_string(),
+                api_base_url: Some("https://api.anthropic.com".to_string()),
+                credentials_json: serde_json::json!({
+                    "access_token": "token-2",
+                    "token": "token-2"
+                })
+                .to_string(),
+            })
+            .expect_err("duplicate auth profile should fail");
+
+        assert!(is_unique_constraint_violation(&err, None));
+    }
+
+    #[tokio::test]
+    async fn create_auth_profile_returns_conflict_for_duplicate_display_name() {
+        let ctx = test_context();
+
+        let first = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(
+                    r#"{
+                        "provider":"anthropic",
+                        "display_name":"claude-primary",
+                        "auth_mode":"claude_consumer_oauth",
+                        "risk_level":"high",
+                        "enabled":true,
+                        "kill_switch_scope":"profile",
+                        "api_base_url":"https://api.anthropic.com",
+                        "credentials_json":{"access_token":"token-1","token":"token-1"}
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create first auth profile");
+        assert_eq!(first.status(), StatusCode::CREATED);
+
+        let duplicate = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(
+                    r#"{
+                        "provider":"anthropic",
+                        "display_name":"claude-primary",
+                        "auth_mode":"claude_consumer_oauth",
+                        "risk_level":"high",
+                        "enabled":true,
+                        "kill_switch_scope":"profile",
+                        "api_base_url":"https://api.anthropic.com",
+                        "credentials_json":{"access_token":"token-2","token":"token-2"}
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create duplicate auth profile");
+        assert_eq!(duplicate.status(), StatusCode::CONFLICT);
+        let duplicate_json = parse_json(duplicate).await;
+        assert_eq!(
+            duplicate_json["error"],
+            "auth profile display_name already exists for this provider"
+        );
     }
 
     #[tokio::test]
@@ -33253,6 +38359,69 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     }
 
     #[tokio::test]
+    async fn openai_oauth_start_uses_runtime_public_base_url_when_redirect_is_omitted() {
+        let ctx = test_context();
+        let stub = spawn_auth_flow_stub(AuthFlowStubConfig::openai("runtime-redirect-token")).await;
+
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    r#"{
+                        "global": {
+                            "jwt_issuer_allowlist": [],
+                            "jwt_audience_allowlist": [],
+                            "trusted_proxy_allowlist": [],
+                            "tls_termination_mode": "edge",
+                            "public_base_url": "https://carsinos.example"
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("runtime update");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let start_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/openai/oauth/start",
+                Body::from(format!(
+                    r#"{{
+                        "display_name":"runtime-redirect",
+                        "client_id":"test-client",
+                        "authorize_url":"{}/oauth/authorize",
+                        "token_url":"{}/oauth/token",
+                        "api_base_url":"{}"
+                    }}"#,
+                    stub.base_url, stub.base_url, stub.base_url
+                )),
+            ))
+            .await
+            .expect("oauth start response");
+        assert_eq!(start_response.status(), StatusCode::OK);
+        let start_json = parse_json(start_response).await;
+        assert_eq!(
+            start_json["callback_url"],
+            "https://carsinos.example/auth/callback"
+        );
+
+        let authorize_url = start_json["authorize_url"].as_str().expect("authorize_url");
+        let authorize = Url::parse(authorize_url).expect("authorize url parse");
+        let redirect_uri = authorize
+            .query_pairs()
+            .find(|(key, _)| key == "redirect_uri")
+            .map(|(_, value)| value.to_string())
+            .expect("redirect_uri query param");
+        assert_eq!(redirect_uri, "https://carsinos.example/auth/callback");
+    }
+
+    #[tokio::test]
     async fn openai_oauth_finish_supports_manual_code_state_fallback() {
         let ctx = test_context();
         let stub = spawn_auth_flow_stub(AuthFlowStubConfig::openai("manual-fallback-token")).await;
@@ -33523,6 +38692,55 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     }
 
     #[tokio::test]
+    async fn anthropic_setup_token_ingest_returns_conflict_for_duplicate_display_name() {
+        let ctx = test_context();
+        let stub = spawn_auth_flow_stub(AuthFlowStubConfig::anthropic("setup-token-123")).await;
+
+        let first = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/anthropic/setup-token/ingest",
+                Body::from(format!(
+                    r#"{{
+                        "display_name":"claude-primary",
+                        "setup_token":"setup-token-123",
+                        "api_base_url":"{}"
+                    }}"#,
+                    stub.base_url
+                )),
+            ))
+            .await
+            .expect("create first anthropic setup-token profile");
+        assert_eq!(first.status(), StatusCode::CREATED);
+
+        let duplicate = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/anthropic/setup-token/ingest",
+                Body::from(format!(
+                    r#"{{
+                        "display_name":"claude-primary",
+                        "setup_token":"setup-token-123",
+                        "api_base_url":"{}"
+                    }}"#,
+                    stub.base_url
+                )),
+            ))
+            .await
+            .expect("duplicate anthropic setup-token profile");
+        assert_eq!(duplicate.status(), StatusCode::CONFLICT);
+        let duplicate_json = parse_json(duplicate).await;
+        assert_eq!(
+            duplicate_json["error"],
+            "auth profile display_name already exists for this provider"
+        );
+    }
+
+    #[tokio::test]
     async fn channel_config_endpoints_round_trip() {
         let ctx = test_context();
         let get_default = ctx
@@ -33634,6 +38852,14 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             "long_poll"
         );
         assert_eq!(
+            default_json["config"]["channels"]["discord"]["enabled"],
+            true
+        );
+        assert_eq!(
+            default_json["config"]["channels"]["telegram"]["enabled"],
+            true
+        );
+        assert_eq!(
             default_json["config"]["security"]["audit_hot_retention_days"],
             90
         );
@@ -33712,6 +38938,7 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                         ],
                         "channels": {
                             "discord": {
+                                "enabled": false,
                                 "bot_token_secret_ref": "secret://discord/bot_token",
                                 "application_id": "123456",
                                 "intents": ["guilds","guild_messages","direct_messages"],
@@ -33719,6 +38946,7 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                                 "staging_channel_ids": ["channel-a"]
                             },
                             "telegram": {
+                                "enabled": true,
                                 "bot_token_secret_ref": "secret://telegram/bot_token",
                                 "webhook_mode": "webhook",
                                 "webhook_url": "https://carsinos.example/telegram/webhook",
@@ -33757,6 +38985,14 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         );
         assert_eq!(
             update_json["config"]["providers"][1]["allow_consumer_oauth"],
+            true
+        );
+        assert_eq!(
+            update_json["config"]["channels"]["discord"]["enabled"],
+            false
+        );
+        assert_eq!(
+            update_json["config"]["channels"]["telegram"]["enabled"],
             true
         );
         assert_eq!(
@@ -33855,6 +39091,28 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .await
             .expect("invalid runtime config update");
         assert_eq!(invalid.status(), StatusCode::BAD_REQUEST);
+
+        let invalid_public_base_url = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    r#"{
+                        "global": {
+                            "jwt_issuer_allowlist": [],
+                            "jwt_audience_allowlist": [],
+                            "trusted_proxy_allowlist": [],
+                            "tls_termination_mode": "edge",
+                            "public_base_url": "ftp://carsinos.example"
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("invalid public_base_url runtime config update");
+        assert_eq!(invalid_public_base_url.status(), StatusCode::BAD_REQUEST);
 
         let invalid_operation_mode = ctx
             .app
@@ -34888,6 +40146,102 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .await
             .expect("unknown reconnect response");
         assert_eq!(unknown_reconnect_response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn disabled_channel_runtime_stays_stopped_and_out_of_focus_queue() {
+        let ctx = test_context();
+
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    r#"{
+                        "channels": {
+                            "discord": {
+                                "enabled": true,
+                                "bot_token_secret_ref": null,
+                                "application_id": null,
+                                "intents": ["guilds","guild_messages","direct_messages"],
+                                "staging_guild_ids": [],
+                                "staging_channel_ids": []
+                            },
+                            "telegram": {
+                                "enabled": false,
+                                "bot_token_secret_ref": null,
+                                "webhook_mode": "long_poll",
+                                "webhook_url": null,
+                                "staging_chat_ids": []
+                            }
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("runtime update");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let status_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/channels/runtime/status",
+                Body::empty(),
+            ))
+            .await
+            .expect("runtime status response");
+        assert_eq!(status_response.status(), StatusCode::OK);
+        let status_json = parse_json(status_response).await;
+        let items = status_json["items"].as_array().expect("status items");
+        let telegram_status = items
+            .iter()
+            .find(|item| item["provider"] == "telegram")
+            .cloned()
+            .expect("telegram status");
+        assert_eq!(telegram_status["lifecycle_state"], "stopped");
+        assert_eq!(telegram_status["healthy"], false);
+        assert!(telegram_status["detail"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("disabled by runtime config"));
+
+        let reconnect_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/runtime/reconnect",
+                Body::from(r#"{"provider":"telegram"}"#),
+            ))
+            .await
+            .expect("runtime reconnect response");
+        assert_eq!(reconnect_response.status(), StatusCode::OK);
+        let reconnect_json = parse_json(reconnect_response).await;
+        assert_eq!(reconnect_json["status"]["provider"], "telegram");
+        assert_eq!(reconnect_json["status"]["lifecycle_state"], "stopped");
+        assert_eq!(reconnect_json["status"]["healthy"], false);
+        assert_eq!(reconnect_json["status"]["reconnect_attempts"], 0);
+
+        let focus_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/mission-control/focus?limit=100",
+                Body::empty(),
+            ))
+            .await
+            .expect("focus response");
+        assert_eq!(focus_response.status(), StatusCode::OK);
+        let focus_json = parse_json(focus_response).await;
+        let items = focus_json["items"].as_array().expect("focus items");
+        assert!(!items
+            .iter()
+            .any(|item| item["item_id"] == "channel:telegram"));
     }
 
     #[tokio::test]
@@ -38590,6 +43944,120 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .all(|item| item["origin"] == "plugin:plugin.alpha"));
     }
 
+    #[tokio::test]
+    async fn connector_routes_import_convert_publish_and_expose_capabilities() {
+        let ctx = test_context();
+        let import_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/connectors/import",
+                Body::from(
+                    serde_json::json!({
+                        "source_kind": "openapi",
+                        "display_name": "GitHub",
+                        "slug": "github",
+                        "endpoint_url": "https://api.example.test",
+                        "source_json": {
+                            "paths": {
+                                "/issues": {
+                                    "get": {
+                                        "operationId": "listIssues",
+                                        "summary": "List Issues",
+                                        "description": "Lists issues",
+                                        "parameters": []
+                                    }
+                                }
+                            }
+                        }
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("import connector response");
+        assert_eq!(import_response.status(), StatusCode::CREATED);
+        let import_json = parse_json(import_response).await;
+        let connector_id = import_json["connector"]["connector_id"]
+            .as_str()
+            .expect("connector id")
+            .to_string();
+        let version_id = import_json["version"]["version_id"]
+            .as_str()
+            .expect("version id")
+            .to_string();
+
+        let conversion_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/connectors/{connector_id}/convert"),
+                Body::from(serde_json::json!({ "version_id": version_id }).to_string()),
+            ))
+            .await
+            .expect("convert connector response");
+        assert_eq!(conversion_response.status(), StatusCode::OK);
+        let conversion_json = parse_json(conversion_response).await;
+        let conversion_id = conversion_json["conversion"]["conversion_id"]
+            .as_str()
+            .expect("conversion id")
+            .to_string();
+        let candidate_id = conversion_json["conversion"]["proposed_tools"][0]["candidate_id"]
+            .as_str()
+            .expect("candidate id")
+            .to_string();
+        assert_eq!(
+            conversion_json["conversion"]["proposed_tools"][0]["proposed_tool_name"],
+            "connector.github.listissues"
+        );
+
+        let publish_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/connectors/{connector_id}/publish"),
+                Body::from(
+                    serde_json::json!({
+                        "conversion_id": conversion_id,
+                        "selected_candidate_ids": [candidate_id],
+                        "enable_after_publish": true
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("publish connector response");
+        assert_eq!(publish_response.status(), StatusCode::OK);
+        let publish_json = parse_json(publish_response).await;
+        assert_eq!(publish_json["connector"]["status"], "enabled");
+
+        let capabilities_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/tools/capabilities?include_disabled=true",
+                Body::empty(),
+            ))
+            .await
+            .expect("connector capabilities response");
+        assert_eq!(capabilities_response.status(), StatusCode::OK);
+        let capabilities_json = parse_json(capabilities_response).await;
+        let items = capabilities_json["items"]
+            .as_array()
+            .expect("capabilities array");
+        let connector_item = items
+            .iter()
+            .find(|item| item["origin"] == "connector:github")
+            .expect("connector capability item");
+        assert_eq!(connector_item["tool_name"], "connector.github.listissues");
+        assert_eq!(connector_item["connector"]["connector_slug"], "github");
+        assert_eq!(connector_item["connector"]["source_kind"], "openapi");
+    }
+
     fn sample_plugin_manifest(plugin_id: &str, enabled: bool) -> CorePluginManifest {
         CorePluginManifest {
             schema_version: "carsinos.plugin.manifest.v1".to_string(),
@@ -40817,5 +46285,281 @@ sys.stdout.write(json.dumps(response))
                     .map(|value| value.contains("memory_scope"))
                     .unwrap_or(false)
         }));
+    }
+
+    #[tokio::test]
+    async fn mission_control_runbooks_list_and_detail_waiting_assistant_runs() {
+        let ctx = test_context();
+        let session_id =
+            create_session_with_user_message(&ctx, "runbook-waiting", "request approval").await;
+        let run = ctx
+            .storage
+            .create_run(NewRun {
+                session_id: session_id.clone(),
+                model_provider: "openai".to_string(),
+                model_id: "gpt-5".to_string(),
+            })
+            .expect("create run")
+            .expect("run exists");
+        let approval = ctx
+            .storage
+            .create_approval(NewApproval {
+                run_id: run.run_id.clone(),
+                tool_call_id: None,
+                kind: "shell_command".to_string(),
+                request_summary: "Approve shell command".to_string(),
+                request_json: r#"{"cmd":"echo test"}"#.to_string(),
+            })
+            .expect("create approval")
+            .expect("approval exists");
+
+        let list_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/mission-control/runbooks?kind=assistant_session_run",
+                Body::empty(),
+            ))
+            .await
+            .expect("runbook list");
+        assert_eq!(list_response.status(), StatusCode::OK);
+        let list_json = parse_json(list_response).await;
+        assert_eq!(list_json["counts_by_status"]["waiting"], 1);
+        let item = list_json["items"]
+            .as_array()
+            .expect("runbook items")
+            .iter()
+            .find(|item| item["anchor_id"] == run.run_id)
+            .expect("assistant runbook item");
+        assert_eq!(item["status"], "waiting");
+        assert_eq!(item["current_step_label"], "Await approval");
+
+        let detail_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!(
+                    "/api/v1/mission-control/runbooks/assistant_session_run/{}",
+                    run.run_id
+                ),
+                Body::empty(),
+            ))
+            .await
+            .expect("runbook detail");
+        assert_eq!(detail_response.status(), StatusCode::OK);
+        let detail_json = parse_json(detail_response).await;
+        assert_eq!(detail_json["status"], "waiting");
+        assert_eq!(
+            detail_json["selected_execution_ref"]["entity_id"],
+            run.run_id
+        );
+        assert_eq!(
+            detail_json["selected_execution_ref"]["waiting_since_ms"],
+            approval.requested_at
+        );
+        assert_eq!(detail_json["active_step_id"], "approval_wait");
+        assert_eq!(
+            detail_json["next_step_ids"],
+            serde_json::json!(["run_executing"])
+        );
+    }
+
+    #[tokio::test]
+    async fn mission_control_runbooks_surface_blocked_strategy_tasks_with_context_links() {
+        let ctx = test_context();
+        let goal = ctx
+            .storage
+            .create_goal(NewGoal {
+                slug: "runbook-goal".to_string(),
+                title: "Runbook Goal".to_string(),
+                summary: "goal".to_string(),
+                status: "active".to_string(),
+                owner_agent_id: Some("default".to_string()),
+                target_date: None,
+            })
+            .expect("create goal");
+        let project = ctx
+            .storage
+            .create_project(NewProject {
+                goal_id: goal.goal_id.clone(),
+                slug: "runbook-project".to_string(),
+                name: "Runbook Project".to_string(),
+                summary: "project".to_string(),
+                status: "active".to_string(),
+                owner_agent_id: Some("default".to_string()),
+                workspace_root: Some(".".to_string()),
+                budget_month_usd: None,
+            })
+            .expect("create project");
+        let task = ctx
+            .storage
+            .create_task(NewTask {
+                project_id: project.project_id.clone(),
+                parent_task_id: None,
+                title: "Blocked Task".to_string(),
+                detail: "blocked".to_string(),
+                status: "blocked".to_string(),
+                priority: "high".to_string(),
+                owner_agent_id: Some("default".to_string()),
+                due_at: None,
+                blocked_reason: Some("Waiting on upstream dependency".to_string()),
+            })
+            .expect("create task");
+
+        let list_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!(
+                    "/api/v1/mission-control/runbooks?kind=strategy_task_execution&status=blocked&linked_goal_id={}",
+                    goal.goal_id
+                ),
+                Body::empty(),
+            ))
+            .await
+            .expect("task runbook list");
+        assert_eq!(list_response.status(), StatusCode::OK);
+        let list_json = parse_json(list_response).await;
+        assert_eq!(list_json["counts_by_status"]["blocked"], 1);
+        let item = list_json["items"]
+            .as_array()
+            .expect("runbook items")
+            .iter()
+            .find(|item| item["anchor_id"] == task.task_id)
+            .expect("task runbook item");
+        assert_eq!(item["status"], "blocked");
+        assert_eq!(item["status_reason"], "Waiting on upstream dependency");
+        let linked_entities = item["linked_entities"].as_array().expect("linked entities");
+        assert!(linked_entities
+            .iter()
+            .any(|entity| entity["entity_kind"] == "project"
+                && entity["entity_id"] == project.project_id));
+        assert!(linked_entities
+            .iter()
+            .any(|entity| entity["entity_kind"] == "goal" && entity["entity_id"] == goal.goal_id));
+
+        let detail_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!(
+                    "/api/v1/mission-control/runbooks/strategy_task_execution/{}",
+                    task.task_id
+                ),
+                Body::empty(),
+            ))
+            .await
+            .expect("task runbook detail");
+        assert_eq!(detail_response.status(), StatusCode::OK);
+        let detail_json = parse_json(detail_response).await;
+        assert_eq!(detail_json["status"], "blocked");
+        assert_eq!(detail_json["active_step_id"], "blocked");
+        assert_eq!(
+            detail_json["status_reason"],
+            "Waiting on upstream dependency"
+        );
+        assert_eq!(
+            detail_json["selected_execution_ref"],
+            serde_json::Value::Null
+        );
+    }
+
+    #[tokio::test]
+    async fn mission_control_runbooks_surface_active_job_runs() {
+        let ctx = test_context();
+        let job = ctx
+            .storage
+            .create_job(NewJob {
+                agent_id: "default".to_string(),
+                name: "runbook-job".to_string(),
+                enabled: true,
+                schedule_kind: "interval".to_string(),
+                interval_seconds: Some(300),
+                run_at_ms: None,
+                next_run_at: Some(current_time_ms()),
+                payload_json: r#"{"mode":"index"}"#.to_string(),
+                max_retries: 1,
+                retry_backoff_ms: 1000,
+                timeout_ms: 10_000,
+            })
+            .expect("create job");
+        let job_run = ctx
+            .storage
+            .create_job_run(&job.job_id, "manual", 1)
+            .expect("create job run")
+            .expect("job run exists");
+
+        let list_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/mission-control/runbooks?kind=scheduled_job_run&owner_agent_id=default",
+                Body::empty(),
+            ))
+            .await
+            .expect("job runbook list");
+        assert_eq!(list_response.status(), StatusCode::OK);
+        let list_json = parse_json(list_response).await;
+        let item = list_json["items"]
+            .as_array()
+            .expect("runbook items")
+            .iter()
+            .find(|item| item["anchor_id"] == job.job_id)
+            .expect("job runbook item");
+        assert_eq!(item["status"], "active");
+        assert_eq!(item["owner_agent_id"], "default");
+
+        let detail_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!(
+                    "/api/v1/mission-control/runbooks/scheduled_job_run/{}",
+                    job.job_id
+                ),
+                Body::empty(),
+            ))
+            .await
+            .expect("job runbook detail");
+        assert_eq!(detail_response.status(), StatusCode::OK);
+        let detail_json = parse_json(detail_response).await;
+        assert_eq!(detail_json["status"], "active");
+        assert_eq!(
+            detail_json["selected_execution_ref"]["entity_kind"],
+            "job_run"
+        );
+        assert_eq!(
+            detail_json["selected_execution_ref"]["entity_id"],
+            job_run.job_run_id
+        );
+        assert_eq!(detail_json["active_step_id"], "job_processing");
+        assert_eq!(
+            detail_json["next_step_ids"],
+            serde_json::json!(["approval_wait", "job_run_succeeded", "job_run_failed"])
+        );
+    }
+
+    #[tokio::test]
+    async fn mission_control_runbooks_reject_invalid_cursors() {
+        let ctx = test_context();
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/mission-control/runbooks?cursor=not-a-valid-cursor",
+                Body::empty(),
+            ))
+            .await
+            .expect("runbook list");
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = parse_json(response).await;
+        assert_eq!(body["error"], "invalid_cursor");
     }
 }

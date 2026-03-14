@@ -1,9 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createBootstrapPreset,
+  fetchBoardCardAssetBlob,
+  GatewayApiError,
+  getAgentMemoryGraphNeighbors,
+  getAgentMemoryStatus,
+  getRunbookDetail,
   getStrategySummary,
   getGatewayHealth,
   linkTaskBoardCard,
+  listRunbooks,
   listTasks,
   getMissionControlUsage,
   removeAgent,
@@ -82,6 +88,57 @@ describe("request URL resolution", () => {
           Authorization: "Bearer token-123",
         }),
       })
+    );
+  });
+
+  it("throws typed config errors when the gateway token is missing", async () => {
+    vi.mocked(getGatewayToken).mockResolvedValue(null);
+
+    await expect(getGatewayHealth({ gateway_url: "http://127.0.0.1:19789" })).rejects.toMatchObject(
+      {
+        name: "GatewayApiError",
+        kind: "config",
+        path: "/api/v1/health",
+      } satisfies Partial<GatewayApiError>
+    );
+  });
+
+  it("throws typed HTTP errors for asset/blob requests", async () => {
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      new Response("missing asset", {
+        status: 404,
+        statusText: "Not Found",
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      fetchBoardCardAssetBlob(
+        { gateway_url: "http://127.0.0.1:19789" },
+        "board-1",
+        "card-1",
+        "asset-1"
+      )
+    ).rejects.toMatchObject({
+      name: "GatewayApiError",
+      kind: "http",
+      status: 404,
+      path: "/api/v1/boards/board-1/cards/card-1/assets/asset-1",
+      message: "404 Not Found",
+      responseBody: "missing asset",
+    } satisfies Partial<GatewayApiError>);
+  });
+
+  it("throws typed timeout errors when fetch aborts", async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new DOMException("aborted", "AbortError"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getGatewayHealth({ gateway_url: "http://127.0.0.1:19789" })).rejects.toMatchObject(
+      {
+        name: "GatewayApiError",
+        kind: "timeout",
+        path: "/api/v1/health",
+      } satisfies Partial<GatewayApiError>
     );
   });
 
@@ -271,6 +328,111 @@ describe("request URL resolution", () => {
     );
   });
 
+  it("builds runbook list filters and detail paths", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(async () =>
+        new Response(
+          JSON.stringify({
+            generated_at_ms: 0,
+            items: [],
+            counts_by_status: {
+              pending: 0,
+              active: 0,
+              waiting: 0,
+              blocked: 0,
+              failed: 0,
+              completed: 0,
+              limited: 0,
+            },
+            next_cursor: null,
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }
+        )
+      )
+      .mockImplementationOnce(async () =>
+        new Response(
+          JSON.stringify({
+            runbook_id: "strategy_task_execution:task-1",
+            runbook_kind: "strategy_task_execution",
+            template_id: "strategy-task-execution",
+            template_version: "mc-runbook-v1",
+            anchor_kind: "task",
+            anchor_id: "task-1/primary",
+            title: "Task runbook",
+            status: "blocked",
+            status_reason: "Waiting on approval",
+            generated_at_ms: 0,
+            selected_execution_ref: null,
+            active_step_id: "blocked",
+            next_step_ids: ["resume"],
+            linked_entities: [],
+            steps: [],
+            history: [],
+            actions: [],
+            source_facts: [],
+            availability: {
+              is_limited: false,
+              is_stale: false,
+              last_refresh_at_ms: 0,
+              missing_source_kinds: [],
+              stale_reason: null,
+            },
+            warnings: [],
+            owner_agent_id: "agent-1",
+            owner_agent_label: "Agent 1",
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }
+        )
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await listRunbooks(
+      { gateway_url: "http://127.0.0.1:18888" },
+      {
+        kind: "strategy_task_execution",
+        status: "blocked",
+        owner_agent_id: "agent-1",
+        query: "approval backlog",
+        linked_task_id: "task-1",
+        linked_project_id: "project-1",
+        linked_goal_id: "goal-1",
+        limit: 25,
+        cursor: "cursor token",
+      }
+    );
+    await getRunbookDetail(
+      { gateway_url: "http://127.0.0.1:18888" },
+      "strategy_task_execution",
+      "task-1/primary"
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const [listUrl] = fetchMock.mock.calls[0] as [string];
+    expect(listUrl).toContain("/api/v1/mission-control/runbooks?");
+    expect(listUrl).toContain("kind=strategy_task_execution");
+    expect(listUrl).toContain("status=blocked");
+    expect(listUrl).toContain("owner_agent_id=agent-1");
+    expect(listUrl).toContain("query=approval+backlog");
+    expect(listUrl).toContain("linked_task_id=task-1");
+    expect(listUrl).toContain("linked_project_id=project-1");
+    expect(listUrl).toContain("linked_goal_id=goal-1");
+    expect(listUrl).toContain("limit=25");
+    expect(listUrl).toContain("cursor=cursor+token");
+
+    const [detailUrl] = fetchMock.mock.calls[1] as [string];
+    expect(detailUrl).toContain(
+      "/api/v1/mission-control/runbooks/strategy_task_execution/task-1%2Fprimary"
+    );
+  });
+
   it("posts bootstrap preset manager defaults", async () => {
     const fetchMock = vi.fn().mockImplementation(async () =>
       new Response(
@@ -336,5 +498,68 @@ describe("request URL resolution", () => {
         setup_notes: "notes",
       })
     );
+  });
+
+  it("builds assistant memory wrapper URLs with bounded graph parameters", async () => {
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      new Response(
+        JSON.stringify({
+          status: {
+            agent_id: "lyra",
+            binding_status: "available",
+            binding: null,
+            native_surface_availability: {},
+            orchestration: {},
+            native_runtime_status: null,
+            native_runtime_health_mismatch: false,
+          },
+          agent_id: "lyra",
+          binding_id: "mno-lyra",
+          data: {
+            ok: true,
+            node: { atom_id: "atm-1", kind: "event_card" },
+            neighbors: [],
+            links: [],
+            depth: 1,
+            node_limit: 36,
+            link_limit: 72,
+            requests_used: 1,
+            truncated: false,
+          },
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getAgentMemoryStatus({ gateway_url: "http://127.0.0.1:18888" }, "lyra");
+    await getAgentMemoryGraphNeighbors(
+      { gateway_url: "http://127.0.0.1:18888" },
+      "lyra",
+      {
+        atom_id: "atm-1",
+        depth: 1,
+        node_limit: 36,
+        link_limit: 72,
+        include_root_detail: true,
+        include_shared_language: false,
+      }
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [statusUrl] = fetchMock.mock.calls[0] as [string];
+    expect(statusUrl).toContain("/api/v1/agents/lyra/memory/status");
+
+    const [neighborsUrl] = fetchMock.mock.calls[1] as [string];
+    expect(neighborsUrl).toContain("/api/v1/agents/lyra/memory/graph/neighbors?");
+    expect(neighborsUrl).toContain("atom_id=atm-1");
+    expect(neighborsUrl).toContain("depth=1");
+    expect(neighborsUrl).toContain("node_limit=36");
+    expect(neighborsUrl).toContain("link_limit=72");
+    expect(neighborsUrl).toContain("include_root_detail=true");
+    expect(neighborsUrl).toContain("include_shared_language=false");
   });
 });

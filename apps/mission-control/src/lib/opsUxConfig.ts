@@ -1,4 +1,5 @@
 import { STORAGE_KEYS } from "../storageKeys";
+import { useSyncExternalStore } from "react";
 
 export interface OpsUxFeatureControls {
   global_kill_switch: boolean;
@@ -6,6 +7,9 @@ export interface OpsUxFeatureControls {
   incident_auto_trigger: boolean;
   usage_charts: boolean;
   strategy_hub: boolean;
+  runbook_hub: boolean;
+  memory_hub: boolean;
+  connectors_hub: boolean;
 }
 
 export interface OpsUxSafetyProfile {
@@ -32,7 +36,18 @@ export interface LoadedOpsUxRuntimeConfig {
   error: string | null;
 }
 
+export type OpsUxRuntimeConfigListener = (value: LoadedOpsUxRuntimeConfig) => void;
+
 const MB = 1024 * 1024;
+const opsUxRuntimeConfigListeners = new Set<OpsUxRuntimeConfigListener>();
+const STORAGE_UNAVAILABLE_CACHE_KEY = "__storage_unavailable__";
+const EMPTY_CONFIG_CACHE_KEY = "__empty__";
+let cachedLoadedOpsUxRuntimeConfig:
+  | {
+      key: string;
+      value: LoadedOpsUxRuntimeConfig;
+    }
+  | null = null;
 
 export const DEFAULT_OPSUX_RUNTIME_CONFIG: OpsUxRuntimeConfig = {
   schema_version: "mc-opsux-runtime-v1",
@@ -43,6 +58,9 @@ export const DEFAULT_OPSUX_RUNTIME_CONFIG: OpsUxRuntimeConfig = {
     incident_auto_trigger: false,
     usage_charts: false,
     strategy_hub: false,
+    runbook_hub: false,
+    memory_hub: false,
+    connectors_hub: false,
   },
   safety: {
     // Approved defaults from operator guidance.
@@ -81,6 +99,29 @@ function readStorage(): Storage | null {
   }
 }
 
+function emitOpsUxRuntimeConfig(value: LoadedOpsUxRuntimeConfig): void {
+  for (const listener of opsUxRuntimeConfigListeners) {
+    try {
+      listener(value);
+    } catch (error) {
+      console.error("ops ux config listener failed", error);
+    }
+  }
+}
+
+function readCachedLoadedOpsUxRuntimeConfig(
+  key: string,
+  factory: () => LoadedOpsUxRuntimeConfig
+): LoadedOpsUxRuntimeConfig {
+  if (cachedLoadedOpsUxRuntimeConfig?.key === key) {
+    return cachedLoadedOpsUxRuntimeConfig.value;
+  }
+
+  const value = factory();
+  cachedLoadedOpsUxRuntimeConfig = { key, value };
+  return value;
+}
+
 export function sanitizeOpsUxRuntimeConfig(raw: unknown): OpsUxRuntimeConfig {
   const source = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
   const controlsRaw =
@@ -114,6 +155,18 @@ export function sanitizeOpsUxRuntimeConfig(raw: unknown): OpsUxRuntimeConfig {
       strategy_hub: coerceBoolean(
         controlsRaw.strategy_hub,
         DEFAULT_OPSUX_RUNTIME_CONFIG.controls.strategy_hub
+      ),
+      runbook_hub: coerceBoolean(
+        controlsRaw.runbook_hub,
+        DEFAULT_OPSUX_RUNTIME_CONFIG.controls.runbook_hub
+      ),
+      memory_hub: coerceBoolean(
+        controlsRaw.memory_hub,
+        DEFAULT_OPSUX_RUNTIME_CONFIG.controls.memory_hub
+      ),
+      connectors_hub: coerceBoolean(
+        controlsRaw.connectors_hub,
+        DEFAULT_OPSUX_RUNTIME_CONFIG.controls.connectors_hub
       ),
     },
     safety: {
@@ -161,36 +214,38 @@ export function sanitizeOpsUxRuntimeConfig(raw: unknown): OpsUxRuntimeConfig {
 export function loadOpsUxRuntimeConfig(): LoadedOpsUxRuntimeConfig {
   const storage = readStorage();
   if (!storage) {
-    return {
+    return readCachedLoadedOpsUxRuntimeConfig(STORAGE_UNAVAILABLE_CACHE_KEY, () => ({
       config: DEFAULT_OPSUX_RUNTIME_CONFIG,
       degraded: true,
       error: "Local storage unavailable; running in fail-safe defaults.",
-    };
+    }));
   }
 
   const raw = storage.getItem(STORAGE_KEYS.opsUxRuntimeConfigV1);
   if (!raw) {
-    return {
+    return readCachedLoadedOpsUxRuntimeConfig(EMPTY_CONFIG_CACHE_KEY, () => ({
       config: DEFAULT_OPSUX_RUNTIME_CONFIG,
       degraded: false,
       error: null,
-    };
+    }));
   }
 
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    return {
-      config: sanitizeOpsUxRuntimeConfig(parsed),
-      degraded: false,
-      error: null,
-    };
-  } catch {
-    return {
-      config: DEFAULT_OPSUX_RUNTIME_CONFIG,
-      degraded: true,
-      error: "Runtime config was invalid; fail-safe defaults were applied.",
-    };
-  }
+  return readCachedLoadedOpsUxRuntimeConfig(raw, () => {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      return {
+        config: sanitizeOpsUxRuntimeConfig(parsed),
+        degraded: false,
+        error: null,
+      };
+    } catch {
+      return {
+        config: DEFAULT_OPSUX_RUNTIME_CONFIG,
+        degraded: true,
+        error: "Runtime config was invalid; fail-safe defaults were applied.",
+      };
+    }
+  });
 }
 
 export function saveOpsUxRuntimeConfig(config: OpsUxRuntimeConfig): { ok: boolean; error: string | null } {
@@ -199,12 +254,60 @@ export function saveOpsUxRuntimeConfig(config: OpsUxRuntimeConfig): { ok: boolea
     return { ok: false, error: "Local storage unavailable; config not persisted." };
   }
 
+  let loadedConfig: LoadedOpsUxRuntimeConfig;
   try {
-    storage.setItem(STORAGE_KEYS.opsUxRuntimeConfigV1, JSON.stringify(config));
-    return { ok: true, error: null };
+    const serialized = JSON.stringify(config);
+    storage.setItem(STORAGE_KEYS.opsUxRuntimeConfigV1, serialized);
+    loadedConfig = {
+      config,
+      degraded: false,
+      error: null,
+    };
+    cachedLoadedOpsUxRuntimeConfig = {
+      key: serialized,
+      value: loadedConfig,
+    };
   } catch {
     return { ok: false, error: "Failed to persist runtime config to local storage." };
   }
+  emitOpsUxRuntimeConfig(loadedConfig);
+  return { ok: true, error: null };
+}
+
+export function subscribeOpsUxRuntimeConfig(listener: OpsUxRuntimeConfigListener): () => void {
+  opsUxRuntimeConfigListeners.add(listener);
+  if (typeof window === "undefined") {
+    return () => {
+      opsUxRuntimeConfigListeners.delete(listener);
+    };
+  }
+
+  const handleStorage = (event: StorageEvent) => {
+    if (event.key !== STORAGE_KEYS.opsUxRuntimeConfigV1) {
+      return;
+    }
+    const loadedConfig = loadOpsUxRuntimeConfig();
+    try {
+      listener(loadedConfig);
+    } catch (error) {
+      console.error("opsUxRuntimeConfig storage listener failed", error);
+    }
+  };
+
+  window.addEventListener("storage", handleStorage);
+
+  return () => {
+    opsUxRuntimeConfigListeners.delete(listener);
+    window.removeEventListener("storage", handleStorage);
+  };
+}
+
+export function useOpsUxRuntimeConfigValue(): LoadedOpsUxRuntimeConfig {
+  return useSyncExternalStore(
+    subscribeOpsUxRuntimeConfig,
+    loadOpsUxRuntimeConfig,
+    loadOpsUxRuntimeConfig
+  );
 }
 
 export function withOpsUxControlPatch(

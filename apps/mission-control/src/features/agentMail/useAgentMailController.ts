@@ -37,6 +37,64 @@ interface UseAgentMailControllerOptions {
   setNotice: NotifyFn;
 }
 
+const REACTION_EMOJI_ALIASES: Record<string, string> = {
+  ":+1:": "👍",
+  ":-1:": "👎",
+  ":eyes:": "👀",
+  ":rocket:": "🚀",
+  ":white_check_mark:": "✅",
+  ":warning:": "⚠️",
+  ":memo:": "📝",
+  ":question:": "❓",
+  ":sparkles:": "✨",
+  ":fire:": "🔥",
+  ":hourglass:": "⏳",
+  ":beetle:": "🐞",
+  ":heart:": "❤️",
+  ":clap:": "👏",
+  ":thinking:": "🤔",
+  ":100:": "💯",
+  ":raised_hands:": "🙌",
+  ":x:": "❌",
+};
+
+export function normalizeReactionEmoji(emoji: string): string {
+  const trimmed = emoji.trim();
+  return REACTION_EMOJI_ALIASES[trimmed] ?? trimmed;
+}
+
+export function readThreadScopedFiles(
+  filesByThreadId: Record<string, File[]>,
+  threadId: string | null
+): File[] {
+  if (!threadId) {
+    return [];
+  }
+  return filesByThreadId[threadId] ? [...filesByThreadId[threadId]] : [];
+}
+
+export function writeThreadScopedFiles(
+  filesByThreadId: Record<string, File[]>,
+  threadId: string | null,
+  files: File[]
+): Record<string, File[]> {
+  if (!threadId) {
+    return filesByThreadId;
+  }
+  if (files.length === 0) {
+    if (!(threadId in filesByThreadId)) {
+      return filesByThreadId;
+    }
+    const next = { ...filesByThreadId };
+    delete next[threadId];
+    return next;
+  }
+  return {
+    ...filesByThreadId,
+    [threadId]: [...files],
+  };
+}
+
 export function useAgentMailController(options: UseAgentMailControllerOptions) {
   const { settings, tokenConfigured, setNotice } = options;
 
@@ -45,8 +103,8 @@ export function useAgentMailController(options: UseAgentMailControllerOptions) {
   const [mailPrincipalOverride, setMailPrincipalOverride] = useState("");
   const [mailThreads, setMailThreads] = useState<AgentMailThreadSummaryResponse[]>([]);
   const [roomThreads, setRoomThreads] = useState<AgentMailThreadSummaryResponse[]>([]);
-  const [selectedMailThreadId, setSelectedMailThreadId] = useState<string | null>(null);
-  const [selectedRoomThreadId, setSelectedRoomThreadId] = useState<string | null>(null);
+  const [selectedMailThreadId, setSelectedMailThreadIdState] = useState<string | null>(null);
+  const [selectedRoomThreadId, setSelectedRoomThreadIdState] = useState<string | null>(null);
   const [mailThreadDetail, setMailThreadDetail] = useState<AgentMailThreadDetailResponse | null>(
     null
   );
@@ -65,8 +123,12 @@ export function useAgentMailController(options: UseAgentMailControllerOptions) {
   const [chatComposeBody, setChatComposeBody] = useState("");
   const [chatComposeRecipients, setChatComposeRecipients] = useState("");
   const [chatComposeSender, setChatComposeSender] = useState("");
-  const [mailAttachmentFiles, setMailAttachmentFiles] = useState<File[]>([]);
-  const [chatAttachmentFiles, setChatAttachmentFiles] = useState<File[]>([]);
+  const [mailAttachmentFilesByThreadId, setMailAttachmentFilesByThreadId] = useState<
+    Record<string, File[]>
+  >({});
+  const [chatAttachmentFilesByThreadId, setChatAttachmentFilesByThreadId] = useState<
+    Record<string, File[]>
+  >({});
   const [leases, setLeases] = useState<AgentMailFileLeaseResponse[]>([]);
   const [leaseHolderPrincipal, setLeaseHolderPrincipal] = useState("");
   const [leaseGlobPattern, setLeaseGlobPattern] = useState("**/*");
@@ -171,6 +233,56 @@ export function useAgentMailController(options: UseAgentMailControllerOptions) {
     }
     return roomThreads[0].thread_id;
   }, [roomThreads, selectedRoomThreadId]);
+
+  const setSelectedMailThreadId = useCallback((threadId: string | null) => {
+    setSelectedMailThreadIdState(threadId);
+  }, []);
+
+  const setSelectedRoomThreadId = useCallback((threadId: string | null) => {
+    setSelectedRoomThreadIdState(threadId);
+  }, []);
+
+  const mailAttachmentFiles = useMemo(
+    () => readThreadScopedFiles(mailAttachmentFilesByThreadId, selectedMailThreadIdEffective),
+    [mailAttachmentFilesByThreadId, selectedMailThreadIdEffective]
+  );
+
+  const setMailAttachmentFilesForThread = useCallback(
+    (threadId: string | null, files: File[]) => {
+      setMailAttachmentFilesByThreadId((current) =>
+        writeThreadScopedFiles(current, threadId, files)
+      );
+    },
+    []
+  );
+
+  const setMailAttachmentFiles = useCallback(
+    (files: File[]) => {
+      setMailAttachmentFilesForThread(selectedMailThreadIdEffective, files);
+    },
+    [selectedMailThreadIdEffective, setMailAttachmentFilesForThread]
+  );
+
+  const chatAttachmentFiles = useMemo(
+    () => readThreadScopedFiles(chatAttachmentFilesByThreadId, selectedRoomThreadIdEffective),
+    [chatAttachmentFilesByThreadId, selectedRoomThreadIdEffective]
+  );
+
+  const setChatAttachmentFilesForThread = useCallback(
+    (threadId: string | null, files: File[]) => {
+      setChatAttachmentFilesByThreadId((current) =>
+        writeThreadScopedFiles(current, threadId, files)
+      );
+    },
+    []
+  );
+
+  const setChatAttachmentFiles = useCallback(
+    (files: File[]) => {
+      setChatAttachmentFilesForThread(selectedRoomThreadIdEffective, files);
+    },
+    [selectedRoomThreadIdEffective, setChatAttachmentFilesForThread]
+  );
 
   useEffect(() => {
     if (!settings.gateway_url.trim() || !tokenConfigured) {
@@ -312,6 +424,8 @@ export function useAgentMailController(options: UseAgentMailControllerOptions) {
       queueAgentMailRefresh,
       setNotice,
       settings,
+      setSelectedMailThreadId,
+      setSelectedRoomThreadId,
     ]
   );
 
@@ -354,11 +468,11 @@ export function useAgentMailController(options: UseAgentMailControllerOptions) {
         if (options.context === "mail") {
           setMailComposeBody("");
           setMailComposeRecipients("");
-          setMailAttachmentFiles([]);
+          setMailAttachmentFilesForThread(threadId, []);
         } else {
           setChatComposeBody("");
           setChatComposeRecipients("");
-          setChatAttachmentFiles([]);
+          setChatAttachmentFilesForThread(threadId, []);
         }
         setNotice({
           tone: failedUploads > 0 ? "error" : "info",
@@ -377,7 +491,13 @@ export function useAgentMailController(options: UseAgentMailControllerOptions) {
         });
       }
     },
-    [queueAgentMailRefresh, setNotice, settings]
+    [
+      queueAgentMailRefresh,
+      setChatAttachmentFilesForThread,
+      setMailAttachmentFilesForThread,
+      setNotice,
+      settings,
+    ]
   );
 
   const acknowledgeMessage = useCallback(
@@ -444,7 +564,7 @@ export function useAgentMailController(options: UseAgentMailControllerOptions) {
         return;
       }
       await sendThreadMessage(selectedRoomThreadIdEffective, {
-        body: `reaction ${emoji}`,
+        body: `reaction ${normalizeReactionEmoji(emoji)}`,
         recipientsCsv: "",
         senderPrincipal: chatComposeSender,
         files: [],

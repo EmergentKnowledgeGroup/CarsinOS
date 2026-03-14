@@ -2,6 +2,20 @@ import { getGatewayToken } from "./runtime";
 import { API_REQUEST_TIMEOUT_MS, DEFAULT_GATEWAY_URL } from "../constants";
 import type {
   AckAgentMailMessageResponse,
+  AgentMemoryAtomDetailPayload,
+  AgentMemoryBindingRequest,
+  AgentMemoryCardDetailPayload,
+  AgentMemoryCardsPayload,
+  AgentMemoryCitationPayload,
+  AgentMemoryDecisionReasonsPayload,
+  AgentMemoryEpisodesPayload,
+  AgentMemoryGraphMapPayload,
+  AgentMemoryGraphNeighborsPayload,
+  AgentMemoryJsonPayloadResponse,
+  AgentMemoryRuntimeHealthPayload,
+  AgentMemoryTelemetrySummaryPayload,
+  AgentMemoryTelemetryTurnsPayload,
+  AgentMemoryTurnWhyPayload,
   AgentMailFileLeaseResponse,
   AgentMailThreadDetailResponse,
   AgentProviderProfileOrderResponse,
@@ -22,14 +36,25 @@ import type {
   CreateAgentMailThreadResponse,
   CreateAuthProfileResponse,
   CreateMemoryNoteResponse,
+  DescribeConnectorToolResponse,
   ExportBootstrapPresetResponse,
+  GetAgentMemoryStatusResponse,
   GetChannelRuntimeStatusResponse,
+  GetConnectorHealthResponse,
+  GetConnectorResponse,
   HealthResponse,
+  ImportConnectorRequest,
+  ImportConnectorResponse,
   JobStatusResponse,
   ListAgentMailFileLeasesResponse,
   ListAgentMailMessagesResponse,
   ListAgentMailThreadsResponse,
   ListBootstrapPresetsResponse,
+  ListConnectorCatalogRequest,
+  ListConnectorCatalogResponse,
+  ListConnectorInteractionsResponse,
+  ListConnectorsRequest,
+  ListConnectorsResponse,
   ListMemoryNotesResponse,
   ListMessagesResponse,
   ListAuthProfilesResponse,
@@ -39,6 +64,7 @@ import type {
   ListPluginsResponse,
   ListProviderCapabilitiesResponse,
   ListProviderModelsResponse,
+  ListRunbooksResponse,
   ListSkillsResponse,
   ListAgentsResponse,
   ListBoardsResponse,
@@ -53,16 +79,31 @@ import type {
   OpenAiOauthStartResponse,
   PluginManifestResponse,
   ReleaseAgentMailFileLeaseResponse,
+  ResumeConnectorInteractionRequest,
+  ResumeConnectorInteractionResponse,
   RemoveAgentResponse,
   RevokeAuthProfileResponse,
+  RollbackConnectorVersionRequest,
+  RollbackConnectorVersionResponse,
   ResolveApprovalResponse,
   RuntimeConnectionSettings,
   RunJobNowResponse,
   RunBoardCardResponse,
+  RunbookDetailResponse,
+  RunConnectorConversionRequest,
+  RunConnectorConversionResponse,
   SendAgentMailMessageResponse,
+  SetConnectorAssignmentRequest,
+  SetConnectorAssignmentResponse,
+  SetConnectorStateRequest,
+  SetConnectorStateResponse,
   StatusResponse,
   StrategySummaryResponse,
   TaskLinkMutationResponse,
+  UnpublishConnectorToolsRequest,
+  UnpublishConnectorToolsResponse,
+  UpsertConnectorAuthBindingRequest,
+  UpsertConnectorAuthBindingResponse,
   UpdateBootstrapPresetResponse,
   UpdateGoalResponse,
   UpdatePluginResponse,
@@ -70,12 +111,54 @@ import type {
   UpdateJobResponse,
   UpdateBoardCardResponse,
   UpdateAgentResponse,
+  UpdateAgentMemoryBindingRequest,
   UpdateProjectResponse,
   UpdateTaskResponse,
   UploadAgentMailAttachmentResponse,
   UploadBoardCardAssetResponse,
   ImportBootstrapPresetResponse,
+  PublishConnectorToolsRequest,
+  PublishConnectorToolsResponse,
 } from "../types";
+
+export type GatewayApiErrorKind = "config" | "timeout" | "network" | "http";
+
+interface GatewayApiErrorOptions {
+  kind: GatewayApiErrorKind;
+  path?: string;
+  status?: number;
+  statusText?: string;
+  responseBody?: string | null;
+  cause?: unknown;
+}
+
+export class GatewayApiError extends Error {
+  readonly kind: GatewayApiErrorKind;
+  readonly path: string | null;
+  readonly status: number | null;
+  readonly statusText: string | null;
+  readonly responseBody: string | null;
+
+  constructor(message: string, options: GatewayApiErrorOptions) {
+    super(message);
+    this.name = "GatewayApiError";
+    this.kind = options.kind;
+    this.path = options.path ?? null;
+    this.status = options.status ?? null;
+    this.statusText = options.statusText ?? null;
+    this.responseBody = options.responseBody ?? null;
+    if (options.cause !== undefined) {
+      this.cause = options.cause;
+    }
+  }
+}
+
+function createGatewayApiError(
+  message: string,
+  options: GatewayApiErrorOptions
+): GatewayApiError {
+  return new GatewayApiError(message, options);
+}
 
 function normalizeGatewayUrl(gatewayUrl: string): string {
   const trimmed = gatewayUrl.trim();
@@ -127,7 +210,8 @@ interface ApiRequestOptions {
 async function fetchWithTimeout(
   url: string,
   init: RequestInit,
-  timeoutMs = API_REQUEST_TIMEOUT_MS
+  timeoutMs = API_REQUEST_TIMEOUT_MS,
+  path = url
 ): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = globalThis.setTimeout(() => {
@@ -140,12 +224,63 @@ async function fetchWithTimeout(
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error(`Gateway request timed out after ${timeoutMs}ms.`);
+      throw createGatewayApiError(`Gateway request timed out after ${timeoutMs}ms.`, {
+        kind: "timeout",
+        path,
+        cause: error,
+      });
     }
-    throw error;
+    if (error instanceof GatewayApiError) {
+      throw error;
+    }
+    throw createGatewayApiError("Gateway request failed.", {
+      kind: "network",
+      path,
+      cause: error,
+    });
   } finally {
     globalThis.clearTimeout(timeoutId);
   }
+}
+
+async function buildHttpError(path: string, response: Response): Promise<GatewayApiError> {
+  const responseBody = await response.text();
+  const message = `${response.status} ${response.statusText}`.trim() || String(response.status);
+  return createGatewayApiError(message, {
+    kind: "http",
+    path,
+    status: response.status,
+    statusText: response.statusText,
+    responseBody,
+  });
+}
+
+async function requestRaw(
+  settings: RuntimeConnectionSettings,
+  path: string,
+  options: ApiRequestOptions = {}
+): Promise<Response> {
+  const token = await getGatewayToken();
+  if (!token) {
+    throw createGatewayApiError("Gateway token is not configured.", {
+      kind: "config",
+      path,
+    });
+  }
+
+  return fetchWithTimeout(
+    resolveApiUrl(settings.gateway_url, path),
+    {
+      method: options.method ?? "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(options.body === undefined ? {} : { "Content-Type": "application/json" }),
+      },
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    },
+    API_REQUEST_TIMEOUT_MS,
+    path
+  );
 }
 
 async function requestJson<T>(
@@ -153,29 +288,24 @@ async function requestJson<T>(
   path: string,
   options: ApiRequestOptions = {}
 ): Promise<T> {
-  const token = await getGatewayToken();
-  if (!token) {
-    throw new Error("Gateway token is not configured.");
-  }
-
-  const response = await fetchWithTimeout(
-    resolveApiUrl(settings.gateway_url, path),
-    {
-      method: options.method ?? "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    }
-  );
+  const response = await requestRaw(settings, path, options);
 
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`${response.status} ${response.statusText}: ${text}`);
+    throw await buildHttpError(path, response);
   }
 
   return (await response.json()) as T;
+}
+
+async function requestBlob(
+  settings: RuntimeConnectionSettings,
+  path: string
+): Promise<Blob> {
+  const response = await requestRaw(settings, path);
+  if (!response.ok) {
+    throw await buildHttpError(path, response);
+  }
+  return response.blob();
 }
 
 export async function getGatewayHealth(
@@ -237,6 +367,206 @@ export async function listProviderModels(
   );
 }
 
+export async function listConnectorCatalog(
+  settings: RuntimeConnectionSettings,
+  query?: ListConnectorCatalogRequest
+): Promise<ListConnectorCatalogResponse> {
+  return requestJson<ListConnectorCatalogResponse>(
+    settings,
+    appendQuery("/api/v1/connectors/catalog", [
+      ["source_kind", query?.source_kind],
+      ["query", query?.query],
+    ])
+  );
+}
+
+export async function listConnectors(
+  settings: RuntimeConnectionSettings,
+  query?: ListConnectorsRequest
+): Promise<ListConnectorsResponse> {
+  return requestJson<ListConnectorsResponse>(
+    settings,
+    appendQuery("/api/v1/connectors", [
+      ["source_kind", query?.source_kind],
+      ["status", query?.status],
+      ["trust_state", query?.trust_state],
+      ["query", query?.query],
+      ["include_disabled", query?.include_disabled],
+    ])
+  );
+}
+
+export async function getConnector(
+  settings: RuntimeConnectionSettings,
+  connectorId: string
+): Promise<GetConnectorResponse> {
+  return requestJson<GetConnectorResponse>(
+    settings,
+    `/api/v1/connectors/${encodeURIComponent(connectorId)}`
+  );
+}
+
+export async function importConnector(
+  settings: RuntimeConnectionSettings,
+  payload: ImportConnectorRequest
+): Promise<ImportConnectorResponse> {
+  return requestJson<ImportConnectorResponse>(settings, "/api/v1/connectors/import", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export async function runConnectorConversion(
+  settings: RuntimeConnectionSettings,
+  connectorId: string,
+  payload: RunConnectorConversionRequest
+): Promise<RunConnectorConversionResponse> {
+  return requestJson<RunConnectorConversionResponse>(
+    settings,
+    `/api/v1/connectors/${encodeURIComponent(connectorId)}/convert`,
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
+export async function publishConnectorTools(
+  settings: RuntimeConnectionSettings,
+  connectorId: string,
+  payload: PublishConnectorToolsRequest
+): Promise<PublishConnectorToolsResponse> {
+  return requestJson<PublishConnectorToolsResponse>(
+    settings,
+    `/api/v1/connectors/${encodeURIComponent(connectorId)}/publish`,
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
+export async function unpublishConnectorTools(
+  settings: RuntimeConnectionSettings,
+  connectorId: string,
+  payload: UnpublishConnectorToolsRequest
+): Promise<UnpublishConnectorToolsResponse> {
+  return requestJson<UnpublishConnectorToolsResponse>(
+    settings,
+    `/api/v1/connectors/${encodeURIComponent(connectorId)}/unpublish`,
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
+export async function rollbackConnectorVersion(
+  settings: RuntimeConnectionSettings,
+  connectorId: string,
+  payload: RollbackConnectorVersionRequest
+): Promise<RollbackConnectorVersionResponse> {
+  return requestJson<RollbackConnectorVersionResponse>(
+    settings,
+    `/api/v1/connectors/${encodeURIComponent(connectorId)}/rollback`,
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
+export async function setConnectorState(
+  settings: RuntimeConnectionSettings,
+  connectorId: string,
+  payload: SetConnectorStateRequest
+): Promise<SetConnectorStateResponse> {
+  return requestJson<SetConnectorStateResponse>(
+    settings,
+    `/api/v1/connectors/${encodeURIComponent(connectorId)}/state`,
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
+export async function setConnectorAssignment(
+  settings: RuntimeConnectionSettings,
+  connectorId: string,
+  payload: SetConnectorAssignmentRequest
+): Promise<SetConnectorAssignmentResponse> {
+  return requestJson<SetConnectorAssignmentResponse>(
+    settings,
+    `/api/v1/connectors/${encodeURIComponent(connectorId)}/assignments`,
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
+export async function upsertConnectorAuthBinding(
+  settings: RuntimeConnectionSettings,
+  connectorId: string,
+  payload: UpsertConnectorAuthBindingRequest
+): Promise<UpsertConnectorAuthBindingResponse> {
+  return requestJson<UpsertConnectorAuthBindingResponse>(
+    settings,
+    `/api/v1/connectors/${encodeURIComponent(connectorId)}/auth-bindings`,
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
+export async function listConnectorInteractions(
+  settings: RuntimeConnectionSettings
+): Promise<ListConnectorInteractionsResponse> {
+  return requestJson<ListConnectorInteractionsResponse>(
+    settings,
+    "/api/v1/connectors/interactions"
+  );
+}
+
+export async function resumeConnectorInteraction(
+  settings: RuntimeConnectionSettings,
+  interactionId: string,
+  payload: ResumeConnectorInteractionRequest = {}
+): Promise<ResumeConnectorInteractionResponse> {
+  return requestJson<ResumeConnectorInteractionResponse>(
+    settings,
+    `/api/v1/connectors/interactions/${encodeURIComponent(interactionId)}/resume`,
+    {
+      method: "POST",
+      body: payload,
+    }
+  );
+}
+
+export async function getConnectorHealth(
+  settings: RuntimeConnectionSettings,
+  connectorId: string
+): Promise<GetConnectorHealthResponse["health"]> {
+  const response = await requestJson<GetConnectorHealthResponse>(
+    settings,
+    `/api/v1/connectors/${encodeURIComponent(connectorId)}/health`
+  );
+  return response.health;
+}
+
+export async function describeConnectorTool(
+  settings: RuntimeConnectionSettings,
+  connectorId: string,
+  publishedToolId: string
+): Promise<DescribeConnectorToolResponse> {
+  return requestJson<DescribeConnectorToolResponse>(
+    settings,
+    `/api/v1/connectors/${encodeURIComponent(connectorId)}/tools/${encodeURIComponent(publishedToolId)}`
+  );
+}
+
 export async function listBoards(
   settings: RuntimeConnectionSettings
 ): Promise<ListBoardsResponse> {
@@ -275,6 +605,7 @@ export async function createAgent(
     tool_profile?: string;
     reports_to_agent_id?: string | null;
     role_label?: string | null;
+    memory_binding?: AgentMemoryBindingRequest | null;
   }
 ): Promise<CreateAgentResponse> {
   return requestJson<CreateAgentResponse>(settings, "/api/v1/agents", {
@@ -294,6 +625,7 @@ export async function updateAgent(
     tool_profile?: string;
     reports_to_agent_id?: string | null;
     role_label?: string | null;
+    memory_binding?: UpdateAgentMemoryBindingRequest | null;
   }
 ): Promise<UpdateAgentResponse> {
   return requestJson<UpdateAgentResponse>(
@@ -316,6 +648,216 @@ export async function removeAgent(
     {
       method: "POST",
     }
+  );
+}
+
+export async function getAgentMemoryStatus(
+  settings: RuntimeConnectionSettings,
+  agentId: string
+): Promise<GetAgentMemoryStatusResponse["status"]> {
+  const response = await requestJson<GetAgentMemoryStatusResponse>(
+    settings,
+    `/api/v1/agents/${encodeURIComponent(agentId)}/memory/status`
+  );
+  return response.status;
+}
+
+export async function listAgentMemoryCards(
+  settings: RuntimeConnectionSettings,
+  agentId: string,
+  query?: {
+    kind?: string;
+    status?: string;
+    contradiction?: string;
+    q?: string;
+    offset?: number;
+    limit?: number;
+  }
+): Promise<AgentMemoryJsonPayloadResponse<AgentMemoryCardsPayload>> {
+  return requestJson<AgentMemoryJsonPayloadResponse<AgentMemoryCardsPayload>>(
+    settings,
+    appendQuery(`/api/v1/agents/${encodeURIComponent(agentId)}/memory/cards`, [
+      ["kind", query?.kind],
+      ["status", query?.status],
+      ["contradiction", query?.contradiction],
+      ["q", query?.q],
+      ["offset", query?.offset],
+      ["limit", query?.limit],
+    ])
+  );
+}
+
+export async function getAgentMemoryCard(
+  settings: RuntimeConnectionSettings,
+  agentId: string,
+  cardId: string
+): Promise<AgentMemoryJsonPayloadResponse<AgentMemoryCardDetailPayload>> {
+  return requestJson<AgentMemoryJsonPayloadResponse<AgentMemoryCardDetailPayload>>(
+    settings,
+    `/api/v1/agents/${encodeURIComponent(agentId)}/memory/cards/${encodeURIComponent(cardId)}`
+  );
+}
+
+export async function getAgentMemoryAtom(
+  settings: RuntimeConnectionSettings,
+  agentId: string,
+  atomId: string
+): Promise<AgentMemoryJsonPayloadResponse<AgentMemoryAtomDetailPayload>> {
+  return requestJson<AgentMemoryJsonPayloadResponse<AgentMemoryAtomDetailPayload>>(
+    settings,
+    `/api/v1/agents/${encodeURIComponent(agentId)}/memory/atom/${encodeURIComponent(atomId)}`
+  );
+}
+
+export async function listAgentMemoryEpisodes(
+  settings: RuntimeConnectionSettings,
+  agentId: string,
+  query?: {
+    status?: string;
+    q?: string;
+    run_id?: string;
+  }
+): Promise<AgentMemoryJsonPayloadResponse<AgentMemoryEpisodesPayload>> {
+  return requestJson<AgentMemoryJsonPayloadResponse<AgentMemoryEpisodesPayload>>(
+    settings,
+    appendQuery(`/api/v1/agents/${encodeURIComponent(agentId)}/memory/episodes`, [
+      ["status", query?.status],
+      ["q", query?.q],
+      ["run_id", query?.run_id],
+    ])
+  );
+}
+
+export async function getAgentMemoryGraphMap(
+  settings: RuntimeConnectionSettings,
+  agentId: string,
+  query?: {
+    status?: string;
+    q?: string;
+    limit?: number;
+  }
+): Promise<AgentMemoryJsonPayloadResponse<AgentMemoryGraphMapPayload>> {
+  return requestJson<AgentMemoryJsonPayloadResponse<AgentMemoryGraphMapPayload>>(
+    settings,
+    appendQuery(`/api/v1/agents/${encodeURIComponent(agentId)}/memory/graph-map`, [
+      ["status", query?.status],
+      ["q", query?.q],
+      ["limit", query?.limit],
+    ])
+  );
+}
+
+export async function getAgentMemoryGraphNeighbors(
+  settings: RuntimeConnectionSettings,
+  agentId: string,
+  query: {
+    atom_id: string;
+    depth?: number;
+    node_limit?: number;
+    link_limit?: number;
+    include_root_detail?: boolean;
+    include_shared_language?: boolean;
+  }
+): Promise<AgentMemoryJsonPayloadResponse<AgentMemoryGraphNeighborsPayload>> {
+  if (!query.atom_id.trim()) {
+    throw new Error("atom_id is required");
+  }
+  return requestJson<AgentMemoryJsonPayloadResponse<AgentMemoryGraphNeighborsPayload>>(
+    settings,
+    appendQuery(`/api/v1/agents/${encodeURIComponent(agentId)}/memory/graph/neighbors`, [
+      ["atom_id", query.atom_id],
+      ["depth", query.depth],
+      ["node_limit", query.node_limit],
+      ["link_limit", query.link_limit],
+      ["include_root_detail", query.include_root_detail],
+      ["include_shared_language", query.include_shared_language],
+    ])
+  );
+}
+
+export async function getAgentMemoryTurnWhy(
+  settings: RuntimeConnectionSettings,
+  agentId: string,
+  turnId: string,
+  query?: {
+    citations?: boolean;
+  }
+): Promise<AgentMemoryJsonPayloadResponse<AgentMemoryTurnWhyPayload>> {
+  return requestJson<AgentMemoryJsonPayloadResponse<AgentMemoryTurnWhyPayload>>(
+    settings,
+    appendQuery(
+      `/api/v1/agents/${encodeURIComponent(agentId)}/memory/turns/${encodeURIComponent(turnId)}/why`,
+      [["citations", query?.citations]]
+    )
+  );
+}
+
+export async function getAgentMemoryCitation(
+  settings: RuntimeConnectionSettings,
+  agentId: string,
+  citationToken: string,
+  query?: {
+    context_window?: number;
+  }
+): Promise<AgentMemoryJsonPayloadResponse<AgentMemoryCitationPayload>> {
+  return requestJson<AgentMemoryJsonPayloadResponse<AgentMemoryCitationPayload>>(
+    settings,
+    appendQuery(
+      `/api/v1/agents/${encodeURIComponent(agentId)}/memory/citations/${encodeURIComponent(citationToken)}`,
+      [["context_window", query?.context_window]]
+    )
+  );
+}
+
+export async function getAgentMemoryRuntimeHealth(
+  settings: RuntimeConnectionSettings,
+  agentId: string
+): Promise<AgentMemoryJsonPayloadResponse<AgentMemoryRuntimeHealthPayload>> {
+  return requestJson<AgentMemoryJsonPayloadResponse<AgentMemoryRuntimeHealthPayload>>(
+    settings,
+    `/api/v1/agents/${encodeURIComponent(agentId)}/memory/runtime/health`
+  );
+}
+
+export async function getAgentMemoryTelemetrySummary(
+  settings: RuntimeConnectionSettings,
+  agentId: string,
+  query?: {
+    limit?: number;
+  }
+): Promise<AgentMemoryJsonPayloadResponse<AgentMemoryTelemetrySummaryPayload>> {
+  return requestJson<AgentMemoryJsonPayloadResponse<AgentMemoryTelemetrySummaryPayload>>(
+    settings,
+    appendQuery(
+      `/api/v1/agents/${encodeURIComponent(agentId)}/memory/runtime/telemetry/summary`,
+      [["limit", query?.limit]]
+    )
+  );
+}
+
+export async function getAgentMemoryTelemetryTurns(
+  settings: RuntimeConnectionSettings,
+  agentId: string,
+  query?: {
+    limit?: number;
+  }
+): Promise<AgentMemoryJsonPayloadResponse<AgentMemoryTelemetryTurnsPayload>> {
+  return requestJson<AgentMemoryJsonPayloadResponse<AgentMemoryTelemetryTurnsPayload>>(
+    settings,
+    appendQuery(
+      `/api/v1/agents/${encodeURIComponent(agentId)}/memory/runtime/telemetry/turns`,
+      [["limit", query?.limit]]
+    )
+  );
+}
+
+export async function getAgentMemoryDecisionReasons(
+  settings: RuntimeConnectionSettings,
+  agentId: string
+): Promise<AgentMemoryJsonPayloadResponse<AgentMemoryDecisionReasonsPayload>> {
+  return requestJson<AgentMemoryJsonPayloadResponse<AgentMemoryDecisionReasonsPayload>>(
+    settings,
+    `/api/v1/agents/${encodeURIComponent(agentId)}/memory/runtime/decision-reasons`
   );
 }
 
@@ -601,6 +1143,47 @@ export async function getStrategySummary(
       ["timezone", query?.timezone],
       ["tz_offset_minutes", query?.tz_offset_minutes],
     ])
+  );
+}
+
+export async function listRunbooks(
+  settings: RuntimeConnectionSettings,
+  query?: {
+    kind?: string;
+    status?: string;
+    owner_agent_id?: string;
+    query?: string;
+    linked_task_id?: string;
+    linked_project_id?: string;
+    linked_goal_id?: string;
+    limit?: number;
+    cursor?: string;
+  }
+): Promise<ListRunbooksResponse> {
+  return requestJson<ListRunbooksResponse>(
+    settings,
+    appendQuery("/api/v1/mission-control/runbooks", [
+      ["kind", query?.kind],
+      ["status", query?.status],
+      ["owner_agent_id", query?.owner_agent_id],
+      ["query", query?.query],
+      ["linked_task_id", query?.linked_task_id],
+      ["linked_project_id", query?.linked_project_id],
+      ["linked_goal_id", query?.linked_goal_id],
+      ["limit", query?.limit],
+      ["cursor", query?.cursor],
+    ])
+  );
+}
+
+export async function getRunbookDetail(
+  settings: RuntimeConnectionSettings,
+  runbookKind: string,
+  anchorId: string
+): Promise<RunbookDetailResponse> {
+  return requestJson<RunbookDetailResponse>(
+    settings,
+    `/api/v1/mission-control/runbooks/${encodeURIComponent(runbookKind)}/${encodeURIComponent(anchorId)}`
   );
 }
 
@@ -1329,27 +1912,10 @@ export async function fetchAgentMailAttachmentBlob(
   messageId: string,
   attachmentId: string
 ): Promise<Blob> {
-  const token = await getGatewayToken();
-  if (!token) {
-    throw new Error("Gateway token is not configured.");
-  }
-  const response = await fetchWithTimeout(
-    resolveApiUrl(
-      settings.gateway_url,
-      `/api/v1/agent-mail/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`
-    ),
-    {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    }
+  return requestBlob(
+    settings,
+    `/api/v1/agent-mail/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(attachmentId)}`
   );
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`${response.status} ${response.statusText}: ${text}`);
-  }
-  return response.blob();
 }
 
 export async function listAgentMailFileLeases(
@@ -1518,30 +2084,10 @@ export async function fetchBoardCardAssetBlob(
   cardId: string,
   cardAssetId: string
 ): Promise<Blob> {
-  const token = await getGatewayToken();
-  if (!token) {
-    throw new Error("Gateway token is not configured.");
-  }
-
-  const response = await fetchWithTimeout(
-    resolveApiUrl(
-      settings.gateway_url,
-      `/api/v1/boards/${encodeURIComponent(boardId)}/cards/${encodeURIComponent(cardId)}/assets/${encodeURIComponent(cardAssetId)}`
-    ),
-    {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    }
+  return requestBlob(
+    settings,
+    `/api/v1/boards/${encodeURIComponent(boardId)}/cards/${encodeURIComponent(cardId)}/assets/${encodeURIComponent(cardAssetId)}`
   );
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`${response.status} ${response.statusText}: ${text}`);
-  }
-
-  return response.blob();
 }
 
 export function websocketUrlFromGateway(
