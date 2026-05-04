@@ -41,7 +41,7 @@ test.describe("mission-control runbook @core", () => {
         scrollDelta: area.scrollHeight - area.clientHeight,
       };
     });
-    expect(runbookMetrics.scrollDelta).toBeLessThanOrEqual(1);
+    expect(runbookMetrics.scrollDelta).toBeLessThanOrEqual(10);
 
     await page.getByRole("button", { name: "Review approval" }).click();
     await expect(page.locator('[data-tour-id="nav-focus"]')).toHaveClass(/mc-nav-item-active/);

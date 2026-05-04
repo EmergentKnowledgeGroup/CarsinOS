@@ -879,6 +879,7 @@ export function HelpDocsPage(props: HelpDocsPageProps) {
         <button
           type="button"
           className="mc-docs-pager-btn"
+          aria-label="Previous help page"
           disabled={pageIndex === 0}
           onClick={() => goTo(pageIndex - 1)}
         >
@@ -899,6 +900,7 @@ export function HelpDocsPage(props: HelpDocsPageProps) {
         <button
           type="button"
           className="mc-docs-pager-btn"
+          aria-label="Next help page"
           disabled={pageIndex === TOC.length - 1}
           onClick={() => goTo(pageIndex + 1)}
         >

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { act } from "react";
-import { createRoot } from "react-dom/client";
+import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LiveFeedDrawer } from "./LiveFeedDrawer";
 
@@ -14,24 +14,32 @@ vi.mock("@tanstack/react-virtual", () => ({
 
 describe("LiveFeedDrawer", () => {
   let container: HTMLDivElement;
+  let root: Root | null;
 
   beforeEach(() => {
     container = document.createElement("div");
     document.body.appendChild(container);
+    root = null;
     // @ts-expect-error test-only global
     globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   });
 
   afterEach(() => {
+    if (root) {
+      act(() => {
+        root?.unmount();
+      });
+      root = null;
+    }
     document.body.innerHTML = "";
   });
 
   it("removes the drawer controls from the accessibility tree while closed", async () => {
-    const root = createRoot(container);
+    root = createRoot(container);
     const onToggleOpen = vi.fn();
 
     await act(async () => {
-      root.render(
+      root?.render(
         <LiveFeedDrawer
           enabled
           open={false}

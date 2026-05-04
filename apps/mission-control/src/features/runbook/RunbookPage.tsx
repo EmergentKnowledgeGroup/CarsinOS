@@ -720,9 +720,7 @@ export function RunbookPage({ controller, agents, onOpenDeepLink }: RunbookPageP
                       </div>
                       <div className="mc-runbook-source-list">
                         {detail.source_facts.length > 0 ? (
-                          detail.source_facts
-                            .slice(0, ARTIFACT_FACTS_PREVIEW_LIMIT)
-                            .map((fact) => (
+                          detail.source_facts.map((fact) => (
                               <article key={fact.fact_id} className="mc-runbook-source-item">
                                 <div className="mc-runbook-history-meta">
                                   <span>{fact.fact_kind}</span>
@@ -854,12 +852,6 @@ export function RunbookPage({ controller, agents, onOpenDeepLink }: RunbookPageP
                           <p className="mc-runbook-empty-hint">No source facts recorded yet.</p>
                         )}
                       </div>
-                      {detail.source_facts.length > ARTIFACT_FACTS_PREVIEW_LIMIT ? (
-                        <p className="mc-runbook-empty-hint">
-                          Only the newest {ARTIFACT_FACTS_PREVIEW_LIMIT} facts are shown here to
-                          keep the detail view single-screen.
-                        </p>
-                      ) : null}
                     </div>
                   </div>
                 ) : null}

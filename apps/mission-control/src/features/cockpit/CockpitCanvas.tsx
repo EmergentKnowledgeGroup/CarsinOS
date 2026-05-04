@@ -75,7 +75,7 @@ export function CockpitCanvas({
     if (!element) {
       return;
     }
-    const nextWidth = Math.max(640, Math.round(element.clientWidth));
+    const nextWidth = Math.max(1, Math.round(element.clientWidth));
     setContainerWidth((prev) => (prev === nextWidth ? prev : nextWidth));
   }, []);
 
