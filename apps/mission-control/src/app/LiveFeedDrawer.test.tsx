@@ -5,6 +5,10 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LiveFeedDrawer } from "./LiveFeedDrawer";
 
+type TestGlobal = typeof globalThis & {
+  IS_REACT_ACT_ENVIRONMENT?: boolean;
+};
+
 vi.mock("@tanstack/react-virtual", () => ({
   useVirtualizer: () => ({
     getTotalSize: () => 0,
@@ -13,15 +17,16 @@ vi.mock("@tanstack/react-virtual", () => ({
 }));
 
 describe("LiveFeedDrawer", () => {
-  let container: HTMLDivElement;
+  let container: HTMLDivElement | null;
   let root: Root | null;
+  let previousActEnvironment: boolean | undefined;
 
   beforeEach(() => {
     container = document.createElement("div");
     document.body.appendChild(container);
     root = null;
-    // @ts-expect-error test-only global
-    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    previousActEnvironment = (globalThis as TestGlobal).IS_REACT_ACT_ENVIRONMENT;
+    (globalThis as TestGlobal).IS_REACT_ACT_ENVIRONMENT = true;
   });
 
   afterEach(() => {
@@ -31,10 +36,20 @@ describe("LiveFeedDrawer", () => {
       });
       root = null;
     }
+    container?.remove();
+    container = null;
     document.body.innerHTML = "";
+    if (previousActEnvironment === undefined) {
+      delete (globalThis as TestGlobal).IS_REACT_ACT_ENVIRONMENT;
+    } else {
+      (globalThis as TestGlobal).IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
+    }
   });
 
   it("removes the drawer controls from the accessibility tree while closed", async () => {
+    if (!container) {
+      throw new Error("test container was not initialized");
+    }
     root = createRoot(container);
     const onToggleOpen = vi.fn();
 

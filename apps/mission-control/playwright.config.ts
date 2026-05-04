@@ -3,7 +3,8 @@ import { defineConfig } from "@playwright/test";
 const appPort = 1420;
 const gatewayPort = 19_789;
 const localBaseUrl = `http://127.0.0.1:${appPort}`;
-const hasExternalBaseUrl = Boolean(process.env.MC_E2E_BASE_URL);
+const externalBaseUrl = process.env.MC_E2E_BASE_URL?.trim();
+const hasExternalBaseUrl = Boolean(externalBaseUrl);
 
 export default defineConfig({
   testDir: "./e2e",
@@ -16,7 +17,7 @@ export default defineConfig({
   workers: 1,
   reporter: "list",
   use: {
-    baseURL: process.env.MC_E2E_BASE_URL || localBaseUrl,
+    baseURL: externalBaseUrl || localBaseUrl,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
