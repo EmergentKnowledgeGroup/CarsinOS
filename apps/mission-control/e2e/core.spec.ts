@@ -1,63 +1,230 @@
-import { expect, test, type Page } from "./testHarness";
+import { expect, test } from "./testHarness";
+import {
+  ASSISTANT_MODEL_ID,
+  GATEWAY_URL,
+  TEST_TOKEN,
+  completeQuickstartLocalOnboarding,
+  moveWizardToConnectionStep,
+  openWizard,
+  wizard,
+} from "./onboardingFlow";
 
-const E2E_APP_URL = "/?e2e=1";
-const GATEWAY_URL = "http://127.0.0.1:19789";
-const TEST_TOKEN = "stub-token-001";
-const ASSISTANT_MODEL_ID = "qwen3.5-9b-instruct";
-
-async function openWizard(page: Page): Promise<void> {
-  await page.addInitScript(() => {
-    window.localStorage.setItem("mc-guided-tour-completed-v1", "true");
-  });
-  await page.goto(E2E_APP_URL);
-  await expect(page.getByRole("heading", { name: "Setup Wizard" })).toBeVisible();
-}
-
-async function moveWizardToConnectionStep(page: Page): Promise<void> {
-  await openWizard(page);
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByText("Step 2 of 6")).toBeVisible();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByText("Step 3 of 6")).toBeVisible();
-}
-
-async function completeLocalOnboarding(
-  page: Page,
-  options?: {
-    startFromConnectionStep?: boolean;
-  }
-): Promise<void> {
-  if (!options?.startFromConnectionStep) {
-    await moveWizardToConnectionStep(page);
-  }
-
-  await page.getByLabel("Gateway URL").fill(GATEWAY_URL);
-  await page.getByLabel("Gateway token").fill(TEST_TOKEN);
-  await page.getByRole("button", { name: /Save \+ Connect/ }).click();
-  await expect(page.getByText(/Connection status:\s*Connected/)).toBeVisible();
-  await page.getByRole("button", { name: "Continue" }).click();
-
-  await expect(page.getByText("Step 4 of 6")).toBeVisible();
-  await page.getByLabel("Agent ID").fill("assistant-main");
-  await page.getByLabel("Agent name").fill("Assistant");
-  await page.getByRole("radio", { name: "Local connector" }).check();
-  await page
-    .getByPlaceholder("Or paste assistant model ID manually")
-    .fill(ASSISTANT_MODEL_ID);
-  await page.getByRole("button", { name: "Continue" }).click();
-
-  await expect(page.getByText("Step 5 of 6")).toBeVisible();
-  await page.getByRole("button", { name: "Finalize" }).click();
-
-  await expect(page.getByText("Step 6 of 6")).toBeVisible();
-  await page.getByRole("button", { name: "Go to Boards" }).click();
-
-  await expect(page.getByRole("heading", { name: "Setup Wizard" })).toBeHidden();
-}
+const CLAUDE_SETUP_TOKEN = `sk-ant-oat01-${"a".repeat(80)}`;
+const CLAUDE_MODEL_ID = "claude-sonnet-4-5";
 
 test.describe("mission-control core onboarding + crash-proofing @core", () => {
+  test("settings modal uses a wide desktop layout without nested internal scrollbars", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await completeQuickstartLocalOnboarding(page);
+
+    await page.locator('[data-tour-id="nav-config"]').click();
+    await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+
+    const modal = page.locator(".mc-settings-modal");
+    const modalBody = page.locator(".mc-settings-body");
+    const promptField = page.locator(".mc-settings-prompt");
+
+    const modalBox = await modal.boundingBox();
+    expect(modalBox?.width ?? 0).toBeGreaterThan(900);
+    await expect(page.getByText("Appearance")).toHaveCount(0);
+
+    const bodyLayout = await modalBody.evaluate((node) => {
+      const element = node as HTMLElement;
+      const style = window.getComputedStyle(element);
+      return {
+        overflowY: style.overflowY,
+        columnCount: style.gridTemplateColumns
+          .split(" ")
+          .map((value) => value.trim())
+          .filter(Boolean).length,
+        scrollHeight: element.scrollHeight,
+        clientHeight: element.clientHeight,
+      };
+    });
+
+    expect(bodyLayout.columnCount).toBeGreaterThanOrEqual(2);
+    expect(bodyLayout.overflowY).toBe("visible");
+    expect(bodyLayout.scrollHeight - bodyLayout.clientHeight).toBeLessThanOrEqual(1);
+
+    const promptMetrics = await promptField.evaluate((node) => {
+      const element = node as HTMLTextAreaElement;
+      const style = window.getComputedStyle(element);
+      return {
+        overflowY: style.overflowY,
+        scrollHeight: element.scrollHeight,
+        clientHeight: element.clientHeight,
+      };
+    });
+
+    const promptBox = await promptField.boundingBox();
+
+    expect(["auto", "hidden", "clip"]).toContain(promptMetrics.overflowY);
+    expect(promptMetrics.clientHeight).toBeGreaterThan(160);
+    expect(promptMetrics.clientHeight).toBeLessThan(280);
+    expect(promptBox?.width ?? 0).toBeGreaterThan(900);
+    expect(promptBox?.height ?? 0).toBeLessThan(280);
+  });
+
+  test("quick guides collapse globally and reopen only for the active page", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await completeQuickstartLocalOnboarding(page);
+    const activeQuickGuide = page.locator(
+      '.mc-tab-pane[style*="display: flex"] .mc-tab-help-banner'
+    );
+
+    await expect(activeQuickGuide).toBeVisible();
+    await activeQuickGuide.getByRole("button", { name: "Hide quick guides" }).click();
+    await expect(page.locator(".mc-tab-help-banner")).toHaveCount(0);
+
+    await page.locator('[data-tour-id="nav-team"]').click();
+    await expect(activeQuickGuide).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Show quick guide for this page" }).click();
+    await expect(activeQuickGuide).toBeVisible();
+
+    await page.locator('[data-tour-id="nav-boards"]').click();
+    await expect(activeQuickGuide).toHaveCount(0);
+
+    await page.locator('[data-tour-id="nav-team"]').click();
+    await expect(activeQuickGuide).toBeVisible();
+  });
+
+  test("cockpit default layout stays spread across the screen and persists across tab changes", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await completeQuickstartLocalOnboarding(page);
+
+    await page.locator('[data-tour-id="nav-cockpit"]').click();
+    await expect(page.locator(".mc-cockpit-grid")).toBeVisible();
+    await expect(page.locator(".mc-rgl-canvas .react-grid-item")).toHaveCount(9);
+
+    const initialMetrics = await page.locator(".mc-rgl-canvas").evaluate((node) => {
+      const canvas = node as HTMLElement;
+      const widgets = Array.from(canvas.querySelectorAll<HTMLElement>(".react-grid-item"));
+      const topValues = widgets.map((widget) => Math.round(widget.getBoundingClientRect().top));
+      return {
+        widgetCount: widgets.length,
+        uniqueRows: Array.from(new Set(topValues)).length,
+      };
+    });
+
+    expect(initialMetrics.widgetCount).toBeGreaterThanOrEqual(9);
+    expect(initialMetrics.uniqueRows).toBeLessThanOrEqual(2);
+
+    await page.getByRole("button", { name: "Enter cockpit edit mode" }).click();
+    const eventTailWidget = page
+      .locator(".mc-cockpit-widget", {
+        has: page.getByRole("heading", { name: "Event Tail" }),
+      })
+      .first();
+    await eventTailWidget.getByRole("button", { name: "Move widget right" }).click();
+    await page.getByRole("button", { name: "Exit cockpit edit mode" }).click();
+
+    const storageBeforeTabChange = await page.evaluate(() =>
+      window.localStorage.getItem("mc-cockpit-pages-v3")
+    );
+
+    await page.locator('[data-tour-id="nav-boards"]').click();
+    await page.locator('[data-tour-id="nav-cockpit"]').click();
+
+    const storageAfterTabChange = await page.evaluate(() =>
+      window.localStorage.getItem("mc-cockpit-pages-v3")
+    );
+
+    expect(storageAfterTabChange).toBe(storageBeforeTabChange);
+
+    const contentArea = page.locator(".mc-content-area");
+    const metrics = await contentArea.evaluate((node) => {
+      const area = node as HTMLElement;
+      return {
+        overflowY: window.getComputedStyle(area).overflowY,
+        scrollDelta: area.scrollHeight - area.clientHeight,
+      };
+    });
+
+    expect(metrics.overflowY).toBe("auto");
+    expect(metrics.scrollDelta).toBeLessThanOrEqual(1);
+  });
+
+  test("cockpit heals legacy stacked pages and supports horizontal resize in edit mode", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await completeQuickstartLocalOnboarding(page, {
+      beforeGoto: async (targetPage) => {
+        await targetPage.addInitScript(() => {
+          window.localStorage.removeItem("mc-cockpit-pages-v1");
+          window.localStorage.removeItem("mc-cockpit-pages-v2");
+          window.localStorage.setItem(
+            "mc-cockpit-pages-v3",
+            JSON.stringify([
+              {
+                page_id: "page-legacy-collapsed",
+                name: "Dashboard",
+                widgets: [
+                  { instance_id: "health-template", widget: "health", title: "Pinned Health Strip", position: { x: 0, y: 0, w: 10, h: 4 } },
+                  { instance_id: "focus-template", widget: "focus", title: "Incident Queue", position: { x: 0, y: 4, w: 10, h: 4 } },
+                  { instance_id: "breakers-template", widget: "breakers", title: "Breaker Radar", position: { x: 0, y: 8, w: 10, h: 4 } },
+                  { instance_id: "jobs-template", widget: "jobs", title: "Scheduler Matrix", position: { x: 0, y: 12, w: 10, h: 4 } },
+                  { instance_id: "channels-template", widget: "channels", title: "Channel Control", position: { x: 0, y: 16, w: 10, h: 4 } },
+                  { instance_id: "profiles-template", widget: "profiles", title: "Agent Provider Routing", position: { x: 0, y: 20, w: 10, h: 4 } },
+                  { instance_id: "skills-template", widget: "skills", title: "Skills Control", position: { x: 0, y: 24, w: 10, h: 4 } },
+                  { instance_id: "plugins-template", widget: "plugins", title: "Plugins Control", position: { x: 0, y: 28, w: 10, h: 4 } },
+                  { instance_id: "events-template", widget: "events", title: "Event Tail", position: { x: 0, y: 32, w: 10, h: 4 } },
+                ],
+              },
+            ])
+          );
+        });
+      },
+    });
+
+    await page.locator('[data-tour-id="nav-cockpit"]').click();
+    await expect(page.locator(".mc-rgl-canvas .react-grid-item")).toHaveCount(9);
+
+    const healedLayout = await page.evaluate(() =>
+      JSON.parse(window.localStorage.getItem("mc-cockpit-pages-v3") ?? "[]")
+    );
+    const healedWidgets = healedLayout[0]?.widgets ?? [];
+    const distinctX = new Set(healedWidgets.map((widget: { position: { x: number } }) => widget.position.x));
+    expect(distinctX.size).toBeGreaterThan(1);
+
+    await page.getByRole("button", { name: "Enter cockpit edit mode" }).click();
+
+    const eventTile = page
+      .locator(".react-grid-item", {
+        has: page.getByRole("heading", { name: "Event Tail" }),
+      })
+      .first();
+    await expect(eventTile).toBeVisible();
+
+    const eventHandle = eventTile.locator(".react-resizable-handle-e");
+    await expect(eventHandle).toBeVisible();
+    const startBox = await eventHandle.boundingBox();
+    if (!startBox) {
+      throw new Error("east resize handle not measurable");
+    }
+    await page.mouse.move(startBox.x + startBox.width / 2, startBox.y + startBox.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(startBox.x + 140, startBox.y + startBox.height / 2, { steps: 10 });
+    await page.mouse.up();
+
+    const resizedLayout = await page.evaluate(() =>
+      JSON.parse(window.localStorage.getItem("mc-cockpit-pages-v3") ?? "[]")
+    );
+    const resizedEvent = (resizedLayout[0]?.widgets ?? []).find(
+      (widget: { instance_id: string }) => widget.instance_id === "events-template"
+    );
+    expect(resizedEvent?.position.w ?? 0).toBeGreaterThan(2);
+  });
+
   test("auto-opens onboarding, supports dismiss, and can reopen from settings", async ({ page }) => {
-    await openWizard(page);
+    await expect(await openWizard(page)).toBe(true);
 
     await page.getByRole("button", { name: "Dismiss (24h)" }).click();
     await expect(page.getByRole("heading", { name: "Setup Wizard" })).toBeHidden();
@@ -69,44 +236,61 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
     await expect(page.getByRole("heading", { name: "Setup Wizard" })).toBeVisible();
   });
 
+  test("shows a create-agent handoff in Assistant when no agents exist yet", async ({ page }) => {
+    await expect(await openWizard(page)).toBe(true);
+    await page.getByRole("button", { name: "Dismiss (24h)" }).click();
+    await expect(page.getByRole("heading", { name: "Setup Wizard" })).toBeHidden();
+
+    await page.locator('[data-tour-id="nav-assistant"]').click();
+    await expect(page.getByRole("heading", { name: "Create an agent first" })).toBeVisible();
+    await expect(
+      page.getByText(/Assistant chat needs one configured agent before it can route a message/i)
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Go to Team" })).toBeVisible();
+  });
+
   test("keeps onboarding token plaintext only during active entry and does not expose it after setup", async ({
     page,
   }) => {
-    await moveWizardToConnectionStep(page);
+    await expect(await moveWizardToConnectionStep(page)).toBe(true);
+    const setupWizard = wizard(page);
 
-    const tokenField = page.getByLabel("Gateway token").first();
+    const tokenField = setupWizard.getByLabel("Gateway token").first();
     await expect(tokenField).toHaveAttribute("type", "text");
     await tokenField.fill(TEST_TOKEN);
     await expect(tokenField).toHaveValue(TEST_TOKEN);
 
-    await completeLocalOnboarding(page, { startFromConnectionStep: true });
+    await completeQuickstartLocalOnboarding(page, { startFromConnectionStep: true });
     await expect(page.locator("body")).not.toContainText(TEST_TOKEN);
 
     await page.locator('[data-tour-id="nav-config"]').click();
     await page.getByRole("button", { name: "Setup Wizard" }).click();
-    await page.getByRole("button", { name: "Continue" }).click();
-    await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByText("Step 3 of 6")).toBeVisible();
-    await expect(page.getByLabel("Gateway token").first()).not.toHaveValue(TEST_TOKEN);
+    const reopenedWizard = wizard(page);
+    await reopenedWizard.getByRole("button", { name: "Continue" }).click();
+    await reopenedWizard.getByRole("button", { name: "Continue" }).click();
+    await expect(reopenedWizard.getByText("Step 3 of 6")).toBeVisible();
+    await expect(reopenedWizard.getByLabel("Gateway token").first()).not.toHaveValue(TEST_TOKEN);
   });
 
   test("continues from connect step without manual Save + Connect click", async ({ page }) => {
-    await moveWizardToConnectionStep(page);
+    await expect(await moveWizardToConnectionStep(page)).toBe(true);
+    const setupWizard = wizard(page);
 
-    await page.getByLabel("Gateway URL").fill(GATEWAY_URL);
-    await page.getByLabel("Gateway token").fill(TEST_TOKEN);
-    await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByText("Step 4 of 6")).toBeVisible();
+    await setupWizard.getByLabel("Gateway URL").fill(GATEWAY_URL);
+    await setupWizard.getByLabel("Gateway token").fill(TEST_TOKEN);
+    await setupWizard.getByRole("button", { name: "Save connection + Continue" }).click();
+    await expect(setupWizard.getByText("Step 4 of 6")).toBeVisible();
 
-    await page.getByLabel("Agent ID").fill("assistant-continue");
-    await page.getByLabel("Agent name").fill("Assistant Continue");
-    await page.getByRole("radio", { name: "Local connector" }).check();
-    await page
-      .getByPlaceholder("Or paste assistant model ID manually")
-      .fill(ASSISTANT_MODEL_ID);
-    await page.getByRole("button", { name: "Continue" }).click();
+    await setupWizard.getByRole("button", { name: "Start new agent" }).click();
+    await setupWizard.getByLabel("Agent ID").fill("assistant-continue");
+    await setupWizard.getByLabel("Agent name").fill("Assistant Continue");
+    await setupWizard.getByRole("radio", { name: "Local connector" }).check();
+    await setupWizard
+      .getByRole("combobox", { name: "Assistant model" })
+      .selectOption(ASSISTANT_MODEL_ID);
+    await setupWizard.getByRole("button", { name: "Apply setup + Continue" }).click();
 
-    await expect(page.getByText("Step 5 of 6")).toBeVisible();
+    await expect(setupWizard.getByText("Step 5 of 6")).toBeVisible();
     await expect(
       page
         .locator(".mc-onboarding-checklist li")
@@ -116,43 +300,90 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
   });
 
   test("continues after manual Save + Connect even when token input is cleared", async ({ page }) => {
-    await moveWizardToConnectionStep(page);
+    await expect(await moveWizardToConnectionStep(page)).toBe(true);
+    const setupWizard = wizard(page);
 
-    await page.getByLabel("Gateway URL").fill(GATEWAY_URL);
-    await page.getByLabel("Gateway token").fill(TEST_TOKEN);
-    await page.getByRole("button", { name: /Save \+ Connect/ }).click();
-    await expect(page.getByText(/Connection status:\s*Connected/)).toBeVisible();
-    await expect(page.getByLabel("Gateway token")).toHaveValue("");
+    await setupWizard.getByLabel("Gateway URL").fill(GATEWAY_URL);
+    await setupWizard.getByLabel("Gateway token").fill(TEST_TOKEN);
+    await setupWizard.getByRole("button", { name: /Save \+ Connect/ }).click();
+    await expect(setupWizard.getByText(/Connection status:\s*Connected/)).toBeVisible();
+    await expect(setupWizard.getByLabel("Gateway token")).toHaveValue("");
 
-    await page.getByRole("button", { name: "Continue" }).click();
-    await expect(page.getByText("Step 4 of 6")).toBeVisible();
+    await setupWizard.getByRole("button", { name: "Save connection + Continue" }).click();
+    await expect(setupWizard.getByText("Step 4 of 6")).toBeVisible();
+  });
+
+  test("auto-verifies a Claude setup token and loads live model choices without extra hidden steps", async ({
+    page,
+  }) => {
+    await expect(await moveWizardToConnectionStep(page)).toBe(true);
+    const setupWizard = wizard(page);
+
+    await setupWizard.getByLabel("Gateway URL").fill(GATEWAY_URL);
+    await setupWizard.getByLabel("Gateway token").fill(TEST_TOKEN);
+    await setupWizard.getByRole("button", { name: "Save connection + Continue" }).click();
+    await expect(setupWizard.getByText("Step 4 of 6")).toBeVisible();
+
+    await setupWizard.getByRole("button", { name: "Start new agent" }).click();
+    await setupWizard.getByLabel("Agent ID").fill("assistant-claude");
+    await setupWizard.getByLabel("Agent name").fill("Claude Assistant");
+    await setupWizard.getByRole("radio", { name: "Anthropic (Claude)" }).check();
+    await setupWizard.getByLabel("Profile name").fill("claude-primary");
+    await setupWizard.getByRole("textbox", { name: "Setup token" }).fill(CLAUDE_SETUP_TOKEN);
+
+    await expect(
+      setupWizard.getByRole("combobox", { name: "Assistant model" })
+    ).toHaveValue(CLAUDE_MODEL_ID);
+    await expect(
+      setupWizard.getByText(/carsinOS already picked .*claude-sonnet-4-5.* for you/i)
+    ).toBeVisible();
+
+    await setupWizard.getByRole("button", { name: "Apply setup + Continue" }).click();
+    await expect(setupWizard.getByText("Step 5 of 6")).toBeVisible();
+    await setupWizard.getByRole("button", { name: "Finish setup" }).click();
+
+    await expect(setupWizard.getByText("Step 6 of 6")).toBeVisible();
   });
 
   test("connects via deterministic stub gateway and loads baseline", async ({ page }) => {
-    await completeLocalOnboarding(page);
+    await completeQuickstartLocalOnboarding(page);
 
     await expect(page.getByText("Investigate gateway health")).toBeVisible();
 
     await page.locator('[data-tour-id="nav-config"]').click();
-    await expect(page.getByText(/health:\s*up/)).toBeVisible();
-    await expect(page.getByText(/ws:\s*connected/)).toBeVisible();
+    await expect(page.getByText(/Gateway:/)).toBeVisible();
+    await expect(page.getByText(/Live link:/)).toBeVisible();
+  });
+
+  test("uses provider-backed model selectors in Assistant Chat instead of raw model text boxes @core", async ({
+    page,
+  }) => {
+    await completeQuickstartLocalOnboarding(page);
+
+    await page.locator('[data-tour-id="nav-assistant"]').click();
+    await expect(page.getByRole("heading", { name: "Chat", exact: true })).toBeVisible();
+    await expect(page.getByLabel("Assistant provider")).toHaveValue("ollama");
+    await expect(page.getByLabel("Assistant model", { exact: true })).toHaveValue(ASSISTANT_MODEL_ID);
+    await expect(page.getByText("carsinOS pulls the live model list")).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Model provider" })).toHaveCount(0);
+    await expect(page.getByRole("textbox", { name: "Model ID" })).toHaveCount(0);
   });
 
   test("enables Strategy and follows linked work back from runtime surfaces @core", async ({
     page,
   }) => {
-    await completeLocalOnboarding(page);
+    await completeQuickstartLocalOnboarding(page);
 
     await page.locator('[data-tour-id="nav-strategy"]').click();
     await expect(page.getByText("Strategy hub is disabled")).toBeVisible();
 
     await page.locator('[data-tour-id="nav-config"]').click();
-    await page.getByRole("checkbox", { name: "Strategy hub module" }).check();
+    await page.getByRole("checkbox", { name: "Strategy page" }).check();
     await page.keyboard.press("Escape");
 
     await page.locator('[data-tour-id="nav-strategy"]').click();
     await expect(page.getByTestId("strategy-page")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Goals + Projects" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Tasks" })).toBeVisible();
     await expect(
       page
         .locator(".mc-strategy-task-list")
@@ -188,7 +419,7 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
   });
 
   test("reset tab state preserves global connection settings", async ({ page }) => {
-    await completeLocalOnboarding(page);
+    await completeQuickstartLocalOnboarding(page);
 
     await page.getByTestId("e2e-crash-active-tab").click();
     await page.locator('[data-tour-id="nav-calendar"]').click();
@@ -199,12 +430,12 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
     await expect(page.getByText("Crash Recovery")).toBeHidden();
 
     await page.locator('[data-tour-id="nav-config"]').click();
-    await expect(page.getByText(/health:\s*up/)).toBeVisible();
-    await expect(page.getByText(/ws:\s*connected/)).toBeVisible();
+    await expect(page.getByText(/Gateway:/)).toBeVisible();
+    await expect(page.getByText(/Live link:/)).toBeVisible();
   });
 
   test("recovers from deterministic tab crash through tab boundary retry", async ({ page }) => {
-    await completeLocalOnboarding(page);
+    await completeQuickstartLocalOnboarding(page);
 
     await page.getByTestId("e2e-crash-active-tab").click();
     await page.locator('[data-tour-id="nav-calendar"]').click();
@@ -220,35 +451,36 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
   });
 
   test("guided tour shows explicit progress and covers events and config", async ({ page }) => {
-    await completeLocalOnboarding(page);
+    await completeQuickstartLocalOnboarding(page);
+    const tourBubble = page.locator(".mc-tour-bubble");
 
     await page.locator('[data-tour-id="topbar-tour"]').click();
     await expect(page.locator(".mc-tour-progress-chip")).toHaveText("1/13");
     await expect(page.getByRole("heading", { name: "Boards = task execution" })).toBeVisible();
 
-    await page.getByRole("button", { name: "Next" }).click();
-    await page.getByRole("button", { name: "Next" }).click();
-    await page.getByRole("button", { name: "Next" }).click();
+    await tourBubble.getByRole("button", { name: "Next", exact: true }).click();
+    await tourBubble.getByRole("button", { name: "Next", exact: true }).click();
+    await tourBubble.getByRole("button", { name: "Next", exact: true }).click();
 
     await expect(page.locator(".mc-tour-progress-chip")).toHaveText("4/13");
     await expect(page.getByRole("heading", { name: "Events = runtime activity" })).toBeVisible();
 
     for (let index = 0; index < 6; index += 1) {
-      await page.getByRole("button", { name: "Next" }).click();
+      await tourBubble.getByRole("button", { name: "Next", exact: true }).click();
     }
 
     await expect(page.locator(".mc-tour-progress-chip")).toHaveText("10/13");
     await expect(page.getByRole("heading", { name: "Strategy = management layer" })).toBeVisible();
 
-    await page.getByRole("button", { name: "Next" }).click();
-    await page.getByRole("button", { name: "Next" }).click();
+    await tourBubble.getByRole("button", { name: "Next", exact: true }).click();
+    await tourBubble.getByRole("button", { name: "Next", exact: true }).click();
 
     await expect(page.locator(".mc-tour-progress-chip")).toHaveText("12/13");
     await expect(
       page.getByRole("heading", { name: "Config = connection + recovery controls" })
     ).toBeVisible();
 
-    await page.getByRole("button", { name: "Next" }).click();
+    await tourBubble.getByRole("button", { name: "Next", exact: true }).click();
     await expect(page.locator(".mc-tour-progress-chip")).toHaveText("13/13");
     await expect(page.getByRole("heading", { name: "Command palette" })).toBeVisible();
   });

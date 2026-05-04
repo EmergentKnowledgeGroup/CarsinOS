@@ -1,4 +1,5 @@
 import type { Agent } from "../../types";
+import type { SimpleIntegrationId } from "../connectors/simpleIntegrations";
 import { StepConnect } from "./steps/StepConnect";
 import { StepDone } from "./steps/StepDone";
 import { StepMode } from "./steps/StepMode";
@@ -10,6 +11,7 @@ import { useOnboardingController } from "./useOnboardingController";
 interface OnboardingWizardProps {
   controller: ReturnType<typeof useOnboardingController>;
   agents: Agent[];
+  onOpenSimpleIntegrationWizard: (integrationId?: SimpleIntegrationId) => void;
 }
 
 export function OnboardingWizard(props: OnboardingWizardProps) {
@@ -80,6 +82,7 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
         {c.step === "provider" ? (
           <StepProvider
             busy={c.busy}
+            mode={c.mode}
             agents={props.agents}
             selectedAgentId={c.selectedAgentId}
             agentIdDraft={c.agentIdDraft}
@@ -113,6 +116,11 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
             localModelOptions={c.localModelOptions}
             localModelsLoading={c.localModelsLoading}
             localModelsError={c.localModelsError}
+            cloudModelId={c.cloudModelId}
+            cloudModelOptions={c.cloudModelOptions}
+            cloudModelsLoading={c.cloudModelsLoading}
+            cloudModelsError={c.cloudModelsError}
+            cloudModelDiscoveryNote={c.cloudModelDiscoveryNote}
             anthropicAuthMode={c.anthropicAuthMode}
             anthropicDisplayName={c.anthropicDisplayName}
             anthropicSetupToken={c.anthropicSetupToken}
@@ -120,10 +128,6 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
             anthropicValidationBusy={c.anthropicValidationBusy}
             anthropicValidationNote={c.anthropicValidationNote}
             anthropicApiBaseUrl={c.anthropicApiBaseUrl}
-            anthropicAccessToken={c.anthropicAccessToken}
-            anthropicRefreshToken={c.anthropicRefreshToken}
-            anthropicRefreshUrl={c.anthropicRefreshUrl}
-            anthropicExpiresAtUnix={c.anthropicExpiresAtUnix}
             anthropicHeadlessCommand={c.anthropicHeadlessCommand}
             anthropicHeadlessArgs={c.anthropicHeadlessArgs}
             openAiDisplayName={c.openAiDisplayName}
@@ -161,16 +165,13 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
             onLocalOrchestratorAgentNameChange={c.setLocalOrchestratorAgentName}
             onLocalOrchestratorModelIdChange={c.setLocalOrchestratorModelId}
             onRefreshLocalModels={c.refreshLocalModels}
+            onCloudModelIdChange={c.setCloudModelId}
             onAnthropicAuthModeChange={c.setAnthropicAuthMode}
             onAnthropicDisplayNameChange={c.setAnthropicDisplayName}
             onAnthropicSetupTokenChange={c.setAnthropicSetupToken}
             onLaunchAnthropicSetupTokenFlow={c.launchAnthropicSetupTokenFlow}
             onValidateAnthropicSetupToken={c.runAnthropicSetupTokenValidation}
             onAnthropicApiBaseUrlChange={c.setAnthropicApiBaseUrl}
-            onAnthropicAccessTokenChange={c.setAnthropicAccessToken}
-            onAnthropicRefreshTokenChange={c.setAnthropicRefreshToken}
-            onAnthropicRefreshUrlChange={c.setAnthropicRefreshUrl}
-            onAnthropicExpiresAtUnixChange={c.setAnthropicExpiresAtUnix}
             onAnthropicHeadlessCommandChange={c.setAnthropicHeadlessCommand}
             onAnthropicHeadlessArgsChange={c.setAnthropicHeadlessArgs}
             onOpenAiDisplayNameChange={c.setOpenAiDisplayName}
@@ -202,7 +203,33 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
           />
         ) : null}
 
-        {c.step === "done" ? <StepDone onGoBoards={c.completeAndExit} /> : null}
+        {c.step === "done" ? (
+          <StepDone
+            actions={[
+              {
+                id: "assistant",
+                label: "Go to Assistant",
+                description: "Send your first message right away.",
+                onClick: () => c.completeAndExitTo("assistant"),
+              },
+              {
+                id: "boards",
+                label: "Go to Boards",
+                description: "Create your first task or card.",
+                onClick: () => c.completeAndExitTo("boards"),
+              },
+              {
+                id: "integrations",
+                label: "Set up Discord or Telegram",
+                description: "Open the simple integration wizard next.",
+                onClick: () => {
+                  c.completeAndExitTo("connectors");
+                  props.onOpenSimpleIntegrationWizard();
+                },
+              },
+            ]}
+          />
+        ) : null}
       </div>
     </div>
   );

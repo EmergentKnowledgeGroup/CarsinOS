@@ -115,6 +115,7 @@ export function LiveFeedDrawer(props: LiveFeedDrawerProps) {
       className={`mc-live-feed-drawer ${props.open ? "mc-live-feed-drawer-open" : "mc-live-feed-drawer-closed"}`}
       data-testid="live-feed-drawer"
       data-open={props.open ? "true" : "false"}
+      aria-label="Live Feed"
       aria-hidden={props.open ? undefined : true}
       inert={props.open ? undefined : true}
     >

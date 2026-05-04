@@ -16,6 +16,10 @@ export function NotificationCenter({ notifications, onDismiss, onClearAll }: Not
   const wrapRef = useRef<HTMLDivElement>(null);
   const panelId = useId();
   const titleId = useId();
+  const notificationLabel =
+    notifications.length === 0
+      ? "Notifications"
+      : `Notifications (${notifications.length} unread)`;
 
   const toggle = useCallback(() => setOpen((o) => !o), []);
 
@@ -47,8 +51,8 @@ export function NotificationCenter({ notifications, onDismiss, onClearAll }: Not
         type="button"
         className="mc-topbar-icon-btn mc-notification-bell"
         onClick={toggle}
-        title="Notifications"
-        aria-label="Notifications"
+        title={notificationLabel}
+        aria-label={notificationLabel}
         aria-expanded={open}
         aria-controls={panelId}
       >

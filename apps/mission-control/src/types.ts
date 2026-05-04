@@ -62,6 +62,11 @@ export interface ListBoardsResponse {
 
 export type BoardDetailResponse = BoardDetail;
 
+export interface CreateWebSocketTicketResponse {
+  ticket: string;
+  expires_at: number;
+}
+
 export interface UpdateBoardCardResponse {
   card: BoardCard;
 }
@@ -171,6 +176,37 @@ export interface AgentMemoryStatusResponse {
 
 export interface GetAgentMemoryStatusResponse {
   status: AgentMemoryStatusResponse;
+}
+
+export interface AgentMemoryLaneStatusResponse {
+  human_identity_id: string;
+  assistant_agent_id: string;
+  lane_id: string;
+  configured_memory_mode: string;
+  effective_memory_mode: string;
+  source: string;
+  status: string;
+  detail?: string | null;
+  local_memory_sources: string[];
+  orchestration?: AgentMemoryOrchestrationStatusResponse | null;
+}
+
+export interface ListAgentMemoryLaneStatusesResponse {
+  items: AgentMemoryLaneStatusResponse[];
+}
+
+export interface SyncMemorySourceItemResponse {
+  source_path: string;
+  note_id: string | null;
+  status: string;
+  detail: string | null;
+  synced_at: number;
+}
+
+export interface SyncMemorySourcesResponse {
+  items: SyncMemorySourceItemResponse[];
+  synced: number;
+  failed: number;
 }
 
 export interface AgentMemoryJsonPayloadResponse<T = unknown> {
@@ -958,8 +994,14 @@ export interface ChannelRuntimeAdapterStatusResponse {
   provider: string;
   lifecycle_state: string;
   healthy: boolean;
+  session_state: string;
+  proof_state: string;
   detail: string | null;
+  proof_detail: string | null;
   last_error: string | null;
+  last_inbound_at: number | null;
+  last_outbound_at: number | null;
+  last_proven_at: number | null;
   reconnect_attempts: number;
   updated_at: number;
 }
@@ -967,6 +1009,224 @@ export interface ChannelRuntimeAdapterStatusResponse {
 export interface GetChannelRuntimeStatusResponse {
   updated_at: number;
   items: ChannelRuntimeAdapterStatusResponse[];
+}
+
+export interface DiscordChannelConfigResponse {
+  require_mention_in_guild_channels: boolean;
+  allowlisted_user_ids: string[];
+  auto_run_enabled: boolean;
+  default_agent_id: string | null;
+  default_model_provider: string;
+  default_model_id: string;
+}
+
+export interface TelegramChannelConfigResponse {
+  require_mention_in_groups: boolean;
+  allowlisted_user_ids: number[];
+  dm_policy: string;
+  group_policy: string;
+  group_allowlisted_user_ids: number[];
+  allowlisted_chat_ids: number[];
+  auto_leave_unauthorized_groups: boolean;
+  pairing_code_ttl_seconds: number;
+  pairing_max_pending: number;
+  unauthorized_spam_threshold: number;
+  unauthorized_spam_block_seconds: number;
+  auto_run_enabled: boolean;
+  default_agent_id: string | null;
+  default_model_provider: string;
+  default_model_id: string;
+}
+
+export interface ChannelConfigResponse {
+  discord: DiscordChannelConfigResponse;
+  telegram: TelegramChannelConfigResponse;
+  updated_at: number;
+}
+
+export interface GetChannelConfigResponse {
+  config: ChannelConfigResponse;
+}
+
+export interface UpdateChannelConfigResponse {
+  config: ChannelConfigResponse;
+}
+
+export interface TelegramPairingPendingRequestResponse {
+  code: string;
+  user_id: number;
+  chat_id: number;
+  preview_text: string;
+  first_seen_at: number;
+  last_seen_at: number;
+  expires_at: number;
+  attempt_count: number;
+}
+
+export interface TelegramBlockedSenderResponse {
+  user_id: number;
+  blocked_until: number;
+  reason: string;
+  attempt_count: number;
+  last_attempt_at: number;
+}
+
+export interface GetTelegramPairingStatusResponse {
+  dm_policy: string;
+  group_policy: string;
+  auto_leave_unauthorized_groups: boolean;
+  pending_requests: TelegramPairingPendingRequestResponse[];
+  blocked_senders: TelegramBlockedSenderResponse[];
+  updated_at: number;
+}
+
+export interface ResolveTelegramPairingResponse {
+  status: GetTelegramPairingStatusResponse;
+  approved_user_id: number | null;
+  linked_human_identity_id: string | null;
+}
+
+export interface DiscordPairingPendingRequestResponse {
+  code: string;
+  user_id: string;
+  channel_id: string;
+  preview_text: string;
+  first_seen_at: number;
+  last_seen_at: number;
+  expires_at: number;
+  attempt_count: number;
+}
+
+export interface DiscordBlockedSenderResponse {
+  user_id: string;
+  blocked_until: number;
+  reason: string;
+  attempt_count: number;
+  last_attempt_at: number;
+}
+
+export interface GetDiscordPairingStatusResponse {
+  dm_policy: string;
+  pending_requests: DiscordPairingPendingRequestResponse[];
+  blocked_senders: DiscordBlockedSenderResponse[];
+  updated_at: number;
+}
+
+export interface ResolveDiscordPairingResponse {
+  status: GetDiscordPairingStatusResponse;
+  approved_user_id: string | null;
+  linked_human_identity_id: string | null;
+}
+
+export interface RuntimeDiscordDeploymentConfigResponse {
+  enabled: boolean;
+  bot_token_secret_ref: string | null;
+  operation_mode: string;
+  api_base_url: string | null;
+  transport_timeout_ms: number | null;
+  transport_retry_attempts: number | null;
+  application_id: string | null;
+  intents: string[];
+  staging_guild_ids: string[];
+  staging_channel_ids: string[];
+}
+
+export interface RuntimeTelegramDeploymentConfigResponse {
+  enabled: boolean;
+  bot_token_secret_ref: string | null;
+  operation_mode: string;
+  api_base_url: string | null;
+  transport_timeout_ms: number | null;
+  transport_retry_attempts: number | null;
+  long_poll_timeout_seconds: number | null;
+  webhook_mode: string;
+  webhook_url: string | null;
+  staging_chat_ids: number[];
+}
+
+export interface RuntimeChannelsConfigResponse {
+  discord: RuntimeDiscordDeploymentConfigResponse;
+  telegram: RuntimeTelegramDeploymentConfigResponse;
+}
+
+export interface RuntimeGlobalConfigResponse {
+  jwt_issuer_allowlist: string[];
+  jwt_audience_allowlist: string[];
+  trusted_proxy_allowlist: string[];
+  tls_termination_mode: string;
+  public_base_url: string | null;
+  assistant_system_prompt: string | null;
+}
+
+export interface RuntimeHumanIdentityConfigResponse {
+  human_identity_id: string;
+  display_name: string;
+  enabled: boolean;
+}
+
+export interface RuntimePlatformIdentityLinkConfigResponse {
+  provider: string;
+  platform_user_id: string;
+  human_identity_id: string;
+  display_name: string | null;
+  enabled: boolean;
+}
+
+export interface RuntimeAssistantAssignmentConfigResponse {
+  human_identity_id: string;
+  assistant_agent_id: string;
+  enabled: boolean;
+}
+
+export interface RuntimeLaneMemoryPolicyConfigResponse {
+  human_identity_id: string;
+  assistant_agent_id: string;
+  memory_mode: string;
+  lane_id: string | null;
+  local_memory_sources: string[];
+}
+
+export interface RuntimeRoutingConfigResponse {
+  enabled: boolean;
+  use_channel_defaults_as_fallback: boolean;
+  local_operator_human_identity_id: string | null;
+  dm_unmapped_policy: string;
+  shared_unmapped_policy: string;
+  human_identities: RuntimeHumanIdentityConfigResponse[];
+  platform_identity_links: RuntimePlatformIdentityLinkConfigResponse[];
+  assistant_assignments: RuntimeAssistantAssignmentConfigResponse[];
+  lane_memory_policies: RuntimeLaneMemoryPolicyConfigResponse[];
+}
+
+export interface RuntimeMemoryConfigResponse {
+  blend_mode: string;
+  memory_md_sources: string[];
+  numquam: Record<string, unknown>;
+}
+
+export interface RuntimeConfigResponse {
+  schema_version: string;
+  global: RuntimeGlobalConfigResponse;
+  providers: Array<Record<string, unknown>>;
+  channels: RuntimeChannelsConfigResponse;
+  routing: RuntimeRoutingConfigResponse;
+  memory: RuntimeMemoryConfigResponse;
+  extensions: Record<string, unknown>;
+  security: Record<string, unknown>;
+  autonomy_guardrails: Record<string, unknown>;
+  updated_at: number;
+}
+
+export interface GetRuntimeConfigResponse {
+  config: RuntimeConfigResponse;
+}
+
+export interface UpdateRuntimeConfigResponse {
+  config: RuntimeConfigResponse;
+}
+
+export interface UpsertRuntimeSecretResponse {
+  secret_ref: string;
 }
 
 export interface SchedulerLockStateResponse {
@@ -1392,6 +1652,7 @@ export interface ConnectorProposedToolResponse {
   description?: string | null;
   input_schema: unknown;
   write_classification: string;
+  auth_required: boolean;
   review_blocked: boolean;
   review_block_reason?: string | null;
 }
@@ -1479,6 +1740,8 @@ export interface ConnectorHealthResponse {
   status: string;
   degraded_reason: string | null;
   auth_required: boolean;
+  auth_required_tool_count: number;
+  auth_missing_tool_count: number;
   last_checked_at: number | null;
   published_tool_count: number;
   assigned_agent_count: number;
@@ -1510,6 +1773,7 @@ export interface ImportConnectorRequest {
   source_text?: string;
   source_json?: unknown;
   endpoint_url?: string;
+  auth_required?: boolean;
   external_reference_policy?: string;
 }
 

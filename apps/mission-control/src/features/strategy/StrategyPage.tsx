@@ -258,6 +258,12 @@ export function StrategyPage({
   const [taskMode, setTaskMode] = useState<"create" | "edit">("edit");
   const [taskForm, setTaskForm] = useState<TaskFormState>(EMPTY_TASK_FORM);
   const [taskError, setTaskError] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState<
+    "overview" | "plan" | "tasks" | "detail" | "insights"
+  >("tasks");
+  const [detailSection, setDetailSection] = useState<"basics" | "links">(
+    "basics"
+  );
   const [forceBoardReassign, setForceBoardReassign] = useState(false);
   const [forceJobReassign, setForceJobReassign] = useState(false);
   const selectedTaskId =
@@ -581,116 +587,199 @@ export function StrategyPage({
 
   return (
     <section className="mc-strategy-page" data-testid="strategy-page">
-      <div className="mc-strategy-summary-strip">
-        <SummaryCard
-          icon={<ShieldAlert size={14} />}
-          label="Blocked Work"
-          value={String(controller.summary?.blocked_task_count ?? 0)}
-          detail={
-            controller.summary?.blocked_tasks[0]?.title ??
-            "No blocked tasks in the active management set."
-          }
-          onClick={() => runWithTaskDraftGuard(() => controller.applySummaryLens("blocked"))}
-        />
-        <SummaryCard
-          icon={<TimerReset size={14} />}
-          label="Stale Work"
-          value={String(controller.summary?.stale_task_count ?? 0)}
-          detail={
-            controller.summary?.stale_tasks[0]?.title ??
-            "Nothing has crossed the stale threshold."
-          }
-          onClick={() => runWithTaskDraftGuard(() => controller.applySummaryLens("stale"))}
-        />
-        <SummaryCard
-          icon={<Compass size={14} />}
-          label="Top Agent Spend"
-          value={topAgentSpend ? formatMoney(topAgentSpend.estimated_cost_total) : formatMoney(0)}
-          detail={
-            topAgentSpend
-              ? `${topAgentSpend.agent_name} · ${topAgentSpend.linked_task_count} linked tasks`
-              : "No spend linked to managed work."
-          }
-          onClick={
-            topAgentSpend
-              ? () =>
-                  runWithTaskDraftGuard(() =>
-                    controller.updateFilters({
-                      owner_agent_id: topAgentSpend.agent_id,
-                      blocked: false,
-                      stale: false,
-                    })
-                  )
-              : undefined
-          }
-        />
-        <SummaryCard
-          icon={<Milestone size={14} />}
-          label="Top Project Spend"
-          value={
-            topProjectSpend
-              ? formatMoney(topProjectSpend.estimated_cost_total)
-              : formatMoney(0)
-          }
-          detail={
-            topProjectSpend
-              ? `${topProjectSpend.project_name} · ${topProjectSpend.attributed_run_count} runs`
-              : "No project spend attributed yet."
-          }
-          onClick={
-            topProjectSpend
-              ? () => {
-                  runWithTaskDraftGuard(() => {
-                    controller.setSelectedGoalId(topProjectSpend.goal_id);
-                    controller.setSelectedProjectId(topProjectSpend.project_id);
-                  });
-                }
-              : undefined
-          }
-        />
-        <SummaryCard
-          icon={<Milestone size={14} />}
-          label="Goal Progress"
-          value={`${totalGoalProgress}%`}
-          detail={
-            lowestProgressGoal
-              ? `${lowestProgressGoal.title} is lowest at ${lowestProgressGoal.progress_pct}%`
-              : "No goal progress tracked yet."
-          }
-          onClick={
-            lowestProgressGoal
-              ? () =>
-                  runWithTaskDraftGuard(() =>
-                    controller.setSelectedGoalId(lowestProgressGoal.goal_id)
-                  )
-              : undefined
-          }
-        />
-        <SummaryCard
-          icon={<Link2 size={14} />}
-          label="Approval Backlog"
-          value={String(controller.summary?.critical_approval_backlog_count ?? 0)}
-          detail={
-            controller.summary?.critical_approval_backlog[0]?.summary ??
-            `Unattributed spend: ${formatMoney(
-              controller.summary?.unattributed_spend_total ?? 0
-            )}`
-          }
-          onClick={() => {
-            const firstLinkedTask = controller.summary?.critical_approval_backlog.find(
-              (item) => item.linked_task_id
-            );
-            const linkedTaskId = firstLinkedTask?.linked_task_id;
-            if (linkedTaskId) {
-              runWithTaskDraftGuard(() => {
-                controller.openTaskById(linkedTaskId);
-              });
-            }
-          }}
-        />
+      <div className="mc-page-section-tabs" aria-label="Strategy sections" role="tablist">
+        <button
+          type="button"
+          id="strategy-tab-overview"
+          role="tab"
+          aria-selected={activeSection === "overview"}
+          aria-controls="strategy-panel-overview"
+          className={`mc-page-section-btn${activeSection === "overview" ? " mc-page-section-btn-active" : ""}`}
+          onClick={() => setActiveSection("overview")}
+        >
+          Overview
+        </button>
+        <button
+          type="button"
+          id="strategy-tab-plan"
+          role="tab"
+          aria-selected={activeSection === "plan"}
+          aria-controls="strategy-panel-plan"
+          className={`mc-page-section-btn${activeSection === "plan" ? " mc-page-section-btn-active" : ""}`}
+          onClick={() => setActiveSection("plan")}
+        >
+          Goals & Projects
+        </button>
+        <button
+          type="button"
+          id="strategy-tab-tasks"
+          role="tab"
+          aria-selected={activeSection === "tasks"}
+          aria-controls="strategy-panel-tasks"
+          className={`mc-page-section-btn${activeSection === "tasks" ? " mc-page-section-btn-active" : ""}`}
+          onClick={() => setActiveSection("tasks")}
+        >
+          Tasks
+        </button>
+        <button
+          type="button"
+          id="strategy-tab-detail"
+          role="tab"
+          aria-selected={activeSection === "detail"}
+          aria-controls="strategy-panel-detail"
+          className={`mc-page-section-btn${activeSection === "detail" ? " mc-page-section-btn-active" : ""}`}
+          onClick={() => setActiveSection("detail")}
+        >
+          Task Detail
+        </button>
+        <button
+          type="button"
+          id="strategy-tab-insights"
+          role="tab"
+          aria-selected={activeSection === "insights"}
+          aria-controls="strategy-panel-insights"
+          className={`mc-page-section-btn${activeSection === "insights" ? " mc-page-section-btn-active" : ""}`}
+          onClick={() => setActiveSection("insights")}
+        >
+          Insights
+        </button>
       </div>
 
-      <div className="mc-strategy-grid">
+      {activeSection === "overview" ? (
+        <div
+          className="mc-strategy-summary-strip"
+          id="strategy-panel-overview"
+          role="tabpanel"
+          aria-labelledby="strategy-tab-overview"
+        >
+          <SummaryCard
+            icon={<ShieldAlert size={14} />}
+            label="Blocked Work"
+            value={String(controller.summary?.blocked_task_count ?? 0)}
+            detail={
+              controller.summary?.blocked_tasks[0]?.title ??
+              "No blocked tasks in the active management set."
+            }
+            onClick={() => {
+              setActiveSection("tasks");
+              runWithTaskDraftGuard(() => controller.applySummaryLens("blocked"));
+            }}
+          />
+          <SummaryCard
+            icon={<TimerReset size={14} />}
+            label="Stale Work"
+            value={String(controller.summary?.stale_task_count ?? 0)}
+            detail={
+              controller.summary?.stale_tasks[0]?.title ??
+              "Nothing has crossed the stale threshold."
+            }
+            onClick={() => {
+              setActiveSection("tasks");
+              runWithTaskDraftGuard(() => controller.applySummaryLens("stale"));
+            }}
+          />
+          <SummaryCard
+            icon={<Compass size={14} />}
+            label="Top Agent Spend"
+            value={topAgentSpend ? formatMoney(topAgentSpend.estimated_cost_total) : formatMoney(0)}
+            detail={
+              topAgentSpend
+                ? `${topAgentSpend.agent_name} · ${topAgentSpend.linked_task_count} linked tasks`
+                : "No spend linked to managed work."
+            }
+            onClick={
+              topAgentSpend
+                ? () => {
+                    setActiveSection("tasks");
+                    runWithTaskDraftGuard(() =>
+                      controller.updateFilters({
+                        owner_agent_id: topAgentSpend.agent_id,
+                        blocked: false,
+                        stale: false,
+                      })
+                    );
+                  }
+                : undefined
+            }
+          />
+          <SummaryCard
+            icon={<Milestone size={14} />}
+            label="Top Project Spend"
+            value={
+              topProjectSpend
+                ? formatMoney(topProjectSpend.estimated_cost_total)
+                : formatMoney(0)
+            }
+            detail={
+              topProjectSpend
+                ? `${topProjectSpend.project_name} · ${topProjectSpend.attributed_run_count} runs`
+                : "No project spend attributed yet."
+            }
+            onClick={
+              topProjectSpend
+                ? () => {
+                    setActiveSection("plan");
+                    runWithTaskDraftGuard(() => {
+                      controller.setSelectedGoalId(topProjectSpend.goal_id);
+                      controller.setSelectedProjectId(topProjectSpend.project_id);
+                    });
+                  }
+                : undefined
+            }
+          />
+          <SummaryCard
+            icon={<Milestone size={14} />}
+            label="Goal Progress"
+            value={`${totalGoalProgress}%`}
+            detail={
+              lowestProgressGoal
+                ? `${lowestProgressGoal.title} is lowest at ${lowestProgressGoal.progress_pct}%`
+                : "No goal progress tracked yet."
+            }
+            onClick={
+              lowestProgressGoal
+                ? () => {
+                    setActiveSection("plan");
+                    runWithTaskDraftGuard(() =>
+                      controller.setSelectedGoalId(lowestProgressGoal.goal_id)
+                    );
+                  }
+                : undefined
+            }
+          />
+          <SummaryCard
+            icon={<Link2 size={14} />}
+            label="Approval Backlog"
+            value={String(controller.summary?.critical_approval_backlog_count ?? 0)}
+            detail={
+              controller.summary?.critical_approval_backlog[0]?.summary ??
+              `Unattributed spend: ${formatMoney(
+                controller.summary?.unattributed_spend_total ?? 0
+              )}`
+            }
+            onClick={() => {
+              setActiveSection("tasks");
+              const firstLinkedTask = controller.summary?.critical_approval_backlog.find(
+                (item) => item.linked_task_id
+              );
+              const linkedTaskId = firstLinkedTask?.linked_task_id;
+              if (linkedTaskId) {
+                runWithTaskDraftGuard(() => {
+                  controller.openTaskById(linkedTaskId);
+                });
+              }
+            }}
+          />
+        </div>
+      ) : null}
+
+      {activeSection === "plan" ? (
+        <div
+          className="mc-page-section-shell"
+          id="strategy-panel-plan"
+          role="tabpanel"
+          aria-labelledby="strategy-tab-plan"
+        >
         <Surface
           className="mc-strategy-nav"
           title="Goals + Projects"
@@ -819,7 +908,16 @@ export function StrategyPage({
             </div>
           ) : null}
         </Surface>
+        </div>
+      ) : null}
 
+      {activeSection === "tasks" ? (
+        <div
+          className="mc-page-section-shell"
+          id="strategy-panel-tasks"
+          role="tabpanel"
+          aria-labelledby="strategy-tab-tasks"
+        >
         <Surface
           className="mc-strategy-list"
           title="Tasks"
@@ -837,6 +935,8 @@ export function StrategyPage({
                 type="button"
                 onClick={() => {
                   runWithTaskDraftGuard(() => {
+                    setActiveSection("detail");
+                    setDetailSection("basics");
                     setTaskError(null);
                     setTaskMode("create");
                     controller.setSelectedTaskId("");
@@ -1006,6 +1106,8 @@ export function StrategyPage({
                   }`}
                   onClick={() => {
                     runWithTaskDraftGuard(() => {
+                      setActiveSection("detail");
+                      setDetailSection("basics");
                       setTaskMode("edit");
                       controller.setSelectedTaskId(task.task_id);
                     });
@@ -1037,7 +1139,16 @@ export function StrategyPage({
             ) : null}
           </div>
         </Surface>
+        </div>
+      ) : null}
 
+      {activeSection === "detail" ? (
+        <div
+          className="mc-page-section-shell"
+          id="strategy-panel-detail"
+          role="tabpanel"
+          aria-labelledby="strategy-tab-detail"
+        >
         <Surface
           className="mc-strategy-detail"
           title={
@@ -1093,6 +1204,25 @@ export function StrategyPage({
         >
           {activeTaskForm.project_id ? (
             <>
+              <div className="mc-page-section-tabs" aria-label="Task detail sections">
+                <button
+                  type="button"
+                  className={`mc-page-section-btn${detailSection === "basics" ? " mc-page-section-btn-active" : ""}`}
+                  onClick={() => setDetailSection("basics")}
+                >
+                  Basics
+                </button>
+                <button
+                  type="button"
+                  className={`mc-page-section-btn${detailSection === "links" ? " mc-page-section-btn-active" : ""}`}
+                  onClick={() => setDetailSection("links")}
+                >
+                  Links & Runbook
+                </button>
+              </div>
+
+              {detailSection === "basics" ? (
+                <div className="mc-page-section-stack">
               <div className="mc-strategy-form-grid">
                 <label>
                   Project
@@ -1278,80 +1408,86 @@ export function StrategyPage({
                   />
                 </label>
               ) : null}
-
-              {runbookEnabled && taskMode === "edit" ? (
-                <RunbookLinkPanel
-                  className="mc-strategy-runbook-panel"
-                  summary={selectedTaskRunbook}
-                  emptyMessage="Runbook appears here once this task has linked execution truth."
-                  onOpen={
-                    selectedTaskId
-                      ? () => onOpenTaskRunbook(selectedTaskId)
-                      : undefined
-                  }
-                />
+                </div>
               ) : null}
 
-              <div className="mc-strategy-link-card">
-                <div className="mc-strategy-subheader">
-                  <div>
-                    <h3>Execution Links</h3>
-                    <p>Connect the management record to boards and jobs without rewriting runtime state.</p>
+              {detailSection === "links" ? (
+                <div className="mc-page-section-stack">
+                  {runbookEnabled && taskMode === "edit" ? (
+                    <RunbookLinkPanel
+                      className="mc-strategy-runbook-panel"
+                      summary={selectedTaskRunbook}
+                      emptyMessage="Runbook appears here once this task has linked execution truth."
+                      onOpen={
+                        selectedTaskId
+                          ? () => onOpenTaskRunbook(selectedTaskId)
+                          : undefined
+                      }
+                    />
+                  ) : null}
+
+                  <div className="mc-strategy-link-card">
+                    <div className="mc-strategy-subheader">
+                      <div>
+                        <h3>Execution Links</h3>
+                        <p>Connect the management record to boards and jobs without rewriting runtime state.</p>
+                      </div>
+                    </div>
+                    <div className="mc-strategy-form-grid">
+                      <label>
+                        Linked Board Card ID
+                        <input
+                          value={activeTaskForm.linked_board_card_id}
+                          onChange={(event) =>
+                            updateTaskForm((current) => ({
+                              ...current,
+                              linked_board_card_id: event.target.value,
+                            }))
+                          }
+                          placeholder="card-ops-1"
+                        />
+                      </label>
+                      <label>
+                        Linked Job ID
+                        <input
+                          value={activeTaskForm.linked_job_id}
+                          onChange={(event) =>
+                            updateTaskForm((current) => ({
+                              ...current,
+                              linked_job_id: event.target.value,
+                            }))
+                          }
+                          placeholder="job-heartbeat"
+                        />
+                      </label>
+                    </div>
+                    <div className="mc-strategy-form-grid">
+                      <label className="mc-settings-toggle">
+                        <input
+                          type="checkbox"
+                          checked={forceBoardReassign}
+                          onChange={(event) => setForceBoardReassign(event.target.checked)}
+                        />
+                        <span>Force board-card reassignment if already linked</span>
+                      </label>
+                      <label className="mc-settings-toggle">
+                        <input
+                          type="checkbox"
+                          checked={forceJobReassign}
+                          onChange={(event) => setForceJobReassign(event.target.checked)}
+                        />
+                        <span>Force job reassignment if already linked</span>
+                      </label>
+                    </div>
+                    {taskMode === "edit" ? (
+                      <div className="mc-strategy-runtime-meta">
+                        <span>Latest run: {controller.selectedTask?.latest_run_id ?? "n/a"}</span>
+                        <span>Latest session: {controller.selectedTask?.latest_session_id ?? "n/a"}</span>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
-                <div className="mc-strategy-form-grid">
-                  <label>
-                    Linked Board Card ID
-                    <input
-                      value={activeTaskForm.linked_board_card_id}
-                      onChange={(event) =>
-                        updateTaskForm((current) => ({
-                          ...current,
-                          linked_board_card_id: event.target.value,
-                        }))
-                      }
-                      placeholder="card-ops-1"
-                    />
-                  </label>
-                  <label>
-                    Linked Job ID
-                    <input
-                      value={activeTaskForm.linked_job_id}
-                      onChange={(event) =>
-                        updateTaskForm((current) => ({
-                          ...current,
-                          linked_job_id: event.target.value,
-                        }))
-                      }
-                      placeholder="job-heartbeat"
-                    />
-                  </label>
-                </div>
-                <div className="mc-strategy-form-grid">
-                  <label className="mc-settings-toggle">
-                    <input
-                      type="checkbox"
-                      checked={forceBoardReassign}
-                      onChange={(event) => setForceBoardReassign(event.target.checked)}
-                    />
-                    <span>Force board-card reassignment if already linked</span>
-                  </label>
-                  <label className="mc-settings-toggle">
-                    <input
-                      type="checkbox"
-                      checked={forceJobReassign}
-                      onChange={(event) => setForceJobReassign(event.target.checked)}
-                    />
-                    <span>Force job reassignment if already linked</span>
-                  </label>
-                </div>
-                {taskMode === "edit" ? (
-                  <div className="mc-strategy-runtime-meta">
-                    <span>Latest run: {controller.selectedTask?.latest_run_id ?? "n/a"}</span>
-                    <span>Latest session: {controller.selectedTask?.latest_session_id ?? "n/a"}</span>
-                  </div>
-                ) : null}
-              </div>
+              ) : null}
 
               {taskError ? <p className="mc-settings-inline-error">{taskError}</p> : null}
             </>
@@ -1359,8 +1495,16 @@ export function StrategyPage({
             <EmptyState message="Select a project to start a task draft." />
           )}
         </Surface>
-      </div>
+        </div>
+      ) : null}
 
+      {activeSection === "insights" ? (
+        <div
+          className="mc-page-section-shell"
+          id="strategy-panel-insights"
+          role="tabpanel"
+          aria-labelledby="strategy-tab-insights"
+        >
       <div className="mc-strategy-insights-grid">
         <Surface title="Spend by Agent" subtitle="Execution cost attributed to managed work.">
           <div className="mc-strategy-metric-list">
@@ -1461,6 +1605,8 @@ export function StrategyPage({
                   const linkedTaskId = item.linked_task_id;
                   if (linkedTaskId) {
                     runWithTaskDraftGuard(() => {
+                      setActiveSection("detail");
+                      setDetailSection("links");
                       controller.openTaskById(linkedTaskId);
                     });
                   }
@@ -1481,6 +1627,8 @@ export function StrategyPage({
           </div>
         </Surface>
       </div>
+        </div>
+      ) : null}
 
       <Modal
         open={goalModalMode !== null}

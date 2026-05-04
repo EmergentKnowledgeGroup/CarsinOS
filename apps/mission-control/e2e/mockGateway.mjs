@@ -64,12 +64,23 @@ const port = parsePort(process.argv.slice(2));
 const verbose = process.env.MC_E2E_VERBOSE === "1";
 const startedAtMs = Date.now() - 90_000;
 const createdAt = startedAtMs - 12_000;
+const ANTHROPIC_SETUP_TOKEN_PREFIX = "sk-ant-oat01-";
+const ANTHROPIC_SETUP_TOKEN_MIN_LENGTH = 80;
 let nextAuthProfileCounter = 1;
 let nextEventCounter = 1;
 let nextCardCounter = 2;
 let nextRunCounter = 1;
 let nextJobRunCounter = 1;
 const wsClients = new Set();
+const wsTickets = new Map();
+
+function looksLikeAnthropicSetupToken(value) {
+  const trimmed = typeof value === "string" ? value.trim() : "";
+  return (
+    trimmed.startsWith(ANTHROPIC_SETUP_TOKEN_PREFIX) &&
+    trimmed.length >= ANTHROPIC_SETUP_TOKEN_MIN_LENGTH
+  );
+}
 
 const board = {
   board_id: "ops-board",
@@ -690,12 +701,160 @@ const channelStatuses = [
     provider: "ollama",
     lifecycle_state: "running",
     healthy: true,
+    session_state: "gateway_connected",
+    proof_state: "roundtrip_confirmed",
     detail: "stub",
+    proof_detail: "Mock runtime already proved a roundtrip.",
     last_error: null,
+    last_inbound_at: Date.now() - 5_000,
+    last_outbound_at: Date.now() - 4_000,
+    last_proven_at: Date.now() - 4_000,
     reconnect_attempts: 0,
     updated_at: Date.now(),
   },
 ];
+const channelConfig = {
+  discord: {
+    require_mention_in_guild_channels: true,
+    allowlisted_user_ids: [],
+    auto_run_enabled: true,
+    default_agent_id: "claude",
+    default_model_provider: "anthropic",
+    default_model_id: "claude-sonnet-4-5",
+  },
+  telegram: {
+    require_mention_in_groups: true,
+    allowlisted_user_ids: [],
+    dm_policy: "pairing",
+    group_policy: "allowlist",
+    group_allowlisted_user_ids: [],
+    allowlisted_chat_ids: [],
+    auto_leave_unauthorized_groups: true,
+    pairing_code_ttl_seconds: 3600,
+    pairing_max_pending: 3,
+    unauthorized_spam_threshold: 4,
+    unauthorized_spam_block_seconds: 3600,
+    auto_run_enabled: true,
+    default_agent_id: "claude",
+    default_model_provider: "anthropic",
+    default_model_id: "claude-sonnet-4-5",
+  },
+  updated_at: Date.now(),
+};
+const telegramPairingStatus = {
+  dm_policy: "pairing",
+  group_policy: "allowlist",
+  auto_leave_unauthorized_groups: true,
+  pending_requests: [],
+  blocked_senders: [],
+  updated_at: Date.now(),
+};
+const runtimeConfig = {
+  schema_version: "runtime.config.v1",
+  global: {
+    jwt_issuer_allowlist: [],
+    jwt_audience_allowlist: [],
+    trusted_proxy_allowlist: [],
+    tls_termination_mode: "edge",
+    public_base_url: null,
+    assistant_system_prompt: null,
+  },
+  providers: [],
+  channels: {
+    discord: {
+      enabled: false,
+      bot_token_secret_ref: null,
+      operation_mode: "transport",
+      api_base_url: null,
+      transport_timeout_ms: null,
+      transport_retry_attempts: null,
+      application_id: null,
+      intents: [],
+      staging_guild_ids: [],
+      staging_channel_ids: [],
+    },
+    telegram: {
+      enabled: false,
+      bot_token_secret_ref: null,
+      operation_mode: "transport",
+      api_base_url: null,
+      transport_timeout_ms: null,
+      transport_retry_attempts: null,
+      long_poll_timeout_seconds: null,
+      webhook_mode: "long_poll",
+      webhook_url: null,
+      staging_chat_ids: [],
+    },
+  },
+  routing: {
+    enabled: false,
+    use_channel_defaults_as_fallback: false,
+    local_operator_human_identity_id: "local-operator",
+    dm_unmapped_policy: "approval_required",
+    shared_unmapped_policy: "block",
+    human_identities: [
+      {
+        human_identity_id: "local-operator",
+        display_name: "You",
+        enabled: true,
+      },
+    ],
+    platform_identity_links: [],
+    assistant_assignments: [],
+    lane_memory_policies: [],
+  },
+  memory: {
+    blend_mode: "local_augment",
+    memory_md_sources: [],
+    numquam: {
+      enabled: false,
+      integration_base_url: null,
+      managed_runtime_enabled: false,
+      managed_repo_root: null,
+      managed_lanes_root: null,
+      managed_python_bin: null,
+      managed_runtime_port_base: 4410,
+      managed_mcp_port_base: 4510,
+      managed_launch_timeout_ms: 120000,
+      transport: "http",
+      context_build_timeout_ms: 15000,
+      writeback_propose_timeout_ms: 15000,
+      writeback_resolve_timeout_ms: 15000,
+      handshake_timeout_ms: 5000,
+      handshake_interval_ms: 60000,
+      token_secret_ref: null,
+      principal_id: null,
+      principal_display_name: null,
+    },
+  },
+  extensions: {
+    plugin_daemon_allowlist: [],
+    plugin_bundle_root: null,
+    assistant_tools: {
+      limits: {
+        max_spawn_depth: 4,
+        max_children_per_root_run: 24,
+        max_active_workers_total: 32,
+      },
+      templates: [],
+    },
+  },
+  security: {
+    audit_hot_retention_days: 90,
+    audit_archive_retention_days: 365,
+  },
+  autonomy_guardrails: {
+    max_run_ms: 300000,
+    max_tool_calls_per_run: 32,
+    max_provider_input_chars: 120000,
+    max_tool_output_chars_total: 120000,
+    max_provider_attempts: 3,
+    max_consecutive_failures_before_breaker: 3,
+    heartbeat_max_run_ms: 10000,
+  },
+  updated_at: Date.now(),
+};
+const runtimeSecrets = {};
 
 const authProfiles = [];
 const connectorCatalog = [
@@ -771,6 +930,10 @@ const seedState = {
   bootstrapPresets: cloneSeed(bootstrapPresets),
   approvals: cloneSeed(approvals),
   channelStatuses: cloneSeed(channelStatuses),
+  channelConfig: cloneSeed(channelConfig),
+  telegramPairingStatus: cloneSeed(telegramPairingStatus),
+  runtimeConfig: cloneSeed(runtimeConfig),
+  runtimeSecrets: cloneSeed(runtimeSecrets),
   authProfiles: cloneSeed(authProfiles),
   connectorSources: cloneSeed(connectorSources),
   connectorVersions: cloneSeed(connectorVersions),
@@ -797,6 +960,13 @@ function resetMockState() {
   replaceArray(bootstrapPresets, seedState.bootstrapPresets);
   replaceArray(approvals, seedState.approvals);
   replaceArray(channelStatuses, seedState.channelStatuses);
+  Object.assign(channelConfig, cloneSeed(seedState.channelConfig));
+  Object.assign(telegramPairingStatus, cloneSeed(seedState.telegramPairingStatus));
+  Object.assign(runtimeConfig, cloneSeed(seedState.runtimeConfig));
+  Object.keys(runtimeSecrets).forEach((key) => {
+    delete runtimeSecrets[key];
+  });
+  Object.assign(runtimeSecrets, cloneSeed(seedState.runtimeSecrets));
   replaceArray(authProfiles, seedState.authProfiles);
   replaceArray(connectorSources, seedState.connectorSources);
   replaceArray(connectorVersions, seedState.connectorVersions);
@@ -811,8 +981,123 @@ function resetMockState() {
   nextCardCounter = 2;
   nextRunCounter = 1;
   nextJobRunCounter = 1;
+  wsTickets.clear();
   usageMode = "available";
   usageUpdatedAtMs = Date.now();
+}
+
+function runtimeSecretKeyFromScope(scope) {
+  return `runtime.${String(scope ?? "").trim().replaceAll("/", ".")}`;
+}
+
+function runtimeSecretRefFromKey(key) {
+  return `secret://${key}`;
+}
+
+function runtimeSecretKeyFromRef(ref) {
+  const trimmed = String(ref ?? "").trim();
+  return trimmed.startsWith("secret://") ? trimmed.slice("secret://".length) : trimmed;
+}
+
+function upsertMockChannelStatus(provider, partial) {
+  let target = channelStatuses.find((item) => item.provider === provider);
+  if (!target) {
+    target = {
+      provider,
+      lifecycle_state: "stopped",
+      healthy: false,
+      session_state: "offline",
+      proof_state: "unproven",
+      detail: null,
+      proof_detail: null,
+      last_error: null,
+      last_inbound_at: null,
+      last_outbound_at: null,
+      last_proven_at: null,
+      reconnect_attempts: 0,
+      updated_at: Date.now(),
+    };
+    channelStatuses.push(target);
+  }
+  Object.assign(target, partial, { updated_at: Date.now() });
+  return target;
+}
+
+function reconcileMockChannelStatus(provider) {
+  const config = runtimeConfig.channels?.[provider];
+  if (!config) {
+    return null;
+  }
+  if (!config.enabled) {
+    return upsertMockChannelStatus(provider, {
+      lifecycle_state: "stopped",
+      healthy: false,
+      session_state: "offline",
+      proof_state: "unproven",
+      detail: "disabled in runtime config",
+      proof_detail: null,
+      last_error: null,
+      last_inbound_at: null,
+      last_outbound_at: null,
+      last_proven_at: null,
+    });
+  }
+  const secretRef = String(config.bot_token_secret_ref ?? "").trim();
+  if (!secretRef) {
+    return upsertMockChannelStatus(provider, {
+      lifecycle_state: "waiting_for_auth",
+      healthy: false,
+      session_state: "offline",
+      proof_state: "unproven",
+      detail: "missing bot token",
+      proof_detail: null,
+      last_error: "missing bot token",
+      last_inbound_at: null,
+      last_outbound_at: null,
+      last_proven_at: null,
+    });
+  }
+  const secretValue = runtimeSecrets[runtimeSecretKeyFromRef(secretRef)];
+  if (!secretValue) {
+    return upsertMockChannelStatus(provider, {
+      lifecycle_state: "waiting_for_auth",
+      healthy: false,
+      session_state: "offline",
+      proof_state: "unproven",
+      detail: "missing stored secret",
+      proof_detail: null,
+      last_error: "missing stored secret",
+      last_inbound_at: null,
+      last_outbound_at: null,
+      last_proven_at: null,
+    });
+  }
+  if (String(secretValue).toLowerCase().includes("bad")) {
+    return upsertMockChannelStatus(provider, {
+      lifecycle_state: "error",
+      healthy: false,
+      session_state: "offline",
+      proof_state: "unproven",
+      detail: "mock rejected the supplied bot token",
+      proof_detail: null,
+      last_error: "invalid bot token",
+      last_inbound_at: null,
+      last_outbound_at: null,
+      last_proven_at: null,
+    });
+  }
+  return upsertMockChannelStatus(provider, {
+    lifecycle_state: "running",
+    healthy: true,
+    session_state: provider === "discord" ? "gateway_connected" : "listening",
+    proof_state: "unproven",
+    detail: "connected via mock runtime",
+    proof_detail: "Mock runtime is live and waiting for the first proven roundtrip.",
+    last_error: null,
+    last_inbound_at: null,
+    last_outbound_at: null,
+    last_proven_at: null,
+  });
 }
 
 const CONNECTOR_READ_METHODS = new Set(["get", "head"]);
@@ -2469,6 +2754,17 @@ async function routeRequest(req, res) {
     return;
   }
 
+  if (req.method === "POST" && requestUrl.pathname === "/api/v1/ws-ticket") {
+    const ticket = `mock-ws-ticket-${randomUUID()}`;
+    const expiresAt = Date.now() + 30_000;
+    wsTickets.set(ticket, expiresAt);
+    sendJson(res, 200, {
+      ticket,
+      expires_at: expiresAt,
+    });
+    return;
+  }
+
   if (req.method === "GET" && requestUrl.pathname === "/api/v1/status") {
     sendJson(res, 200, getStatusPayload());
     return;
@@ -3574,20 +3870,56 @@ async function routeRequest(req, res) {
 
   if (req.method === "GET" && requestUrl.pathname === "/api/v1/providers/models") {
     const provider = requestUrl.searchParams.get("provider") ?? "ollama";
+    const items =
+      provider === "anthropic"
+        ? [
+            {
+              model_id: "claude-sonnet-4-5",
+              label: "Claude Sonnet 4.5",
+            },
+            {
+              model_id: "claude-opus-4-5",
+              label: "Claude Opus 4.5",
+            },
+            {
+              model_id: "claude-sonnet-4-6",
+              label: "Claude Sonnet 4.6",
+            },
+            {
+              model_id: "claude-opus-4-6",
+              label: "Claude Opus 4.6",
+            },
+            {
+              model_id: "claude-haiku-3-5",
+              label: "Claude Haiku 3.5",
+            },
+          ]
+        : provider === "openai"
+          ? [
+              {
+                model_id: "gpt-5.4",
+                label: "GPT-5.4",
+              },
+              {
+                model_id: "gpt-5.4-mini",
+                label: "GPT-5.4 Mini",
+              },
+            ]
+          : [
+              {
+                model_id: "qwen3.5-9b-instruct",
+                label: "Qwen 3.5 9B Instruct",
+              },
+              {
+                model_id: "qwen3.5-4b-instruct",
+                label: "Qwen 3.5 4B Instruct",
+              },
+            ];
     sendJson(res, 200, {
       contract_version: "stub-v1",
       provider,
       auth_profile_id: null,
-      items: [
-        {
-          model_id: "qwen3.5-9b-instruct",
-          label: "Qwen 3.5 9B Instruct",
-        },
-        {
-          model_id: "qwen3.5-4b-instruct",
-          label: "Qwen 3.5 4B Instruct",
-        },
-      ],
+      items,
     });
     return;
   }
@@ -3780,6 +4112,8 @@ async function routeRequest(req, res) {
   }
 
   if (req.method === "GET" && requestUrl.pathname === "/api/v1/channels/runtime/status") {
+    reconcileMockChannelStatus("discord");
+    reconcileMockChannelStatus("telegram");
     sendJson(res, 200, {
       updated_at: Date.now(),
       items: channelStatuses,
@@ -3795,23 +4129,25 @@ async function routeRequest(req, res) {
         : "ollama";
     let target = channelStatuses.find((item) => item.provider === provider);
     if (!target) {
-      target = {
-        provider,
-        lifecycle_state: "running",
-        healthy: true,
-        detail: "stub",
+      target = upsertMockChannelStatus(provider, {
+        lifecycle_state: "stopped",
+        healthy: false,
+        detail: "not configured yet",
         last_error: null,
         reconnect_attempts: 0,
-        updated_at: Date.now(),
-      };
-      channelStatuses.push(target);
+      });
     }
     target.reconnect_attempts += 1;
-    target.lifecycle_state = "running";
-    target.healthy = true;
-    target.last_error = null;
-    target.detail = "reconnected via mock endpoint";
-    target.updated_at = Date.now();
+    if (provider === "discord" || provider === "telegram") {
+      target = reconcileMockChannelStatus(provider) ?? target;
+      target.reconnect_attempts += 0;
+    } else {
+      target.lifecycle_state = "running";
+      target.healthy = true;
+      target.last_error = null;
+      target.detail = "reconnected via mock endpoint";
+      target.updated_at = Date.now();
+    }
     broadcastWsEvent({
       event_type: "channel.runtime.reconnected",
       entity: "channel",
@@ -3832,6 +4168,204 @@ async function routeRequest(req, res) {
     return;
   }
 
+  if (req.method === "GET" && requestUrl.pathname === "/api/v1/config/channels") {
+    sendJson(res, 200, {
+      config: channelConfig,
+    });
+    return;
+  }
+
+  if (req.method === "POST" && requestUrl.pathname === "/api/v1/config/channels") {
+    const payload = await readJson(req);
+    if (payload.discord) {
+      channelConfig.discord = {
+        ...channelConfig.discord,
+        ...payload.discord,
+      };
+    }
+    if (payload.telegram) {
+      channelConfig.telegram = {
+        ...channelConfig.telegram,
+        ...payload.telegram,
+      };
+    }
+    channelConfig.updated_at = Date.now();
+    telegramPairingStatus.dm_policy = channelConfig.telegram.dm_policy;
+    telegramPairingStatus.group_policy = channelConfig.telegram.group_policy;
+    telegramPairingStatus.auto_leave_unauthorized_groups =
+      channelConfig.telegram.auto_leave_unauthorized_groups;
+    sendJson(res, 200, {
+      config: channelConfig,
+    });
+    return;
+  }
+
+  if (
+    req.method === "GET"
+    && requestUrl.pathname === "/api/v1/channels/telegram/pairing/status"
+  ) {
+    sendJson(res, 200, telegramPairingStatus);
+    return;
+  }
+
+  if (
+    req.method === "POST"
+    && requestUrl.pathname === "/api/v1/channels/telegram/pairing/approve"
+  ) {
+    const payload = await readJson(req);
+    const code = String(payload.code ?? "").trim().toUpperCase();
+    const match = telegramPairingStatus.pending_requests.find((item) => item.code === code);
+    if (!match) {
+      sendJson(res, 404, { error: "pairing code not found" });
+      return;
+    }
+    if (!channelConfig.telegram.allowlisted_user_ids.includes(match.user_id)) {
+      channelConfig.telegram.allowlisted_user_ids.push(match.user_id);
+    }
+    telegramPairingStatus.pending_requests = telegramPairingStatus.pending_requests.filter(
+      (item) => item.code !== code
+    );
+    telegramPairingStatus.updated_at = Date.now();
+    sendJson(res, 200, {
+      status: telegramPairingStatus,
+      approved_user_id: match.user_id,
+    });
+    return;
+  }
+
+  if (
+    req.method === "POST"
+    && requestUrl.pathname === "/api/v1/channels/telegram/pairing/deny"
+  ) {
+    const payload = await readJson(req);
+    const code = String(payload.code ?? "").trim().toUpperCase();
+    const match = telegramPairingStatus.pending_requests.find((item) => item.code === code);
+    if (!match) {
+      sendJson(res, 404, { error: "pairing code not found" });
+      return;
+    }
+    telegramPairingStatus.pending_requests = telegramPairingStatus.pending_requests.filter(
+      (item) => item.code !== code
+    );
+    telegramPairingStatus.blocked_senders.push({
+      user_id: match.user_id,
+      blocked_until: Date.now() + 60 * 60 * 1000,
+      reason: "operator_denied",
+      attempt_count: Math.max(1, match.attempt_count ?? 1),
+      last_attempt_at: Date.now(),
+    });
+    telegramPairingStatus.updated_at = Date.now();
+    sendJson(res, 200, {
+      status: telegramPairingStatus,
+      approved_user_id: null,
+    });
+    return;
+  }
+
+  if (req.method === "GET" && requestUrl.pathname === "/api/v1/config/runtime") {
+    sendJson(res, 200, {
+      config: runtimeConfig,
+    });
+    return;
+  }
+
+  if (req.method === "POST" && requestUrl.pathname === "/api/v1/config/runtime") {
+    const payload = await readJson(req);
+    if (payload.global) {
+      runtimeConfig.global = {
+        ...runtimeConfig.global,
+        ...payload.global,
+      };
+    }
+    if (payload.channels) {
+      runtimeConfig.channels = {
+        ...runtimeConfig.channels,
+      };
+      for (const [channel, update] of Object.entries(payload.channels)) {
+        runtimeConfig.channels[channel] = {
+          ...(runtimeConfig.channels[channel] ?? {}),
+          ...(update ?? {}),
+        };
+      }
+    }
+    if (payload.routing) {
+      runtimeConfig.routing = {
+        ...runtimeConfig.routing,
+        ...payload.routing,
+      };
+    }
+    if (payload.memory) {
+      runtimeConfig.memory = {
+        ...runtimeConfig.memory,
+        ...payload.memory,
+        numquam: {
+          ...runtimeConfig.memory.numquam,
+          ...(payload.memory.numquam ?? {}),
+        },
+      };
+    }
+    if (payload.extensions) {
+      runtimeConfig.extensions = {
+        ...runtimeConfig.extensions,
+        ...payload.extensions,
+        assistant_tools: {
+          ...runtimeConfig.extensions.assistant_tools,
+          ...(payload.extensions.assistant_tools ?? {}),
+          limits: {
+            ...runtimeConfig.extensions.assistant_tools.limits,
+            ...(payload.extensions.assistant_tools?.limits ?? {}),
+          },
+        },
+      };
+    }
+    if (payload.security) {
+      runtimeConfig.security = {
+        ...runtimeConfig.security,
+        ...payload.security,
+      };
+    }
+    if (payload.autonomy_guardrails) {
+      runtimeConfig.autonomy_guardrails = {
+        ...runtimeConfig.autonomy_guardrails,
+        ...payload.autonomy_guardrails,
+      };
+    }
+    runtimeConfig.updated_at = Date.now();
+    reconcileMockChannelStatus("discord");
+    reconcileMockChannelStatus("telegram");
+    sendJson(res, 200, {
+      config: runtimeConfig,
+    });
+    return;
+  }
+
+  if (
+    req.method === "POST"
+    && requestUrl.pathname === "/api/v1/config/runtime/secrets/upsert"
+  ) {
+    const payload = await readJson(req);
+    const scope = String(payload.scope ?? "").trim();
+    const secretValue = String(payload.secret_value ?? "").trim();
+    if (!scope || !secretValue) {
+      sendJson(res, 400, { error: "scope and secret_value are required" });
+      return;
+    }
+    const secretKey = runtimeSecretKeyFromScope(scope);
+    runtimeSecrets[secretKey] = secretValue;
+    const secretRef = runtimeSecretRefFromKey(secretKey);
+    const previousRef = String(payload.previous_secret_ref ?? "").trim();
+    if (previousRef) {
+      const previousKey = runtimeSecretKeyFromRef(previousRef);
+      if (previousKey && previousKey !== secretKey) {
+        delete runtimeSecrets[previousKey];
+      }
+    }
+    sendJson(res, 200, {
+      secret_ref: secretRef,
+    });
+    return;
+  }
+
   if (req.method === "GET" && requestUrl.pathname === "/api/v1/jobs/status") {
     sendJson(res, 200, getJobsStatusPayload());
     return;
@@ -3841,6 +4375,66 @@ async function routeRequest(req, res) {
     sendJson(res, 200, {
       items: authProfiles,
     });
+    return;
+  }
+
+  if (req.method === "POST" && requestUrl.pathname === "/api/v1/auth/anthropic/setup-token/validate") {
+    const payload = await readJson(req);
+    const setupToken = typeof payload.setup_token === "string" ? payload.setup_token.trim() : "";
+    if (!setupToken) {
+      sendJson(res, 400, { error: "setup token required" });
+      return;
+    }
+    sendJson(res, 200, { valid: looksLikeAnthropicSetupToken(setupToken) });
+    return;
+  }
+
+  if (req.method === "POST" && requestUrl.pathname === "/api/v1/auth/anthropic/setup-token/ingest") {
+    const payload = await readJson(req);
+    const setupToken = typeof payload.setup_token === "string" ? payload.setup_token.trim() : "";
+    if (!setupToken) {
+      sendJson(res, 400, { error: "setup token required" });
+      return;
+    }
+    if (!looksLikeAnthropicSetupToken(setupToken)) {
+      sendJson(res, 400, { error: "setup token validation failed" });
+      return;
+    }
+    const now = Date.now();
+    const displayName = String(payload.display_name ?? "claude-primary");
+    const existingIndex = authProfiles.findIndex(
+      (profile) => profile.provider === "anthropic" && profile.display_name === displayName
+    );
+    const profile =
+      existingIndex >= 0
+        ? {
+            ...authProfiles[existingIndex],
+            auth_mode: "api_key",
+            risk_level: "low",
+            enabled: payload.enabled !== false,
+            kill_switch_scope: String(payload.kill_switch_scope ?? "none"),
+            api_base_url: typeof payload.api_base_url === "string" ? payload.api_base_url : null,
+            updated_at: now,
+          }
+        : {
+            auth_profile_id: `profile-${String(nextAuthProfileCounter++).padStart(3, "0")}`,
+            provider: "anthropic",
+            display_name: displayName,
+            auth_mode: "api_key",
+            risk_level: "low",
+            enabled: payload.enabled !== false,
+            kill_switch_scope: String(payload.kill_switch_scope ?? "none"),
+            api_base_url: typeof payload.api_base_url === "string" ? payload.api_base_url : null,
+            created_at: now,
+            updated_at: now,
+          };
+    if (existingIndex >= 0) {
+      authProfiles[existingIndex] = profile;
+      sendJson(res, 200, { profile });
+      return;
+    }
+    authProfiles.push(profile);
+    sendJson(res, 200, { profile });
     return;
   }
 
@@ -4081,11 +4675,16 @@ server.on("upgrade", (req, socket, head) => {
     socket.destroy();
     return;
   }
-  const token = requestUrl.searchParams.get("token");
-  if (!token || token.trim().length === 0) {
+  const ticket = requestUrl.searchParams.get("ticket");
+  const expiresAt = ticket ? wsTickets.get(ticket) : undefined;
+  if (!ticket || !expiresAt || Date.now() > expiresAt) {
+    if (ticket) {
+      wsTickets.delete(ticket);
+    }
     socket.destroy();
     return;
   }
+  wsTickets.delete(ticket);
   wsServer.handleUpgrade(req, socket, head, (ws) => {
     wsServer.emit("connection", ws, req);
   });

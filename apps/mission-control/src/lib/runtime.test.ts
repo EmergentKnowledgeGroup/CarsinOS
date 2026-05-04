@@ -13,14 +13,20 @@ const SETTINGS_KEY = STORAGE_KEYS.gatewaySettings;
 const TOKEN_KEY = STORAGE_KEYS.gatewayTokenFallback;
 
 describe("runtime connection + token helpers", () => {
-  beforeEach(() => {
-    window.localStorage.clear();
+  beforeEach(async () => {
     vi.unstubAllEnvs();
+    window.history.replaceState({}, "", "/");
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    await clearGatewayToken();
   });
 
-  afterEach(() => {
-    window.localStorage.clear();
+  afterEach(async () => {
     vi.unstubAllEnvs();
+    window.history.replaceState({}, "", "/");
+    await clearGatewayToken();
+    window.localStorage.clear();
+    window.sessionStorage.clear();
   });
 
   it("prefers env gateway URL over persisted settings", () => {
@@ -37,16 +43,38 @@ describe("runtime connection + token helpers", () => {
     expect(JSON.parse(raw ?? "{}")).toEqual({ gateway_url: "http://127.0.0.1:18888/" });
   });
 
-  it("stores and retrieves web token from localStorage", async () => {
+  it("keeps web tokens in memory outside the E2E session-storage harness", async () => {
     await setGatewayToken("  token-abc  ");
-    expect(window.localStorage.getItem(TOKEN_KEY)).toBe("token-abc");
+    expect(window.localStorage.getItem(TOKEN_KEY)).toBeNull();
+    expect(window.sessionStorage.getItem(TOKEN_KEY)).toBeNull();
     await expect(getGatewayToken()).resolves.toBe("token-abc");
     await expect(isGatewayTokenConfigured()).resolves.toBe(true);
   });
 
+  it("uses sessionStorage only in the explicit E2E browser harness", async () => {
+    window.history.replaceState({}, "", "/?e2e=1");
+
+    await setGatewayToken("  e2e-token  ");
+    expect(window.localStorage.getItem(TOKEN_KEY)).toBeNull();
+    expect(window.sessionStorage.getItem(TOKEN_KEY)).toBe("e2e-token");
+    await expect(getGatewayToken()).resolves.toBe("e2e-token");
+    await expect(isGatewayTokenConfigured()).resolves.toBe(true);
+  });
+
   it("clears token state", async () => {
-    window.localStorage.setItem(TOKEN_KEY, "present");
+    await setGatewayToken("present");
+    window.localStorage.setItem(TOKEN_KEY, "legacy-present");
+    window.sessionStorage.setItem(TOKEN_KEY, "session-present");
     await clearGatewayToken();
+    expect(window.localStorage.getItem(TOKEN_KEY)).toBeNull();
+    expect(window.sessionStorage.getItem(TOKEN_KEY)).toBeNull();
+    await expect(isGatewayTokenConfigured()).resolves.toBe(false);
+  });
+
+  it("purges and ignores the legacy localStorage token fallback", async () => {
+    window.localStorage.setItem(TOKEN_KEY, "legacy-token");
+
+    await expect(getGatewayToken()).resolves.toBeNull();
     expect(window.localStorage.getItem(TOKEN_KEY)).toBeNull();
     await expect(isGatewayTokenConfigured()).resolves.toBe(false);
   });

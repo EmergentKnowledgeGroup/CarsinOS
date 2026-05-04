@@ -1,5 +1,5 @@
 import { getGatewayToken } from "./runtime";
-import { websocketUrlFromGateway } from "./api";
+import { createWebSocketTicket, websocketUrlFromGateway } from "./api";
 import type { RuntimeConnectionSettings, WsEventFrame } from "../types";
 import { WS_RECONNECT_INITIAL_MS, WS_RECONNECT_MAX_MS } from "../constants";
 
@@ -76,7 +76,8 @@ export function connectGatewayEvents(options: ConnectOptions): WsSubscription {
     );
 
     try {
-      const wsUrl = websocketUrlFromGateway(options.settings, token);
+      const { ticket } = await createWebSocketTicket(options.settings);
+      const wsUrl = websocketUrlFromGateway(options.settings, ticket);
       socket = new WebSocket(wsUrl);
     } catch {
       options.onState("error");

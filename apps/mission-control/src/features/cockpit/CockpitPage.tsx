@@ -29,7 +29,6 @@ import {
   Check,
   Trash2,
   Copy,
-  GripVertical,
   MoveDown,
   MoveLeft,
   MoveRight,
@@ -37,6 +36,7 @@ import {
 } from "lucide-react";
 
 interface CockpitPageProps {
+  isActive?: boolean;
   cockpitPages: CockpitPageLayoutV2[];
   activeCockpitPage: CockpitPageLayoutV2;
   editMode: boolean;
@@ -53,6 +53,7 @@ interface CockpitPageProps {
   onAddCockpitWidget: (widget: CockpitWidgetKind) => void;
   onAddCustomWidget: (widget: CockpitWidgetLayoutV2) => void;
   onRemoveCockpitWidget: (instanceId: string) => void;
+  onAutoFitCockpitLayout: () => void;
   onNudgeCockpitWidget: (
     instanceId: string,
     delta: { x?: number; y?: number }
@@ -71,7 +72,21 @@ const RUNBOOK_WIDGET_KIND_SET = new Set<CockpitWidgetKind>(
   RUNBOOK_COCKPIT_WIDGET_KINDS
 );
 
+function renderCockpitEditHint(widget: CockpitWidgetLayoutV2) {
+  const kindLabel =
+    widget.widget === "custom"
+      ? "Custom widget"
+      : `${String(widget.widget).replaceAll("_", " ")} widget`;
+  return (
+    <div className="mc-cockpit-widget-edit-hint" aria-hidden="true">
+      <strong>{kindLabel}</strong>
+      <span>Drag anywhere. Resize from right or bottom edges.</span>
+    </div>
+  );
+}
+
 export function CockpitPage(props: CockpitPageProps) {
+  const { editMode, onAutoFitCockpitLayout } = props;
   const [removeWidgetId, setRemoveWidgetId] = useState<string | null>(null);
   const [widgetPickerOpen, setWidgetPickerOpen] = useState(false);
   const [customBuilderOpen, setCustomBuilderOpen] = useState(false);
@@ -185,6 +200,23 @@ export function CockpitPage(props: CockpitPageProps) {
     () => visibleWidgets.map((widget) => widget.instance_id),
     [visibleWidgets]
   );
+  const previousEditModeRef = useRef(editMode);
+
+  useEffect(() => {
+    const enteredEditMode = !previousEditModeRef.current && editMode;
+    previousEditModeRef.current = editMode;
+    if (!enteredEditMode || visibleWidgets.length === 0) {
+      return;
+    }
+    const bottomEdge = visibleWidgets.reduce(
+      (maxRows, widget) => Math.max(maxRows, widget.position.y + widget.position.h),
+      0,
+    );
+    const expectedRows = Math.max(4, Math.ceil(visibleWidgets.length / 5) * 4);
+    if (bottomEdge > expectedRows + 2) {
+      onAutoFitCockpitLayout();
+    }
+  }, [editMode, onAutoFitCockpitLayout, visibleWidgets]);
 
   return (
     <section className="mc-cockpit-grid">
@@ -270,6 +302,7 @@ export function CockpitPage(props: CockpitPageProps) {
         {props.editMode ? (
           <CockpitEditToolbar
             onOpenWidgetPicker={() => setWidgetPickerOpen(true)}
+            onAutoFitLayout={props.onAutoFitCockpitLayout}
             onStartRename={() =>
               startRename(
                 props.activeCockpitPage.page_id,
@@ -289,8 +322,10 @@ export function CockpitPage(props: CockpitPageProps) {
 
         {hasWidgets ? (
           <CockpitCanvas
+            key={props.activeCockpitPage.page_id}
             widgets={visibleWidgets}
             editMode={props.editMode}
+            isActive={Boolean(props.isActive)}
             onLayoutChange={props.onLayoutChange}
           >
             {visibleWidgets.map((widget) => (
@@ -304,9 +339,6 @@ export function CockpitPage(props: CockpitPageProps) {
                 <header className="mc-cockpit-widget-head">
                   {props.editMode ? (
                     <div className="mc-widget-edit-controls">
-                      <span className="mc-widget-drag-handle" aria-hidden="true">
-                        <GripVertical size={14} />
-                      </span>
                       <div className="mc-widget-nudge-controls" aria-label="Move widget">
                         <button
                           type="button"
@@ -365,7 +397,10 @@ export function CockpitPage(props: CockpitPageProps) {
                     {visibleWidgetIds.length}
                   </div>
                 ) : null}
-                {props.renderCockpitWidget(widget)}
+                <div className="mc-cockpit-widget-live-preview">
+                  {props.renderCockpitWidget(widget)}
+                  {props.editMode ? renderCockpitEditHint(widget) : null}
+                </div>
               </div>
             ))}
           </CockpitCanvas>
@@ -375,23 +410,26 @@ export function CockpitPage(props: CockpitPageProps) {
               className="mc-cockpit-empty-message"
               message={
                 hiddenWidgetCount > 0
-                  ? "This page only contains hidden optional-module widgets. Enable the required hub to display them."
-                  : "Your dashboard is empty."
+                  ? "Some widgets are hidden because their features are turned off. Enable them in Config > Reliability + Rollout."
+                  : "No dashboard set up yet. This is optional \u2014 most users skip it at first."
               }
             />
+            <p className="mc-cockpit-empty-hint">
+              Want a quick start? Load a pre-built template, or add individual widgets.
+            </p>
             <div className="mc-cockpit-empty-actions">
               <button
                 type="button"
-                onClick={() => setWidgetPickerOpen(true)}
+                onClick={props.onLoadTemplate}
               >
-                Add Widget
+                Load Ops Template
               </button>
               <button
                 type="button"
                 className="ghost"
-                onClick={props.onLoadTemplate}
+                onClick={() => setWidgetPickerOpen(true)}
               >
-                Load Ops Template
+                Add Individual Widget
               </button>
             </div>
           </div>

@@ -22,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' tauri:; connect-src 'self' http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:* https://*.carsinos.io wss://*.carsinos.io; img-src 'self' asset: data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; script-src 'self' 'unsafe-eval' 'unsafe-inline';"
+      "csp": "default-src 'self' tauri:; connect-src 'self' http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:* https://*.carsinos.io wss://*.carsinos.io; img-src 'self' asset: data: blob:; style-src 'self'; font-src 'self' data:; script-src 'self';"
     }
   },
   "bundle": {

@@ -1,16 +1,14 @@
 import type { Agent, AuthProfileResponse, RuntimeConnectionSettings } from "../../types";
 import { STORAGE_KEYS } from "../../storageKeys";
 import { isLocalProvider } from "../../lib/providerCatalog";
+import { profileSupportsSelection } from "../providers/providerModelCatalog";
 
 export const ONBOARDING_DISMISSED_KEY = STORAGE_KEYS.onboardingDismissedAtMs;
 export const ONBOARDING_DISMISS_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export type OnboardingMode = "quickstart" | "manual";
 export type OnboardingProviderPath = "anthropic" | "openai" | "local";
-export type OnboardingAnthropicAuthMode =
-  | "api_key"
-  | "claude_consumer_oauth"
-  | "agent_sdk";
+export type OnboardingAnthropicAuthMode = "api_key" | "agent_sdk";
 
 export type OnboardingStepId =
   | "mode"
@@ -31,7 +29,7 @@ export function hasEnabledCloudProfile(profiles: AuthProfileResponse[]): boolean
   return profiles.some(
     (profile) =>
       profile.enabled &&
-      (profile.provider.toLowerCase() === "anthropic" ||
+      (profileSupportsSelection(profile, "anthropic") ||
         profile.provider.toLowerCase() === "openai")
   );
 }
@@ -86,8 +84,14 @@ export function shouldAutoOpenWizard(
   options: {
     dismissedAtMs: number | null;
     nowMs?: number;
+    bootstrapSettled?: boolean;
   }
 ): boolean {
+  const bootstrapSettled = options.bootstrapSettled ?? true;
+  const hasGatewayUrl = input.settings.gateway_url.trim().length > 0;
+  if (hasGatewayUrl && !bootstrapSettled) {
+    return false;
+  }
   if (isOnboardingComplete(input)) {
     return false;
   }

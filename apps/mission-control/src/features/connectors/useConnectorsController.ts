@@ -1259,6 +1259,7 @@ export function useConnectorsController(options: UseConnectorsControllerOptions)
   );
 
   return {
+    settings,
     agents,
     availability,
     availabilityMessage,

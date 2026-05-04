@@ -10,7 +10,7 @@ if [[ -t 0 ]]; then
   echo "Launch mode:"
   echo "  1) Desktop app (Tauri) [default]"
   echo "  2) Browser (web)"
-  read -r -p "Choose 1 or 2: " selection
+  read -r -p "Choose 1 or 2 [Enter=1]: " selection
   case "${selection:-1}" in
     1) MODE="--tauri" ;;
     2) MODE="--web" ;;

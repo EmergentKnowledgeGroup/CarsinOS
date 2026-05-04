@@ -18,9 +18,10 @@ If you are doing **frontend-only** work: use the existing API wrappers and do **
 
 ## Auth + Storage Rules
 - All HTTP requests require `Authorization: Bearer <token>`.
-- The WebSocket uses `WS /api/v1/ws?token=<token>`.
+- The WebSocket never carries the bearer token in its URL. The client first calls `POST /api/v1/ws-ticket` with bearer auth, then connects to `WS /api/v1/ws?ticket=<one-time-ticket>`.
 - In Tauri, the token is stored in the OS keychain (see `src/lib/runtime.ts` and `src-tauri/src/lib.rs`).
-- Never store secrets (gateway token, provider tokens) in localStorage.
+- Browser fallback keeps the gateway token in memory only. E2E may use `sessionStorage` under the `?e2e=1` harness so tests can seed a connection before app startup.
+- Never store secrets (gateway token, provider tokens) in localStorage. The legacy `mc-gateway-token` localStorage key must be removed and ignored on access.
 
 ## WebSocket Events
 - Connect URL builder: `websocketUrlFromGateway()` in `src/lib/api.ts`
@@ -38,6 +39,7 @@ Event families used for UI refresh logic:
 ### Health + Status
 - `GET /api/v1/health` (`getGatewayHealth`)
 - `GET /api/v1/status` (`getGatewayStatus`)
+- `POST /api/v1/ws-ticket` (`createWebSocketTicket`)
 
 ### Boards
 - `GET /api/v1/boards` (`listBoards`)

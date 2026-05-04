@@ -2,11 +2,13 @@ import type { Agent, AuthProfileResponse, BootstrapPresetResponse } from "../../
 import { OnboardingStepShell } from "../OnboardingStepShell";
 import type {
   OnboardingAnthropicAuthMode,
+  OnboardingMode,
   OnboardingProviderPath,
 } from "../onboardingState";
 
 interface StepProviderProps {
   busy: boolean;
+  mode: OnboardingMode;
   agents: Agent[];
   selectedAgentId: string;
   agentIdDraft: string;
@@ -40,6 +42,11 @@ interface StepProviderProps {
   localModelOptions: string[];
   localModelsLoading: boolean;
   localModelsError: string | null;
+  cloudModelId: string;
+  cloudModelOptions: string[];
+  cloudModelsLoading: boolean;
+  cloudModelsError: string | null;
+  cloudModelDiscoveryNote: string | null;
   anthropicAuthMode: OnboardingAnthropicAuthMode;
   anthropicDisplayName: string;
   anthropicSetupToken: string;
@@ -47,10 +54,6 @@ interface StepProviderProps {
   anthropicValidationBusy: boolean;
   anthropicValidationNote: string | null;
   anthropicApiBaseUrl: string;
-  anthropicAccessToken: string;
-  anthropicRefreshToken: string;
-  anthropicRefreshUrl: string;
-  anthropicExpiresAtUnix: string;
   anthropicHeadlessCommand: string;
   anthropicHeadlessArgs: string;
   openAiDisplayName: string;
@@ -88,16 +91,13 @@ interface StepProviderProps {
   onLocalOrchestratorAgentNameChange: (value: string) => void;
   onLocalOrchestratorModelIdChange: (value: string) => void;
   onRefreshLocalModels: () => Promise<void>;
+  onCloudModelIdChange: (value: string) => void;
   onAnthropicAuthModeChange: (value: OnboardingAnthropicAuthMode) => void;
   onAnthropicDisplayNameChange: (value: string) => void;
   onAnthropicSetupTokenChange: (value: string) => void;
   onLaunchAnthropicSetupTokenFlow: () => Promise<void>;
   onValidateAnthropicSetupToken: () => Promise<void>;
   onAnthropicApiBaseUrlChange: (value: string) => void;
-  onAnthropicAccessTokenChange: (value: string) => void;
-  onAnthropicRefreshTokenChange: (value: string) => void;
-  onAnthropicRefreshUrlChange: (value: string) => void;
-  onAnthropicExpiresAtUnixChange: (value: string) => void;
   onAnthropicHeadlessCommandChange: (value: string) => void;
   onAnthropicHeadlessArgsChange: (value: string) => void;
   onOpenAiDisplayNameChange: (value: string) => void;
@@ -115,14 +115,25 @@ interface StepProviderProps {
 
 export function StepProvider(props: StepProviderProps) {
   const hasExistingProfiles = props.existingProviderProfiles.length > 0;
-  const canLaunchAnthropicCliAuth =
-    props.anthropicAuthMode === "api_key" ||
-    props.anthropicAuthMode === "claude_consumer_oauth";
+  const canLaunchAnthropicCliAuth = props.anthropicAuthMode === "api_key";
+  const providerTransitionBusy =
+    props.busy ||
+    props.localModelsLoading ||
+    props.cloudModelsLoading ||
+    props.anthropicValidationBusy;
+  const showLocalManualModelFallback =
+    props.mode === "manual" ||
+    props.localModelOptions.length === 0 ||
+    Boolean(props.localModelsError);
+  const showCloudReadyNote =
+    props.cloudModelOptions.length > 0 &&
+    props.cloudModelId.trim().length > 0 &&
+    !props.cloudModelsLoading;
   return (
     <OnboardingStepShell
       stepLabel="Step 4 of 6"
       title="Configure Agents + Providers"
-      subtitle="Create or edit agents, then attach provider auth and routing in one place."
+      subtitle="Set up the assistant, attach a provider profile, and let carsinOS load the real model choices for you."
       actions={
         <>
           <button type="button" className="ghost" onClick={props.onBack}>
@@ -130,20 +141,29 @@ export function StepProvider(props: StepProviderProps) {
           </button>
           <button
             type="button"
-            disabled={props.busy}
+            disabled={providerTransitionBusy}
             onClick={() => {
-              if (props.busy) {
+              if (providerTransitionBusy) {
                 return;
               }
               void props.onNext();
             }}
           >
-            {props.busy ? "Applying..." : "Continue"}
+            {providerTransitionBusy ? "Finishing checks..." : "Apply setup + Continue"}
           </button>
         </>
       }
     >
-      <fieldset disabled={props.busy} style={{ border: "none", margin: 0, minWidth: 0, padding: 0 }}>
+      <ul className="mc-onboarding-checklist" style={{ marginBottom: "0.65rem" }}>
+        <li>Select or create the assistant you want to configure.</li>
+        <li>Choose a saved provider profile or create a new one. carsinOS loads the real model list for you.</li>
+        <li>Press Continue and carsinOS saves the agent, attaches the provider profile, and applies routing automatically.</li>
+      </ul>
+
+      <fieldset
+        disabled={props.busy}
+        style={{ border: "none", margin: 0, minWidth: 0, padding: 0 }}
+      >
         <div className="mc-onboarding-openai-block">
           <div className="mc-onboarding-inline-actions">
             <button
@@ -157,7 +177,7 @@ export function StepProvider(props: StepProviderProps) {
                 props.onCreateNewAgentDraft();
               }}
             >
-              New agent draft
+              Start new agent
             </button>
             <button
               type="button"
@@ -170,7 +190,7 @@ export function StepProvider(props: StepProviderProps) {
                 void props.onSaveAgent();
               }}
             >
-              {props.busy ? "Saving..." : "Save agent"}
+              {props.busy ? "Saving..." : "Save agent now"}
             </button>
             <button
               type="button"
@@ -312,7 +332,7 @@ export function StepProvider(props: StepProviderProps) {
             />
             <div>
               <strong>Anthropic (Claude)</strong>
-              <p>Choose API key, consumer OAuth, or Claude Code headless profile mode.</p>
+              <p>Choose a Claude setup token or Claude Code headless profile mode.</p>
             </div>
           </label>
           <label className="mc-onboarding-choice">
@@ -448,12 +468,17 @@ export function StepProvider(props: StepProviderProps) {
                     </option>
                   ))}
                 </select>
-                <input
-                  value={props.localModelId}
-                  onChange={(event) => props.onLocalModelIdChange(event.target.value)}
-                  placeholder="Or paste assistant model ID manually"
-                />
               </label>
+              {showLocalManualModelFallback ? (
+                <label>
+                  Assistant model ID (manual)
+                  <input
+                    value={props.localModelId}
+                    onChange={(event) => props.onLocalModelIdChange(event.target.value)}
+                    placeholder="Or paste assistant model ID manually"
+                  />
+                </label>
+              ) : null}
             </div>
 
             <label className="mc-checkbox">
@@ -504,14 +529,19 @@ export function StepProvider(props: StepProviderProps) {
                       </option>
                     ))}
                   </select>
-                  <input
-                    value={props.localOrchestratorModelId}
-                    onChange={(event) =>
-                      props.onLocalOrchestratorModelIdChange(event.target.value)
-                    }
-                    placeholder="Or paste orchestrator model ID manually"
-                  />
                 </label>
+                {showLocalManualModelFallback ? (
+                  <label>
+                    Orchestrator model ID (manual)
+                    <input
+                      value={props.localOrchestratorModelId}
+                      onChange={(event) =>
+                        props.onLocalOrchestratorModelIdChange(event.target.value)
+                      }
+                      placeholder="Or paste orchestrator model ID manually"
+                    />
+                  </label>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -524,12 +554,16 @@ export function StepProvider(props: StepProviderProps) {
                   checked={props.useExistingProfile}
                   onChange={(event) => props.onUseExistingProfileChange(event.target.checked)}
                 />
-                Use existing enabled profile
+                Use existing enabled provider profile
               </label>
             ) : null}
 
             {props.useExistingProfile && hasExistingProfiles ? (
               <>
+                <p className="mc-onboarding-note">
+                  Choose the saved provider profile you want to use. carsinOS will load the model
+                  list for that profile automatically.
+                </p>
                 <label>
                   Existing profile
                   <select
@@ -584,13 +618,8 @@ export function StepProvider(props: StepProviderProps) {
                             )
                           }
                         >
-                          <option value="api_key">API key (setup token ingest)</option>
-                          <option value="claude_consumer_oauth">
-                            OAuth token (consumer account, high risk)
-                          </option>
-                          <option value="agent_sdk">
-                            Claude Code headless profile (high risk)
-                          </option>
+                          <option value="api_key">Claude setup token (recommended)</option>
+                          <option value="agent_sdk">Claude Code headless profile (advanced)</option>
                         </select>
                       </label>
                       <label>
@@ -617,12 +646,13 @@ export function StepProvider(props: StepProviderProps) {
                               void props.onLaunchAnthropicSetupTokenFlow();
                             }}
                           >
-                            {props.busy ? "Opening..." : "Open CLI + auth"}
+                            {props.busy ? "Opening..." : "Open Claude CLI"}
                           </button>
                         </div>
                         <p className="mc-onboarding-note">
-                          This opens Terminal and runs <code>claude setup-token</code>.
-                          After sign-in, copy the token and paste it into the field below.
+                          Open Claude CLI to generate a fresh Claude setup token. If you already
+                          have one, paste it below and carsinOS will verify it and load the model
+                          choices for you automatically.
                         </p>
                         {props.anthropicSetupLaunchNote ? (
                           <p className="mc-onboarding-note">{props.anthropicSetupLaunchNote}</p>
@@ -634,7 +664,7 @@ export function StepProvider(props: StepProviderProps) {
                       <>
                         <div className="mc-onboarding-field-grid">
                           <label>
-                            Setup token
+                            Claude setup token
                             <input
                               type="text"
                               autoComplete="off"
@@ -645,7 +675,7 @@ export function StepProvider(props: StepProviderProps) {
                               onChange={(event) =>
                                 props.onAnthropicSetupTokenChange(event.target.value)
                               }
-                              placeholder="Paste setup token"
+                              placeholder="Paste token starting with sk-ant-oat01-"
                             />
                           </label>
                         </div>
@@ -661,73 +691,41 @@ export function StepProvider(props: StepProviderProps) {
                               void props.onValidateAnthropicSetupToken();
                             }}
                           >
-                            {props.anthropicValidationBusy ? "Validating..." : "Validate key"}
+                            {props.anthropicValidationBusy
+                              ? "Checking..."
+                              : "Check token + load models"}
                           </button>
                         </div>
+                        {props.anthropicValidationBusy || props.cloudModelsLoading ? (
+                          <p className="mc-onboarding-note">
+                            Checking the Claude token format and loading the real model choices...
+                          </p>
+                        ) : null}
                         {props.anthropicValidationNote ? (
                           <p className="mc-onboarding-note">{props.anthropicValidationNote}</p>
+                        ) : null}
+                        {!props.anthropicValidationNote &&
+                        !props.anthropicValidationBusy &&
+                        !props.cloudModelsLoading ? (
+                          <p className="mc-onboarding-note">
+                            Paste the Claude setup token from Terminal. carsinOS will verify it,
+                            create the login, strip pasted spaces or line breaks automatically,
+                            and load the model choices automatically.
+                          </p>
                         ) : null}
                       </>
                     ) : null}
 
-                    {props.anthropicAuthMode !== "api_key" ? (
+                    {props.anthropicAuthMode === "agent_sdk" ? (
                       <>
                         <div className="mc-onboarding-risk-note">
-                          High-risk mode: this path requires audit logs and kill-switch controls.
-                          Use only if you understand provider policy risk.
+                          Advanced mode: this path runs Claude headless through the local CLI
+                          profile. Use it only when setup-token auth is not the right fit.
                         </div>
-                        <div className="mc-onboarding-field-grid">
-                          <label>
-                            Access token
-                            <input
-                              type="text"
-                              autoComplete="off"
-                              autoCapitalize="none"
-                              autoCorrect="off"
-                              spellCheck={false}
-                              value={props.anthropicAccessToken}
-                              onChange={(event) =>
-                                props.onAnthropicAccessTokenChange(event.target.value)
-                              }
-                              placeholder="Paste access token"
-                            />
-                          </label>
-                          <label>
-                            Refresh token (optional)
-                            <input
-                              type="text"
-                              autoComplete="off"
-                              autoCapitalize="none"
-                              autoCorrect="off"
-                              spellCheck={false}
-                              value={props.anthropicRefreshToken}
-                              onChange={(event) =>
-                                props.onAnthropicRefreshTokenChange(event.target.value)
-                              }
-                              placeholder="Optional refresh token"
-                            />
-                          </label>
-                          <label>
-                            Refresh URL (optional)
-                            <input
-                              value={props.anthropicRefreshUrl}
-                              onChange={(event) =>
-                                props.onAnthropicRefreshUrlChange(event.target.value)
-                              }
-                              placeholder="https://.../oauth/token"
-                            />
-                          </label>
-                          <label>
-                            Expires at (unix seconds, optional)
-                            <input
-                              value={props.anthropicExpiresAtUnix}
-                              onChange={(event) =>
-                                props.onAnthropicExpiresAtUnixChange(event.target.value)
-                              }
-                              placeholder="1735689600"
-                            />
-                          </label>
-                        </div>
+                        <p className="mc-onboarding-note">
+                          This mode does not store a separate cloud token. It uses your local
+                          Claude CLI installation instead.
+                        </p>
                       </>
                     ) : null}
 
@@ -814,6 +812,10 @@ export function StepProvider(props: StepProviderProps) {
                         Finish OAuth
                       </button>
                     </div>
+                    <p className="mc-onboarding-note">
+                      Start OAuth opens the browser sign-in. Finish OAuth saves the login and then
+                      loads the model choices automatically.
+                    </p>
                     {props.openAiAuthorizeUrl ? (
                       <p className="mc-onboarding-note">
                         Authorize URL: <a href={props.openAiAuthorizeUrl}>{props.openAiAuthorizeUrl}</a>
@@ -852,6 +854,46 @@ export function StepProvider(props: StepProviderProps) {
                 ) : null}
               </>
             ) : null}
+
+            <div className="mc-onboarding-openai-block">
+              <div className="mc-onboarding-field-grid">
+                <label>
+                  Assistant model
+                  <select
+                    value={props.cloudModelId}
+                    onChange={(event) => props.onCloudModelIdChange(event.target.value)}
+                    disabled={props.cloudModelsLoading || props.cloudModelOptions.length === 0}
+                  >
+                    <option value="">
+                      {props.cloudModelsLoading ? "Loading models..." : "Choose model..."}
+                    </option>
+                    {props.cloudModelOptions.map((modelId) => (
+                      <option key={modelId} value={modelId}>
+                        {modelId}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {props.cloudModelsError ? (
+                <p className="mc-onboarding-note">
+                  We could not load model choices yet. Finish provider sign-in, then try again.
+                </p>
+              ) : showCloudReadyNote ? (
+                <p className="mc-onboarding-note">
+                  carsinOS already picked <strong>{props.cloudModelId}</strong> for you. Keep it
+                  or choose another model, then press Continue.
+                </p>
+              ) : props.cloudModelDiscoveryNote ? (
+                <p className="mc-onboarding-note">{props.cloudModelDiscoveryNote}</p>
+              ) : (
+                <p className="mc-onboarding-note">
+                  carsinOS will pull the live model list for you. If you do not choose one,
+                  it will use the first valid option it finds.
+                </p>
+              )}
+            </div>
           </>
         )}
       </fieldset>

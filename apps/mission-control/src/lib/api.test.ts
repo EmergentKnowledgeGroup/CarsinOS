@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  createWebSocketTicket,
   createBootstrapPreset,
   fetchBoardCardAssetBlob,
   GatewayApiError,
@@ -24,18 +25,18 @@ vi.mock("./runtime", () => ({
 }));
 
 describe("websocketUrlFromGateway", () => {
-  it("normalizes an http gateway URL to ws with token query", () => {
-    const wsUrl = websocketUrlFromGateway({ gateway_url: "127.0.0.1:18789" }, "token-123");
-    expect(wsUrl).toBe("ws://127.0.0.1:18789/api/v1/ws?token=token-123");
+  it("normalizes an http gateway URL to ws with ticket query", () => {
+    const wsUrl = websocketUrlFromGateway({ gateway_url: "127.0.0.1:18789" }, "ticket-123");
+    expect(wsUrl).toBe("ws://127.0.0.1:18789/api/v1/ws?ticket=ticket-123");
   });
 
-  it("upgrades https gateway URL to wss and encodes token", () => {
+  it("upgrades https gateway URL to wss and encodes ticket", () => {
     const wsUrl = websocketUrlFromGateway(
       { gateway_url: "https://carsinos.local:443" },
-      "token with spaces"
+      "ticket with spaces"
     );
     expect(wsUrl).toBe(
-      "wss://carsinos.local/api/v1/ws?token=token+with+spaces"
+      "wss://carsinos.local/api/v1/ws?ticket=ticket+with+spaces"
     );
   });
 
@@ -84,6 +85,29 @@ describe("request URL resolution", () => {
       "http://127.0.0.1:19890/api/v1/health",
       expect.objectContaining({
         method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer token-123",
+        }),
+      })
+    );
+  });
+
+  it("creates websocket tickets over authenticated HTTP before ws connect", async () => {
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      new Response(JSON.stringify({ ticket: "ws-ticket-1", expires_at: 1234 }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      createWebSocketTicket({ gateway_url: "http://127.0.0.1:19789" })
+    ).resolves.toEqual({ ticket: "ws-ticket-1", expires_at: 1234 });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:19789/api/v1/ws-ticket",
+      expect.objectContaining({
+        method: "POST",
         headers: expect.objectContaining({
           Authorization: "Bearer token-123",
         }),

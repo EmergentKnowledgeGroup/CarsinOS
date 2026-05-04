@@ -93,8 +93,6 @@
           "present_substrings": [
             "value={props.localApiKey}",
             "value={props.anthropicSetupToken}",
-            "value={props.anthropicAccessToken}",
-            "value={props.anthropicRefreshToken}",
             "autoComplete=\"off\"",
             "autoCapitalize=\"none\"",
             "autoCorrect=\"off\"",
@@ -106,9 +104,7 @@
           "file": "apps/mission-control/src/features/onboarding/useOnboardingController.ts",
           "present_substrings": [
             "setLocalApiKey(\"\");",
-            "setAnthropicSetupToken(\"\");",
-            "setAnthropicAccessToken(\"\");",
-            "setAnthropicRefreshToken(\"\");"
+            "setAnthropicSetupToken(\"\");"
           ]
         }
       ]
@@ -146,12 +142,12 @@
           "present_substrings": [
             "const gatewayPort = 19_789;",
             "node ./e2e/mockGateway.mjs --port ${gatewayPort}",
-            "reuseExistingServer: false"
+            "reuseExistingServer: !process.env.CI"
           ]
         },
         {
           "type": "static",
-          "file": "apps/mission-control/e2e/core.spec.ts",
+          "file": "apps/mission-control/e2e/onboardingFlow.ts",
           "present_substrings": [
             "const GATEWAY_URL = \"http://127.0.0.1:19789\";"
           ]
@@ -163,9 +159,9 @@
       "assertions": [
         {
           "type": "e2e",
-          "file": "apps/mission-control/e2e/core.spec.ts",
+          "file": "apps/mission-control/e2e/onboardingFlow.ts",
           "present_substrings": [
-            "page.getByRole(\"radio\", { name: \"Local connector\" }).check();"
+            "setupWizard.getByRole(\"radio\", { name: \"Local connector\" }).check();"
           ],
           "absent_substrings": [
             "Open CLI + auth"

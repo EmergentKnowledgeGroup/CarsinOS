@@ -36,6 +36,8 @@ const REACTION_EMOJI = [
 interface ChatroomsPageProps {
   onRefresh: () => void;
   agents: Agent[];
+  mailboxFilter: "all" | "inbox" | "outbox";
+  mailSearch: string;
   newRoomName: string;
   onNewRoomNameChange: (next: string) => void;
   newRoomParticipants: string;
@@ -48,6 +50,9 @@ interface ChatroomsPageProps {
   roomMessages: AgentMailMessageResponse[];
   onPostRoomReaction: (emoji: string) => Promise<void>;
   mailPrincipalOverride: string;
+  onMailboxFilterChange: (next: "all" | "inbox" | "outbox") => void;
+  onMailPrincipalOverrideChange: (next: string) => void;
+  onMailSearchChange: (next: string) => void;
   onAcknowledgeMessage: (messageId: string, principalOverride?: string) => Promise<void>;
   onDownloadAttachment: (
     messageId: string,
@@ -101,6 +106,10 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
   const roomMsgsPagination = usePagination(props.roomMessages, ROOM_MESSAGES_PAGE_SIZE);
   const visibleRooms = roomsPagination.getPage(roomsPage);
   const visibleRoomMsgs = roomMsgsPagination.getPage(roomMsgsPage);
+  const hasActiveFilters =
+    props.mailboxFilter !== "all" ||
+    props.mailPrincipalOverride.trim().length > 0 ||
+    props.mailSearch.trim().length > 0;
 
   const runBusyAction = (key: string, fn: () => Promise<unknown>) => {
     if (busyActionRef.current.has(key)) {
@@ -168,6 +177,13 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
     }
   };
 
+  const clearFilters = () => {
+    setRoomsPage(1);
+    props.onMailboxFilterChange("all");
+    props.onMailPrincipalOverrideChange("");
+    props.onMailSearchChange("");
+  };
+
   return (
     <section className="mc-mail-grid mc-mail-grid-2col">
       {/* ── Room sidebar ── */}
@@ -201,7 +217,16 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
             </button>
           ))}
           {visibleRooms.length === 0 ? (
-            <div className="mc-empty-drawer">No rooms found.</div>
+            hasActiveFilters ? (
+              <div className="mc-empty-drawer mc-empty-drawer-stack">
+                <span>No rooms match your current mail filters.</span>
+                <button type="button" className="ghost" onClick={clearFilters}>
+                  Clear filters
+                </button>
+              </div>
+            ) : (
+              <div className="mc-empty-drawer">No rooms found yet.</div>
+            )
           ) : null}
         </div>
         <Pagination currentPage={roomsPage} totalPages={roomsPagination.totalPages} onPageChange={setRoomsPage} />

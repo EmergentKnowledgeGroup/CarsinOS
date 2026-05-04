@@ -105,7 +105,7 @@ It defines trust boundaries, asset classes, attack paths, risk ratings, and miti
 | TM-009 | Approval flows | Replay/duplicate resolve action | Tampering | High | Idempotent approval resolution + audit chain | Approval owner |
 | TM-010 | Scheduler | Run endpoint abuse / brute force | Denial of Service | High | `MC-SEC-006` per-IP/principal/endpoint rate limits | Platform owner |
 | TM-011 | Audit trail | Tampering or deletion of forensic events | Repudiation | Critical | `MC-SEC-008` append-style ledger + retention policy | Security owner (`R4`) |
-| TM-012 | OAuth/auth flows | Consumer OAuth misuse without visibility | Repudiation | High | high-risk warning + audit + kill-switch controls | Auth owner |
+| TM-012 | OAuth/auth flows | OAuth misuse without visibility | Repudiation | High | warning + audit + kill-switch controls | Auth owner |
 | TM-013 | Incident operations | Slow containment after key/token compromise | Denial of Service | Critical | `MC-SEC-010` kill-switch drills + runbooks | Incident owner (`R5`) |
 | TM-014 | Config lifecycle | Hardcoded runtime values bypass policy controls | Tampering | High | `MC-CONF-001..005` wizard/config contract + CI guard | Platform owner |
 | TM-015 | External dependencies | New critical CVE in dependencies | Denial of Service | High | `MC-SEC-009` per-PR + nightly supply chain gate | Security owner (`R4`) |
@@ -126,9 +126,8 @@ It defines trust boundaries, asset classes, attack paths, risk ratings, and miti
 | Setup wizard and hardcoded-value elimination | `MC-CONF-001` to `MC-CONF-005` |
 
 ## 7. Residual Risks and Required Approvals
-- Residual risk RR-001: consumer OAuth remains high risk even with warning/audit/kill-switch.
-- Residual risk RR-002: channel connectors depend on third-party API reliability.
-- Residual risk RR-003: operator misconfiguration risk until setup wizard completeness gating is active.
+- Residual risk RR-001: channel connectors depend on third-party API reliability.
+- Residual risk RR-002: operator misconfiguration risk until setup wizard completeness gating is active.
 
 Approval block:
 - Threat model approver (`R4`): `ProfessahX`

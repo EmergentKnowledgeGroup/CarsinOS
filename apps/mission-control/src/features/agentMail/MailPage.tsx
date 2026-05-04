@@ -213,6 +213,18 @@ export function MailPage(props: MailPageProps) {
     || !principalIsKnown
       ? CUSTOM_PRINCIPAL_VALUE
       : props.mailPrincipalOverride;
+  const hasActiveFilters =
+    props.mailboxFilter !== "all" ||
+    props.mailPrincipalOverride.trim().length > 0 ||
+    props.mailSearch.trim().length > 0;
+
+  const clearFilters = () => {
+    setUseCustomPrincipal(false);
+    setThreadsPage(1);
+    props.onMailboxFilterChange("all");
+    props.onMailPrincipalOverrideChange("");
+    props.onMailSearchChange("");
+  };
 
   return (
     <section className="mc-mail-page">
@@ -328,7 +340,18 @@ export function MailPage(props: MailPageProps) {
                 </button>
               ))}
               {visibleThreads.length === 0 ? (
-                <div className="mc-empty-drawer">No direct threads for current filters.</div>
+                hasActiveFilters ? (
+                  <div className="mc-empty-drawer mc-empty-drawer-stack">
+                    <span>No direct threads match your current filters.</span>
+                    <button type="button" className="ghost" onClick={clearFilters}>
+                      Clear filters
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mc-empty-drawer">
+                    No direct threads yet. Start one with New Thread.
+                  </div>
+                )
               ) : null}
             </div>
             <Pagination currentPage={threadsPage} totalPages={threadsPagination.totalPages} onPageChange={setThreadsPage} />

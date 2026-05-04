@@ -22,8 +22,8 @@ export function StepConnect(props: StepConnectProps) {
       title="Connect Gateway"
       subtitle={
         props.tokenConfigured
-          ? "Launcher/keychain token is already configured. Save connection to continue."
-          : "Save connection settings and verify access using your bearer token."
+          ? "Launcher or keychain already has the token. Confirm the URL and continue."
+          : "Paste the gateway token once. Continue saves it and verifies access for you."
       }
       actions={
         <>
@@ -31,7 +31,7 @@ export function StepConnect(props: StepConnectProps) {
             Back
           </button>
           <button type="button" disabled={props.busy} onClick={() => void props.onNext()}>
-            Continue
+            {props.busy ? "Connecting..." : "Save connection + Continue"}
           </button>
         </>
       }
@@ -83,7 +83,12 @@ export function StepConnect(props: StepConnectProps) {
         <p className="mc-onboarding-note">
           Manual mode lets you override connection details before continuing.
         </p>
-      ) : null}
+      ) : (
+        <p className="mc-onboarding-note">
+          If the launcher already opened carsinOS for you, you usually only need the default URL
+          and the token once.
+        </p>
+      )}
       <p className="mc-onboarding-status-row">
         Connection status: <strong>{props.connected ? "Connected" : "Not connected"}</strong>
       </p>

@@ -37,7 +37,7 @@ async function openWizard(page: Page): Promise<void> {
     window.localStorage.setItem("mc-opsux-runtime-v1", JSON.stringify(payload.config));
   }, { config: OPS_CONFIG });
   await page.goto(E2E_APP_URL);
-  await expect(page.getByRole("heading", { name: "Setup Wizard" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Setup Wizard" })).toBeVisible();
 }
 
 async function waitForWsConnected(page: Page): Promise<void> {
@@ -53,28 +53,30 @@ async function waitForWsConnected(page: Page): Promise<void> {
 
 async function completeLocalOnboarding(page: Page): Promise<void> {
   await openWizard(page);
+  const setupWizard = page.getByRole("dialog", { name: "Setup Wizard" });
 
-  await page.getByRole("button", { name: "Continue" }).click();
-  await page.getByRole("button", { name: "Continue" }).click();
+  await setupWizard.getByRole("button", { name: "Continue" }).click();
+  await setupWizard.getByRole("button", { name: "Continue" }).click();
 
-  await page.getByLabel("Gateway URL").fill(GATEWAY_URL);
-  await page.getByLabel("Gateway token").fill(TEST_TOKEN);
-  await page.getByRole("button", { name: /Save \+ Connect/ }).click();
-  await expect(page.getByText(/Connection status:\s*Connected/)).toBeVisible();
-  await page.getByRole("button", { name: "Continue" }).click();
+  await setupWizard.getByLabel("Gateway URL").fill(GATEWAY_URL);
+  await setupWizard.getByLabel("Gateway token").fill(TEST_TOKEN);
+  await setupWizard.getByRole("button", { name: /Save \+ Connect/ }).click();
+  await expect(setupWizard.getByText(/Connection status:\s*Connected/)).toBeVisible();
+  await setupWizard.getByRole("button", { name: "Save connection + Continue" }).click();
 
-  await page.getByLabel("Agent ID").fill("assistant-main");
-  await page.getByLabel("Agent name").fill("Assistant");
-  await page.getByRole("radio", { name: "Local connector" }).check();
-  await page
-    .getByPlaceholder("Or paste assistant model ID manually")
-    .fill(ASSISTANT_MODEL_ID);
-  await page.getByRole("button", { name: "Continue" }).click();
+  await setupWizard.getByRole("button", { name: "Start new agent" }).click();
+  await setupWizard.getByLabel("Agent ID").fill("assistant-main");
+  await setupWizard.getByLabel("Agent name").fill("Assistant");
+  await setupWizard.getByRole("radio", { name: "Local connector" }).check();
+  await setupWizard
+    .getByRole("combobox", { name: "Assistant model" })
+    .selectOption(ASSISTANT_MODEL_ID);
+  await setupWizard.getByRole("button", { name: "Apply setup + Continue" }).click();
 
-  await page.getByRole("button", { name: "Finalize" }).click();
-  await page.getByRole("button", { name: "Go to Boards" }).click();
+  await setupWizard.getByRole("button", { name: "Finish setup" }).click();
+  await setupWizard.getByRole("button", { name: "Go to Boards" }).click();
 
-  await expect(page.getByRole("heading", { name: "Setup Wizard" })).toBeHidden();
+  await expect(setupWizard).toBeHidden();
   await waitForWsConnected(page);
 }
 

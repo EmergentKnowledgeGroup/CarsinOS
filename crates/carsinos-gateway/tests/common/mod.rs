@@ -115,11 +115,37 @@ impl GatewayProcess {
     }
 
     #[allow(dead_code)]
-    pub async fn connect_ws_with_query_token(&self) -> Result<WsStream> {
+    pub async fn create_ws_ticket(&self) -> Result<String> {
+        let response = self
+            .request(Method::POST, "/api/v1/ws-ticket")
+            .send()
+            .await
+            .context("create websocket ticket request failed")?;
+        if response.status() != StatusCode::OK {
+            return Err(anyhow!(
+                "unexpected websocket ticket status code: {}",
+                response.status()
+            ));
+        }
+        let body = json_body(response).await?;
+        body["ticket"]
+            .as_str()
+            .map(ToOwned::to_owned)
+            .ok_or_else(|| anyhow!("websocket ticket response missing ticket"))
+    }
+
+    #[allow(dead_code)]
+    pub async fn connect_ws_with_ticket(&self) -> Result<WsStream> {
+        let ticket = self.create_ws_ticket().await?;
+        self.connect_ws_with_ticket_value(&ticket).await
+    }
+
+    #[allow(dead_code)]
+    pub async fn connect_ws_with_ticket_value(&self, ticket: &str) -> Result<WsStream> {
         let url = format!(
-            "ws://{}/api/v1/ws?token={}",
+            "ws://{}/api/v1/ws?ticket={}",
             self.bind,
-            urlencoding::encode(&self.token)
+            urlencoding::encode(ticket)
         );
         let request = url
             .into_client_request()
@@ -130,6 +156,30 @@ impl GatewayProcess {
         if response.status() != StatusCode::SWITCHING_PROTOCOLS {
             return Err(anyhow!(
                 "unexpected websocket status code: {}",
+                response.status()
+            ));
+        }
+        Ok(stream)
+    }
+
+    #[allow(dead_code)]
+    pub async fn connect_ws_with_legacy_token_parameter(&self) -> Result<WsStream> {
+        let legacy_query_name = "token";
+        let url = format!(
+            "ws://{}/api/v1/ws?{}={}",
+            self.bind,
+            legacy_query_name,
+            urlencoding::encode(&self.token)
+        );
+        let request = url
+            .into_client_request()
+            .context("failed to build legacy websocket request")?;
+        let (stream, response) = connect_async(request)
+            .await
+            .context("legacy websocket connect failed")?;
+        if response.status() != StatusCode::SWITCHING_PROTOCOLS {
+            return Err(anyhow!(
+                "unexpected legacy websocket status code: {}",
                 response.status()
             ));
         }
@@ -227,10 +277,10 @@ fn gateway_binary_path() -> Result<PathBuf> {
     let candidate = target_dir.join("carsinos-gateway");
     #[cfg(windows)]
     {
-        let mut candidate = candidate;
-        candidate.set_extension("exe");
-        if candidate.exists() {
-            return Ok(candidate);
+        let mut windows_candidate = candidate.clone();
+        windows_candidate.set_extension("exe");
+        if windows_candidate.exists() {
+            return Ok(windows_candidate);
         }
     }
 

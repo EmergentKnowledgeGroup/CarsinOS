@@ -3,6 +3,7 @@ import { AppContent } from "./app/AppContent";
 import { AppShell } from "./app/AppShell";
 import { GuidedTourOverlay, type GuidedTourStep } from "./app/GuidedTourOverlay";
 import { LiveFeedDrawer } from "./app/LiveFeedDrawer";
+import type { HelpTab } from "./app/TabHelpBanner";
 import {
   useAppController,
   type EventStreamItem,
@@ -17,8 +18,15 @@ import {
 } from "./app/useRuntimeConnectionController";
 import { useAgentMailController } from "./features/agentMail/useAgentMailController";
 import { useAssistantChatController } from "./features/assistant/useAssistantChatController";
+import {
+  DEFAULT_ASSISTANT_CORE_PROMPT,
+  normalizeAssistantCorePrompt,
+  resolveAssistantCorePrompt,
+} from "./features/assistant/corePrompt";
 import { useBoardsController } from "./features/boards/useBoardsController";
 import { useCockpitController } from "./features/cockpit/useCockpitController";
+import { SimpleIntegrationWizard } from "./features/connectors/SimpleIntegrationWizard";
+import type { SimpleIntegrationId } from "./features/connectors/simpleIntegrations";
 import { useConnectorsController } from "./features/connectors/useConnectorsController";
 import { useMemoryController } from "./features/memory/useMemoryController";
 import { OnboardingWizard } from "./features/onboarding/OnboardingWizard";
@@ -28,8 +36,9 @@ import { useStrategyController } from "./features/strategy/useStrategyController
 import { SafeModePanel } from "./ui/SafeModePanel";
 import { ToastStack } from "./ui/Toast";
 import { useToasts } from "./ui/useToasts";
-import type { Agent, WsEventFrame } from "./types";
+import type { Agent, RuntimeGlobalConfigResponse, WsEventFrame } from "./types";
 import { EVENT_STREAM_BUFFER_CAP, WS_MAX_RECONNECT_ATTEMPTS } from "./constants";
+import { getRuntimeConfig, updateRuntimeConfig } from "./lib/api";
 import { filterVisibleEvents } from "./lib/eventStream";
 import {
   countRecentHighSeverityEvents,
@@ -194,19 +203,58 @@ export default function App() {
 
   const [boards, setBoards] = useState<BoardSummary[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [tokenConfiguredChecked, setTokenConfiguredChecked] = useState(false);
   const [guidedTourOpen, setGuidedTourOpen] = useState(false);
   const [guidedTourStep, setGuidedTourStep] = useState(0);
   const [safeModeReason, setSafeModeReason] = useState<string | null>(null);
+  const [runtimeGlobalConfig, setRuntimeGlobalConfig] =
+    useState<RuntimeGlobalConfigResponse | null>(null);
+  const [assistantSystemPromptSaved, setAssistantSystemPromptSaved] = useState(
+    DEFAULT_ASSISTANT_CORE_PROMPT
+  );
+  const [assistantSystemPromptDraft, setAssistantSystemPromptDraft] = useState(
+    DEFAULT_ASSISTANT_CORE_PROMPT
+  );
+  const [assistantSystemPromptLoading, setAssistantSystemPromptLoading] = useState(false);
+  const [assistantSystemPromptSaving, setAssistantSystemPromptSaving] = useState(false);
+  const [assistantSystemPromptError, setAssistantSystemPromptError] =
+    useState<string | null>(null);
+  const [simpleIntegrationWizardState, setSimpleIntegrationWizardState] = useState<{
+    open: boolean;
+    initialIntegrationId: SimpleIntegrationId | null;
+  }>({
+    open: false,
+    initialIntegrationId: null,
+  });
+  const [initialBootstrapSettledKey, setInitialBootstrapSettledKey] = useState<string | null>(null);
   const [tabResetVersion, setTabResetVersion] = useState<Partial<Record<MissionControlTab, number>>>({});
+  const [quickGuideState, setQuickGuideState] = useState<{
+    collapsed: boolean;
+    openTab: HelpTab | null;
+  }>({
+    collapsed: false,
+    openTab: null,
+  });
   const [opsUxRuntime, setOpsUxRuntime] = useState(() => loadOpsUxRuntimeConfig());
   const [incidentAutoSuppressedUntilMs, setIncidentAutoSuppressedUntilMs] = useState(0);
   const [incidentAutoTickMs, setIncidentAutoTickMs] = useState(() => Date.now());
+  const lastAutoBaselineKeyRef = useRef<string | null>(null);
   const manualIncidentOverrideRef = useRef<"on" | "off" | null>(null);
   const wsDegradedSinceRef = useRef<number | null>(null);
   const healthySinceRef = useRef<number>(0);
   const previousIncidentModeRef = useRef(false);
 
   const opsConfig = opsUxRuntime.config;
+  const startupBaselineKey = useMemo(() => {
+    const gatewayUrl = settings.gateway_url.trim();
+    if (!tokenConfigured || !gatewayUrl) {
+      return null;
+    }
+    return `${gatewayUrl}::token-ready`;
+  }, [settings.gateway_url, tokenConfigured]);
+  const initialBootstrapSettled =
+    tokenConfiguredChecked &&
+    (startupBaselineKey === null || initialBootstrapSettledKey === startupBaselineKey);
   const optionalModulesEnabled = !opsConfig.controls.global_kill_switch;
   const liveFeedEnabled = optionalModulesEnabled && opsConfig.controls.live_feed_drawer;
   const incidentAutoEnabled =
@@ -217,6 +265,12 @@ export default function App() {
   const memoryHubEnabled = optionalModulesEnabled && opsConfig.controls.memory_hub;
   const connectorsHubEnabled =
     optionalModulesEnabled && opsConfig.controls.connectors_hub;
+  const assistantSystemPromptDirty = useMemo(
+    () =>
+      normalizeAssistantCorePrompt(assistantSystemPromptDraft) !==
+      normalizeAssistantCorePrompt(assistantSystemPromptSaved),
+    [assistantSystemPromptDraft, assistantSystemPromptSaved]
+  );
   const availableTabs = useMemo<MissionControlTab[]>(
     () =>
       [
@@ -236,6 +290,34 @@ export default function App() {
       ],
     [connectorsHubEnabled, memoryHubEnabled, runbookHubEnabled]
   );
+  const dismissQuickGuides = useCallback(() => {
+    setQuickGuideState({
+      collapsed: true,
+      openTab: null,
+    });
+  }, []);
+  const toggleQuickGuideForActiveTab = useCallback(() => {
+    if (activeTab === "help") {
+      return;
+    }
+    setQuickGuideState((current) => {
+      const activeGuideTab = activeTab as HelpTab;
+      const currentTabOpen = !current.collapsed || current.openTab === activeGuideTab;
+      if (currentTabOpen) {
+        return {
+          collapsed: true,
+          openTab: null,
+        };
+      }
+      return {
+        collapsed: true,
+        openTab: activeGuideTab,
+      };
+    });
+  }, [activeTab]);
+  const quickGuideVisibleOnActiveTab =
+    activeTab !== "help" &&
+    (!quickGuideState.collapsed || quickGuideState.openTab === activeTab);
   const guidedTourSteps = useMemo(
     () =>
       GUIDED_TOUR_STEPS.filter((step) => {
@@ -274,6 +356,87 @@ export default function App() {
     [setNotice]
   );
 
+  const applyRuntimeGlobalConfig = useCallback((global: RuntimeGlobalConfigResponse | null) => {
+    setRuntimeGlobalConfig(global);
+    if (!global) {
+      return;
+    }
+    const resolved = resolveAssistantCorePrompt(global?.assistant_system_prompt);
+    setAssistantSystemPromptSaved(resolved);
+    setAssistantSystemPromptDraft(resolved);
+  }, []);
+
+  const loadAssistantSystemPromptConfig = useCallback(
+    async (runtimeSettings = settings) => {
+      if (!tokenConfigured || !runtimeSettings.gateway_url.trim()) {
+        applyRuntimeGlobalConfig(null);
+        setAssistantSystemPromptError(null);
+        return;
+      }
+
+      setAssistantSystemPromptLoading(true);
+      try {
+        const response = await getRuntimeConfig(runtimeSettings);
+        applyRuntimeGlobalConfig(response.config.global);
+        setAssistantSystemPromptError(null);
+      } catch (error: unknown) {
+        applyRuntimeGlobalConfig(null);
+        setAssistantSystemPromptError(
+          `Shared prompt settings could not load. carsinOS is using the built-in default for now. (${String(error)})`
+        );
+      } finally {
+        setAssistantSystemPromptLoading(false);
+      }
+    },
+    [applyRuntimeGlobalConfig, settings, tokenConfigured]
+  );
+
+  const saveAssistantSystemPrompt = useCallback(async () => {
+    if (!tokenConfigured || !settings.gateway_url.trim()) {
+      setNotice({
+        tone: "error",
+        message: "Connect to the gateway before saving the shared assistant prompt.",
+      });
+      return;
+    }
+
+    setAssistantSystemPromptSaving(true);
+    try {
+      const baseGlobal =
+        runtimeGlobalConfig ?? (await getRuntimeConfig(settings)).config.global;
+      const response = await updateRuntimeConfig(settings, {
+        global: {
+          ...baseGlobal,
+          assistant_system_prompt: normalizeAssistantCorePrompt(assistantSystemPromptDraft),
+        },
+      });
+      applyRuntimeGlobalConfig(response.config.global);
+      setAssistantSystemPromptError(null);
+      setNotice({ tone: "info", message: "Shared assistant prompt saved." });
+    } catch (error: unknown) {
+      const message = `Saving the shared assistant prompt failed: ${String(error)}`;
+      setAssistantSystemPromptError(message);
+      setNotice({ tone: "error", message });
+    } finally {
+      setAssistantSystemPromptSaving(false);
+    }
+  }, [
+    applyRuntimeGlobalConfig,
+    assistantSystemPromptDraft,
+    runtimeGlobalConfig,
+    setNotice,
+    settings,
+    tokenConfigured,
+  ]);
+
+  const resetAssistantSystemPromptDraft = useCallback(() => {
+    setAssistantSystemPromptDraft(assistantSystemPromptSaved);
+  }, [assistantSystemPromptSaved]);
+
+  const restoreDefaultAssistantSystemPromptDraft = useCallback(() => {
+    setAssistantSystemPromptDraft(DEFAULT_ASSISTANT_CORE_PROMPT);
+  }, []);
+
   const boardsController = useBoardsController({
     settings,
     setNotice,
@@ -286,19 +449,29 @@ export default function App() {
     tokenConfigured,
     setNotice,
   });
-  const assistantController = useAssistantChatController({
-    settings,
-    tokenConfigured,
-    agents,
-    boards,
-    setNotice,
-  });
-
   const missionControl = useMissionControlController({
     settings,
     agents,
     incidentMode: cockpitController.incidentMode,
     setNotice,
+  });
+  const assistantController = useAssistantChatController({
+    settings,
+    tokenConfigured,
+    agents,
+    authProfiles: missionControl.authProfiles,
+    boards,
+    setNotice,
+    corePrompt: assistantSystemPromptDraft,
+    corePromptSaved: assistantSystemPromptSaved,
+    corePromptLoading: assistantSystemPromptLoading,
+    corePromptSaving: assistantSystemPromptSaving,
+    corePromptError: assistantSystemPromptError,
+    corePromptDirty: assistantSystemPromptDirty,
+    setCorePrompt: setAssistantSystemPromptDraft,
+    saveCorePrompt: saveAssistantSystemPrompt,
+    resetCorePrompt: resetAssistantSystemPromptDraft,
+    restoreDefaultCorePrompt: restoreDefaultAssistantSystemPromptDraft,
   });
   const strategyController = useStrategyController({
     settings,
@@ -347,6 +520,7 @@ export default function App() {
     setSettings,
     setTokenDraft,
     setTokenConfigured,
+    setTokenConfiguredChecked,
     setHealthState,
     setWsState,
     setNotice,
@@ -364,6 +538,7 @@ export default function App() {
   const onboarding = useOnboardingController({
     settings,
     tokenConfigured,
+    initialBootstrapSettled,
     agents,
     authProfiles: missionControl.authProfiles,
     strategyEnabled: strategyHubEnabled,
@@ -410,9 +585,32 @@ export default function App() {
     [addToast, cockpitController]
   );
 
-  const openHelpDocs = useCallback(() => {
-    setActiveTab("help");
-  }, [setActiveTab]);
+  const [helpDocsTarget, setHelpDocsTarget] = useState<{ section?: string; seq: number }>({ seq: 0 });
+
+  const openHelpDocs = useCallback(
+    (section?: string) => {
+      setHelpDocsTarget((prev) => ({ section, seq: prev.seq + 1 }));
+      setActiveTab("help");
+    },
+    [setActiveTab]
+  );
+
+  const openSimpleIntegrationWizard = useCallback(
+    (integrationId?: SimpleIntegrationId) => {
+      setSimpleIntegrationWizardState({
+        open: true,
+        initialIntegrationId: integrationId ?? null,
+      });
+    },
+    []
+  );
+
+  const closeSimpleIntegrationWizard = useCallback(() => {
+    setSimpleIntegrationWizardState((current) => ({
+      ...current,
+      open: false,
+    }));
+  }, []);
 
   const openGuidedTour = useCallback(() => {
     setGuidedTourStep(0);
@@ -463,6 +661,13 @@ export default function App() {
       setActiveTab("boards");
     }
   }, [activeTab, connectorsHubEnabled, setActiveTab]);
+
+  useEffect(() => {
+    if (!initialBootstrapSettled) {
+      return;
+    }
+    void loadAssistantSystemPromptConfig(settings);
+  }, [initialBootstrapSettled, loadAssistantSystemPromptConfig, settings]);
 
   useEffect(() => {
     if (!guidedTourOpen) {
@@ -707,6 +912,26 @@ export default function App() {
   ]);
 
   useEffect(() => {
+    if (!startupBaselineKey) {
+      lastAutoBaselineKeyRef.current = null;
+      return;
+    }
+    if (lastAutoBaselineKeyRef.current === startupBaselineKey) {
+      return;
+    }
+    lastAutoBaselineKeyRef.current = startupBaselineKey;
+    void loadBaseline(settings).catch((error: unknown) => {
+      lastAutoBaselineKeyRef.current = null;
+      setNotice({
+        tone: "error",
+        message: `Initial connection sync failed: ${String(error)}`,
+      });
+    }).finally(() => {
+      setInitialBootstrapSettledKey(startupBaselineKey);
+    });
+  }, [loadBaseline, setNotice, settings, startupBaselineKey]);
+
+  useEffect(() => {
     if (!runbookHubEnabled || !assistantController.lastRunId) {
       return;
     }
@@ -761,6 +986,18 @@ export default function App() {
       opsUxConfigError={opsUxRuntime.error}
       onPatchOpsUxControls={patchOpsControls}
       usageChartsEnabled={usageChartsEnabled}
+      assistantSystemPrompt={assistantSystemPromptDraft}
+      assistantSystemPromptDirty={assistantSystemPromptDirty}
+      assistantSystemPromptLoading={assistantSystemPromptLoading}
+      assistantSystemPromptSaving={assistantSystemPromptSaving}
+      assistantSystemPromptError={assistantSystemPromptError}
+      onAssistantSystemPromptChange={setAssistantSystemPromptDraft}
+      onSaveAssistantSystemPrompt={saveAssistantSystemPrompt}
+      onResetAssistantSystemPrompt={resetAssistantSystemPromptDraft}
+      onRestoreDefaultAssistantSystemPrompt={restoreDefaultAssistantSystemPromptDraft}
+      quickGuideAvailable={activeTab !== "help"}
+      quickGuideOpen={quickGuideVisibleOnActiveTab}
+      onToggleQuickGuide={toggleQuickGuideForActiveTab}
       liveFeedPanel={
         <LiveFeedDrawer
           enabled={liveFeedEnabled}
@@ -797,11 +1034,16 @@ export default function App() {
         connectors: connectorsController.summary.pendingInteractions,
       }}
     >
-      <OnboardingWizard controller={onboarding} agents={agents} />
+      <OnboardingWizard
+        controller={onboarding}
+        agents={agents}
+        onOpenSimpleIntegrationWizard={openSimpleIntegrationWizard}
+      />
       <AppContent
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onOpenHelpDocs={openHelpDocs}
+        helpDocsTarget={helpDocsTarget}
         onStartGuidedTour={openGuidedTour}
         onRefreshBaseline={() => loadBaseline(settings)}
         settings={settings}
@@ -824,8 +1066,20 @@ export default function App() {
         tabResetVersion={tabResetVersion}
         setNotice={setNotice}
         usageChartsEnabled={usageChartsEnabled}
+        onOpenSimpleIntegrationWizard={openSimpleIntegrationWizard}
+        quickGuidesCollapsed={quickGuideState.collapsed}
+        quickGuideOpenTab={quickGuideState.openTab}
+        onDismissQuickGuides={dismissQuickGuides}
       />
     </AppShell>
+    <SimpleIntegrationWizard
+      open={simpleIntegrationWizardState.open}
+      onClose={closeSimpleIntegrationWizard}
+      settings={settings}
+      agents={agents}
+      initialIntegrationId={simpleIntegrationWizardState.initialIntegrationId}
+      onTabChange={setActiveTab}
+    />
     <GuidedTourOverlay
       open={guidedTourOpen}
       steps={guidedTourSteps}

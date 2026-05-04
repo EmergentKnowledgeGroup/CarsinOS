@@ -8,6 +8,12 @@ This document captures the current state of NumquamOblita (`MNO`) integration in
 
 It is a system map, not a proposal.
 
+Important framing:
+
+- this document describes current live integration behavior inside `carsinOS`
+- it does not override newer target-architecture specs for per-user routing or lane-scoped MNO topology
+- if this file disagrees with the newer routing/memory specs, treat this file as the description of current state, not the desired end-state
+
 ## Bottom Line
 
 NumquamOblita integration in carsinOS is backend-real, operationally meaningful, and test-covered.
@@ -24,6 +30,12 @@ The current state is:
 - real tests and stubs
 - partial operator exposure
 - remaining compatibility hardcodes and heuristic defaults
+
+The target direction is now clearer than when this map was written:
+
+- `HTTP integration-v1` remains the primary production contract
+- `MCP` remains parity/tooling/diagnostic surface, not the only hot-path dependency
+- long-term target topology is one MNO lane per `human_identity + assistant_agent`, not one shared multi-assistant memory core
 
 ## Current Live Integration
 
@@ -100,6 +112,10 @@ Primary file:
 ### Local Fallback Memory Path
 
 carsinOS also has a local-memory path that is already wired and used alongside / instead of MNO depending on blend mode and degrade state.
+
+This is a statement about current live behavior, not a locked future architecture rule.
+
+In the target lane-scoped model, if MNO is enabled for a lane, MNO should be treated as the long-term memory truth for that lane. Local notes, `memory.md`, and related material remain valuable, but should be treated as source material, adjunct context, or fallback behavior according to policy rather than as a competing assistant-global truth store.
 
 This includes:
 
@@ -330,6 +346,7 @@ The main work should not be inventing new gateway semantics.
 The main work should be:
 
 - verifying the cleaned MNO folder satisfies the current adapter contract
+- moving from the current compatibility-era binding model toward lane-scoped `human_identity + assistant_agent` bindings
 - reducing compatibility hardcodes where appropriate
 - exposing MNO state and actions in Mission Control
 - building a proper `Memory` tab / related operator surfaces on top of the already-live backend paths
@@ -373,7 +390,8 @@ Likely adjacent frontend surfaces that should also gain MNO exposure:
 
 1. Validate the cleaned external NumquamOblita folder against the current HTTP, MCP, and envelope contract.
 2. Decide whether to keep or simplify `dual` transport behavior for the first clean integration cut.
-3. Wire Mission Control types and API clients so `numquam` status becomes visible instead of silently dropped.
-4. Build the `Memory` tab around the already-live backend actions and health signals.
-5. Expose the minimum adjacent status surfaces in `Cockpit`, jobs, approvals, and run explainability views.
-6. Remove or reduce the remaining compatibility hardcodes once the external folder is the primary integration target.
+3. Align runtime topology with the newer lane-scoped `human_identity + assistant_agent` model.
+4. Wire Mission Control types and API clients so `numquam` status becomes visible instead of silently dropped.
+5. Build the `Memory` tab around the already-live backend actions and health signals.
+6. Expose the minimum adjacent status surfaces in `Cockpit`, jobs, approvals, and run explainability views.
+7. Remove or reduce the remaining compatibility hardcodes once the external folder is the primary integration target.

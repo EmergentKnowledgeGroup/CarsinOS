@@ -1,13 +1,31 @@
 import { useState } from "react";
-import { BookOpen, Compass, Lightbulb } from "lucide-react";
+import { BookOpen, Compass, Lightbulb, X } from "lucide-react";
 import type { MissionControlTab } from "./useAppController";
 
-type HelpTab = Exclude<MissionControlTab, "help">;
+export type HelpTab = Exclude<MissionControlTab, "help">;
+
+/** Maps Mission Control tab IDs to help-docs section IDs. */
+const TAB_TO_HELP_SECTION: Record<HelpTab, string> = {
+  boards: "boards",
+  calendar: "calendar",
+  focus: "focus",
+  mail: "mail",
+  chatrooms: "rooms",
+  assistant: "assistant",
+  team: "team",
+  events: "events",
+  cockpit: "cockpit",
+  strategy: "strategy",
+  runbook: "runbook",
+  memory: "memory",
+  connectors: "connectors",
+};
 
 interface TabHelpBannerProps {
   tab: HelpTab;
-  onOpenDocs: () => void;
+  onOpenDocs: (section?: string) => void;
   onStartTour: () => void;
+  onDismissAll: () => void;
 }
 
 interface HelpCopy {
@@ -18,133 +36,133 @@ interface HelpCopy {
 
 const HELP_COPY: Record<HelpTab, HelpCopy> = {
   boards: {
-    title: "Boards are your execution lane",
+    title: "Create tasks and run them",
     summary:
-      "Capture tasks as cards, attach context, and run cards to execute agent work on demand.",
+      "Each card is one task. Fill it in, click Run Card, and your agent does the work.",
     examples: [
-      "Create card: 'Draft launch checklist', assign an owner, click Run Card.",
-      "Attach a spec file to a card so the run has grounded context.",
-      "Use due dates and tags to batch similar tasks for one sprint.",
+      "Click '+ New Card', type what you want done, then click Run Card to execute it.",
+      "Drag cards between columns to track progress (To Do, In Progress, Done).",
+      "Attach a file to a card so the agent has context when it runs.",
     ],
   },
   calendar: {
-    title: "Calendar is your scheduler",
+    title: "Schedule and manage recurring work",
     summary:
-      "View jobs by time, trigger run-now, and toggle automations without leaving Mission Control.",
+      "See what's scheduled, run a job right now, or pause something that's acting up.",
     examples: [
-      "Run a weekly report job instantly from Run now.",
-      "Disable a noisy job while debugging provider configuration.",
-      "Check Always Running jobs for core operational loops.",
+      "Click 'Run now' next to any job to trigger it immediately.",
+      "Toggle a job off if it's running too often or causing issues.",
+      "Check 'Always Running' to see which background jobs are active.",
     ],
   },
   focus: {
-    title: "Focus is your risk queue",
+    title: "Handle approvals and fix problems",
     summary:
-      "Approvals, breakers, and channel issues surface here first so you can resolve blockers fast.",
+      "When something needs your attention \u2014 an approval, a broken connection, a tripped breaker \u2014 it shows up here.",
     examples: [
-      "Approve or deny pending high-risk tool actions.",
-      "Reconnect a down channel runtime from one place.",
-      "Review top severity items before starting daily execution.",
+      "Click Approve or Deny on pending actions that need your sign-off.",
+      "Hit Reconnect next to any channel that went offline.",
+      "Check the severity column to handle the most urgent items first.",
     ],
   },
   events: {
-    title: "Events are your timeline",
+    title: "Event log (advanced)",
     summary:
-      "Inspect live event flow for observability and troubleshooting across runs, jobs, and tools.",
+      "A live stream of everything happening in the system. Useful when debugging, not needed day-to-day.",
     examples: [
-      "Filter for run.* to isolate model execution behavior.",
-      "Switch raw mode on when debugging payload-level details.",
-      "Watch approval and breaker transitions in real time.",
+      "Use the filters at the top to show only the event type you care about.",
+      "Click '< JSON' on any event to see the full details.",
+      "If something went wrong, check here to see exactly what happened and when.",
     ],
   },
   mail: {
-    title: "Mail is structured direct messaging",
+    title: "Send direct messages",
     summary:
-      "Use direct threads for traceable communication, acknowledgements, and attachment handoffs.",
+      "Private threads between you and your agents. Like email, but inside Mission Control.",
     examples: [
-      "Create a direct thread with one or more recipients.",
-      "Attach a document, then ask a specific reviewer for feedback.",
-      "Acknowledge unread items to clear response backlog.",
+      "Click '+ New Thread' to start a direct conversation.",
+      "Attach a file and ask your agent to review or process it.",
+      "Use Mail for 1-on-1 handoffs. Use Rooms instead for group conversations.",
     ],
   },
   chatrooms: {
-    title: "Rooms are group coordination threads",
+    title: "Group chat with your team",
     summary:
-      "Use rooms for multi-party coordination, shared files, and persistent collaboration history.",
+      "Rooms are for conversations with multiple people or agents at once. Think group chat or a war room.",
     examples: [
-      "Create room 'release-war-room' with agents + human operators.",
-      "Post a status update and reserve workspace lease for edits.",
-      "Use reactions to mark quick consensus before approval actions.",
+      "Click '+ New Room' and add the agents or people you need.",
+      "Use rooms when you need multiple agents to see the same conversation.",
+      "Unlike Mail (which is private 1-on-1), Rooms are shared spaces.",
     ],
   },
   assistant: {
-    title: "Assistant is direct chat execution",
+    title: "Chat with an AI agent",
     summary:
-      "Use this tab for prompt/response chat with a selected agent, model, and optional core system prompt.",
+      "Pick an agent, pick a model, type a message, hit Send. That's it.",
     examples: [
-      "Ask the assistant to draft a plan, then move execution tasks to Boards.",
-      "Use a different model for orchestrator-style reasoning in one session.",
-      "Start a fresh chat when you want a clean context window.",
+      "Select your agent from the dropdown, choose a provider and model, then type your question.",
+      "Click 'New Chat' to start fresh with a clean conversation.",
+      "Want to save the response? Use 'Send to Boards' to turn it into a task card.",
     ],
   },
   team: {
-    title: "Team defines who can run what",
+    title: "Set up your agents",
     summary:
-      "Configure agent provider/model pairs and tool profiles so execution has explicit ownership.",
+      "Create agents and assign them an AI provider and model. This is where you decide who can do what.",
     examples: [
-      "Set an agent to ollama + a local model for cost-controlled runs.",
-      "Create a dedicated orchestrator agent separate from assistant.",
-      "Use restricted tool profile for high-risk environments.",
+      "Click '+ New Agent' to create your first assistant.",
+      "Pick a provider (like OpenAI or Anthropic) and a model for each agent.",
+      "Agents need a provider and model before they can do anything useful.",
     ],
   },
   cockpit: {
-    title: "Cockpit is your custom operations view",
+    title: "Custom dashboards (advanced)",
     summary:
-      "Build dashboards using widgets, runtime data sources, and incident-focused layouts.",
+      "Build your own dashboard with widgets. Optional \u2014 you can skip this until you want a custom command view.",
     examples: [
-      "Pin approvals, breaker status, and jobs on one page.",
-      "Create a custom widget for a specific API data source path.",
-      "Switch to incident mode for tighter operational focus.",
+      "Click 'Load Ops Template' to start with a pre-built dashboard instead of building from scratch.",
+      "Add widgets for approvals, jobs, breaker status, or any data you want to watch.",
+      "This is optional. Most users don't need a custom dashboard on day one.",
     ],
   },
   strategy: {
-    title: "Strategy holds why, priority, and ownership",
+    title: "Plan and track work (advanced)",
     summary:
-      "Use Strategy for goals, projects, tasks, blockers, stale work, and approval backlog without interrupting runtime tabs.",
+      "Organize goals, projects, and tasks. Useful for planning what your agents should work on, but not where they actually run.",
     examples: [
-      "Create a goal, attach a project, then track task ownership before linking execution.",
-      "Use blocked and stale lenses to find work that needs intervention.",
-      "Link a task to a board card or job when management should trace runtime execution.",
+      "Create a goal, then break it into projects and tasks.",
+      "Use the 'Blocked' and 'Stale' filters to find work that's stuck.",
+      "Strategy plans the work. Boards and Calendar actually execute it.",
     ],
   },
   runbook: {
-    title: "Runbook shows the live execution truth",
+    title: "Execution debugger (advanced)",
     summary:
-      "Use Runbook to inspect active steps, approvals, blockers, failures, linked artifacts, and the next valid move across assistant runs, board cards, jobs, and strategy tasks.",
+      "Shows exactly what happened during a run \u2014 every step, approval, and decision. Come here when you need to figure out why something went wrong.",
     examples: [
-      "Open a blocked strategy task to see whether the real blocker is the task state, an approval wait, or a failed execution.",
-      "Inspect a board card run to follow the exact linked run, approvals, and completion path.",
-      "Use linked artifacts to jump back into Boards, Strategy, Assistant, or Calendar without guessing context.",
+      "Select a run from the list to see its full step-by-step execution history.",
+      "Check for failed steps, missing approvals, or unexpected blockers.",
+      "Use the linked artifacts to jump to the Board card, job, or task that triggered the run.",
     ],
   },
   memory: {
-    title: "Memory inspects one assistant lane at a time",
+    title: "Agent memory inspector (advanced)",
     summary:
-      "Use Memory for assistant-bound MNO cards, episodes, graph drilldown, turn why, citations, and runtime health without cross-assistant leakage.",
+      "See what your agent remembers. Each agent has its own separate memory. This is a specialist debugging tool.",
     examples: [
-      "Switch assistants to verify the selected lane has the correct MNO binding and health posture.",
-      "Open a graph node to inspect its local neighborhood instead of inventing client-side traversal.",
-      "Select a recent turn, inspect why, then open the citation drilldown for the exact evidence path.",
+      "Pick an agent from the dropdown to see its stored memory cards.",
+      "Browse the knowledge graph to see how facts are connected.",
+      "Select a recent interaction and click 'Why' to understand the agent's reasoning.",
     ],
   },
   connectors: {
-    title: "Connectors own the shared tool registry",
+    title: "Tool registry (advanced)",
     summary:
-      "Use Connectors to import external sources, convert them into reviewable tools, publish the safe subset, and assign that exact tool surface to agents consistently.",
+      "Import external APIs and tools, review them, and assign them to your agents. This is the admin panel for managing what tools are available.",
     examples: [
-      "Paste an OpenAPI document, run conversion, then publish only the operations you want live.",
-      "Enable one connector for Lyra and leave it disabled for other agents until auth is ready.",
-      "Resume a paused auth interaction without losing the connector review state.",
+      "Import an OpenAPI spec, review the operations, then publish the ones you want agents to use.",
+      "Assign a published connector to specific agents in the 'Assignments' section.",
+      "You only need this if you're adding custom API integrations beyond the built-in tools.",
     ],
   },
 };
@@ -155,12 +173,23 @@ export function TabHelpBanner(props: TabHelpBannerProps) {
 
   return (
     <section className="mc-tab-help-banner mc-surface" data-tour-id={`help-${props.tab}`}>
-      <div className="mc-tab-help-main">
-        <p className="mc-tab-help-kicker">
-          <Lightbulb size={14} /> Quick Guide
-        </p>
-        <h3>{copy.title}</h3>
-        <p>{copy.summary}</p>
+      <div className="mc-tab-help-head">
+        <div className="mc-tab-help-main">
+          <p className="mc-tab-help-kicker">
+            <Lightbulb size={14} /> Quick Guide
+          </p>
+          <h3>{copy.title}</h3>
+          <p>{copy.summary}</p>
+        </div>
+        <button
+          type="button"
+          className="mc-tab-help-dismiss"
+          aria-label="Hide quick guides"
+          title="Hide quick guides"
+          onClick={props.onDismissAll}
+        >
+          <X size={16} />
+        </button>
       </div>
       <div className="mc-tab-help-actions">
         <button
@@ -174,7 +203,7 @@ export function TabHelpBanner(props: TabHelpBannerProps) {
         <button type="button" className="mc-tab-help-btn mc-tab-help-btn-tour" onClick={props.onStartTour}>
           <Compass size={14} /> Tour
         </button>
-        <button type="button" className="mc-tab-help-btn mc-tab-help-btn-docs" onClick={props.onOpenDocs}>
+        <button type="button" className="mc-tab-help-btn mc-tab-help-btn-docs" onClick={() => props.onOpenDocs(TAB_TO_HELP_SECTION[props.tab])}>
           <BookOpen size={14} /> Docs
         </button>
       </div>

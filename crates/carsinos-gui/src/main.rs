@@ -183,7 +183,6 @@ impl Default for ChannelConfigSnapshot {
 struct RuntimeProviderPolicyDraft {
     provider: String,
     enabled: bool,
-    allow_consumer_oauth: bool,
     kill_switch_scope: String,
 }
 
@@ -232,13 +231,11 @@ impl Default for RuntimeConfigWizardSnapshot {
                 RuntimeProviderPolicyDraft {
                     provider: "openai".to_string(),
                     enabled: true,
-                    allow_consumer_oauth: false,
                     kill_switch_scope: "none".to_string(),
                 },
                 RuntimeProviderPolicyDraft {
                     provider: "anthropic".to_string(),
                     enabled: true,
-                    allow_consumer_oauth: false,
                     kill_switch_scope: "none".to_string(),
                 },
             ],
@@ -307,7 +304,7 @@ impl RuntimeWizardStep {
                 "Configure gateway trust boundaries and edge identity values (R1)."
             }
             Self::ProviderRisk => {
-                "Define per-provider enablement, kill-switch scope, and high-risk OAuth posture (R7)."
+                "Define per-provider enablement and kill-switch scope for risky auth paths (R7)."
             }
             Self::Channels => {
                 "Set production channel runtime values for Discord + Telegram (R2, R3)."
@@ -796,12 +793,7 @@ impl GuiApp {
             return;
         }
         let completeness_issues = runtime_wizard_completeness_issues(&self.runtime_config);
-        let mut to_apply = self.runtime_config.clone();
-        if !completeness_issues.is_empty() {
-            for provider in &mut to_apply.provider_policies {
-                provider.allow_consumer_oauth = false;
-            }
-        }
+        let to_apply = self.runtime_config.clone();
 
         let payload = match runtime_config_update_payload(&to_apply) {
             Ok(value) => value,
@@ -823,7 +815,7 @@ impl GuiApp {
                     if completeness_issues.is_empty() {
                         self.set_info("Runtime wizard configuration applied");
                     } else {
-                        self.set_info("Runtime config saved with high-risk OAuth forced OFF until wizard completeness is green");
+                        self.set_info("Runtime config saved. Finish the remaining wizard items to make the whole setup green.");
                     }
                 }
                 Err(err) => self.set_error(err),
@@ -2469,12 +2461,12 @@ impl GuiApp {
             if high_risk_ready {
                 ui.colored_label(
                     Color32::from_rgb(118, 255, 168),
-                    "Wizard completeness: GREEN (high-risk provider OAuth can remain enabled if selected)",
+                    "Wizard completeness: GREEN",
                 );
             } else {
                 ui.colored_label(
                     Color32::from_rgb(255, 188, 104),
-                    "Wizard completeness: INCOMPLETE (high-risk provider OAuth will be forced OFF on apply)",
+                    "Wizard completeness: INCOMPLETE",
                 );
             }
 
@@ -2553,16 +2545,10 @@ impl GuiApp {
                                             }
                                         });
                                     });
-                                    ui.add_enabled_ui(high_risk_ready, |ui| {
-                                        ui.checkbox(
-                                            &mut policy.allow_consumer_oauth,
-                                            "allow_consumer_oauth",
-                                        );
-                                    });
                                     if !high_risk_ready {
                                         ui.colored_label(
                                             Color32::from_rgb(255, 188, 104),
-                                            "High-risk OAuth toggle locked until wizard completeness is green",
+                                            "High-risk provider settings stay guarded until wizard completeness is green",
                                         );
                                     }
                                     if ui.button("Remove Provider Policy").clicked() {
@@ -2580,7 +2566,6 @@ impl GuiApp {
                                     RuntimeProviderPolicyDraft {
                                         provider: "new-provider".to_string(),
                                         enabled: false,
-                                        allow_consumer_oauth: false,
                                         kill_switch_scope: "none".to_string(),
                                     },
                                 );
@@ -4221,10 +4206,6 @@ fn parse_runtime_config(value: &Value) -> Result<RuntimeConfigWizardSnapshot, St
                         .get("enabled")
                         .and_then(|value| value.as_bool())
                         .unwrap_or(true),
-                    allow_consumer_oauth: row
-                        .get("allow_consumer_oauth")
-                        .and_then(|value| value.as_bool())
-                        .unwrap_or(false),
                     kill_switch_scope: row
                         .get("kill_switch_scope")
                         .and_then(|value| value.as_str())
@@ -4403,7 +4384,6 @@ fn normalize_provider_policies(policies: &mut Vec<RuntimeProviderPolicyDraft>) {
         normalized.push(RuntimeProviderPolicyDraft {
             provider,
             enabled: policy.enabled,
-            allow_consumer_oauth: policy.allow_consumer_oauth,
             kill_switch_scope,
         });
     }
@@ -4413,7 +4393,6 @@ fn normalize_provider_policies(policies: &mut Vec<RuntimeProviderPolicyDraft>) {
             normalized.push(RuntimeProviderPolicyDraft {
                 provider: fallback.to_string(),
                 enabled: true,
-                allow_consumer_oauth: false,
                 kill_switch_scope: "none".to_string(),
             });
         }
@@ -4634,7 +4613,6 @@ fn runtime_config_update_payload(config: &RuntimeConfigWizardSnapshot) -> Result
             json!({
                 "provider": provider.provider.trim().to_ascii_lowercase(),
                 "enabled": provider.enabled,
-                "allow_consumer_oauth": provider.allow_consumer_oauth,
                 "kill_switch_scope": provider.kill_switch_scope.trim().to_ascii_lowercase(),
             })
         }).collect::<Vec<_>>(),
@@ -5014,7 +4992,6 @@ mod tests {
                     {
                         "provider": "openai",
                         "enabled": true,
-                        "allow_consumer_oauth": false,
                         "kill_switch_scope": "none"
                     }
                 ],

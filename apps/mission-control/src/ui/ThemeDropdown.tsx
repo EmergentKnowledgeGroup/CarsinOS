@@ -10,12 +10,20 @@ interface ThemeDropdownProps {
   selectFamily: (f: ThemeFamily) => void;
   setMode: (m: ThemeMode) => void;
   toggleMode: () => void;
+  openRequestVersion?: number;
 }
-
-export function ThemeDropdown({ family, mode, selectFamily, setMode, toggleMode }: ThemeDropdownProps) {
+export function ThemeDropdown({
+  family,
+  mode,
+  selectFamily,
+  setMode,
+  toggleMode,
+  openRequestVersion = 0,
+}: ThemeDropdownProps) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const panelId = useId();
+  const lastOpenRequestVersionRef = useRef(openRequestVersion);
 
   const toggle = useCallback(() => setOpen((o) => !o), []);
 
@@ -40,6 +48,20 @@ export function ThemeDropdown({ family, mode, selectFamily, setMode, toggleMode 
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
   }, [open]);
+
+  useEffect(() => {
+    if (openRequestVersion <= 0) {
+      return;
+    }
+    if (openRequestVersion <= lastOpenRequestVersionRef.current) {
+      return;
+    }
+    lastOpenRequestVersionRef.current = openRequestVersion;
+    const raf = window.requestAnimationFrame(() => {
+      setOpen(true);
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [openRequestVersion]);
 
   const handleRowClick = (f: ThemeFamily) => {
     if (f === family) {
