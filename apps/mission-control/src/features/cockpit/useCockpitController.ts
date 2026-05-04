@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  COCKPIT_GRID_COLS,
   COCKPIT_WIDGET_PALETTE,
   WIDGET_SIZE_CONSTRAINTS,
   defaultCockpitPages,
+  needsGridReflow,
   loadCockpitPagesFromStorage,
   opsDefaultTemplate,
+  packWidgetsRowFirst,
   persistCockpitPagesToStorage,
+  reflowWidgetsToGrid,
   sanitizeCockpitPages,
   type CockpitPageLayoutV2,
   type CockpitWidgetKind,
@@ -13,8 +17,79 @@ import {
   type CockpitWidgetPosition,
 } from "./cockpitLayout";
 
+function rectanglesOverlap(
+  a: Pick<CockpitWidgetPosition, "x" | "y" | "w" | "h">,
+  b: Pick<CockpitWidgetPosition, "x" | "y" | "w" | "h">,
+): boolean {
+  return (
+    a.x < b.x + b.w &&
+    a.x + a.w > b.x &&
+    a.y < b.y + b.h &&
+    a.y + a.h > b.y
+  );
+}
+
+function canPlaceWidgetAt(
+  candidate: Pick<CockpitWidgetPosition, "x" | "y" | "w" | "h">,
+  widgets: CockpitWidgetLayoutV2[],
+  ignoreInstanceId?: string,
+): boolean {
+  return widgets.every((widget) => {
+    if (ignoreInstanceId && widget.instance_id === ignoreInstanceId) {
+      return true;
+    }
+    return !rectanglesOverlap(candidate, widget.position);
+  });
+}
+
+function findFirstFitPosition(
+  w: number,
+  h: number,
+  widgets: CockpitWidgetLayoutV2[],
+  ignoreInstanceId?: string,
+): Pick<CockpitWidgetPosition, "x" | "y"> {
+  const bottom = widgets.reduce(
+    (maxY, widget) => Math.max(maxY, widget.position.y + widget.position.h),
+    0,
+  );
+  const maxSearchRow = Math.max(24, bottom + 24);
+  for (let y = 0; y <= maxSearchRow; y += 1) {
+    for (let x = 0; x <= COCKPIT_GRID_COLS - w; x += 1) {
+      if (canPlaceWidgetAt({ x, y, w, h }, widgets, ignoreInstanceId)) {
+        return { x, y };
+      }
+    }
+  }
+  return { x: 0, y: maxSearchRow + 1 };
+}
+
+function hasAnyOverlap(widgets: CockpitWidgetLayoutV2[]): boolean {
+  for (let i = 0; i < widgets.length; i += 1) {
+    const a = widgets[i];
+    for (let j = i + 1; j < widgets.length; j += 1) {
+      const b = widgets[j];
+      if (rectanglesOverlap(a.position, b.position)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 export function useCockpitController() {
-  const [initialPages] = useState<CockpitPageLayoutV2[]>(() => loadCockpitPagesFromStorage());
+  const [initialPages] = useState<CockpitPageLayoutV2[]>(() => {
+    const pages = loadCockpitPagesFromStorage();
+    // Auto-fix single-column layouts (old default or failed migration)
+    const needsFix = pages.some(needsGridReflow);
+    if (!needsFix) return pages;
+    const fixed = pages.map((page) =>
+      needsGridReflow(page)
+        ? { ...page, widgets: reflowWidgetsToGrid(page.widgets) }
+        : page,
+    );
+    persistCockpitPagesToStorage(fixed);
+    return fixed;
+  });
   const [incidentMode, setIncidentMode] = useState(false);
   const [cockpitPages, setCockpitPages] = useState<CockpitPageLayoutV2[]>(initialPages);
   const [activeCockpitPageId, setActiveCockpitPageId] = useState(
@@ -52,23 +127,27 @@ export function useCockpitController() {
     const constraints = WIDGET_SIZE_CONSTRAINTS[widgetKind];
     const instanceId = `${widgetKind}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-    updateActivePage((page) => ({
-      ...page,
-      widgets: [
-        ...page.widgets,
-        {
-          instance_id: instanceId,
-          widget: widgetKind,
-          title: palette.title,
-          position: {
-            x: 0,
-            y: Infinity, // RGL will compact this to the bottom
-            w: constraints.defaultW,
-            h: constraints.defaultH,
+    updateActivePage((page) => {
+      const w = constraints.defaultW;
+      const h = constraints.defaultH;
+      const position = findFirstFitPosition(w, h, page.widgets);
+      return {
+        ...page,
+        widgets: [
+          ...page.widgets,
+          {
+            instance_id: instanceId,
+            widget: widgetKind,
+            title: palette.title,
+            position: {
+              ...position,
+              w,
+              h,
+            },
           },
-        },
-      ],
-    }));
+        ],
+      };
+    });
   };
 
   const addCustomWidget = (widget: CockpitWidgetLayoutV2) => {
@@ -82,6 +161,13 @@ export function useCockpitController() {
     updateActivePage((page) => ({
       ...page,
       widgets: page.widgets.filter((w) => w.instance_id !== instanceId),
+    }));
+  };
+
+  const autoFitActivePage = () => {
+    updateActivePage((page) => ({
+      ...page,
+      widgets: packWidgetsRowFirst(page.widgets),
     }));
   };
 
@@ -109,12 +195,39 @@ export function useCockpitController() {
         if (widget.instance_id !== instanceId) {
           return widget;
         }
+        const nextX = Math.max(
+          0,
+          Math.min(
+            COCKPIT_GRID_COLS - widget.position.w,
+            widget.position.x + (delta.x ?? 0),
+          ),
+        );
+        const nextY = Math.max(0, widget.position.y + (delta.y ?? 0));
+        if (
+          nextX === widget.position.x &&
+          nextY === widget.position.y
+        ) {
+          return widget;
+        }
+        const canMove = canPlaceWidgetAt(
+          {
+            x: nextX,
+            y: nextY,
+            w: widget.position.w,
+            h: widget.position.h,
+          },
+          page.widgets,
+          widget.instance_id,
+        );
+        if (!canMove) {
+          return widget;
+        }
         return {
           ...widget,
           position: {
             ...widget.position,
-            x: Math.max(0, widget.position.x + (delta.x ?? 0)),
-            y: Math.max(0, widget.position.y + (delta.y ?? 0)),
+            x: nextX,
+            y: nextY,
           },
         };
       }),
@@ -139,11 +252,24 @@ export function useCockpitController() {
           return w;
         }
         changed = true;
+        const clampedX = Math.max(
+          0,
+          Math.min(COCKPIT_GRID_COLS - match.w, match.x),
+        );
         return {
           ...w,
-          position: { x: match.x, y: match.y, w: match.w, h: match.h },
+          position: {
+            x: clampedX,
+            y: Math.max(0, match.y),
+            w: match.w,
+            h: match.h,
+          },
         };
       });
+      const visibleWidgets = widgets.filter((widget) => byId.has(widget.instance_id));
+      if (hasAnyOverlap(visibleWidgets)) {
+        return page;
+      }
       return changed ? { ...page, widgets } : page;
     });
   };
@@ -264,6 +390,7 @@ export function useCockpitController() {
     addCockpitWidget,
     addCustomWidget,
     removeCockpitWidget,
+    autoFitActivePage,
     updateWidgetPosition,
     nudgeCockpitWidget,
     handleLayoutChange,

@@ -26,6 +26,7 @@ scripts/one_click_launch.sh
 
 Notes:
 - Script prompts for a gateway token; press Enter to auto-generate one.
+- New one-click launches automatically reclaim prior repo-owned Mission Control and gateway processes from the same local checkout before starting.
 - Gateway and UI ports auto-shift when busy in `--web` mode.
 - Use `scripts/one_click_launch.sh --tauri` for desktop mode (requires free port `1420`).
 - Finder double-click launcher: `scripts/one_click_launch.command` (desktop mode by default, with mode prompt).

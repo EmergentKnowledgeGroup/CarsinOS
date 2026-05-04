@@ -31,7 +31,7 @@ export default defineConfig({
       command: `npm run dev -- --host 127.0.0.1 --port ${appPort}`,
       port: appPort,
       timeout: 120_000,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
     },
   ],
 });

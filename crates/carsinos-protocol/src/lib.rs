@@ -165,6 +165,12 @@ pub struct ListToolCapabilitiesQuery {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct CreateWebSocketTicketResponse {
+    pub ticket: String,
+    pub expires_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct ToolCapabilitySandboxResponse {
     pub allowed_roots: Vec<String>,
     pub network_policy: String,
@@ -447,6 +453,7 @@ pub struct ConnectorProposedToolResponse {
     pub description: Option<String>,
     pub input_schema: serde_json::Value,
     pub write_classification: String,
+    pub auth_required: bool,
     pub review_blocked: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub review_block_reason: Option<String>,
@@ -545,6 +552,8 @@ pub struct ConnectorHealthResponse {
     pub status: String,
     pub degraded_reason: Option<String>,
     pub auth_required: bool,
+    pub auth_required_tool_count: usize,
+    pub auth_missing_tool_count: usize,
     pub last_checked_at: Option<i64>,
     pub published_tool_count: usize,
     pub assigned_agent_count: usize,
@@ -579,6 +588,7 @@ pub struct ImportConnectorRequest {
     pub source_text: Option<String>,
     pub source_json: Option<serde_json::Value>,
     pub endpoint_url: Option<String>,
+    pub auth_required: Option<bool>,
     pub external_reference_policy: Option<String>,
 }
 
@@ -823,6 +833,28 @@ pub struct AgentMemoryStatusResponse {
 #[derive(Debug, Clone, Serialize)]
 pub struct GetAgentMemoryStatusResponse {
     pub status: AgentMemoryStatusResponse,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AgentMemoryLaneStatusResponse {
+    pub human_identity_id: String,
+    pub assistant_agent_id: String,
+    pub lane_id: String,
+    pub configured_memory_mode: String,
+    pub effective_memory_mode: String,
+    pub source: String,
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    #[serde(default)]
+    pub local_memory_sources: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub orchestration: Option<NumquamIntegrationStatusResponse>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ListAgentMemoryLaneStatusesResponse {
+    pub items: Vec<AgentMemoryLaneStatusResponse>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1798,6 +1830,8 @@ pub struct CreateSessionRequest {
     pub session_key: Option<String>,
     pub agent_id: Option<String>,
     pub title: Option<String>,
+    #[serde(default)]
+    pub human_identity_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -1966,6 +2000,10 @@ pub struct RunMemoryWhyResponse {
 pub struct SyncMemorySourcesRequest {
     #[serde(default)]
     pub sources: Vec<String>,
+    #[serde(default)]
+    pub human_identity_id: Option<String>,
+    #[serde(default)]
+    pub assistant_agent_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -2306,6 +2344,8 @@ pub struct DiscordChannelConfig {
     pub allowlisted_user_ids: Vec<String>,
     #[serde(default = "default_channel_auto_run_enabled")]
     pub auto_run_enabled: bool,
+    #[serde(default)]
+    pub default_agent_id: Option<String>,
     #[serde(default = "default_channel_model_provider")]
     pub default_model_provider: String,
     #[serde(default = "default_channel_model_id")]
@@ -2316,8 +2356,28 @@ pub struct DiscordChannelConfig {
 pub struct TelegramChannelConfig {
     pub require_mention_in_groups: bool,
     pub allowlisted_user_ids: Vec<i64>,
+    #[serde(default = "default_telegram_dm_policy")]
+    pub dm_policy: String,
+    #[serde(default = "default_telegram_group_policy")]
+    pub group_policy: String,
+    #[serde(default)]
+    pub group_allowlisted_user_ids: Vec<i64>,
+    #[serde(default)]
+    pub allowlisted_chat_ids: Vec<i64>,
+    #[serde(default = "default_telegram_auto_leave_unauthorized_groups")]
+    pub auto_leave_unauthorized_groups: bool,
+    #[serde(default = "default_telegram_pairing_code_ttl_seconds")]
+    pub pairing_code_ttl_seconds: u32,
+    #[serde(default = "default_telegram_pairing_max_pending")]
+    pub pairing_max_pending: u32,
+    #[serde(default = "default_telegram_unauthorized_spam_threshold")]
+    pub unauthorized_spam_threshold: u32,
+    #[serde(default = "default_telegram_unauthorized_spam_block_seconds")]
+    pub unauthorized_spam_block_seconds: u32,
     #[serde(default = "default_channel_auto_run_enabled")]
     pub auto_run_enabled: bool,
+    #[serde(default)]
+    pub default_agent_id: Option<String>,
     #[serde(default = "default_channel_model_provider")]
     pub default_model_provider: String,
     #[serde(default = "default_channel_model_id")]
@@ -2336,6 +2396,34 @@ fn default_channel_model_id() -> String {
     "mock-echo-v1".to_string()
 }
 
+fn default_telegram_dm_policy() -> String {
+    "pairing".to_string()
+}
+
+fn default_telegram_group_policy() -> String {
+    "allowlist".to_string()
+}
+
+fn default_telegram_auto_leave_unauthorized_groups() -> bool {
+    true
+}
+
+fn default_telegram_pairing_code_ttl_seconds() -> u32 {
+    3600
+}
+
+fn default_telegram_pairing_max_pending() -> u32 {
+    3
+}
+
+fn default_telegram_unauthorized_spam_threshold() -> u32 {
+    4
+}
+
+fn default_telegram_unauthorized_spam_block_seconds() -> u32 {
+    3600
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuntimeGlobalConfig {
     #[serde(default)]
@@ -2348,6 +2436,8 @@ pub struct RuntimeGlobalConfig {
     pub tls_termination_mode: String,
     #[serde(default)]
     pub public_base_url: Option<String>,
+    #[serde(default)]
+    pub assistant_system_prompt: Option<String>,
 }
 
 fn default_runtime_tls_termination_mode() -> String {
@@ -2359,8 +2449,6 @@ pub struct RuntimeProviderPolicyConfig {
     pub provider: String,
     #[serde(default = "default_runtime_provider_enabled")]
     pub enabled: bool,
-    #[serde(default)]
-    pub allow_consumer_oauth: bool,
     #[serde(default = "default_runtime_provider_kill_switch_scope")]
     pub kill_switch_scope: String,
     #[serde(default)]
@@ -2551,6 +2639,20 @@ pub struct RuntimeNumquamConfig {
     pub enabled: bool,
     #[serde(default)]
     pub integration_base_url: Option<String>,
+    #[serde(default)]
+    pub managed_runtime_enabled: bool,
+    #[serde(default)]
+    pub managed_repo_root: Option<String>,
+    #[serde(default)]
+    pub managed_lanes_root: Option<String>,
+    #[serde(default)]
+    pub managed_python_bin: Option<String>,
+    #[serde(default = "default_runtime_numquam_managed_runtime_port_base")]
+    pub managed_runtime_port_base: u16,
+    #[serde(default = "default_runtime_numquam_managed_mcp_port_base")]
+    pub managed_mcp_port_base: u16,
+    #[serde(default = "default_runtime_numquam_managed_launch_timeout_ms")]
+    pub managed_launch_timeout_ms: u64,
     #[serde(default = "default_runtime_numquam_transport")]
     pub transport: String,
     #[serde(default = "default_runtime_numquam_context_build_timeout_ms")]
@@ -2573,6 +2675,18 @@ pub struct RuntimeNumquamConfig {
 
 fn default_runtime_numquam_transport() -> String {
     "dual".to_string()
+}
+
+fn default_runtime_numquam_managed_runtime_port_base() -> u16 {
+    17_340
+}
+
+fn default_runtime_numquam_managed_mcp_port_base() -> u16 {
+    18_340
+}
+
+fn default_runtime_numquam_managed_launch_timeout_ms() -> u64 {
+    15_000
 }
 
 fn default_runtime_numquam_context_build_timeout_ms() -> u64 {
@@ -2600,6 +2714,13 @@ impl Default for RuntimeNumquamConfig {
         Self {
             enabled: false,
             integration_base_url: None,
+            managed_runtime_enabled: false,
+            managed_repo_root: None,
+            managed_lanes_root: None,
+            managed_python_bin: None,
+            managed_runtime_port_base: default_runtime_numquam_managed_runtime_port_base(),
+            managed_mcp_port_base: default_runtime_numquam_managed_mcp_port_base(),
+            managed_launch_timeout_ms: default_runtime_numquam_managed_launch_timeout_ms(),
             transport: default_runtime_numquam_transport(),
             context_build_timeout_ms: default_runtime_numquam_context_build_timeout_ms(),
             writeback_propose_timeout_ms: default_runtime_numquam_writeback_propose_timeout_ms(),
@@ -2624,7 +2745,7 @@ pub struct RuntimeMemoryConfig {
 }
 
 fn default_runtime_memory_blend_mode() -> String {
-    "mno_primary".to_string()
+    "local_augment".to_string()
 }
 
 impl Default for RuntimeMemoryConfig {
@@ -2633,6 +2754,104 @@ impl Default for RuntimeMemoryConfig {
             blend_mode: default_runtime_memory_blend_mode(),
             memory_md_sources: Vec::new(),
             numquam: RuntimeNumquamConfig::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeHumanIdentityConfig {
+    pub human_identity_id: String,
+    pub display_name: String,
+    #[serde(default = "default_runtime_lane_enabled")]
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimePlatformIdentityLinkConfig {
+    pub provider: String,
+    pub platform_user_id: String,
+    pub human_identity_id: String,
+    #[serde(default)]
+    pub display_name: Option<String>,
+    #[serde(default = "default_runtime_lane_enabled")]
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeAssistantAssignmentConfig {
+    pub human_identity_id: String,
+    pub assistant_agent_id: String,
+    #[serde(default = "default_runtime_lane_enabled")]
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeLaneMemoryPolicyConfig {
+    pub human_identity_id: String,
+    pub assistant_agent_id: String,
+    #[serde(default = "default_runtime_lane_memory_mode")]
+    pub memory_mode: String,
+    #[serde(default)]
+    pub lane_id: Option<String>,
+    #[serde(default)]
+    pub local_memory_sources: Vec<String>,
+}
+
+fn default_runtime_lane_enabled() -> bool {
+    true
+}
+
+fn default_runtime_lane_memory_mode() -> String {
+    "inherit_runtime".to_string()
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeRoutingConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_runtime_routing_use_channel_defaults_as_fallback")]
+    pub use_channel_defaults_as_fallback: bool,
+    #[serde(default)]
+    pub local_operator_human_identity_id: Option<String>,
+    #[serde(default)]
+    pub dm_unmapped_policy: String,
+    #[serde(default)]
+    pub shared_unmapped_policy: String,
+    #[serde(default)]
+    pub human_identities: Vec<RuntimeHumanIdentityConfig>,
+    #[serde(default)]
+    pub platform_identity_links: Vec<RuntimePlatformIdentityLinkConfig>,
+    #[serde(default)]
+    pub assistant_assignments: Vec<RuntimeAssistantAssignmentConfig>,
+    #[serde(default)]
+    pub lane_memory_policies: Vec<RuntimeLaneMemoryPolicyConfig>,
+}
+
+fn default_runtime_routing_use_channel_defaults_as_fallback() -> bool {
+    false
+}
+
+fn default_runtime_dm_unmapped_policy() -> String {
+    "approval_required".to_string()
+}
+
+fn default_runtime_shared_unmapped_policy() -> String {
+    "block".to_string()
+}
+
+impl Default for RuntimeRoutingConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            use_channel_defaults_as_fallback:
+                default_runtime_routing_use_channel_defaults_as_fallback(),
+            local_operator_human_identity_id: Some("local-operator".to_string()),
+            dm_unmapped_policy: default_runtime_dm_unmapped_policy(),
+            shared_unmapped_policy: default_runtime_shared_unmapped_policy(),
+            human_identities: Vec::new(),
+            platform_identity_links: Vec::new(),
+            assistant_assignments: Vec::new(),
+            lane_memory_policies: Vec::new(),
         }
     }
 }
@@ -2744,6 +2963,8 @@ pub struct RuntimeConfigResponse {
     pub providers: Vec<RuntimeProviderPolicyConfig>,
     pub channels: RuntimeChannelsConfig,
     #[serde(default)]
+    pub routing: RuntimeRoutingConfig,
+    #[serde(default)]
     pub memory: RuntimeMemoryConfig,
     #[serde(default)]
     pub extensions: RuntimeExtensionsConfig,
@@ -2763,6 +2984,7 @@ pub struct UpdateRuntimeConfigRequest {
     pub global: Option<RuntimeGlobalConfig>,
     pub providers: Option<Vec<RuntimeProviderPolicyConfig>>,
     pub channels: Option<RuntimeChannelsConfig>,
+    pub routing: Option<RuntimeRoutingConfig>,
     pub memory: Option<RuntimeMemoryConfig>,
     pub extensions: Option<RuntimeExtensionsConfig>,
     pub security: Option<RuntimeSecurityOpsConfig>,
@@ -2860,8 +3082,14 @@ pub struct ChannelRuntimeAdapterStatusResponse {
     pub provider: String,
     pub lifecycle_state: String,
     pub healthy: bool,
+    pub session_state: String,
+    pub proof_state: String,
     pub detail: Option<String>,
+    pub proof_detail: Option<String>,
     pub last_error: Option<String>,
+    pub last_inbound_at: Option<i64>,
+    pub last_outbound_at: Option<i64>,
+    pub last_proven_at: Option<i64>,
     pub reconnect_attempts: u64,
     pub updated_at: i64,
 }
@@ -2895,6 +3123,94 @@ pub struct IngestTelegramMessageRequest {
     pub model_provider: Option<String>,
     pub model_id: Option<String>,
     pub auth_profile_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelegramPairingPendingRequestResponse {
+    pub code: String,
+    pub user_id: i64,
+    pub chat_id: i64,
+    pub preview_text: String,
+    pub first_seen_at: i64,
+    pub last_seen_at: i64,
+    pub expires_at: i64,
+    pub attempt_count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TelegramBlockedSenderResponse {
+    pub user_id: i64,
+    pub blocked_until: i64,
+    pub reason: String,
+    pub attempt_count: u32,
+    pub last_attempt_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GetTelegramPairingStatusResponse {
+    pub dm_policy: String,
+    pub group_policy: String,
+    pub auto_leave_unauthorized_groups: bool,
+    pub pending_requests: Vec<TelegramPairingPendingRequestResponse>,
+    pub blocked_senders: Vec<TelegramBlockedSenderResponse>,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ResolveTelegramPairingRequest {
+    pub code: String,
+    #[serde(default)]
+    pub human_identity_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ResolveTelegramPairingResponse {
+    pub status: GetTelegramPairingStatusResponse,
+    pub approved_user_id: Option<i64>,
+    pub linked_human_identity_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiscordPairingPendingRequestResponse {
+    pub code: String,
+    pub user_id: String,
+    pub channel_id: String,
+    pub preview_text: String,
+    pub first_seen_at: i64,
+    pub last_seen_at: i64,
+    pub expires_at: i64,
+    pub attempt_count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiscordBlockedSenderResponse {
+    pub user_id: String,
+    pub blocked_until: i64,
+    pub reason: String,
+    pub attempt_count: u32,
+    pub last_attempt_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GetDiscordPairingStatusResponse {
+    pub dm_policy: String,
+    pub pending_requests: Vec<DiscordPairingPendingRequestResponse>,
+    pub blocked_senders: Vec<DiscordBlockedSenderResponse>,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ResolveDiscordPairingRequest {
+    pub code: String,
+    #[serde(default)]
+    pub human_identity_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ResolveDiscordPairingResponse {
+    pub status: GetDiscordPairingStatusResponse,
+    pub approved_user_id: Option<String>,
+    pub linked_human_identity_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

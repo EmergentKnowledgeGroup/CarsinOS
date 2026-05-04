@@ -5,6 +5,7 @@ import {
   finishOpenAiOauth,
   getAgentProviderProfileOrder,
   getGatewayHealth,
+  getRuntimeConfig,
   getGatewayStatus,
   ingestAnthropicSetupToken,
   listAgents,
@@ -16,6 +17,7 @@ import {
   setAgentProviderProfileOrder,
   startOpenAiOauth,
   updateAgent,
+  updateRuntimeConfig,
   validateAnthropicSetupToken,
 } from "../../lib/api";
 import {
@@ -28,6 +30,7 @@ import type {
   AuthProfileResponse,
   BootstrapPresetResponse,
   RuntimeConnectionSettings,
+  RuntimeRoutingConfigResponse,
 } from "../../types";
 import { applyBootstrapPresetToDraft } from "../strategy/bootstrapPresetUtils";
 import {
@@ -41,6 +44,14 @@ import {
 } from "./onboardingState";
 import { DEFAULT_GATEWAY_URL } from "../../constants";
 import { launchAnthropicSetupTokenFlow as launchAnthropicSetupTokenFlowRuntime } from "../../lib/runtime";
+import {
+  enabledAuthProfilesForProvider,
+  formatModelDiscoveryNote,
+  normalizeAnthropicSetupToken,
+  pickCatalogModel,
+  profileSupportsSelection,
+  validateAnthropicSetupTokenFormat,
+} from "../providers/providerModelCatalog";
 
 export interface OnboardingPreflightState {
   running: boolean;
@@ -55,6 +66,7 @@ export interface OnboardingPreflightState {
 interface UseOnboardingControllerOptions {
   settings: RuntimeConnectionSettings;
   tokenConfigured: boolean;
+  initialBootstrapSettled: boolean;
   agents: Agent[];
   authProfiles: AuthProfileResponse[];
   strategyEnabled: boolean;
@@ -72,6 +84,7 @@ const ONBOARDING_STEPS = [
   "review",
   "done",
 ] as const;
+const LOCAL_OPERATOR_HUMAN_ID = "local-operator";
 
 function providerRequiresProfile(path: OnboardingProviderPath): boolean {
   return path === "anthropic" || path === "openai";
@@ -80,11 +93,7 @@ function providerRequiresProfile(path: OnboardingProviderPath): boolean {
 function selectedProviderFromExisting(
   profiles: AuthProfileResponse[]
 ): OnboardingProviderPath {
-  if (
-    profiles.some(
-      (profile) => profile.enabled && profile.provider.toLowerCase() === "anthropic"
-    )
-  ) {
+  if (profiles.some((profile) => profile.enabled && profileSupportsSelection(profile, "anthropic"))) {
     return "anthropic";
   }
   if (
@@ -97,25 +106,67 @@ function selectedProviderFromExisting(
   return "local";
 }
 
-function parseOptionalUnixTimestamp(raw: string): number | undefined {
-  const trimmed = raw.trim();
-  if (!trimmed) {
-    return undefined;
+function applyOnboardingLaneRouting(
+  routing: RuntimeRoutingConfigResponse,
+  assistantAgentId: string
+): RuntimeRoutingConfigResponse {
+  const targetAgentId = assistantAgentId.trim();
+  if (!targetAgentId) {
+    return routing;
   }
-  if (!/^\d+$/.test(trimmed)) {
-    throw new Error("Expiry must be a unix timestamp in seconds.");
-  }
-  const parsed = Number.parseInt(trimmed, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error("Expiry must be a unix timestamp in seconds.");
-  }
-  return parsed;
+  const existingLocalOperator = routing.human_identities.find(
+    (human) => human.human_identity_id.trim() === LOCAL_OPERATOR_HUMAN_ID
+  );
+  const nextLocalOperator = existingLocalOperator
+    ? {
+        ...existingLocalOperator,
+        human_identity_id: LOCAL_OPERATOR_HUMAN_ID,
+        display_name: existingLocalOperator.display_name.trim() || "You",
+        enabled: true,
+      }
+    : {
+        human_identity_id: LOCAL_OPERATOR_HUMAN_ID,
+        display_name: "You",
+        enabled: true,
+      };
+
+  return {
+    ...routing,
+    enabled: true,
+    use_channel_defaults_as_fallback: false,
+    local_operator_human_identity_id: LOCAL_OPERATOR_HUMAN_ID,
+    dm_unmapped_policy:
+      routing.dm_unmapped_policy.trim() === "block" ? "block" : "approval_required",
+    shared_unmapped_policy: "block",
+    human_identities: [
+      nextLocalOperator,
+      ...routing.human_identities
+        .filter((human) => human.human_identity_id.trim() !== LOCAL_OPERATOR_HUMAN_ID)
+        .map((human) => ({ ...human })),
+    ],
+    platform_identity_links: routing.platform_identity_links.map((link) => ({ ...link })),
+    assistant_assignments: [
+      ...routing.assistant_assignments
+        .filter((assignment) => assignment.human_identity_id.trim() !== LOCAL_OPERATOR_HUMAN_ID)
+        .map((assignment) => ({ ...assignment })),
+      {
+        human_identity_id: LOCAL_OPERATOR_HUMAN_ID,
+        assistant_agent_id: targetAgentId,
+        enabled: true,
+      },
+    ],
+    lane_memory_policies: routing.lane_memory_policies.map((policy) => ({
+      ...policy,
+      local_memory_sources: [...policy.local_memory_sources],
+    })),
+  };
 }
 
 export function useOnboardingController(options: UseOnboardingControllerOptions) {
   const {
     settings,
     tokenConfigured,
+    initialBootstrapSettled,
     agents,
     authProfiles,
     strategyEnabled,
@@ -162,6 +213,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   const [useExistingProfile, setUseExistingProfile] = useState(true);
   const [selectedExistingProfileId, setSelectedExistingProfileId] = useState("");
   const [providerProfileId, setProviderProfileId] = useState<string | null>(null);
+  const [draftProviderProfileId, setDraftProviderProfileId] = useState<string | null>(null);
   const [providerReady, setProviderReady] = useState(false);
   const [localProvider, setLocalProvider] = useState("ollama");
   const [localUseConnectionProfile, setLocalUseConnectionProfile] = useState(false);
@@ -186,6 +238,11 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   const [localModelOptions, setLocalModelOptions] = useState<string[]>([]);
   const [localModelsLoading, setLocalModelsLoading] = useState(false);
   const [localModelsError, setLocalModelsError] = useState<string | null>(null);
+  const [cloudModelId, setCloudModelId] = useState("");
+  const [cloudModelOptions, setCloudModelOptions] = useState<string[]>([]);
+  const [cloudModelsLoading, setCloudModelsLoading] = useState(false);
+  const [cloudModelsError, setCloudModelsError] = useState<string | null>(null);
+  const [cloudModelDiscoveryNote, setCloudModelDiscoveryNote] = useState<string | null>(null);
 
   const [anthropicAuthMode, setAnthropicAuthMode] =
     useState<OnboardingAnthropicAuthMode>("api_key");
@@ -195,10 +252,6 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   const [anthropicValidationBusy, setAnthropicValidationBusy] = useState(false);
   const [anthropicValidationNote, setAnthropicValidationNote] = useState<string | null>(null);
   const [anthropicApiBaseUrl, setAnthropicApiBaseUrl] = useState("");
-  const [anthropicAccessToken, setAnthropicAccessToken] = useState("");
-  const [anthropicRefreshToken, setAnthropicRefreshToken] = useState("");
-  const [anthropicRefreshUrl, setAnthropicRefreshUrl] = useState("");
-  const [anthropicExpiresAtUnix, setAnthropicExpiresAtUnix] = useState("");
   const [anthropicHeadlessCommand, setAnthropicHeadlessCommand] = useState("claude");
   const [anthropicHeadlessArgs, setAnthropicHeadlessArgs] = useState(
     "-p --output-format text"
@@ -218,6 +271,10 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   const localProviderRef = useRef(localProvider);
   const localModelIdRef = useRef(localModelId);
   const nextStepInFlightRef = useRef(false);
+  const anthropicAutoAttemptTokenRef = useRef("");
+  const anthropicSetupRequestSeqRef = useRef(0);
+  const cloudModelRequestSeqRef = useRef(0);
+  const previousProviderPathRef = useRef<OnboardingProviderPath>(providerPath);
 
   const [preflight, setPreflight] = useState<OnboardingPreflightState>({
     running: false,
@@ -230,6 +287,27 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   });
 
   const step = ONBOARDING_STEPS[Math.max(0, Math.min(stepIndex, ONBOARDING_STEPS.length - 1))];
+  const clearError = useCallback(() => setErrorText(null), []);
+
+  const cleanupDraftProviderProfile = useCallback(
+    async (profileId: string | null | undefined) => {
+      const normalizedProfileId = profileId?.trim();
+      if (!normalizedProfileId) {
+        return;
+      }
+      try {
+        await revokeAuthProfile(settings, normalizedProfileId, {
+          reason: "wizard draft provider profile replaced",
+          remove_secret: true,
+          disable_profile: true,
+          kill_switch_scope: "profile",
+        });
+      } catch {
+        // Best-effort cleanup for temporary wizard profiles.
+      }
+    },
+    [settings]
+  );
 
   useEffect(() => {
     localProviderRef.current = localProvider;
@@ -271,34 +349,59 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     setToolProfileDraft(selected.tool_profile?.trim() || "default");
     setReportsToAgentIdDraft(selected.reports_to_agent_id?.trim() || "");
     setRoleLabelDraft(selected.role_label?.trim() || "");
+    if (selected.model_provider?.trim().toLowerCase() === providerPath) {
+      setCloudModelId(selected.model_id?.trim() || "");
+    }
     setAgentReady(true);
-  }, [agents, selectedAgentId]);
+  }, [agents, providerPath, selectedAgentId]);
 
   useEffect(() => {
     setConnected(tokenConfigured && settings.gateway_url.trim().length > 0);
   }, [settings.gateway_url, tokenConfigured]);
 
   const existingProviderProfiles = useMemo(() => {
-    return authProfiles
-      .filter(
-        (profile) =>
-          profile.enabled && profile.provider.toLowerCase() === providerPath.toLowerCase()
-      )
-      .sort((a, b) => a.display_name.localeCompare(b.display_name));
+    return enabledAuthProfilesForProvider(authProfiles, providerPath);
   }, [authProfiles, providerPath]);
 
   useEffect(() => {
     const first = existingProviderProfiles[0]?.auth_profile_id ?? "";
-    setSelectedExistingProfileId(first);
-    setUseExistingProfile(existingProviderProfiles.length > 0);
-  }, [existingProviderProfiles]);
+    setSelectedExistingProfileId((current) => {
+      if (current && existingProviderProfiles.some((profile) => profile.auth_profile_id === current)) {
+        return current;
+      }
+      if (
+        providerProfileId &&
+        existingProviderProfiles.some((profile) => profile.auth_profile_id === providerProfileId)
+      ) {
+        return providerProfileId;
+      }
+      return first;
+    });
+    setUseExistingProfile((current) => (existingProviderProfiles.length > 0 ? current : false));
+  }, [existingProviderProfiles, providerProfileId]);
 
   useEffect(() => {
+    if (previousProviderPathRef.current === providerPath) {
+      return;
+    }
+    const previousProviderPath = previousProviderPathRef.current;
+    previousProviderPathRef.current = providerPath;
+    if (previousProviderPath === "anthropic" && draftProviderProfileId) {
+      void cleanupDraftProviderProfile(draftProviderProfileId);
+    }
+    anthropicAutoAttemptTokenRef.current = "";
+    anthropicSetupRequestSeqRef.current += 1;
+    cloudModelRequestSeqRef.current += 1;
     setProviderProfileId(null);
+    setDraftProviderProfileId(null);
     setProviderReady(false);
     setRoutingReady(false);
     setLocalModelDiscoveryNote(null);
     setLocalConnectionProfileId(null);
+    setCloudModelId("");
+    setCloudModelOptions([]);
+    setCloudModelsError(null);
+    setCloudModelDiscoveryNote(null);
     setOpenAiSessionId("");
     setOpenAiAuthorizeUrl("");
     setOpenAiCallbackUrlHint("");
@@ -306,7 +409,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     setOpenAiCode("");
     setOpenAiState("");
     setAnthropicValidationNote(null);
-  }, [providerPath]);
+  }, [cleanupDraftProviderProfile, draftProviderProfileId, providerPath]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -414,12 +517,241 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     settings,
   ]);
 
+  const refreshCloudModels = useCallback(
+    async (
+      provider: "anthropic" | "openai",
+      authProfileId: string
+    ): Promise<string[]> => {
+      const requestSeq = cloudModelRequestSeqRef.current + 1;
+      cloudModelRequestSeqRef.current = requestSeq;
+      const normalizedProfileId = authProfileId.trim();
+      if (!normalizedProfileId) {
+        setCloudModelOptions([]);
+        setCloudModelsError("Connect or choose a provider profile first.");
+        setCloudModelDiscoveryNote(
+          "Finish provider sign-in first, then choose a model from the live catalog."
+        );
+        return [];
+      }
+
+      setCloudModelsLoading(true);
+      setCloudModelsError(null);
+      try {
+        const response = await listProviderModels(settings, {
+          provider,
+          agent_id: selectedAgentId || undefined,
+          auth_profile_id: normalizedProfileId,
+        });
+        const modelIds = response.items.map((item) => item.model_id);
+        if (cloudModelRequestSeqRef.current !== requestSeq) {
+          return modelIds;
+        }
+        setCloudModelOptions(modelIds);
+        setCloudModelId((current) => pickCatalogModel(current, modelIds));
+        setCloudModelDiscoveryNote(formatModelDiscoveryNote(provider, modelIds));
+        return modelIds;
+      } catch (error: unknown) {
+        const text = String(error);
+        if (cloudModelRequestSeqRef.current !== requestSeq) {
+          return [];
+        }
+        setCloudModelOptions([]);
+        setCloudModelsError(text);
+        setCloudModelDiscoveryNote(
+          "We could not load model choices yet. Re-check provider auth and try again."
+        );
+        return [];
+      } finally {
+        if (cloudModelRequestSeqRef.current === requestSeq) {
+          setCloudModelsLoading(false);
+        }
+      }
+    },
+    [selectedAgentId, settings]
+  );
+
+  const prepareAnthropicSetupTokenProfile = useCallback(
+    async (setupTokenOverride?: string): Promise<boolean> => {
+      clearError();
+      const setupToken = normalizeAnthropicSetupToken(
+        setupTokenOverride ?? anthropicSetupToken
+      );
+      if (!setupToken) {
+        setAnthropicValidationNote("Paste a Claude setup token first.");
+        setProviderReady(false);
+        return false;
+      }
+      const formatError = validateAnthropicSetupTokenFormat(setupToken);
+      if (formatError) {
+        setAnthropicValidationNote(formatError);
+        setProviderReady(false);
+        return false;
+      }
+
+      const requestSeq = anthropicSetupRequestSeqRef.current + 1;
+      anthropicSetupRequestSeqRef.current = requestSeq;
+      setAnthropicValidationBusy(true);
+      try {
+        const validation = await validateAnthropicSetupToken(settings, {
+          setup_token: setupToken,
+          api_base_url: anthropicApiBaseUrl.trim() || undefined,
+        });
+        if (!validation.valid) {
+          setProviderReady(false);
+          setAnthropicValidationNote(
+            "That does not look like a complete Claude setup token. Paste the full token from Claude CLI auth and try again."
+          );
+          return false;
+        }
+        if (anthropicSetupRequestSeqRef.current !== requestSeq) {
+          return false;
+        }
+
+        if (draftProviderProfileId) {
+          await cleanupDraftProviderProfile(draftProviderProfileId);
+        }
+
+        const response = await ingestAnthropicSetupToken(settings, {
+          display_name: anthropicDisplayName.trim() || "claude-primary",
+          setup_token: setupToken,
+          api_base_url: anthropicApiBaseUrl.trim() || undefined,
+          enabled: true,
+        });
+        const nextProfileId = response.profile.auth_profile_id;
+        if (anthropicSetupRequestSeqRef.current !== requestSeq) {
+          await cleanupDraftProviderProfile(nextProfileId);
+          return false;
+        }
+        setDraftProviderProfileId(nextProfileId);
+        setProviderProfileId(nextProfileId);
+        setSelectedExistingProfileId(nextProfileId);
+        const modelIds = await refreshCloudModels("anthropic", nextProfileId);
+        if (anthropicSetupRequestSeqRef.current !== requestSeq) {
+          await cleanupDraftProviderProfile(nextProfileId);
+          return false;
+        }
+        setProviderReady(modelIds.length > 0);
+        setAnthropicValidationNote(
+          modelIds.length > 0
+            ? "Claude setup token accepted and models loaded. Keep the suggested model or choose another below."
+            : "Key verified, but Anthropic did not report any models yet."
+        );
+        await loadBaseline(settings);
+        return modelIds.length > 0;
+      } catch (error: unknown) {
+        if (anthropicSetupRequestSeqRef.current !== requestSeq) {
+          return false;
+        }
+        setProviderReady(false);
+        const message = String(error);
+        setAnthropicValidationNote(
+          message.includes("setup token validation failed")
+            ? "Claude setup token was accepted, but carsinOS could not finish wiring the login. Paste a fresh token from Claude CLI auth and try again."
+            : `Claude setup token check failed: ${message}`
+        );
+        return false;
+      } finally {
+        if (anthropicSetupRequestSeqRef.current === requestSeq) {
+          setAnthropicValidationBusy(false);
+        }
+      }
+    },
+    [
+      anthropicApiBaseUrl,
+      anthropicDisplayName,
+      anthropicSetupToken,
+      cleanupDraftProviderProfile,
+      clearError,
+      draftProviderProfileId,
+      loadBaseline,
+      refreshCloudModels,
+      settings,
+    ]
+  );
+
+  const resolveCloudModelId = useCallback(
+    async (provider: "anthropic" | "openai", authProfileId: string): Promise<string> => {
+      const modelIds = await refreshCloudModels(provider, authProfileId);
+      const selectedModel = pickCatalogModel(cloudModelId, modelIds);
+      if (!selectedModel) {
+        const providerLabel = provider === "anthropic" ? "Claude" : "OpenAI";
+        const detail =
+          cloudModelsError?.trim() ||
+          cloudModelDiscoveryNote?.trim() ||
+          `carsinOS could not load ${providerLabel} model choices yet.`;
+        throw new Error(`${detail} ${providerLabel} needs a model choice before setup can continue.`);
+      }
+      setCloudModelId(selectedModel);
+      return selectedModel;
+    },
+    [cloudModelDiscoveryNote, cloudModelId, cloudModelsError, refreshCloudModels]
+  );
+
+  useEffect(() => {
+    if (
+      !isOpen ||
+      providerPath !== "anthropic" ||
+      anthropicAuthMode !== "api_key" ||
+      useExistingProfile
+    ) {
+      return;
+    }
+      const normalizedToken = normalizeAnthropicSetupToken(anthropicSetupToken);
+      if (!normalizedToken || anthropicValidationBusy) {
+        return;
+      }
+    if (normalizedToken === anthropicAutoAttemptTokenRef.current) {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => {
+      anthropicAutoAttemptTokenRef.current = normalizedToken;
+      setAnthropicValidationNote("Checking Claude login and loading model choices...");
+      void prepareAnthropicSetupTokenProfile(normalizedToken);
+    }, 550);
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    anthropicAuthMode,
+    anthropicSetupToken,
+    anthropicValidationBusy,
+    isOpen,
+    prepareAnthropicSetupTokenProfile,
+    providerPath,
+    useExistingProfile,
+  ]);
+
   useEffect(() => {
     if (!isOpen || providerPath !== "local") {
       return;
     }
     void refreshLocalModels();
   }, [isOpen, providerPath, refreshLocalModels]);
+
+  useEffect(() => {
+    if (!isOpen || providerPath === "local" || !useExistingProfile) {
+      return;
+    }
+    const profileId = selectedExistingProfileId.trim();
+    if (!profileId) {
+      setCloudModelOptions([]);
+      setCloudModelsError(null);
+      setCloudModelDiscoveryNote(
+        "Choose the saved login you want carsinOS to use, then pick a model."
+      );
+      return;
+    }
+    setProviderProfileId(profileId);
+    void refreshCloudModels(providerPath, profileId).then((modelIds) => {
+      setProviderReady(modelIds.length > 0);
+    });
+  }, [
+    isOpen,
+    providerPath,
+    refreshCloudModels,
+    selectedExistingProfileId,
+    useExistingProfile,
+  ]);
 
   useEffect(() => {
     const shouldOpen = shouldAutoOpenWizard(
@@ -429,14 +761,19 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
         agents,
         authProfiles,
       },
-      { dismissedAtMs }
+      { dismissedAtMs, bootstrapSettled: initialBootstrapSettled }
     );
     if (shouldOpen) {
       setIsOpen(true);
     }
-  }, [agents, authProfiles, dismissedAtMs, settings, tokenConfigured]);
-
-  const clearError = useCallback(() => setErrorText(null), []);
+  }, [
+    agents,
+    authProfiles,
+    dismissedAtMs,
+    initialBootstrapSettled,
+    settings,
+    tokenConfigured,
+  ]);
 
   const openWizard = useCallback(() => {
     setIsOpen(true);
@@ -511,30 +848,118 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   }, [clearError, gatewayUrl, settings.gateway_url]);
 
   const setSelectedExistingProfileAndInvalidate = useCallback((value: string) => {
+    if (draftProviderProfileId) {
+      void cleanupDraftProviderProfile(draftProviderProfileId);
+    }
+    anthropicAutoAttemptTokenRef.current = "";
+    anthropicSetupRequestSeqRef.current += 1;
+    cloudModelRequestSeqRef.current += 1;
     setSelectedExistingProfileId(value);
     setProviderProfileId(null);
+    setDraftProviderProfileId(null);
     setProviderReady(false);
     setRoutingReady(false);
-  }, []);
+  }, [cleanupDraftProviderProfile, draftProviderProfileId]);
 
   const setUseExistingProfileAndInvalidate = useCallback((value: boolean) => {
+    if (value && draftProviderProfileId) {
+      void cleanupDraftProviderProfile(draftProviderProfileId);
+    }
+    anthropicAutoAttemptTokenRef.current = "";
+    anthropicSetupRequestSeqRef.current += 1;
+    cloudModelRequestSeqRef.current += 1;
     setUseExistingProfile(value);
     setProviderProfileId(null);
+    setDraftProviderProfileId(null);
     setProviderReady(false);
     setRoutingReady(false);
-  }, []);
+  }, [cleanupDraftProviderProfile, draftProviderProfileId]);
 
   const setAnthropicAuthModeAndInvalidate = useCallback(
     (value: OnboardingAnthropicAuthMode) => {
+      if (draftProviderProfileId) {
+        void cleanupDraftProviderProfile(draftProviderProfileId);
+      }
+      anthropicAutoAttemptTokenRef.current = "";
+      anthropicSetupRequestSeqRef.current += 1;
+      cloudModelRequestSeqRef.current += 1;
       setAnthropicAuthMode(value);
       setProviderProfileId(null);
+      setDraftProviderProfileId(null);
       setProviderReady(false);
       setRoutingReady(false);
       setAnthropicSetupLaunchNote(null);
       setAnthropicValidationNote(null);
     },
-    []
+    [cleanupDraftProviderProfile, draftProviderProfileId]
   );
+
+  const setAnthropicDisplayNameAndInvalidate = useCallback((value: string) => {
+    if (draftProviderProfileId) {
+      void cleanupDraftProviderProfile(draftProviderProfileId);
+    }
+    anthropicAutoAttemptTokenRef.current = "";
+    anthropicSetupRequestSeqRef.current += 1;
+    cloudModelRequestSeqRef.current += 1;
+    setAnthropicDisplayName(value);
+    setProviderProfileId(null);
+    setDraftProviderProfileId(null);
+    setProviderReady(false);
+    setRoutingReady(false);
+    setCloudModelOptions([]);
+    setCloudModelsError(null);
+    setCloudModelDiscoveryNote(
+      normalizeAnthropicSetupToken(anthropicSetupToken)
+        ? "Updating Claude login details will reload the model choices automatically."
+        : null
+    );
+    setAnthropicValidationNote(null);
+  }, [anthropicSetupToken, cleanupDraftProviderProfile, draftProviderProfileId]);
+
+  const setAnthropicSetupTokenAndInvalidate = useCallback((value: string) => {
+    const normalizedValue = normalizeAnthropicSetupToken(value);
+    if (draftProviderProfileId) {
+      void cleanupDraftProviderProfile(draftProviderProfileId);
+    }
+    anthropicAutoAttemptTokenRef.current = "";
+    anthropicSetupRequestSeqRef.current += 1;
+    cloudModelRequestSeqRef.current += 1;
+    setAnthropicSetupToken(normalizedValue);
+    setProviderProfileId(null);
+    setDraftProviderProfileId(null);
+    setProviderReady(false);
+    setRoutingReady(false);
+    setCloudModelOptions([]);
+    setCloudModelsError(null);
+    setCloudModelDiscoveryNote(
+      normalizedValue
+        ? "carsinOS will check this Claude setup token, remove any pasted spaces or line breaks, and load model choices automatically."
+        : null
+    );
+    setAnthropicValidationNote(null);
+  }, [cleanupDraftProviderProfile, draftProviderProfileId]);
+
+  const setAnthropicApiBaseUrlAndInvalidate = useCallback((value: string) => {
+    if (draftProviderProfileId) {
+      void cleanupDraftProviderProfile(draftProviderProfileId);
+    }
+    anthropicAutoAttemptTokenRef.current = "";
+    anthropicSetupRequestSeqRef.current += 1;
+    cloudModelRequestSeqRef.current += 1;
+    setAnthropicApiBaseUrl(value);
+    setProviderProfileId(null);
+    setDraftProviderProfileId(null);
+    setProviderReady(false);
+    setRoutingReady(false);
+    setCloudModelOptions([]);
+    setCloudModelsError(null);
+    setCloudModelDiscoveryNote(
+      anthropicSetupToken.trim()
+        ? "Updating Claude endpoint details will reload the model choices automatically."
+        : null
+    );
+    setAnthropicValidationNote(null);
+  }, [anthropicSetupToken, cleanupDraftProviderProfile, draftProviderProfileId]);
 
   const launchAnthropicSetupTokenFlow = useCallback(async () => {
     clearError();
@@ -543,7 +968,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
       const result = await launchAnthropicSetupTokenFlowRuntime();
       if (result.launched) {
         setAnthropicSetupLaunchNote(
-          `${result.detail} Copy the token from Terminal and paste it below.`
+          `${result.detail} Copy the Claude setup token from Terminal and paste it into the Claude setup token box below.`
         );
         return;
       }
@@ -556,25 +981,8 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   }, [clearError]);
 
   const runAnthropicSetupTokenValidation = useCallback(async () => {
-    clearError();
-    const setupToken = anthropicSetupToken.trim();
-    if (!setupToken) {
-      setAnthropicValidationNote("Enter a key first.");
-      return;
-    }
-    setAnthropicValidationBusy(true);
-    try {
-      await validateAnthropicSetupToken(settings, {
-        setup_token: setupToken,
-        api_base_url: anthropicApiBaseUrl.trim() || undefined,
-      });
-      setAnthropicValidationNote("Key verified successfully against Anthropic.");
-    } catch (error: unknown) {
-      setAnthropicValidationNote(`Validation failed: ${String(error)}`);
-    } finally {
-      setAnthropicValidationBusy(false);
-    }
-  }, [anthropicApiBaseUrl, anthropicSetupToken, clearError, settings]);
+    await prepareAnthropicSetupTokenProfile();
+  }, [prepareAnthropicSetupTokenProfile]);
 
   const connectGateway = useCallback(async (): Promise<boolean> => {
     clearError();
@@ -868,7 +1276,8 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
         api_base_url: openAiApiBaseUrl.trim() || undefined,
       });
       setProviderProfileId(response.profile.auth_profile_id);
-      setProviderReady(true);
+      const modelIds = await refreshCloudModels("openai", response.profile.auth_profile_id);
+      setProviderReady(modelIds.length > 0);
       await loadBaseline(settings);
     } catch (error: unknown) {
       setProviderReady(false);
@@ -885,6 +1294,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     openAiDisplayName,
     openAiSessionId,
     openAiState,
+    refreshCloudModels,
     settings,
   ]);
 
@@ -1009,13 +1419,17 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
         if (!existingProfileId) {
           throw new Error("Select an existing profile or create a new one.");
         }
-        await listProviderModels(settings, {
-          provider: providerPath,
-          agent_id: targetAgentId || undefined,
-          auth_profile_id: existingProfileId,
+        if (!targetAgentId) {
+          throw new Error("Select or create an agent first.");
+        }
+        const assistantModel = await resolveCloudModelId(providerPath, existingProfileId);
+        await updateAgent(settings, targetAgentId, {
+          model_provider: providerPath,
+          model_id: assistantModel,
         });
         setProviderProfileId(existingProfileId);
         setProviderReady(true);
+        await loadBaseline(settings);
         return {
           ok: true,
           profileId: existingProfileId,
@@ -1024,19 +1438,26 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
 
       if (providerPath === "anthropic") {
         if (anthropicAuthMode === "api_key") {
-          const response = await ingestAnthropicSetupToken(settings, {
-            display_name: anthropicDisplayName.trim() || "claude-primary",
-            setup_token: anthropicSetupToken.trim(),
-            api_base_url: anthropicApiBaseUrl.trim() || undefined,
-            enabled: true,
-          });
-          const nextProfileId = response.profile.auth_profile_id;
-          await listProviderModels(settings, {
-            provider: "anthropic",
-            agent_id: targetAgentId || undefined,
-            auth_profile_id: nextProfileId,
+          const nextProfileId =
+            providerProfileId?.trim() ||
+            (
+              await ingestAnthropicSetupToken(settings, {
+                display_name: anthropicDisplayName.trim() || "claude-primary",
+                setup_token: anthropicSetupToken.trim(),
+                api_base_url: anthropicApiBaseUrl.trim() || undefined,
+                enabled: true,
+              })
+            ).profile.auth_profile_id;
+          if (!targetAgentId) {
+            throw new Error("Select or create an agent first.");
+          }
+          const assistantModel = await resolveCloudModelId("anthropic", nextProfileId);
+          await updateAgent(settings, targetAgentId, {
+            model_provider: "anthropic",
+            model_id: assistantModel,
           });
           setProviderProfileId(nextProfileId);
+          setDraftProviderProfileId(nextProfileId);
           setProviderReady(true);
           setAnthropicSetupToken("");
           await loadBaseline(settings);
@@ -1046,27 +1467,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
           };
         }
 
-        const accessToken = anthropicAccessToken.trim();
-        if (anthropicAuthMode === "claude_consumer_oauth" && !accessToken) {
-          throw new Error("Access token is required for Anthropic OAuth mode.");
-        }
-        const expiresAtUnix = parseOptionalUnixTimestamp(anthropicExpiresAtUnix);
         const credentialsJson: Record<string, unknown> = {};
-        if (accessToken) {
-          credentialsJson.access_token = accessToken;
-          credentialsJson.token = accessToken;
-        }
-        const refreshToken = anthropicRefreshToken.trim();
-        if (refreshToken) {
-          credentialsJson.refresh_token = refreshToken;
-        }
-        const refreshUrl = anthropicRefreshUrl.trim();
-        if (refreshUrl) {
-          credentialsJson.refresh_url = refreshUrl;
-        }
-        if (expiresAtUnix !== undefined) {
-          credentialsJson.expires_at_unix = expiresAtUnix;
-        }
         if (anthropicAuthMode === "agent_sdk") {
           credentialsJson.headless_enabled = true;
           credentialsJson.headless_command =
@@ -1080,7 +1481,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
           provider: "anthropic",
           display_name:
             anthropicDisplayName.trim() ||
-            (anthropicAuthMode === "agent_sdk" ? "claude-headless" : "claude-oauth"),
+            (anthropicAuthMode === "agent_sdk" ? "claude-headless" : "claude-primary"),
           auth_mode: anthropicAuthMode,
           risk_level: "high",
           enabled: true,
@@ -1089,15 +1490,16 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
           credentials_json: credentialsJson,
         });
         const nextProfileId = response.profile.auth_profile_id;
-        await listProviderModels(settings, {
-          provider: "anthropic",
-          agent_id: targetAgentId || undefined,
-          auth_profile_id: nextProfileId,
+        if (!targetAgentId) {
+          throw new Error("Select or create an agent first.");
+        }
+        const assistantModel = await resolveCloudModelId("anthropic", nextProfileId);
+        await updateAgent(settings, targetAgentId, {
+          model_provider: "anthropic",
+          model_id: assistantModel,
         });
         setProviderProfileId(nextProfileId);
         setProviderReady(true);
-        setAnthropicAccessToken("");
-        setAnthropicRefreshToken("");
         await loadBaseline(settings);
         return {
           ok: true,
@@ -1112,12 +1514,16 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
             "Complete OpenAI OAuth first, or switch to an existing profile."
           );
         }
-        await listProviderModels(settings, {
-          provider: "openai",
-          agent_id: targetAgentId || undefined,
-          auth_profile_id: openAiProfileId,
+        if (!targetAgentId) {
+          throw new Error("Select or create an agent first.");
+        }
+        const assistantModel = await resolveCloudModelId("openai", openAiProfileId);
+        await updateAgent(settings, targetAgentId, {
+          model_provider: "openai",
+          model_id: assistantModel,
         });
         setProviderReady(true);
+        await loadBaseline(settings);
         return {
           ok: true,
           profileId: openAiProfileId,
@@ -1136,15 +1542,11 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     }
   }, [
     agentIdDraft,
-    anthropicAccessToken,
     anthropicApiBaseUrl,
     anthropicAuthMode,
     anthropicDisplayName,
-    anthropicExpiresAtUnix,
     anthropicHeadlessArgs,
     anthropicHeadlessCommand,
-    anthropicRefreshToken,
-    anthropicRefreshUrl,
     anthropicSetupToken,
     clearError,
     loadBaseline,
@@ -1160,6 +1562,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     localUseConnectionProfile,
     providerPath,
     providerProfileId,
+    resolveCloudModelId,
     selectedAgentId,
     selectedExistingProfileId,
     settings,
@@ -1176,17 +1579,18 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
       if (!targetAgent) {
         throw new Error("Select an agent first.");
       }
-      if (!providerRequiresProfile(providerPath)) {
-        setRoutingReady(true);
-        return true;
+      if (providerRequiresProfile(providerPath)) {
+        const profileId = (profileIdOverride ?? providerProfileId)?.trim();
+        if (!profileId) {
+          throw new Error("Provider profile is not ready.");
+        }
+        const existing = await getAgentProviderProfileOrder(settings, targetAgent, providerPath);
+        const nextOrder = reorderProfileFirst(existing.profile_ids, profileId);
+        await setAgentProviderProfileOrder(settings, targetAgent, providerPath, nextOrder);
       }
-      const profileId = (profileIdOverride ?? providerProfileId)?.trim();
-      if (!profileId) {
-        throw new Error("Provider profile is not ready.");
-      }
-      const existing = await getAgentProviderProfileOrder(settings, targetAgent, providerPath);
-      const nextOrder = reorderProfileFirst(existing.profile_ids, profileId);
-      await setAgentProviderProfileOrder(settings, targetAgent, providerPath, nextOrder);
+      const runtime = await getRuntimeConfig(settings);
+      const nextRouting = applyOnboardingLaneRouting(runtime.config.routing, targetAgent);
+      await updateRuntimeConfig(settings, { routing: nextRouting });
       setRoutingReady(true);
       await loadBaseline(settings);
       return true;
@@ -1216,7 +1620,11 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     if (!providerResult.ok) {
       return false;
     }
-    return applyRouting(providerResult.profileId);
+    const routed = await applyRouting(providerResult.profileId);
+    if (routed) {
+      setDraftProviderProfileId(null);
+    }
+    return routed;
   }, [applyRouting, completeProvider, saveAgent]);
 
   const nextStep = useCallback(async () => {
@@ -1238,6 +1646,10 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
         }
       }
       if (step === "provider") {
+        if (anthropicValidationBusy || cloudModelsLoading || localModelsLoading) {
+          setErrorText("Wait for login checks and model loading to finish, then continue.");
+          return;
+        }
         const setupOk = await completeProviderAndRouting();
         if (!setupOk) {
           return;
@@ -1249,17 +1661,24 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     }
   }, [
     busy,
+    anthropicValidationBusy,
+    cloudModelsLoading,
     completeProviderAndRouting,
     connectGateway,
+    localModelsLoading,
     preflight.running,
     runPreflight,
     step,
   ]);
 
-  const completeAndExit = useCallback(() => {
-    setActiveTab("boards");
+  const completeAndExitTo = useCallback((tab: MissionControlTab = "boards") => {
+    setActiveTab(tab);
     setIsOpen(false);
   }, [setActiveTab]);
+
+  const completeAndExit = useCallback(() => {
+    completeAndExitTo("boards");
+  }, [completeAndExitTo]);
 
   const canFinishReview = connected && agentReady && providerReady && routingReady;
 
@@ -1344,25 +1763,23 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     localModelsLoading,
     localModelsError,
     refreshLocalModels,
+    cloudModelId,
+    setCloudModelId,
+    cloudModelOptions,
+    cloudModelsLoading,
+    cloudModelsError,
+    cloudModelDiscoveryNote,
     anthropicAuthMode,
     setAnthropicAuthMode: setAnthropicAuthModeAndInvalidate,
     anthropicDisplayName,
-    setAnthropicDisplayName,
+    setAnthropicDisplayName: setAnthropicDisplayNameAndInvalidate,
     anthropicSetupToken,
-    setAnthropicSetupToken,
+    setAnthropicSetupToken: setAnthropicSetupTokenAndInvalidate,
     anthropicSetupLaunchNote,
     anthropicValidationBusy,
     anthropicValidationNote,
     anthropicApiBaseUrl,
-    setAnthropicApiBaseUrl,
-    anthropicAccessToken,
-    setAnthropicAccessToken,
-    anthropicRefreshToken,
-    setAnthropicRefreshToken,
-    anthropicRefreshUrl,
-    setAnthropicRefreshUrl,
-    anthropicExpiresAtUnix,
-    setAnthropicExpiresAtUnix,
+    setAnthropicApiBaseUrl: setAnthropicApiBaseUrlAndInvalidate,
     anthropicHeadlessCommand,
     setAnthropicHeadlessCommand,
     anthropicHeadlessArgs,
@@ -1383,6 +1800,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     openAiState,
     setOpenAiState,
     launchAnthropicSetupTokenFlow,
+    prepareAnthropicSetupTokenProfile,
     runAnthropicSetupTokenValidation,
     startOpenAiOauthFlow,
     finishOpenAiOauthFlow,
@@ -1392,6 +1810,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     routingReady,
     applyRouting,
     canFinishReview,
+    completeAndExitTo,
     completeAndExit,
   };
 }

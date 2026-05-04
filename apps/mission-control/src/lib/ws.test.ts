@@ -3,14 +3,15 @@ import { WS_RECONNECT_INITIAL_MS } from "../constants";
 import type { WsEventFrame } from "../types";
 import { connectGatewayEvents } from "./ws";
 import { getGatewayToken } from "./runtime";
-import { websocketUrlFromGateway } from "./api";
+import { createWebSocketTicket, websocketUrlFromGateway } from "./api";
 
 vi.mock("./runtime", () => ({
   getGatewayToken: vi.fn(),
 }));
 
 vi.mock("./api", () => ({
-  websocketUrlFromGateway: vi.fn(() => "ws://127.0.0.1:18789/api/v1/ws?token=token"),
+  createWebSocketTicket: vi.fn(),
+  websocketUrlFromGateway: vi.fn(() => "ws://127.0.0.1:18789/api/v1/ws?ticket=ticket"),
 }));
 
 interface MockMessageEvent {
@@ -45,6 +46,10 @@ describe("connectGatewayEvents", () => {
     MockWebSocket.instances = [];
     vi.useFakeTimers();
     vi.clearAllMocks();
+    vi.mocked(createWebSocketTicket).mockResolvedValue({
+      ticket: "ticket",
+      expires_at: 1234,
+    });
     (globalThis as { WebSocket: typeof WebSocket }).WebSocket = MockWebSocket as unknown as typeof WebSocket;
   });
 
@@ -82,7 +87,13 @@ describe("connectGatewayEvents", () => {
 
     await vi.runAllTimersAsync();
     expect(MockWebSocket.instances).toHaveLength(1);
-    expect(vi.mocked(websocketUrlFromGateway)).toHaveBeenCalled();
+    expect(vi.mocked(createWebSocketTicket)).toHaveBeenCalledWith({
+      gateway_url: "http://127.0.0.1:18789",
+    });
+    expect(vi.mocked(websocketUrlFromGateway)).toHaveBeenCalledWith(
+      { gateway_url: "http://127.0.0.1:18789" },
+      "ticket"
+    );
 
     const socket = MockWebSocket.instances[0];
     socket.onopen?.();

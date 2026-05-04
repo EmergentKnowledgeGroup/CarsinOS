@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b --pretty false",
     "lint": "eslint .",
-    "test:unit": "vitest run",
+    "test:unit": "vitest run --maxWorkers=4",
     "test:e2e:core": "playwright test --config=playwright.config.ts --grep \"@core\"",
     "test:e2e:full": "playwright test --config=playwright.config.ts",
     "test:e2e:tauri-smoke": "node ../../scripts/mission_control_e2e_placeholder.mjs tauri-smoke",

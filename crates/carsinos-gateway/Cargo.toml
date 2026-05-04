@@ -27,6 +27,8 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 sha2 = "0.10"
 jsonwebtoken = "9"
 cron = "0.12"
+futures-util = "0.3"
+tokio-tungstenite = { version = "0.28", features = ["rustls-tls-webpki-roots"] }
 tower = { version = "0.5", features = ["util"] }
 tower-http = { workspace = true, features = ["cors", "request-id", "trace"] }
 tracing.workspace = true
@@ -36,9 +38,7 @@ url = "2"
 uuid.workspace = true
 
 [dev-dependencies]
-futures-util = "0.3"
 httpmock = "0.7"
 portpicker = "0.1"
 tempfile = "3"
-tokio-tungstenite = "0.28"
 urlencoding = "2.1"

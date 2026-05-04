@@ -18,6 +18,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 
 @dataclass
 class StepResult:
@@ -46,6 +51,33 @@ def normalize_command(raw: Any) -> list[str]:
     if isinstance(raw, str) and raw.strip():
         return shlex.split(raw)
     raise ValueError(f"invalid command: {raw!r}")
+
+
+def prepare_subprocess_command(command: list[str], cwd: Path) -> tuple[list[str], str | None]:
+    if os.name != "nt":
+        return command, str(cwd)
+
+    normalized = list(command)
+    if normalized and normalized[0] == "python3":
+        normalized[0] = "python"
+
+    command_line = subprocess.list2cmdline(normalized)
+    cwd_text = str(cwd)
+    unc_root = os.environ.get("CARSINOS_QUALITY_GATE_UNC_ROOT")
+    mapped_root = os.environ.get("CARSINOS_QUALITY_GATE_MAPPED_ROOT")
+    if unc_root and mapped_root and cwd_text.lower().startswith(unc_root.lower()):
+        mapped_cwd = mapped_root.rstrip("\\/") + cwd_text[len(unc_root) :]
+        if os.path.isdir(mapped_cwd):
+            cwd_text = mapped_cwd
+    if cwd_text.startswith("\\\\"):
+        launcher_cwd = os.environ.get("TMP") or os.environ.get("TEMP") or None
+        return [
+            "cmd.exe",
+            "/d",
+            "/c",
+            f"pushd {cwd_text} && {command_line}",
+        ], launcher_cwd
+    return ["cmd.exe", "/d", "/c", command_line], cwd_text
 
 
 def parse_active_blockers(raw_values: list[str]) -> set[str]:
@@ -154,12 +186,15 @@ def run_step(step: dict[str, Any], repo_root: Path, log_handle, active_blockers:
     print(header)
     print(header, file=log_handle)
 
+    popen_command, popen_cwd = prepare_subprocess_command(command, cwd)
     proc = subprocess.Popen(
-        command,
-        cwd=str(cwd),
+        popen_command,
+        cwd=popen_cwd,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         bufsize=1,
         start_new_session=True,
     )

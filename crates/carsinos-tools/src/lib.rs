@@ -589,11 +589,12 @@ impl LocalToolRunner {
     }
 
     fn ensure_binary_allowed(&self, binary: &str) -> Result<(), ToolError> {
-        let normalized = Path::new(binary)
-            .file_name()
-            .and_then(|value| value.to_str())
-            .map(|value| value.to_ascii_lowercase())
-            .unwrap_or_else(|| binary.to_ascii_lowercase());
+        if binary.contains('/') || binary.contains('\\') || binary.contains(':') {
+            return Err(ToolError::PolicyDenied(
+                "exec binary must be an allowlisted command name, not a path".to_string(),
+            ));
+        }
+        let normalized = binary.to_ascii_lowercase();
         if self.sandbox.allowed_binaries.contains(&normalized) {
             return Ok(());
         }
@@ -790,8 +791,7 @@ fn list_processes_output() -> Result<String, ToolError> {
 
 #[cfg(windows)]
 fn list_processes_output() -> Result<String, ToolError> {
-    let output = std::process::Command::new("cmd")
-        .args(["/C", "tasklist"])
+    let output = std::process::Command::new("tasklist")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()?;
@@ -811,8 +811,8 @@ fn process_exists(pid: u32) -> Result<bool, ToolError> {
 
 #[cfg(windows)]
 fn process_exists(pid: u32) -> Result<bool, ToolError> {
-    let output = std::process::Command::new("cmd")
-        .args(["/C", &format!("tasklist /FI \"PID eq {pid}\"")])
+    let output = std::process::Command::new("tasklist")
+        .args(["/FI", &format!("PID eq {pid}")])
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .output()?;
@@ -832,8 +832,8 @@ fn terminate_process(pid: u32) -> Result<bool, ToolError> {
 
 #[cfg(windows)]
 fn terminate_process(pid: u32) -> Result<bool, ToolError> {
-    let output = std::process::Command::new("cmd")
-        .args(["/C", &format!("taskkill /PID {pid} /T /F")])
+    let output = std::process::Command::new("taskkill")
+        .args(["/PID", &pid.to_string(), "/T", "/F"])
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .output()?;
@@ -1101,6 +1101,29 @@ mod tests {
             }))
             .expect_err("disallowed binary must be rejected");
         assert!(matches!(err, ToolError::PolicyDenied(_)));
+    }
+
+    #[test]
+    fn exec_rejects_path_qualified_allowlisted_binary() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let runner = LocalToolRunner::with_sandbox_policy(ToolSandboxPolicy {
+            allowed_roots: vec![temp.path().canonicalize().expect("canonical root")],
+            allowed_binaries: ["git"].iter().map(|value| value.to_string()).collect(),
+            network_policy: ToolNetworkPolicy::Allowlist,
+            network_allowlist: vec!["localhost".to_string()],
+        });
+
+        for command in ["./git status", "/tmp/git status", r"C:\tmp\git status"] {
+            let err = runner
+                .run(ToolRequest::Exec(ExecRequest {
+                    command: command.to_string(),
+                    workdir: None,
+                    env: None,
+                    timeout_ms: None,
+                }))
+                .expect_err("path-qualified binary must be rejected");
+            assert!(matches!(err, ToolError::PolicyDenied(_)), "{command}");
+        }
     }
 
     #[test]

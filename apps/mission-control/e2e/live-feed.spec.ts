@@ -1,9 +1,9 @@
 import { expect, test, type APIRequestContext, type Page } from "./testHarness";
-
-const E2E_APP_URL = "/?e2e=1";
-const GATEWAY_URL = "http://127.0.0.1:19789";
-const TEST_TOKEN = "stub-token-001";
-const ASSISTANT_MODEL_ID = "qwen3.5-9b-instruct";
+import {
+  completeQuickstartLocalOnboarding,
+  GATEWAY_URL,
+  TEST_TOKEN,
+} from "./onboardingFlow";
 const LIVE_FEED_RECOVERY_STORAGE_KEY = "mc-live-feed-recovery-v1";
 
 const OPS_CONFIG = {
@@ -27,16 +27,6 @@ const OPS_CONFIG = {
   },
 };
 
-async function openWizard(page: Page): Promise<void> {
-  await page.addInitScript((payload: { config: typeof OPS_CONFIG; recoveryKey: string }) => {
-    window.localStorage.removeItem(payload.recoveryKey);
-    window.localStorage.setItem("mc-guided-tour-completed-v1", "true");
-    window.localStorage.setItem("mc-opsux-runtime-v1", JSON.stringify(payload.config));
-  }, { config: OPS_CONFIG, recoveryKey: LIVE_FEED_RECOVERY_STORAGE_KEY });
-  await page.goto(E2E_APP_URL);
-  await expect(page.getByRole("heading", { name: "Setup Wizard" })).toBeVisible();
-}
-
 async function waitForWsConnected(page: Page): Promise<void> {
   const wsDot = page.locator(".mc-connection-dot").first();
   await expect(wsDot).toBeVisible({ timeout: 20_000 });
@@ -46,39 +36,6 @@ async function waitForWsConnected(page: Page): Promise<void> {
       message: "Expected websocket status indicator to reach connected state.",
     })
     .toBe("ws: connected");
-}
-
-async function completeLocalOnboarding(page: Page): Promise<void> {
-  await openWizard(page);
-
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByText("Step 2 of 6")).toBeVisible();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByText("Step 3 of 6")).toBeVisible();
-
-  await page.getByLabel("Gateway URL").fill(GATEWAY_URL);
-  await page.getByLabel("Gateway token").fill(TEST_TOKEN);
-  await page.getByRole("button", { name: /Save \+ Connect/ }).click();
-  await expect(page.getByText(/Connection status:\s*Connected/)).toBeVisible();
-  await page.getByRole("button", { name: "Continue" }).click();
-
-  await expect(page.getByText("Step 4 of 6")).toBeVisible();
-  await page.getByLabel("Agent ID").fill("assistant-main");
-  await page.getByLabel("Agent name").fill("Assistant");
-  await page.getByRole("radio", { name: "Local connector" }).check();
-  await page
-    .getByPlaceholder("Or paste assistant model ID manually")
-    .fill(ASSISTANT_MODEL_ID);
-  await page.getByRole("button", { name: "Continue" }).click();
-
-  await expect(page.getByText("Step 5 of 6")).toBeVisible();
-  await page.getByRole("button", { name: "Finalize" }).click();
-  await expect(page.getByText("Step 6 of 6")).toBeVisible();
-  await page.getByRole("button", { name: "Go to Boards" }).click();
-
-  await expect(page.getByRole("heading", { name: "Setup Wizard" })).toBeHidden();
-  await expect(page.getByTestId("live-feed-toggle")).toBeVisible();
-  await waitForWsConnected(page);
 }
 
 async function emitWsEvent(
@@ -118,7 +75,20 @@ async function emitWsBurst(
 
 test.describe("mission-control live feed + incident automation @p2", () => {
   test("live feed supports pause + unread behavior", async ({ page, request }) => {
-    await completeLocalOnboarding(page);
+    await completeQuickstartLocalOnboarding(page, {
+      beforeGoto: async (nextPage) => {
+        await nextPage.addInitScript(
+          (payload: { config: typeof OPS_CONFIG; recoveryKey: string }) => {
+            window.localStorage.removeItem(payload.recoveryKey);
+            window.localStorage.setItem("mc-guided-tour-completed-v1", "true");
+            window.localStorage.setItem("mc-opsux-runtime-v1", JSON.stringify(payload.config));
+          },
+          { config: OPS_CONFIG, recoveryKey: LIVE_FEED_RECOVERY_STORAGE_KEY }
+        );
+      },
+    });
+    await expect(page.getByTestId("live-feed-toggle")).toBeVisible();
+    await waitForWsConnected(page);
 
     await page.getByTestId("live-feed-toggle").click();
     await expect(page.getByTestId("live-feed-drawer")).toHaveAttribute("data-open", "true");
@@ -182,7 +152,20 @@ test.describe("mission-control live feed + incident automation @p2", () => {
   });
 
   test("soft clear keeps events recoverable with undo", async ({ page, request }) => {
-    await completeLocalOnboarding(page);
+    await completeQuickstartLocalOnboarding(page, {
+      beforeGoto: async (nextPage) => {
+        await nextPage.addInitScript(
+          (payload: { config: typeof OPS_CONFIG; recoveryKey: string }) => {
+            window.localStorage.removeItem(payload.recoveryKey);
+            window.localStorage.setItem("mc-guided-tour-completed-v1", "true");
+            window.localStorage.setItem("mc-opsux-runtime-v1", JSON.stringify(payload.config));
+          },
+          { config: OPS_CONFIG, recoveryKey: LIVE_FEED_RECOVERY_STORAGE_KEY }
+        );
+      },
+    });
+    await expect(page.getByTestId("live-feed-toggle")).toBeVisible();
+    await waitForWsConnected(page);
     await page.getByTestId("live-feed-toggle").click();
 
     await emitWsEvent(request, {
@@ -217,7 +200,20 @@ test.describe("mission-control live feed + incident automation @p2", () => {
   });
 
   test("incident auto-trigger honors cooldown but re-enters on critical", async ({ page, request }) => {
-    await completeLocalOnboarding(page);
+    await completeQuickstartLocalOnboarding(page, {
+      beforeGoto: async (nextPage) => {
+        await nextPage.addInitScript(
+          (payload: { config: typeof OPS_CONFIG; recoveryKey: string }) => {
+            window.localStorage.removeItem(payload.recoveryKey);
+            window.localStorage.setItem("mc-guided-tour-completed-v1", "true");
+            window.localStorage.setItem("mc-opsux-runtime-v1", JSON.stringify(payload.config));
+          },
+          { config: OPS_CONFIG, recoveryKey: LIVE_FEED_RECOVERY_STORAGE_KEY }
+        );
+      },
+    });
+    await expect(page.getByTestId("live-feed-toggle")).toBeVisible();
+    await waitForWsConnected(page);
 
     await expect(page.locator(".mc-topbar")).not.toHaveClass(/mc-topbar-incident/);
 

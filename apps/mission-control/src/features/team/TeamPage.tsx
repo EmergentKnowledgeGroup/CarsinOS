@@ -3,12 +3,17 @@ import {
   Bot,
   Download,
   GitBranch,
+  Link2,
   Pencil,
   Plus,
+  RefreshCw,
   Save,
+  Trash2,
   Upload,
+  Users,
 } from "lucide-react";
 import clsx from "clsx";
+import { Chip } from "../../ui/Chip";
 import { EmptyState } from "../../ui/EmptyState";
 import { Modal } from "../../ui/Modal";
 import { Pagination } from "../../ui/Pagination";
@@ -16,8 +21,10 @@ import { Surface } from "../../ui/Surface";
 import { usePagination } from "../../ui/usePagination";
 import {
   createAgent,
+  getRuntimeConfig,
   listProviderCapabilities,
   listProviderModels,
+  updateRuntimeConfig,
   updateAgent,
 } from "../../lib/api";
 import { providerLabel } from "../../lib/providerCatalog";
@@ -25,7 +32,12 @@ import type {
   Agent,
   BootstrapPresetResponse,
   ProviderCapabilityResponse,
+  RuntimeAssistantAssignmentConfigResponse,
   RuntimeConnectionSettings,
+  RuntimeHumanIdentityConfigResponse,
+  RuntimeLaneMemoryPolicyConfigResponse,
+  RuntimePlatformIdentityLinkConfigResponse,
+  RuntimeRoutingConfigResponse,
 } from "../../types";
 import type { useStrategyController } from "../strategy/useStrategyController";
 import { applyBootstrapPresetToDraft } from "../strategy/bootstrapPresetUtils";
@@ -105,6 +117,108 @@ const FALLBACK_PROVIDER_OPTIONS = [
   { value: "anthropic", label: "Anthropic" },
   { value: "other", label: "Other" },
 ];
+
+const ROUTING_PROVIDER_OPTIONS = [
+  { value: "discord", label: "Discord" },
+  { value: "telegram", label: "Telegram" },
+];
+
+const DM_UNMAPPED_POLICY_OPTIONS = [
+  { value: "approval_required", label: "Ask for approval" },
+  { value: "block", label: "Block" },
+];
+
+const SHARED_UNMAPPED_POLICY_OPTIONS = [
+  { value: "block", label: "Block" },
+];
+
+interface RoutingNoticeState {
+  tone: "info" | "error";
+  message: string;
+}
+
+interface TeamHumanRoutingCard {
+  index: number;
+  human: RuntimeHumanIdentityConfigResponse;
+  assignment: RuntimeAssistantAssignmentConfigResponse | null;
+  memoryPolicy: RuntimeLaneMemoryPolicyConfigResponse | null;
+  links: Array<{
+    index: number;
+    link: RuntimePlatformIdentityLinkConfigResponse;
+  }>;
+}
+
+function cloneRoutingConfig(
+  routing: RuntimeRoutingConfigResponse
+): RuntimeRoutingConfigResponse {
+  return {
+    ...routing,
+    human_identities: routing.human_identities.map((item) => ({ ...item })),
+    platform_identity_links: routing.platform_identity_links.map((item) => ({
+      ...item,
+    })),
+    assistant_assignments: routing.assistant_assignments.map((item) => ({
+      ...item,
+    })),
+    lane_memory_policies: routing.lane_memory_policies.map((item) => ({
+      ...item,
+      local_memory_sources: [...item.local_memory_sources],
+    })),
+  };
+}
+
+function slugifyHumanIdentity(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function createHumanIdentityId(
+  displayName: string,
+  existingIds: Iterable<string>
+): string {
+  const existing = new Set(
+    Array.from(existingIds, (value) => value.trim()).filter(Boolean)
+  );
+  const base = slugifyHumanIdentity(displayName) || "person";
+  if (!existing.has(base)) {
+    return base;
+  }
+  let index = 2;
+  while (existing.has(`${base}-${index}`)) {
+    index += 1;
+  }
+  return `${base}-${index}`;
+}
+
+function providerIdentityLabel(provider: string): string {
+  switch (provider.trim().toLowerCase()) {
+    case "discord":
+      return "Discord";
+    case "telegram":
+      return "Telegram";
+    default:
+      return provider || "Link";
+  }
+}
+
+function laneMemoryModeLabel(mode: string): string {
+  switch (mode) {
+    case "disabled":
+      return "Memory off";
+    case "local_only":
+      return "Local only";
+    case "mno_only":
+      return "MNO only";
+    case "mno_with_local_sources":
+      return "MNO + local";
+    case "inherit_runtime":
+    default:
+      return "Runtime default";
+  }
+}
 
 function toPresetFormState(
   preset: BootstrapPresetResponse | null,
@@ -195,12 +309,14 @@ export function TeamPage({
   onRefresh,
 }: TeamPageProps) {
   const [page, setPage] = useState(1);
+  const [routingPage, setRoutingPage] = useState(1);
+  const [activeSection, setActiveSection] = useState<"agents" | "routing" | "presets" | "org">("agents");
+  const [routingView, setRoutingView] = useState<"people" | "overview">("people");
   const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
   const [form, setForm] = useState<AgentFormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [showOrgView, setShowOrgView] = useState(false);
   const [providerCapabilities, setProviderCapabilities] = useState<
     ProviderCapabilityResponse[]
   >([]);
@@ -216,12 +332,501 @@ export function TeamPage({
   const [presetForm, setPresetForm] = useState<PresetFormState>(EMPTY_PRESET_FORM);
   const [presetError, setPresetError] = useState<string | null>(null);
   const [presetSaving, setPresetSaving] = useState(false);
+  const [routingConfig, setRoutingConfig] = useState<RuntimeRoutingConfigResponse | null>(null);
+  const [routingDraft, setRoutingDraft] = useState<RuntimeRoutingConfigResponse | null>(null);
+  const [routingLoading, setRoutingLoading] = useState(false);
+  const [routingSaving, setRoutingSaving] = useState(false);
+  const [routingError, setRoutingError] = useState<string | null>(null);
+  const [routingNotice, setRoutingNotice] = useState<RoutingNoticeState | null>(null);
   const importFileRef = useRef<HTMLInputElement | null>(null);
 
   const strategyEnabled = strategyController.enabled;
   const { totalPages, getPage } = usePagination(agents, PAGE_SIZE);
   const visibleAgents = getPage(page);
   const roleCardAgent = roleCardAgentId ? agents.find((a) => a.agent_id === roleCardAgentId) : null;
+  const agentsById = useMemo(
+    () => new Map(agents.map((agent) => [agent.agent_id, agent] as const)),
+    [agents]
+  );
+
+  const loadRoutingConfig = useCallback(
+    async (runtimeSettings: RuntimeConnectionSettings = settings) => {
+      if (!runtimeSettings.gateway_url.trim()) {
+        setRoutingConfig(null);
+        setRoutingDraft(null);
+        setRoutingError(null);
+        setRoutingNotice(null);
+        setRoutingLoading(false);
+        return;
+      }
+
+      setRoutingLoading(true);
+      try {
+        const response = await getRuntimeConfig(runtimeSettings);
+        const nextRouting = cloneRoutingConfig(response.config.routing);
+        setRoutingConfig(nextRouting);
+        setRoutingDraft(cloneRoutingConfig(nextRouting));
+        setRoutingError(null);
+      } catch (loadError: unknown) {
+        setRoutingConfig(null);
+        setRoutingDraft(null);
+        setRoutingError(`People and routing could not load. (${String(loadError)})`);
+      } finally {
+        setRoutingLoading(false);
+      }
+    },
+    [settings]
+  );
+
+  useEffect(() => {
+    void loadRoutingConfig(settings);
+  }, [loadRoutingConfig, settings]);
+
+  const patchRoutingDraft = useCallback(
+    (updater: (draft: RuntimeRoutingConfigResponse) => void) => {
+      setRoutingDraft((current) => {
+        if (!current) {
+          return current;
+        }
+        const next = cloneRoutingConfig(current);
+        updater(next);
+        return next;
+      });
+    },
+    []
+  );
+
+  const addHumanIdentity = useCallback(() => {
+    patchRoutingDraft((next) => {
+      const nextId = createHumanIdentityId(
+        `person ${next.human_identities.length + 1}`,
+        next.human_identities.map((item) => item.human_identity_id)
+      );
+      next.human_identities.push({
+        human_identity_id: nextId,
+        display_name: `Person ${next.human_identities.length + 1}`,
+        enabled: true,
+      });
+    });
+    setRoutingNotice(null);
+    setRoutingError(null);
+  }, [patchRoutingDraft]);
+
+  const updateHumanDisplayName = useCallback(
+    (humanIdentityId: string, displayName: string) => {
+      patchRoutingDraft((next) => {
+        const human = next.human_identities.find(
+          (item) => item.human_identity_id === humanIdentityId
+        );
+        if (human) {
+          human.display_name = displayName;
+        }
+      });
+    },
+    [patchRoutingDraft]
+  );
+
+  const updateHumanEnabled = useCallback(
+    (humanIdentityId: string, enabled: boolean) => {
+      patchRoutingDraft((next) => {
+        const human = next.human_identities.find(
+          (item) => item.human_identity_id === humanIdentityId
+        );
+        if (human) {
+          human.enabled = enabled;
+        }
+      });
+    },
+    [patchRoutingDraft]
+  );
+
+  const removeHumanIdentity = useCallback(
+    (humanIdentityId: string) => {
+      if (routingDraft?.local_operator_human_identity_id === humanIdentityId) {
+        setRoutingNotice({
+          tone: "error",
+          message:
+            "You cannot remove the local app operator while it still owns this desktop lane. Pick a different local operator first, then remove this person if you still want to.",
+        });
+        return;
+      }
+      patchRoutingDraft((next) => {
+        next.human_identities = next.human_identities.filter(
+          (item) => item.human_identity_id !== humanIdentityId
+        );
+        next.platform_identity_links = next.platform_identity_links.filter(
+          (item) => item.human_identity_id !== humanIdentityId
+        );
+        next.assistant_assignments = next.assistant_assignments.filter(
+          (item) => item.human_identity_id !== humanIdentityId
+        );
+        next.lane_memory_policies = next.lane_memory_policies.filter(
+          (item) => item.human_identity_id !== humanIdentityId
+        );
+      });
+      setRoutingNotice(null);
+    },
+    [patchRoutingDraft, routingDraft]
+  );
+
+  const setHumanAssignment = useCallback(
+    (humanIdentityId: string, assistantAgentId: string) => {
+      patchRoutingDraft((next) => {
+        next.assistant_assignments = next.assistant_assignments.filter(
+          (item) => item.human_identity_id !== humanIdentityId
+        );
+        const normalizedAssistantAgentId = assistantAgentId.trim();
+        if (!normalizedAssistantAgentId) {
+          return;
+        }
+        next.assistant_assignments.push({
+          human_identity_id: humanIdentityId,
+          assistant_agent_id: normalizedAssistantAgentId,
+          enabled: true,
+        });
+      });
+    },
+    [patchRoutingDraft]
+  );
+
+  const addPlatformIdentityLink = useCallback(
+    (humanIdentityId: string) => {
+      patchRoutingDraft((next) => {
+        next.platform_identity_links.push({
+          provider: "discord",
+          platform_user_id: "",
+          human_identity_id: humanIdentityId,
+          display_name: null,
+          enabled: true,
+        });
+      });
+    },
+    [patchRoutingDraft]
+  );
+
+  const updatePlatformIdentityLink = useCallback(
+    (
+      index: number,
+      patch: Partial<RuntimePlatformIdentityLinkConfigResponse>
+    ) => {
+      patchRoutingDraft((next) => {
+        const existing = next.platform_identity_links[index];
+        if (!existing) {
+          return;
+        }
+        next.platform_identity_links[index] = {
+          ...existing,
+          ...patch,
+        };
+      });
+    },
+    [patchRoutingDraft]
+  );
+
+  const removePlatformIdentityLink = useCallback(
+    (index: number) => {
+      patchRoutingDraft((next) => {
+        next.platform_identity_links.splice(index, 1);
+      });
+    },
+    [patchRoutingDraft]
+  );
+
+  const resetRoutingDraft = useCallback(() => {
+    if (!routingConfig) {
+      return;
+    }
+    setRoutingDraft(cloneRoutingConfig(routingConfig));
+    setRoutingNotice(null);
+    setRoutingError(null);
+  }, [routingConfig]);
+
+  const saveRoutingDraft = useCallback(async () => {
+    if (!routingDraft) {
+      return;
+    }
+    if (!settings.gateway_url.trim()) {
+      setRoutingNotice({
+        tone: "error",
+        message: "Connect to the gateway before saving people and routing.",
+      });
+      return;
+    }
+
+    const knownAgentIds = new Set(agents.map((agent) => agent.agent_id));
+    const normalizedHumans: RuntimeHumanIdentityConfigResponse[] = [];
+    const humanIds = new Set<string>();
+
+    for (const human of routingDraft.human_identities) {
+      const humanIdentityId = human.human_identity_id.trim();
+      const displayName = human.display_name.trim() || humanIdentityId;
+      if (!humanIdentityId) {
+        setRoutingNotice({
+          tone: "error",
+          message: "Every person needs a human ID before routing can be saved.",
+        });
+        return;
+      }
+      if (humanIds.has(humanIdentityId)) {
+        setRoutingNotice({
+          tone: "error",
+          message: `The human ID "${humanIdentityId}" is duplicated. Give each person one unique ID.`,
+        });
+        return;
+      }
+      humanIds.add(humanIdentityId);
+      normalizedHumans.push({
+        human_identity_id: humanIdentityId,
+        display_name: displayName,
+        enabled: human.enabled,
+      });
+    }
+
+    const normalizedLinks: RuntimePlatformIdentityLinkConfigResponse[] = [];
+    const seenLinks = new Set<string>();
+    for (const link of routingDraft.platform_identity_links) {
+      const provider = link.provider.trim().toLowerCase();
+      const platformUserId = link.platform_user_id.trim();
+      const humanIdentityId = link.human_identity_id.trim();
+      const displayName = link.display_name?.trim() || null;
+      if (!provider && !platformUserId && !displayName) {
+        continue;
+      }
+      if (!provider || !platformUserId) {
+        setRoutingNotice({
+          tone: "error",
+          message:
+            "Every linked account needs both a provider and that person’s platform user ID.",
+        });
+        return;
+      }
+      if (!humanIds.has(humanIdentityId)) {
+        setRoutingNotice({
+          tone: "error",
+          message: `A linked account points at missing human "${humanIdentityId}".`,
+        });
+        return;
+      }
+      const duplicateKey = `${provider}:${platformUserId}`;
+      if (seenLinks.has(duplicateKey)) {
+        setRoutingNotice({
+          tone: "error",
+          message: `The linked account "${duplicateKey}" is duplicated.`,
+        });
+        return;
+      }
+      seenLinks.add(duplicateKey);
+      normalizedLinks.push({
+        provider,
+        platform_user_id: platformUserId,
+        human_identity_id: humanIdentityId,
+        display_name: displayName,
+        enabled: link.enabled,
+      });
+    }
+
+    const normalizedAssignments: RuntimeAssistantAssignmentConfigResponse[] = [];
+    const seenAssignmentPairs = new Set<string>();
+    const seenEnabledHumans = new Set<string>();
+    for (const assignment of routingDraft.assistant_assignments) {
+      const humanIdentityId = assignment.human_identity_id.trim();
+      const assistantAgentId = assignment.assistant_agent_id.trim();
+      if (!humanIdentityId || !assistantAgentId) {
+        continue;
+      }
+      if (!humanIds.has(humanIdentityId)) {
+        setRoutingNotice({
+          tone: "error",
+          message: `An assistant assignment points at missing human "${humanIdentityId}".`,
+        });
+        return;
+      }
+      if (!knownAgentIds.has(assistantAgentId)) {
+        setRoutingNotice({
+          tone: "error",
+          message: `Assistant "${assistantAgentId}" does not exist anymore.`,
+        });
+        return;
+      }
+      const pairKey = `${humanIdentityId}:${assistantAgentId}`;
+      if (seenAssignmentPairs.has(pairKey)) {
+        setRoutingNotice({
+          tone: "error",
+          message: `The assistant route "${pairKey}" is duplicated.`,
+        });
+        return;
+      }
+      seenAssignmentPairs.add(pairKey);
+      if (assignment.enabled && seenEnabledHumans.has(humanIdentityId)) {
+        setRoutingNotice({
+          tone: "error",
+          message: `Only one enabled assistant can be assigned to "${humanIdentityId}" at a time.`,
+        });
+        return;
+      }
+      if (assignment.enabled) {
+        seenEnabledHumans.add(humanIdentityId);
+      }
+      normalizedAssignments.push({
+        human_identity_id: humanIdentityId,
+        assistant_agent_id: assistantAgentId,
+        enabled: assignment.enabled,
+      });
+    }
+
+    const normalizedLanePolicies = routingDraft.lane_memory_policies
+      .map((policy) => ({
+        human_identity_id: policy.human_identity_id.trim(),
+        assistant_agent_id: policy.assistant_agent_id.trim(),
+        memory_mode: policy.memory_mode.trim() || "inherit_runtime",
+        lane_id: policy.lane_id?.trim() || null,
+        local_memory_sources: policy.local_memory_sources
+          .map((item) => item.trim())
+          .filter(Boolean),
+      }))
+      .filter(
+        (policy) =>
+          humanIds.has(policy.human_identity_id) &&
+          knownAgentIds.has(policy.assistant_agent_id)
+      );
+    const localOperatorHumanIdentityId =
+      routingDraft.local_operator_human_identity_id?.trim() || null;
+    if (localOperatorHumanIdentityId && !humanIds.has(localOperatorHumanIdentityId)) {
+      setRoutingNotice({
+        tone: "error",
+        message: `The local app operator points at missing human "${localOperatorHumanIdentityId}".`,
+      });
+      return;
+    }
+    if (
+      localOperatorHumanIdentityId &&
+      !normalizedHumans.some(
+        (human) =>
+          human.enabled && human.human_identity_id === localOperatorHumanIdentityId
+      )
+    ) {
+      setRoutingNotice({
+        tone: "error",
+        message: `The local app operator must point at an enabled person. Re-enable "${localOperatorHumanIdentityId}" or choose another local operator first.`,
+      });
+      return;
+    }
+
+    const nextRouting: RuntimeRoutingConfigResponse = {
+      enabled: routingDraft.enabled,
+      use_channel_defaults_as_fallback: false,
+      local_operator_human_identity_id: localOperatorHumanIdentityId,
+      dm_unmapped_policy:
+        routingDraft.dm_unmapped_policy.trim() === "block"
+          ? "block"
+          : "approval_required",
+      shared_unmapped_policy: "block",
+      human_identities: normalizedHumans,
+      platform_identity_links: normalizedLinks,
+      assistant_assignments: normalizedAssignments,
+      lane_memory_policies: normalizedLanePolicies,
+    };
+
+    setRoutingSaving(true);
+    try {
+      const response = await updateRuntimeConfig(settings, {
+        routing: nextRouting,
+      });
+      const savedRouting = cloneRoutingConfig(response.config.routing);
+      setRoutingConfig(savedRouting);
+      setRoutingDraft(cloneRoutingConfig(savedRouting));
+      setRoutingNotice({
+        tone: "info",
+        message: "People and routing saved.",
+      });
+      setRoutingError(null);
+    } catch (saveError: unknown) {
+      setRoutingNotice({
+        tone: "error",
+        message: `Saving people and routing failed: ${String(saveError)}`,
+      });
+    } finally {
+      setRoutingSaving(false);
+    }
+  }, [agents, routingDraft, settings]);
+
+  const routingDirty = useMemo(() => {
+    if (!routingConfig || !routingDraft) {
+      return false;
+    }
+    return JSON.stringify(routingConfig) !== JSON.stringify(routingDraft);
+  }, [routingConfig, routingDraft]);
+
+  const humanRoutingCards = useMemo<TeamHumanRoutingCard[]>(() => {
+    if (!routingDraft) {
+      return [];
+    }
+    return routingDraft.human_identities.map((human, index) => {
+      const assignment =
+        routingDraft.assistant_assignments.find(
+          (item) => item.human_identity_id === human.human_identity_id && item.enabled
+        ) ??
+        routingDraft.assistant_assignments.find(
+          (item) => item.human_identity_id === human.human_identity_id
+        ) ??
+        null;
+
+      return {
+        index,
+        human,
+        assignment,
+        memoryPolicy:
+          routingDraft.lane_memory_policies.find(
+            (item) =>
+              item.human_identity_id === human.human_identity_id &&
+              item.assistant_agent_id === assignment?.assistant_agent_id
+          ) ?? null,
+        links: routingDraft.platform_identity_links
+          .map((link, index) => ({ link, index }))
+          .filter((entry) => entry.link.human_identity_id === human.human_identity_id),
+      };
+    });
+  }, [routingDraft]);
+  const routingPagination = usePagination(humanRoutingCards, 1);
+  const visibleHumanRoutingCards = routingPagination.getPage(routingPage);
+
+  const routingSummary = useMemo(
+    () => ({
+      humans: routingDraft?.human_identities.filter((item) => item.enabled).length ?? 0,
+      linkedAccounts:
+        routingDraft?.platform_identity_links.filter((item) => item.enabled).length ?? 0,
+      assignedHumans:
+        humanRoutingCards.filter(
+          (item) => item.assignment?.enabled && item.assignment.assistant_agent_id.trim()
+        ).length ?? 0,
+      waitingForAssignment:
+        humanRoutingCards.filter(
+          (item) =>
+            item.human.enabled &&
+            !(item.assignment?.enabled && item.assignment.assistant_agent_id.trim())
+        ).length ?? 0,
+      localOperator:
+        routingDraft?.local_operator_human_identity_id?.trim() || "Not selected",
+    }),
+    [humanRoutingCards, routingDraft]
+  );
+
+  const routedHumansByAgentId = useMemo(() => {
+    const grouped = new Map<string, TeamHumanRoutingCard[]>();
+    for (const card of humanRoutingCards) {
+      if (!card.human.enabled || !card.assignment?.enabled) {
+        continue;
+      }
+      const assistantAgentId = card.assignment.assistant_agent_id.trim();
+      if (!assistantAgentId) {
+        continue;
+      }
+      const next = grouped.get(assistantAgentId) ?? [];
+      next.push(card);
+      grouped.set(assistantAgentId, next);
+    }
+    return grouped;
+  }, [humanRoutingCards]);
 
   const knownWorkspaces = useMemo(() => {
     const values = new Set<string>();
@@ -543,6 +1148,9 @@ export function TeamPage({
   const roleCardReports = roleCardAgent
     ? strategyController.org.directReportsByManagerId.get(roleCardAgent.agent_id) ?? []
     : [];
+  const roleCardRoutedHumans = roleCardAgent
+    ? routedHumansByAgentId.get(roleCardAgent.agent_id) ?? []
+    : [];
 
   return (
     <div className="mc-team-page">
@@ -566,10 +1174,10 @@ export function TeamPage({
               <button
                 type="button"
                 className="ghost"
-                onClick={() => setShowOrgView((value) => !value)}
+                onClick={() => setActiveSection("org")}
               >
                 <GitBranch size={14} />
-                {showOrgView ? "Hide Org View" : "Org View"}
+                Org View
               </button>
               <button
                 type="button"
@@ -588,7 +1196,42 @@ export function TeamPage({
         </div>
       </div>
 
-      {strategyEnabled ? (
+      <div className="mc-page-section-tabs" aria-label="Team sections">
+        <button
+          type="button"
+          className={`mc-page-section-btn${activeSection === "agents" ? " mc-page-section-btn-active" : ""}`}
+          onClick={() => setActiveSection("agents")}
+        >
+          Agents
+        </button>
+        <button
+          type="button"
+          className={`mc-page-section-btn${activeSection === "routing" ? " mc-page-section-btn-active" : ""}`}
+          onClick={() => setActiveSection("routing")}
+        >
+          People & Routing
+        </button>
+        {strategyEnabled ? (
+          <>
+            <button
+              type="button"
+              className={`mc-page-section-btn${activeSection === "presets" ? " mc-page-section-btn-active" : ""}`}
+              onClick={() => setActiveSection("presets")}
+            >
+              Presets
+            </button>
+            <button
+              type="button"
+              className={`mc-page-section-btn${activeSection === "org" ? " mc-page-section-btn-active" : ""}`}
+              onClick={() => setActiveSection("org")}
+            >
+              Org
+            </button>
+          </>
+        ) : null}
+      </div>
+
+      {strategyEnabled && activeSection === "presets" ? (
         <Surface
           className="mc-team-preset-surface"
           title="Bootstrap Presets"
@@ -672,7 +1315,7 @@ export function TeamPage({
         </Surface>
       ) : null}
 
-      {strategyEnabled && showOrgView ? (
+      {strategyEnabled && activeSection === "org" ? (
         <Surface
           className="mc-team-org-surface"
           title="Org View"
@@ -688,88 +1331,581 @@ export function TeamPage({
               />
             ))}
             {strategyController.org.rootAgents.length === 0 ? (
-              <EmptyState message="No hierarchy roots yet. Assign managers to expose org structure." />
+              <EmptyState message="No org structure yet. Assign managers to agents to see reporting chains." />
             ) : null}
           </div>
         </Surface>
       ) : null}
 
+      {activeSection === "routing" ? (
+      <Surface
+        className="mc-team-routing-surface"
+        title="People And Routing"
+        subtitle="Decide who is talking, where they come from, and which assistant owns their main lane across Discord and Telegram."
+        headerRight={
+          <div className="mc-strategy-inline-actions">
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => void loadRoutingConfig(settings)}
+              disabled={routingLoading}
+            >
+              <RefreshCw size={14} />
+              Refresh
+            </button>
+            <button type="button" className="ghost" onClick={addHumanIdentity}>
+              <Plus size={14} />
+              Add Person
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              onClick={resetRoutingDraft}
+              disabled={!routingDirty || routingSaving}
+            >
+              Reset
+            </button>
+            <button
+              type="button"
+              className={clsx("mc-btn mc-btn-accent", routingSaving && "mc-btn-loading")}
+              onClick={() => void saveRoutingDraft()}
+              disabled={!routingDraft || !routingDirty || routingSaving}
+            >
+              <Save size={14} />
+              Save Routing
+            </button>
+          </div>
+        }
+      >
+        {!settings.gateway_url.trim() ? (
+          <EmptyState message="Connect Mission Control to the gateway before you manage people and routing." />
+        ) : routingLoading && !routingDraft ? (
+          <EmptyState message="Loading people and routing..." />
+        ) : (
+          <>
+            {routingError ? <div className="mc-notice mc-notice-error">{routingError}</div> : null}
+            {routingNotice ? (
+              <div
+                className={clsx(
+                  "mc-notice",
+                  routingNotice.tone === "error" ? "mc-notice-error" : "mc-notice-info"
+                )}
+              >
+                {routingNotice.message}
+              </div>
+            ) : null}
+
+            {routingDraft ? (
+              <>
+                <div className="mc-page-section-tabs" aria-label="Routing views">
+                  <button
+                    type="button"
+                    className={`mc-page-section-btn${routingView === "people" ? " mc-page-section-btn-active" : ""}`}
+                    onClick={() => setRoutingView("people")}
+                  >
+                    People
+                  </button>
+                  <button
+                    type="button"
+                    className={`mc-page-section-btn${routingView === "overview" ? " mc-page-section-btn-active" : ""}`}
+                    onClick={() => setRoutingView("overview")}
+                  >
+                    Routing Setup
+                  </button>
+                </div>
+
+                {routingView === "overview" ? (
+                  <div className="mc-page-section-stack">
+                    <div className="mc-team-routing-summary">
+                      <div className="mc-team-routing-summary-card">
+                        <span className="mc-team-routing-kicker">
+                          <Users size={14} />
+                          People
+                        </span>
+                        <strong>{routingSummary.humans}</strong>
+                        <p>Humans currently active in routing.</p>
+                      </div>
+                      <div className="mc-team-routing-summary-card">
+                        <span className="mc-team-routing-kicker">
+                          <Link2 size={14} />
+                          Linked Accounts
+                        </span>
+                        <strong>{routingSummary.linkedAccounts}</strong>
+                        <p>Discord or Telegram identities tied to those people.</p>
+                      </div>
+                      <div className="mc-team-routing-summary-card">
+                        <span className="mc-team-routing-kicker">
+                          <Bot size={14} />
+                          Assigned Assistants
+                        </span>
+                        <strong>{routingSummary.assignedHumans}</strong>
+                        <p>People already routed to one real assistant.</p>
+                      </div>
+                      <div className="mc-team-routing-summary-card">
+                        <span className="mc-team-routing-kicker">
+                          <GitBranch size={14} />
+                          Local Operator
+                        </span>
+                        <strong>{routingSummary.localOperator}</strong>
+                        <p>
+                          {routingSummary.waitingForAssignment} active people still need an
+                          assistant route.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mc-team-routing-controls">
+                      <label className="mc-team-routing-toggle">
+                        <input
+                          type="checkbox"
+                          checked={routingDraft.enabled}
+                          onChange={(event) =>
+                            patchRoutingDraft((next) => {
+                              next.enabled = event.target.checked;
+                            })
+                          }
+                        />
+                        <span>Use people-based routing</span>
+                        <small>
+                          When this is on, carsinOS resolves a real person first, then their
+                          assigned assistant.
+                        </small>
+                      </label>
+                      <label className="mc-modal-field">
+                        <span>Local app operator</span>
+                        <select
+                          value={routingDraft.local_operator_human_identity_id ?? ""}
+                          onChange={(event) =>
+                            patchRoutingDraft((next) => {
+                              next.local_operator_human_identity_id =
+                                event.target.value || null;
+                            })
+                          }
+                        >
+                          <option value="">Choose person...</option>
+                          {routingDraft.human_identities
+                            .filter((human) => human.enabled)
+                            .map((human) => (
+                              <option
+                                key={human.human_identity_id}
+                                value={human.human_identity_id}
+                              >
+                                {human.display_name || human.human_identity_id}
+                              </option>
+                            ))}
+                        </select>
+                        <small>
+                          Assistant chat on this machine uses this person record so your desktop,
+                          Discord, and Telegram conversations can stay in one shared lane once
+                          those accounts are linked.
+                        </small>
+                      </label>
+                      <label className="mc-modal-field">
+                        <span>Unknown DMs</span>
+                        <select
+                          value={routingDraft.dm_unmapped_policy}
+                          onChange={(event) =>
+                            patchRoutingDraft((next) => {
+                              next.dm_unmapped_policy = event.target.value;
+                            })
+                          }
+                        >
+                          {DM_UNMAPPED_POLICY_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        <small>
+                          Best default here is ask first. Unknown DMs should not silently land
+                          in an assistant lane.
+                        </small>
+                      </label>
+                      <label className="mc-modal-field">
+                        <span>Unknown shared-space messages</span>
+                        <select
+                          value={routingDraft.shared_unmapped_policy}
+                          onChange={(event) =>
+                            patchRoutingDraft((next) => {
+                              next.shared_unmapped_policy = event.target.value;
+                            })
+                          }
+                        >
+                          {SHARED_UNMAPPED_POLICY_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        <small>
+                          Best default here is block. Shared spaces should not guess which
+                          assistant a stranger belongs to.
+                        </small>
+                      </label>
+                    </div>
+                  </div>
+                ) : null}
+
+                {routingView === "people" ? (
+                  <div className="mc-page-section-stack">
+                    <div className="mc-team-routing-grid">
+                      {humanRoutingCards.length === 0 ? (
+                        <EmptyState message="No routed people yet. Add one person, link their account, then choose their assistant." />
+                      ) : (
+                        visibleHumanRoutingCards.map((card) => {
+                      const assignedAgentName = card.assignment?.assistant_agent_id
+                        ? agentsById.get(card.assignment.assistant_agent_id)?.name ??
+                          card.assignment.assistant_agent_id
+                        : null;
+                      return (
+                        <article
+                          key={`human-route-${card.index}`}
+                          className={clsx(
+                            "mc-team-routing-card",
+                            !card.human.enabled && "is-paused"
+                          )}
+                        >
+                          <div className="mc-team-routing-card-head">
+                            <div>
+                              <strong>
+                                {card.human.display_name || card.human.human_identity_id}
+                              </strong>
+                              <span>{card.human.human_identity_id}</span>
+                            </div>
+                            <div className="mc-team-card-tags">
+                              <Chip
+                                label={card.human.enabled ? "active" : "paused"}
+                                tone={card.human.enabled ? "up" : "checking"}
+                              />
+                              {routingDraft.local_operator_human_identity_id ===
+                              card.human.human_identity_id ? (
+                                <Chip label="local operator" tone="up" />
+                              ) : null}
+                              <Chip
+                                label={
+                                  assignedAgentName
+                                    ? `assistant: ${assignedAgentName}`
+                                    : "needs assistant"
+                                }
+                                tone={assignedAgentName ? "up" : "warning"}
+                              />
+                              <Chip
+                                label={
+                                  card.memoryPolicy
+                                    ? laneMemoryModeLabel(card.memoryPolicy.memory_mode)
+                                    : "runtime default memory"
+                                }
+                                tone={card.memoryPolicy ? "warning" : "checking"}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="mc-field-grid">
+                            <label className="mc-modal-field">
+                              <span>Display name</span>
+                              <input
+                                value={card.human.display_name}
+                                onChange={(event) =>
+                                  updateHumanDisplayName(
+                                    card.human.human_identity_id,
+                                    event.target.value
+                                  )
+                                }
+                                placeholder="Alex"
+                              />
+                            </label>
+                            <label className="mc-modal-field">
+                              <span>Human ID</span>
+                              <input
+                                value={card.human.human_identity_id}
+                                readOnly
+                              />
+                              <small className="mc-field-help">
+                                Lane IDs are locked after creation so history, memory, and channel
+                                routing do not silently fork.
+                              </small>
+                            </label>
+                          </div>
+
+                          <div className="mc-field-grid">
+                            <label className="mc-modal-field">
+                              <span>Assistant</span>
+                              <select
+                                value={card.assignment?.assistant_agent_id ?? ""}
+                                onChange={(event) =>
+                                  setHumanAssignment(
+                                    card.human.human_identity_id,
+                                    event.target.value
+                                  )
+                                }
+                              >
+                                <option value="">Choose assistant...</option>
+                                {agents.map((agent) => (
+                                  <option key={agent.agent_id} value={agent.agent_id}>
+                                    {agent.name}
+                                  </option>
+                                ))}
+                              </select>
+                              <small className="mc-field-help">
+                                This is the assistant this person talks to no matter which
+                                linked channel they use.
+                              </small>
+                            </label>
+                            <label className="mc-team-routing-toggle mc-team-routing-toggle-inline">
+                              <input
+                                type="checkbox"
+                                checked={card.human.enabled}
+                                onChange={(event) =>
+                                  updateHumanEnabled(
+                                    card.human.human_identity_id,
+                                    event.target.checked
+                                  )
+                                }
+                              />
+                              <span>Person is active</span>
+                              <small>Turn this off to pause routing without deleting the record.</small>
+                            </label>
+                          </div>
+
+                          <div className="mc-team-routing-links">
+                            <div className="mc-team-routing-links-head">
+                              <div>
+                                <strong>Linked accounts</strong>
+                                <p>
+                                  Link this person’s Discord or Telegram identity so carsinOS
+                                  can resume the same assistant lane everywhere.
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                className="ghost"
+                                onClick={() =>
+                                  addPlatformIdentityLink(card.human.human_identity_id)
+                                }
+                              >
+                                <Plus size={14} />
+                                Add Link
+                              </button>
+                            </div>
+                            {card.links.length === 0 ? (
+                              <EmptyState message="No linked accounts yet." />
+                            ) : (
+                              <div className="mc-team-routing-link-list">
+                                {card.links.map(({ index, link }) => (
+                                  <div key={`${card.human.human_identity_id}:${index}`} className="mc-team-routing-link-row">
+                                    <label className="mc-modal-field">
+                                      <span>Provider</span>
+                                      <select
+                                        value={link.provider}
+                                        onChange={(event) =>
+                                          updatePlatformIdentityLink(index, {
+                                            provider: event.target.value,
+                                          })
+                                        }
+                                      >
+                                        {ROUTING_PROVIDER_OPTIONS.map((option) => (
+                                          <option key={option.value} value={option.value}>
+                                            {option.label}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                    <label className="mc-modal-field">
+                                      <span>{providerIdentityLabel(link.provider)} user ID</span>
+                                      <input
+                                        value={link.platform_user_id}
+                                        onChange={(event) =>
+                                          updatePlatformIdentityLink(index, {
+                                            platform_user_id: event.target.value,
+                                          })
+                                        }
+                                        placeholder="platform user id"
+                                      />
+                                    </label>
+                                    <label className="mc-modal-field">
+                                      <span>Label</span>
+                                      <input
+                                        value={link.display_name ?? ""}
+                                        onChange={(event) =>
+                                          updatePlatformIdentityLink(index, {
+                                            display_name: event.target.value || null,
+                                          })
+                                        }
+                                        placeholder="optional nickname"
+                                      />
+                                    </label>
+                                    <label className="mc-team-routing-toggle mc-team-routing-toggle-inline">
+                                      <input
+                                        type="checkbox"
+                                        checked={link.enabled}
+                                        onChange={(event) =>
+                                          updatePlatformIdentityLink(index, {
+                                            enabled: event.target.checked,
+                                          })
+                                        }
+                                      />
+                                      <span>Link is active</span>
+                                      <small>
+                                        Turn this off to keep the mapping saved without using it.
+                                      </small>
+                                    </label>
+                                    <button
+                                      type="button"
+                                      className="ghost danger"
+                                      onClick={() => removePlatformIdentityLink(index)}
+                                      title="Remove linked account"
+                                    >
+                                      <Trash2 size={14} />
+                                      Remove
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="mc-team-routing-card-foot">
+                            <p>
+                              {card.assignment?.assistant_agent_id ? (
+                                <>
+                                  Main lane:{" "}
+                                  <code>
+                                    {card.memoryPolicy?.lane_id ??
+                                      `human:${card.human.human_identity_id}:assistant:${card.assignment.assistant_agent_id}`}
+                                  </code>
+                                </>
+                              ) : (
+                                "Pick an assistant so this person has somewhere real to land."
+                              )}
+                            </p>
+                            <button
+                              type="button"
+                              className="ghost danger"
+                              onClick={() => removeHumanIdentity(card.human.human_identity_id)}
+                            >
+                              <Trash2 size={14} />
+                              Remove Person
+                            </button>
+                          </div>
+                        </article>
+                      );
+                        })
+                      )}
+                    </div>
+                    <Pagination
+                      currentPage={routingPage}
+                      totalPages={routingPagination.totalPages}
+                      onPageChange={setRoutingPage}
+                    />
+                  </div>
+                ) : null}
+              </>
+            ) : null}
+          </>
+        )}
+      </Surface>
+      ) : null}
+
+      {activeSection === "agents" ? (
       <div className="mc-team-roster">
         {visibleAgents.length === 0 ? (
           <div className="mc-team-empty">
             <Bot size={40} />
-            <p>No agents registered yet</p>
-            <p className="mc-team-empty-sub">Create your first agent to get started.</p>
+            <p>No agents yet</p>
+            <p className="mc-team-empty-sub">
+              Agents do the work in CarsinOS. Create your first one to start chatting, running tasks, and scheduling jobs.
+            </p>
+            <button
+              type="button"
+              className="mc-team-empty-cta"
+              onClick={openCreate}
+            >
+              <Plus size={16} /> Create Your First Agent
+            </button>
           </div>
         ) : (
-          visibleAgents.map((agent) => (
-            <div key={agent.agent_id} className="mc-team-card">
-              <div className="mc-team-card-avatar">
-                {agent.name.charAt(0).toUpperCase()}
-              </div>
-              <div className="mc-team-card-info">
-                <div className="mc-team-card-name">{agent.name}</div>
-                <div className="mc-team-card-id">{agent.agent_id}</div>
-                {agent.role_label ? (
-                  <div className="mc-team-card-meta">Role: {agent.role_label}</div>
-                ) : null}
-                <div className="mc-team-card-meta">
-                  Model: {agent.model_provider} / {agent.model_id}
+          visibleAgents.map((agent) => {
+            const routedHumans = routedHumansByAgentId.get(agent.agent_id) ?? [];
+            return (
+              <div key={agent.agent_id} className="mc-team-card">
+                <div className="mc-team-card-avatar">
+                  {agent.name.charAt(0).toUpperCase()}
                 </div>
-                {agent.tool_profile ? (
-                  <div className="mc-team-card-meta">Tools: {agent.tool_profile}</div>
-                ) : null}
-                {agent.workspace_root ? (
-                  <div className="mc-team-card-meta">Workspace: {agent.workspace_root}</div>
-                ) : null}
-                {agent.memory_binding?.enabled ? (
-                  <div className="mc-team-card-meta">
-                    Memory lane: {agent.memory_binding.binding_id}
-                  </div>
-                ) : null}
-                {agent.reports_to_agent_id ? (
-                  <div className="mc-team-card-meta">
-                    Reports to{" "}
-                    {strategyController.org.agentsById.get(agent.reports_to_agent_id)?.name ??
-                      agent.reports_to_agent_id}
-                  </div>
-                ) : null}
-                <div className="mc-team-card-tags">
-                  <span className="mc-chip mc-chip-muted">{agent.model_provider}</span>
-                  <span className="mc-chip mc-chip-muted">
-                    {agent.tool_profile ?? "standard"}
-                  </span>
-                  {agent.memory_binding?.enabled ? (
-                    <span className="mc-chip mc-chip-muted">memory bound</span>
-                  ) : null}
+                <div className="mc-team-card-info">
+                  <div className="mc-team-card-name">{agent.name}</div>
+                  <div className="mc-team-card-id">{agent.agent_id}</div>
                   {agent.role_label ? (
-                    <span className="mc-chip mc-chip-muted">{agent.role_label}</span>
+                    <div className="mc-team-card-meta">Role: {agent.role_label}</div>
                   ) : null}
+                  <div className="mc-team-card-meta">
+                    Model: {agent.model_provider} / {agent.model_id}
+                  </div>
+                  {agent.tool_profile ? (
+                    <div className="mc-team-card-meta">Tools: {agent.tool_profile}</div>
+                  ) : null}
+                  {agent.workspace_root ? (
+                    <div className="mc-team-card-meta">Workspace: {agent.workspace_root}</div>
+                  ) : null}
+                  {agent.memory_binding?.enabled ? (
+                    <div className="mc-team-card-meta">
+                      Memory lane: {agent.memory_binding.binding_id}
+                    </div>
+                  ) : null}
+                  <div className="mc-team-card-meta">
+                    Routed people: {routedHumans.length || "none yet"}
+                  </div>
+                  {agent.reports_to_agent_id ? (
+                    <div className="mc-team-card-meta">
+                      Reports to{" "}
+                      {strategyController.org.agentsById.get(agent.reports_to_agent_id)?.name ??
+                        agent.reports_to_agent_id}
+                    </div>
+                  ) : null}
+                  <div className="mc-team-card-tags">
+                    <span className="mc-chip mc-chip-muted">{agent.model_provider}</span>
+                    <span className="mc-chip mc-chip-muted">
+                      {agent.tool_profile ?? "standard"}
+                    </span>
+                    {agent.memory_binding?.enabled ? (
+                      <span className="mc-chip mc-chip-muted">memory bound</span>
+                    ) : null}
+                    {agent.role_label ? (
+                      <span className="mc-chip mc-chip-muted">{agent.role_label}</span>
+                    ) : null}
+                    {routedHumans.length > 0 ? (
+                      <span className="mc-chip mc-chip-muted">
+                        {routedHumans.length} routed
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="mc-team-card-actions">
+                  <button
+                    type="button"
+                    className="mc-topbar-icon-btn"
+                    onClick={() => openEdit(agent)}
+                    title="Edit agent"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className="mc-btn mc-btn-sm"
+                    onClick={() => setRoleCardAgentId(agent.agent_id)}
+                  >
+                    Role Card
+                  </button>
                 </div>
               </div>
-              <div className="mc-team-card-actions">
-                <button
-                  type="button"
-                  className="mc-topbar-icon-btn"
-                  onClick={() => openEdit(agent)}
-                  title="Edit agent"
-                >
-                  <Pencil size={14} />
-                </button>
-                <button
-                  type="button"
-                  className="mc-btn mc-btn-sm"
-                  onClick={() => setRoleCardAgentId(agent.agent_id)}
-                >
-                  Role Card
-                </button>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
+      ) : null}
 
-      <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+      {activeSection === "agents" ? (
+        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
+      ) : null}
 
       <Modal
         open={modalMode !== null}
@@ -1237,6 +2373,18 @@ export function TeamPage({
                   {roleCardReports.map((agent) => (
                     <span key={agent.agent_id} className="mc-strategy-filter-chip">
                       {agent.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {roleCardRoutedHumans.length > 0 ? (
+              <div className="mc-role-card-section">
+                <h4>Routed People</h4>
+                <div className="mc-strategy-chip-row">
+                  {roleCardRoutedHumans.map((card) => (
+                    <span key={`${card.human.human_identity_id}:${card.index}`} className="mc-strategy-filter-chip">
+                      {card.human.display_name || card.human.human_identity_id}
                     </span>
                   ))}
                 </div>

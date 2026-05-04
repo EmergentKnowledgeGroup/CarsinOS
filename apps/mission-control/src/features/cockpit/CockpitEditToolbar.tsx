@@ -12,6 +12,7 @@ import {
 
 interface CockpitEditToolbarProps {
   onOpenWidgetPicker: () => void;
+  onAutoFitLayout: () => void;
   onStartRename: () => void;
   onExportLayout: () => void;
   onImportLayout: (file: File) => Promise<void>;
@@ -48,6 +49,16 @@ export function CockpitEditToolbar(props: CockpitEditToolbarProps) {
       >
         <Plus size={14} />
         Add Widget
+      </button>
+
+      <button
+        type="button"
+        className="mc-edit-toolbar-btn"
+        onClick={props.onAutoFitLayout}
+        title="Pack widgets left-to-right so everything stays reachable"
+      >
+        <LayoutTemplate size={14} />
+        Auto-fit
       </button>
 
       <button

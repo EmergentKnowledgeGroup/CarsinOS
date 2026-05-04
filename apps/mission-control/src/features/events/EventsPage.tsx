@@ -127,7 +127,23 @@ export function EventsPage(props: EventsPageProps) {
             <EventItem key={event.event_id} event={event} />
           ))}
           {filtered.length === 0 ? (
-            <EmptyState message={props.visibleEvents.length === 0 ? "Listening for events\u2026" : "No events match the current filter."} />
+            props.visibleEvents.length === 0 ? (
+              <EmptyState message="Listening for events\u2026" />
+            ) : (
+              <div className="mc-empty-drawer mc-empty-drawer-stack">
+                <span>No events match your current filter.</span>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
+                    setDomainFilter("all");
+                    setEventsPage(1);
+                  }}
+                >
+                  Clear filter
+                </button>
+              </div>
+            )
           ) : null}
         </div>
         <Pagination currentPage={eventsPage} totalPages={pagination.totalPages} onPageChange={setEventsPage} />

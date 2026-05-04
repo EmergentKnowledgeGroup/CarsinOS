@@ -1,62 +1,60 @@
-import { expect, test, type Page } from "./testHarness";
-
-const E2E_APP_URL = "/?e2e=1";
-const GATEWAY_URL = "http://127.0.0.1:19789";
-const TEST_TOKEN = "stub-token-001";
-const ASSISTANT_MODEL_ID = "qwen3.5-9b-instruct";
-
-async function openWizard(page: Page): Promise<void> {
-  await page.addInitScript(() => {
-    window.localStorage.setItem("mc-guided-tour-completed-v1", "true");
-  });
-  await page.goto(E2E_APP_URL);
-  await expect(page.getByRole("heading", { name: "Setup Wizard" })).toBeVisible();
-}
-
-async function moveWizardToConnectionStep(page: Page): Promise<void> {
-  await openWizard(page);
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByText("Step 2 of 6")).toBeVisible();
-  await page.getByRole("button", { name: "Continue" }).click();
-  await expect(page.getByText("Step 3 of 6")).toBeVisible();
-}
-
-async function completeLocalOnboarding(page: Page): Promise<void> {
-  await moveWizardToConnectionStep(page);
-  await page.getByLabel("Gateway URL").fill(GATEWAY_URL);
-  await page.getByLabel("Gateway token").fill(TEST_TOKEN);
-  await page.getByRole("button", { name: /Save \+ Connect/ }).click();
-  await expect(page.getByText(/Connection status:\s*Connected/)).toBeVisible();
-  await page.getByRole("button", { name: "Continue" }).click();
-
-  await expect(page.getByText("Step 4 of 6")).toBeVisible();
-  await page.getByLabel("Agent ID").fill("assistant-main");
-  await page.getByLabel("Agent name").fill("Assistant");
-  await page.getByRole("radio", { name: "Local connector" }).check();
-  await page
-    .getByPlaceholder("Or paste assistant model ID manually")
-    .fill(ASSISTANT_MODEL_ID);
-  await page.getByRole("button", { name: "Continue" }).click();
-
-  await expect(page.getByText("Step 5 of 6")).toBeVisible();
-  await page.getByRole("button", { name: "Finalize" }).click();
-
-  await expect(page.getByText("Step 6 of 6")).toBeVisible();
-  await page.getByRole("button", { name: "Go to Boards" }).click();
-  await expect(page.getByRole("heading", { name: "Setup Wizard" })).toBeHidden();
-}
+import { expect, test } from "./testHarness";
+import { completeQuickstartLocalOnboarding } from "./onboardingFlow";
 
 async function enableConnectors(page: Page): Promise<void> {
   await page.locator('[data-tour-id="nav-config"]').click();
-  await page.getByRole("checkbox", { name: "Connectors hub module" }).check();
+  await page.getByRole("checkbox", { name: "Connectors page" }).check();
   await page.keyboard.press("Escape");
 }
 
 test.describe("mission-control connectors registry", () => {
+  test("quick setup connects Discord without dropping the user into expert registry work", async ({
+    page,
+  }) => {
+    await completeQuickstartLocalOnboarding(page, {
+      beforeGoto: async (nextPage) => {
+        await nextPage.addInitScript(() => {
+          window.localStorage.setItem("mc-guided-tour-completed-v1", "true");
+        });
+      },
+    });
+
+    await enableConnectors(page);
+    await page.locator('[data-tour-id="nav-connectors"]').click();
+
+    await page
+      .locator(".mc-connectors-quick-card", { hasText: "Discord" })
+      .first()
+      .click();
+
+    await expect(
+      page.getByRole("dialog", { name: "Simple Integration Setup" })
+    ).toBeVisible();
+    await page.getByLabel("Discord bot token").fill("discord-test-token");
+    await page.getByLabel("Agent that should answer").selectOption("lyra");
+    await page.getByRole("button", { name: "Save + check connection" }).click();
+
+    await expect(
+      page.getByRole("heading", { name: /Discord: Connected and waiting for first message/i })
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole("dialog", { name: "Simple Integration Setup" })
+        .getByText(/Discord is connected and listening/i)
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Go to Assistant" })).toBeVisible();
+  });
+
   test("imports, converts, publishes, assigns, and authenticates a connector", async ({
     page,
   }) => {
-    await completeLocalOnboarding(page);
+    await completeQuickstartLocalOnboarding(page, {
+      beforeGoto: async (nextPage) => {
+        await nextPage.addInitScript(() => {
+          window.localStorage.setItem("mc-guided-tour-completed-v1", "true");
+        });
+      },
+    });
 
     await expect(page.locator('[data-tour-id="nav-connectors"]')).toHaveCount(0);
 
@@ -65,10 +63,15 @@ test.describe("mission-control connectors registry", () => {
     await expect(page.locator('[data-tour-id="nav-connectors"]')).toBeVisible();
     await page.locator('[data-tour-id="nav-connectors"]').click();
     await expect(page.getByTestId("connectors-page")).toBeVisible();
+    await page.getByRole("button", { name: /^Import$/ }).click();
 
-    await page.getByLabel("Display name").fill("GitHub Ops");
-    await page.getByLabel("Slug").fill("github-ops");
-    await page.getByLabel("Source JSON").fill(
+    const importPanel = page.locator("article", {
+      has: page.getByRole("heading", { name: "Import connector" }),
+    });
+
+    await importPanel.getByLabel("Display name").fill("GitHub Ops");
+    await importPanel.getByLabel("Slug").fill("github-ops");
+    await importPanel.getByLabel("Source JSON").fill(
       JSON.stringify({
         openapi: "3.1.0",
         info: {
@@ -101,6 +104,7 @@ test.describe("mission-control connectors registry", () => {
     await expect(page.getByRole("heading", { name: "Publish connector tools" })).toBeVisible();
     await page.getByRole("button", { name: "Publish", exact: true }).click();
 
+    await page.getByRole("button", { name: "Health" }).click();
     await expect(
       page.locator(".mc-connectors-tool-row", { hasText: "List issues" }).first()
     ).toBeVisible();
@@ -108,6 +112,7 @@ test.describe("mission-control connectors registry", () => {
       page.locator(".mc-connectors-tool-row", { hasText: "Create issue" }).first()
     ).toBeVisible();
 
+    await page.getByRole("button", { name: "Auth" }).click();
     await page.getByTestId("connectors-assignment-agent").selectOption("lyra");
     await page.getByTestId("connectors-assignment-submit").click();
     await expect(page.locator(".mc-connectors-list-row", { hasText: "Lyra" }).first()).toBeVisible();
@@ -120,6 +125,7 @@ test.describe("mission-control connectors registry", () => {
         .first()
     ).toBeVisible();
 
+    await page.getByRole("button", { name: "Health" }).click();
     await page.getByTestId("connectors-health-refresh").click();
     await expect(page.getByText("auth required")).toHaveCount(0);
 

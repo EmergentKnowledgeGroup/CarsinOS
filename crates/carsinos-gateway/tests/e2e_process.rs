@@ -256,17 +256,23 @@ async fn websocket_stream_includes_run_and_approval_events() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn websocket_accepts_query_token_auth() -> Result<()> {
+async fn websocket_accepts_single_use_ticket_auth() -> Result<()> {
     let state_dir = TempDir::new().context("failed to create temp state directory")?;
     let gateway =
-        GatewayProcess::spawn(state_dir.path(), "e2e-token-ws-query", Some("op-1")).await?;
-    let mut ws = gateway.connect_ws_with_query_token().await?;
+        GatewayProcess::spawn(state_dir.path(), "e2e-token-ws-ticket", Some("op-1")).await?;
+    let ticket = gateway.create_ws_ticket().await?;
+    let mut ws = gateway.connect_ws_with_ticket_value(&ticket).await?;
 
     let gateway_status =
         wait_for_ws_event(&mut ws, "gateway.status", Duration::from_secs(2)).await?;
     assert_eq!(gateway_status["schema_version"], "carsinos.ws.event.v1");
     assert_eq!(gateway_status["event_type"], "gateway.status");
     assert_eq!(gateway_status["payload"]["status"], "ok");
+    assert!(gateway.connect_ws_with_ticket_value(&ticket).await.is_err());
+    assert!(gateway
+        .connect_ws_with_legacy_token_parameter()
+        .await
+        .is_err());
     Ok(())
 }
 
@@ -1198,14 +1204,12 @@ async fn daily_budget_kill_switch_is_enforced_process_level() -> Result<()> {
                 {
                     "provider":"openai",
                     "enabled":true,
-                    "allow_consumer_oauth":false,
                     "kill_switch_scope":"none",
                     "daily_token_budget":10
                 },
                 {
                     "provider":"anthropic",
                     "enabled":true,
-                    "allow_consumer_oauth":false,
                     "kill_switch_scope":"none"
                 }
             ]
@@ -1322,17 +1326,7 @@ async fn anthropic_setup_token_ingest_accepts_loopback_stub_when_runtime_flag_en
 {
     let state_dir = TempDir::new().context("failed to create temp state directory")?;
     let server = MockServer::start_async().await;
-    let models = server
-        .mock_async(|when, then| {
-            when.method(httpmock::Method::GET)
-                .path("/v1/models")
-                .header("x-api-key", "setup-token-123")
-                .header("anthropic-version", "2023-06-01");
-            then.status(200)
-                .header("content-type", "application/json")
-                .body(r#"{"data":[]}"#);
-        })
-        .await;
+    let setup_token = format!("sk-ant-oat01-{}", "a".repeat(80));
     let api_base_url = server.url("");
 
     {
@@ -1345,7 +1339,7 @@ async fn anthropic_setup_token_ingest_accepts_loopback_stub_when_runtime_flag_en
             .request(Method::POST, "/api/v1/auth/anthropic/setup-token/ingest")
             .json(&json!({
                 "display_name":"anthropic-loopback-default",
-                "setup_token":"setup-token-123",
+                "setup_token": setup_token,
                 "api_base_url": api_base_url
             }))
             .send()
@@ -1367,7 +1361,7 @@ async fn anthropic_setup_token_ingest_accepts_loopback_stub_when_runtime_flag_en
         .request(Method::POST, "/api/v1/auth/anthropic/setup-token/ingest")
         .json(&json!({
             "display_name":"anthropic-loopback-override",
-            "setup_token":"setup-token-123",
+            "setup_token": setup_token,
             "api_base_url": api_base_url
         }))
         .send()
@@ -1376,7 +1370,6 @@ async fn anthropic_setup_token_ingest_accepts_loopback_stub_when_runtime_flag_en
     assert_eq!(ingest.status(), StatusCode::CREATED);
     let ingest_json = json_body(ingest).await?;
     assert!(ingest_json["profile"]["auth_profile_id"].as_str().is_some());
-    assert_eq!(models.hits_async().await, 1);
 
     Ok(())
 }
@@ -2047,6 +2040,7 @@ async fn request_logs_are_written_to_state_log_directory() -> Result<()> {
         .await
         .context("second health request failed")?;
     assert_eq!(second_health.status(), StatusCode::OK);
+    drop(gateway);
 
     let logs_dir = state_dir.path().join("logs");
     let deadline = std::time::Instant::now() + Duration::from_secs(20);
@@ -2090,7 +2084,6 @@ async fn request_logs_are_written_to_state_log_directory() -> Result<()> {
         }
         sleep(Duration::from_millis(250)).await;
     }
-    drop(gateway);
     assert!(
         found_request_log_marker,
         "expected request-log markers to be written to state log directory"

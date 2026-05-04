@@ -217,12 +217,12 @@ Response envelope fields:
 ## 9. Consumer OAuth High-Risk Policy and Controls
 
 ### Policy
-Consumer OAuth is allowed in production but always treated as high-risk.
+Anthropic consumer OAuth has been removed from carsinOS. OpenAI OAuth remains supported under the standard provider controls.
 
 ### Required Controls
 - Risk classification must be `high`.
 - Operator-visible warning metadata mandatory at profile creation/update and run selection.
-- Full audit trail mandatory for all consumer OAuth profile operations and run usage.
+- Full audit trail mandatory for supported OAuth profile operations and run usage.
 - Kill-switch compatibility required at all scopes:
   - profile
   - provider

@@ -5,6 +5,10 @@ import {
   getAgentMemoryCard,
   getAgentMemoryCitation,
   getAgentMemoryDecisionReasons,
+  getAgentMemoryLaneStatuses,
+  getRuntimeConfig,
+  syncMemorySources,
+  updateRuntimeConfig,
   getAgentMemoryGraphMap,
   getAgentMemoryGraphNeighbors,
   getAgentMemoryRuntimeHealth,
@@ -26,12 +30,15 @@ import type {
   AgentMemoryGraphMapPayload,
   AgentMemoryGraphNeighborsPayload,
   AgentMemoryJsonPayloadResponse,
+  AgentMemoryLaneStatusResponse,
   AgentMemoryRuntimeHealthPayload,
   AgentMemoryStatusResponse,
   AgentMemoryTelemetrySummaryPayload,
   AgentMemoryTelemetryTurnsPayload,
   AgentMemoryTurnWhyPayload,
   RuntimeConnectionSettings,
+  RuntimeMemoryConfigResponse,
+  RuntimeRoutingConfigResponse,
 } from "../../types";
 import {
   MEMORY_CARDS_PAGE_LIMIT,
@@ -263,6 +270,18 @@ export function useMemoryController(options: UseMemoryControllerOptions) {
     enabled ? "loading" : "disabled"
   );
   const [availabilityMessage, setAvailabilityMessage] = useState<string | null>(null);
+  const [routingConfig, setRoutingConfig] = useState<RuntimeRoutingConfigResponse | null>(null);
+  const [runtimeMemoryConfig, setRuntimeMemoryConfig] =
+    useState<RuntimeMemoryConfigResponse | null>(null);
+  const [runtimeMemorySourceCount, setRuntimeMemorySourceCount] = useState(0);
+  const [routingLoading, setRoutingLoading] = useState(enabled);
+  const [routingError, setRoutingError] = useState<string | null>(null);
+  const [laneStatuses, setLaneStatuses] = useState<AgentMemoryLaneStatusResponse[]>([]);
+  const [laneStatusLoading, setLaneStatusLoading] = useState(enabled);
+  const [laneStatusError, setLaneStatusError] = useState<string | null>(null);
+  const [lanePolicySaveKey, setLanePolicySaveKey] = useState<string | null>(null);
+  const [runtimeMemorySavePending, setRuntimeMemorySavePending] = useState(false);
+  const [memorySyncPendingKey, setMemorySyncPendingKey] = useState<string | null>(null);
   const [status, setStatus] = useState<AgentMemoryStatusResponse | null>(null);
   const [cardsResponse, setCardsResponse] =
     useState<AgentMemoryJsonPayloadResponse<AgentMemoryCardsPayload> | null>(null);
@@ -320,6 +339,7 @@ export function useMemoryController(options: UseMemoryControllerOptions) {
   const graphRequestIdRef = useRef(0);
   const whyRequestIdRef = useRef(0);
   const citationRequestIdRef = useRef(0);
+  const laneStatusRequestIdRef = useRef(0);
 
   const selectedAgentId = useMemo(
     () => selectMemoryAgentId(agents, preferredAgentId, selectedAgentIdState),
@@ -648,27 +668,325 @@ export function useMemoryController(options: UseMemoryControllerOptions) {
     ]
   );
 
-  const refresh = useCallback(async () => {
-    const result = await loadMemoryData(settings, selectedAgentId);
-    if (!result.ok) {
+  const loadRoutingSnapshot = useCallback(
+    async (runtimeSettings: RuntimeConnectionSettings = settings) => {
+      if (!enabled || !runtimeSettings.gateway_url.trim()) {
+        setRoutingConfig(null);
+        setRuntimeMemoryConfig(null);
+        setRuntimeMemorySourceCount(0);
+        setRoutingError(null);
+        setRoutingLoading(false);
+        return createSuccessResult();
+      }
+
+      setRoutingLoading(true);
+      try {
+        const response = await getRuntimeConfig(runtimeSettings);
+        setRoutingConfig(response.config.routing);
+        setRuntimeMemoryConfig(response.config.memory);
+        setRuntimeMemorySourceCount(response.config.memory.memory_md_sources.length);
+        setRoutingError(null);
+        return createSuccessResult();
+      } catch (error: unknown) {
+        setRoutingConfig(null);
+        setRuntimeMemoryConfig(null);
+        setRuntimeMemorySourceCount(0);
+        setRoutingError(`Lane routing could not load. (${String(error)})`);
+        return createFailureResult(error);
+      } finally {
+        setRoutingLoading(false);
+      }
+    },
+    [enabled, settings]
+  );
+
+  const loadLaneStatuses = useCallback(
+    async (
+      runtimeSettings: RuntimeConnectionSettings = settings,
+      targetAgentId = selectedAgentId
+    ) => {
+      const requestId = ++laneStatusRequestIdRef.current;
+      if (!enabled || !runtimeSettings.gateway_url.trim() || !targetAgentId.trim()) {
+        setLaneStatuses([]);
+        setLaneStatusError(null);
+        setLaneStatusLoading(false);
+        return createSuccessResult();
+      }
+
+      setLaneStatusLoading(true);
+      try {
+        const items = await getAgentMemoryLaneStatuses(runtimeSettings, targetAgentId);
+        if (laneStatusRequestIdRef.current !== requestId) {
+          return createSuccessResult();
+        }
+        setLaneStatuses(items);
+        setLaneStatusError(null);
+        return createSuccessResult();
+      } catch (error: unknown) {
+        if (laneStatusRequestIdRef.current !== requestId) {
+          return createSuccessResult();
+        }
+        setLaneStatuses([]);
+        setLaneStatusError(`Lane memory status could not load. (${String(error)})`);
+        return createFailureResult(error);
+      } finally {
+        if (laneStatusRequestIdRef.current === requestId) {
+          setLaneStatusLoading(false);
+        }
+      }
+    },
+    [enabled, selectedAgentId, settings]
+  );
+
+  const saveLaneMemoryPolicy = useCallback(
+    async (
+      humanIdentityId: string,
+      assistantAgentId: string,
+      memoryMode: string,
+      options?: { localMemorySources?: string[] }
+    ) => {
+      const pairKey = `${humanIdentityId}:${assistantAgentId}`;
+      if (!settings.gateway_url.trim()) {
+        setNotice({
+          tone: "error",
+          message: "Connect to the gateway before saving lane memory policy.",
+        });
+        return false;
+      }
+
+      setLanePolicySaveKey(pairKey);
+      try {
+        const response = await getRuntimeConfig(settings);
+        const nextRouting: RuntimeRoutingConfigResponse = {
+          ...response.config.routing,
+          human_identities: [...response.config.routing.human_identities],
+          platform_identity_links: [...response.config.routing.platform_identity_links],
+          assistant_assignments: [...response.config.routing.assistant_assignments],
+          lane_memory_policies: [...response.config.routing.lane_memory_policies],
+        };
+        const existingIndex = nextRouting.lane_memory_policies.findIndex(
+          (item) =>
+            item.human_identity_id === humanIdentityId &&
+            item.assistant_agent_id === assistantAgentId
+        );
+        if (existingIndex >= 0) {
+          nextRouting.lane_memory_policies[existingIndex] = {
+            ...nextRouting.lane_memory_policies[existingIndex],
+            memory_mode: memoryMode,
+            local_memory_sources:
+              options?.localMemorySources ??
+              nextRouting.lane_memory_policies[existingIndex].local_memory_sources,
+          };
+        } else {
+          nextRouting.lane_memory_policies.push({
+            human_identity_id: humanIdentityId,
+            assistant_agent_id: assistantAgentId,
+            memory_mode: memoryMode,
+            lane_id: null,
+            local_memory_sources: options?.localMemorySources ?? [],
+          });
+        }
+
+        const updateResponse = await updateRuntimeConfig(settings, {
+          routing: nextRouting,
+        });
+        setRoutingConfig(updateResponse.config.routing);
+        setRuntimeMemorySourceCount(updateResponse.config.memory.memory_md_sources.length);
+        setRoutingError(null);
+        await loadLaneStatuses(settings, assistantAgentId);
+        setNotice({
+          tone: "info",
+          message:
+            options?.localMemorySources !== undefined
+              ? "Lane memory settings saved."
+              : "Lane memory mode saved.",
+        });
+        return true;
+      } catch (error: unknown) {
+        setNotice({
+          tone: "error",
+          message: `Saving lane memory mode failed: ${String(error)}`,
+        });
+        return false;
+      } finally {
+        setLanePolicySaveKey(null);
+      }
+    },
+    [loadLaneStatuses, setNotice, settings]
+  );
+
+  const saveRuntimeMemoryDefaults = useCallback(
+    async (blendMode: string, memoryMdSources: string[]) => {
+      if (!settings.gateway_url.trim()) {
+        setNotice({
+          tone: "error",
+          message: "Connect to the gateway before saving runtime memory defaults.",
+        });
+        return false;
+      }
+
+      setRuntimeMemorySavePending(true);
+      try {
+        const response = await getRuntimeConfig(settings);
+        const updateResponse = await updateRuntimeConfig(settings, {
+          memory: {
+            ...response.config.memory,
+            blend_mode: blendMode,
+            memory_md_sources: memoryMdSources,
+          },
+        });
+        setRoutingConfig(updateResponse.config.routing);
+        setRuntimeMemoryConfig(updateResponse.config.memory);
+        setRuntimeMemorySourceCount(updateResponse.config.memory.memory_md_sources.length);
+        setRoutingError(null);
+        setNotice({
+          tone: "info",
+          message: "Runtime memory defaults saved.",
+        });
+        return true;
+      } catch (error: unknown) {
+        setNotice({
+          tone: "error",
+          message: `Saving runtime memory defaults failed: ${String(error)}`,
+        });
+        return false;
+      } finally {
+        setRuntimeMemorySavePending(false);
+      }
+    },
+    [setNotice, settings]
+  );
+
+  const syncRuntimeMemoryDefaults = useCallback(async () => {
+    if (!settings.gateway_url.trim()) {
       setNotice({
         tone: "error",
-        message: `Memory refresh failed: ${normalizeMemoryErrorMessage(result.error)}`,
+        message: "Connect to the gateway before syncing runtime memory files.",
+      });
+      return false;
+    }
+
+    setMemorySyncPendingKey("runtime");
+    try {
+      const response = await syncMemorySources(settings, {});
+      await Promise.all([
+        loadMemoryData(settings, selectedAgentId),
+        loadRoutingSnapshot(settings),
+        loadLaneStatuses(settings, selectedAgentId),
+      ]);
+      setNotice({
+        tone: response.failed > 0 ? "error" : "info",
+        message:
+          response.failed > 0
+            ? `Runtime memory sync finished with issues: ${response.synced} synced, ${response.failed} failed.`
+            : `Runtime memory sync complete: ${response.synced} file${
+                response.synced === 1 ? "" : "s"
+              } synced.`,
+      });
+      return response.failed === 0;
+    } catch (error: unknown) {
+      setNotice({
+        tone: "error",
+        message: `Runtime memory sync failed: ${String(error)}`,
+      });
+      return false;
+    } finally {
+      setMemorySyncPendingKey(null);
+    }
+  }, [
+    loadLaneStatuses,
+    loadMemoryData,
+    loadRoutingSnapshot,
+    selectedAgentId,
+    setNotice,
+    settings,
+  ]);
+
+  const syncLaneMemorySources = useCallback(
+    async (humanIdentityId: string, assistantAgentId: string) => {
+      if (!settings.gateway_url.trim()) {
+        setNotice({
+          tone: "error",
+          message: "Connect to the gateway before syncing lane memory files.",
+        });
+        return false;
+      }
+
+      const syncKey = `lane:${humanIdentityId}:${assistantAgentId}`;
+      setMemorySyncPendingKey(syncKey);
+      try {
+        const response = await syncMemorySources(settings, {
+          human_identity_id: humanIdentityId,
+          assistant_agent_id: assistantAgentId,
+        });
+        await Promise.all([
+          loadMemoryData(settings, assistantAgentId),
+          loadRoutingSnapshot(settings),
+          loadLaneStatuses(settings, assistantAgentId),
+        ]);
+        setNotice({
+          tone: response.failed > 0 ? "error" : "info",
+          message:
+            response.failed > 0
+              ? `Lane memory sync finished with issues: ${response.synced} synced, ${response.failed} failed.`
+              : `Lane memory sync complete: ${response.synced} file${
+                  response.synced === 1 ? "" : "s"
+                } synced.`,
+        });
+        return response.failed === 0;
+      } catch (error: unknown) {
+        setNotice({
+          tone: "error",
+          message: `Lane memory sync failed: ${String(error)}`,
+        });
+        return false;
+      } finally {
+        setMemorySyncPendingKey(null);
+      }
+    },
+    [loadLaneStatuses, loadMemoryData, loadRoutingSnapshot, setNotice, settings]
+  );
+
+  const refresh = useCallback(async () => {
+    const [memoryResult, routingResult, laneStatusResult] = await Promise.all([
+      loadMemoryData(settings, selectedAgentId),
+      loadRoutingSnapshot(settings),
+      loadLaneStatuses(settings, selectedAgentId),
+    ]);
+    if (!memoryResult.ok) {
+      setNotice({
+        tone: "error",
+        message: `Memory refresh failed: ${normalizeMemoryErrorMessage(memoryResult.error)}`,
+      });
+      return;
+    }
+    if (!routingResult.ok) {
+      setNotice({
+        tone: "info",
+        message: "Memory loaded, but the lane routing snapshot could not be refreshed.",
       });
     }
-  }, [loadMemoryData, selectedAgentId, setNotice, settings]);
+    if (!laneStatusResult.ok) {
+      setNotice({
+        tone: "info",
+        message: "Memory loaded, but the per-lane runtime status could not be refreshed.",
+      });
+    }
+  }, [loadLaneStatuses, loadMemoryData, loadRoutingSnapshot, selectedAgentId, setNotice, settings]);
 
   useEffect(() => {
     let cancelled = false;
     queueMicrotask(() => {
       if (!cancelled) {
         void loadMemoryData(settings, selectedAgentId);
+        void loadRoutingSnapshot(settings);
+        void loadLaneStatuses(settings, selectedAgentId);
       }
     });
     return () => {
       cancelled = true;
     };
-  }, [enabled, loadMemoryData, selectedAgentId, settings]);
+  }, [enabled, loadLaneStatuses, loadMemoryData, loadRoutingSnapshot, selectedAgentId, settings]);
 
   const cachedCardDetailResponse = selectedCardId
     ? cacheSnapshot.get(bindingKey)?.cardDetailsById[selectedCardId] ?? null
@@ -1033,6 +1351,21 @@ export function useMemoryController(options: UseMemoryControllerOptions) {
     enabled,
     availability,
     availabilityMessage,
+    routingConfig,
+    runtimeMemoryConfig,
+    runtimeMemorySourceCount,
+    routingLoading,
+    routingError,
+    laneStatuses,
+    laneStatusLoading,
+    laneStatusError,
+    lanePolicySaveKey,
+    runtimeMemorySavePending,
+    memorySyncPendingKey,
+    saveLaneMemoryPolicy,
+    saveRuntimeMemoryDefaults,
+    syncRuntimeMemoryDefaults,
+    syncLaneMemorySources,
     agents,
     selectedAgentId,
     setSelectedAgentId,

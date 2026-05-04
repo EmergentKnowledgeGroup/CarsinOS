@@ -14,7 +14,7 @@ function makeAgent(partial: Partial<Agent>): Agent {
     agent_id: partial.agent_id ?? "agent-1",
     name: partial.name ?? "Agent",
     model_provider: partial.model_provider ?? "anthropic",
-    model_id: partial.model_id ?? "claude-3-7-sonnet",
+    model_id: partial.model_id ?? "claude-sonnet-4-5",
     workspace_root: partial.workspace_root ?? ".",
     tool_profile: partial.tool_profile ?? "default",
   };
@@ -54,6 +54,16 @@ describe("onboardingState", () => {
       hasEnabledCloudProfile([
         makeProfile({ provider: "anthropic", enabled: false }),
         makeProfile({ provider: "local", enabled: true }),
+      ])
+    ).toBe(false);
+
+    expect(
+      hasEnabledCloudProfile([
+        makeProfile({
+          provider: "anthropic",
+          auth_mode: "oauth",
+          enabled: true,
+        }),
       ])
     ).toBe(false);
   });
@@ -117,6 +127,29 @@ describe("onboardingState", () => {
       shouldAutoOpenWizard(incomplete, {
         dismissedAtMs: now - ONBOARDING_DISMISS_WINDOW_MS,
         nowMs: now,
+      })
+    ).toBe(true);
+  });
+
+  it("waits for the initial bootstrap to settle before auto-opening a connected install", () => {
+    const pendingBootstrap = {
+      settings: makeSettings({}),
+      tokenConfigured: true,
+      agents: [],
+      authProfiles: [] as AuthProfileResponse[],
+    };
+
+    expect(
+      shouldAutoOpenWizard(pendingBootstrap, {
+        dismissedAtMs: null,
+        bootstrapSettled: false,
+      })
+    ).toBe(false);
+
+    expect(
+      shouldAutoOpenWizard(pendingBootstrap, {
+        dismissedAtMs: null,
+        bootstrapSettled: true,
       })
     ).toBe(true);
   });

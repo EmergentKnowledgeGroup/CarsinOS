@@ -25,6 +25,7 @@ import type {
   BoardDetail,
   BoardDetailResponse,
   CreateBootstrapPresetResponse,
+  CreateWebSocketTicketResponse,
   CreateGoalResponse,
   CreateAgentResponse,
   CreateMessageResponse,
@@ -39,9 +40,13 @@ import type {
   DescribeConnectorToolResponse,
   ExportBootstrapPresetResponse,
   GetAgentMemoryStatusResponse,
+  GetChannelConfigResponse,
   GetChannelRuntimeStatusResponse,
   GetConnectorHealthResponse,
   GetConnectorResponse,
+  GetDiscordPairingStatusResponse,
+  GetRuntimeConfigResponse,
+  GetTelegramPairingStatusResponse,
   HealthResponse,
   ImportConnectorRequest,
   ImportConnectorResponse,
@@ -49,6 +54,7 @@ import type {
   ListAgentMailFileLeasesResponse,
   ListAgentMailMessagesResponse,
   ListAgentMailThreadsResponse,
+  ListAgentMemoryLaneStatusesResponse,
   ListBootstrapPresetsResponse,
   ListConnectorCatalogRequest,
   ListConnectorCatalogResponse,
@@ -86,6 +92,11 @@ import type {
   RollbackConnectorVersionRequest,
   RollbackConnectorVersionResponse,
   ResolveApprovalResponse,
+  ResolveDiscordPairingResponse,
+  ResolveTelegramPairingResponse,
+  RuntimeGlobalConfigResponse,
+  RuntimeMemoryConfigResponse,
+  RuntimeRoutingConfigResponse,
   RuntimeConnectionSettings,
   RunJobNowResponse,
   RunBoardCardResponse,
@@ -99,14 +110,18 @@ import type {
   SetConnectorStateResponse,
   StatusResponse,
   StrategySummaryResponse,
+  SyncMemorySourcesResponse,
   TaskLinkMutationResponse,
   UnpublishConnectorToolsRequest,
   UnpublishConnectorToolsResponse,
+  UpdateChannelConfigResponse,
   UpsertConnectorAuthBindingRequest,
   UpsertConnectorAuthBindingResponse,
+  UpsertRuntimeSecretResponse,
   UpdateBootstrapPresetResponse,
   UpdateGoalResponse,
   UpdatePluginResponse,
+  UpdateRuntimeConfigResponse,
   UpdateSkillStateResponse,
   UpdateJobResponse,
   UpdateBoardCardResponse,
@@ -205,6 +220,7 @@ function appendQuery(
 interface ApiRequestOptions {
   method?: "GET" | "POST";
   body?: unknown;
+  timeoutMs?: number;
 }
 
 async function fetchWithTimeout(
@@ -278,7 +294,7 @@ async function requestRaw(
       },
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     },
-    API_REQUEST_TIMEOUT_MS,
+    options.timeoutMs ?? API_REQUEST_TIMEOUT_MS,
     path
   );
 }
@@ -318,6 +334,18 @@ export async function getGatewayStatus(
   settings: RuntimeConnectionSettings
 ): Promise<StatusResponse> {
   return requestJson<StatusResponse>(settings, "/api/v1/status");
+}
+
+export async function createWebSocketTicket(
+  settings: RuntimeConnectionSettings
+): Promise<CreateWebSocketTicketResponse> {
+  return requestJson<CreateWebSocketTicketResponse>(
+    settings,
+    "/api/v1/ws-ticket",
+    {
+      method: "POST",
+    }
+  );
 }
 
 export async function listProviderCapabilities(
@@ -660,6 +688,31 @@ export async function getAgentMemoryStatus(
     `/api/v1/agents/${encodeURIComponent(agentId)}/memory/status`
   );
   return response.status;
+}
+
+export async function getAgentMemoryLaneStatuses(
+  settings: RuntimeConnectionSettings,
+  agentId: string
+): Promise<ListAgentMemoryLaneStatusesResponse["items"]> {
+  const response = await requestJson<ListAgentMemoryLaneStatusesResponse>(
+    settings,
+    `/api/v1/agents/${encodeURIComponent(agentId)}/memory/lanes/status`
+  );
+  return response.items;
+}
+
+export async function syncMemorySources(
+  settings: RuntimeConnectionSettings,
+  payload: {
+    sources?: string[];
+    human_identity_id?: string;
+    assistant_agent_id?: string;
+  } = {}
+): Promise<SyncMemorySourcesResponse> {
+  return requestJson<SyncMemorySourcesResponse>(settings, "/api/v1/memory/sources/sync", {
+    method: "POST",
+    body: payload,
+  });
 }
 
 export async function listAgentMemoryCards(
@@ -1292,12 +1345,23 @@ export async function createSession(
     session_key?: string;
     agent_id?: string;
     title?: string;
+    human_identity_id?: string;
   }
 ): Promise<CreateSessionResponse> {
   return requestJson<CreateSessionResponse>(settings, "/api/v1/sessions", {
     method: "POST",
     body: payload,
   });
+}
+
+export async function getSession(
+  settings: RuntimeConnectionSettings,
+  sessionId: string
+): Promise<CreateSessionResponse> {
+  return requestJson<CreateSessionResponse>(
+    settings,
+    `/api/v1/sessions/${encodeURIComponent(sessionId)}`
+  );
 }
 
 export async function createSessionMessage(
@@ -1335,10 +1399,10 @@ export async function createSessionRun(
   settings: RuntimeConnectionSettings,
   sessionId: string,
   payload: {
-    model_provider: string;
-    model_id: string;
+    model_provider?: string;
+    model_id?: string;
     auth_profile_id?: string;
-  }
+  } = {}
 ): Promise<CreateRunResponse> {
   return requestJson<CreateRunResponse>(
     settings,
@@ -1756,17 +1820,132 @@ export async function setPluginEnabled(
 }
 
 export async function getChannelRuntimeStatus(
-  settings: RuntimeConnectionSettings
+  settings: RuntimeConnectionSettings,
+  options: {
+    timeoutMs?: number;
+  } = {}
 ): Promise<GetChannelRuntimeStatusResponse> {
   return requestJson<GetChannelRuntimeStatusResponse>(
     settings,
-    "/api/v1/channels/runtime/status"
+    "/api/v1/channels/runtime/status",
+    {
+      timeoutMs: options.timeoutMs,
+    }
+  );
+}
+
+export async function getChannelConfig(
+  settings: RuntimeConnectionSettings
+): Promise<GetChannelConfigResponse> {
+  return requestJson<GetChannelConfigResponse>(settings, "/api/v1/config/channels");
+}
+
+export async function updateChannelConfig(
+  settings: RuntimeConnectionSettings,
+  payload: {
+    discord?: {
+      require_mention_in_guild_channels: boolean;
+      allowlisted_user_ids: string[];
+      auto_run_enabled: boolean;
+      default_agent_id: string | null;
+      default_model_provider: string;
+      default_model_id: string;
+    };
+    telegram?: {
+      require_mention_in_groups: boolean;
+      allowlisted_user_ids: number[];
+      dm_policy: string;
+      group_policy: string;
+      group_allowlisted_user_ids: number[];
+      allowlisted_chat_ids: number[];
+      auto_leave_unauthorized_groups: boolean;
+      pairing_code_ttl_seconds: number;
+      pairing_max_pending: number;
+      unauthorized_spam_threshold: number;
+      unauthorized_spam_block_seconds: number;
+      auto_run_enabled: boolean;
+      default_agent_id: string | null;
+      default_model_provider: string;
+      default_model_id: string;
+    };
+  }
+): Promise<UpdateChannelConfigResponse> {
+  return requestJson<UpdateChannelConfigResponse>(settings, "/api/v1/config/channels", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export async function getRuntimeConfig(
+  settings: RuntimeConnectionSettings
+): Promise<GetRuntimeConfigResponse> {
+  return requestJson<GetRuntimeConfigResponse>(settings, "/api/v1/config/runtime");
+}
+
+export async function updateRuntimeConfig(
+  settings: RuntimeConnectionSettings,
+  payload: {
+    global?: RuntimeGlobalConfigResponse;
+    routing?: RuntimeRoutingConfigResponse;
+    memory?: RuntimeMemoryConfigResponse;
+    channels?: {
+      discord: {
+        enabled: boolean;
+        bot_token_secret_ref: string | null;
+        operation_mode: string;
+        api_base_url: string | null;
+        transport_timeout_ms: number | null;
+        transport_retry_attempts: number | null;
+        application_id: string | null;
+        intents: string[];
+        staging_guild_ids: string[];
+        staging_channel_ids: string[];
+      };
+      telegram: {
+        enabled: boolean;
+        bot_token_secret_ref: string | null;
+        operation_mode: string;
+        api_base_url: string | null;
+        transport_timeout_ms: number | null;
+        transport_retry_attempts: number | null;
+        long_poll_timeout_seconds: number | null;
+        webhook_mode: string;
+        webhook_url: string | null;
+        staging_chat_ids: number[];
+      };
+    };
+  }
+): Promise<UpdateRuntimeConfigResponse> {
+  return requestJson<UpdateRuntimeConfigResponse>(settings, "/api/v1/config/runtime", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export async function upsertRuntimeSecret(
+  settings: RuntimeConnectionSettings,
+  payload: {
+    scope: string;
+    secret_value: string;
+    previous_secret_ref?: string | null;
+  }
+): Promise<UpsertRuntimeSecretResponse> {
+  return requestJson<UpsertRuntimeSecretResponse>(
+    settings,
+    "/api/v1/config/runtime/secrets/upsert",
+    {
+      method: "POST",
+      body: payload,
+    }
   );
 }
 
 export async function reconnectChannelRuntime(
   settings: RuntimeConnectionSettings,
-  provider: string
+  provider: string,
+  options: {
+    timeoutMs?: number;
+  } = {}
 ): Promise<{
   status: {
     provider: string;
@@ -1779,7 +1958,98 @@ export async function reconnectChannelRuntime(
     body: {
       provider,
     },
+    timeoutMs: options.timeoutMs,
   });
+}
+
+export async function getTelegramPairingStatus(
+  settings: RuntimeConnectionSettings
+): Promise<GetTelegramPairingStatusResponse> {
+  return requestJson<GetTelegramPairingStatusResponse>(
+    settings,
+    "/api/v1/channels/telegram/pairing/status"
+  );
+}
+
+export async function approveTelegramPairing(
+  settings: RuntimeConnectionSettings,
+  code: string,
+  humanIdentityId?: string
+): Promise<ResolveTelegramPairingResponse> {
+  return requestJson<ResolveTelegramPairingResponse>(
+    settings,
+    "/api/v1/channels/telegram/pairing/approve",
+    {
+      method: "POST",
+      body: {
+        code,
+        human_identity_id: humanIdentityId?.trim() ? humanIdentityId.trim() : undefined,
+      },
+    }
+  );
+}
+
+export async function denyTelegramPairing(
+  settings: RuntimeConnectionSettings,
+  code: string,
+  humanIdentityId?: string
+): Promise<ResolveTelegramPairingResponse> {
+  return requestJson<ResolveTelegramPairingResponse>(
+    settings,
+    "/api/v1/channels/telegram/pairing/deny",
+    {
+      method: "POST",
+      body: {
+        code,
+        human_identity_id: humanIdentityId?.trim() ? humanIdentityId.trim() : undefined,
+      },
+    }
+  );
+}
+
+export async function getDiscordPairingStatus(
+  settings: RuntimeConnectionSettings
+): Promise<GetDiscordPairingStatusResponse> {
+  return requestJson<GetDiscordPairingStatusResponse>(
+    settings,
+    "/api/v1/channels/discord/pairing/status"
+  );
+}
+
+export async function approveDiscordPairing(
+  settings: RuntimeConnectionSettings,
+  code: string,
+  humanIdentityId?: string
+): Promise<ResolveDiscordPairingResponse> {
+  return requestJson<ResolveDiscordPairingResponse>(
+    settings,
+    "/api/v1/channels/discord/pairing/approve",
+    {
+      method: "POST",
+      body: {
+        code,
+        human_identity_id: humanIdentityId?.trim() ? humanIdentityId.trim() : undefined,
+      },
+    }
+  );
+}
+
+export async function denyDiscordPairing(
+  settings: RuntimeConnectionSettings,
+  code: string,
+  humanIdentityId?: string
+): Promise<ResolveDiscordPairingResponse> {
+  return requestJson<ResolveDiscordPairingResponse>(
+    settings,
+    "/api/v1/channels/discord/pairing/deny",
+    {
+      method: "POST",
+      body: {
+        code,
+        human_identity_id: humanIdentityId?.trim() ? humanIdentityId.trim() : undefined,
+      },
+    }
+  );
 }
 
 export async function listAgentMailThreads(
@@ -2092,11 +2362,11 @@ export async function fetchBoardCardAssetBlob(
 
 export function websocketUrlFromGateway(
   settings: RuntimeConnectionSettings,
-  token: string
+  ticket: string
 ): string {
   const base = new URL(normalizeGatewayUrl(settings.gateway_url));
   base.protocol = base.protocol === "https:" ? "wss:" : "ws:";
   base.pathname = "/api/v1/ws";
-  base.searchParams.set("token", token);
+  base.searchParams.set("ticket", ticket);
   return base.toString();
 }

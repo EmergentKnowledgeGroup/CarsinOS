@@ -2,7 +2,8 @@ import {
   AlertTriangle,
   ArrowRight,
   Bot,
-  Clock3,
+  ChevronLeft,
+  ChevronRight,
   Compass,
   Gauge,
   Kanban,
@@ -13,7 +14,7 @@ import {
   TimerReset,
   Workflow,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Chip } from "../../ui/Chip";
 import { EmptyState } from "../../ui/EmptyState";
 import { Surface } from "../../ui/Surface";
@@ -253,7 +254,20 @@ function HistoryItem({
   );
 }
 
+/* ── Pagination constants ── */
+
+const LIST_PER_PAGE = 6;
+const FLOW_PER_PAGE = 4;
+const HISTORY_PER_PAGE = 5;
+const ARTIFACT_FACTS_PREVIEW_LIMIT = 4;
+
 export function RunbookPage({ controller, agents, onOpenDeepLink }: RunbookPageProps) {
+  const [viewMode, setViewMode] = useState<"browse" | "detail">("browse");
+  const [listPage, setListPage] = useState(0);
+  const [detailTab, setDetailTab] = useState<"overview" | "flow" | "artifacts" | "history">("overview");
+  const [flowPage, setFlowPage] = useState(0);
+  const [historyPage, setHistoryPage] = useState(0);
+
   if (!controller.enabled || controller.availability === "disabled") {
     return (
       <RunbookStatePanel
@@ -301,8 +315,47 @@ export function RunbookPage({ controller, agents, onOpenDeepLink }: RunbookPageP
         detail.owner_agent_id
       : null);
 
+  /* ── Browse list pagination ── */
+  const totalListPages = Math.max(1, Math.ceil(controller.items.length / LIST_PER_PAGE));
+  const safeListPage = Math.min(listPage, totalListPages - 1);
+  if (safeListPage !== listPage) setListPage(safeListPage);
+  const pagedItems = controller.items.slice(
+    safeListPage * LIST_PER_PAGE,
+    (safeListPage + 1) * LIST_PER_PAGE
+  );
+
+  /* ── Flow steps pagination ── */
+  const totalFlowPages = detail
+    ? Math.max(1, Math.ceil(detail.steps.length / FLOW_PER_PAGE))
+    : 1;
+  const safeFlowPage = Math.min(flowPage, totalFlowPages - 1);
+  if (safeFlowPage !== flowPage) setFlowPage(safeFlowPage);
+  const pagedSteps = detail
+    ? detail.steps.slice(safeFlowPage * FLOW_PER_PAGE, (safeFlowPage + 1) * FLOW_PER_PAGE)
+    : [];
+
+  /* ── History pagination ── */
+  const historyItems = detail
+    ? detail.history.slice(-RUNBOOK_HISTORY_PREVIEW_LIMIT).reverse()
+    : [];
+  const totalHistoryPages = Math.max(1, Math.ceil(historyItems.length / HISTORY_PER_PAGE));
+  const safeHistoryPage = Math.min(historyPage, totalHistoryPages - 1);
+  if (safeHistoryPage !== historyPage) setHistoryPage(safeHistoryPage);
+  const pagedHistory = historyItems.slice(
+    safeHistoryPage * HISTORY_PER_PAGE,
+    (safeHistoryPage + 1) * HISTORY_PER_PAGE
+  );
+
+  const openDetail = (kind: string, anchorId: string) => {
+    controller.selectRunbook(kind, anchorId);
+    setViewMode("detail");
+    setDetailTab("overview");
+    setFlowPage(0);
+    setHistoryPage(0);
+  };
+
   return (
-    <section className="mc-runbook-page" data-testid="runbook-page">
+    <section className="mc-runbook-page mc-runbook-paged" data-testid="runbook-page">
       <div className="mc-runbook-summary-strip">
         <SummaryCard
           icon={<ListTree size={16} />}
@@ -334,9 +387,9 @@ export function RunbookPage({ controller, agents, onOpenDeepLink }: RunbookPageP
         />
       </div>
 
-      <div className="mc-runbook-grid">
+      {viewMode === "browse" ? (
         <Surface
-          className="mc-runbook-sidebar"
+          className="mc-runbook-browse"
           title="Browse Runbooks"
           subtitle={
             controller.generatedAtMs
@@ -429,19 +482,17 @@ export function RunbookPage({ controller, agents, onOpenDeepLink }: RunbookPageP
           </div>
 
           <div className="mc-runbook-list">
-            {controller.items.length === 0 ? (
+            {pagedItems.length === 0 ? (
               <EmptyState message="No runbooks match the current filters." />
             ) : null}
-            {controller.items.map((item) => (
+            {pagedItems.map((item) => (
               <button
                 key={item.runbook_id}
                 type="button"
                 className={`mc-runbook-list-item${
                   item.runbook_id === controller.selectedRunbookId ? " is-active" : ""
                 }`}
-                onClick={() =>
-                  controller.selectRunbook(item.runbook_kind, item.anchor_id)
-                }
+                onClick={() => openDetail(item.runbook_kind, item.anchor_id)}
               >
                 <div className="mc-runbook-list-item-head">
                   <div className="mc-runbook-list-title">
@@ -472,10 +523,36 @@ export function RunbookPage({ controller, agents, onOpenDeepLink }: RunbookPageP
               </button>
             ))}
           </div>
-        </Surface>
 
+          {totalListPages > 1 ? (
+            <div className="mc-runbook-pager">
+              <button
+                type="button"
+                className="mc-runbook-pager-btn"
+                disabled={safeListPage === 0}
+                onClick={() => setListPage((p) => p - 1)}
+              >
+                <ChevronLeft size={16} />
+                <span>Previous</span>
+              </button>
+              <span className="mc-runbook-pager-counter">
+                {safeListPage + 1} / {totalListPages}
+              </span>
+              <button
+                type="button"
+                className="mc-runbook-pager-btn"
+                disabled={safeListPage >= totalListPages - 1}
+                onClick={() => setListPage((p) => p + 1)}
+              >
+                <span>Next</span>
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          ) : null}
+        </Surface>
+      ) : (
         <Surface
-          className="mc-runbook-detail"
+          className="mc-runbook-detail-view"
           title={detail?.title ?? "Runbook Detail"}
           subtitle={
             detail
@@ -488,6 +565,15 @@ export function RunbookPage({ controller, agents, onOpenDeepLink }: RunbookPageP
             detail ? <Chip label={detail.status} tone={toneForStatus(detail.status)} /> : null
           }
         >
+          <button
+            type="button"
+            className="mc-runbook-back-btn"
+            onClick={() => setViewMode("browse")}
+          >
+            <ChevronLeft size={16} />
+            <span>Back to list</span>
+          </button>
+
           {controller.detailLoading ? (
             <EmptyState message="Loading selected runbook…" />
           ) : null}
@@ -556,119 +642,275 @@ export function RunbookPage({ controller, agents, onOpenDeepLink }: RunbookPageP
                 </div>
               ) : null}
 
-              <div className="mc-runbook-detail-grid">
-                <div className="mc-runbook-flow-column">
-                  <div className="mc-runbook-section-head">
-                    <h4>
-                      <Workflow size={16} /> Flow
-                    </h4>
-                    <span>{detail.steps.length} steps</span>
-                  </div>
-                  <div className="mc-runbook-flow">
-                    {detail.steps.map((step) => (
-                      <FlowStep
-                        key={step.step_id}
-                        step={step}
-                        onOpenDeepLink={onOpenDeepLink}
-                      />
-                    ))}
-                  </div>
-                </div>
+              <nav className="mc-runbook-tab-bar">
+                <button
+                  type="button"
+                  className={detailTab === "overview" ? "active" : ""}
+                  onClick={() => setDetailTab("overview")}
+                >
+                  Overview
+                </button>
+                <button
+                  type="button"
+                  className={detailTab === "flow" ? "active" : ""}
+                  onClick={() => { setDetailTab("flow"); setFlowPage(0); }}
+                >
+                  Flow ({detail.steps.length})
+                </button>
+                <button
+                  type="button"
+                  className={detailTab === "artifacts" ? "active" : ""}
+                  onClick={() => setDetailTab("artifacts")}
+                >
+                  Artifacts
+                </button>
+                <button
+                  type="button"
+                  className={detailTab === "history" ? "active" : ""}
+                  onClick={() => { setDetailTab("history"); setHistoryPage(0); }}
+                >
+                  History ({historyItems.length})
+                </button>
+              </nav>
 
-                <div className="mc-runbook-side-column">
-                  <div className="mc-runbook-panel">
-                    <div className="mc-runbook-section-head">
-                      <h4>
-                        <Link2 size={16} /> Linked artifacts
-                      </h4>
+              <div className="mc-runbook-tab-content">
+                {detailTab === "overview" ? (
+                  <div className="mc-runbook-overview-grid">
+                    <div className="mc-runbook-overview-stack">
+                      <div className="mc-runbook-panel">
+                        <div className="mc-runbook-section-head">
+                          <h4><ArrowRight size={16} /> Actions</h4>
+                        </div>
+                        <div className="mc-runbook-action-grid">
+                          {detail.actions.length > 0 ? (
+                            detail.actions.map((action) => (
+                              <ActionButton
+                                key={action.action_id}
+                                action={action}
+                                onOpenDeepLink={onOpenDeepLink}
+                              />
+                            ))
+                          ) : (
+                            <p className="mc-runbook-empty-hint">No actions available.</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="mc-runbook-panel">
+                        <div className="mc-runbook-section-head">
+                          <h4><Link2 size={16} /> Linked artifacts</h4>
+                        </div>
+                        <div className="mc-runbook-entity-row">
+                          {detail.linked_entities.length > 0 ? (
+                            detail.linked_entities.map((entity) => (
+                              <EntityLink
+                                key={`${entity.entity_kind}-${entity.entity_id}`}
+                                entity={entity}
+                                onOpenDeepLink={onOpenDeepLink}
+                              />
+                            ))
+                          ) : (
+                            <p className="mc-runbook-empty-hint">No linked artifacts yet.</p>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div className="mc-runbook-entity-row">
-                      {detail.linked_entities.length > 0 ? (
-                        detail.linked_entities.map((entity) => (
-                          <EntityLink
-                            key={`${entity.entity_kind}-${entity.entity_id}`}
-                            entity={entity}
-                            onOpenDeepLink={onOpenDeepLink}
-                          />
-                        ))
-                      ) : (
-                        <p className="mc-runbook-empty-hint">No linked artifacts yet.</p>
-                      )}
+                    <div className="mc-runbook-panel">
+                      <div className="mc-runbook-section-head">
+                        <h4><Milestone size={16} /> Source facts</h4>
+                        <span>{detail.source_facts.length} fact(s)</span>
+                      </div>
+                      <div className="mc-runbook-source-list">
+                        {detail.source_facts.length > 0 ? (
+                          detail.source_facts
+                            .slice(0, ARTIFACT_FACTS_PREVIEW_LIMIT)
+                            .map((fact) => (
+                              <article key={fact.fact_id} className="mc-runbook-source-item">
+                                <div className="mc-runbook-history-meta">
+                                  <span>{fact.fact_kind}</span>
+                                  <time title={formatDateTime(fact.occurred_at_ms)}>
+                                    {formatRelative(fact.occurred_at_ms)}
+                                  </time>
+                                </div>
+                                {fact.entity_ref ? (
+                                  <EntityLink
+                                    entity={fact.entity_ref}
+                                    onOpenDeepLink={onOpenDeepLink}
+                                  />
+                                ) : null}
+                                {fact.partial ? (
+                                  <Chip
+                                    label="partial data"
+                                    tone="warning"
+                                    title="Some source fields were unavailable when this fact was recorded"
+                                  />
+                                ) : null}
+                              </article>
+                            ))
+                        ) : (
+                          <p className="mc-runbook-empty-hint">No source facts recorded yet.</p>
+                        )}
+                      </div>
+                      {detail.source_facts.length > ARTIFACT_FACTS_PREVIEW_LIMIT ? (
+                        <p className="mc-runbook-empty-hint">
+                          See the Artifacts tab for the full source-fact list.
+                        </p>
+                      ) : null}
                     </div>
                   </div>
+                ) : null}
 
-                  <div className="mc-runbook-panel">
-                    <div className="mc-runbook-section-head">
-                      <h4>
-                        <ArrowRight size={16} /> Actions
-                      </h4>
-                    </div>
-                    <div className="mc-runbook-action-grid">
-                      {detail.actions.map((action) => (
-                        <ActionButton
-                          key={action.action_id}
-                          action={action}
+                {detailTab === "flow" ? (
+                  <>
+                    <div className="mc-runbook-flow">
+                      {pagedSteps.map((step) => (
+                        <FlowStep
+                          key={step.step_id}
+                          step={step}
                           onOpenDeepLink={onOpenDeepLink}
                         />
                       ))}
                     </div>
-                  </div>
+                    {totalFlowPages > 1 ? (
+                      <div className="mc-runbook-pager">
+                        <button
+                          type="button"
+                          className="mc-runbook-pager-btn"
+                          disabled={safeFlowPage === 0}
+                          onClick={() => setFlowPage((p) => p - 1)}
+                        >
+                          <ChevronLeft size={16} />
+                          <span>Previous</span>
+                        </button>
+                        <span className="mc-runbook-pager-counter">
+                          Step page {safeFlowPage + 1} / {totalFlowPages}
+                        </span>
+                        <button
+                          type="button"
+                          className="mc-runbook-pager-btn"
+                          disabled={safeFlowPage >= totalFlowPages - 1}
+                          onClick={() => setFlowPage((p) => p + 1)}
+                        >
+                          <span>Next</span>
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    ) : null}
+                  </>
+                ) : null}
 
-                  <div className="mc-runbook-panel">
-                    <div className="mc-runbook-section-head">
-                      <h4>
-                        <Clock3 size={16} /> History
-                      </h4>
-                      <span>
-                        latest {Math.min(detail.history.length, RUNBOOK_HISTORY_PREVIEW_LIMIT)}
-                      </span>
-                    </div>
-                    <div className="mc-runbook-history">
-                      {detail.history
-                        .slice(-RUNBOOK_HISTORY_PREVIEW_LIMIT)
-                        .reverse()
-                        .map((item) => (
-                          <HistoryItem
-                            key={item.history_id}
-                            item={item}
-                            onOpenDeepLink={onOpenDeepLink}
-                          />
-                        ))}
-                    </div>
-                  </div>
-
-                  <div className="mc-runbook-panel">
-                    <div className="mc-runbook-section-head">
-                      <h4>
-                        <Milestone size={16} /> Source facts
-                      </h4>
-                    </div>
-                    <div className="mc-runbook-source-list">
-                      {detail.source_facts.map((fact) => (
-                        <article key={fact.fact_id} className="mc-runbook-source-item">
-                          <div className="mc-runbook-history-meta">
-                            <span>{fact.fact_kind}</span>
-                            <time title={formatDateTime(fact.occurred_at_ms)}>
-                              {formatRelative(fact.occurred_at_ms)}
-                            </time>
-                          </div>
-                          {fact.entity_ref ? (
+                {detailTab === "artifacts" ? (
+                  <div className="mc-runbook-overview-grid">
+                    <div className="mc-runbook-panel">
+                      <div className="mc-runbook-section-head">
+                        <h4><Link2 size={16} /> Linked artifacts</h4>
+                        <span>{detail.linked_entities.length} item(s)</span>
+                      </div>
+                      <div className="mc-runbook-entity-row">
+                        {detail.linked_entities.length > 0 ? (
+                          detail.linked_entities.map((entity) => (
                             <EntityLink
-                              entity={fact.entity_ref}
+                              key={`${entity.entity_kind}-${entity.entity_id}`}
+                              entity={entity}
                               onOpenDeepLink={onOpenDeepLink}
                             />
-                          ) : null}
-                          {fact.partial ? <Chip label="partial data" tone="warning" title="Some source fields were unavailable when this fact was recorded" /> : null}
-                        </article>
-                      ))}
+                          ))
+                        ) : (
+                          <p className="mc-runbook-empty-hint">No linked artifacts yet.</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mc-runbook-panel">
+                      <div className="mc-runbook-section-head">
+                        <h4><Milestone size={16} /> Source facts</h4>
+                        <span>{detail.source_facts.length} fact(s)</span>
+                      </div>
+                      <div className="mc-runbook-source-list">
+                        {detail.source_facts.length > 0 ? (
+                          detail.source_facts
+                            .slice(0, ARTIFACT_FACTS_PREVIEW_LIMIT)
+                            .map((fact) => (
+                              <article key={fact.fact_id} className="mc-runbook-source-item">
+                                <div className="mc-runbook-history-meta">
+                                  <span>{fact.fact_kind}</span>
+                                  <time title={formatDateTime(fact.occurred_at_ms)}>
+                                    {formatRelative(fact.occurred_at_ms)}
+                                  </time>
+                                </div>
+                                {fact.entity_ref ? (
+                                  <EntityLink
+                                    entity={fact.entity_ref}
+                                    onOpenDeepLink={onOpenDeepLink}
+                                  />
+                                ) : null}
+                                {fact.partial ? (
+                                  <Chip
+                                    label="partial data"
+                                    tone="warning"
+                                    title="Some source fields were unavailable when this fact was recorded"
+                                  />
+                                ) : null}
+                              </article>
+                            ))
+                        ) : (
+                          <p className="mc-runbook-empty-hint">No source facts recorded yet.</p>
+                        )}
+                      </div>
+                      {detail.source_facts.length > ARTIFACT_FACTS_PREVIEW_LIMIT ? (
+                        <p className="mc-runbook-empty-hint">
+                          Only the newest {ARTIFACT_FACTS_PREVIEW_LIMIT} facts are shown here to
+                          keep the detail view single-screen.
+                        </p>
+                      ) : null}
                     </div>
                   </div>
-                </div>
+                ) : null}
+
+                {detailTab === "history" ? (
+                  <>
+                    <div className="mc-runbook-history">
+                      {pagedHistory.map((item) => (
+                        <HistoryItem
+                          key={item.history_id}
+                          item={item}
+                          onOpenDeepLink={onOpenDeepLink}
+                        />
+                      ))}
+                      {historyItems.length === 0 ? (
+                        <p className="mc-runbook-empty-hint">No history recorded yet.</p>
+                      ) : null}
+                    </div>
+                    {totalHistoryPages > 1 ? (
+                      <div className="mc-runbook-pager">
+                        <button
+                          type="button"
+                          className="mc-runbook-pager-btn"
+                          disabled={safeHistoryPage === 0}
+                          onClick={() => setHistoryPage((p) => p - 1)}
+                        >
+                          <ChevronLeft size={16} />
+                          <span>Previous</span>
+                        </button>
+                        <span className="mc-runbook-pager-counter">
+                          {safeHistoryPage + 1} / {totalHistoryPages}
+                        </span>
+                        <button
+                          type="button"
+                          className="mc-runbook-pager-btn"
+                          disabled={safeHistoryPage >= totalHistoryPages - 1}
+                          onClick={() => setHistoryPage((p) => p + 1)}
+                        >
+                          <span>Next</span>
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    ) : null}
+                  </>
+                ) : null}
               </div>
             </div>
           ) : null}
         </Surface>
-      </div>
+      )}
     </section>
   );
 }

@@ -1,4 +1,11 @@
-import { Fragment, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import {
+  Fragment,
+  useCallback,
+  useState,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from "react";
 import type { NotifyFn } from "./useAppController";
 import { ChatroomsPage } from "../features/agentMail/ChatroomsPage";
 import { MailPage } from "../features/agentMail/MailPage";
@@ -13,6 +20,7 @@ import { useCockpitController } from "../features/cockpit/useCockpitController";
 import { type CockpitWidgetLayoutV2 } from "../features/cockpit/cockpitLayout";
 import { CockpitWidgetRenderer } from "../features/cockpit/CockpitWidgetRenderer";
 import { ConnectorsPage } from "../features/connectors/ConnectorsPage";
+import type { SimpleIntegrationId } from "../features/connectors/simpleIntegrations";
 import { useConnectorsController } from "../features/connectors/useConnectorsController";
 import { EventsPage } from "../features/events/EventsPage";
 import { FocusPage } from "../features/focus/FocusPage";
@@ -25,7 +33,7 @@ import { useRunbookController } from "../features/runbook/useRunbookController";
 import { StrategyPage } from "../features/strategy/StrategyPage";
 import { useStrategyController } from "../features/strategy/useStrategyController";
 import { useMissionControlController } from "./useMissionControlController";
-import { TabHelpBanner } from "./TabHelpBanner";
+import { TabHelpBanner, type HelpTab } from "./TabHelpBanner";
 import type { EventStreamItem, MissionControlTab } from "./useAppController";
 import type {
   Agent,
@@ -39,7 +47,8 @@ import { AppErrorBoundary } from "../ui/AppErrorBoundary";
 interface AppContentProps {
   activeTab: MissionControlTab;
   onTabChange: (tab: MissionControlTab) => void;
-  onOpenHelpDocs: () => void;
+  onOpenHelpDocs: (section?: string) => void;
+  helpDocsTarget: { section?: string; seq: number };
   onStartGuidedTour: () => void;
   onRefreshBaseline: () => Promise<void>;
   settings: RuntimeConnectionSettings;
@@ -62,6 +71,10 @@ interface AppContentProps {
   tabResetVersion: Partial<Record<MissionControlTab, number>>;
   setNotice: NotifyFn;
   usageChartsEnabled: boolean;
+  onOpenSimpleIntegrationWizard: (integrationId?: SimpleIntegrationId) => void;
+  quickGuidesCollapsed: boolean;
+  quickGuideOpenTab: HelpTab | null;
+  onDismissQuickGuides: () => void;
 }
 
 function E2EForceCrashSentinel({
@@ -158,7 +171,7 @@ function renderCockpitWidget(
   );
 }
 
-/** Active tab is visible; inactive tabs are hidden via CSS. */
+/** Active tab keeps its own flex column layout; inactive tabs are hidden. */
 function TabPane({
   active,
   children,
@@ -167,7 +180,7 @@ function TabPane({
   children: ReactNode;
 }) {
   return (
-    <div className="mc-tab-pane" style={{ display: active ? "contents" : "none" }}>
+    <div className="mc-tab-pane" style={{ display: active ? "flex" : "none" }}>
       {children}
     </div>
   );
@@ -233,6 +246,28 @@ export function AppContent(props: AppContentProps) {
   const runbookReady =
     props.runbookController.enabled &&
     props.runbookController.availability === "ready";
+  const showQuickGuide = useCallback(
+    (tab: HelpTab) =>
+      !props.quickGuidesCollapsed || props.quickGuideOpenTab === tab,
+    [props.quickGuideOpenTab, props.quickGuidesCollapsed]
+  );
+  const renderQuickGuide = useCallback(
+    (tab: HelpTab) =>
+      showQuickGuide(tab) ? (
+        <TabHelpBanner
+          tab={tab}
+          onOpenDocs={props.onOpenHelpDocs}
+          onStartTour={props.onStartGuidedTour}
+          onDismissAll={props.onDismissQuickGuides}
+        />
+      ) : null,
+    [
+      props.onDismissQuickGuides,
+      props.onOpenHelpDocs,
+      props.onStartGuidedTour,
+      showQuickGuide,
+    ]
+  );
   const openRunbook = (runbookKind: string, anchorId: string) => {
     const opened = props.runbookController.openRunbook(runbookKind, anchorId);
     if (opened) {
@@ -413,11 +448,7 @@ export function AppContent(props: AppContentProps) {
         onResetTabState={props.onResetTabState}
         onEnterSafeMode={props.onEnterSafeMode}
       >
-        <TabHelpBanner
-          tab="boards"
-          onOpenDocs={props.onOpenHelpDocs}
-          onStartTour={props.onStartGuidedTour}
-        />
+        {renderQuickGuide("boards")}
         <BoardsPage
           boards={props.boards}
           activeBoardId={props.boardsController.activeBoardId}
@@ -464,11 +495,7 @@ export function AppContent(props: AppContentProps) {
         onResetTabState={props.onResetTabState}
         onEnterSafeMode={props.onEnterSafeMode}
       >
-        <TabHelpBanner
-          tab="calendar"
-          onOpenDocs={props.onOpenHelpDocs}
-          onStartTour={props.onStartGuidedTour}
-        />
+        {renderQuickGuide("calendar")}
         <CalendarPage
           calendarWeek={props.missionControl.calendarWeek}
           calendarAlwaysRunning={props.missionControl.calendarAlwaysRunning}
@@ -497,11 +524,7 @@ export function AppContent(props: AppContentProps) {
         onResetTabState={props.onResetTabState}
         onEnterSafeMode={props.onEnterSafeMode}
       >
-        <TabHelpBanner
-          tab="focus"
-          onOpenDocs={props.onOpenHelpDocs}
-          onStartTour={props.onStartGuidedTour}
-        />
+        {renderQuickGuide("focus")}
         <FocusPage
           focusItems={props.missionControl.focusItems}
           approvalsCount={props.missionControl.approvalsById.size}
@@ -532,11 +555,7 @@ export function AppContent(props: AppContentProps) {
         onResetTabState={props.onResetTabState}
         onEnterSafeMode={props.onEnterSafeMode}
       >
-        <TabHelpBanner
-          tab="events"
-          onOpenDocs={props.onOpenHelpDocs}
-          onStartTour={props.onStartGuidedTour}
-        />
+        {renderQuickGuide("events")}
         <EventsPage
           showRawEvents={props.showRawEvents}
           onShowRawEventsChange={props.setShowRawEvents}
@@ -555,11 +574,7 @@ export function AppContent(props: AppContentProps) {
         onResetTabState={props.onResetTabState}
         onEnterSafeMode={props.onEnterSafeMode}
       >
-        <TabHelpBanner
-          tab="mail"
-          onOpenDocs={props.onOpenHelpDocs}
-          onStartTour={props.onStartGuidedTour}
-        />
+        {renderQuickGuide("mail")}
         <MailPage
           agents={props.agents}
           onRefresh={() => props.mailController.queueAgentMailRefresh(props.settings)}
@@ -629,14 +644,12 @@ export function AppContent(props: AppContentProps) {
         onResetTabState={props.onResetTabState}
         onEnterSafeMode={props.onEnterSafeMode}
       >
-        <TabHelpBanner
-          tab="chatrooms"
-          onOpenDocs={props.onOpenHelpDocs}
-          onStartTour={props.onStartGuidedTour}
-        />
+        {renderQuickGuide("chatrooms")}
         <ChatroomsPage
           agents={props.agents}
           onRefresh={() => props.mailController.queueAgentMailRefresh(props.settings)}
+          mailboxFilter={props.mailController.mailboxFilter}
+          mailSearch={props.mailController.mailSearch}
           newRoomName={props.mailController.newRoomName}
           onNewRoomNameChange={props.mailController.setNewRoomName}
           newRoomParticipants={props.mailController.newRoomParticipants}
@@ -649,6 +662,9 @@ export function AppContent(props: AppContentProps) {
           roomMessages={props.mailController.roomMessages}
           onPostRoomReaction={props.mailController.postRoomReaction}
           mailPrincipalOverride={props.mailController.mailPrincipalOverride}
+          onMailboxFilterChange={props.mailController.setMailboxFilter}
+          onMailPrincipalOverrideChange={props.mailController.setMailPrincipalOverride}
+          onMailSearchChange={props.mailController.setMailSearch}
           onAcknowledgeMessage={props.mailController.acknowledgeMessage}
           onDownloadAttachment={props.mailController.downloadMailAttachment}
           chatComposeSender={props.mailController.chatComposeSender}
@@ -689,12 +705,9 @@ export function AppContent(props: AppContentProps) {
         onResetTabState={props.onResetTabState}
         onEnterSafeMode={props.onEnterSafeMode}
       >
-        <TabHelpBanner
-          tab="assistant"
-          onOpenDocs={props.onOpenHelpDocs}
-          onStartTour={props.onStartGuidedTour}
-        />
+        {renderQuickGuide("assistant")}
         <AssistantChatPage
+          active={active === "assistant"}
           agents={props.agents}
           boards={props.boards}
           onTabChange={props.onTabChange}
@@ -724,11 +737,7 @@ export function AppContent(props: AppContentProps) {
         onResetTabState={props.onResetTabState}
         onEnterSafeMode={props.onEnterSafeMode}
       >
-        <TabHelpBanner
-          tab="team"
-          onOpenDocs={props.onOpenHelpDocs}
-          onStartTour={props.onStartGuidedTour}
-        />
+        {renderQuickGuide("team")}
         <TeamPage
           agents={props.agents}
           activeJobCount={props.missionControl.calendarJobs.filter((j) => j.enabled).length}
@@ -749,12 +758,9 @@ export function AppContent(props: AppContentProps) {
         onResetTabState={props.onResetTabState}
         onEnterSafeMode={props.onEnterSafeMode}
       >
-        <TabHelpBanner
-          tab="cockpit"
-          onOpenDocs={props.onOpenHelpDocs}
-          onStartTour={props.onStartGuidedTour}
-        />
+        {renderQuickGuide("cockpit")}
         <CockpitPage
+          isActive={active === "cockpit"}
           cockpitPages={props.cockpitController.cockpitPages}
           activeCockpitPage={props.cockpitController.activeCockpitPage}
           editMode={editMode}
@@ -780,6 +786,7 @@ export function AppContent(props: AppContentProps) {
           onAddCockpitWidget={props.cockpitController.addCockpitWidget}
           onAddCustomWidget={props.cockpitController.addCustomWidget}
           onRemoveCockpitWidget={props.cockpitController.removeCockpitWidget}
+          onAutoFitCockpitLayout={props.cockpitController.autoFitActivePage}
           onNudgeCockpitWidget={props.cockpitController.nudgeCockpitWidget}
           onLayoutChange={props.cockpitController.handleLayoutChange}
           renderCockpitWidget={(widget) =>
@@ -807,11 +814,7 @@ export function AppContent(props: AppContentProps) {
         onResetTabState={props.onResetTabState}
         onEnterSafeMode={props.onEnterSafeMode}
       >
-        <TabHelpBanner
-          tab="strategy"
-          onOpenDocs={props.onOpenHelpDocs}
-          onStartTour={props.onStartGuidedTour}
-        />
+        {renderQuickGuide("strategy")}
         <StrategyPage
           controller={props.strategyController}
           agents={props.agents}
@@ -838,11 +841,7 @@ export function AppContent(props: AppContentProps) {
         onResetTabState={props.onResetTabState}
         onEnterSafeMode={props.onEnterSafeMode}
       >
-        <TabHelpBanner
-          tab="runbook"
-          onOpenDocs={props.onOpenHelpDocs}
-          onStartTour={props.onStartGuidedTour}
-        />
+        {renderQuickGuide("runbook")}
         <RunbookPage
           controller={props.runbookController}
           agents={props.agents}
@@ -861,11 +860,7 @@ export function AppContent(props: AppContentProps) {
         onResetTabState={props.onResetTabState}
         onEnterSafeMode={props.onEnterSafeMode}
       >
-        <TabHelpBanner
-          tab="memory"
-          onOpenDocs={props.onOpenHelpDocs}
-          onStartTour={props.onStartGuidedTour}
-        />
+        {renderQuickGuide("memory")}
         <MemoryPage
           controller={props.memoryController}
           onOpenAssistant={openAssistantAgent}
@@ -883,12 +878,11 @@ export function AppContent(props: AppContentProps) {
         onResetTabState={props.onResetTabState}
         onEnterSafeMode={props.onEnterSafeMode}
       >
-        <TabHelpBanner
-          tab="connectors"
-          onOpenDocs={props.onOpenHelpDocs}
-          onStartTour={props.onStartGuidedTour}
+        {renderQuickGuide("connectors")}
+        <ConnectorsPage
+          controller={props.connectorsController}
+          onOpenSimpleIntegrationWizard={props.onOpenSimpleIntegrationWizard}
         />
-        <ConnectorsPage controller={props.connectorsController} />
       </TabBoundaryPane>
 
       <TabBoundaryPane
@@ -902,7 +896,7 @@ export function AppContent(props: AppContentProps) {
         onResetTabState={props.onResetTabState}
         onEnterSafeMode={props.onEnterSafeMode}
       >
-        <HelpDocsPage onOpenTab={props.onTabChange} onStartTour={props.onStartGuidedTour} />
+        <HelpDocsPage onOpenTab={props.onTabChange} onStartTour={props.onStartGuidedTour} targetSection={props.helpDocsTarget.section} targetSeq={props.helpDocsTarget.seq} />
       </TabBoundaryPane>
     </>
   );

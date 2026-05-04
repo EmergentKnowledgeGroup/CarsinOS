@@ -24,43 +24,46 @@ use carsinos_protocol::{
     AgentMailFileLeaseResponse, AgentMailMessageRecipientResponse, AgentMailMessageResponse,
     AgentMailThreadDetailResponse, AgentMailThreadParticipantResponse,
     AgentMailThreadSummaryResponse, AgentMemoryBindingRequest, AgentMemoryBindingResponse,
-    AgentMemoryJsonPayloadResponse, AgentMemoryNativeSurfaceAvailabilityResponse,
-    AgentMemoryStatusResponse, AgentResponse, AnthropicSetupTokenIngestRequest,
-    AnthropicSetupTokenIngestResponse, AnthropicSetupTokenValidateRequest,
-    AnthropicSetupTokenValidateResponse, ApprovalResponse, AssistantMemoryScope,
-    AssistantTaskHandle, AssistantToolCapabilitiesResponse, AssistantToolCapabilityItem,
-    AssistantToolLimitsResponse, AssistantToolRpcRequest, AssistantToolRpcResponse,
-    AssistantWorkerSummary, AssistantWorkerTemplateResponse, AssistantWorkerTemplateRunDefaults,
-    AuthProfileResponse, BoardAutomationRuleResponse, BoardCardAssetResponse, BoardCardResponse,
-    BoardColumnResponse, BoardDetailResponse, BoardSummaryResponse, BootstrapPresetResponse,
-    ChannelRuntimeAdapterStatusResponse, CircuitBreakerStateResponse, ClearTaskLinksRequest,
-    ConnectorAssignmentResponse, ConnectorAuthBindingResponse, ConnectorCatalogItemResponse,
-    ConnectorConversionResponse, ConnectorHealthResponse, ConnectorInteractionResponse,
-    ConnectorProposedToolResponse, ConnectorPublishedToolResponse, ConnectorSourceResponse,
-    ConnectorUnsupportedOperationResponse, ConnectorVersionResponse, ConnectorWarningResponse,
-    CreateAgentMailFileLeaseRequest, CreateAgentMailFileLeaseResponse,
-    CreateAgentMailThreadRequest, CreateAgentMailThreadResponse, CreateAgentRequest,
-    CreateAgentResponse, CreateApprovalRequest, CreateApprovalResponse, CreateAuthProfileRequest,
-    CreateAuthProfileResponse, CreateBoardCardRequest, CreateBoardCardResponse,
-    CreateBootstrapPresetRequest, CreateBootstrapPresetResponse, CreateGoalRequest,
-    CreateGoalResponse, CreateJobRequest, CreateJobResponse, CreateMessageRequest,
-    CreateMessageResponse, CreateNoteRequest, CreateNoteResponse, CreateProjectRequest,
-    CreateProjectResponse, CreateRunRequest, CreateRunResponse, CreateSessionRequest,
-    CreateSessionResponse, CreateTaskRequest, CreateTaskResponse, DeleteRuntimeSecretRequest,
-    DeleteRuntimeSecretResponse, DescribeConnectorToolResponse, DiscordChannelConfig,
-    ExportBootstrapPresetResponse, FailureReasonCountResponse, GetAgentMemoryStatusResponse,
-    GetAgentProviderProfileOrderResponse, GetAgentResponse, GetBoardAutomationRuleResponse,
-    GetBootstrapPresetResponse, GetChannelConfigResponse, GetChannelRuntimeStatusResponse,
-    GetConnectorHealthResponse, GetConnectorResponse, GetGoalResponse, GetNoteResponse,
+    AgentMemoryJsonPayloadResponse, AgentMemoryLaneStatusResponse,
+    AgentMemoryNativeSurfaceAvailabilityResponse, AgentMemoryStatusResponse, AgentResponse,
+    AnthropicSetupTokenIngestRequest, AnthropicSetupTokenIngestResponse,
+    AnthropicSetupTokenValidateRequest, AnthropicSetupTokenValidateResponse, ApprovalResponse,
+    AssistantMemoryScope, AssistantTaskHandle, AssistantToolCapabilitiesResponse,
+    AssistantToolCapabilityItem, AssistantToolLimitsResponse, AssistantToolRpcRequest,
+    AssistantToolRpcResponse, AssistantWorkerSummary, AssistantWorkerTemplateResponse,
+    AssistantWorkerTemplateRunDefaults, AuthProfileResponse, BoardAutomationRuleResponse,
+    BoardCardAssetResponse, BoardCardResponse, BoardColumnResponse, BoardDetailResponse,
+    BoardSummaryResponse, BootstrapPresetResponse, ChannelRuntimeAdapterStatusResponse,
+    CircuitBreakerStateResponse, ClearTaskLinksRequest, ConnectorAssignmentResponse,
+    ConnectorAuthBindingResponse, ConnectorCatalogItemResponse, ConnectorConversionResponse,
+    ConnectorHealthResponse, ConnectorInteractionResponse, ConnectorProposedToolResponse,
+    ConnectorPublishedToolResponse, ConnectorSourceResponse, ConnectorUnsupportedOperationResponse,
+    ConnectorVersionResponse, ConnectorWarningResponse, CreateAgentMailFileLeaseRequest,
+    CreateAgentMailFileLeaseResponse, CreateAgentMailThreadRequest, CreateAgentMailThreadResponse,
+    CreateAgentRequest, CreateAgentResponse, CreateApprovalRequest, CreateApprovalResponse,
+    CreateAuthProfileRequest, CreateAuthProfileResponse, CreateBoardCardRequest,
+    CreateBoardCardResponse, CreateBootstrapPresetRequest, CreateBootstrapPresetResponse,
+    CreateGoalRequest, CreateGoalResponse, CreateJobRequest, CreateJobResponse,
+    CreateMessageRequest, CreateMessageResponse, CreateNoteRequest, CreateNoteResponse,
+    CreateProjectRequest, CreateProjectResponse, CreateRunRequest, CreateRunResponse,
+    CreateSessionRequest, CreateSessionResponse, CreateTaskRequest, CreateTaskResponse,
+    CreateWebSocketTicketResponse, DeleteRuntimeSecretRequest, DeleteRuntimeSecretResponse,
+    DescribeConnectorToolResponse, DiscordBlockedSenderResponse, DiscordChannelConfig,
+    DiscordPairingPendingRequestResponse, ExportBootstrapPresetResponse,
+    FailureReasonCountResponse, GetAgentMemoryStatusResponse, GetAgentProviderProfileOrderResponse,
+    GetAgentResponse, GetBoardAutomationRuleResponse, GetBootstrapPresetResponse,
+    GetChannelConfigResponse, GetChannelRuntimeStatusResponse, GetConnectorHealthResponse,
+    GetConnectorResponse, GetDiscordPairingStatusResponse, GetGoalResponse, GetNoteResponse,
     GetProjectResponse, GetRuntimeConfigResponse, GetRuntimeTrustContractLockResponse,
-    GetTaskResponse, HealthResponse, ImportBootstrapPresetRequest, ImportBootstrapPresetResponse,
-    ImportConnectorRequest, ImportConnectorResponse, IngestChannelMessageResponse,
-    IngestDiscordMessageRequest, IngestTelegramMessageRequest, InstallPluginRequest,
-    InstallPluginResponse, JobResponse, JobRunResponse, JobStatusResponse,
-    LinkTaskBoardCardRequest, LinkTaskJobRequest, ListAgentMailFileLeasesQuery,
-    ListAgentMailFileLeasesResponse, ListAgentMailMessagesQuery, ListAgentMailMessagesResponse,
-    ListAgentMailThreadsQuery, ListAgentMailThreadsResponse, ListAgentsResponse,
-    ListApprovalsQuery, ListApprovalsResponse, ListAuthProfilesQuery, ListAuthProfilesResponse,
+    GetTaskResponse, GetTelegramPairingStatusResponse, HealthResponse,
+    ImportBootstrapPresetRequest, ImportBootstrapPresetResponse, ImportConnectorRequest,
+    ImportConnectorResponse, IngestChannelMessageResponse, IngestDiscordMessageRequest,
+    IngestTelegramMessageRequest, InstallPluginRequest, InstallPluginResponse, JobResponse,
+    JobRunResponse, JobStatusResponse, LinkTaskBoardCardRequest, LinkTaskJobRequest,
+    ListAgentMailFileLeasesQuery, ListAgentMailFileLeasesResponse, ListAgentMailMessagesQuery,
+    ListAgentMailMessagesResponse, ListAgentMailThreadsQuery, ListAgentMailThreadsResponse,
+    ListAgentMemoryLaneStatusesResponse, ListAgentsResponse, ListApprovalsQuery,
+    ListApprovalsResponse, ListAuthProfilesQuery, ListAuthProfilesResponse,
     ListBoardAutomationRulesResponse, ListBoardsResponse, ListBootstrapPresetsQuery,
     ListBootstrapPresetsResponse, ListConnectorCatalogQuery, ListConnectorCatalogResponse,
     ListConnectorInteractionsResponse, ListConnectorsQuery, ListConnectorsResponse, ListGoalsQuery,
@@ -88,31 +91,35 @@ use carsinos_protocol::{
     RefreshRuntimeTrustContractLockRequest, RefreshRuntimeTrustContractLockResponse,
     ReleaseAgentMailFileLeaseRequest, ReleaseAgentMailFileLeaseResponse, RemoveAgentResponse,
     RemoveJobResponse, ResolveApprovalRequest, ResolveApprovalResponse,
-    ResolveChannelApprovalActionRequest, ResumeConnectorInteractionRequest,
-    ResumeConnectorInteractionResponse, RollbackConnectorVersionRequest,
-    RollbackConnectorVersionResponse, RollbackPluginRequest, RollbackPluginResponse,
-    RollbackRuntimeConfigRequest, RollbackRuntimeConfigResponse, RunBoardAutomationRuleResponse,
-    RunBoardCardRequest, RunBoardCardResponse, RunConnectorConversionRequest,
-    RunConnectorConversionResponse, RunJobNowResponse, RunMemoryWhyRequest, RunMemoryWhyResponse,
-    RunResponse, RunbookActionResponse, RunbookDataAvailabilityResponse,
-    RunbookDeepLinkTargetResponse, RunbookDetailResponse, RunbookEntityRefResponse,
-    RunbookExecutionRefResponse, RunbookHistoryItemResponse, RunbookSourceFactResponse,
-    RunbookStatusCountsResponse, RunbookStepResponse, RunbookSummaryItemResponse,
-    RunbookWarningResponse, RuntimeAutonomyGuardrailsConfig, RuntimeChannelsConfig,
-    RuntimeConfigResponse, RuntimeDiscordDeploymentConfig, RuntimeExtensionsConfig,
-    RuntimeGlobalConfig, RuntimeMemoryConfig, RuntimeNumquamConfig, RuntimeProviderPolicyConfig,
-    RuntimeSecurityOpsConfig, RuntimeTelegramDeploymentConfig, RuntimeTrustContractLockResponse,
-    RuntimeTrustContractLockSummaryResponse, SanitizedPath, SchedulerLockStateResponse,
-    SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult, SendAgentMailMessageRequest,
-    SendAgentMailMessageResponse, SessionDetailResponse, SessionSummary,
-    SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse,
+    ResolveChannelApprovalActionRequest, ResolveDiscordPairingRequest,
+    ResolveDiscordPairingResponse, ResolveTelegramPairingRequest, ResolveTelegramPairingResponse,
+    ResumeConnectorInteractionRequest, ResumeConnectorInteractionResponse,
+    RollbackConnectorVersionRequest, RollbackConnectorVersionResponse, RollbackPluginRequest,
+    RollbackPluginResponse, RollbackRuntimeConfigRequest, RollbackRuntimeConfigResponse,
+    RunBoardAutomationRuleResponse, RunBoardCardRequest, RunBoardCardResponse,
+    RunConnectorConversionRequest, RunConnectorConversionResponse, RunJobNowResponse,
+    RunMemoryWhyRequest, RunMemoryWhyResponse, RunResponse, RunbookActionResponse,
+    RunbookDataAvailabilityResponse, RunbookDeepLinkTargetResponse, RunbookDetailResponse,
+    RunbookEntityRefResponse, RunbookExecutionRefResponse, RunbookHistoryItemResponse,
+    RunbookSourceFactResponse, RunbookStatusCountsResponse, RunbookStepResponse,
+    RunbookSummaryItemResponse, RunbookWarningResponse, RuntimeAssistantAssignmentConfig,
+    RuntimeAutonomyGuardrailsConfig, RuntimeChannelsConfig, RuntimeConfigResponse,
+    RuntimeDiscordDeploymentConfig, RuntimeExtensionsConfig, RuntimeGlobalConfig,
+    RuntimeHumanIdentityConfig, RuntimeLaneMemoryPolicyConfig, RuntimeMemoryConfig,
+    RuntimeNumquamConfig, RuntimePlatformIdentityLinkConfig, RuntimeProviderPolicyConfig,
+    RuntimeRoutingConfig, RuntimeSecurityOpsConfig, RuntimeTelegramDeploymentConfig,
+    RuntimeTrustContractLockResponse, RuntimeTrustContractLockSummaryResponse, SanitizedPath,
+    SchedulerLockStateResponse, SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult,
+    SendAgentMailMessageRequest, SendAgentMailMessageResponse, SessionDetailResponse,
+    SessionSummary, SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse,
     SetBoardAutomationRuleStateRequest, SetBoardAutomationRuleStateResponse,
     SetConnectorAssignmentRequest, SetConnectorAssignmentResponse, SetConnectorStateRequest,
     SetConnectorStateResponse, SkillResponse, StatusResponse, StrategyApprovalBacklogItemResponse,
     StrategyGoalProgressItemResponse, StrategySpendByAgentItemResponse,
     StrategySpendByProjectItemResponse, StrategySummaryQuery, StrategySummaryResponse,
     StrategyTaskListItemResponse, SyncMemorySourceItemResponse, SyncMemorySourcesRequest,
-    SyncMemorySourcesResponse, TaskLinkMutationResponse, TelegramChannelConfig,
+    SyncMemorySourcesResponse, TaskLinkMutationResponse, TelegramBlockedSenderResponse,
+    TelegramChannelConfig, TelegramPairingPendingRequestResponse,
     ToolCapabilityConnectorOriginResponse, ToolCapabilityResponse, ToolCapabilitySandboxResponse,
     UnpublishConnectorToolsRequest, UnpublishConnectorToolsResponse,
     UpdateAgentMemoryBindingRequest, UpdateAgentRequest, UpdateAgentResponse,
@@ -162,21 +169,24 @@ use carsinos_tools::{
     WebSearchRequest,
 };
 use chrono::{DateTime, Datelike, Utc};
+use futures_util::{SinkExt, StreamExt};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::io::{ErrorKind, Read, Seek, SeekFrom, Write};
-use std::net::IpAddr;
+use std::net::{IpAddr, TcpListener};
 use std::path::{Path as FsPath, PathBuf};
 use std::str::FromStr;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, RwLock as StdRwLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::process::Child;
 use tokio::sync::{broadcast, Mutex, RwLock, Semaphore};
 use tokio::time::sleep;
+use tokio_tungstenite::{connect_async, tungstenite::protocol::Message as ClientWsMessage};
 use tokio_util::io::ReaderStream;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
@@ -196,11 +206,13 @@ struct AppState {
     auth_token: Arc<String>,
     jwt_auth: Option<Arc<JwtAuthConfig>>,
     jwt_replay_jti: Arc<StdRwLock<HashMap<String, i64>>>,
+    ws_tickets: Arc<StdRwLock<HashMap<String, WsTicketRecord>>>,
     rate_limiter: Arc<RequestRateLimiter>,
     trusted_proxy_headers: bool,
     trusted_proxy_allowlist: Arc<HashSet<String>>,
     operator_allowlist: Arc<Vec<String>>,
     provider_models_http_client: reqwest::Client,
+    connector_http_client: reqwest::Client,
     provider_models_cache: Arc<RwLock<HashMap<String, ProviderModelsCacheEntry>>>,
     providers: ProviderRegistry,
     tool_registry: Arc<ToolRegistry>,
@@ -213,6 +225,7 @@ struct AppState {
     oauth_sessions: Arc<RwLock<HashMap<String, PendingOpenAiOauthSession>>>,
     numquam_client: Option<NumquamClient>,
     numquam_runtime_status: Arc<RwLock<NumquamRuntimeStatus>>,
+    numquam_lane_runtime_manager: Arc<NumquamLaneRuntimeManager>,
     plugin_registry: Arc<RwLock<PluginRegistry>>,
     hook_bus: Arc<HookBus>,
     skill_registry: Arc<RwLock<SkillRegistry>>,
@@ -469,6 +482,22 @@ fn read_scheduler_lock_owner_hint(file: &mut std::fs::File) -> Option<String> {
         .map(|value| value.to_string())
 }
 
+fn scheduler_lock_is_contended(err: &std::io::Error) -> bool {
+    if err.kind() == ErrorKind::WouldBlock {
+        return true;
+    }
+
+    #[cfg(windows)]
+    {
+        matches!(err.raw_os_error(), Some(32 | 33))
+    }
+
+    #[cfg(not(windows))]
+    {
+        false
+    }
+}
+
 fn acquire_scheduler_instance_lock(state_dir: &FsPath) -> AnyResult<SchedulerInstanceState> {
     use fs2::FileExt;
 
@@ -517,7 +546,7 @@ fn acquire_scheduler_instance_lock(state_dir: &FsPath) -> AnyResult<SchedulerIns
                 _guard: Some(Arc::new(file)),
             })
         }
-        Err(err) if err.kind() == ErrorKind::WouldBlock => {
+        Err(err) if scheduler_lock_is_contended(&err) => {
             let owner_hint = read_scheduler_lock_owner_hint(&mut file);
             Ok(SchedulerInstanceState {
                 enabled: false,
@@ -545,11 +574,55 @@ struct ChannelRuntimeStatusRecord {
     provider: String,
     lifecycle_state: ChannelAdapterLifecycleState,
     healthy: bool,
+    session_state: ChannelRuntimeSessionState,
+    proof_state: ChannelRuntimeProofState,
     detail: Option<String>,
+    proof_detail: Option<String>,
     last_error: Option<String>,
+    last_inbound_at: Option<i64>,
+    last_outbound_at: Option<i64>,
+    last_proven_at: Option<i64>,
     disabled_by_config: bool,
     reconnect_attempts: u64,
     updated_at: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ChannelRuntimeSessionState {
+    Offline,
+    Connecting,
+    Listening,
+    GatewayConnected,
+}
+
+impl ChannelRuntimeSessionState {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Offline => "offline",
+            Self::Connecting => "connecting",
+            Self::Listening => "listening",
+            Self::GatewayConnected => "gateway_connected",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ChannelRuntimeProofState {
+    Unproven,
+    InboundSeen,
+    OutboundSeen,
+    RoundtripConfirmed,
+}
+
+impl ChannelRuntimeProofState {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Unproven => "unproven",
+            Self::InboundSeen => "inbound_seen",
+            Self::OutboundSeen => "outbound_seen",
+            Self::RoundtripConfirmed => "roundtrip_confirmed",
+        }
+    }
 }
 
 impl ChannelRuntimeStatusRecord {
@@ -558,8 +631,14 @@ impl ChannelRuntimeStatusRecord {
             provider: self.provider.clone(),
             lifecycle_state: self.lifecycle_state.as_str().to_string(),
             healthy: self.healthy,
+            session_state: self.session_state.as_str().to_string(),
+            proof_state: self.proof_state.as_str().to_string(),
             detail: self.detail.clone(),
+            proof_detail: self.proof_detail.clone(),
             last_error: self.last_error.clone(),
+            last_inbound_at: self.last_inbound_at,
+            last_outbound_at: self.last_outbound_at,
+            last_proven_at: self.last_proven_at,
             reconnect_attempts: self.reconnect_attempts,
             updated_at: self.updated_at,
         }
@@ -597,8 +676,14 @@ impl ChannelRuntimeManager {
                     provider,
                     lifecycle_state: ChannelAdapterLifecycleState::Stopped,
                     healthy: false,
+                    session_state: ChannelRuntimeSessionState::Offline,
+                    proof_state: ChannelRuntimeProofState::Unproven,
                     detail: Some("adapter not started".to_string()),
+                    proof_detail: None,
                     last_error: None,
+                    last_inbound_at: None,
+                    last_outbound_at: None,
+                    last_proven_at: None,
                     disabled_by_config: false,
                     reconnect_attempts: 0,
                     updated_at: now,
@@ -894,8 +979,14 @@ impl ChannelRuntimeManager {
                 provider: provider.to_string(),
                 lifecycle_state,
                 healthy: health.healthy,
+                session_state: ChannelRuntimeSessionState::Offline,
+                proof_state: ChannelRuntimeProofState::Unproven,
                 detail: health.detail.clone(),
+                proof_detail: None,
                 last_error: last_error.clone(),
+                last_inbound_at: None,
+                last_outbound_at: None,
+                last_proven_at: None,
                 disabled_by_config,
                 reconnect_attempts: 0,
                 updated_at: now,
@@ -908,8 +999,138 @@ impl ChannelRuntimeManager {
         entry.detail = health.detail;
         entry.last_error = last_error;
         entry.disabled_by_config = disabled_by_config;
+        if disabled_by_config || matches!(lifecycle_state, ChannelAdapterLifecycleState::Stopped) {
+            entry.session_state = ChannelRuntimeSessionState::Offline;
+        }
         entry.updated_at = now;
     }
+
+    fn record_session_state(
+        &self,
+        provider: &str,
+        session_state: ChannelRuntimeSessionState,
+        detail: Option<String>,
+    ) {
+        let mut guard = match self.statuses.write() {
+            Ok(guard) => guard,
+            Err(_) => return,
+        };
+        let now = Utc::now().timestamp_millis();
+        let entry = guard
+            .entry(provider.to_string())
+            .or_insert(ChannelRuntimeStatusRecord {
+                provider: provider.to_string(),
+                lifecycle_state: ChannelAdapterLifecycleState::Stopped,
+                healthy: false,
+                session_state: ChannelRuntimeSessionState::Offline,
+                proof_state: ChannelRuntimeProofState::Unproven,
+                detail: None,
+                proof_detail: None,
+                last_error: None,
+                last_inbound_at: None,
+                last_outbound_at: None,
+                last_proven_at: None,
+                disabled_by_config: false,
+                reconnect_attempts: 0,
+                updated_at: now,
+            });
+        entry.session_state = session_state;
+        if detail.is_some() {
+            entry.detail = detail;
+        }
+        entry.updated_at = now;
+    }
+
+    fn record_listener_error(&self, provider: &str, message: impl Into<String>) {
+        let message = message.into();
+        let mut guard = match self.statuses.write() {
+            Ok(guard) => guard,
+            Err(_) => return,
+        };
+        let now = Utc::now().timestamp_millis();
+        let entry = guard
+            .entry(provider.to_string())
+            .or_insert(ChannelRuntimeStatusRecord {
+                provider: provider.to_string(),
+                lifecycle_state: ChannelAdapterLifecycleState::Degraded,
+                healthy: false,
+                session_state: ChannelRuntimeSessionState::Offline,
+                proof_state: ChannelRuntimeProofState::Unproven,
+                detail: None,
+                proof_detail: None,
+                last_error: None,
+                last_inbound_at: None,
+                last_outbound_at: None,
+                last_proven_at: None,
+                disabled_by_config: false,
+                reconnect_attempts: 0,
+                updated_at: now,
+            });
+        entry.session_state = ChannelRuntimeSessionState::Offline;
+        entry.detail = Some(message.clone());
+        entry.last_error = Some(message);
+        entry.updated_at = now;
+    }
+
+    fn record_inbound(&self, provider: &str, detail: Option<String>) {
+        self.record_proof(provider, ProofEventKind::Inbound, detail);
+    }
+
+    fn record_outbound(&self, provider: &str, detail: Option<String>) {
+        self.record_proof(provider, ProofEventKind::Outbound, detail);
+    }
+
+    fn record_proof(&self, provider: &str, event_kind: ProofEventKind, detail: Option<String>) {
+        let mut guard = match self.statuses.write() {
+            Ok(guard) => guard,
+            Err(_) => return,
+        };
+        let now = Utc::now().timestamp_millis();
+        let entry = guard
+            .entry(provider.to_string())
+            .or_insert(ChannelRuntimeStatusRecord {
+                provider: provider.to_string(),
+                lifecycle_state: ChannelAdapterLifecycleState::Running,
+                healthy: true,
+                session_state: ChannelRuntimeSessionState::Offline,
+                proof_state: ChannelRuntimeProofState::Unproven,
+                detail: None,
+                proof_detail: None,
+                last_error: None,
+                last_inbound_at: None,
+                last_outbound_at: None,
+                last_proven_at: None,
+                disabled_by_config: false,
+                reconnect_attempts: 0,
+                updated_at: now,
+            });
+        match event_kind {
+            ProofEventKind::Inbound => entry.last_inbound_at = Some(now),
+            ProofEventKind::Outbound => entry.last_outbound_at = Some(now),
+        }
+        entry.proof_state = match (
+            entry.last_inbound_at.is_some(),
+            entry.last_outbound_at.is_some(),
+        ) {
+            (true, true) => {
+                entry.last_proven_at = Some(now);
+                ChannelRuntimeProofState::RoundtripConfirmed
+            }
+            (true, false) => ChannelRuntimeProofState::InboundSeen,
+            (false, true) => ChannelRuntimeProofState::OutboundSeen,
+            (false, false) => ChannelRuntimeProofState::Unproven,
+        };
+        if detail.is_some() {
+            entry.proof_detail = detail;
+        }
+        entry.updated_at = now;
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ProofEventKind {
+    Inbound,
+    Outbound,
 }
 
 fn disabled_channel_adapter_health(provider: &str) -> ChannelAdapterHealth {
@@ -1818,6 +2039,15 @@ struct AuthContext {
 }
 
 #[derive(Debug, Clone)]
+struct WsTicketRecord {
+    principal_id: String,
+    roles: HashSet<String>,
+    expires_at_ms: i64,
+}
+
+const WS_TICKET_TTL_MS: i64 = 60_000;
+
+#[derive(Debug, Clone)]
 struct AuthError {
     status: StatusCode,
     code: &'static str,
@@ -1850,10 +2080,74 @@ struct AuthModePolicy {
     requires_kill_switch: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+struct TelegramPairingState {
+    #[serde(default)]
+    pending_requests: Vec<TelegramPairingPendingRecord>,
+    #[serde(default)]
+    blocked_senders: Vec<TelegramBlockedSenderRecord>,
+    #[serde(default)]
+    updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct TelegramPairingPendingRecord {
+    code: String,
+    user_id: i64,
+    chat_id: i64,
+    preview_text: String,
+    first_seen_at: i64,
+    last_seen_at: i64,
+    expires_at: i64,
+    attempt_count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct TelegramBlockedSenderRecord {
+    user_id: i64,
+    blocked_until: i64,
+    reason: String,
+    attempt_count: u32,
+    last_attempt_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+struct DiscordPairingState {
+    #[serde(default)]
+    pending_requests: Vec<DiscordPairingPendingRecord>,
+    #[serde(default)]
+    blocked_senders: Vec<DiscordBlockedSenderRecord>,
+    #[serde(default)]
+    updated_at: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct DiscordPairingPendingRecord {
+    code: String,
+    user_id: String,
+    channel_id: String,
+    preview_text: String,
+    first_seen_at: i64,
+    last_seen_at: i64,
+    expires_at: i64,
+    attempt_count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct DiscordBlockedSenderRecord {
+    user_id: String,
+    blocked_until: i64,
+    reason: String,
+    attempt_count: u32,
+    last_attempt_at: i64,
+}
+
 const AUTH_MODE_API_KEY: &str = "api_key";
 const AUTH_MODE_OPENAI_OAUTH: &str = "openai_oauth";
-const AUTH_MODE_CLAUDE_CONSUMER_OAUTH: &str = "claude_consumer_oauth";
 const AUTH_MODE_AGENT_SDK: &str = "agent_sdk";
+const ANTHROPIC_SETUP_TOKEN_PREFIX: &str = "sk-ant-oat01-";
+const ANTHROPIC_SETUP_TOKEN_MIN_LENGTH: usize = 80;
+const ANTHROPIC_OAUTH_BETA_HEADER: &str = "oauth-2025-04-20";
 
 const KILL_SWITCH_SCOPE_NONE: &str = "none";
 const KILL_SWITCH_SCOPE_PROFILE: &str = "profile";
@@ -1862,6 +2156,8 @@ const KILL_SWITCH_SCOPE_GLOBAL: &str = "global";
 
 const APP_KV_CHANNELS_DISCORD: &str = "config.channels.discord";
 const APP_KV_CHANNELS_TELEGRAM: &str = "config.channels.telegram";
+const APP_KV_DISCORD_PAIRING_STATE: &str = "runtime.channels.discord.pairing.v1";
+const APP_KV_TELEGRAM_PAIRING_STATE: &str = "runtime.channels.telegram.pairing.v1";
 const APP_KV_RUNTIME_CONFIG: &str = "config.runtime.v1";
 const APP_KV_RUNTIME_CONFIG_LAST_GOOD: &str = "config.runtime.last_good.v1";
 const APP_KV_SKILLS_STATE: &str = "config.skills.state";
@@ -1888,6 +2184,8 @@ const OAUTH_OPENAI_DEFAULT_AUTHORIZE_URL: &str = "https://auth.openai.com/oauth/
 const OAUTH_OPENAI_DEFAULT_TOKEN_URL: &str = "https://auth.openai.com/oauth/token";
 const OPENAI_DEFAULT_API_BASE: &str = "https://api.openai.com";
 const ANTHROPIC_DEFAULT_API_BASE: &str = "https://api.anthropic.com";
+const DEFAULT_ASSISTANT_CORE_SYSTEM_PROMPT: &str = "You are the CarsinOS assistant.\n\nGoals:\n1) Help the operator complete tasks safely and quickly.\n2) Prefer clear plans and explicit next actions.\n3) Keep execution grounded in current system state.\n\nOperational rules:\n- Ask concise clarifying questions only when required.\n- Prefer reversible actions before risky actions.\n- When uncertain, state assumptions briefly.\n- Use Mission Control tabs intentionally: Boards for execution, Calendar for scheduling, Focus for incidents, Mail/Rooms for communication, Team for agent config.";
+const SYSTEM_SOURCE_CHANNEL_CORE: &str = "system.core";
 const ANTHROPIC_API_BASE_ALLOWLIST_ENV: &str = "CARSINOS_ANTHROPIC_API_BASE_ALLOWLIST";
 const ANTHROPIC_ALLOW_TEST_LOOPBACK_HTTP_ENV: &str = "CARSINOS_ANTHROPIC_ALLOW_TEST_LOOPBACK_HTTP";
 const OPENROUTER_DEFAULT_API_BASE: &str = "https://openrouter.ai/api";
@@ -1896,6 +2194,11 @@ const VLLM_DEFAULT_API_BASE: &str = "http://127.0.0.1:8000";
 const LMSTUDIO_DEFAULT_API_BASE: &str = "http://127.0.0.1:1234";
 const PROVIDER_MODELS_CONTRACT_VERSION: &str = "v1";
 const PROVIDER_MODELS_CACHE_TTL_MS: i64 = 5 * 60 * 1000;
+const EXTERNAL_CHANNEL_MESSAGE_MAX_CHARS: usize = 12_000;
+const DISCORD_PAIRING_CODE_TTL_SECONDS: i64 = 3600;
+const DISCORD_PAIRING_MAX_PENDING: usize = 3;
+const DISCORD_UNAUTHORIZED_SPAM_THRESHOLD: u32 = 4;
+const DISCORD_UNAUTHORIZED_SPAM_BLOCK_SECONDS: i64 = 3600;
 const SECRET_FIELD_NAMES: &[&str] = &[
     "api_key",
     "token",
@@ -2149,6 +2452,52 @@ impl Default for NumquamRuntimeStatus {
             last_error_code: None,
             last_error: None,
         }
+    }
+}
+
+#[derive(Debug, Default)]
+struct NumquamLaneRuntimeManager {
+    slots: RwLock<HashMap<String, Arc<Mutex<NumquamLaneRuntimeSlot>>>>,
+}
+
+#[derive(Debug, Default)]
+struct NumquamLaneRuntimeSlot {
+    runtime_child: Option<Child>,
+    mcp_child: Option<Child>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct NumquamManagedLaneMetadata {
+    lane_id: String,
+    human_identity_id: String,
+    assistant_agent_id: String,
+    runtime_port: u16,
+    mcp_port: Option<u16>,
+    operator_token: String,
+    created_at_ms: i64,
+    updated_at_ms: i64,
+}
+
+#[derive(Debug, Clone)]
+struct ResolvedManagedNumquamLane {
+    lane_id: String,
+    human_identity_id: String,
+    assistant_agent_id: String,
+}
+
+impl NumquamLaneRuntimeManager {
+    async fn slot_for_lane(&self, lane_id: &str) -> Arc<Mutex<NumquamLaneRuntimeSlot>> {
+        {
+            let read = self.slots.read().await;
+            if let Some(existing) = read.get(lane_id) {
+                return existing.clone();
+            }
+        }
+        let mut write = self.slots.write().await;
+        write
+            .entry(lane_id.to_string())
+            .or_insert_with(|| Arc::new(Mutex::new(NumquamLaneRuntimeSlot::default())))
+            .clone()
     }
 }
 
@@ -2600,6 +2949,10 @@ struct AssistantWorkerApprovalPayload {
 struct RunMemoryMetadata {
     enabled: bool,
     blend_mode: Option<String>,
+    policy_scope: Option<String>,
+    lane_memory_mode: Option<String>,
+    human_identity_id: Option<String>,
+    lane_id: Option<String>,
     transport: Option<String>,
     context_policy: Option<serde_json::Value>,
     context_request_id: Option<String>,
@@ -2646,6 +2999,10 @@ struct RunMemoryWritebackMetadata {
 #[derive(Debug, Clone, Default, Serialize)]
 struct LocalMemoryMetadata {
     enabled: bool,
+    policy_scope: Option<String>,
+    lane_memory_mode: Option<String>,
+    human_identity_id: Option<String>,
+    lane_id: Option<String>,
     query_chars: usize,
     top_k: usize,
     max_candidates: usize,
@@ -2781,6 +3138,7 @@ struct PendingOpenAiOauthSession {
 #[derive(Debug, Clone)]
 enum SecretStoreBackend {
     Keychain,
+    File(Arc<PathBuf>),
     Memory(Arc<StdRwLock<HashMap<String, String>>>),
 }
 
@@ -2813,6 +3171,12 @@ impl SecretStore {
                 backend: SecretStoreBackend::Memory(Arc::new(StdRwLock::new(HashMap::new()))),
             };
         }
+        if mode == "file" {
+            return Self {
+                service_name,
+                backend: SecretStoreBackend::File(Arc::new(secret_store_file_root_from_env())),
+            };
+        }
         Self {
             service_name,
             backend: SecretStoreBackend::Keychain,
@@ -2822,6 +3186,7 @@ impl SecretStore {
     fn mode_name(&self) -> &'static str {
         match self.backend {
             SecretStoreBackend::Keychain => "keychain",
+            SecretStoreBackend::File(_) => "file",
             SecretStoreBackend::Memory(_) => "memory",
         }
     }
@@ -2846,10 +3211,25 @@ impl SecretStore {
             SecretStoreBackend::Keychain => {
                 let entry = keyring::Entry::new(&self.service_name, secret_ref)
                     .context("failed to initialize keychain entry")?;
-                entry.set_password("").with_context(|| {
-                    format!("failed clearing keychain secret for ref {secret_ref}")
-                })?;
+                match entry.delete_credential() {
+                    Ok(()) | Err(keyring::Error::NoEntry) => {}
+                    Err(err) => {
+                        return Err(anyhow::anyhow!(
+                            "failed deleting keychain secret for ref {secret_ref}: {err}"
+                        ));
+                    }
+                }
                 Ok(())
+            }
+            SecretStoreBackend::File(root_dir) => {
+                let path = secret_store_file_path(root_dir.as_ref(), secret_ref);
+                match std::fs::remove_file(&path) {
+                    Ok(()) => Ok(()),
+                    Err(err) if err.kind() == ErrorKind::NotFound => Ok(()),
+                    Err(err) => Err(anyhow::anyhow!(
+                        "failed deleting file secret for ref {secret_ref}: {err}"
+                    )),
+                }
             }
             SecretStoreBackend::Memory(store) => {
                 let mut guard = store
@@ -2870,6 +3250,9 @@ impl SecretStore {
                     format!("failed storing keychain secret for ref {secret_ref}")
                 })?;
                 Ok(())
+            }
+            SecretStoreBackend::File(root_dir) => {
+                write_secret_store_file(root_dir.as_ref(), secret_ref, secret)
             }
             SecretStoreBackend::Memory(store) => {
                 let mut guard = store
@@ -2900,6 +3283,22 @@ impl SecretStore {
                     )),
                 }
             }
+            SecretStoreBackend::File(root_dir) => {
+                let path = secret_store_file_path(root_dir.as_ref(), secret_ref);
+                match std::fs::read_to_string(&path) {
+                    Ok(secret) => {
+                        if secret.is_empty() {
+                            Ok(None)
+                        } else {
+                            Ok(Some(secret))
+                        }
+                    }
+                    Err(err) if err.kind() == ErrorKind::NotFound => Ok(None),
+                    Err(err) => Err(anyhow::anyhow!(
+                        "failed reading file secret for ref {secret_ref}: {err}"
+                    )),
+                }
+            }
             SecretStoreBackend::Memory(store) => {
                 let guard = store
                     .read()
@@ -2908,6 +3307,52 @@ impl SecretStore {
             }
         }
     }
+}
+
+fn secret_store_file_root_from_env() -> PathBuf {
+    if let Some(explicit_root) = std::env::var("CARSINOS_SECRET_FILE_DIR")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
+        return PathBuf::from(explicit_root);
+    }
+    if let Some(state_dir) = std::env::var("CARSINOS_STATE_DIR")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
+        return PathBuf::from(state_dir).join("secrets");
+    }
+    std::env::current_dir()
+        .unwrap_or_else(|_| PathBuf::from("."))
+        .join(".carsinos-secrets")
+}
+
+fn secret_store_file_path(root_dir: &FsPath, secret_ref: &str) -> PathBuf {
+    let digest = Sha256::digest(secret_ref.as_bytes());
+    let encoded = URL_SAFE_NO_PAD.encode(digest);
+    root_dir.join(format!("{encoded}.secret"))
+}
+
+fn write_secret_store_file(root_dir: &FsPath, secret_ref: &str, secret: &str) -> AnyResult<()> {
+    std::fs::create_dir_all(root_dir)
+        .with_context(|| format!("failed creating secret store dir {}", root_dir.display()))?;
+    let path = secret_store_file_path(root_dir, secret_ref);
+    let tmp_path = path.with_extension(format!("tmp-{}", uuid::Uuid::new_v4()));
+    std::fs::write(&tmp_path, secret).with_context(|| {
+        format!(
+            "failed writing temp file secret for ref {secret_ref} at {}",
+            tmp_path.display()
+        )
+    })?;
+    std::fs::rename(&tmp_path, &path).with_context(|| {
+        format!(
+            "failed promoting temp file secret for ref {secret_ref} to {}",
+            path.display()
+        )
+    })?;
+    Ok(())
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -2946,6 +3391,11 @@ async fn main() -> AnyResult<()> {
         .timeout(Duration::from_secs(15))
         .build()
         .context("failed to build provider models http client")?;
+    let connector_http_client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(Duration::from_millis(connector_tool_timeout_ms()))
+        .build()
+        .context("failed to build connector http client")?;
     let plugin_manifest_dirs = load_plugin_manifest_dirs_from_env(&config.state_dir);
     let plugin_registry =
         PluginRegistry::load_from_dirs(&plugin_manifest_dirs).with_context(|| {
@@ -3019,11 +3469,13 @@ async fn main() -> AnyResult<()> {
         auth_token: Arc::new(config.token.clone()),
         jwt_auth: jwt_auth.map(Arc::new),
         jwt_replay_jti: Arc::new(StdRwLock::new(HashMap::new())),
+        ws_tickets: Arc::new(StdRwLock::new(HashMap::new())),
         rate_limiter,
         trusted_proxy_headers,
         trusted_proxy_allowlist: Arc::new(trusted_proxy_allowlist),
         operator_allowlist: Arc::new(operator_allowlist),
         provider_models_http_client,
+        connector_http_client,
         provider_models_cache: Arc::new(RwLock::new(HashMap::new())),
         providers,
         tool_registry: tool_registry.clone(),
@@ -3036,6 +3488,7 @@ async fn main() -> AnyResult<()> {
         oauth_sessions,
         numquam_client,
         numquam_runtime_status: Arc::new(RwLock::new(NumquamRuntimeStatus::default())),
+        numquam_lane_runtime_manager: Arc::new(NumquamLaneRuntimeManager::default()),
         plugin_registry: Arc::new(RwLock::new(plugin_registry)),
         hook_bus: Arc::new(hook_bus),
         skill_registry: Arc::new(RwLock::new(skill_registry)),
@@ -3108,7 +3561,7 @@ async fn main() -> AnyResult<()> {
     );
 
     if auth_mode == AuthMode::StaticBearer && config.token_source == TokenSource::Generated {
-        warn!(token = %config.token, "CARSINOS_GATEWAY_TOKEN not set; generated runtime token");
+        warn!("CARSINOS_GATEWAY_TOKEN not set; generated a runtime token for this local gateway session. Configure CARSINOS_GATEWAY_TOKEN for repeatable launches.");
     }
 
     axum::serve(listener, app)
@@ -3461,9 +3914,6 @@ async fn resolve_provider_models_auth_profile(
     if !profile.enabled {
         anyhow::bail!("requested auth profile is disabled: {profile_id}");
     }
-    if profile.kill_switch_scope == KILL_SWITCH_SCOPE_PROFILE {
-        anyhow::bail!("requested auth profile is kill-switched at profile scope");
-    }
     if !provider_auth_mode_allowed(provider, &profile.auth_mode) {
         anyhow::bail!(
             "requested auth profile mode '{}' not allowed for provider '{}'",
@@ -3562,18 +4012,85 @@ fn truncate_provider_error_body(raw: &str) -> String {
     }
 }
 
+fn parse_provider_credentials_json(
+    profile: &ProviderAuthProfile,
+    context_label: &str,
+) -> AnyResult<serde_json::Value> {
+    serde_json::from_str(&profile.credentials_json).with_context(|| context_label.to_string())
+}
+
 fn extract_provider_auth_token(profile: &ProviderAuthProfile) -> AnyResult<Option<String>> {
-    let payload: serde_json::Value = serde_json::from_str(&profile.credentials_json)
-        .context("failed to parse provider credentials for model catalog")?;
+    let payload = parse_provider_credentials_json(
+        profile,
+        "failed to parse provider credentials for model catalog",
+    )?;
     for key in ["api_key", "token", "access_token", "bearer_token"] {
         if let Some(value) = payload.get(key).and_then(|value| value.as_str()) {
             let trimmed = value.trim();
             if !trimmed.is_empty() {
+                if is_anthropic_setup_token_value(trimmed) {
+                    return Ok(Some(normalize_anthropic_setup_token_value(trimmed)));
+                }
                 return Ok(Some(trimmed.to_string()));
             }
         }
     }
     Ok(None)
+}
+
+fn normalize_anthropic_setup_token_value(raw: &str) -> String {
+    raw.chars().filter(|char| !char.is_whitespace()).collect()
+}
+
+fn is_anthropic_setup_token_value(raw: &str) -> bool {
+    let trimmed = normalize_anthropic_setup_token_value(raw);
+    trimmed.starts_with(ANTHROPIC_SETUP_TOKEN_PREFIX)
+        && trimmed.len() >= ANTHROPIC_SETUP_TOKEN_MIN_LENGTH
+}
+
+fn anthropic_profile_uses_bearer_auth(profile: &ProviderAuthProfile) -> bool {
+    if profile.auth_mode != AUTH_MODE_API_KEY {
+        return false;
+    }
+    let Ok(payload) = parse_provider_credentials_json(
+        profile,
+        "failed to parse anthropic provider credentials for bearer auth policy",
+    ) else {
+        return false;
+    };
+    if payload
+        .get("token_kind")
+        .and_then(|value| value.as_str())
+        .map(|value| value.eq_ignore_ascii_case("setup_token"))
+        .unwrap_or(false)
+    {
+        return true;
+    }
+    extract_provider_auth_token(profile)
+        .ok()
+        .flatten()
+        .map(|token| is_anthropic_setup_token_value(&token))
+        .unwrap_or(false)
+}
+
+fn anthropic_profile_uses_curated_catalog(profile: &ProviderAuthProfile) -> bool {
+    if profile.auth_mode == AUTH_MODE_AGENT_SDK {
+        return true;
+    }
+    if profile.auth_mode != AUTH_MODE_API_KEY {
+        return false;
+    }
+    let Ok(payload) = parse_provider_credentials_json(
+        profile,
+        "failed to parse anthropic provider credentials for catalog policy",
+    ) else {
+        return false;
+    };
+    payload
+        .get("token_kind")
+        .and_then(|value| value.as_str())
+        .map(|value| value.eq_ignore_ascii_case("setup_token"))
+        .unwrap_or(false)
 }
 
 fn parse_openai_models_payload(payload: &serde_json::Value) -> AnyResult<Vec<String>> {
@@ -3760,6 +4277,16 @@ fn normalize_provider_models(raw: Vec<String>) -> Vec<ProviderModelResponse> {
     items
 }
 
+fn curated_anthropic_provider_models() -> Vec<ProviderModelResponse> {
+    normalize_provider_models(vec![
+        "claude-sonnet-4-5".to_string(),
+        "claude-opus-4-5".to_string(),
+        "claude-sonnet-4-6".to_string(),
+        "claude-opus-4-6".to_string(),
+        "claude-haiku-3-5".to_string(),
+    ])
+}
+
 async fn fetch_provider_models_from_upstream(
     state: &AppState,
     provider: &str,
@@ -3771,6 +4298,17 @@ async fn fetch_provider_models_from_upstream(
             model_id: "mock-echo-v1".to_string(),
             label: "mock-echo-v1".to_string(),
         }]);
+    }
+    if provider == "anthropic"
+        && auth_profile
+            .map(anthropic_profile_uses_curated_catalog)
+            .unwrap_or(false)
+    {
+        // Claude Code headless flows do not provide a reliable upstream model-catalog
+        // endpoint, and Claude setup-tokens are inference tokens rather than a stable
+        // catalog-discovery surface. Use a curated Claude catalog so onboarding, Team,
+        // and other catalog readers stay deterministic.
+        return Ok(curated_anthropic_provider_models());
     }
 
     let token = match auth_profile {
@@ -3813,7 +4351,16 @@ async fn fetch_provider_models_from_upstream(
     };
     if let Some(token) = token.as_ref() {
         if provider == "anthropic" {
-            request = request.header("x-api-key", token);
+            if auth_profile
+                .map(anthropic_profile_uses_bearer_auth)
+                .unwrap_or(false)
+            {
+                request = request
+                    .bearer_auth(token)
+                    .header("anthropic-beta", ANTHROPIC_OAUTH_BETA_HEADER);
+            } else {
+                request = request.header("x-api-key", token);
+            }
         } else {
             request = request.bearer_auth(token);
         }
@@ -3932,6 +4479,8 @@ struct StoredConnectorCandidate {
     description: Option<String>,
     input_schema: serde_json::Value,
     write_classification: String,
+    #[serde(default)]
+    auth_required: bool,
     review_blocked: bool,
     #[serde(default)]
     review_block_reason: Option<String>,
@@ -3964,6 +4513,203 @@ fn connector_interaction_ttl_ms() -> i64 {
     optional_i64_env("CARSINOS_CONNECTOR_INTERACTION_TTL_MS")
         .unwrap_or(CONNECTOR_INTERACTION_TTL_DEFAULT_MS)
         .max(30_000)
+}
+
+fn connector_ip_is_blocked(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(addr) => {
+            let octets = addr.octets();
+            addr.is_loopback()
+                || addr.is_private()
+                || addr.is_link_local()
+                || addr.is_unspecified()
+                || addr.is_broadcast()
+                || addr.is_multicast()
+                || octets[0] == 0
+                || (octets[0] == 100 && (64..=127).contains(&octets[1]))
+        }
+        IpAddr::V6(addr) => {
+            addr.is_loopback()
+                || addr.is_unspecified()
+                || addr.is_unique_local()
+                || addr.is_unicast_link_local()
+                || addr.is_multicast()
+                || addr
+                    .to_ipv4_mapped()
+                    .is_some_and(|mapped| connector_ip_is_blocked(IpAddr::V4(mapped)))
+        }
+    }
+}
+
+fn connector_hostname_is_blocked(host: &str) -> bool {
+    let normalized = host.trim().trim_end_matches('.').to_ascii_lowercase();
+    normalized.is_empty()
+        || normalized == "localhost"
+        || normalized.ends_with(".localhost")
+        || normalized.ends_with(".local")
+}
+
+fn connector_host_ip_literal(host: &str) -> Option<IpAddr> {
+    host.parse::<IpAddr>().ok().or_else(|| {
+        host.strip_prefix('[')
+            .and_then(|value| value.strip_suffix(']'))
+            .and_then(|value| value.parse::<IpAddr>().ok())
+    })
+}
+
+fn validate_connector_endpoint_url_shape(url: &Url) -> Result<(), String> {
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err("connector endpoint URL scheme must be http or https".to_string());
+    }
+    if !url.username().is_empty() || url.password().is_some() {
+        return Err("connector endpoint URL must not include credentials".to_string());
+    }
+    let Some(host) = url.host_str() else {
+        return Err("connector endpoint URL must include a host".to_string());
+    };
+    if connector_hostname_is_blocked(host) {
+        return Err("connector endpoint host is not allowed".to_string());
+    }
+    if let Some(ip) = connector_host_ip_literal(host) {
+        if connector_ip_is_blocked(ip) {
+            return Err("connector endpoint IP is not allowed".to_string());
+        }
+    }
+    if url.port_or_known_default().is_none() {
+        return Err("connector endpoint URL must include a usable port".to_string());
+    }
+    Ok(())
+}
+
+fn parse_connector_endpoint_url(raw: &str) -> Result<Url, ToolError> {
+    let url = Url::parse(raw).map_err(|err| {
+        ToolError::InvalidRequest(format!("invalid connector endpoint URL: {err}"))
+    })?;
+    validate_connector_endpoint_url_shape(&url)
+        .map_err(|err| ToolError::PolicyDenied(format!("CONNECTOR_NETWORK_DENIED:{err}")))?;
+    Ok(url)
+}
+
+async fn enforce_connector_network_policy(url: &Url) -> Result<(), ToolError> {
+    validate_connector_endpoint_url_shape(url)
+        .map_err(|err| ToolError::PolicyDenied(format!("CONNECTOR_NETWORK_DENIED:{err}")))?;
+    let host = url.host_str().ok_or_else(|| {
+        ToolError::PolicyDenied("CONNECTOR_NETWORK_DENIED:missing host".to_string())
+    })?;
+    if let Some(ip) = connector_host_ip_literal(host) {
+        if connector_ip_is_blocked(ip) {
+            return Err(ToolError::PolicyDenied(
+                "CONNECTOR_NETWORK_DENIED:blocked ip".to_string(),
+            ));
+        }
+        return Ok(());
+    }
+    let port = url.port_or_known_default().ok_or_else(|| {
+        ToolError::PolicyDenied("CONNECTOR_NETWORK_DENIED:missing port".to_string())
+    })?;
+    let resolved = tokio::net::lookup_host((host, port))
+        .await
+        .map_err(|err| ToolError::PolicyDenied(format!("CONNECTOR_NETWORK_DENIED:dns {err}")))?;
+    let mut saw_address = false;
+    for addr in resolved {
+        saw_address = true;
+        if connector_ip_is_blocked(addr.ip()) {
+            return Err(ToolError::PolicyDenied(format!(
+                "CONNECTOR_NETWORK_DENIED:resolved blocked ip {}",
+                addr.ip()
+            )));
+        }
+    }
+    if !saw_address {
+        return Err(ToolError::PolicyDenied(
+            "CONNECTOR_NETWORK_DENIED:dns returned no addresses".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn openapi_security_array_requires_auth(value: &serde_json::Value) -> bool {
+    value
+        .as_array()
+        .map(|items| {
+            !items.is_empty()
+                && items.iter().any(|item| {
+                    item.as_object()
+                        .map(|object| !object.is_empty())
+                        .unwrap_or(false)
+                })
+        })
+        .unwrap_or(false)
+}
+
+fn openapi_operation_auth_required(
+    source_document: &serde_json::Value,
+    operation: &serde_json::Map<String, serde_json::Value>,
+) -> bool {
+    if let Some(security) = operation.get("security") {
+        return openapi_security_array_requires_auth(security);
+    }
+    openapi_security_array_requires_auth(
+        source_document
+            .get("security")
+            .unwrap_or(&serde_json::Value::Null),
+    )
+}
+
+fn infer_connector_auth_required(
+    source_kind: &str,
+    source_document: &serde_json::Value,
+    explicit: Option<bool>,
+) -> bool {
+    if let Some(value) = explicit {
+        return value;
+    }
+    if source_document
+        .get("auth_required")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false)
+    {
+        return true;
+    }
+    if source_kind != "openapi" {
+        return false;
+    }
+    if openapi_security_array_requires_auth(
+        source_document
+            .get("security")
+            .unwrap_or(&serde_json::Value::Null),
+    ) {
+        return true;
+    }
+    if source_document
+        .get("components")
+        .and_then(|value| value.get("securitySchemes"))
+        .and_then(|value| value.as_object())
+        .map(|schemes| !schemes.is_empty())
+        .unwrap_or(false)
+    {
+        return true;
+    }
+    source_document
+        .get("paths")
+        .and_then(|value| value.as_object())
+        .map(|paths| {
+            paths.values().any(|path_item| {
+                path_item
+                    .as_object()
+                    .map(|operations| {
+                        operations.values().any(|operation| {
+                            openapi_security_array_requires_auth(
+                                operation
+                                    .get("security")
+                                    .unwrap_or(&serde_json::Value::Null),
+                            )
+                        })
+                    })
+                    .unwrap_or(false)
+            })
+        })
+        .unwrap_or(false)
 }
 
 fn connector_risk_and_approval(write_classification: &str) -> (&'static str, bool) {
@@ -4179,11 +4925,25 @@ fn prepare_connector_import(request: &ImportConnectorRequest) -> AnyResult<NewCo
     }
     let slug = import_request_slug(request)?;
     let source_document = parse_connector_source_document(request)?;
+    let auth_required =
+        infer_connector_auth_required(&source_kind, &source_document, request.auth_required);
+    if let Some(endpoint_url) = request
+        .endpoint_url
+        .as_ref()
+        .map(|value| value.trim().trim_end_matches('/'))
+        .filter(|value| !value.is_empty())
+    {
+        let parsed =
+            Url::parse(endpoint_url).context("endpoint_url must be a valid connector URL")?;
+        validate_connector_endpoint_url_shape(&parsed)
+            .map_err(|err| anyhow::anyhow!("endpoint_url rejected by network policy: {err}"))?;
+    }
     let import_metadata = serde_json::json!({
         "source_kind": source_kind,
         "catalog_item_id": request.catalog_item_id.as_ref().map(|value| value.trim()).filter(|value| !value.is_empty()),
         "import_url": request.import_url.as_ref().map(|value| value.trim()).filter(|value| !value.is_empty()),
         "endpoint_url": request.endpoint_url.as_ref().map(|value| value.trim().trim_end_matches('/')).filter(|value| !value.is_empty()),
+        "auth_required": auth_required,
         "source_json": source_document,
     });
     let import_metadata_json = canonical_json_string(&import_metadata)?;
@@ -4352,6 +5112,7 @@ fn build_openapi_candidates(
                 _ => "operator_write_gated",
             };
             let collision = existing_tool_names.contains(&tool_name);
+            let auth_required = openapi_operation_auth_required(source_document, operation);
             if collision {
                 warnings.push(ConnectorWarningResponse {
                     code: "tool_name_collision".to_string(),
@@ -4377,6 +5138,7 @@ fn build_openapi_candidates(
                     .map(str::to_string),
                 input_schema,
                 write_classification: write_classification.to_string(),
+                auth_required,
                 review_blocked: collision,
                 review_block_reason: collision.then_some(
                     "tool name collides with an existing core, plugin, or connector tool"
@@ -4391,6 +5153,7 @@ fn build_openapi_candidates(
                     "endpoint_url": endpoint_url,
                     "path_param_count": path_params,
                     "parameters": query_params,
+                    "auth_required": auth_required,
                 }),
             });
         }
@@ -4438,6 +5201,10 @@ fn build_graphql_candidates(
             "operator_write_gated"
         };
         let collision = existing_tool_names.contains(&tool_name);
+        let auth_required = operation
+            .get("auth_required")
+            .and_then(|value| value.as_bool())
+            .unwrap_or_else(|| connector_auth_required(version));
         if collision {
             warnings.push(ConnectorWarningResponse {
                 code: "tool_name_collision".to_string(),
@@ -4466,6 +5233,7 @@ fn build_graphql_candidates(
                 .cloned()
                 .unwrap_or_else(|| serde_json::json!({ "type": "object", "properties": {} })),
             write_classification: write_classification.to_string(),
+            auth_required,
             review_blocked: collision,
             review_block_reason: collision.then_some(
                 "tool name collides with an existing core, plugin, or connector tool".to_string(),
@@ -4478,6 +5246,7 @@ fn build_graphql_candidates(
                 "operation_type": operation_type,
                 "document": operation.get("document").cloned(),
                 "endpoint_url": endpoint_url,
+                "auth_required": auth_required,
             }),
         });
     }
@@ -4520,6 +5289,10 @@ fn build_mcp_candidates(
             .unwrap_or("read_only");
         let review_blocked =
             existing_tool_names.contains(&tool_name) || write_classification == "unsafe_blocked";
+        let auth_required = tool
+            .get("auth_required")
+            .and_then(|value| value.as_bool())
+            .unwrap_or_else(|| connector_auth_required(version));
         if existing_tool_names.contains(&tool_name) {
             warnings.push(ConnectorWarningResponse {
                 code: "tool_name_collision".to_string(),
@@ -4548,6 +5321,7 @@ fn build_mcp_candidates(
                 .cloned()
                 .unwrap_or_else(|| serde_json::json!({ "type": "object", "properties": {} })),
             write_classification: write_classification.to_string(),
+            auth_required,
             review_blocked,
             review_block_reason: if write_classification == "unsafe_blocked" {
                 Some("unsafe_blocked operations cannot be published".to_string())
@@ -4567,6 +5341,7 @@ fn build_mcp_candidates(
                 "version_id": version.version_id,
                 "mcp_tool_name": name,
                 "endpoint_url": endpoint_url,
+                "auth_required": auth_required,
             }),
         });
     }
@@ -4689,10 +5464,23 @@ fn parse_stored_connector_candidates(raw: &str) -> AnyResult<Vec<StoredConnector
 }
 
 fn connector_auth_required(version: &ConnectorVersionRecord) -> bool {
-    parse_storage_json_value(&version.import_metadata_json)
+    let metadata = parse_storage_json_value(&version.import_metadata_json);
+    metadata
         .get("auth_required")
         .and_then(|value| value.as_bool())
-        .unwrap_or(false)
+        .unwrap_or_else(|| {
+            let source_kind = metadata
+                .get("source_kind")
+                .and_then(|value| value.as_str())
+                .unwrap_or_default();
+            infer_connector_auth_required(
+                source_kind,
+                metadata
+                    .get("source_json")
+                    .unwrap_or(&serde_json::Value::Null),
+                None,
+            )
+        })
 }
 
 fn load_connector_runtime_tools(
@@ -4758,6 +5546,13 @@ fn load_connector_runtime_tools(
         }
     }
     Ok(bindings)
+}
+
+fn connector_tool_auth_required(binding: &ConnectorRuntimeToolBinding) -> bool {
+    parse_storage_json_value(&binding.published_tool.origin_metadata_json)
+        .get("auth_required")
+        .and_then(|value| value.as_bool())
+        .unwrap_or_else(|| connector_auth_required(&binding.version))
 }
 
 fn connector_origin_from_binding(
@@ -4911,7 +5706,7 @@ async fn execute_connector_tool_request(
         serde_json::from_str::<serde_json::Value>(args_json)
             .unwrap_or_else(|_| serde_json::json!({ "raw_args": args_json.trim() }))
     };
-    if connector_auth_required(&binding.version)
+    if connector_tool_auth_required(binding)
         && binding.agent_auth_binding.is_none()
         && binding.shared_auth_binding.is_none()
     {
@@ -4936,7 +5731,7 @@ async fn execute_connector_tool_request(
     match binding.connector.source_kind.as_str() {
         "openapi" => {
             execute_openapi_connector_call(
-                &state.provider_models_http_client,
+                &state.connector_http_client,
                 &origin_metadata,
                 parsed_args,
                 auth,
@@ -4946,7 +5741,7 @@ async fn execute_connector_tool_request(
         }
         "graphql" => {
             execute_graphql_connector_call(
-                &state.provider_models_http_client,
+                &state.connector_http_client,
                 &origin_metadata,
                 parsed_args,
                 auth,
@@ -4956,7 +5751,7 @@ async fn execute_connector_tool_request(
         }
         "mcp" => {
             execute_mcp_connector_call(
-                &state.provider_models_http_client,
+                &state.connector_http_client,
                 &origin_metadata,
                 parsed_args,
                 auth,
@@ -5011,11 +5806,10 @@ async fn execute_openapi_connector_call(
         .get("method")
         .and_then(|value| value.as_str())
         .unwrap_or("GET");
-    let mut url = Url::parse(endpoint_url).map_err(|err| {
-        ToolError::InvalidRequest(format!("invalid connector endpoint URL: {err}"))
-    })?;
+    let mut url = parse_connector_endpoint_url(endpoint_url)?;
     url.set_path(&format!("{}{}", url.path().trim_end_matches('/'), path));
     apply_connector_query_auth(&mut url, &auth);
+    enforce_connector_network_policy(&url).await?;
     let mut request = client.request(
         reqwest::Method::from_bytes(method.as_bytes())
             .map_err(|err| ToolError::InvalidRequest(format!("invalid method: {err}")))?,
@@ -5079,10 +5873,9 @@ async fn execute_graphql_connector_call(
         .get("operation_name")
         .and_then(|value| value.as_str())
         .unwrap_or(tool_name);
-    let mut url = Url::parse(endpoint_url).map_err(|err| {
-        ToolError::InvalidRequest(format!("invalid connector endpoint URL: {err}"))
-    })?;
+    let mut url = parse_connector_endpoint_url(endpoint_url)?;
     apply_connector_query_auth(&mut url, &auth);
+    enforce_connector_network_policy(&url).await?;
     let mut request = client.post(url.clone());
     request = apply_connector_auth(request, &auth);
     let variables = parsed_args.get("variables").cloned().unwrap_or(parsed_args);
@@ -5137,9 +5930,7 @@ async fn execute_mcp_connector_call(
         .get("mcp_tool_name")
         .and_then(|value| value.as_str())
         .unwrap_or(tool_name);
-    let mut url = Url::parse(endpoint_url).map_err(|err| {
-        ToolError::InvalidRequest(format!("invalid connector endpoint URL: {err}"))
-    })?;
+    let mut url = parse_connector_endpoint_url(endpoint_url)?;
     let request_id = current_time_ms();
     let initialize_payload = serde_json::json!({
         "jsonrpc": "2.0",
@@ -5151,6 +5942,7 @@ async fn execute_mcp_connector_call(
         }
     });
     apply_connector_query_auth(&mut url, &auth);
+    enforce_connector_network_policy(&url).await?;
     let mut init_request = client.post(url.clone()).json(&initialize_payload);
     init_request = apply_connector_auth(init_request, &auth);
     let init_response = init_request
@@ -5792,6 +6584,8 @@ async fn get_connector_health(
             health: to_connector_health_response(
                 &connector,
                 false,
+                0,
+                0,
                 Some("connector has no live version".to_string()),
                 Some(current_time_ms()),
             ),
@@ -5808,13 +6602,33 @@ async fn get_connector_health(
         .map_err(|err| internal_err_with_error("listing connector auth bindings failed", err))?
         .into_iter()
         .find(|item| item.agent_id.is_none());
-    let auth_required = connector_auth_required(&version) && shared_auth_binding.is_none();
+    let published_tools = state
+        .storage
+        .list_connector_published_tools(&connector.connector_id, false)
+        .map_err(|err| internal_err_with_error("listing connector published tools failed", err))?;
+    let auth_required_tool_count = published_tools
+        .iter()
+        .filter(|tool| {
+            parse_storage_json_value(&tool.origin_metadata_json)
+                .get("auth_required")
+                .and_then(|value| value.as_bool())
+                .unwrap_or_else(|| connector_auth_required(&version))
+        })
+        .count();
+    let auth_missing_tool_count = if shared_auth_binding.is_none() {
+        auth_required_tool_count
+    } else {
+        0
+    };
+    let auth_required = auth_missing_tool_count > 0;
     let degraded_reason = if connector.status != "enabled" {
         Some(format!("connector status is {}", connector.status))
     } else if connector.published_tool_count == 0 {
         Some("connector has no published tools".to_string())
     } else if auth_required {
-        Some("connector requires auth binding".to_string())
+        Some(format!(
+            "connector requires auth binding for {auth_missing_tool_count} published tool(s)"
+        ))
     } else {
         None
     };
@@ -5822,6 +6636,8 @@ async fn get_connector_health(
         health: to_connector_health_response(
             &connector,
             auth_required,
+            auth_required_tool_count,
+            auth_missing_tool_count,
             degraded_reason,
             Some(current_time_ms()),
         ),
@@ -5958,6 +6774,57 @@ fn normalize_plugin_id(raw: &str) -> AnyResult<String> {
         anyhow::bail!("plugin_id contains invalid characters");
     }
     Ok(normalized)
+}
+
+fn normalize_plugin_version(raw: &str) -> AnyResult<String> {
+    let normalized = raw.trim();
+    if normalized != raw {
+        anyhow::bail!("plugin_version must not contain leading or trailing whitespace");
+    }
+    if normalized.is_empty() {
+        anyhow::bail!("plugin_version must not be empty");
+    }
+    if normalized.len() > 80 {
+        anyhow::bail!("plugin_version is too long");
+    }
+    if normalized.starts_with('.') || normalized.ends_with('.') || normalized.contains("..") {
+        anyhow::bail!("plugin_version contains invalid dot placement");
+    }
+    if !normalized
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.' | '+'))
+    {
+        anyhow::bail!("plugin_version contains invalid characters");
+    }
+    let lowered = normalized.to_ascii_lowercase();
+    if matches!(
+        lowered.as_str(),
+        "con"
+            | "prn"
+            | "aux"
+            | "nul"
+            | "com1"
+            | "com2"
+            | "com3"
+            | "com4"
+            | "com5"
+            | "com6"
+            | "com7"
+            | "com8"
+            | "com9"
+            | "lpt1"
+            | "lpt2"
+            | "lpt3"
+            | "lpt4"
+            | "lpt5"
+            | "lpt6"
+            | "lpt7"
+            | "lpt8"
+            | "lpt9"
+    ) {
+        anyhow::bail!("plugin_version uses a reserved device name");
+    }
+    Ok(normalized.to_string())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -6157,19 +7024,23 @@ fn plugin_bundle_dir(
     plugin_storage_root: &FsPath,
     plugin_id: &str,
     plugin_version: &str,
-) -> PathBuf {
-    plugin_storage_root
-        .join("bundles")
-        .join(plugin_id)
-        .join(plugin_version)
+) -> AnyResult<PathBuf> {
+    let plugin_id = normalize_plugin_id(plugin_id)?;
+    let plugin_version = normalize_plugin_version(plugin_version)?;
+    let bundle_root = plugin_storage_root.join("bundles");
+    let bundle_dir = bundle_root.join(&plugin_id).join(&plugin_version);
+    if !bundle_dir.starts_with(plugin_storage_root) || !bundle_dir.starts_with(&bundle_root) {
+        anyhow::bail!("plugin bundle path escaped plugin storage root");
+    }
+    Ok(bundle_dir)
 }
 
 fn plugin_bundle_manifest_path(
     plugin_storage_root: &FsPath,
     plugin_id: &str,
     plugin_version: &str,
-) -> PathBuf {
-    plugin_bundle_dir(plugin_storage_root, plugin_id, plugin_version).join("manifest.json")
+) -> AnyResult<PathBuf> {
+    Ok(plugin_bundle_dir(plugin_storage_root, plugin_id, plugin_version)?.join("manifest.json"))
 }
 
 fn plugin_active_manifest_path(plugin_storage_root: &FsPath, plugin_id: &str) -> PathBuf {
@@ -6241,7 +7112,7 @@ fn load_bundle_manifest(
     plugin_id: &str,
     plugin_version: &str,
 ) -> AnyResult<CorePluginManifest> {
-    let path = plugin_bundle_manifest_path(plugin_storage_root, plugin_id, plugin_version);
+    let path = plugin_bundle_manifest_path(plugin_storage_root, plugin_id, plugin_version)?;
     let payload = std::fs::read_to_string(&path)
         .with_context(|| format!("failed reading bundle manifest {}", path.display()))?;
     let manifest = serde_json::from_str::<CorePluginManifest>(&payload)
@@ -6318,6 +7189,8 @@ fn materialize_plugin_bundle(
     plugin_storage_root: &FsPath,
     manifest: &CorePluginManifest,
 ) -> AnyResult<CorePluginManifest> {
+    let normalized_plugin_id = normalize_plugin_id(&manifest.plugin_id)?;
+    let normalized_plugin_version = normalize_plugin_version(&manifest.plugin_version)?;
     let source_path = normalize_local_source_path(&manifest.artifact.local_path)?;
     if !source_path.exists() || !source_path.is_file() {
         anyhow::bail!(
@@ -6337,9 +7210,9 @@ fn materialize_plugin_bundle(
 
     let bundle_dir = plugin_bundle_dir(
         plugin_storage_root,
-        manifest.plugin_id.as_str(),
-        manifest.plugin_version.as_str(),
-    );
+        normalized_plugin_id.as_str(),
+        normalized_plugin_version.as_str(),
+    )?;
     std::fs::create_dir_all(&bundle_dir).with_context(|| {
         format!(
             "failed creating plugin bundle directory {}",
@@ -6370,6 +7243,8 @@ fn materialize_plugin_bundle(
     }
 
     let mut materialized = manifest.clone();
+    materialized.plugin_id = normalized_plugin_id;
+    materialized.plugin_version = normalized_plugin_version;
     let source_display = source_path.display().to_string();
     materialized.artifact.local_path = bundled_artifact_path.display().to_string();
     if materialized.artifact.command.trim() == source_display {
@@ -6382,9 +7257,9 @@ fn materialize_plugin_bundle(
     }
     let bundle_manifest_path = plugin_bundle_manifest_path(
         plugin_storage_root,
-        manifest.plugin_id.as_str(),
-        manifest.plugin_version.as_str(),
-    );
+        materialized.plugin_id.as_str(),
+        materialized.plugin_version.as_str(),
+    )?;
     persist_plugin_manifest(&bundle_manifest_path, &materialized)?;
     Ok(materialized)
 }
@@ -7803,8 +8678,11 @@ async fn ws_handler(
     ws: WebSocketUpgrade,
     State(state): State<AppState>,
 ) -> std::result::Result<impl IntoResponse, StatusCode> {
-    let auth_headers = ws_auth_headers_with_query_token(&headers, &query)?;
-    let auth_ctx = require_bearer_auth(&auth_headers, &state).map_err(|err| err.status)?;
+    let auth_ctx = if headers.contains_key(header::AUTHORIZATION) {
+        require_bearer_auth(&headers, &state).map_err(|err| err.status)?
+    } else {
+        consume_ws_ticket(&state, query.ticket.as_deref()).map_err(|err| err.status)?
+    };
     require_roles_raw(
         &auth_ctx,
         &[
@@ -7822,29 +8700,100 @@ async fn ws_handler(
 
 #[derive(Deserialize, Default)]
 struct WsAuthQuery {
-    token: Option<String>,
+    ticket: Option<String>,
 }
 
-fn ws_auth_headers_with_query_token(
-    headers: &HeaderMap,
-    query: &WsAuthQuery,
-) -> std::result::Result<HeaderMap, StatusCode> {
-    if headers.contains_key(header::AUTHORIZATION) {
-        return Ok(headers.clone());
-    }
-    let Some(token) = query
-        .token
-        .as_deref()
+async fn create_ws_ticket(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(
+        &auth,
+        &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_OPERATOR_READONLY,
+            ROLE_AUTOMATION_RUNNER,
+        ],
+    )?;
+    let (ticket, expires_at) = issue_ws_ticket(&state, &auth);
+    Ok(Json(CreateWebSocketTicketResponse { ticket, expires_at }))
+}
+
+fn issue_ws_ticket(state: &AppState, auth: &AuthContext) -> (String, i64) {
+    let ticket = format!("{}.{}", uuid::Uuid::new_v4(), uuid::Uuid::new_v4());
+    let ticket_hash = hash_ws_ticket(&ticket);
+    let expires_at = current_time_ms().saturating_add(WS_TICKET_TTL_MS);
+    let mut tickets = state
+        .ws_tickets
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    prune_expired_ws_tickets(&mut tickets, current_time_ms());
+    tickets.insert(
+        ticket_hash,
+        WsTicketRecord {
+            principal_id: auth.principal_id.clone(),
+            roles: auth.roles.clone(),
+            expires_at_ms: expires_at,
+        },
+    );
+    (ticket, expires_at)
+}
+
+fn consume_ws_ticket(
+    state: &AppState,
+    ticket: Option<&str>,
+) -> std::result::Result<AuthContext, AuthError> {
+    let ticket = ticket
         .map(str::trim)
         .filter(|value| !value.is_empty())
-    else {
-        return Ok(headers.clone());
+        .ok_or_else(|| AuthError {
+            status: StatusCode::UNAUTHORIZED,
+            code: "AUTH_REQUIRED",
+            message: "missing websocket ticket".to_string(),
+            retry_after_seconds: None,
+        })?;
+    let ticket_hash = hash_ws_ticket(ticket);
+    let now = current_time_ms();
+    let mut tickets = state
+        .ws_tickets
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    prune_expired_ws_tickets(&mut tickets, now);
+    let Some(record) = tickets.remove(&ticket_hash) else {
+        return Err(AuthError {
+            status: StatusCode::UNAUTHORIZED,
+            code: "AUTH_INVALID",
+            message: "invalid websocket ticket".to_string(),
+            retry_after_seconds: None,
+        });
     };
-    let mut merged = headers.clone();
-    let auth_header =
-        HeaderValue::from_str(&format!("Bearer {token}")).map_err(|_| StatusCode::UNAUTHORIZED)?;
-    merged.insert(header::AUTHORIZATION, auth_header);
-    Ok(merged)
+    if record.expires_at_ms <= now {
+        return Err(AuthError {
+            status: StatusCode::UNAUTHORIZED,
+            code: "AUTH_EXPIRED",
+            message: "expired websocket ticket".to_string(),
+            retry_after_seconds: None,
+        });
+    }
+    Ok(AuthContext {
+        principal_id: record.principal_id,
+        roles: record.roles,
+        auth_method: "websocket_ticket",
+        token_id: None,
+        session_id: None,
+        client_ip: "websocket".to_string(),
+    })
+}
+
+fn prune_expired_ws_tickets(tickets: &mut HashMap<String, WsTicketRecord>, now: i64) {
+    tickets.retain(|_, record| record.expires_at_ms > now);
+}
+
+fn hash_ws_ticket(ticket: &str) -> String {
+    let mut digest = Sha256::new();
+    digest.update(ticket.as_bytes());
+    format!("{:x}", digest.finalize())
 }
 
 async fn handle_socket(
@@ -8436,6 +9385,9 @@ fn parse_bearer_token(headers: &HeaderMap) -> Option<&str> {
 }
 
 fn cors_env_is_dev() -> bool {
+    if bool_env("CARSINOS_PUBLIC_BIND_ALLOWED", false) {
+        return false;
+    }
     std::env::var("CARSINOS_ENV")
         .map(|value| {
             matches!(
@@ -8571,6 +9523,10 @@ fn build_app(state: AppState) -> Router {
             get(get_agent_memory_status),
         )
         .route(
+            "/api/v1/agents/{agent_id}/memory/lanes/status",
+            get(list_agent_memory_lane_statuses),
+        )
+        .route(
             "/api/v1/agents/{agent_id}/memory/cards",
             get(list_agent_memory_cards),
         )
@@ -8699,6 +9655,7 @@ fn build_app(state: AppState) -> Router {
             "/api/v1/bootstrap-presets/import",
             post(import_bootstrap_preset),
         )
+        .route("/api/v1/ws-ticket", post(create_ws_ticket))
         .route("/api/v1/ws", get(ws_handler))
         .route("/api/v1/sessions", get(list_sessions).post(create_session))
         .route("/api/v1/sessions/{session_id}", get(get_session))
@@ -8774,8 +9731,32 @@ fn build_app(state: AppState) -> Router {
             post(ingest_telegram_channel_message),
         )
         .route(
+            "/api/v1/channels/telegram/pairing/status",
+            get(get_telegram_pairing_status),
+        )
+        .route(
+            "/api/v1/channels/telegram/pairing/approve",
+            post(approve_telegram_pairing),
+        )
+        .route(
+            "/api/v1/channels/telegram/pairing/deny",
+            post(deny_telegram_pairing),
+        )
+        .route(
             "/api/v1/channels/discord/inbound",
             post(ingest_discord_channel_message),
+        )
+        .route(
+            "/api/v1/channels/discord/pairing/status",
+            get(get_discord_pairing_status),
+        )
+        .route(
+            "/api/v1/channels/discord/pairing/approve",
+            post(approve_discord_pairing),
+        )
+        .route(
+            "/api/v1/channels/discord/pairing/deny",
+            post(deny_discord_pairing),
         )
         .route(
             "/api/v1/channels/runtime/status",
@@ -8884,7 +9865,7 @@ fn build_app(state: AppState) -> Router {
                     tracing::info_span!(
                         "http.request",
                         method = %request.method(),
-                        uri = %request.uri(),
+                        uri = %redacted_request_uri(request.uri()),
                         request_id = %request_id
                     )
                 })
@@ -8892,6 +9873,19 @@ fn build_app(state: AppState) -> Router {
                 .on_response(DefaultOnResponse::new().level(Level::INFO))
                 .on_failure(DefaultOnFailure::new().level(Level::ERROR)),
         )
+}
+
+fn redacted_request_uri(uri: &axum::http::Uri) -> String {
+    uri.path_and_query()
+        .map(|path_and_query| {
+            let path = path_and_query.path();
+            if path_and_query.query().is_some() {
+                format!("{path}?<redacted>")
+            } else {
+                path.to_string()
+            }
+        })
+        .unwrap_or_else(|| uri.path().to_string())
 }
 
 const BOARD_CARD_UPLOAD_MAX_BYTES: usize = 10 * 1024 * 1024;
@@ -9503,6 +10497,8 @@ fn to_connector_interaction_response(
 fn to_connector_health_response(
     connector: &ConnectorSourceRecord,
     auth_required: bool,
+    auth_required_tool_count: usize,
+    auth_missing_tool_count: usize,
     degraded_reason: Option<String>,
     last_checked_at: Option<i64>,
 ) -> ConnectorHealthResponse {
@@ -9511,6 +10507,8 @@ fn to_connector_health_response(
         status: connector.status.clone(),
         degraded_reason,
         auth_required,
+        auth_required_tool_count,
+        auth_missing_tool_count,
         last_checked_at,
         published_tool_count: connector.published_tool_count,
         assigned_agent_count: connector.assigned_agent_count,
@@ -11777,43 +12775,126 @@ async fn create_session(
     let auth = require_bearer_auth_with_error(&headers, &state)?;
     require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
 
-    let agent_id = request
+    let requested_agent_id = request
         .agent_id
-        .unwrap_or_else(|| "default".to_string())
-        .trim()
-        .to_string();
-    if agent_id.is_empty() {
-        return Err(api_error(
-            StatusCode::BAD_REQUEST,
-            "agent_id cannot be empty",
-        ));
-    }
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let requested_human_identity_id = request
+        .human_identity_id
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
 
-    let session = state
-        .storage
-        .create_session(NewSession {
-            session_key: request.session_key.filter(|v| !v.trim().is_empty()),
-            agent_id,
-            title: request.title,
-        })
-        .map_err(|err| {
-            if err.to_string().contains("agent does not exist") {
-                api_error(StatusCode::BAD_REQUEST, &err.to_string())
-            } else {
-                internal_err_with_error("creating session failed", err)
-            }
+    let (session_key, agent_id, title) = if let Some(human_identity_id) =
+        requested_human_identity_id.as_deref()
+    {
+        let runtime_config = load_runtime_config(&state)
+            .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
+        let route = resolve_lane_route_for_human_identity(
+            &state,
+            &runtime_config.routing,
+            human_identity_id,
+            requested_agent_id.as_deref(),
+        )
+        .map_err(|err| internal_err_with_error("resolving requested session lane failed", err))?
+        .ok_or_else(|| {
+            api_error(
+                StatusCode::BAD_REQUEST,
+                "No enabled assistant lane matches that person and assistant yet.",
+            )
         })?;
+        (
+            Some(route.session_key),
+            route.assistant_agent_id,
+            request.title.or(Some(route.session_title)),
+        )
+    } else {
+        let agent_id = requested_agent_id.unwrap_or_else(|| "default".to_string());
+        if agent_id.is_empty() {
+            return Err(api_error(
+                StatusCode::BAD_REQUEST,
+                "agent_id cannot be empty",
+            ));
+        }
+        let requested_session_key = request.session_key.filter(|value| !value.trim().is_empty());
+        if let Some(session_key) = requested_session_key.as_deref() {
+            if session_key_looks_lane_managed(session_key) {
+                return Err(api_error(
+                    StatusCode::BAD_REQUEST,
+                    "lane-managed session keys can only be created through a linked human identity",
+                ));
+            }
+        }
+        (requested_session_key, agent_id, request.title)
+    };
+
+    let mut reused_existing = false;
+    let session = if let Some(session_key) = session_key.clone() {
+        if let Some(existing) = state
+            .storage
+            .get_session_by_key(&session_key)
+            .map_err(|err| internal_err_with_error("loading existing session by key failed", err))?
+        {
+            if existing.agent_id != agent_id {
+                return Err(api_error(
+                    StatusCode::CONFLICT,
+                    "That session key is already bound to a different assistant.",
+                ));
+            }
+            reused_existing = true;
+            existing
+        } else {
+            state
+                .storage
+                .create_session(NewSession {
+                    session_key: Some(session_key),
+                    agent_id,
+                    title,
+                })
+                .map_err(|err| {
+                    if err.to_string().contains("agent does not exist") {
+                        api_error(StatusCode::BAD_REQUEST, &err.to_string())
+                    } else {
+                        internal_err_with_error("creating session failed", err)
+                    }
+                })?
+        }
+    } else {
+        state
+            .storage
+            .create_session(NewSession {
+                session_key: None,
+                agent_id,
+                title,
+            })
+            .map_err(|err| {
+                if err.to_string().contains("agent does not exist") {
+                    api_error(StatusCode::BAD_REQUEST, &err.to_string())
+                } else {
+                    internal_err_with_error("creating session failed", err)
+                }
+            })?
+    };
 
     info!(
         session_id = %session.session_id,
         agent_id = %session.agent_id,
         title = ?session.title,
-        "session created"
+        reused_existing,
+        "session created or reused"
     );
     let response = CreateSessionResponse {
         session: to_session_summary(session),
     };
-    Ok((StatusCode::CREATED, Json(response)))
+    Ok((
+        if reused_existing {
+            StatusCode::OK
+        } else {
+            StatusCode::CREATED
+        },
+        Json(response),
+    ))
 }
 
 async fn get_session(
@@ -12267,11 +13348,24 @@ async fn sync_memory_sources(
     )?;
     let runtime_config = load_runtime_config(&state)
         .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
-    let sources = if request.sources.is_empty() {
-        runtime_config.memory.memory_md_sources.clone()
-    } else {
-        request.sources.clone()
-    };
+    let sources = resolve_memory_sync_sources(
+        &state,
+        &runtime_config,
+        &request.sources,
+        request.human_identity_id.as_deref(),
+        request.assistant_agent_id.as_deref(),
+    )
+    .map_err(|err| {
+        let message = err.to_string();
+        if message.starts_with("INVALID_INPUT:") {
+            api_error(
+                StatusCode::BAD_REQUEST,
+                message.trim_start_matches("INVALID_INPUT:").trim(),
+            )
+        } else {
+            internal_err_with_error("resolving memory sync sources failed", err)
+        }
+    })?;
     if sources.is_empty() {
         return Err(api_error(
             StatusCode::BAD_REQUEST,
@@ -13090,7 +14184,7 @@ async fn anthropic_setup_token_ingest(
             "display_name cannot be empty",
         ));
     }
-    let setup_token = request.setup_token.trim().to_string();
+    let setup_token = normalize_anthropic_setup_token_value(&request.setup_token);
     if setup_token.is_empty() {
         return Err(api_error(
             StatusCode::BAD_REQUEST,
@@ -13144,48 +14238,122 @@ async fn anthropic_setup_token_ingest(
         "validated_at_unix": current_time_ms() / 1000
     })
     .to_string();
+    let replacement = NewAuthProfile {
+        provider: AUTH_PROVIDER_ANTHROPIC.to_string(),
+        display_name: display_name.clone(),
+        auth_mode: AUTH_MODE_API_KEY.to_string(),
+        risk_level: auth_mode_policy(AUTH_MODE_API_KEY)
+            .expect("api key policy")
+            .risk_level
+            .to_string(),
+        enabled: request.enabled.unwrap_or(true),
+        kill_switch_scope: kill_switch_scope.clone(),
+        api_base_url: Some(api_base_url.clone()),
+        credentials_json,
+    };
 
-    let profile = state
-        .storage
-        .create_auth_profile(NewAuthProfile {
-            provider: AUTH_PROVIDER_ANTHROPIC.to_string(),
-            display_name,
-            auth_mode: AUTH_MODE_API_KEY.to_string(),
-            risk_level: auth_mode_policy(AUTH_MODE_API_KEY)
-                .expect("api key policy")
-                .risk_level
-                .to_string(),
-            enabled: request.enabled.unwrap_or(true),
-            kill_switch_scope,
-            api_base_url: Some(api_base_url),
-            credentials_json,
-        })
-        .map_err(|err| {
-            if is_unique_constraint_violation(&err, None) {
-                if let Err(cleanup_err) = state.secret_store.delete(&secret_ref) {
-                    warn!(
-                        error = ?cleanup_err,
-                        secret_ref = %secret_ref,
-                        "failed cleaning up anthropic setup-token secret after duplicate auth profile conflict"
-                    );
+    let created = state.storage.create_auth_profile(replacement.clone());
+    let (status, profile) = match created {
+        Ok(profile) => (StatusCode::CREATED, profile),
+        Err(err) if is_unique_constraint_violation(&err, None) => {
+            let existing = state
+                .storage
+                .list_auth_profiles(Some(AUTH_PROVIDER_ANTHROPIC), true)
+                .map_err(|list_err| {
+                    if let Err(cleanup_err) = state.secret_store.delete(&secret_ref) {
+                        warn!(
+                            error = ?cleanup_err,
+                            secret_ref = %secret_ref,
+                            "failed cleaning up anthropic setup-token secret after duplicate auth profile lookup failure"
+                        );
+                    }
+                    internal_err_with_error(
+                        "listing anthropic auth profiles for duplicate setup-token replace failed",
+                        list_err,
+                    )
+                })?
+                .into_iter()
+                .find(|profile| profile.display_name == display_name)
+                .ok_or_else(|| {
+                    if let Err(cleanup_err) = state.secret_store.delete(&secret_ref) {
+                        warn!(
+                            error = ?cleanup_err,
+                            secret_ref = %secret_ref,
+                            "failed cleaning up anthropic setup-token secret after missing duplicate auth profile"
+                        );
+                    }
+                    api_error(
+                        StatusCode::CONFLICT,
+                        "auth profile display_name already exists for this provider",
+                    )
+                })?;
+            let previous_secret_ref = auth_profile_credentials_payload(&existing)
+                .ok()
+                .and_then(|payload| secret_ref_from_metadata(&payload));
+            let replaced = state
+                .storage
+                .replace_auth_profile(&existing.auth_profile_id, replacement)
+                .map_err(|replace_err| {
+                    if let Err(cleanup_err) = state.secret_store.delete(&secret_ref) {
+                        warn!(
+                            error = ?cleanup_err,
+                            secret_ref = %secret_ref,
+                            "failed cleaning up anthropic setup-token secret after duplicate auth profile replace failure"
+                        );
+                    }
+                    internal_err_with_error(
+                        "replacing duplicate anthropic setup-token auth profile failed",
+                        replace_err,
+                    )
+                })?
+                .ok_or_else(|| {
+                    if let Err(cleanup_err) = state.secret_store.delete(&secret_ref) {
+                        warn!(
+                            error = ?cleanup_err,
+                            secret_ref = %secret_ref,
+                            "failed cleaning up anthropic setup-token secret after duplicate auth profile vanished"
+                        );
+                    }
+                    api_error(StatusCode::NOT_FOUND, "auth profile not found")
+                })?;
+            if let Some(previous_secret_ref) = previous_secret_ref {
+                if previous_secret_ref != secret_ref {
+                    if let Err(cleanup_err) = state.secret_store.delete(&previous_secret_ref) {
+                        warn!(
+                            error = ?cleanup_err,
+                            secret_ref = %previous_secret_ref,
+                            auth_profile_id = %replaced.auth_profile_id,
+                            "failed cleaning up superseded anthropic auth profile secret_ref"
+                        );
+                    }
                 }
-                api_error(
-                    StatusCode::CONFLICT,
-                    "auth profile display_name already exists for this provider",
-                )
-            } else {
-                internal_err_with_error("creating anthropic setup-token profile failed", err)
             }
-        })?;
+            (StatusCode::OK, replaced)
+        }
+        Err(err) => {
+            if let Err(cleanup_err) = state.secret_store.delete(&secret_ref) {
+                warn!(
+                    error = ?cleanup_err,
+                    secret_ref = %secret_ref,
+                    "failed cleaning up anthropic setup-token secret after create failure"
+                );
+            }
+            return Err(internal_err_with_error(
+                "creating anthropic setup-token profile failed",
+                err,
+            ));
+        }
+    };
 
     info!(
         auth_profile_id = %profile.auth_profile_id,
         provider = %profile.provider,
         auth_mode = %profile.auth_mode,
+        status = %status.as_u16(),
         "anthropic setup-token ingested"
     );
     Ok((
-        StatusCode::CREATED,
+        status,
         Json(AnthropicSetupTokenIngestResponse {
             profile: to_auth_profile_response(profile),
         }),
@@ -13199,7 +14367,7 @@ async fn anthropic_setup_token_validate(
 ) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
     let auth = require_bearer_auth_with_error(&headers, &state)?;
     require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_AUTOMATION_RUNNER])?;
-    let setup_token = request.setup_token.trim().to_string();
+    let setup_token = normalize_anthropic_setup_token_value(&request.setup_token);
     if setup_token.is_empty() {
         return Err(api_error(
             StatusCode::BAD_REQUEST,
@@ -13388,35 +14556,15 @@ fn normalize_anthropic_api_base_url(raw: Option<&str>) -> AnyResult<String> {
     Ok(parsed.to_string().trim_end_matches('/').to_string())
 }
 
-async fn validate_anthropic_setup_token(api_base_url: &str, setup_token: &str) -> AnyResult<bool> {
-    let base = api_base_url.trim_end_matches('/');
-    let url = format!("{base}/v1/models");
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(15))
-        .build()
-        .context("failed building anthropic setup token validation client")?;
-    let response = client
-        .get(url)
-        .header("x-api-key", setup_token)
-        .header("anthropic-version", "2023-06-01")
-        .send()
-        .await
-        .context("anthropic setup token validation HTTP request failed")?;
-    if response.status().is_success() {
-        return Ok(true);
-    }
-    if response.status().is_client_error() {
-        return Ok(false);
-    }
-    let status = response.status();
-    let body = response.text().await.unwrap_or_default();
-    let body = body.trim();
-    let body = if body.len() > 220 { &body[..220] } else { body };
-    anyhow::bail!(
-        "status={} body={}",
-        status.as_u16(),
-        if body.is_empty() { "<empty>" } else { body }
-    );
+fn validate_anthropic_setup_token_shape(setup_token: &str) -> bool {
+    is_anthropic_setup_token_value(setup_token)
+}
+
+async fn validate_anthropic_setup_token(_api_base_url: &str, setup_token: &str) -> AnyResult<bool> {
+    // Align with OpenClaw's setup-token flow: accept Claude CLI setup-tokens by shape
+    // and let real inference be the final auth check. Anthropic's auxiliary usage/catalog
+    // endpoints are not reliable validity probes for these tokens.
+    Ok(validate_anthropic_setup_token_shape(setup_token))
 }
 
 fn extract_account_id_from_jwt(access_token: &str) -> Option<String> {
@@ -13568,8 +14716,44 @@ async fn update_channel_config(
     )?;
     let existing = load_channel_config(&state)
         .map_err(|err| internal_err_with_error("loading channel config failed", err))?;
-    let discord = request.discord.unwrap_or(existing.discord);
-    let telegram = request.telegram.unwrap_or(existing.telegram);
+    let mut discord = request.discord.unwrap_or(existing.discord);
+    let mut telegram = request.telegram.unwrap_or(existing.telegram);
+
+    telegram.dm_policy = normalize_telegram_dm_policy(&telegram.dm_policy).to_string();
+    telegram.group_policy = normalize_telegram_group_policy(&telegram.group_policy).to_string();
+    telegram.pairing_code_ttl_seconds = telegram.pairing_code_ttl_seconds.clamp(60, 86_400);
+    telegram.pairing_max_pending = telegram.pairing_max_pending.clamp(1, 20);
+    telegram.unauthorized_spam_threshold = telegram.unauthorized_spam_threshold.clamp(1, 50);
+    telegram.unauthorized_spam_block_seconds =
+        telegram.unauthorized_spam_block_seconds.clamp(60, 86_400);
+
+    discord.default_agent_id = match discord.default_agent_id {
+        Some(agent_id) => normalize_optional_agent_reference(agent_id)?,
+        None => None,
+    };
+    telegram.default_agent_id = match telegram.default_agent_id {
+        Some(agent_id) => normalize_optional_agent_reference(agent_id)?,
+        None => None,
+    };
+
+    if let Some(agent_id) = discord.default_agent_id.as_deref() {
+        state
+            .storage
+            .get_agent(agent_id)
+            .map_err(|err| internal_err_with_error("loading assigned discord agent failed", err))?
+            .ok_or_else(|| {
+                api_error(StatusCode::BAD_REQUEST, "assigned discord agent not found")
+            })?;
+    }
+    if let Some(agent_id) = telegram.default_agent_id.as_deref() {
+        state
+            .storage
+            .get_agent(agent_id)
+            .map_err(|err| internal_err_with_error("loading assigned telegram agent failed", err))?
+            .ok_or_else(|| {
+                api_error(StatusCode::BAD_REQUEST, "assigned telegram agent not found")
+            })?;
+    }
 
     let discord_json = serde_json::to_string(&discord)
         .map_err(|err| internal_err_with_error("serializing discord config failed", err.into()))?;
@@ -13608,6 +14792,305 @@ async fn get_channel_runtime_status(
     Ok(Json(GetChannelRuntimeStatusResponse {
         updated_at: state.channel_runtime.updated_at(),
         items,
+    }))
+}
+
+async fn get_discord_pairing_status(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
+    let routing = load_runtime_config(&state)
+        .map_err(|err| internal_err_with_error("loading runtime config failed", err))?
+        .routing;
+    let pairing_state = load_discord_pairing_state(&state)
+        .map_err(|err| internal_err_with_error("loading discord pairing status failed", err))?;
+    Ok(Json(discord_pairing_status_response(
+        &routing.dm_unmapped_policy,
+        &pairing_state,
+    )))
+}
+
+async fn get_telegram_pairing_status(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY])?;
+    let config = load_channel_config(&state)
+        .map_err(|err| internal_err_with_error("loading channel config failed", err))?;
+    let pairing_state = load_telegram_pairing_state(&state)
+        .map_err(|err| internal_err_with_error("loading telegram pairing status failed", err))?;
+    Ok(Json(telegram_pairing_status_response(
+        &config.telegram,
+        &pairing_state,
+    )))
+}
+
+async fn approve_telegram_pairing(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<ResolveTelegramPairingRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN],
+        "channel.telegram.pairing.approve",
+        "config.channels.telegram",
+    )?;
+    let code = request.code.trim().to_ascii_uppercase();
+    if code.is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "pairing code is required",
+        ));
+    }
+    let mut config = load_channel_config(&state)
+        .map_err(|err| internal_err_with_error("loading channel config failed", err))?;
+    let mut pairing_state = load_telegram_pairing_state(&state)
+        .map_err(|err| internal_err_with_error("loading telegram pairing status failed", err))?;
+    let Some(index) = pairing_state
+        .pending_requests
+        .iter()
+        .position(|item| item.code.eq_ignore_ascii_case(&code))
+    else {
+        return Err(api_error(StatusCode::NOT_FOUND, "pairing code not found"));
+    };
+    let approved = pairing_state.pending_requests.remove(index);
+    if !config
+        .telegram
+        .allowlisted_user_ids
+        .contains(&approved.user_id)
+    {
+        config.telegram.allowlisted_user_ids.push(approved.user_id);
+        config.telegram.allowlisted_user_ids.sort_unstable();
+        config.telegram.allowlisted_user_ids.dedup();
+        let telegram_json = serde_json::to_string(&config.telegram).map_err(|err| {
+            internal_err_with_error("serializing telegram config failed", err.into())
+        })?;
+        state
+            .storage
+            .set_app_kv_json(APP_KV_CHANNELS_TELEGRAM, telegram_json)
+            .map_err(|err| internal_err_with_error("saving telegram config failed", err))?;
+    }
+    pairing_state
+        .blocked_senders
+        .retain(|item| item.user_id != approved.user_id);
+    save_telegram_pairing_state(&state, &mut pairing_state)
+        .map_err(|err| internal_err_with_error("saving telegram pairing state failed", err))?;
+    let linked_human_identity_id = request
+        .human_identity_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    if let Some(human_identity_id) = linked_human_identity_id.as_deref() {
+        upsert_runtime_platform_identity_link(
+            &state,
+            "telegram",
+            &approved.user_id.to_string(),
+            human_identity_id,
+        )
+        .await
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+    }
+    Ok(Json(ResolveTelegramPairingResponse {
+        status: telegram_pairing_status_response(&config.telegram, &pairing_state),
+        approved_user_id: Some(approved.user_id),
+        linked_human_identity_id,
+    }))
+}
+
+async fn deny_telegram_pairing(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<ResolveTelegramPairingRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN],
+        "channel.telegram.pairing.deny",
+        "config.channels.telegram",
+    )?;
+    let code = request.code.trim().to_ascii_uppercase();
+    if code.is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "pairing code is required",
+        ));
+    }
+    let config = load_channel_config(&state)
+        .map_err(|err| internal_err_with_error("loading channel config failed", err))?;
+    let mut pairing_state = load_telegram_pairing_state(&state)
+        .map_err(|err| internal_err_with_error("loading telegram pairing status failed", err))?;
+    let Some(index) = pairing_state
+        .pending_requests
+        .iter()
+        .position(|item| item.code.eq_ignore_ascii_case(&code))
+    else {
+        return Err(api_error(StatusCode::NOT_FOUND, "pairing code not found"));
+    };
+    let denied = pairing_state.pending_requests.remove(index);
+    pairing_state
+        .blocked_senders
+        .push(TelegramBlockedSenderRecord {
+            user_id: denied.user_id,
+            blocked_until: current_time_ms().saturating_add(
+                i64::from(config.telegram.unauthorized_spam_block_seconds.max(60)) * 1000,
+            ),
+            reason: "operator_denied".to_string(),
+            attempt_count: denied.attempt_count.max(1),
+            last_attempt_at: current_time_ms(),
+        });
+    save_telegram_pairing_state(&state, &mut pairing_state)
+        .map_err(|err| internal_err_with_error("saving telegram pairing state failed", err))?;
+    Ok(Json(ResolveTelegramPairingResponse {
+        status: telegram_pairing_status_response(&config.telegram, &pairing_state),
+        approved_user_id: None,
+        linked_human_identity_id: None,
+    }))
+}
+
+async fn approve_discord_pairing(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<ResolveDiscordPairingRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN],
+        "channel.discord.pairing.approve",
+        "config.channels.discord",
+    )?;
+    let code = request.code.trim().to_ascii_uppercase();
+    if code.is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "pairing code is required",
+        ));
+    }
+    let mut config = load_channel_config(&state)
+        .map_err(|err| internal_err_with_error("loading channel config failed", err))?;
+    let mut pairing_state = load_discord_pairing_state(&state)
+        .map_err(|err| internal_err_with_error("loading discord pairing status failed", err))?;
+    let Some(index) = pairing_state
+        .pending_requests
+        .iter()
+        .position(|item| item.code.eq_ignore_ascii_case(&code))
+    else {
+        return Err(api_error(StatusCode::NOT_FOUND, "pairing code not found"));
+    };
+    let approved = pairing_state.pending_requests.remove(index);
+    if !config
+        .discord
+        .allowlisted_user_ids
+        .contains(&approved.user_id)
+    {
+        config
+            .discord
+            .allowlisted_user_ids
+            .push(approved.user_id.clone());
+        config.discord.allowlisted_user_ids.sort();
+        config.discord.allowlisted_user_ids.dedup();
+        let discord_json = serde_json::to_string(&config.discord).map_err(|err| {
+            internal_err_with_error("serializing discord config failed", err.into())
+        })?;
+        state
+            .storage
+            .set_app_kv_json(APP_KV_CHANNELS_DISCORD, discord_json)
+            .map_err(|err| internal_err_with_error("saving discord config failed", err))?;
+    }
+    pairing_state
+        .blocked_senders
+        .retain(|item| item.user_id != approved.user_id);
+    save_discord_pairing_state(&state, &mut pairing_state)
+        .map_err(|err| internal_err_with_error("saving discord pairing state failed", err))?;
+    let linked_human_identity_id = request
+        .human_identity_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    if let Some(human_identity_id) = linked_human_identity_id.as_deref() {
+        upsert_runtime_platform_identity_link(
+            &state,
+            "discord",
+            &approved.user_id,
+            human_identity_id,
+        )
+        .await
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+    }
+    let routing = load_runtime_config(&state)
+        .map_err(|err| internal_err_with_error("loading runtime config failed", err))?
+        .routing;
+    Ok(Json(ResolveDiscordPairingResponse {
+        status: discord_pairing_status_response(&routing.dm_unmapped_policy, &pairing_state),
+        approved_user_id: Some(approved.user_id),
+        linked_human_identity_id,
+    }))
+}
+
+async fn deny_discord_pairing(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(request): Json<ResolveDiscordPairingRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN],
+        "channel.discord.pairing.deny",
+        "config.channels.discord",
+    )?;
+    let code = request.code.trim().to_ascii_uppercase();
+    if code.is_empty() {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "pairing code is required",
+        ));
+    }
+    let routing = load_runtime_config(&state)
+        .map_err(|err| internal_err_with_error("loading runtime config failed", err))?
+        .routing;
+    let mut pairing_state = load_discord_pairing_state(&state)
+        .map_err(|err| internal_err_with_error("loading discord pairing status failed", err))?;
+    let Some(index) = pairing_state
+        .pending_requests
+        .iter()
+        .position(|item| item.code.eq_ignore_ascii_case(&code))
+    else {
+        return Err(api_error(StatusCode::NOT_FOUND, "pairing code not found"));
+    };
+    let denied = pairing_state.pending_requests.remove(index);
+    pairing_state
+        .blocked_senders
+        .push(DiscordBlockedSenderRecord {
+            user_id: denied.user_id,
+            blocked_until: current_time_ms()
+                .saturating_add(DISCORD_UNAUTHORIZED_SPAM_BLOCK_SECONDS.max(60) * 1000),
+            reason: "operator_denied".to_string(),
+            attempt_count: denied.attempt_count.max(1),
+            last_attempt_at: current_time_ms(),
+        });
+    save_discord_pairing_state(&state, &mut pairing_state)
+        .map_err(|err| internal_err_with_error("saving discord pairing state failed", err))?;
+    Ok(Json(ResolveDiscordPairingResponse {
+        status: discord_pairing_status_response(&routing.dm_unmapped_policy, &pairing_state),
+        approved_user_id: None,
+        linked_human_identity_id: None,
     }))
 }
 
@@ -13750,6 +15233,7 @@ async fn update_runtime_config(
     let update_global = request.global.is_some();
     let update_providers = request.providers.is_some();
     let update_channels = request.channels.is_some();
+    let update_routing = request.routing.is_some();
     let update_memory = request.memory.is_some();
     let update_extensions = request.extensions.is_some();
     let update_security = request.security.is_some();
@@ -13775,6 +15259,9 @@ async fn update_runtime_config(
     if let Some(channels) = request.channels {
         config.channels = channels;
     }
+    if let Some(routing) = request.routing {
+        config.routing = routing;
+    }
     if let Some(memory) = request.memory {
         config.memory = memory;
     }
@@ -13788,8 +15275,11 @@ async fn update_runtime_config(
         config.autonomy_guardrails = autonomy_guardrails;
     }
     config.schema_version = RUNTIME_CONFIG_SCHEMA_VERSION.to_string();
+    config = normalize_runtime_config(config);
 
     validate_runtime_config(&config)
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+    validate_runtime_routing_agent_refs(&state, &config.routing)
         .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
     let lock_path = state.trust_contract_lock_path.as_str().to_string();
     let mut trust_lock_hash = existing_trust_lock.trust_hash.clone();
@@ -13839,6 +15329,9 @@ async fn update_runtime_config(
     if update_channels {
         changed_scopes.push("channels");
     }
+    if update_routing {
+        changed_scopes.push("routing");
+    }
     if update_memory {
         changed_scopes.push("memory");
     }
@@ -13878,6 +15371,85 @@ async fn update_runtime_config(
     state.channel_runtime.reconcile();
 
     Ok(Json(UpdateRuntimeConfigResponse { config }))
+}
+
+async fn persist_runtime_config_internal(
+    state: &AppState,
+    config: &RuntimeConfigResponse,
+) -> AnyResult<RuntimeConfigResponse> {
+    let existing = load_runtime_config(state)?;
+    let existing_trust_lock = state.trust_contract_lock.read().await.clone();
+    enforce_runtime_global_against_trust_lock(&config.global, &existing_trust_lock)?;
+    let existing_json =
+        serde_json::to_string(&existing).with_context(|| "serializing runtime config failed")?;
+    let config_json =
+        serde_json::to_string(config).with_context(|| "serializing runtime config failed")?;
+    state
+        .storage
+        .set_app_kv_json(APP_KV_RUNTIME_CONFIG_LAST_GOOD, existing_json)
+        .with_context(|| "saving runtime rollback snapshot failed")?;
+    let updated_at = state
+        .storage
+        .set_app_kv_json(APP_KV_RUNTIME_CONFIG, config_json)
+        .with_context(|| "saving runtime config failed")?;
+    state.channel_runtime.reconcile();
+    let mut updated = config.clone();
+    updated.updated_at = updated_at;
+    Ok(updated)
+}
+
+async fn upsert_runtime_platform_identity_link(
+    state: &AppState,
+    provider: &str,
+    platform_user_id: &str,
+    human_identity_id: &str,
+) -> AnyResult<RuntimeConfigResponse> {
+    let provider = provider.trim().to_ascii_lowercase();
+    let platform_user_id = platform_user_id.trim().to_string();
+    let human_identity_id = human_identity_id.trim().to_string();
+    if provider.is_empty() || platform_user_id.is_empty() || human_identity_id.is_empty() {
+        anyhow::bail!("pairing link target is incomplete");
+    }
+
+    let mut config = load_runtime_config(state)?;
+    if !config
+        .routing
+        .human_identities
+        .iter()
+        .any(|item| item.human_identity_id == human_identity_id)
+    {
+        anyhow::bail!("requested human_identity_id is not defined in runtime routing");
+    }
+    config.routing.enabled = true;
+
+    if let Some(existing) = config
+        .routing
+        .platform_identity_links
+        .iter_mut()
+        .find(|item| {
+            item.provider.eq_ignore_ascii_case(&provider)
+                && item.platform_user_id == platform_user_id
+        })
+    {
+        existing.human_identity_id = human_identity_id;
+        existing.enabled = true;
+    } else {
+        config
+            .routing
+            .platform_identity_links
+            .push(RuntimePlatformIdentityLinkConfig {
+                provider,
+                platform_user_id,
+                human_identity_id,
+                display_name: None,
+                enabled: true,
+            });
+    }
+
+    config = normalize_runtime_config(config);
+    validate_runtime_config(&config)?;
+    validate_runtime_routing_agent_refs(state, &config.routing)?;
+    persist_runtime_config_internal(state, &config).await
 }
 
 async fn rollback_runtime_config(
@@ -13923,6 +15495,8 @@ async fn rollback_runtime_config(
     rollback_config = normalize_runtime_config(rollback_config);
     rollback_config.schema_version = RUNTIME_CONFIG_SCHEMA_VERSION.to_string();
     validate_runtime_config(&rollback_config)
+        .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
+    validate_runtime_routing_agent_refs(&state, &rollback_config.routing)
         .map_err(|err| api_error(StatusCode::BAD_REQUEST, &err.to_string()))?;
     let rollback_hash = sha256_hex(&rollback_json);
     let persisted_rollback_json = serde_json::to_string(&rollback_config).map_err(|err| {
@@ -14115,14 +15689,33 @@ fn get_or_create_channel_session(
     state: &AppState,
     session_key: &str,
     title: String,
+    desired_agent_id: Option<&str>,
 ) -> AnyResult<SessionRecord> {
     if let Some(existing) = state.storage.get_session_by_key(session_key)? {
+        if let Some(agent_id) = desired_agent_id
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            if existing.agent_id != agent_id && existing.agent_id == "default" {
+                if let Some(updated) = state
+                    .storage
+                    .update_session_agent(&existing.session_id, agent_id)?
+                {
+                    return Ok(updated);
+                }
+            }
+        }
         return Ok(existing);
     }
 
+    let agent_id = desired_agent_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("default");
+
     match state.storage.create_session(NewSession {
         session_key: Some(session_key.to_string()),
-        agent_id: "default".to_string(),
+        agent_id: agent_id.to_string(),
         title: Some(title),
     }) {
         Ok(created) => Ok(created),
@@ -14137,6 +15730,665 @@ fn get_or_create_channel_session(
     }
 }
 
+fn infer_unique_agent_id_for_model(
+    state: &AppState,
+    model_provider: &str,
+    model_id: &str,
+) -> AnyResult<Option<String>> {
+    let normalized_provider = model_provider.trim();
+    let normalized_model_id = model_id.trim();
+    if normalized_provider.is_empty() || normalized_model_id.is_empty() {
+        return Ok(None);
+    }
+
+    let matches = state
+        .storage
+        .list_agents()?
+        .into_iter()
+        .filter(|agent| {
+            agent.model_provider.trim() == normalized_provider
+                && agent.model_id.trim() == normalized_model_id
+        })
+        .map(|agent| agent.agent_id)
+        .collect::<Vec<_>>();
+
+    if matches.len() == 1 {
+        Ok(matches.into_iter().next())
+    } else {
+        Ok(None)
+    }
+}
+
+fn persist_inferred_channel_default_agent(
+    state: &AppState,
+    provider: &str,
+    inferred_agent_id: &str,
+) -> AnyResult<()> {
+    let mut config = load_channel_config(state)?;
+    let key = match provider {
+        "discord" => {
+            if config.discord.default_agent_id.is_some() {
+                return Ok(());
+            }
+            config.discord.default_agent_id = Some(inferred_agent_id.to_string());
+            APP_KV_CHANNELS_DISCORD
+        }
+        "telegram" => {
+            if config.telegram.default_agent_id.is_some() {
+                return Ok(());
+            }
+            config.telegram.default_agent_id = Some(inferred_agent_id.to_string());
+            APP_KV_CHANNELS_TELEGRAM
+        }
+        _ => anyhow::bail!("unsupported channel provider for inferred agent persistence"),
+    };
+
+    let payload = match provider {
+        "discord" => serde_json::to_string(&config.discord)
+            .with_context(|| "serializing discord channel config failed")?,
+        "telegram" => serde_json::to_string(&config.telegram)
+            .with_context(|| "serializing telegram channel config failed")?,
+        _ => unreachable!(),
+    };
+    state.storage.set_app_kv_json(key, payload)?;
+    Ok(())
+}
+
+fn resolve_channel_default_agent_id(
+    state: &AppState,
+    provider: &str,
+    explicit_agent_id: Option<&str>,
+    default_model_provider: &str,
+    default_model_id: &str,
+) -> AnyResult<Option<String>> {
+    if let Some(agent_id) = explicit_agent_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        return Ok(Some(agent_id.to_string()));
+    }
+
+    let inferred =
+        infer_unique_agent_id_for_model(state, default_model_provider, default_model_id)?;
+    if let Some(agent_id) = inferred.as_deref() {
+        persist_inferred_channel_default_agent(state, provider, agent_id)?;
+        info!(
+            provider,
+            agent_id,
+            model_provider = default_model_provider,
+            model_id = default_model_id,
+            "backfilled missing channel default agent from unique model match"
+        );
+    }
+    Ok(inferred)
+}
+
+#[derive(Debug, Clone)]
+struct ResolvedChannelLaneRoute {
+    assistant_agent_id: String,
+    human_identity_id: String,
+    session_key: String,
+    session_title: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UnmappedChannelRoutingPolicy {
+    ChannelDefault,
+    ApprovalRequired,
+    Block,
+}
+
+fn canonical_lane_session_key(lane_id: &str) -> String {
+    format!("lane:{lane_id}:main")
+}
+
+fn session_key_looks_lane_managed(session_key: &str) -> bool {
+    let trimmed = session_key.trim();
+    !trimmed.is_empty() && trimmed.starts_with("lane:")
+}
+
+fn canonical_lane_id(
+    human_identity_id: &str,
+    assistant_agent_id: &str,
+    memory_policy: Option<&RuntimeLaneMemoryPolicyConfig>,
+) -> String {
+    memory_policy
+        .and_then(|policy| policy.lane_id.clone())
+        .unwrap_or_else(|| format!("human:{human_identity_id}:assistant:{assistant_agent_id}"))
+}
+
+fn resolve_channel_lane_route(
+    state: &AppState,
+    routing: &RuntimeRoutingConfig,
+    provider: &str,
+    platform_user_id: &str,
+) -> AnyResult<Option<ResolvedChannelLaneRoute>> {
+    if !routing.enabled {
+        return Ok(None);
+    }
+
+    let normalized_provider = provider.trim().to_ascii_lowercase();
+    let normalized_platform_user_id = platform_user_id.trim();
+    if normalized_provider.is_empty() || normalized_platform_user_id.is_empty() {
+        return Ok(None);
+    }
+
+    let Some(link) = routing.platform_identity_links.iter().find(|item| {
+        item.enabled
+            && item.provider == normalized_provider
+            && item.platform_user_id == normalized_platform_user_id
+    }) else {
+        return Ok(None);
+    };
+
+    let Some(human) = routing
+        .human_identities
+        .iter()
+        .find(|item| item.enabled && item.human_identity_id == link.human_identity_id)
+    else {
+        warn!(
+            provider = normalized_provider,
+            platform_user_id = normalized_platform_user_id,
+            human_identity_id = %link.human_identity_id,
+            "routing link references disabled or missing human identity; falling back to channel default"
+        );
+        return Ok(None);
+    };
+
+    let enabled_assignments = routing
+        .assistant_assignments
+        .iter()
+        .filter(|item| item.enabled && item.human_identity_id == human.human_identity_id)
+        .collect::<Vec<_>>();
+    if enabled_assignments.len() != 1 {
+        if !enabled_assignments.is_empty() {
+            warn!(
+                provider = normalized_provider,
+                platform_user_id = normalized_platform_user_id,
+                human_identity_id = %human.human_identity_id,
+                assignment_count = enabled_assignments.len(),
+                "routing has ambiguous enabled assignments for human identity; falling back to channel default"
+            );
+        }
+        return Ok(None);
+    }
+    let assignment = enabled_assignments[0];
+    if state
+        .storage
+        .get_agent(&assignment.assistant_agent_id)?
+        .is_none()
+    {
+        warn!(
+            provider = normalized_provider,
+            platform_user_id = normalized_platform_user_id,
+            human_identity_id = %human.human_identity_id,
+            assistant_agent_id = %assignment.assistant_agent_id,
+            "routing references missing assistant agent; falling back to channel default"
+        );
+        return Ok(None);
+    }
+
+    let memory_policy = routing.lane_memory_policies.iter().find(|item| {
+        item.human_identity_id == human.human_identity_id
+            && item.assistant_agent_id == assignment.assistant_agent_id
+    });
+    let lane_id = canonical_lane_id(
+        &human.human_identity_id,
+        &assignment.assistant_agent_id,
+        memory_policy,
+    );
+    let session_key = canonical_lane_session_key(&lane_id);
+
+    Ok(Some(ResolvedChannelLaneRoute {
+        assistant_agent_id: assignment.assistant_agent_id.clone(),
+        human_identity_id: human.human_identity_id.clone(),
+        session_key,
+        session_title: format!("{} / {}", human.display_name, assignment.assistant_agent_id),
+    }))
+}
+
+fn unmapped_channel_routing_policy(
+    routing: &RuntimeRoutingConfig,
+    is_dm: bool,
+) -> UnmappedChannelRoutingPolicy {
+    if !routing.enabled {
+        return UnmappedChannelRoutingPolicy::ChannelDefault;
+    }
+
+    let raw = if is_dm {
+        routing.dm_unmapped_policy.as_str()
+    } else {
+        routing.shared_unmapped_policy.as_str()
+    };
+    match raw {
+        "approval_required" => UnmappedChannelRoutingPolicy::ApprovalRequired,
+        "block" => UnmappedChannelRoutingPolicy::Block,
+        _ => UnmappedChannelRoutingPolicy::ChannelDefault,
+    }
+}
+
+fn resolve_lane_route_for_human_identity(
+    state: &AppState,
+    routing: &RuntimeRoutingConfig,
+    human_identity_id: &str,
+    requested_assistant_agent_id: Option<&str>,
+) -> AnyResult<Option<ResolvedChannelLaneRoute>> {
+    if !routing.enabled {
+        return Ok(None);
+    }
+
+    let normalized_human_identity_id = human_identity_id.trim();
+    if normalized_human_identity_id.is_empty() {
+        return Ok(None);
+    }
+
+    let Some(human) = routing
+        .human_identities
+        .iter()
+        .find(|item| item.enabled && item.human_identity_id == normalized_human_identity_id)
+    else {
+        return Ok(None);
+    };
+
+    let requested_assistant_agent_id = requested_assistant_agent_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let enabled_assignments = routing
+        .assistant_assignments
+        .iter()
+        .filter(|item| {
+            item.enabled
+                && item.human_identity_id == human.human_identity_id
+                && requested_assistant_agent_id
+                    .map(|requested| item.assistant_agent_id == requested)
+                    .unwrap_or(true)
+        })
+        .collect::<Vec<_>>();
+    if enabled_assignments.len() != 1 {
+        return Ok(None);
+    }
+    let assignment = enabled_assignments[0];
+    if state
+        .storage
+        .get_agent(&assignment.assistant_agent_id)?
+        .is_none()
+    {
+        return Ok(None);
+    }
+    let memory_policy = routing.lane_memory_policies.iter().find(|item| {
+        item.human_identity_id == human.human_identity_id
+            && item.assistant_agent_id == assignment.assistant_agent_id
+    });
+    let lane_id = canonical_lane_id(
+        &human.human_identity_id,
+        &assignment.assistant_agent_id,
+        memory_policy,
+    );
+    Ok(Some(ResolvedChannelLaneRoute {
+        assistant_agent_id: assignment.assistant_agent_id.clone(),
+        human_identity_id: human.human_identity_id.clone(),
+        session_key: canonical_lane_session_key(&lane_id),
+        session_title: format!("{} / {}", human.display_name, assignment.assistant_agent_id),
+    }))
+}
+
+fn resolve_lane_route_for_session(
+    state: &AppState,
+    routing: &RuntimeRoutingConfig,
+    session: &SessionRecord,
+) -> AnyResult<Option<ResolvedChannelLaneRoute>> {
+    if !routing.enabled {
+        return Ok(None);
+    }
+
+    let session_key = session.session_key.trim();
+    if session_key.is_empty() {
+        return Ok(None);
+    }
+
+    for assignment in routing
+        .assistant_assignments
+        .iter()
+        .filter(|item| item.enabled && item.assistant_agent_id == session.agent_id)
+    {
+        let Some(human) = routing
+            .human_identities
+            .iter()
+            .find(|item| item.enabled && item.human_identity_id == assignment.human_identity_id)
+        else {
+            continue;
+        };
+
+        if state
+            .storage
+            .get_agent(&assignment.assistant_agent_id)?
+            .is_none()
+        {
+            continue;
+        }
+
+        let memory_policy = routing.lane_memory_policies.iter().find(|item| {
+            item.human_identity_id == human.human_identity_id
+                && item.assistant_agent_id == assignment.assistant_agent_id
+        });
+        let lane_id = canonical_lane_id(
+            &human.human_identity_id,
+            &assignment.assistant_agent_id,
+            memory_policy,
+        );
+        let canonical_session_key = canonical_lane_session_key(&lane_id);
+        if session_key != canonical_session_key {
+            continue;
+        }
+
+        return Ok(Some(ResolvedChannelLaneRoute {
+            assistant_agent_id: assignment.assistant_agent_id.clone(),
+            human_identity_id: human.human_identity_id.clone(),
+            session_key: canonical_session_key,
+            session_title: format!("{} / {}", human.display_name, assignment.assistant_agent_id),
+        }));
+    }
+
+    Ok(None)
+}
+
+#[derive(Debug, Clone)]
+struct ResolvedSessionLaneMemoryPolicy {
+    policy_scope: String,
+    configured_mode: String,
+    effective_mode: String,
+    human_identity_id: Option<String>,
+    lane_id: Option<String>,
+}
+
+fn resolve_session_lane_memory_policy(
+    state: &AppState,
+    runtime_config: &RuntimeConfigResponse,
+    session_id: &str,
+    assistant_agent_id: &str,
+) -> AnyResult<ResolvedSessionLaneMemoryPolicy> {
+    let default_mode = runtime_config.memory.blend_mode.clone();
+    let default_policy = ResolvedSessionLaneMemoryPolicy {
+        policy_scope: "runtime_default".to_string(),
+        configured_mode: "inherit_runtime".to_string(),
+        effective_mode: default_mode.clone(),
+        human_identity_id: None,
+        lane_id: None,
+    };
+
+    if !runtime_config.routing.enabled {
+        return Ok(default_policy);
+    }
+
+    let Some(session) = state.storage.get_session(session_id)? else {
+        return Ok(default_policy);
+    };
+    let session_key = session.session_key.trim();
+    if session_key.is_empty() {
+        return Ok(default_policy);
+    }
+
+    for assignment in runtime_config
+        .routing
+        .assistant_assignments
+        .iter()
+        .filter(|item| item.enabled && item.assistant_agent_id == assistant_agent_id)
+    {
+        let Some(human) =
+            runtime_config.routing.human_identities.iter().find(|item| {
+                item.enabled && item.human_identity_id == assignment.human_identity_id
+            })
+        else {
+            continue;
+        };
+        let memory_policy = runtime_config
+            .routing
+            .lane_memory_policies
+            .iter()
+            .find(|item| {
+                item.human_identity_id == human.human_identity_id
+                    && item.assistant_agent_id == assignment.assistant_agent_id
+            });
+        let lane_id = canonical_lane_id(
+            &human.human_identity_id,
+            &assignment.assistant_agent_id,
+            memory_policy,
+        );
+        if session_key != canonical_lane_session_key(&lane_id) {
+            continue;
+        }
+        let configured_mode = memory_policy
+            .map(|policy| policy.memory_mode.clone())
+            .unwrap_or_else(|| "inherit_runtime".to_string());
+        let effective_mode = if configured_mode == "inherit_runtime" {
+            default_mode.clone()
+        } else {
+            configured_mode.clone()
+        };
+        return Ok(ResolvedSessionLaneMemoryPolicy {
+            policy_scope: "lane".to_string(),
+            configured_mode,
+            effective_mode,
+            human_identity_id: Some(human.human_identity_id.clone()),
+            lane_id: Some(lane_id),
+        });
+    }
+
+    Ok(default_policy)
+}
+
+fn resolve_memory_sync_sources(
+    state: &AppState,
+    runtime_config: &RuntimeConfigResponse,
+    requested_sources: &[String],
+    requested_human_identity_id: Option<&str>,
+    requested_assistant_agent_id: Option<&str>,
+) -> AnyResult<Vec<String>> {
+    let explicit_sources = normalize_memory_sync_sources(requested_sources);
+    if !explicit_sources.is_empty() {
+        return Ok(explicit_sources);
+    }
+
+    let Some(route) = resolve_requested_job_lane_route(
+        state,
+        runtime_config,
+        requested_human_identity_id,
+        requested_assistant_agent_id,
+        "memory.sync",
+    )?
+    else {
+        return Ok(runtime_config.memory.memory_md_sources.clone());
+    };
+
+    let lane_sources = runtime_config
+        .routing
+        .lane_memory_policies
+        .iter()
+        .find(|item| {
+            item.human_identity_id == route.human_identity_id
+                && item.assistant_agent_id == route.assistant_agent_id
+        })
+        .map(|item| normalize_memory_sync_sources(&item.local_memory_sources))
+        .unwrap_or_default();
+    if !lane_sources.is_empty() {
+        return Ok(lane_sources);
+    }
+
+    Ok(runtime_config.memory.memory_md_sources.clone())
+}
+
+fn resolve_requested_job_lane_route(
+    state: &AppState,
+    runtime_config: &RuntimeConfigResponse,
+    requested_human_identity_id: Option<&str>,
+    requested_assistant_agent_id: Option<&str>,
+    target_label: &str,
+) -> AnyResult<Option<ResolvedChannelLaneRoute>> {
+    let requested_human_identity_id = requested_human_identity_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let requested_assistant_agent_id = requested_assistant_agent_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+
+    if requested_human_identity_id.is_none() {
+        if requested_assistant_agent_id.is_some() {
+            anyhow::bail!("INVALID_INPUT: assistant_agent_id requires human_identity_id");
+        }
+        return Ok(None);
+    }
+
+    let human_identity_id = requested_human_identity_id.expect("checked above");
+    let Some(route) = resolve_lane_route_for_human_identity(
+        state,
+        &runtime_config.routing,
+        human_identity_id,
+        requested_assistant_agent_id,
+    )?
+    else {
+        anyhow::bail!(
+            "INVALID_INPUT: unable to resolve a unique enabled lane for requested {} target",
+            target_label
+        );
+    };
+
+    Ok(Some(route))
+}
+
+fn memory_mode_uses_numquam(mode: &str) -> bool {
+    matches!(
+        mode,
+        "mno_primary" | "local_augment" | "mno_only" | "mno_with_local_sources"
+    )
+}
+
+fn memory_mode_includes_local_context(
+    mode: &str,
+    numquam_enabled: bool,
+    numquam_degrade_mode: bool,
+    numquam_error_present: bool,
+    has_numquam_context: bool,
+) -> bool {
+    match mode {
+        "disabled" | "mno_only" => false,
+        "local_only" | "local_fallback_only" | "local_augment" | "mno_with_local_sources" => true,
+        _ => {
+            numquam_degrade_mode
+                || numquam_error_present
+                || !numquam_enabled
+                || !has_numquam_context
+        }
+    }
+}
+
+fn memory_mode_queries_local_memory(mode: &str) -> bool {
+    !matches!(mode, "disabled" | "mno_only")
+}
+
+fn normalized_prompt_text(value: &str) -> Option<String> {
+    let normalized = value.replace("\r\n", "\n").replace('\r', "\n");
+    let trimmed = normalized.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
+fn collect_unique_system_messages(
+    messages: &[MessageRecord],
+    include_core_seed: bool,
+) -> Vec<String> {
+    let mut collected = Vec::new();
+    for message in messages {
+        if message.role != "system" {
+            continue;
+        }
+        if !include_core_seed && message.source_channel == SYSTEM_SOURCE_CHANNEL_CORE {
+            continue;
+        }
+        let Some(text) = normalized_prompt_text(&message.content_text) else {
+            continue;
+        };
+        if !collected.iter().any(|existing| existing == &text) {
+            collected.push(text);
+        }
+    }
+    collected
+}
+
+fn configured_assistant_core_system_prompt(state: &AppState) -> String {
+    match load_runtime_config(state) {
+        Ok(config) => config
+            .global
+            .assistant_system_prompt
+            .as_deref()
+            .and_then(normalized_prompt_text)
+            .unwrap_or_else(|| DEFAULT_ASSISTANT_CORE_SYSTEM_PROMPT.to_string()),
+        Err(err) => {
+            warn!(
+                error = %err,
+                "failed loading runtime config for assistant system prompt; using built-in default"
+            );
+            DEFAULT_ASSISTANT_CORE_SYSTEM_PROMPT.to_string()
+        }
+    }
+}
+
+fn resolve_run_system_messages(
+    state: &AppState,
+    session_id: &str,
+    recent_messages: &[MessageRecord],
+) -> AnyResult<Vec<String>> {
+    let mut system_messages = collect_unique_system_messages(recent_messages, false);
+    if system_messages.is_empty() {
+        let expanded_messages = state.storage.list_messages(session_id, 256)?;
+        system_messages = collect_unique_system_messages(&expanded_messages, false);
+    }
+    if system_messages.is_empty() {
+        system_messages.push(configured_assistant_core_system_prompt(state));
+    }
+    Ok(system_messages)
+}
+
+fn compose_provider_input(provider_base_input: &str, context_sections: &[String]) -> String {
+    if context_sections.is_empty() {
+        provider_base_input.to_string()
+    } else {
+        format!(
+            "{}\n\nUser request:\n{}",
+            context_sections.join("\n\n"),
+            provider_base_input
+        )
+    }
+}
+
+fn compose_provider_system_prompt(system_messages: &[String]) -> Option<String> {
+    if system_messages.is_empty() {
+        None
+    } else {
+        Some(system_messages.join("\n\n"))
+    }
+}
+
+fn ensure_session_core_system_message(state: &AppState, session: &SessionRecord) -> AnyResult<()> {
+    let existing_messages = state.storage.list_messages(&session.session_id, 256)?;
+    if !collect_unique_system_messages(&existing_messages, true).is_empty() {
+        return Ok(());
+    }
+
+    let _ = state.storage.create_message(NewMessage {
+        session_id: session.session_id.clone(),
+        source_channel: SYSTEM_SOURCE_CHANNEL_CORE.to_string(),
+        source_peer_id: None,
+        source_message_id: None,
+        role: "system".to_string(),
+        content_text: configured_assistant_core_system_prompt(state),
+        content_format: "markdown".to_string(),
+    })?;
+    Ok(())
+}
+
 async fn execute_channel_run(
     state: &AppState,
     session: &SessionRecord,
@@ -14144,6 +16396,12 @@ async fn execute_channel_run(
     model_id: String,
     requested_auth_profile_id: Option<&str>,
 ) -> AnyResult<RunRecord> {
+    ensure_session_core_system_message(state, session).with_context(|| {
+        format!(
+            "ensuring system prompt for session {} failed",
+            session.session_id
+        )
+    })?;
     let created_run = state
         .storage
         .create_run(NewRun {
@@ -14174,6 +16432,7 @@ async fn ingest_telegram_channel_message(
     State(state): State<AppState>,
     Json(request): Json<IngestTelegramMessageRequest>,
 ) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let pipeline_started = Instant::now();
     let auth = require_bearer_auth_with_error(&headers, &state)?;
     require_roles_with_audit(
         &headers,
@@ -14187,9 +16446,15 @@ async fn ingest_telegram_channel_message(
 
     let config = load_channel_config(&state)
         .map_err(|err| internal_err_with_error("loading channel config failed", err))?;
+    let runtime_config = load_runtime_config(&state)
+        .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
     let route_config = telegram_channel::TelegramAdapterConfig {
         require_mention_in_groups: config.telegram.require_mention_in_groups,
         allowlisted_user_ids: config.telegram.allowlisted_user_ids.clone(),
+        dm_policy: config.telegram.dm_policy.clone(),
+        group_policy: config.telegram.group_policy.clone(),
+        group_allowlisted_user_ids: config.telegram.group_allowlisted_user_ids.clone(),
+        allowlisted_chat_ids: config.telegram.allowlisted_chat_ids.clone(),
     };
     let inbound = telegram_channel::TelegramInboundMessage {
         chat_id: request.chat_id,
@@ -14199,10 +16464,42 @@ async fn ingest_telegram_channel_message(
         mentions_bot: request.mentions_bot,
         reply_to_bot: request.reply_to_bot,
     };
+    info!(
+        provider = "telegram",
+        chat_id = request.chat_id,
+        user_id = request.user_id,
+        inbound_chars = request.text.len(),
+        is_group_chat = request.is_group_chat,
+        mentions_bot = request.mentions_bot,
+        reply_to_bot = request.reply_to_bot,
+        run_immediately = request
+            .run_immediately
+            .unwrap_or(config.telegram.auto_run_enabled),
+        "channel ingest received"
+    );
 
     match telegram_channel::route_message(&route_config, &inbound) {
         telegram_channel::RouteDecision::Reject(reason) => {
-            let reason_text = reason.to_string();
+            let reason_text = if reason == "sender_not_paired" && !inbound.is_group_chat {
+                issue_telegram_pairing_challenge(&state, &config.telegram, &inbound).map_err(
+                    |err| internal_err_with_error("issuing telegram pairing challenge failed", err),
+                )?
+            } else {
+                reason.to_string()
+            };
+            let mut extra_payload = serde_json::json!({
+                "decision": "rejected"
+            });
+            if inbound.is_group_chat
+                && config.telegram.auto_leave_unauthorized_groups
+                && matches!(reason, "group_disabled" | "group_chat_not_allowlisted")
+            {
+                let left_group = maybe_leave_telegram_group(&state, inbound.chat_id, reason)
+                    .map_err(|err| {
+                        internal_err_with_error("leaving unauthorized telegram group failed", err)
+                    })?;
+                extra_payload["left_group"] = serde_json::Value::Bool(left_group);
+            }
             record_security_audit(
                 &headers,
                 &state,
@@ -14215,7 +16512,7 @@ async fn ingest_telegram_channel_message(
                 Some("CHANNEL_ROUTE_REJECTED"),
                 None,
                 None,
-                None,
+                Some(extra_payload),
             );
             Ok(Json(IngestChannelMessageResponse {
                 decision: "rejected".to_string(),
@@ -14252,13 +16549,139 @@ async fn ingest_telegram_channel_message(
             }))
         }
         telegram_channel::RouteDecision::Accept => {
-            let session_key = telegram_channel::session_key(&inbound);
+            let session_started = Instant::now();
+            let lane_route = resolve_channel_lane_route(
+                &state,
+                &runtime_config.routing,
+                "telegram",
+                &request.user_id.to_string(),
+            )
+            .map_err(|err| internal_err_with_error("resolving telegram lane route failed", err))?;
+            let (session_key, session_title, desired_agent_id) = if let Some(route) = lane_route {
+                info!(
+                    provider = "telegram",
+                    human_identity_id = %route.human_identity_id,
+                    assistant_agent_id = %route.assistant_agent_id,
+                    session_key = %route.session_key,
+                    "channel ingest resolved canonical lane route"
+                );
+                (
+                    route.session_key,
+                    route.session_title,
+                    Some(route.assistant_agent_id),
+                )
+            } else {
+                match unmapped_channel_routing_policy(
+                    &runtime_config.routing,
+                    !request.is_group_chat,
+                ) {
+                    UnmappedChannelRoutingPolicy::ChannelDefault => {
+                        let desired_agent_id = resolve_channel_default_agent_id(
+                            &state,
+                            "telegram",
+                            config.telegram.default_agent_id.as_deref(),
+                            &config.telegram.default_model_provider,
+                            &config.telegram.default_model_id,
+                        )
+                        .map_err(|err| {
+                            internal_err_with_error("resolving telegram channel agent failed", err)
+                        })?;
+                        (
+                            telegram_channel::session_key(&inbound),
+                            format!("telegram {}", request.chat_id),
+                            desired_agent_id,
+                        )
+                    }
+                    UnmappedChannelRoutingPolicy::ApprovalRequired => {
+                        let reason_text =
+                            issue_telegram_pairing_challenge(&state, &config.telegram, &inbound)
+                                .map_err(|err| {
+                                    internal_err_with_error(
+                                        "issuing telegram lane approval challenge failed",
+                                        err,
+                                    )
+                                })?;
+                        record_security_audit(
+                            &headers,
+                            &state,
+                            &auth,
+                            "channel.telegram.ingest",
+                            &format!("telegram:chat:{}", request.chat_id),
+                            "deny",
+                            Some(reason_text.clone()),
+                            StatusCode::OK,
+                            Some("CHANNEL_ROUTE_REJECTED"),
+                            None,
+                            None,
+                            Some(serde_json::json!({
+                                "decision": "rejected",
+                                "policy": "approval_required",
+                                "reason_code": "lane_unmapped"
+                            })),
+                        );
+                        return Ok(Json(IngestChannelMessageResponse {
+                            decision: "rejected".to_string(),
+                            reason: Some(reason_text),
+                            session_id: None,
+                            message_id: None,
+                            run_id: None,
+                        }));
+                    }
+                    UnmappedChannelRoutingPolicy::Block => {
+                        let reason_text = if request.is_group_chat {
+                            "This Telegram group is not assigned to an assistant yet.".to_string()
+                        } else {
+                            "This Telegram chat is not assigned to an assistant yet.".to_string()
+                        };
+                        record_security_audit(
+                            &headers,
+                            &state,
+                            &auth,
+                            "channel.telegram.ingest",
+                            &format!("telegram:chat:{}", request.chat_id),
+                            "deny",
+                            Some(reason_text.clone()),
+                            StatusCode::OK,
+                            Some("CHANNEL_ROUTE_REJECTED"),
+                            None,
+                            None,
+                            Some(serde_json::json!({
+                                "decision": "rejected",
+                                "policy": "block",
+                                "reason_code": "lane_unmapped"
+                            })),
+                        );
+                        return Ok(Json(IngestChannelMessageResponse {
+                            decision: "rejected".to_string(),
+                            reason: Some(reason_text),
+                            session_id: None,
+                            message_id: None,
+                            run_id: None,
+                        }));
+                    }
+                }
+            };
             let session = get_or_create_channel_session(
                 &state,
                 &session_key,
-                format!("telegram {}", request.chat_id),
+                session_title,
+                desired_agent_id.as_deref(),
             )
             .map_err(|err| internal_err_with_error("creating channel session failed", err))?;
+            info!(
+                provider = "telegram",
+                session_id = %session.session_id,
+                agent_id = %session.agent_id,
+                session_key = %session_key,
+                elapsed_ms = session_started.elapsed().as_millis() as u64,
+                "channel ingest session ready"
+            );
+            let message_started = Instant::now();
+            let safe_text = prepare_external_channel_message(
+                "telegram",
+                &format!("telegram-user:{}", request.user_id),
+                &request.text,
+            );
             let created_message = state
                 .storage
                 .create_message(NewMessage {
@@ -14267,7 +16690,7 @@ async fn ingest_telegram_channel_message(
                     source_peer_id: Some(request.user_id.to_string()),
                     source_message_id: request.source_message_id.clone(),
                     role: "user".to_string(),
-                    content_text: request.text.clone(),
+                    content_text: safe_text,
                     content_format: "markdown".to_string(),
                 })
                 .map_err(|err| internal_err_with_error("creating channel message failed", err))?
@@ -14277,6 +16700,15 @@ async fn ingest_telegram_channel_message(
                         "channel session missing while writing inbound message",
                     )
                 })?;
+            info!(
+                provider = "telegram",
+                session_id = %session.session_id,
+                message_id = %created_message.message_id,
+                source_message_id = ?created_message.source_message_id,
+                inbound_chars = created_message.content_text.len(),
+                elapsed_ms = message_started.elapsed().as_millis() as u64,
+                "channel ingest inbound message stored"
+            );
 
             let run_immediately = request
                 .run_immediately
@@ -14287,6 +16719,7 @@ async fn ingest_telegram_channel_message(
             let mut outbound_delivery_mode: Option<String> = None;
             let mut outbound_chunk_count: Option<usize> = None;
             if run_immediately {
+                let run_started = Instant::now();
                 let model_provider = request
                     .model_provider
                     .unwrap_or_else(|| config.telegram.default_model_provider.clone())
@@ -14326,8 +16759,17 @@ async fn ingest_telegram_channel_message(
                     internal_err_with_error("executing inbound channel run failed", err)
                 })?;
                 run_id = Some(run.run_id);
+                info!(
+                    provider = "telegram",
+                    session_id = %session.session_id,
+                    run_id = run_id.as_deref(),
+                    run_status = %run.status,
+                    elapsed_ms = run_started.elapsed().as_millis() as u64,
+                    "channel ingest run completed"
+                );
 
                 if run.status == "succeeded" {
+                    let reply_started = Instant::now();
                     if let Some(reply_text) =
                         latest_assistant_reply_text(&state, &session.session_id).map_err(|err| {
                             internal_err_with_error(
@@ -14336,7 +16778,16 @@ async fn ingest_telegram_channel_message(
                             )
                         })?
                     {
+                        info!(
+                            provider = "telegram",
+                            session_id = %session.session_id,
+                            run_id = run_id.as_deref(),
+                            reply_chars = reply_text.len(),
+                            elapsed_ms = reply_started.elapsed().as_millis() as u64,
+                            "channel ingest assistant reply loaded"
+                        );
                         let outbound_target = format!("chat:{}", request.chat_id);
+                        let dispatch_started = Instant::now();
                         match dispatch_channel_ingest_reply(
                             &state,
                             "telegram",
@@ -14348,6 +16799,17 @@ async fn ingest_telegram_channel_message(
                                 outbound_reply_status = "sent".to_string();
                                 outbound_delivery_mode = Some(delivery_mode.to_string());
                                 outbound_chunk_count = Some(chunk_count);
+                                info!(
+                                    provider = "telegram",
+                                    session_id = %session.session_id,
+                                    run_id = run_id.as_deref(),
+                                    delivery_mode,
+                                    chunk_count,
+                                    transport_message_ids = ?transport_message_ids,
+                                    elapsed_ms = dispatch_started.elapsed().as_millis() as u64,
+                                    total_pipeline_ms = pipeline_started.elapsed().as_millis() as u64,
+                                    "channel ingest outbound dispatch succeeded"
+                                );
                                 emit_event(
                                     &state,
                                     "channel.ingest.reply_dispatch",
@@ -14367,6 +16829,15 @@ async fn ingest_telegram_channel_message(
                             Err(err) => {
                                 outbound_reply_status = "dispatch_failed".to_string();
                                 outbound_reply_error = Some(err.to_string());
+                                warn!(
+                                    provider = "telegram",
+                                    session_id = %session.session_id,
+                                    run_id = run_id.as_deref(),
+                                    elapsed_ms = dispatch_started.elapsed().as_millis() as u64,
+                                    total_pipeline_ms = pipeline_started.elapsed().as_millis() as u64,
+                                    error = %err,
+                                    "channel ingest outbound dispatch failed"
+                                );
                                 warn!(
                                     "telegram ingest outbound dispatch failed for session {} run {}: {}",
                                     session.session_id,
@@ -14390,11 +16861,37 @@ async fn ingest_telegram_channel_message(
                         }
                     } else {
                         outbound_reply_status = "no_assistant_reply".to_string();
+                        warn!(
+                            provider = "telegram",
+                            session_id = %session.session_id,
+                            run_id = run_id.as_deref(),
+                            total_pipeline_ms = pipeline_started.elapsed().as_millis() as u64,
+                            "channel ingest run succeeded but no assistant reply was available"
+                        );
                     }
                 } else {
                     outbound_reply_status = "run_not_succeeded".to_string();
+                    warn!(
+                        provider = "telegram",
+                        session_id = %session.session_id,
+                        run_id = run_id.as_deref(),
+                        run_status = %run.status,
+                        total_pipeline_ms = pipeline_started.elapsed().as_millis() as u64,
+                        "channel ingest run did not succeed"
+                    );
                 }
             }
+            info!(
+                provider = "telegram",
+                session_id = %session.session_id,
+                run_id = run_id.as_deref(),
+                run_immediately,
+                outbound_reply_status = %outbound_reply_status,
+                outbound_delivery_mode = ?outbound_delivery_mode,
+                outbound_chunk_count = outbound_chunk_count.unwrap_or(0),
+                total_pipeline_ms = pipeline_started.elapsed().as_millis() as u64,
+                "channel ingest pipeline complete"
+            );
 
             record_security_audit(
                 &headers,
@@ -14434,6 +16931,7 @@ async fn ingest_discord_channel_message(
     State(state): State<AppState>,
     Json(request): Json<IngestDiscordMessageRequest>,
 ) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let pipeline_started = Instant::now();
     let auth = require_bearer_auth_with_error(&headers, &state)?;
     require_roles_with_audit(
         &headers,
@@ -14447,6 +16945,8 @@ async fn ingest_discord_channel_message(
 
     let config = load_channel_config(&state)
         .map_err(|err| internal_err_with_error("loading channel config failed", err))?;
+    let runtime_config = load_runtime_config(&state)
+        .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
     let route_config = discord_channel::DiscordAdapterConfig {
         require_mention_in_guild_channels: config.discord.require_mention_in_guild_channels,
         allowlisted_user_ids: config.discord.allowlisted_user_ids.clone(),
@@ -14460,6 +16960,18 @@ async fn ingest_discord_channel_message(
         mentions_bot: request.mentions_bot,
         is_dm: request.is_dm,
     };
+    info!(
+        provider = "discord",
+        guild_id = ?request.guild_id,
+        channel_id = %request.channel_id,
+        thread_id = ?request.thread_id,
+        author_id = %request.author_id,
+        inbound_chars = request.text.len(),
+        mentions_bot = request.mentions_bot,
+        is_dm = request.is_dm,
+        run_immediately = request.run_immediately.unwrap_or(config.discord.auto_run_enabled),
+        "channel ingest received"
+    );
 
     match discord_channel::route_message(&route_config, &inbound) {
         discord_channel::RouteDecision::Reject(reason) => {
@@ -14513,13 +17025,151 @@ async fn ingest_discord_channel_message(
             }))
         }
         discord_channel::RouteDecision::Accept => {
-            let session_key = discord_channel::session_key(&inbound);
+            let session_started = Instant::now();
+            let lane_route = resolve_channel_lane_route(
+                &state,
+                &runtime_config.routing,
+                "discord",
+                &request.author_id,
+            )
+            .map_err(|err| internal_err_with_error("resolving discord lane route failed", err))?;
+            let (session_key, session_title, desired_agent_id) = if let Some(route) = lane_route {
+                info!(
+                    provider = "discord",
+                    human_identity_id = %route.human_identity_id,
+                    assistant_agent_id = %route.assistant_agent_id,
+                    session_key = %route.session_key,
+                    "channel ingest resolved canonical lane route"
+                );
+                (
+                    route.session_key,
+                    route.session_title,
+                    Some(route.assistant_agent_id),
+                )
+            } else {
+                match unmapped_channel_routing_policy(&runtime_config.routing, request.is_dm) {
+                    UnmappedChannelRoutingPolicy::ChannelDefault => {
+                        let desired_agent_id = resolve_channel_default_agent_id(
+                            &state,
+                            "discord",
+                            config.discord.default_agent_id.as_deref(),
+                            &config.discord.default_model_provider,
+                            &config.discord.default_model_id,
+                        )
+                        .map_err(|err| {
+                            internal_err_with_error("resolving discord channel agent failed", err)
+                        })?;
+                        (
+                            discord_channel::session_key(&inbound),
+                            format!("discord {}", request.channel_id),
+                            desired_agent_id,
+                        )
+                    }
+                    UnmappedChannelRoutingPolicy::ApprovalRequired
+                    | UnmappedChannelRoutingPolicy::Block => {
+                        let (reason_text, outbound_notice, policy_label) = if request.is_dm {
+                            match unmapped_channel_routing_policy(
+                                &runtime_config.routing,
+                                request.is_dm,
+                            ) {
+                                UnmappedChannelRoutingPolicy::ApprovalRequired => {
+                                    let (reason_code, reply_text) =
+                                        issue_discord_pairing_challenge(&state, &inbound).map_err(
+                                            |err| {
+                                                internal_err_with_error(
+                                                    "issuing discord pairing challenge failed",
+                                                    err,
+                                                )
+                                            },
+                                        )?;
+                                    (reason_code, Some(reply_text), "approval_required")
+                                }
+                                _ => (
+                                    "This Discord chat is locked until it is assigned to an assistant."
+                                        .to_string(),
+                                    Some(
+                                        "This Discord chat is locked until it is assigned to an assistant."
+                                            .to_string(),
+                                    ),
+                                    "block",
+                                ),
+                            }
+                        } else {
+                            (
+                                "This Discord channel is not assigned to an assistant yet."
+                                    .to_string(),
+                                None,
+                                "block",
+                            )
+                        };
+                        if request.is_dm {
+                            let outbound_target = format!("channel:{}", request.channel_id);
+                            if let Some(reply_text) = outbound_notice.as_deref() {
+                                if let Err(error) = dispatch_channel_ingest_reply(
+                                    &state,
+                                    "discord",
+                                    "send",
+                                    &outbound_target,
+                                    reply_text,
+                                ) {
+                                    warn!(
+                                        provider = "discord",
+                                        channel_id = %request.channel_id,
+                                        error = %error,
+                                        "failed sending unmapped-lane discord notice"
+                                    );
+                                }
+                            }
+                        }
+                        record_security_audit(
+                            &headers,
+                            &state,
+                            &auth,
+                            "channel.discord.ingest",
+                            &format!("discord:channel:{}", request.channel_id),
+                            "deny",
+                            Some(reason_text.clone()),
+                            StatusCode::OK,
+                            Some("CHANNEL_ROUTE_REJECTED"),
+                            None,
+                            None,
+                            Some(serde_json::json!({
+                                "decision": "rejected",
+                                "policy": policy_label,
+                                "reason_code": "lane_unmapped"
+                            })),
+                        );
+                        return Ok(Json(IngestChannelMessageResponse {
+                            decision: "rejected".to_string(),
+                            reason: Some(reason_text),
+                            session_id: None,
+                            message_id: None,
+                            run_id: None,
+                        }));
+                    }
+                }
+            };
             let session = get_or_create_channel_session(
                 &state,
                 &session_key,
-                format!("discord {}", request.channel_id),
+                session_title,
+                desired_agent_id.as_deref(),
             )
             .map_err(|err| internal_err_with_error("creating channel session failed", err))?;
+            info!(
+                provider = "discord",
+                session_id = %session.session_id,
+                agent_id = %session.agent_id,
+                session_key = %session_key,
+                elapsed_ms = session_started.elapsed().as_millis() as u64,
+                "channel ingest session ready"
+            );
+            let message_started = Instant::now();
+            let safe_text = prepare_external_channel_message(
+                "discord",
+                &format!("discord-user:{}", request.author_id),
+                &request.text,
+            );
             let created_message = state
                 .storage
                 .create_message(NewMessage {
@@ -14528,7 +17178,7 @@ async fn ingest_discord_channel_message(
                     source_peer_id: Some(request.author_id.clone()),
                     source_message_id: request.source_message_id.clone(),
                     role: "user".to_string(),
-                    content_text: request.text.clone(),
+                    content_text: safe_text,
                     content_format: "markdown".to_string(),
                 })
                 .map_err(|err| internal_err_with_error("creating channel message failed", err))?
@@ -14538,6 +17188,15 @@ async fn ingest_discord_channel_message(
                         "channel session missing while writing inbound message",
                     )
                 })?;
+            info!(
+                provider = "discord",
+                session_id = %session.session_id,
+                message_id = %created_message.message_id,
+                source_message_id = ?created_message.source_message_id,
+                inbound_chars = created_message.content_text.len(),
+                elapsed_ms = message_started.elapsed().as_millis() as u64,
+                "channel ingest inbound message stored"
+            );
 
             let run_immediately = request
                 .run_immediately
@@ -14548,6 +17207,7 @@ async fn ingest_discord_channel_message(
             let mut outbound_delivery_mode: Option<String> = None;
             let mut outbound_chunk_count: Option<usize> = None;
             if run_immediately {
+                let run_started = Instant::now();
                 let model_provider = request
                     .model_provider
                     .unwrap_or_else(|| config.discord.default_model_provider.clone())
@@ -14587,8 +17247,17 @@ async fn ingest_discord_channel_message(
                     internal_err_with_error("executing inbound channel run failed", err)
                 })?;
                 run_id = Some(run.run_id);
+                info!(
+                    provider = "discord",
+                    session_id = %session.session_id,
+                    run_id = run_id.as_deref(),
+                    run_status = %run.status,
+                    elapsed_ms = run_started.elapsed().as_millis() as u64,
+                    "channel ingest run completed"
+                );
 
                 if run.status == "succeeded" {
+                    let reply_started = Instant::now();
                     if let Some(reply_text) =
                         latest_assistant_reply_text(&state, &session.session_id).map_err(|err| {
                             internal_err_with_error(
@@ -14597,6 +17266,14 @@ async fn ingest_discord_channel_message(
                             )
                         })?
                     {
+                        info!(
+                            provider = "discord",
+                            session_id = %session.session_id,
+                            run_id = run_id.as_deref(),
+                            reply_chars = reply_text.len(),
+                            elapsed_ms = reply_started.elapsed().as_millis() as u64,
+                            "channel ingest assistant reply loaded"
+                        );
                         let outbound_channel_id = request
                             .thread_id
                             .as_ref()
@@ -14626,6 +17303,7 @@ async fn ingest_discord_channel_message(
                         } else {
                             format!("channel:{}", outbound_channel_id)
                         };
+                        let dispatch_started = Instant::now();
                         match dispatch_channel_ingest_reply(
                             &state,
                             "discord",
@@ -14637,6 +17315,17 @@ async fn ingest_discord_channel_message(
                                 outbound_reply_status = "sent".to_string();
                                 outbound_delivery_mode = Some(delivery_mode.to_string());
                                 outbound_chunk_count = Some(chunk_count);
+                                info!(
+                                    provider = "discord",
+                                    session_id = %session.session_id,
+                                    run_id = run_id.as_deref(),
+                                    delivery_mode,
+                                    chunk_count,
+                                    transport_message_ids = ?transport_message_ids,
+                                    elapsed_ms = dispatch_started.elapsed().as_millis() as u64,
+                                    total_pipeline_ms = pipeline_started.elapsed().as_millis() as u64,
+                                    "channel ingest outbound dispatch succeeded"
+                                );
                                 emit_event(
                                     &state,
                                     "channel.ingest.reply_dispatch",
@@ -14656,6 +17345,15 @@ async fn ingest_discord_channel_message(
                             Err(err) => {
                                 outbound_reply_status = "dispatch_failed".to_string();
                                 outbound_reply_error = Some(err.to_string());
+                                warn!(
+                                    provider = "discord",
+                                    session_id = %session.session_id,
+                                    run_id = run_id.as_deref(),
+                                    elapsed_ms = dispatch_started.elapsed().as_millis() as u64,
+                                    total_pipeline_ms = pipeline_started.elapsed().as_millis() as u64,
+                                    error = %err,
+                                    "channel ingest outbound dispatch failed"
+                                );
                                 warn!(
                                     "discord ingest outbound dispatch failed for session {} run {}: {}",
                                     session.session_id,
@@ -14679,11 +17377,37 @@ async fn ingest_discord_channel_message(
                         }
                     } else {
                         outbound_reply_status = "no_assistant_reply".to_string();
+                        warn!(
+                            provider = "discord",
+                            session_id = %session.session_id,
+                            run_id = run_id.as_deref(),
+                            total_pipeline_ms = pipeline_started.elapsed().as_millis() as u64,
+                            "channel ingest run succeeded but no assistant reply was available"
+                        );
                     }
                 } else {
                     outbound_reply_status = "run_not_succeeded".to_string();
+                    warn!(
+                        provider = "discord",
+                        session_id = %session.session_id,
+                        run_id = run_id.as_deref(),
+                        run_status = %run.status,
+                        total_pipeline_ms = pipeline_started.elapsed().as_millis() as u64,
+                        "channel ingest run did not succeed"
+                    );
                 }
             }
+            info!(
+                provider = "discord",
+                session_id = %session.session_id,
+                run_id = run_id.as_deref(),
+                run_immediately,
+                outbound_reply_status = %outbound_reply_status,
+                outbound_delivery_mode = ?outbound_delivery_mode,
+                outbound_chunk_count = outbound_chunk_count.unwrap_or(0),
+                total_pipeline_ms = pipeline_started.elapsed().as_millis() as u64,
+                "channel ingest pipeline complete"
+            );
 
             record_security_audit(
                 &headers,
@@ -20277,16 +23001,67 @@ async fn create_run(
         &format!("session:{session_id}"),
     )?;
     require_endpoint_rate_limit_with_error(&state, &auth, "run")?;
-    let model_provider = request
+    let session = state
+        .storage
+        .get_session(&session_id)
+        .map_err(|err| internal_err_with_error("loading session before run failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "session not found"))?;
+    let requested_model_provider = request
         .model_provider
-        .unwrap_or_else(|| "mock".to_string())
-        .trim()
-        .to_string();
-    let model_id = request
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let requested_model_id = request
         .model_id
-        .unwrap_or_else(|| "mock-echo-v1".to_string())
-        .trim()
-        .to_string();
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let requested_auth_profile_id = request
+        .auth_profile_id
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let runtime_config = load_runtime_config(&state)
+        .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
+    let session_lane_managed = session_key_looks_lane_managed(&session.session_key);
+    let lane_route = resolve_lane_route_for_session(&state, &runtime_config.routing, &session)
+        .map_err(|err| internal_err_with_error("resolving session lane route failed", err))?;
+    if session_lane_managed && lane_route.is_none() {
+        return Err(api_error(
+            StatusCode::CONFLICT,
+            "this lane-backed session no longer matches an enabled person and assistant route",
+        ));
+    }
+    let lane_authoritative = lane_route.is_some();
+    let (model_provider, model_id, requested_auth_profile_id) = if lane_authoritative {
+        let agent = state
+            .storage
+            .get_agent(&session.agent_id)
+            .map_err(|err| internal_err_with_error("loading session assistant failed", err))?
+            .ok_or_else(|| {
+                api_error(
+                    StatusCode::BAD_REQUEST,
+                    "session assistant does not exist anymore",
+                )
+            })?;
+        info!(
+            session_id = %session.session_id,
+            session_key = %session.session_key,
+            agent_id = %session.agent_id,
+            requested_model_provider = ?requested_model_provider,
+            requested_model_id = ?requested_model_id,
+            requested_auth_profile_id = ?requested_auth_profile_id,
+            "canonical lane session is enforcing assistant route for run creation"
+        );
+        (
+            agent.model_provider.trim().to_string(),
+            agent.model_id.trim().to_string(),
+            None,
+        )
+    } else {
+        (
+            requested_model_provider.unwrap_or_else(|| "mock".to_string()),
+            requested_model_id.unwrap_or_else(|| "mock-echo-v1".to_string()),
+            requested_auth_profile_id,
+        )
+    };
 
     if model_provider.is_empty() || model_id.is_empty() {
         return Err(api_error(
@@ -20300,16 +23075,13 @@ async fn create_run(
             "unsupported model_provider",
         ));
     }
-
-    let requested_auth_profile_id = request
-        .auth_profile_id
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty());
-    let session = state
-        .storage
-        .get_session(&session_id)
-        .map_err(|err| internal_err_with_error("loading session before run failed", err))?
-        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "session not found"))?;
+    let lane = state.session_run_lanes.lane_for_session(&session_id);
+    let Ok(_lane_guard) = lane.try_lock() else {
+        return Err(api_error(
+            StatusCode::CONFLICT,
+            "an active run is already in progress for this session",
+        ));
+    };
 
     let created_run = state
         .storage
@@ -20342,6 +23114,7 @@ async fn create_run(
         Some(&created_run.session_id),
         Some(&created_run.run_id),
         Some(serde_json::json!({
+            "lane_authoritative": lane_authoritative,
             "model_provider": &created_run.model_provider,
             "model_id": &created_run.model_id
         })),
@@ -20353,31 +23126,20 @@ async fn create_run(
             "run_id": &created_run.run_id,
             "session_id": &created_run.session_id,
             "status": &created_run.status,
+            "lane_authoritative": lane_authoritative,
             "model_provider": &created_run.model_provider,
             "model_id": &created_run.model_id
         }),
     );
 
-    let run = match execute_run_with_lane_control(
+    let run = execute_run_with_status_handling(
         &state,
         &created_run,
         &session.agent_id,
         requested_auth_profile_id.as_deref(),
-        RunLaneConflictPolicy::RejectIfBusy,
     )
     .await
-    {
-        Ok(run) => run,
-        Err(RunLaneExecutionError::Busy) => {
-            return Err(api_error(
-                StatusCode::CONFLICT,
-                "an active run is already in progress for this session",
-            ))
-        }
-        Err(RunLaneExecutionError::Execute(err)) => {
-            return Err(internal_err_with_error("executing run failed", err))
-        }
-    };
+    .map_err(|err| internal_err_with_error("executing run failed", err))?;
     info!(
         run_id = %run.run_id,
         session_id = %run.session_id,
@@ -20498,6 +23260,7 @@ async fn run_memory_why(
     let runtime_config = load_runtime_config(&state)
         .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
     let client = resolve_numquam_client_for_session(&state, &runtime_config, &run.session_id)
+        .await
         .map_err(|err| internal_err_with_error("resolving numquam client failed", err))?
         .ok_or_else(|| {
             api_error(
@@ -20794,6 +23557,7 @@ async fn resolve_approval(
                 .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "run not found for approval"))?;
             let client =
                 resolve_numquam_client_for_session(&state, &runtime_config, &run.session_id)
+                    .await
                     .map_err(|err| internal_err_with_error("resolving numquam client failed", err))?
                     .ok_or_else(|| {
                         api_error(
@@ -21450,26 +24214,24 @@ async fn probe_numquam_status_for_client(
                     client.transport,
                     capabilities_data,
                 );
-                let contract_version_ok =
-                    capabilities_data.contract_version.trim() == NUMQUAM_CONTRACT_VERSION;
+                let contract_version_present =
+                    !capabilities_data.contract_version.trim().is_empty();
                 let schema_supported = capabilities_data
                     .supported_schema_versions
                     .iter()
                     .any(|value| value.trim() == NUMQUAM_CONTRACT_VERSION);
-                let fully_healthy = health_status == "ok"
-                    && transport_supported
-                    && contract_version_ok
+                let contract_supported = transport_supported
+                    && contract_version_present
                     && schema_supported
                     && status.required_operations_missing.is_empty();
-                status.health_status = if fully_healthy {
-                    "ok".to_string()
-                } else if health_status.is_empty() {
+                status.health_status = if health_status.is_empty() {
                     "degraded".to_string()
                 } else {
                     health_status
                 };
-                status.degrade_mode = !fully_healthy || status.health_status != "ok";
-                if !fully_healthy {
+                status.degrade_mode =
+                    capabilities.degrade_mode || health.degrade_mode || !contract_supported;
+                if !contract_supported {
                     status.last_error_code = Some("CONTRACT_VERSION_UNSUPPORTED".to_string());
                     status.last_error =
                         Some("assistant-bound Numquam handshake mismatch".to_string());
@@ -21692,6 +24454,231 @@ async fn build_agent_memory_status(
     })
 }
 
+fn effective_lane_memory_mode(
+    runtime_config: &RuntimeConfigResponse,
+    policy: Option<&RuntimeLaneMemoryPolicyConfig>,
+) -> String {
+    let configured = policy
+        .map(|item| item.memory_mode.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "inherit_runtime".to_string());
+    if configured == "inherit_runtime" {
+        runtime_config.memory.blend_mode.clone()
+    } else {
+        configured
+    }
+}
+
+fn summarize_lane_orchestration_status(
+    source: &str,
+    orchestration: &NumquamIntegrationStatusResponse,
+) -> (String, Option<String>) {
+    if orchestration.enabled && !orchestration.degrade_mode {
+        let detail = if orchestration.health_status == "ok" {
+            format!("{source} is reachable and ready.")
+        } else {
+            format!(
+                "{source} is reachable and ready with status {}.",
+                orchestration.health_status
+            )
+        };
+        ("available".to_string(), Some(detail))
+    } else {
+        let detail = orchestration.last_error.clone().or_else(|| {
+            Some(format!(
+                "{source} needs attention (status={}, degrade_mode={}).",
+                orchestration.health_status, orchestration.degrade_mode
+            ))
+        });
+        ("degraded".to_string(), detail)
+    }
+}
+
+async fn build_agent_memory_lane_statuses(
+    state: &AppState,
+    agent_id: &str,
+) -> std::result::Result<Vec<AgentMemoryLaneStatusResponse>, (StatusCode, Json<ApiError>)> {
+    let agent = state
+        .storage
+        .get_agent(agent_id)
+        .map_err(|err| internal_err_with_error("loading lane memory agent failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "agent not found"))?;
+    let runtime_config = load_runtime_config(state)
+        .map_err(|err| internal_err_with_error("loading runtime config failed", err))?;
+
+    if !runtime_config.routing.enabled {
+        return Ok(Vec::new());
+    }
+
+    let assignments = runtime_config
+        .routing
+        .assistant_assignments
+        .iter()
+        .filter(|item| item.enabled && item.assistant_agent_id == agent.agent_id)
+        .cloned()
+        .collect::<Vec<_>>();
+
+    if assignments.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut items = Vec::with_capacity(assignments.len());
+    for assignment in assignments {
+        let policy = runtime_config
+            .routing
+            .lane_memory_policies
+            .iter()
+            .find(|item| {
+                item.human_identity_id == assignment.human_identity_id
+                    && item.assistant_agent_id == assignment.assistant_agent_id
+            });
+        let configured_memory_mode = policy
+            .map(|item| item.memory_mode.clone())
+            .unwrap_or_else(|| "inherit_runtime".to_string());
+        let effective_memory_mode = effective_lane_memory_mode(&runtime_config, policy);
+        let lane_id = canonical_lane_id(
+            &assignment.human_identity_id,
+            &assignment.assistant_agent_id,
+            policy,
+        );
+        let local_memory_sources = policy
+            .map(|item| item.local_memory_sources.clone())
+            .unwrap_or_default();
+
+        if matches!(effective_memory_mode.as_str(), "disabled") {
+            items.push(AgentMemoryLaneStatusResponse {
+                human_identity_id: assignment.human_identity_id,
+                assistant_agent_id: assignment.assistant_agent_id,
+                lane_id,
+                configured_memory_mode,
+                effective_memory_mode,
+                source: "memory_off".to_string(),
+                status: "memory_off".to_string(),
+                detail: Some("Memory is turned off for this lane.".to_string()),
+                local_memory_sources,
+                orchestration: None,
+            });
+            continue;
+        }
+
+        if !memory_mode_uses_numquam(&effective_memory_mode) {
+            items.push(AgentMemoryLaneStatusResponse {
+                human_identity_id: assignment.human_identity_id,
+                assistant_agent_id: assignment.assistant_agent_id,
+                lane_id,
+                configured_memory_mode,
+                effective_memory_mode,
+                source: "local_only".to_string(),
+                status: "local_only".to_string(),
+                detail: Some(
+                    "This lane is using local notes and docs only; MNO is not in the loop."
+                        .to_string(),
+                ),
+                local_memory_sources,
+                orchestration: None,
+            });
+            continue;
+        }
+
+        let lane = resolve_managed_numquam_lane_for_pair(
+            state,
+            &runtime_config,
+            &assignment.human_identity_id,
+            &assignment.assistant_agent_id,
+        )
+        .map_err(|err| internal_err_with_error("resolving lane memory route failed", err))?;
+
+        if let Some(lane) = lane {
+            let lane_root = managed_numquam_lane_root(state, &runtime_config, &lane.lane_id)
+                .map_err(|err| internal_err_with_error("resolving lane memory root failed", err))?;
+            let metadata = read_managed_numquam_lane_metadata(&lane_root).map_err(|err| {
+                internal_err_with_error("reading lane memory metadata failed", err)
+            })?;
+            if let Some(metadata) = metadata {
+                let client = NumquamClient::from_managed_lane_metadata(&runtime_config, &metadata)
+                    .map_err(|err| {
+                        internal_err_with_error("building managed lane memory client failed", err)
+                    })?;
+                if let Some(client) = client {
+                    let orchestration = probe_numquam_status_for_client(&client).await;
+                    let (status, detail) =
+                        summarize_lane_orchestration_status("Lane MNO runtime", &orchestration);
+                    items.push(AgentMemoryLaneStatusResponse {
+                        human_identity_id: assignment.human_identity_id,
+                        assistant_agent_id: assignment.assistant_agent_id,
+                        lane_id: lane.lane_id,
+                        configured_memory_mode,
+                        effective_memory_mode,
+                        source: "managed_lane".to_string(),
+                        status,
+                        detail,
+                        local_memory_sources,
+                        orchestration: Some(orchestration),
+                    });
+                    continue;
+                }
+            } else {
+                items.push(AgentMemoryLaneStatusResponse {
+                    human_identity_id: assignment.human_identity_id,
+                    assistant_agent_id: assignment.assistant_agent_id,
+                    lane_id: lane.lane_id,
+                    configured_memory_mode,
+                    effective_memory_mode,
+                    source: "managed_lane".to_string(),
+                    status: "not_started".to_string(),
+                    detail: Some(
+                        "This lane is configured for MNO, but the lane runtime has not started yet."
+                            .to_string(),
+                    ),
+                    local_memory_sources,
+                    orchestration: None,
+                });
+                continue;
+            }
+        }
+
+        let agent_client =
+            resolve_numquam_client_for_agent(state, &runtime_config, &agent.agent_id).map_err(
+                |err| internal_err_with_error("resolving assistant memory client failed", err),
+            )?;
+        if let Some(client) = agent_client {
+            let orchestration = probe_numquam_status_for_client(&client).await;
+            let (status, detail) =
+                summarize_lane_orchestration_status("Assistant-bound MNO client", &orchestration);
+            items.push(AgentMemoryLaneStatusResponse {
+                human_identity_id: assignment.human_identity_id,
+                assistant_agent_id: assignment.assistant_agent_id,
+                lane_id,
+                configured_memory_mode,
+                effective_memory_mode,
+                source: "assistant_binding".to_string(),
+                status,
+                detail,
+                local_memory_sources,
+                orchestration: Some(orchestration),
+            });
+        } else {
+            items.push(AgentMemoryLaneStatusResponse {
+                human_identity_id: assignment.human_identity_id,
+                assistant_agent_id: assignment.assistant_agent_id,
+                lane_id,
+                configured_memory_mode,
+                effective_memory_mode,
+                source: "assistant_binding".to_string(),
+                status: "unconfigured".to_string(),
+                detail: Some(
+                    "This lane expects MNO through the assistant binding, but no usable binding is configured."
+                        .to_string(),
+                ),
+                local_memory_sources,
+                orchestration: None,
+            });
+        }
+    }
+
+    Ok(items)
+}
+
 async fn load_agent_memory_client(
     state: &AppState,
     agent_id: &str,
@@ -21817,6 +24804,24 @@ async fn get_agent_memory_status(
     )?;
     let status = build_agent_memory_status(&state, agent_id.trim()).await?;
     Ok(Json(GetAgentMemoryStatusResponse { status }))
+}
+
+async fn list_agent_memory_lane_statuses(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(agent_id): Path<String>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "agent.memory.lanes.status",
+        &format!("agent:{agent_id}:memory.lanes"),
+    )?;
+    let items = build_agent_memory_lane_statuses(&state, agent_id.trim()).await?;
+    Ok(Json(ListAgentMemoryLaneStatusesResponse { items }))
 }
 
 async fn list_agent_memory_cards(
@@ -22474,10 +25479,14 @@ async fn execute_run(
     )
     .await;
 
-    let input = state
-        .storage
-        .latest_user_message_text(&run.session_id)?
+    let session_messages = state.storage.list_messages(&run.session_id, 64)?;
+    let input = session_messages
+        .iter()
+        .rev()
+        .find(|message| message.role == "user")
+        .map(|message| message.content_text.clone())
         .unwrap_or_default();
+    let system_messages = resolve_run_system_messages(state, &run.session_id, &session_messages)?;
     let autonomy_guardrails = load_runtime_autonomy_guardrails(state)?;
     enforce_run_wall_time_budget(started, autonomy_guardrails.max_run_ms)?;
 
@@ -22487,6 +25496,34 @@ async fn execute_run(
         .get_session(&run.session_id)?
         .map(|session| session.agent_id)
         .unwrap_or_else(|| "default".to_string());
+    let session_message_count = session_messages.len();
+    let user_message_count = session_messages
+        .iter()
+        .filter(|message| message.role == "user")
+        .count();
+    let assistant_message_count = session_messages
+        .iter()
+        .filter(|message| message.role == "assistant")
+        .count();
+    let system_message_count = system_messages.len();
+    let source_channels = session_messages
+        .iter()
+        .map(|message| message.source_channel.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    info!(
+        run_id = %run.run_id,
+        session_id = %run.session_id,
+        session_agent_id = %session_agent_id,
+        latest_user_chars = input.len(),
+        session_message_count,
+        user_message_count,
+        assistant_message_count,
+        system_message_count,
+        source_channels = ?source_channels,
+        "run input snapshot"
+    );
     let connector_tool_bindings =
         load_connector_runtime_tools(state, Some(session_agent_id.as_str()), false)?;
     let connector_tools = connector_tool_bindings
@@ -23018,15 +26055,21 @@ async fn execute_run(
         )
     };
     let runtime_config = load_runtime_config(state)?;
-    let memory_blend_mode = runtime_config.memory.blend_mode.clone();
+    let session_memory_policy =
+        resolve_session_lane_memory_policy(state, &runtime_config, &run.session_id, agent_id)?;
+    let memory_blend_mode = session_memory_policy.effective_mode.clone();
     let mut memory_metadata = RunMemoryMetadata {
         blend_mode: Some(memory_blend_mode.clone()),
+        policy_scope: Some(session_memory_policy.policy_scope.clone()),
+        lane_memory_mode: Some(session_memory_policy.configured_mode.clone()),
+        human_identity_id: session_memory_policy.human_identity_id.clone(),
+        lane_id: session_memory_policy.lane_id.clone(),
         ..RunMemoryMetadata::default()
     };
     let mut memory_context_text = None;
-    let use_numquam = memory_blend_mode != "local_fallback_only";
+    let use_numquam = memory_mode_uses_numquam(&memory_blend_mode);
     if use_numquam {
-        match resolve_numquam_client_for_agent(state, &runtime_config, agent_id) {
+        match resolve_numquam_client_for_session(state, &runtime_config, &run.session_id).await {
             Ok(Some(client)) => {
                 memory_metadata.enabled = true;
                 memory_metadata.transport = Some(client.transport.as_str().to_string());
@@ -23342,41 +26385,53 @@ async fn execute_run(
         }),
     )
     .await;
-    let (local_memory_context, local_memory_metadata) =
-        match retrieve_local_memory_context(state, &input) {
-            Ok(value) => value,
-            Err(err) => {
-                warn!(
-                    run_id = %run.run_id,
-                    session_id = %run.session_id,
-                    error = %err,
-                    "local memory retrieval failed; continuing without local memory context"
-                );
-                let fallback = LocalMemoryMetadata {
-                    enabled: bool_env("CARSINOS_LOCAL_MEMORY_ENABLED", true),
-                    query_chars: input.len(),
-                    error: Some(err.to_string()),
-                    ..Default::default()
-                };
-                (None, fallback)
+    let (local_memory_context, mut local_memory_metadata) =
+        if memory_mode_queries_local_memory(&memory_blend_mode) {
+            match retrieve_local_memory_context(state, &input) {
+                Ok(value) => value,
+                Err(err) => {
+                    warn!(
+                        run_id = %run.run_id,
+                        session_id = %run.session_id,
+                        error = %err,
+                        "local memory retrieval failed; continuing without local memory context"
+                    );
+                    let fallback = LocalMemoryMetadata {
+                        enabled: bool_env("CARSINOS_LOCAL_MEMORY_ENABLED", true),
+                        query_chars: input.len(),
+                        error: Some(err.to_string()),
+                        ..Default::default()
+                    };
+                    (None, fallback)
+                }
             }
+        } else {
+            (
+                None,
+                LocalMemoryMetadata {
+                    enabled: false,
+                    query_chars: input.len(),
+                    ..Default::default()
+                },
+            )
         };
+    local_memory_metadata.policy_scope = Some(session_memory_policy.policy_scope.clone());
+    local_memory_metadata.lane_memory_mode = Some(session_memory_policy.configured_mode.clone());
+    local_memory_metadata.human_identity_id = session_memory_policy.human_identity_id.clone();
+    local_memory_metadata.lane_id = session_memory_policy.lane_id.clone();
 
     let mut context_sections = Vec::new();
     let mut applied_skill_ids = Vec::new();
     if let Some(context_text) = memory_context_text {
         context_sections.push(format!("Numquam memory context:\n{}", context_text));
     }
-    let include_local_context = match memory_blend_mode.as_str() {
-        "local_augment" => true,
-        "local_fallback_only" => true,
-        _ => {
-            memory_metadata.context_degrade_mode
-                || memory_metadata.context_error_code.is_some()
-                || !memory_metadata.enabled
-                || context_sections.is_empty()
-        }
-    };
+    let include_local_context = memory_mode_includes_local_context(
+        &memory_blend_mode,
+        memory_metadata.enabled,
+        memory_metadata.context_degrade_mode,
+        memory_metadata.context_error_code.is_some(),
+        !context_sections.is_empty(),
+    );
     if include_local_context {
         if let Some(local_context) = local_memory_context {
             context_sections.push(format!("Local notes context:\n{}", local_context));
@@ -23386,15 +26441,14 @@ async fn execute_run(
         applied_skill_ids = skill_ids;
         context_sections.push(skills_context);
     }
-    let provider_input = if context_sections.is_empty() {
-        provider_base_input
-    } else {
-        format!(
-            "{}\n\nUser request:\n{}",
-            context_sections.join("\n\n"),
-            provider_base_input
-        )
-    };
+    let provider_base_input_chars = provider_base_input.len();
+    let provider_input = compose_provider_input(&provider_base_input, &context_sections);
+    let provider_system_prompt = compose_provider_system_prompt(&system_messages);
+    let provider_system_prompt_chars = provider_system_prompt
+        .as_ref()
+        .map(|value| value.len())
+        .unwrap_or(0);
+    let provider_total_prompt_chars = provider_input.len() + provider_system_prompt_chars;
     emit_extension_hook_point(
         state,
         run,
@@ -23402,18 +26456,36 @@ async fn execute_run(
         None,
         serde_json::json!({
             "provider_input_chars": provider_input.len(),
+            "provider_system_prompt_chars": provider_system_prompt_chars,
+            "provider_total_prompt_chars": provider_total_prompt_chars,
             "context_sections": context_sections.len(),
             "applied_skill_ids": &applied_skill_ids
         }),
     )
     .await;
-    if (provider_input.len() as u64) > autonomy_guardrails.max_provider_input_chars {
+    info!(
+        run_id = %run.run_id,
+        session_id = %run.session_id,
+        provider_base_input_chars,
+        provider_input_chars = provider_input.len(),
+        provider_system_prompt_chars,
+        provider_total_prompt_chars,
+        context_sections = context_sections.len(),
+        tool_output_blocks = tool_output_blocks.len(),
+        total_tool_output_chars,
+        applied_skill_ids = ?applied_skill_ids,
+        memory_context_enabled = memory_metadata.enabled,
+        memory_context_degrade_mode = memory_metadata.context_degrade_mode,
+        local_memory_enabled = local_memory_metadata.enabled,
+        local_memory_error = ?local_memory_metadata.error,
+        "run provider input prepared"
+    );
+    if (provider_total_prompt_chars as u64) > autonomy_guardrails.max_provider_input_chars {
         return Err(budget_error(
             REASON_BUDGET_MAX_PROVIDER_INPUT_CHARS,
             format!(
-                "provider input chars {} exceeds max_provider_input_chars {}",
-                provider_input.len(),
-                autonomy_guardrails.max_provider_input_chars
+                "provider prompt chars {} exceeds max_provider_input_chars {}",
+                provider_total_prompt_chars, autonomy_guardrails.max_provider_input_chars
             ),
         ));
     }
@@ -23555,6 +26627,7 @@ async fn execute_run(
                 model_provider: run.model_provider.clone(),
                 model_id: run.model_id.clone(),
                 input: provider_input.clone(),
+                system_prompt: provider_system_prompt.clone(),
                 auth_profile: auth_profile.clone(),
             })
             .await;
@@ -23724,7 +26797,7 @@ async fn execute_run(
 
     if use_numquam {
         let mut writeback_metadata = RunMemoryWritebackMetadata::default();
-        match resolve_numquam_client_for_agent(state, &runtime_config, agent_id) {
+        match resolve_numquam_client_for_session(state, &runtime_config, &run.session_id).await {
             Ok(Some(client)) => {
                 let writeback_result = client
                     .writeback_propose(
@@ -24198,6 +27271,100 @@ impl NumquamClient {
             integration_base_url,
             mcp_url,
             token,
+            principal_id,
+            principal_display_name,
+            request_timeout,
+            context_build_timeout,
+            writeback_propose_timeout,
+            writeback_resolve_timeout,
+            handshake_timeout,
+            http_client,
+        }))
+    }
+
+    fn from_managed_lane_metadata(
+        runtime_config: &RuntimeConfigResponse,
+        metadata: &NumquamManagedLaneMetadata,
+    ) -> AnyResult<Option<Self>> {
+        if !runtime_config.memory.numquam.enabled {
+            return Ok(None);
+        }
+
+        let transport_raw = runtime_config
+            .memory
+            .numquam
+            .transport
+            .trim()
+            .to_ascii_lowercase();
+        let transport = match transport_raw.as_str() {
+            "http" => NumquamTransport::Http,
+            "mcp" => NumquamTransport::Mcp,
+            "dual" => NumquamTransport::Dual,
+            other => anyhow::bail!(
+                "invalid memory.numquam.transport value: {other} (expected http|mcp|dual)"
+            ),
+        };
+        let integration_base_url = format!("http://127.0.0.1:{}", metadata.runtime_port);
+        let mcp_url = metadata
+            .mcp_port
+            .map(|port| format!("http://127.0.0.1:{port}/mcp"))
+            .unwrap_or_else(|| format!("{integration_base_url}/mcp"));
+        let context_build_timeout = Duration::from_millis(
+            runtime_config
+                .memory
+                .numquam
+                .context_build_timeout_ms
+                .clamp(200, 120_000),
+        );
+        let writeback_propose_timeout = Duration::from_millis(
+            runtime_config
+                .memory
+                .numquam
+                .writeback_propose_timeout_ms
+                .clamp(200, 120_000),
+        );
+        let writeback_resolve_timeout = Duration::from_millis(
+            runtime_config
+                .memory
+                .numquam
+                .writeback_resolve_timeout_ms
+                .clamp(200, 120_000),
+        );
+        let handshake_timeout = Duration::from_millis(
+            runtime_config
+                .memory
+                .numquam
+                .handshake_timeout_ms
+                .clamp(200, 120_000),
+        );
+        let request_timeout = [
+            context_build_timeout,
+            writeback_propose_timeout,
+            writeback_resolve_timeout,
+            handshake_timeout,
+        ]
+        .into_iter()
+        .max()
+        .unwrap_or(Duration::from_millis(4_000));
+        let (principal_id, principal_display_name) = Self::resolve_principal_identity(
+            runtime_config.memory.numquam.principal_id.as_deref(),
+            runtime_config
+                .memory
+                .numquam
+                .principal_display_name
+                .as_deref(),
+            Some(metadata.human_identity_id.as_str()),
+            Some(metadata.assistant_agent_id.as_str()),
+        );
+        let http_client = reqwest::Client::builder()
+            .timeout(request_timeout)
+            .build()
+            .context("failed building managed Numquam HTTP client")?;
+        Ok(Some(Self {
+            transport,
+            integration_base_url,
+            mcp_url,
+            token: Some(metadata.operator_token.clone()),
             principal_id,
             principal_display_name,
             request_timeout,
@@ -24943,7 +28110,11 @@ impl NumquamClient {
         timeout: Duration,
     ) -> AnyResult<NumquamEnvelope<T>> {
         let url = format!("{}{}", self.integration_base_url, path);
-        let mut request = self.http_client.get(url).timeout(timeout);
+        let request_id = new_numquam_request_id();
+        let mut request = self.http_client.get(url).timeout(timeout).query(&[
+            ("schema_version", NUMQUAM_SCHEMA_VERSION),
+            ("request_id", request_id.as_str()),
+        ]);
         if let Some(token) = self.token.as_deref() {
             request = request.bearer_auth(token);
         }
@@ -25142,6 +28313,609 @@ fn resolve_numquam_client(
     }
 }
 
+const NUMQUAM_MANAGED_PORT_SPAN: u16 = 1024;
+const NUMQUAM_MANAGED_RUNTIME_METADATA_FILE: &str = "managed_runtime.json";
+
+fn numquam_managed_runtime_requested(runtime_config: &RuntimeConfigResponse) -> bool {
+    let config = &runtime_config.memory.numquam;
+    if !config.enabled {
+        return false;
+    }
+    if config.managed_runtime_enabled {
+        return true;
+    }
+    config.integration_base_url.is_none()
+        && std::env::var("CARSINOS_NUMQUAM_BASE_URL")
+            .ok()
+            .map(|value| value.trim().is_empty())
+            .unwrap_or(true)
+}
+
+fn managed_numquam_repo_root(numquam: &RuntimeNumquamConfig) -> AnyResult<PathBuf> {
+    if let Some(explicit) = numquam
+        .managed_repo_root
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+    {
+        return Ok(PathBuf::from(explicit));
+    }
+    if let Some(explicit) = std::env::var("CARSINOS_NUMQUAM_MANAGED_REPO_ROOT")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
+        return Ok(PathBuf::from(explicit));
+    }
+    let compile_time_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    Ok(compile_time_root
+        .canonicalize()
+        .unwrap_or_else(|_| compile_time_root.clone()))
+}
+
+fn managed_numquam_vendor_root(numquam: &RuntimeNumquamConfig) -> AnyResult<PathBuf> {
+    let vendor_root = managed_numquam_repo_root(numquam)?
+        .join("vendors")
+        .join("mno");
+    let runtime_launcher = vendor_root.join("tools").join("run_live_runtime.py");
+    let mcp_launcher = vendor_root.join("tools").join("run_mcp_server.py");
+    if !runtime_launcher.exists() {
+        anyhow::bail!(
+            "managed Numquam runtime launcher missing at {}",
+            runtime_launcher.display()
+        );
+    }
+    if !mcp_launcher.exists() {
+        anyhow::bail!(
+            "managed Numquam MCP launcher missing at {}",
+            mcp_launcher.display()
+        );
+    }
+    Ok(vendor_root)
+}
+
+fn managed_numquam_lanes_root(
+    state: &AppState,
+    numquam: &RuntimeNumquamConfig,
+) -> AnyResult<PathBuf> {
+    if let Some(explicit) = numquam
+        .managed_lanes_root
+        .as_ref()
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+    {
+        return Ok(PathBuf::from(explicit));
+    }
+    if let Some(explicit) = std::env::var("CARSINOS_NUMQUAM_MANAGED_LANES_ROOT")
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
+        return Ok(PathBuf::from(explicit));
+    }
+    let repo_root = managed_numquam_repo_root(numquam).or_else(|_| {
+        Ok::<PathBuf, anyhow::Error>(state.state_dir.clone().as_ref().to_path_buf())
+    })?;
+    Ok(repo_root.join("lanes"))
+}
+
+fn managed_numquam_python_bin(numquam: &RuntimeNumquamConfig) -> String {
+    if let Some(explicit) = numquam
+        .managed_python_bin
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .or_else(|| {
+            std::env::var("CARSINOS_NUMQUAM_MANAGED_PYTHON_BIN")
+                .ok()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+        })
+    {
+        return explicit;
+    }
+
+    fn python_candidate_supports_numquam_runtime(candidate: &str) -> bool {
+        let mut command = std::process::Command::new(candidate);
+        command
+            .arg("-c")
+            .arg("import tomllib")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+        command
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false)
+    }
+
+    for candidate in [
+        "/opt/homebrew/bin/python3.14",
+        "/opt/homebrew/bin/python3.13",
+        "/opt/homebrew/bin/python3.12",
+        "/opt/homebrew/bin/python3.11",
+        "python3.14",
+        "python3.13",
+        "python3.12",
+        "python3.11",
+        "python3",
+    ] {
+        let available = if candidate.contains('/') {
+            FsPath::new(candidate).exists()
+        } else {
+            std::process::Command::new(candidate)
+                .arg("--version")
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .map(|status| status.success())
+                .unwrap_or(false)
+        };
+        if available && python_candidate_supports_numquam_runtime(candidate) {
+            return candidate.to_string();
+        }
+    }
+
+    "python3".to_string()
+}
+
+fn managed_numquam_lane_dir_name(lane_id: &str) -> String {
+    let sanitized = lane_id
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+                ch
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>()
+        .trim_matches('-')
+        .to_string();
+    let label = if sanitized.is_empty() {
+        "lane".to_string()
+    } else {
+        sanitized.chars().take(48).collect::<String>()
+    };
+    let digest = URL_SAFE_NO_PAD.encode(Sha256::digest(lane_id.as_bytes()));
+    format!("{label}-{}", &digest[..12.min(digest.len())])
+}
+
+fn managed_numquam_lane_root(
+    state: &AppState,
+    runtime_config: &RuntimeConfigResponse,
+    lane_id: &str,
+) -> AnyResult<PathBuf> {
+    Ok(
+        managed_numquam_lanes_root(state, &runtime_config.memory.numquam)?
+            .join(managed_numquam_lane_dir_name(lane_id)),
+    )
+}
+
+fn managed_numquam_runtime_root(lane_root: &FsPath) -> PathBuf {
+    lane_root.join("runtime")
+}
+
+fn managed_numquam_memory_root(lane_root: &FsPath) -> PathBuf {
+    lane_root.join("memory")
+}
+
+fn managed_numquam_store_path(lane_root: &FsPath) -> PathBuf {
+    managed_numquam_memory_root(lane_root).join("atoms.sqlite3")
+}
+
+fn managed_numquam_episode_cards_path(lane_root: &FsPath) -> Option<PathBuf> {
+    let reviewed = managed_numquam_memory_root(lane_root).join("episode_cards.reviewed.json");
+    reviewed.exists().then_some(reviewed)
+}
+
+fn managed_numquam_metadata_path(lane_root: &FsPath) -> PathBuf {
+    managed_numquam_runtime_root(lane_root).join(NUMQUAM_MANAGED_RUNTIME_METADATA_FILE)
+}
+
+fn read_managed_numquam_lane_metadata(
+    lane_root: &FsPath,
+) -> AnyResult<Option<NumquamManagedLaneMetadata>> {
+    let path = managed_numquam_metadata_path(lane_root);
+    if !path.exists() {
+        return Ok(None);
+    }
+    let payload = std::fs::read_to_string(&path)
+        .with_context(|| format!("failed reading managed lane metadata {}", path.display()))?;
+    let metadata: NumquamManagedLaneMetadata =
+        serde_json::from_str(&payload).with_context(|| {
+            format!(
+                "failed parsing managed lane metadata {} as JSON",
+                path.display()
+            )
+        })?;
+    Ok(Some(metadata))
+}
+
+fn write_managed_numquam_lane_metadata(
+    lane_root: &FsPath,
+    metadata: &NumquamManagedLaneMetadata,
+) -> AnyResult<()> {
+    let path = managed_numquam_metadata_path(lane_root);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).with_context(|| {
+            format!(
+                "failed creating managed lane metadata dir {}",
+                parent.display()
+            )
+        })?;
+    }
+    let payload = serde_json::to_string_pretty(metadata)
+        .context("failed serializing managed Numquam lane metadata")?;
+    std::fs::write(&path, payload)
+        .with_context(|| format!("failed writing managed lane metadata {}", path.display()))?;
+    Ok(())
+}
+
+fn ensure_managed_numquam_lane_store_exists(path: &FsPath) -> AnyResult<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("failed creating lane memory dir {}", parent.display()))?;
+    }
+    std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(false)
+        .open(path)
+        .with_context(|| format!("failed ensuring lane atom store {}", path.display()))?;
+    Ok(())
+}
+
+fn lane_port_seed(base: u16, lane_id: &str) -> u16 {
+    let digest = Sha256::digest(lane_id.as_bytes());
+    let raw = u16::from_be_bytes([digest[0], digest[1]]);
+    base.saturating_add(raw % NUMQUAM_MANAGED_PORT_SPAN.max(1))
+}
+
+fn allocate_free_local_port(base: u16, lane_id: &str) -> AnyResult<u16> {
+    let start = lane_port_seed(base, lane_id);
+    for step in 0..NUMQUAM_MANAGED_PORT_SPAN {
+        let candidate = start.saturating_add(step);
+        if candidate == 0 || candidate > 65_000 {
+            continue;
+        }
+        if TcpListener::bind(("127.0.0.1", candidate)).is_ok() {
+            return Ok(candidate);
+        }
+    }
+    anyhow::bail!(
+        "failed allocating free local port near base {} for lane {}",
+        base,
+        lane_id
+    );
+}
+
+async fn stop_numquam_lane_child(child: &mut Option<Child>) {
+    if let Some(mut child) = child.take() {
+        let _ = child.start_kill();
+        let _ = child.wait().await;
+    }
+}
+
+fn build_managed_numquam_lane_metadata(
+    runtime_config: &RuntimeConfigResponse,
+    lane: &ResolvedManagedNumquamLane,
+    existing: Option<&NumquamManagedLaneMetadata>,
+) -> AnyResult<NumquamManagedLaneMetadata> {
+    let config = &runtime_config.memory.numquam;
+    let runtime_port = existing
+        .map(|value| value.runtime_port)
+        .filter(|value| *value > 0)
+        .unwrap_or(allocate_free_local_port(
+            config.managed_runtime_port_base,
+            &lane.lane_id,
+        )?);
+    let mcp_port = if matches!(config.transport.as_str(), "mcp" | "dual") {
+        Some(
+            existing
+                .and_then(|value| value.mcp_port)
+                .filter(|value| *value > 0)
+                .unwrap_or(allocate_free_local_port(
+                    config.managed_mcp_port_base,
+                    &format!("{}:mcp", lane.lane_id),
+                )?),
+        )
+    } else {
+        None
+    };
+    let now_ms = current_time_ms();
+    Ok(NumquamManagedLaneMetadata {
+        lane_id: lane.lane_id.clone(),
+        human_identity_id: lane.human_identity_id.clone(),
+        assistant_agent_id: lane.assistant_agent_id.clone(),
+        runtime_port,
+        mcp_port,
+        operator_token: existing
+            .map(|value| value.operator_token.clone())
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+        created_at_ms: existing.map(|value| value.created_at_ms).unwrap_or(now_ms),
+        updated_at_ms: now_ms,
+    })
+}
+
+async fn spawn_managed_numquam_runtime_process(
+    vendor_root: &FsPath,
+    python_bin: &str,
+    runtime_root: &FsPath,
+    store_path: &FsPath,
+    episode_cards_path: Option<&FsPath>,
+    metadata: &NumquamManagedLaneMetadata,
+) -> AnyResult<Child> {
+    let mut command = tokio::process::Command::new(python_bin);
+    command.arg(vendor_root.join("tools").join("run_live_runtime.py"));
+    command.arg("--host").arg("127.0.0.1");
+    command.arg("--port").arg(metadata.runtime_port.to_string());
+    command.arg("--memories").arg(store_path);
+    if let Some(episode_cards_path) = episode_cards_path {
+        command.arg("--episodes").arg(episode_cards_path);
+    }
+    command.current_dir(vendor_root);
+    command.kill_on_drop(true);
+    command.stdin(std::process::Stdio::null());
+    command.stdout(std::process::Stdio::inherit());
+    command.stderr(std::process::Stdio::inherit());
+    command.env("MNO_RUNTIME_STATE_ROOT", runtime_root);
+    command.env("NO_INTEGRATION_ENABLE_DEFAULT_TOKENS", "1");
+    command.env("NO_INTEGRATION_OPERATOR_TOKEN", &metadata.operator_token);
+    command.env("NO_INTEGRATION_VIEWER_TOKEN", &metadata.operator_token);
+    command.env("NO_INTEGRATION_ADMIN_TOKEN", &metadata.operator_token);
+    command.spawn().with_context(|| {
+        format!(
+            "failed spawning managed Numquam runtime for lane {}",
+            metadata.lane_id
+        )
+    })
+}
+
+async fn spawn_managed_numquam_mcp_process(
+    vendor_root: &FsPath,
+    python_bin: &str,
+    metadata: &NumquamManagedLaneMetadata,
+) -> AnyResult<Child> {
+    let mcp_port = metadata.mcp_port.ok_or_else(|| {
+        anyhow::anyhow!("managed Numquam lane metadata missing MCP port for MCP/dual transport")
+    })?;
+    let mut command = tokio::process::Command::new(python_bin);
+    command.arg(vendor_root.join("tools").join("run_mcp_server.py"));
+    command.arg("--transport").arg("http");
+    command
+        .arg("--runtime-base-url")
+        .arg(format!("http://127.0.0.1:{}", metadata.runtime_port));
+    command.arg("--http-host").arg("127.0.0.1");
+    command.arg("--http-port").arg(mcp_port.to_string());
+    command.arg("--default-role").arg("operator");
+    command
+        .arg("--operator-token")
+        .arg(&metadata.operator_token);
+    command.arg("--mutations-enabled");
+    command.current_dir(vendor_root);
+    command.kill_on_drop(true);
+    command.stdin(std::process::Stdio::null());
+    command.stdout(std::process::Stdio::inherit());
+    command.stderr(std::process::Stdio::inherit());
+    command.spawn().with_context(|| {
+        format!(
+            "failed spawning managed Numquam MCP sidecar for lane {}",
+            metadata.lane_id
+        )
+    })
+}
+
+async fn wait_for_managed_numquam_lane_ready(
+    client: &NumquamClient,
+    slot: &mut NumquamLaneRuntimeSlot,
+    timeout: Duration,
+    lane_id: &str,
+) -> AnyResult<()> {
+    let started = Instant::now();
+    let mut last_error: Option<String>;
+    loop {
+        if let Some(child) = slot.runtime_child.as_mut() {
+            if let Some(status) = child.try_wait().with_context(|| {
+                format!("failed polling managed Numquam runtime for lane {lane_id}")
+            })? {
+                anyhow::bail!(
+                    "managed Numquam runtime exited before ready for lane {} with status {}",
+                    lane_id,
+                    status
+                );
+            }
+        }
+        if let Some(child) = slot.mcp_child.as_mut() {
+            if let Some(status) = child.try_wait().with_context(|| {
+                format!("failed polling managed Numquam MCP sidecar for lane {lane_id}")
+            })? {
+                anyhow::bail!(
+                    "managed Numquam MCP sidecar exited before ready for lane {} with status {}",
+                    lane_id,
+                    status
+                );
+            }
+        }
+
+        let status = probe_numquam_status_for_client(client).await;
+        if status.enabled && !status.degrade_mode {
+            return Ok(());
+        }
+        last_error = status.last_error.clone().or_else(|| {
+            Some(format!(
+                "status={} degrade_mode={}",
+                status.health_status, status.degrade_mode
+            ))
+        });
+        if started.elapsed() >= timeout {
+            anyhow::bail!(
+                "managed Numquam lane {} did not become ready within {} ms: {}",
+                lane_id,
+                timeout.as_millis(),
+                last_error.unwrap_or_else(|| "unknown startup failure".to_string())
+            );
+        }
+        sleep(Duration::from_millis(250)).await;
+    }
+}
+
+fn resolve_managed_numquam_lane_for_session(
+    state: &AppState,
+    runtime_config: &RuntimeConfigResponse,
+    session_id: &str,
+    assistant_agent_id: &str,
+) -> AnyResult<Option<ResolvedManagedNumquamLane>> {
+    if !numquam_managed_runtime_requested(runtime_config) {
+        return Ok(None);
+    }
+    let session_memory_policy =
+        resolve_session_lane_memory_policy(state, runtime_config, session_id, assistant_agent_id)?;
+    if session_memory_policy.policy_scope != "lane"
+        || !memory_mode_uses_numquam(&session_memory_policy.effective_mode)
+    {
+        return Ok(None);
+    }
+    let Some(human_identity_id) = session_memory_policy.human_identity_id else {
+        return Ok(None);
+    };
+    let Some(lane_id) = session_memory_policy.lane_id else {
+        return Ok(None);
+    };
+    Ok(Some(ResolvedManagedNumquamLane {
+        lane_id,
+        human_identity_id,
+        assistant_agent_id: assistant_agent_id.to_string(),
+    }))
+}
+
+fn resolve_managed_numquam_lane_for_pair(
+    state: &AppState,
+    runtime_config: &RuntimeConfigResponse,
+    human_identity_id: &str,
+    assistant_agent_id: &str,
+) -> AnyResult<Option<ResolvedManagedNumquamLane>> {
+    if !numquam_managed_runtime_requested(runtime_config) {
+        return Ok(None);
+    }
+    let Some(route) = resolve_lane_route_for_human_identity(
+        state,
+        &runtime_config.routing,
+        human_identity_id,
+        Some(assistant_agent_id),
+    )?
+    else {
+        return Ok(None);
+    };
+    let memory_policy = runtime_config
+        .routing
+        .lane_memory_policies
+        .iter()
+        .find(|item| {
+            item.human_identity_id == route.human_identity_id
+                && item.assistant_agent_id == route.assistant_agent_id
+        });
+    let effective_mode = memory_policy
+        .map(|item| item.memory_mode.as_str())
+        .filter(|value| *value != "inherit_runtime")
+        .unwrap_or(runtime_config.memory.blend_mode.as_str());
+    if !memory_mode_uses_numquam(effective_mode) {
+        return Ok(None);
+    }
+    let lane_id = memory_policy
+        .and_then(|item| item.lane_id.clone())
+        .unwrap_or_else(|| {
+            canonical_lane_id(
+                &route.human_identity_id,
+                &route.assistant_agent_id,
+                memory_policy,
+            )
+        });
+    Ok(Some(ResolvedManagedNumquamLane {
+        lane_id,
+        human_identity_id: route.human_identity_id,
+        assistant_agent_id: route.assistant_agent_id,
+    }))
+}
+
+async fn resolve_managed_numquam_lane_client(
+    state: &AppState,
+    runtime_config: &RuntimeConfigResponse,
+    lane: &ResolvedManagedNumquamLane,
+) -> AnyResult<Option<NumquamClient>> {
+    if !numquam_managed_runtime_requested(runtime_config) {
+        return Ok(None);
+    }
+
+    let vendor_root = managed_numquam_vendor_root(&runtime_config.memory.numquam)?;
+    let python_bin = managed_numquam_python_bin(&runtime_config.memory.numquam);
+    let lane_root = managed_numquam_lane_root(state, runtime_config, &lane.lane_id)?;
+    let runtime_root = managed_numquam_runtime_root(&lane_root);
+    let store_path = managed_numquam_store_path(&lane_root);
+    let episode_cards_path = managed_numquam_episode_cards_path(&lane_root);
+    ensure_managed_numquam_lane_store_exists(&store_path)?;
+    std::fs::create_dir_all(&runtime_root).with_context(|| {
+        format!(
+            "failed creating managed lane runtime dir {}",
+            runtime_root.display()
+        )
+    })?;
+
+    let slot_handle = state
+        .numquam_lane_runtime_manager
+        .slot_for_lane(&lane.lane_id)
+        .await;
+    let mut slot = slot_handle.lock().await;
+
+    if let Some(existing_metadata) = read_managed_numquam_lane_metadata(&lane_root)? {
+        if let Some(client) =
+            NumquamClient::from_managed_lane_metadata(runtime_config, &existing_metadata)?
+        {
+            let status = probe_numquam_status_for_client(&client).await;
+            if status.enabled && !status.degrade_mode {
+                return Ok(Some(client));
+            }
+        }
+    }
+
+    stop_numquam_lane_child(&mut slot.mcp_child).await;
+    stop_numquam_lane_child(&mut slot.runtime_child).await;
+
+    let existing_metadata = read_managed_numquam_lane_metadata(&lane_root)?;
+    let metadata =
+        build_managed_numquam_lane_metadata(runtime_config, lane, existing_metadata.as_ref())?;
+    slot.runtime_child = Some(
+        spawn_managed_numquam_runtime_process(
+            &vendor_root,
+            &python_bin,
+            &runtime_root,
+            &store_path,
+            episode_cards_path.as_deref(),
+            &metadata,
+        )
+        .await?,
+    );
+    if matches!(
+        runtime_config.memory.numquam.transport.as_str(),
+        "mcp" | "dual"
+    ) {
+        slot.mcp_child =
+            Some(spawn_managed_numquam_mcp_process(&vendor_root, &python_bin, &metadata).await?);
+    }
+
+    let client = NumquamClient::from_managed_lane_metadata(runtime_config, &metadata)?
+        .ok_or_else(|| anyhow::anyhow!("managed Numquam lane client unexpectedly disabled"))?;
+    wait_for_managed_numquam_lane_ready(
+        &client,
+        &mut slot,
+        Duration::from_millis(runtime_config.memory.numquam.managed_launch_timeout_ms),
+        &lane.lane_id,
+    )
+    .await?;
+    write_managed_numquam_lane_metadata(&lane_root, &metadata)?;
+    Ok(Some(client))
+}
+
 fn resolve_numquam_client_for_agent(
     state: &AppState,
     runtime_config: &RuntimeConfigResponse,
@@ -25157,7 +28931,7 @@ fn resolve_numquam_client_for_agent(
     NumquamClient::from_agent_binding(runtime_config, binding, &state.secret_store)
 }
 
-fn resolve_numquam_client_for_session(
+async fn resolve_numquam_client_for_session(
     state: &AppState,
     runtime_config: &RuntimeConfigResponse,
     session_id: &str,
@@ -25166,6 +28940,18 @@ fn resolve_numquam_client_for_session(
         .storage
         .get_session(session_id)?
         .with_context(|| format!("session not found for Numquam binding: {session_id}"))?;
+    if let Some(managed_lane) = resolve_managed_numquam_lane_for_session(
+        state,
+        runtime_config,
+        session_id,
+        &session.agent_id,
+    )? {
+        if let Some(client) =
+            resolve_managed_numquam_lane_client(state, runtime_config, &managed_lane).await?
+        {
+            return Ok(Some(client));
+        }
+    }
     resolve_numquam_client_for_agent(state, runtime_config, &session.agent_id)
 }
 
@@ -25439,33 +29225,30 @@ async fn refresh_numquam_handshake_state(state: &AppState) {
                 next.required_operations_missing = numquam_required_ops_missing(&cap_data);
                 let transport_supported =
                     numquam_transport_supported_by_capabilities(client.transport, &cap_data);
-                let contract_version_ok =
-                    cap_data.contract_version.trim() == NUMQUAM_CONTRACT_VERSION;
+                let contract_version_present = !cap_data.contract_version.trim().is_empty();
                 let schema_supported = cap_data
                     .supported_schema_versions
                     .iter()
                     .any(|value| value.trim() == NUMQUAM_CONTRACT_VERSION);
                 let health_status = health_data.status.trim().to_ascii_lowercase();
-                let healthy = health_status == "ok"
-                    && transport_supported
-                    && contract_version_ok
+                let contract_supported = transport_supported
+                    && contract_version_present
                     && schema_supported
                     && next.required_operations_missing.is_empty();
-                next.health_status = if healthy {
-                    "ok".to_string()
-                } else if health_status.is_empty() {
+                next.health_status = if health_status.is_empty() {
                     "degraded".to_string()
                 } else {
                     health_status
                 };
-                next.degrade_mode = !healthy || next.health_status != "ok";
-                if !healthy {
+                next.degrade_mode =
+                    capabilities.degrade_mode || health.degrade_mode || !contract_supported;
+                if !contract_supported {
                     let mut reasons = Vec::new();
                     if !transport_supported {
                         reasons.push("transport_unsupported");
                     }
-                    if !contract_version_ok {
-                        reasons.push("contract_version_mismatch");
+                    if !contract_version_present {
+                        reasons.push("contract_version_missing");
                         next.last_error_code = Some("CONTRACT_VERSION_UNSUPPORTED".to_string());
                     }
                     if !schema_supported {
@@ -25475,9 +29258,6 @@ async fn refresh_numquam_handshake_state(state: &AppState) {
                     if !next.required_operations_missing.is_empty() {
                         reasons.push("missing_required_operations");
                         next.last_error_code = Some("CONTRACT_VERSION_UNSUPPORTED".to_string());
-                    }
-                    if next.health_status != "ok" {
-                        reasons.push("health_not_ok");
                     }
                     next.last_error =
                         Some(format!("numquam handshake mismatch: {}", reasons.join(",")));
@@ -25645,6 +29425,351 @@ fn new_numquam_request_id() -> String {
     format!("req_{}", uuid::Uuid::new_v4().simple())
 }
 
+#[derive(Debug, Deserialize)]
+struct DiscordGatewayBotResponse {
+    url: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct DiscordGatewayEventFrame {
+    op: u64,
+    #[serde(default)]
+    d: serde_json::Value,
+    #[serde(default)]
+    s: Option<u64>,
+    #[serde(default)]
+    t: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DiscordGatewayHelloPayload {
+    heartbeat_interval: u64,
+}
+
+#[derive(Debug, Deserialize)]
+struct DiscordGatewayReadyPayload {
+    user: DiscordGatewayReadyUser,
+}
+
+#[derive(Debug, Deserialize)]
+struct DiscordGatewayReadyUser {
+    id: String,
+}
+
+fn discord_runtime_uses_rest_poll(runtime_config: &RuntimeConfigResponse) -> bool {
+    runtime_config
+        .channels
+        .discord
+        .api_base_url
+        .as_ref()
+        .map(|value| value.to_ascii_lowercase())
+        .is_some_and(|value| !value.contains("discord.com"))
+}
+
+fn discord_gateway_intents_mask(intents: &[String]) -> u64 {
+    intents.iter().fold(0_u64, |mask, raw_intent| {
+        let bit = match raw_intent.trim().to_ascii_lowercase().as_str() {
+            "guilds" => 1_u64 << 0,
+            "guild_messages" => 1_u64 << 9,
+            "direct_messages" => 1_u64 << 12,
+            "message_content" => 1_u64 << 15,
+            _ => 0,
+        };
+        mask | bit
+    })
+}
+
+async fn fetch_discord_gateway_url(
+    state: &AppState,
+    runtime_config: &RuntimeConfigResponse,
+) -> AnyResult<String> {
+    let bot_token = resolve_discord_bot_token(runtime_config, &state.secret_store)?;
+    let base_url = runtime_config
+        .channels
+        .discord
+        .api_base_url
+        .clone()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| discord_channel::DISCORD_DEFAULT_API_BASE_URL.to_string())
+        .trim_end_matches('/')
+        .to_string();
+    let response = state
+        .provider_models_http_client
+        .get(format!("{base_url}/gateway/bot"))
+        .header(header::AUTHORIZATION, format!("Bot {bot_token}"))
+        .send()
+        .await
+        .context("requesting Discord gateway URL failed")?;
+    if !response.status().is_success() {
+        let status = response.status();
+        let body = response
+            .text()
+            .await
+            .unwrap_or_else(|_| String::new())
+            .trim()
+            .to_string();
+        if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
+            if body.is_empty() {
+                anyhow::bail!(
+                    "Discord rejected the bot token while requesting the gateway URL (status {status})"
+                );
+            }
+            anyhow::bail!(
+                "Discord rejected the bot token while requesting the gateway URL (status {status}): {body}"
+            );
+        }
+        if body.is_empty() {
+            anyhow::bail!("Discord gateway URL request failed (status {status})");
+        }
+        anyhow::bail!("Discord gateway URL request failed (status {status}): {body}");
+    }
+    let payload: DiscordGatewayBotResponse = response
+        .json()
+        .await
+        .context("parsing Discord gateway URL response failed")?;
+    let mut gateway_url =
+        Url::parse(payload.url.trim()).context("Discord returned an invalid gateway URL")?;
+    if gateway_url.path().is_empty() {
+        gateway_url.set_path("/");
+    }
+    {
+        let mut pairs = gateway_url.query_pairs_mut();
+        pairs.append_pair("v", "10");
+        pairs.append_pair("encoding", "json");
+    }
+    Ok(gateway_url.to_string())
+}
+
+type DiscordGatewaySink = futures_util::stream::SplitSink<
+    tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
+    ClientWsMessage,
+>;
+
+async fn discord_gateway_send_json(
+    sink: &mut DiscordGatewaySink,
+    payload: serde_json::Value,
+) -> AnyResult<()> {
+    sink.send(ClientWsMessage::Text(payload.to_string().into()))
+        .await
+        .context("sending Discord gateway frame failed")
+}
+
+async fn discord_gateway_session_once(state: &AppState) -> AnyResult<()> {
+    let session_started = Instant::now();
+    let runtime_config = load_runtime_config_from_storage(&state.storage)?;
+    if normalize_discord_operation_mode(&runtime_config.channels.discord.operation_mode)
+        != DISCORD_OPERATION_MODE_TRANSPORT
+    {
+        anyhow::bail!("discord runtime is not in transport mode");
+    }
+    let gateway_url = fetch_discord_gateway_url(state, &runtime_config).await?;
+    let bot_token = resolve_discord_bot_token(&runtime_config, &state.secret_store)?;
+    let intents = discord_gateway_intents_mask(&runtime_config.channels.discord.intents);
+
+    state.channel_runtime.record_session_state(
+        "discord",
+        ChannelRuntimeSessionState::Connecting,
+        Some("Connecting to the Discord gateway".to_string()),
+    );
+
+    let (stream, _) = connect_async(gateway_url.as_str())
+        .await
+        .context("opening Discord gateway websocket failed")?;
+    let (mut write, mut read) = stream.split();
+
+    let hello_frame = read
+        .next()
+        .await
+        .ok_or_else(|| anyhow::anyhow!("Discord gateway closed before hello"))?
+        .context("Discord gateway hello frame failed")?;
+    let hello_text = match hello_frame {
+        ClientWsMessage::Text(text) => text.to_string(),
+        ClientWsMessage::Binary(bytes) => {
+            String::from_utf8(bytes.to_vec()).context("Discord gateway hello was not UTF-8")?
+        }
+        other => anyhow::bail!("unexpected Discord gateway hello frame: {other:?}"),
+    };
+    let hello_payload: DiscordGatewayEventFrame =
+        serde_json::from_str(&hello_text).context("parsing Discord gateway hello failed")?;
+    if hello_payload.op != 10 {
+        anyhow::bail!("Discord gateway hello opcode was {}", hello_payload.op);
+    }
+    let hello_data: DiscordGatewayHelloPayload = serde_json::from_value(hello_payload.d)
+        .context("Discord gateway hello payload missing heartbeat interval")?;
+    info!(
+        provider = "discord",
+        elapsed_ms = session_started.elapsed().as_millis() as u64,
+        heartbeat_interval_ms = hello_data.heartbeat_interval,
+        "discord gateway hello received"
+    );
+
+    discord_gateway_send_json(
+        &mut write,
+        serde_json::json!({
+            "op": 2,
+            "d": {
+                "token": bot_token,
+                "intents": intents,
+                "properties": {
+                    "os": "carsinos",
+                    "browser": "carsinos",
+                    "device": "carsinos"
+                }
+            }
+        }),
+    )
+    .await?;
+
+    let mut heartbeat = tokio::time::interval(Duration::from_millis(
+        hello_data.heartbeat_interval.max(1_000),
+    ));
+    let mut last_sequence: Option<u64> = None;
+    let mut bot_user_id = runtime_config
+        .channels
+        .discord
+        .application_id
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    loop {
+        tokio::select! {
+            _ = heartbeat.tick() => {
+                discord_gateway_send_json(
+                    &mut write,
+                    serde_json::json!({
+                        "op": 1,
+                        "d": last_sequence
+                    }),
+                ).await?;
+            }
+            maybe_frame = read.next() => {
+                let frame = maybe_frame
+                    .ok_or_else(|| anyhow::anyhow!("Discord gateway websocket closed"))?
+                    .context("reading Discord gateway frame failed")?;
+                let text = match frame {
+                    ClientWsMessage::Text(text) => text.to_string(),
+                    ClientWsMessage::Binary(bytes) => {
+                        String::from_utf8(bytes.to_vec()).context("Discord gateway frame was not UTF-8")?
+                    }
+                    ClientWsMessage::Ping(bytes) => {
+                        write.send(ClientWsMessage::Pong(bytes)).await.context("sending Discord gateway pong failed")?;
+                        continue;
+                    }
+                    ClientWsMessage::Pong(_) => continue,
+                    ClientWsMessage::Close(frame) => {
+                        let reason = frame
+                            .map(|item| item.reason.to_string())
+                            .unwrap_or_else(|| "Discord gateway closed the websocket".to_string());
+                        anyhow::bail!("{reason}");
+                    }
+                    ClientWsMessage::Frame(_) => continue,
+                };
+                let payload: DiscordGatewayEventFrame =
+                    serde_json::from_str(&text).context("parsing Discord gateway event failed")?;
+                if let Some(sequence) = payload.s {
+                    last_sequence = Some(sequence);
+                }
+                match payload.op {
+                    0 => match payload.t.as_deref() {
+                        Some("READY") => {
+                            let ready: DiscordGatewayReadyPayload = serde_json::from_value(payload.d)
+                                .context("parsing Discord READY payload failed")?;
+                            bot_user_id = Some(ready.user.id);
+                            info!(
+                                provider = "discord",
+                                bot_user_id = bot_user_id.as_deref(),
+                                elapsed_ms = session_started.elapsed().as_millis() as u64,
+                                "discord gateway ready received"
+                            );
+                            state.channel_runtime.record_session_state(
+                                "discord",
+                                ChannelRuntimeSessionState::GatewayConnected,
+                                Some("Discord is connected and waiting for the first real message".to_string()),
+                            );
+                        }
+                        Some("MESSAGE_CREATE") => {
+                            let ingest_started = Instant::now();
+                            let message: discord_channel::DiscordTransportInboundMessage =
+                                serde_json::from_value(payload.d)
+                                    .context("parsing Discord MESSAGE_CREATE payload failed")?;
+                            if message.author.bot.unwrap_or(false) {
+                                continue;
+                            }
+                            let headers = internal_channel_ingest_headers(state)?;
+                            let mentions_bot = discord_message_mentions_bot(&message, bot_user_id.as_deref());
+                            let request = IngestDiscordMessageRequest {
+                                guild_id: message.guild_id.clone(),
+                                channel_id: message.channel_id.clone(),
+                                thread_id: None,
+                                author_id: message.author.id.clone(),
+                                text: message.content.clone(),
+                                mentions_bot,
+                                is_dm: message.guild_id.is_none(),
+                                source_message_id: Some(message.id.clone()),
+                                run_immediately: None,
+                                model_provider: None,
+                                model_id: None,
+                                auth_profile_id: None,
+                            };
+                            info!(
+                                provider = "discord",
+                                channel_id = %message.channel_id,
+                                guild_id = ?message.guild_id,
+                                author_id = %message.author.id,
+                                message_id = %message.id,
+                                inbound_chars = message.content.len(),
+                                mentions_bot,
+                                is_dm = message.guild_id.is_none(),
+                                "discord gateway message received"
+                            );
+                            match ingest_discord_channel_message(headers, State(state.clone()), Json(request)).await {
+                                Ok(_) => {
+                                    info!(
+                                        provider = "discord",
+                                        channel_id = %message.channel_id,
+                                        message_id = %message.id,
+                                        elapsed_ms = ingest_started.elapsed().as_millis() as u64,
+                                        "discord gateway message ingested successfully"
+                                    );
+                                    state.channel_runtime.record_inbound(
+                                        "discord",
+                                        Some("Discord saw a real inbound message".to_string()),
+                                    );
+                                    state.channel_runtime.record_session_state(
+                                        "discord",
+                                        ChannelRuntimeSessionState::GatewayConnected,
+                                        Some("Discord is connected and receiving live messages".to_string()),
+                                    );
+                                }
+                                Err((status, payload)) => anyhow::bail!(
+                                    "discord gateway ingest failed with {}: {}",
+                                    status,
+                                    payload.0.error
+                                ),
+                            }
+                        }
+                        _ => {}
+                    },
+                    1 => {
+                        discord_gateway_send_json(
+                            &mut write,
+                            serde_json::json!({
+                                "op": 1,
+                                "d": last_sequence
+                            }),
+                        ).await?;
+                    }
+                    7 => anyhow::bail!("Discord gateway requested reconnect"),
+                    9 => anyhow::bail!("Discord gateway reported invalid session"),
+                    10 | 11 => {}
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
 async fn channel_runtime_supervisor_loop(manager: Arc<ChannelRuntimeManager>) {
     info!("channel runtime supervisor loop started");
     loop {
@@ -25655,10 +29780,27 @@ async fn channel_runtime_supervisor_loop(manager: Arc<ChannelRuntimeManager>) {
 
 async fn channel_ingest_listener_loop(state: AppState) {
     info!("channel ingest listener loops started");
-    tokio::join!(
-        telegram_channel_listener_loop(state.clone()),
-        discord_channel_listener_loop(state)
-    );
+    let telegram_state = state.clone();
+    let telegram_task = tokio::spawn(async move {
+        telegram_channel_listener_loop(telegram_state).await;
+    });
+    let discord_task = tokio::spawn(async move {
+        discord_channel_listener_loop(state).await;
+    });
+
+    let (telegram_result, discord_result) = tokio::join!(telegram_task, discord_task);
+    if let Err(err) = telegram_result {
+        warn!(
+            error = ?err,
+            "telegram listener task exited unexpectedly"
+        );
+    }
+    if let Err(err) = discord_result {
+        warn!(
+            error = ?err,
+            "discord listener task exited unexpectedly"
+        );
+    }
 }
 
 async fn telegram_channel_listener_loop(state: AppState) {
@@ -25666,6 +29808,19 @@ async fn telegram_channel_listener_loop(state: AppState) {
     loop {
         match poll_telegram_channel_listener_once(&state, &mut update_offset).await {
             Ok((active, processed)) => {
+                if active {
+                    state.channel_runtime.record_session_state(
+                        "telegram",
+                        ChannelRuntimeSessionState::Listening,
+                        Some("Telegram is listening for new messages".to_string()),
+                    );
+                } else {
+                    state.channel_runtime.record_session_state(
+                        "telegram",
+                        ChannelRuntimeSessionState::Offline,
+                        Some("Telegram is waiting for transport mode".to_string()),
+                    );
+                }
                 if processed > 0 {
                     emit_event(
                         &state,
@@ -25682,7 +29837,39 @@ async fn telegram_channel_listener_loop(state: AppState) {
                 }
             }
             Err(err) => {
-                warn!(error = %err, "telegram listener tick failed");
+                if is_expected_telegram_long_poll_idle_timeout(&err) {
+                    info!(
+                        error = %err,
+                        error_chain = %format_anyhow_error_chain(&err),
+                        "telegram long-poll timed out waiting for a new message"
+                    );
+                    state.channel_runtime.update_status(
+                        "telegram",
+                        ChannelAdapterLifecycleState::Running,
+                        ChannelAdapterHealth {
+                            healthy: true,
+                            detail: Some("Telegram is listening for new messages".to_string()),
+                        },
+                        None,
+                        false,
+                        false,
+                    );
+                    state.channel_runtime.record_session_state(
+                        "telegram",
+                        ChannelRuntimeSessionState::Listening,
+                        Some("Telegram is listening for new messages".to_string()),
+                    );
+                    sleep(Duration::from_millis(250)).await;
+                    continue;
+                }
+                warn!(
+                    error = %err,
+                    error_chain = %format_anyhow_error_chain(&err),
+                    "telegram listener tick failed"
+                );
+                state
+                    .channel_runtime
+                    .record_listener_error("telegram", err.to_string());
                 sleep(Duration::from_secs(2)).await;
             }
         }
@@ -25692,23 +29879,92 @@ async fn telegram_channel_listener_loop(state: AppState) {
 async fn discord_channel_listener_loop(state: AppState) {
     let mut channel_cursors: HashMap<String, String> = HashMap::new();
     loop {
-        match poll_discord_channel_listener_once(&state, &mut channel_cursors).await {
-            Ok((active, processed)) => {
-                if processed > 0 {
-                    emit_event(
-                        &state,
-                        "channel.listener.tick",
-                        serde_json::json!({
-                            "provider": "discord",
-                            "processed_messages": processed,
-                            "active": active
+        let runtime_config = match load_runtime_config_from_storage(&state.storage) {
+            Ok(config) => config,
+            Err(err) => {
+                warn!(error = %err, "loading runtime config for discord listener failed");
+                state
+                    .channel_runtime
+                    .record_listener_error("discord", err.to_string());
+                sleep(Duration::from_secs(2)).await;
+                continue;
+            }
+        };
+
+        if normalize_discord_operation_mode(&runtime_config.channels.discord.operation_mode)
+            != DISCORD_OPERATION_MODE_TRANSPORT
+        {
+            state.channel_runtime.record_session_state(
+                "discord",
+                ChannelRuntimeSessionState::Offline,
+                Some("Discord is waiting for transport mode".to_string()),
+            );
+            sleep(Duration::from_secs(3)).await;
+            continue;
+        }
+
+        if discord_runtime_uses_rest_poll(&runtime_config) {
+            match poll_discord_channel_listener_once(&state, &mut channel_cursors).await {
+                Ok((active, processed)) => {
+                    state.channel_runtime.record_session_state(
+                        "discord",
+                        if active {
+                            ChannelRuntimeSessionState::Listening
+                        } else {
+                            ChannelRuntimeSessionState::Offline
+                        },
+                        Some(if active {
+                            "Discord test transport is polling for new messages".to_string()
+                        } else {
+                            "Discord is waiting for staging channels".to_string()
                         }),
                     );
+                    if processed > 0 {
+                        emit_event(
+                            &state,
+                            "channel.listener.tick",
+                            serde_json::json!({
+                                "provider": "discord",
+                                "processed_messages": processed,
+                                "active": active
+                            }),
+                        );
+                    }
+                    sleep(Duration::from_secs(if active { 2 } else { 3 })).await;
                 }
-                sleep(Duration::from_secs(if active { 2 } else { 3 })).await;
+                Err(err) => {
+                    warn!(
+                        error = %err,
+                        error_chain = %format_anyhow_error_chain(&err),
+                        "discord listener poll tick failed"
+                    );
+                    state
+                        .channel_runtime
+                        .record_listener_error("discord", err.to_string());
+                    sleep(Duration::from_secs(2)).await;
+                }
+            }
+            continue;
+        }
+
+        match discord_gateway_session_once(&state).await {
+            Ok(()) => {
+                state.channel_runtime.record_session_state(
+                    "discord",
+                    ChannelRuntimeSessionState::Offline,
+                    Some("Discord gateway session ended; reconnecting".to_string()),
+                );
+                sleep(Duration::from_secs(2)).await;
             }
             Err(err) => {
-                warn!(error = %err, "discord listener tick failed");
+                warn!(
+                    error = %err,
+                    error_chain = %format_anyhow_error_chain(&err),
+                    "discord gateway session failed"
+                );
+                state
+                    .channel_runtime
+                    .record_listener_error("discord", err.to_string());
                 sleep(Duration::from_secs(2)).await;
             }
         }
@@ -25789,6 +30045,10 @@ async fn poll_telegram_channel_listener_once(
         {
             Ok(_) => {
                 processed_messages = processed_messages.saturating_add(1);
+                state.channel_runtime.record_inbound(
+                    "telegram",
+                    Some("Telegram saw a real inbound message".to_string()),
+                );
             }
             Err((status, payload)) => {
                 warn!(
@@ -25875,6 +30135,10 @@ async fn poll_discord_channel_listener_once(
             {
                 Ok(_) => {
                     processed_messages = processed_messages.saturating_add(1);
+                    state.channel_runtime.record_inbound(
+                        "discord",
+                        Some("Discord saw a real inbound message".to_string()),
+                    );
                 }
                 Err((status, payload)) => {
                     warn!(
@@ -26423,6 +30687,17 @@ fn resolve_heartbeat_contract_result(payload: &serde_json::Value) -> AnyResult<S
     Ok(result)
 }
 
+fn parse_heartbeat_lane_target(
+    payload: &serde_json::Value,
+) -> AnyResult<(Option<String>, Option<String>)> {
+    let human_identity_id = optional_job_payload_string(payload, "human_identity_id");
+    let assistant_agent_id = optional_job_payload_string(payload, "assistant_agent_id");
+    if human_identity_id.is_none() && assistant_agent_id.is_some() {
+        anyhow::bail!("INVALID_INPUT: assistant_agent_id requires human_identity_id");
+    }
+    Ok((human_identity_id, assistant_agent_id))
+}
+
 async fn execute_heartbeat_run_job(
     state: &AppState,
     job: &JobRecord,
@@ -26437,6 +30712,20 @@ async fn execute_heartbeat_run_job(
     }
     let result = resolve_heartbeat_contract_result(payload)?;
     let guardrails = load_runtime_autonomy_guardrails(state)?;
+    let runtime_config = load_runtime_config(state)?;
+    let (human_identity_id, assistant_agent_id) = parse_heartbeat_lane_target(payload)?;
+    let resolved_lane = resolve_requested_job_lane_route(
+        state,
+        &runtime_config,
+        human_identity_id.as_deref(),
+        assistant_agent_id.as_deref(),
+        "heartbeat.run",
+    )?;
+    let resolved_assistant_agent_id = resolved_lane
+        .as_ref()
+        .map(|lane| lane.assistant_agent_id.clone())
+        .or(assistant_agent_id.clone());
+    let resolved_session_key = resolved_lane.as_ref().map(|lane| lane.session_key.clone());
     let effective_timeout_ms = (job.timeout_ms.max(1) as u64).min(guardrails.heartbeat_max_run_ms);
     let status = if result == HEARTBEAT_OUTPUT_OK {
         "ok"
@@ -26449,6 +30738,9 @@ async fn execute_heartbeat_run_job(
         serde_json::json!({
             "job_id": &job.job_id,
             "attempt": attempt,
+            "human_identity_id": human_identity_id,
+            "assistant_agent_id": resolved_assistant_agent_id,
+            "session_key": resolved_session_key,
             "status": status,
             "result": &result,
             "tools_disabled": true,
@@ -26459,6 +30751,9 @@ async fn execute_heartbeat_run_job(
         "mode": JOB_MODE_HEARTBEAT_RUN,
         "job_id": &job.job_id,
         "attempt": attempt,
+        "human_identity_id": human_identity_id,
+        "assistant_agent_id": resolved_assistant_agent_id,
+        "session_key": resolved_session_key,
         "input": input,
         "result": &result,
         "status": status,
@@ -26484,6 +30779,17 @@ fn parse_memory_sources_from_payload(payload: &serde_json::Value) -> Vec<String>
         .unwrap_or_default()
 }
 
+fn parse_memory_sync_lane_target(
+    payload: &serde_json::Value,
+) -> AnyResult<(Option<String>, Option<String>)> {
+    let human_identity_id = optional_job_payload_string(payload, "human_identity_id");
+    let assistant_agent_id = optional_job_payload_string(payload, "assistant_agent_id");
+    if human_identity_id.is_none() && assistant_agent_id.is_some() {
+        anyhow::bail!("INVALID_INPUT: assistant_agent_id requires human_identity_id");
+    }
+    Ok((human_identity_id, assistant_agent_id))
+}
+
 async fn execute_memory_sync_job(
     state: &AppState,
     job: &JobRecord,
@@ -26492,11 +30798,14 @@ async fn execute_memory_sync_job(
 ) -> AnyResult<String> {
     let runtime_config = load_runtime_config(state)?;
     let requested_sources = parse_memory_sources_from_payload(payload);
-    let sources = if requested_sources.is_empty() {
-        runtime_config.memory.memory_md_sources.clone()
-    } else {
-        requested_sources
-    };
+    let (human_identity_id, assistant_agent_id) = parse_memory_sync_lane_target(payload)?;
+    let sources = resolve_memory_sync_sources(
+        state,
+        &runtime_config,
+        &requested_sources,
+        human_identity_id.as_deref(),
+        assistant_agent_id.as_deref(),
+    )?;
     if sources.is_empty() {
         anyhow::bail!("INVALID_INPUT: memory.sync requires configured sources");
     }
@@ -26509,6 +30818,8 @@ async fn execute_memory_sync_job(
         serde_json::json!({
             "job_id": &job.job_id,
             "attempt": attempt,
+            "human_identity_id": human_identity_id,
+            "assistant_agent_id": assistant_agent_id,
             "sources_total": items.len(),
             "synced": synced,
             "failed": failed
@@ -26518,6 +30829,8 @@ async fn execute_memory_sync_job(
         "mode": "memory.sync",
         "job_id": &job.job_id,
         "attempt": attempt,
+        "human_identity_id": human_identity_id,
+        "assistant_agent_id": assistant_agent_id,
         "sources_total": items.len(),
         "synced": synced,
         "failed": failed,
@@ -26535,7 +30848,43 @@ async fn execute_memory_preflight_job(
 ) -> AnyResult<String> {
     refresh_numquam_handshake_state(state).await;
     let runtime_config = load_runtime_config(state)?;
-    let status = current_numquam_status(state, Some(&runtime_config)).await;
+    let (human_identity_id, assistant_agent_id) = parse_memory_sync_lane_target(payload)?;
+    let resolved_lane = resolve_requested_job_lane_route(
+        state,
+        &runtime_config,
+        human_identity_id.as_deref(),
+        assistant_agent_id.as_deref(),
+        "memory.preflight",
+    )?;
+    let resolved_assistant_agent_id = resolved_lane
+        .as_ref()
+        .map(|lane| lane.assistant_agent_id.clone())
+        .or(assistant_agent_id.clone());
+    let resolved_session_key = resolved_lane.as_ref().map(|lane| lane.session_key.clone());
+    let status = if let Some(agent_id) = resolved_assistant_agent_id.as_deref() {
+        let client = if let Some(human_id) = human_identity_id.as_deref() {
+            if let Some(lane) =
+                resolve_managed_numquam_lane_for_pair(state, &runtime_config, human_id, agent_id)?
+            {
+                resolve_managed_numquam_lane_client(state, &runtime_config, &lane).await?
+            } else {
+                resolve_numquam_client_for_agent(state, &runtime_config, agent_id)?
+            }
+        } else {
+            resolve_numquam_client_for_agent(state, &runtime_config, agent_id)?
+        };
+        match client {
+            Some(client) => probe_numquam_status_for_client(&client).await,
+            None => NumquamIntegrationStatusResponse {
+                enabled: false,
+                transport: runtime_config.memory.numquam.transport.clone(),
+                health_status: "unconfigured".to_string(),
+                ..NumquamIntegrationStatusResponse::default()
+            },
+        }
+    } else {
+        current_numquam_status(state, Some(&runtime_config)).await
+    };
     let fail_on_degrade = payload
         .get("fail_on_degrade")
         .and_then(|value| value.as_bool())
@@ -26546,6 +30895,9 @@ async fn execute_memory_preflight_job(
         serde_json::json!({
             "job_id": &job.job_id,
             "attempt": attempt,
+            "human_identity_id": human_identity_id,
+            "assistant_agent_id": resolved_assistant_agent_id,
+            "session_key": resolved_session_key,
             "enabled": status.enabled,
             "transport": status.transport,
             "health_status": status.health_status,
@@ -26564,6 +30916,9 @@ async fn execute_memory_preflight_job(
         "mode": "memory.preflight",
         "job_id": &job.job_id,
         "attempt": attempt,
+        "human_identity_id": human_identity_id,
+        "assistant_agent_id": resolved_assistant_agent_id,
+        "session_key": resolved_session_key,
         "numquam": status,
         "now_ms": current_time_ms()
     })
@@ -26577,7 +30932,34 @@ async fn execute_memory_parity_probe_job(
     attempt: i64,
 ) -> AnyResult<String> {
     let runtime_config = load_runtime_config(state)?;
-    let client = resolve_numquam_client(state, &runtime_config)?;
+    let (human_identity_id, assistant_agent_id) = parse_memory_sync_lane_target(payload)?;
+    let resolved_lane = resolve_requested_job_lane_route(
+        state,
+        &runtime_config,
+        human_identity_id.as_deref(),
+        assistant_agent_id.as_deref(),
+        "memory.parity_probe",
+    )?;
+    let resolved_assistant_agent_id = resolved_lane
+        .as_ref()
+        .map(|lane| lane.assistant_agent_id.clone())
+        .or(assistant_agent_id.clone());
+    let resolved_session_key = resolved_lane.as_ref().map(|lane| lane.session_key.clone());
+    let client = if let Some(agent_id) = resolved_assistant_agent_id.as_deref() {
+        if let Some(human_id) = human_identity_id.as_deref() {
+            if let Some(lane) =
+                resolve_managed_numquam_lane_for_pair(state, &runtime_config, human_id, agent_id)?
+            {
+                resolve_managed_numquam_lane_client(state, &runtime_config, &lane).await?
+            } else {
+                resolve_numquam_client_for_agent(state, &runtime_config, agent_id)?
+            }
+        } else {
+            resolve_numquam_client_for_agent(state, &runtime_config, agent_id)?
+        }
+    } else {
+        resolve_numquam_client(state, &runtime_config)?
+    };
     let Some(client) = client else {
         anyhow::bail!("DEPENDENCY_UNAVAILABLE: numquam client is not configured");
     };
@@ -26586,6 +30968,9 @@ async fn execute_memory_parity_probe_job(
             "mode": "memory.parity_probe",
             "job_id": &job.job_id,
             "attempt": attempt,
+            "human_identity_id": human_identity_id,
+            "assistant_agent_id": resolved_assistant_agent_id,
+            "session_key": resolved_session_key,
             "skipped": true,
             "reason": "transport is not dual",
             "transport": client.transport.as_str(),
@@ -26593,8 +30978,11 @@ async fn execute_memory_parity_probe_job(
         })
         .to_string());
     }
-    let session_id = optional_job_payload_string(payload, "session_id")
-        .unwrap_or_else(|| format!("parity_probe:{}", job.job_id));
+    let session_id = optional_job_payload_string(payload, "session_id").unwrap_or_else(|| {
+        resolved_session_key
+            .clone()
+            .unwrap_or_else(|| format!("parity_probe:{}", job.job_id))
+    });
     let run_id = optional_job_payload_string(payload, "run_id")
         .unwrap_or_else(|| format!("parity_probe:run:{}", job.job_id));
     let message = optional_job_payload_string(payload, "message")
@@ -26661,6 +31049,9 @@ async fn execute_memory_parity_probe_job(
         serde_json::json!({
             "job_id": &job.job_id,
             "attempt": attempt,
+            "human_identity_id": human_identity_id,
+            "assistant_agent_id": resolved_assistant_agent_id,
+            "session_key": resolved_session_key,
             "parity_match": parity_match,
             "http_request_id": http_result.request_id,
             "mcp_request_id": mcp_result.request_id
@@ -26670,6 +31061,9 @@ async fn execute_memory_parity_probe_job(
         "mode": "memory.parity_probe",
         "job_id": &job.job_id,
         "attempt": attempt,
+        "human_identity_id": human_identity_id,
+        "assistant_agent_id": resolved_assistant_agent_id,
+        "session_key": resolved_session_key,
         "parity_match": parity_match,
         "http_request_id": http_result.request_id,
         "mcp_request_id": mcp_result.request_id,
@@ -26684,6 +31078,20 @@ fn execute_memory_pipeline_hook_job(
     payload: &serde_json::Value,
     attempt: i64,
 ) -> AnyResult<String> {
+    let runtime_config = load_runtime_config(state)?;
+    let (human_identity_id, assistant_agent_id) = parse_memory_sync_lane_target(payload)?;
+    let resolved_lane = resolve_requested_job_lane_route(
+        state,
+        &runtime_config,
+        human_identity_id.as_deref(),
+        assistant_agent_id.as_deref(),
+        "memory.pipeline.hook",
+    )?;
+    let resolved_assistant_agent_id = resolved_lane
+        .as_ref()
+        .map(|lane| lane.assistant_agent_id.clone())
+        .or(assistant_agent_id.clone());
+    let resolved_session_key = resolved_lane.as_ref().map(|lane| lane.session_key.clone());
     let hook = required_job_payload_string(payload, "hook")?;
     let hook_payload = payload
         .get("hook_payload")
@@ -26695,6 +31103,9 @@ fn execute_memory_pipeline_hook_job(
         serde_json::json!({
             "job_id": &job.job_id,
             "attempt": attempt,
+            "human_identity_id": human_identity_id,
+            "assistant_agent_id": resolved_assistant_agent_id,
+            "session_key": resolved_session_key,
             "hook": &hook,
             "hook_payload": hook_payload
         }),
@@ -26703,6 +31114,9 @@ fn execute_memory_pipeline_hook_job(
         "mode": "memory.pipeline.hook",
         "job_id": &job.job_id,
         "attempt": attempt,
+        "human_identity_id": human_identity_id,
+        "assistant_agent_id": resolved_assistant_agent_id,
+        "session_key": resolved_session_key,
         "hook": hook,
         "hook_payload": hook_payload,
         "now_ms": current_time_ms()
@@ -26882,6 +31296,10 @@ fn dispatch_channel_ingest_reply(
             .map(|ids| ids.into_iter().map(|id| id.to_string()).collect::<Vec<_>>())?;
             chunk_count = transport_message_ids.len();
             delivery_mode = TELEGRAM_OPERATION_MODE_TRANSPORT;
+            state.channel_runtime.record_outbound(
+                "telegram",
+                Some("Telegram sent a live outbound reply".to_string()),
+            );
         }
     } else if provider == "discord"
         && normalize_discord_operation_mode(&runtime_config.channels.discord.operation_mode)
@@ -26896,6 +31314,10 @@ fn dispatch_channel_ingest_reply(
         )?;
         chunk_count = transport_message_ids.len();
         delivery_mode = DISCORD_OPERATION_MODE_TRANSPORT;
+        state.channel_runtime.record_outbound(
+            "discord",
+            Some("Discord sent a live outbound reply".to_string()),
+        );
     }
 
     Ok((chunk_count, delivery_mode, transport_message_ids))
@@ -27007,6 +31429,10 @@ fn dispatch_scheduler_delivery(
             })?;
             chunk_count = transport_message_ids.len();
             delivery_mode = TELEGRAM_OPERATION_MODE_TRANSPORT;
+            state.channel_runtime.record_outbound(
+                "telegram",
+                Some("Telegram sent a live scheduled outbound message".to_string()),
+            );
         }
     } else if provider == "discord"
         && normalize_discord_operation_mode(&runtime_config.channels.discord.operation_mode)
@@ -27022,6 +31448,10 @@ fn dispatch_scheduler_delivery(
         .with_context(|| format!("discord transport delivery failed for target {}", target_id))?;
         chunk_count = transport_message_ids.len();
         delivery_mode = DISCORD_OPERATION_MODE_TRANSPORT;
+        state.channel_runtime.record_outbound(
+            "discord",
+            Some("Discord sent a live scheduled outbound message".to_string()),
+        );
     }
 
     emit_event(
@@ -27236,16 +31666,51 @@ async fn execute_session_run_job(
     payload: &serde_json::Value,
 ) -> AnyResult<String> {
     let mode = "session.run";
-    let agent_id = optional_job_payload_string(payload, "agent_id").unwrap_or(job.agent_id.clone());
-    let session_key = optional_job_payload_string(payload, "session_key")
-        .unwrap_or_else(|| format!("scheduler:{}:{}", job.job_id, agent_id));
-    let session_title = optional_job_payload_string(payload, "session_title");
+    let payload_agent_id = optional_job_payload_string(payload, "agent_id");
+    let requested_assistant_agent_id = optional_job_payload_string(payload, "assistant_agent_id")
+        .or_else(|| payload_agent_id.clone());
+    let requested_human_identity_id = optional_job_payload_string(payload, "human_identity_id");
+    let explicit_session_key = optional_job_payload_string(payload, "session_key");
+    let session_title_override = optional_job_payload_string(payload, "session_title");
     let input = required_job_payload_string(payload, "input")?;
     let model_provider = optional_job_payload_string(payload, "model_provider")
         .unwrap_or_else(|| "mock".to_string());
     let model_id = optional_job_payload_string(payload, "model_id")
         .unwrap_or_else(|| "mock-echo-v1".to_string());
     let auth_profile_id = optional_job_payload_string(payload, "auth_profile_id");
+    let runtime_config = load_runtime_config(state)?;
+
+    let scheduler_lane_route = if explicit_session_key.is_none() {
+        requested_human_identity_id
+            .as_deref()
+            .map(|human_identity_id| {
+                resolve_lane_route_for_human_identity(
+                    state,
+                    &runtime_config.routing,
+                    human_identity_id,
+                    requested_assistant_agent_id.as_deref(),
+                )
+            })
+            .transpose()?
+            .flatten()
+    } else {
+        None
+    };
+    let resolved_agent_id = scheduler_lane_route
+        .as_ref()
+        .map(|route| route.assistant_agent_id.clone())
+        .or(payload_agent_id.clone())
+        .unwrap_or(job.agent_id.clone());
+    let session_key = scheduler_lane_route
+        .as_ref()
+        .map(|route| route.session_key.clone())
+        .or(explicit_session_key)
+        .unwrap_or_else(|| format!("scheduler:{}:{}", job.job_id, resolved_agent_id));
+    let session_title = session_title_override.or_else(|| {
+        scheduler_lane_route
+            .as_ref()
+            .map(|route| route.session_title.clone())
+    });
 
     if !provider_supported(&model_provider) {
         anyhow::bail!(
@@ -27261,7 +31726,7 @@ async fn execute_session_run_job(
     } else {
         state.storage.create_session(NewSession {
             session_key: Some(session_key.clone()),
-            agent_id: agent_id.clone(),
+            agent_id: resolved_agent_id.clone(),
             title: session_title,
         })?
     };
@@ -27301,7 +31766,7 @@ async fn execute_session_run_job(
     let refreshed = match execute_run_with_lane_control(
         state,
         &run,
-        &agent_id,
+        &resolved_agent_id,
         auth_profile_id.as_deref(),
         RunLaneConflictPolicy::Wait,
     )
@@ -27440,7 +31905,8 @@ async fn execute_session_run_job(
         Some(serde_json::json!({
             "job_id": &job.job_id,
             "mode": mode,
-            "agent_id": &agent_id,
+            "agent_id": &resolved_agent_id,
+            "human_identity_id": requested_human_identity_id.as_deref().unwrap_or(""),
             "session_key": &session_key,
             "model_provider": &model_provider,
             "model_id": &model_id,
@@ -27456,7 +31922,8 @@ async fn execute_session_run_job(
     Ok(serde_json::json!({
         "mode": mode,
         "job_id": &job.job_id,
-        "agent_id": &agent_id,
+        "agent_id": &resolved_agent_id,
+        "human_identity_id": requested_human_identity_id,
         "session_id": &session.session_id,
         "session_key": &session_key,
         "message_id": &message.message_id,
@@ -27947,6 +32414,7 @@ fn default_discord_channel_config() -> DiscordChannelConfig {
         require_mention_in_guild_channels: true,
         allowlisted_user_ids: Vec::new(),
         auto_run_enabled: true,
+        default_agent_id: None,
         default_model_provider: "mock".to_string(),
         default_model_id: "mock-echo-v1".to_string(),
     }
@@ -27956,7 +32424,17 @@ fn default_telegram_channel_config() -> TelegramChannelConfig {
     TelegramChannelConfig {
         require_mention_in_groups: true,
         allowlisted_user_ids: Vec::new(),
+        dm_policy: "pairing".to_string(),
+        group_policy: "allowlist".to_string(),
+        group_allowlisted_user_ids: Vec::new(),
+        allowlisted_chat_ids: Vec::new(),
+        auto_leave_unauthorized_groups: true,
+        pairing_code_ttl_seconds: 3600,
+        pairing_max_pending: 3,
+        unauthorized_spam_threshold: 4,
+        unauthorized_spam_block_seconds: 3600,
         auto_run_enabled: true,
+        default_agent_id: None,
         default_model_provider: "mock".to_string(),
         default_model_id: "mock-echo-v1".to_string(),
     }
@@ -27967,7 +32445,6 @@ fn default_runtime_provider_policies() -> Vec<RuntimeProviderPolicyConfig> {
         RuntimeProviderPolicyConfig {
             provider: AUTH_PROVIDER_OPENAI.to_string(),
             enabled: true,
-            allow_consumer_oauth: false,
             kill_switch_scope: KILL_SWITCH_SCOPE_NONE.to_string(),
             daily_token_budget: None,
             daily_cost_usd_budget: None,
@@ -27976,13 +32453,402 @@ fn default_runtime_provider_policies() -> Vec<RuntimeProviderPolicyConfig> {
         RuntimeProviderPolicyConfig {
             provider: AUTH_PROVIDER_ANTHROPIC.to_string(),
             enabled: true,
-            allow_consumer_oauth: false,
             kill_switch_scope: KILL_SWITCH_SCOPE_NONE.to_string(),
             daily_token_budget: None,
             daily_cost_usd_budget: None,
             usd_per_1k_tokens: None,
         },
     ]
+}
+
+fn normalize_telegram_dm_policy(value: &str) -> &'static str {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "open" => "open",
+        "disabled" => "disabled",
+        "allowlist" => "allowlist",
+        _ => "pairing",
+    }
+}
+
+fn normalize_telegram_group_policy(value: &str) -> &'static str {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "open" => "open",
+        "disabled" => "disabled",
+        _ => "allowlist",
+    }
+}
+
+fn prune_telegram_pairing_state(pairing_state: &mut TelegramPairingState, now_ms: i64) -> bool {
+    let pending_before = pairing_state.pending_requests.len();
+    pairing_state
+        .pending_requests
+        .retain(|item| item.expires_at > now_ms);
+    let blocked_before = pairing_state.blocked_senders.len();
+    pairing_state
+        .blocked_senders
+        .retain(|item| item.blocked_until > now_ms);
+    pending_before != pairing_state.pending_requests.len()
+        || blocked_before != pairing_state.blocked_senders.len()
+}
+
+fn load_telegram_pairing_state(state: &AppState) -> AnyResult<TelegramPairingState> {
+    let mut pairing_state = state
+        .storage
+        .get_app_kv_json(APP_KV_TELEGRAM_PAIRING_STATE)?
+        .map(|(json, _)| serde_json::from_str::<TelegramPairingState>(&json))
+        .transpose()
+        .with_context(|| "failed to deserialize telegram pairing state from storage")?
+        .unwrap_or_default();
+    let now_ms = current_time_ms();
+    if prune_telegram_pairing_state(&mut pairing_state, now_ms) {
+        save_telegram_pairing_state(state, &mut pairing_state)?;
+    }
+    Ok(pairing_state)
+}
+
+fn save_telegram_pairing_state(
+    state: &AppState,
+    pairing_state: &mut TelegramPairingState,
+) -> AnyResult<i64> {
+    pairing_state.updated_at = current_time_ms();
+    let value_json = serde_json::to_string(pairing_state)
+        .with_context(|| "failed to serialize telegram pairing state")?;
+    state
+        .storage
+        .set_app_kv_json(APP_KV_TELEGRAM_PAIRING_STATE, value_json)
+        .with_context(|| "failed saving telegram pairing state")
+}
+
+fn telegram_pairing_status_response(
+    config: &TelegramChannelConfig,
+    pairing_state: &TelegramPairingState,
+) -> GetTelegramPairingStatusResponse {
+    GetTelegramPairingStatusResponse {
+        dm_policy: config.dm_policy.clone(),
+        group_policy: config.group_policy.clone(),
+        auto_leave_unauthorized_groups: config.auto_leave_unauthorized_groups,
+        pending_requests: pairing_state
+            .pending_requests
+            .iter()
+            .map(|item| TelegramPairingPendingRequestResponse {
+                code: item.code.clone(),
+                user_id: item.user_id,
+                chat_id: item.chat_id,
+                preview_text: item.preview_text.clone(),
+                first_seen_at: item.first_seen_at,
+                last_seen_at: item.last_seen_at,
+                expires_at: item.expires_at,
+                attempt_count: item.attempt_count,
+            })
+            .collect(),
+        blocked_senders: pairing_state
+            .blocked_senders
+            .iter()
+            .map(|item| TelegramBlockedSenderResponse {
+                user_id: item.user_id,
+                blocked_until: item.blocked_until,
+                reason: item.reason.clone(),
+                attempt_count: item.attempt_count,
+                last_attempt_at: item.last_attempt_at,
+            })
+            .collect(),
+        updated_at: pairing_state.updated_at,
+    }
+}
+
+fn prune_discord_pairing_state(pairing_state: &mut DiscordPairingState, now_ms: i64) -> bool {
+    let pending_before = pairing_state.pending_requests.len();
+    pairing_state
+        .pending_requests
+        .retain(|item| item.expires_at > now_ms);
+    let blocked_before = pairing_state.blocked_senders.len();
+    pairing_state
+        .blocked_senders
+        .retain(|item| item.blocked_until > now_ms);
+    pending_before != pairing_state.pending_requests.len()
+        || blocked_before != pairing_state.blocked_senders.len()
+}
+
+fn load_discord_pairing_state(state: &AppState) -> AnyResult<DiscordPairingState> {
+    let mut pairing_state = state
+        .storage
+        .get_app_kv_json(APP_KV_DISCORD_PAIRING_STATE)?
+        .map(|(json, _)| serde_json::from_str::<DiscordPairingState>(&json))
+        .transpose()
+        .with_context(|| "failed to deserialize discord pairing state from storage")?
+        .unwrap_or_default();
+    let now_ms = current_time_ms();
+    if prune_discord_pairing_state(&mut pairing_state, now_ms) {
+        save_discord_pairing_state(state, &mut pairing_state)?;
+    }
+    Ok(pairing_state)
+}
+
+fn save_discord_pairing_state(
+    state: &AppState,
+    pairing_state: &mut DiscordPairingState,
+) -> AnyResult<i64> {
+    pairing_state.updated_at = current_time_ms();
+    let value_json = serde_json::to_string(pairing_state)
+        .with_context(|| "failed to serialize discord pairing state")?;
+    state
+        .storage
+        .set_app_kv_json(APP_KV_DISCORD_PAIRING_STATE, value_json)
+        .with_context(|| "failed saving discord pairing state")
+}
+
+fn discord_pairing_status_response(
+    dm_policy: &str,
+    pairing_state: &DiscordPairingState,
+) -> GetDiscordPairingStatusResponse {
+    GetDiscordPairingStatusResponse {
+        dm_policy: dm_policy.to_string(),
+        pending_requests: pairing_state
+            .pending_requests
+            .iter()
+            .map(|item| DiscordPairingPendingRequestResponse {
+                code: item.code.clone(),
+                user_id: item.user_id.clone(),
+                channel_id: item.channel_id.clone(),
+                preview_text: item.preview_text.clone(),
+                first_seen_at: item.first_seen_at,
+                last_seen_at: item.last_seen_at,
+                expires_at: item.expires_at,
+                attempt_count: item.attempt_count,
+            })
+            .collect(),
+        blocked_senders: pairing_state
+            .blocked_senders
+            .iter()
+            .map(|item| DiscordBlockedSenderResponse {
+                user_id: item.user_id.clone(),
+                blocked_until: item.blocked_until,
+                reason: item.reason.clone(),
+                attempt_count: item.attempt_count,
+                last_attempt_at: item.last_attempt_at,
+            })
+            .collect(),
+        updated_at: pairing_state.updated_at,
+    }
+}
+
+fn discord_pairing_locked_message(code: Option<&str>, queue_full: bool, blocked: bool) -> String {
+    let mut lines = vec!["This Discord chat is locked.".to_string()];
+    if let Some(code) = code {
+        lines.push(format!("Approval code: {code}"));
+    }
+    if queue_full {
+        lines.push("No new approval slots are open right now.".to_string());
+    } else if blocked || code.is_some() {
+        lines.push("Repeated attempts before approval will be blocked.".to_string());
+    }
+    lines.join("\n")
+}
+
+fn issue_discord_pairing_challenge(
+    state: &AppState,
+    inbound: &discord_channel::DiscordInboundMessage,
+) -> AnyResult<(String, String)> {
+    let mut pairing_state = load_discord_pairing_state(state)?;
+    let now_ms = current_time_ms();
+    prune_discord_pairing_state(&mut pairing_state, now_ms);
+
+    if let Some(blocked) = pairing_state
+        .blocked_senders
+        .iter_mut()
+        .find(|item| item.user_id == inbound.author_id)
+    {
+        blocked.attempt_count = blocked.attempt_count.saturating_add(1);
+        blocked.last_attempt_at = now_ms;
+        save_discord_pairing_state(state, &mut pairing_state)?;
+        return Ok((
+            "sender_temporarily_blocked".to_string(),
+            discord_pairing_locked_message(None, false, true),
+        ));
+    }
+
+    if let Some(existing) = pairing_state
+        .pending_requests
+        .iter_mut()
+        .find(|item| item.user_id == inbound.author_id)
+    {
+        existing.attempt_count = existing.attempt_count.saturating_add(1);
+        existing.last_seen_at = now_ms;
+        existing.preview_text = sanitize_external_channel_text(&inbound.text);
+        if existing.attempt_count >= DISCORD_UNAUTHORIZED_SPAM_THRESHOLD.max(1) {
+            pairing_state
+                .blocked_senders
+                .push(DiscordBlockedSenderRecord {
+                    user_id: inbound.author_id.clone(),
+                    blocked_until: now_ms
+                        .saturating_add(DISCORD_UNAUTHORIZED_SPAM_BLOCK_SECONDS.max(60) * 1000),
+                    reason: "repeated_unauthorized_dm".to_string(),
+                    attempt_count: existing.attempt_count,
+                    last_attempt_at: now_ms,
+                });
+            pairing_state
+                .pending_requests
+                .retain(|item| item.user_id != inbound.author_id);
+            save_discord_pairing_state(state, &mut pairing_state)?;
+            return Ok((
+                "sender_temporarily_blocked".to_string(),
+                discord_pairing_locked_message(None, false, true),
+            ));
+        }
+        let code = existing.code.clone();
+        save_discord_pairing_state(state, &mut pairing_state)?;
+        return Ok((
+            "pairing_pending".to_string(),
+            discord_pairing_locked_message(Some(&code), false, false),
+        ));
+    }
+
+    if pairing_state.pending_requests.len() >= DISCORD_PAIRING_MAX_PENDING.max(1) {
+        save_discord_pairing_state(state, &mut pairing_state)?;
+        return Ok((
+            "pairing_queue_full".to_string(),
+            discord_pairing_locked_message(None, true, false),
+        ));
+    }
+
+    let code = telegram_channel::pairing_code();
+    pairing_state
+        .pending_requests
+        .push(DiscordPairingPendingRecord {
+            code: code.clone(),
+            user_id: inbound.author_id.clone(),
+            channel_id: inbound.channel_id.clone(),
+            preview_text: sanitize_external_channel_text(&inbound.text),
+            first_seen_at: now_ms,
+            last_seen_at: now_ms,
+            expires_at: now_ms.saturating_add(DISCORD_PAIRING_CODE_TTL_SECONDS.max(60) * 1000),
+            attempt_count: 1,
+        });
+    save_discord_pairing_state(state, &mut pairing_state)?;
+
+    Ok((
+        "pairing_required".to_string(),
+        discord_pairing_locked_message(Some(&code), false, false),
+    ))
+}
+
+fn sanitize_external_channel_text(raw: &str) -> String {
+    let sanitized = telegram_channel::sanitize_inbound_text(raw);
+    if sanitized.chars().count() <= EXTERNAL_CHANNEL_MESSAGE_MAX_CHARS {
+        sanitized
+    } else {
+        sanitized
+            .chars()
+            .take(EXTERNAL_CHANNEL_MESSAGE_MAX_CHARS)
+            .collect()
+    }
+}
+
+fn prepare_external_channel_message(provider: &str, sender_label: &str, raw: &str) -> String {
+    let sanitized = sanitize_external_channel_text(raw);
+    telegram_channel::format_untrusted_inbound_text(provider, sender_label, &sanitized)
+}
+
+fn maybe_leave_telegram_group(state: &AppState, chat_id: i64, reason: &str) -> AnyResult<bool> {
+    let runtime_config = load_runtime_config(state)?;
+    let Some(client) = build_telegram_transport_client(&runtime_config, &state.secret_store)?
+    else {
+        return Ok(false);
+    };
+    client.leave_chat_with_retry(chat_id).with_context(|| {
+        format!(
+            "telegram unauthorized group leave failed for chat {} ({})",
+            chat_id, reason
+        )
+    })?;
+    Ok(true)
+}
+
+fn issue_telegram_pairing_challenge(
+    state: &AppState,
+    config: &TelegramChannelConfig,
+    inbound: &telegram_channel::TelegramInboundMessage,
+) -> AnyResult<String> {
+    let mut pairing_state = load_telegram_pairing_state(state)?;
+    let now_ms = current_time_ms();
+    prune_telegram_pairing_state(&mut pairing_state, now_ms);
+
+    if let Some(blocked) = pairing_state
+        .blocked_senders
+        .iter_mut()
+        .find(|item| item.user_id == inbound.user_id)
+    {
+        blocked.attempt_count = blocked.attempt_count.saturating_add(1);
+        blocked.last_attempt_at = now_ms;
+        save_telegram_pairing_state(state, &mut pairing_state)?;
+        return Ok("sender_temporarily_blocked".to_string());
+    }
+
+    if let Some(existing) = pairing_state
+        .pending_requests
+        .iter_mut()
+        .find(|item| item.user_id == inbound.user_id)
+    {
+        existing.attempt_count = existing.attempt_count.saturating_add(1);
+        existing.last_seen_at = now_ms;
+        existing.preview_text = sanitize_external_channel_text(&inbound.text);
+        if existing.attempt_count >= config.unauthorized_spam_threshold.max(1) {
+            pairing_state
+                .blocked_senders
+                .push(TelegramBlockedSenderRecord {
+                    user_id: inbound.user_id,
+                    blocked_until: now_ms.saturating_add(
+                        i64::from(config.unauthorized_spam_block_seconds.max(60)) * 1000,
+                    ),
+                    reason: "repeated_unauthorized_dm".to_string(),
+                    attempt_count: existing.attempt_count,
+                    last_attempt_at: now_ms,
+                });
+            pairing_state
+                .pending_requests
+                .retain(|item| item.user_id != inbound.user_id);
+            save_telegram_pairing_state(state, &mut pairing_state)?;
+            return Ok("sender_temporarily_blocked".to_string());
+        }
+        save_telegram_pairing_state(state, &mut pairing_state)?;
+        return Ok("pairing_pending".to_string());
+    }
+
+    if pairing_state.pending_requests.len()
+        >= usize::try_from(config.pairing_max_pending.max(1)).unwrap_or(3)
+    {
+        save_telegram_pairing_state(state, &mut pairing_state)?;
+        return Ok("pairing_queue_full".to_string());
+    }
+
+    let code = telegram_channel::pairing_code();
+    pairing_state
+        .pending_requests
+        .push(TelegramPairingPendingRecord {
+            code: code.clone(),
+            user_id: inbound.user_id,
+            chat_id: inbound.chat_id,
+            preview_text: sanitize_external_channel_text(&inbound.text),
+            first_seen_at: now_ms,
+            last_seen_at: now_ms,
+            expires_at: now_ms
+                .saturating_add(i64::from(config.pairing_code_ttl_seconds.max(60)) * 1000),
+            attempt_count: 1,
+        });
+    save_telegram_pairing_state(state, &mut pairing_state)?;
+
+    let runtime_config = load_runtime_config(state)?;
+    if let Some(client) = build_telegram_transport_client(&runtime_config, &state.secret_store)? {
+        let pairing_text = telegram_channel::pairing_message(&code);
+        let _ =
+            client.send_message_with_retry(&telegram_channel::TelegramTransportOutboundRequest {
+                chat_id: inbound.chat_id,
+                text: pairing_text,
+                reply_to_message_id: None,
+            });
+    }
+
+    Ok("pairing_required".to_string())
 }
 
 fn default_runtime_config() -> RuntimeConfigResponse {
@@ -27994,6 +32860,7 @@ fn default_runtime_config() -> RuntimeConfigResponse {
             trusted_proxy_allowlist: Vec::new(),
             tls_termination_mode: "edge".to_string(),
             public_base_url: None,
+            assistant_system_prompt: None,
         },
         providers: default_runtime_provider_policies(),
         channels: RuntimeChannelsConfig {
@@ -28026,8 +32893,9 @@ fn default_runtime_config() -> RuntimeConfigResponse {
                 staging_chat_ids: Vec::new(),
             },
         },
+        routing: RuntimeRoutingConfig::default(),
         memory: RuntimeMemoryConfig {
-            blend_mode: "mno_primary".to_string(),
+            blend_mode: "local_augment".to_string(),
             memory_md_sources: Vec::new(),
             numquam: RuntimeNumquamConfig::default(),
         },
@@ -28058,6 +32926,12 @@ fn normalize_runtime_config(mut config: RuntimeConfigResponse) -> RuntimeConfigR
     if config.providers.is_empty() {
         config.providers = default_runtime_provider_policies();
     }
+    config.routing = normalize_runtime_routing_config(config.routing);
+    config.global.assistant_system_prompt = config
+        .global
+        .assistant_system_prompt
+        .as_ref()
+        .and_then(|value| normalized_prompt_text(value));
     config.memory.blend_mode = match config
         .memory
         .blend_mode
@@ -28067,7 +32941,7 @@ fn normalize_runtime_config(mut config: RuntimeConfigResponse) -> RuntimeConfigR
     {
         "local_fallback_only" => "local_fallback_only".to_string(),
         "local_augment" => "local_augment".to_string(),
-        _ => "mno_primary".to_string(),
+        _ => "local_augment".to_string(),
     };
     config.memory.memory_md_sources = config
         .memory
@@ -28084,6 +32958,27 @@ fn normalize_runtime_config(mut config: RuntimeConfigResponse) -> RuntimeConfigR
         .integration_base_url
         .as_ref()
         .map(|value| value.trim().trim_end_matches('/').to_string())
+        .filter(|value| !value.is_empty());
+    config.memory.numquam.managed_repo_root = config
+        .memory
+        .numquam
+        .managed_repo_root
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    config.memory.numquam.managed_lanes_root = config
+        .memory
+        .numquam
+        .managed_lanes_root
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    config.memory.numquam.managed_python_bin = config
+        .memory
+        .numquam
+        .managed_python_bin
+        .as_ref()
+        .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
     config.memory.numquam.token_secret_ref = config
         .memory
@@ -28110,6 +33005,21 @@ fn normalize_runtime_config(mut config: RuntimeConfigResponse) -> RuntimeConfigR
     if config.memory.numquam.transport.is_empty() {
         config.memory.numquam.transport = "dual".to_string();
     }
+    config.memory.numquam.managed_runtime_port_base = config
+        .memory
+        .numquam
+        .managed_runtime_port_base
+        .clamp(1_024, 64_000);
+    config.memory.numquam.managed_mcp_port_base = config
+        .memory
+        .numquam
+        .managed_mcp_port_base
+        .clamp(1_024, 64_000);
+    config.memory.numquam.managed_launch_timeout_ms = config
+        .memory
+        .numquam
+        .managed_launch_timeout_ms
+        .clamp(1_000, 120_000);
     config.extensions.plugin_daemon_allowlist = config
         .extensions
         .plugin_daemon_allowlist
@@ -28197,6 +33107,174 @@ fn normalize_string_allowlist(values: &[String]) -> Vec<String> {
     normalized
 }
 
+fn normalize_optional_trimmed(value: &Option<String>) -> Option<String> {
+    value
+        .as_ref()
+        .map(|item| item.trim().to_string())
+        .filter(|item| !item.is_empty())
+}
+
+fn normalize_runtime_routing_config(mut routing: RuntimeRoutingConfig) -> RuntimeRoutingConfig {
+    let legacy_channel_fallback = routing.use_channel_defaults_as_fallback;
+    let mut human_identities = routing
+        .human_identities
+        .drain(..)
+        .filter_map(|mut human| {
+            human.human_identity_id = human.human_identity_id.trim().to_string();
+            human.display_name = human.display_name.trim().to_string();
+            if human.human_identity_id.is_empty() {
+                return None;
+            }
+            if human.display_name.is_empty() {
+                human.display_name = human.human_identity_id.clone();
+            }
+            Some(human)
+        })
+        .collect::<Vec<RuntimeHumanIdentityConfig>>();
+    human_identities.sort_by(|left, right| left.human_identity_id.cmp(&right.human_identity_id));
+    human_identities.dedup_by(|left, right| left.human_identity_id == right.human_identity_id);
+
+    let mut platform_identity_links = routing
+        .platform_identity_links
+        .drain(..)
+        .filter_map(|mut link| {
+            link.provider = link.provider.trim().to_ascii_lowercase();
+            link.platform_user_id = link.platform_user_id.trim().to_string();
+            link.human_identity_id = link.human_identity_id.trim().to_string();
+            link.display_name = normalize_optional_trimmed(&link.display_name);
+            if link.provider.is_empty()
+                || link.platform_user_id.is_empty()
+                || link.human_identity_id.is_empty()
+            {
+                return None;
+            }
+            Some(link)
+        })
+        .collect::<Vec<RuntimePlatformIdentityLinkConfig>>();
+    platform_identity_links.sort_by(|left, right| {
+        left.provider
+            .cmp(&right.provider)
+            .then_with(|| left.platform_user_id.cmp(&right.platform_user_id))
+            .then_with(|| left.human_identity_id.cmp(&right.human_identity_id))
+    });
+    platform_identity_links.dedup_by(|left, right| {
+        left.provider == right.provider && left.platform_user_id == right.platform_user_id
+    });
+
+    let mut assistant_assignments = routing
+        .assistant_assignments
+        .drain(..)
+        .filter_map(|mut assignment| {
+            assignment.human_identity_id = assignment.human_identity_id.trim().to_string();
+            assignment.assistant_agent_id = assignment.assistant_agent_id.trim().to_string();
+            if assignment.human_identity_id.is_empty() || assignment.assistant_agent_id.is_empty() {
+                return None;
+            }
+            Some(assignment)
+        })
+        .collect::<Vec<RuntimeAssistantAssignmentConfig>>();
+    assistant_assignments.sort_by(|left, right| {
+        left.human_identity_id
+            .cmp(&right.human_identity_id)
+            .then_with(|| left.assistant_agent_id.cmp(&right.assistant_agent_id))
+    });
+    assistant_assignments.dedup_by(|left, right| {
+        left.human_identity_id == right.human_identity_id
+            && left.assistant_agent_id == right.assistant_agent_id
+    });
+
+    let mut lane_memory_policies = routing
+        .lane_memory_policies
+        .drain(..)
+        .filter_map(|mut policy| {
+            policy.human_identity_id = policy.human_identity_id.trim().to_string();
+            policy.assistant_agent_id = policy.assistant_agent_id.trim().to_string();
+            policy.lane_id = normalize_optional_trimmed(&policy.lane_id);
+            policy.memory_mode = match policy.memory_mode.trim().to_ascii_lowercase().as_str() {
+                "disabled" => "disabled".to_string(),
+                "local_only" => "local_only".to_string(),
+                "mno_only" => "mno_only".to_string(),
+                "mno_with_local_sources" => "mno_with_local_sources".to_string(),
+                _ => "inherit_runtime".to_string(),
+            };
+            policy.local_memory_sources = policy
+                .local_memory_sources
+                .iter()
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty())
+                .collect::<Vec<_>>();
+            policy.local_memory_sources.sort();
+            policy.local_memory_sources.dedup();
+            if policy.human_identity_id.is_empty() || policy.assistant_agent_id.is_empty() {
+                return None;
+            }
+            Some(policy)
+        })
+        .collect::<Vec<RuntimeLaneMemoryPolicyConfig>>();
+    lane_memory_policies.sort_by(|left, right| {
+        left.human_identity_id
+            .cmp(&right.human_identity_id)
+            .then_with(|| left.assistant_agent_id.cmp(&right.assistant_agent_id))
+    });
+    lane_memory_policies.dedup_by(|left, right| {
+        left.human_identity_id == right.human_identity_id
+            && left.assistant_agent_id == right.assistant_agent_id
+    });
+
+    routing.local_operator_human_identity_id =
+        normalize_optional_trimmed(&routing.local_operator_human_identity_id);
+    routing.dm_unmapped_policy = match routing
+        .dm_unmapped_policy
+        .trim()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "approval_required" | "pairing" => "approval_required".to_string(),
+        "block" => "block".to_string(),
+        "channel_default" | "fallback" | "allow_fallback" => "channel_default".to_string(),
+        _ if legacy_channel_fallback => "channel_default".to_string(),
+        _ => "approval_required".to_string(),
+    };
+    routing.shared_unmapped_policy = match routing
+        .shared_unmapped_policy
+        .trim()
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        "channel_default" | "fallback" | "allow_fallback" => "channel_default".to_string(),
+        _ if legacy_channel_fallback => "channel_default".to_string(),
+        _ => "block".to_string(),
+    };
+
+    if let Some(local_operator_human_identity_id) = routing
+        .local_operator_human_identity_id
+        .clone()
+        .or_else(|| Some("local-operator".to_string()))
+    {
+        routing.local_operator_human_identity_id = Some(local_operator_human_identity_id.clone());
+        if !human_identities
+            .iter()
+            .any(|item| item.human_identity_id == local_operator_human_identity_id)
+        {
+            human_identities.push(RuntimeHumanIdentityConfig {
+                human_identity_id: local_operator_human_identity_id,
+                display_name: "You".to_string(),
+                enabled: true,
+            });
+            human_identities
+                .sort_by(|left, right| left.human_identity_id.cmp(&right.human_identity_id));
+            human_identities
+                .dedup_by(|left, right| left.human_identity_id == right.human_identity_id);
+        }
+    }
+
+    routing.human_identities = human_identities;
+    routing.platform_identity_links = platform_identity_links;
+    routing.assistant_assignments = assistant_assignments;
+    routing.lane_memory_policies = lane_memory_policies;
+    routing
+}
+
 fn normalize_runtime_global_for_trust_lock(global: &RuntimeGlobalConfig) -> RuntimeGlobalConfig {
     RuntimeGlobalConfig {
         jwt_issuer_allowlist: normalize_string_allowlist(&global.jwt_issuer_allowlist),
@@ -28208,6 +33286,10 @@ fn normalize_runtime_global_for_trust_lock(global: &RuntimeGlobalConfig) -> Runt
             .as_ref()
             .map(|value| value.trim().to_string())
             .filter(|value| !value.is_empty()),
+        assistant_system_prompt: global
+            .assistant_system_prompt
+            .as_ref()
+            .and_then(|value| normalized_prompt_text(value)),
     }
 }
 
@@ -28435,6 +33517,198 @@ fn runtime_secret_key_from_ref(secret_ref: &str) -> AnyResult<String> {
     Ok(secret_key)
 }
 
+fn validate_runtime_routing_config(config: &RuntimeRoutingConfig) -> AnyResult<()> {
+    let mut seen_human_ids = HashSet::new();
+    for human in &config.human_identities {
+        let human_identity_id = human.human_identity_id.trim();
+        if human_identity_id.is_empty() {
+            anyhow::bail!("routing.human_identities contains empty human_identity_id");
+        }
+        if human_identity_id.len() > 120 {
+            anyhow::bail!("routing.human_identities human_identity_id must be <= 120 chars");
+        }
+        if human.display_name.trim().is_empty() {
+            anyhow::bail!(
+                "routing.human_identities display_name cannot be empty for {human_identity_id}"
+            );
+        }
+        if !seen_human_ids.insert(human_identity_id.to_string()) {
+            anyhow::bail!(
+                "duplicate routing.human_identities human_identity_id: {human_identity_id}"
+            );
+        }
+    }
+
+    let known_human_ids = seen_human_ids;
+    let mut seen_links = HashSet::new();
+    for link in &config.platform_identity_links {
+        let provider = link.provider.trim();
+        let platform_user_id = link.platform_user_id.trim();
+        let human_identity_id = link.human_identity_id.trim();
+        if provider.is_empty() {
+            anyhow::bail!("routing.platform_identity_links contains empty provider");
+        }
+        if platform_user_id.is_empty() {
+            anyhow::bail!("routing.platform_identity_links contains empty platform_user_id");
+        }
+        if human_identity_id.is_empty() {
+            anyhow::bail!("routing.platform_identity_links contains empty human_identity_id");
+        }
+        if !known_human_ids.contains(human_identity_id) {
+            anyhow::bail!(
+                "routing.platform_identity_links references unknown human_identity_id: {human_identity_id}"
+            );
+        }
+        let key = format!("{provider}:{platform_user_id}");
+        if !seen_links.insert(key.clone()) {
+            anyhow::bail!("duplicate routing.platform_identity_links entry for {key}");
+        }
+    }
+
+    if let Some(local_operator_human_identity_id) = config.local_operator_human_identity_id.as_ref()
+    {
+        let trimmed = local_operator_human_identity_id.trim();
+        if trimmed.is_empty() {
+            anyhow::bail!("routing.local_operator_human_identity_id cannot be empty when provided");
+        }
+        if !known_human_ids.contains(trimmed) {
+            anyhow::bail!(
+                "routing.local_operator_human_identity_id references unknown human_identity_id: {trimmed}"
+            );
+        }
+    }
+    if !matches!(
+        config.dm_unmapped_policy.as_str(),
+        "approval_required" | "block" | "channel_default"
+    ) {
+        anyhow::bail!(
+            "invalid routing.dm_unmapped_policy: {} (expected approval_required|block|channel_default)",
+            config.dm_unmapped_policy
+        );
+    }
+    if !matches!(
+        config.shared_unmapped_policy.as_str(),
+        "block" | "channel_default"
+    ) {
+        anyhow::bail!(
+            "invalid routing.shared_unmapped_policy: {} (expected block|channel_default)",
+            config.shared_unmapped_policy
+        );
+    }
+
+    let mut seen_assignments = HashSet::new();
+    let mut seen_human_assignments = HashSet::new();
+    for assignment in &config.assistant_assignments {
+        let human_identity_id = assignment.human_identity_id.trim();
+        let assistant_agent_id = assignment.assistant_agent_id.trim();
+        if human_identity_id.is_empty() || assistant_agent_id.is_empty() {
+            anyhow::bail!("routing.assistant_assignments contains empty human_identity_id or assistant_agent_id");
+        }
+        if !known_human_ids.contains(human_identity_id) {
+            anyhow::bail!(
+                "routing.assistant_assignments references unknown human_identity_id: {human_identity_id}"
+            );
+        }
+        let pair_key = format!("{human_identity_id}:{assistant_agent_id}");
+        if !seen_assignments.insert(pair_key.clone()) {
+            anyhow::bail!("duplicate routing.assistant_assignments entry for {pair_key}");
+        }
+        if assignment.enabled && !seen_human_assignments.insert(human_identity_id.to_string()) {
+            anyhow::bail!(
+                "routing.assistant_assignments currently supports at most one enabled assignment per human_identity_id: {human_identity_id}"
+            );
+        }
+    }
+
+    let assignment_pairs = config
+        .assistant_assignments
+        .iter()
+        .map(|assignment| {
+            (
+                assignment.human_identity_id.trim().to_string(),
+                assignment.assistant_agent_id.trim().to_string(),
+            )
+        })
+        .collect::<HashSet<_>>();
+    let mut seen_memory_policies = HashSet::new();
+    for policy in &config.lane_memory_policies {
+        let human_identity_id = policy.human_identity_id.trim();
+        let assistant_agent_id = policy.assistant_agent_id.trim();
+        if human_identity_id.is_empty() || assistant_agent_id.is_empty() {
+            anyhow::bail!(
+                "routing.lane_memory_policies contains empty human_identity_id or assistant_agent_id"
+            );
+        }
+        if !assignment_pairs.contains(&(
+            human_identity_id.to_string(),
+            assistant_agent_id.to_string(),
+        )) {
+            anyhow::bail!(
+                "routing.lane_memory_policies references human/assistant pair without an assignment: {human_identity_id}:{assistant_agent_id}"
+            );
+        }
+        if !matches!(
+            policy.memory_mode.as_str(),
+            "inherit_runtime" | "disabled" | "local_only" | "mno_only" | "mno_with_local_sources"
+        ) {
+            anyhow::bail!(
+                "invalid routing.lane_memory_policies.memory_mode: {} (expected inherit_runtime|disabled|local_only|mno_only|mno_with_local_sources)",
+                policy.memory_mode
+            );
+        }
+        let pair_key = format!("{human_identity_id}:{assistant_agent_id}");
+        if !seen_memory_policies.insert(pair_key.clone()) {
+            anyhow::bail!("duplicate routing.lane_memory_policies entry for {pair_key}");
+        }
+        if let Some(lane_id) = policy.lane_id.as_ref() {
+            let trimmed = lane_id.trim();
+            if trimmed.is_empty() {
+                anyhow::bail!("routing.lane_memory_policies.lane_id cannot be empty when provided");
+            }
+            if trimmed.len() > 160 {
+                anyhow::bail!("routing.lane_memory_policies.lane_id must be <= 160 chars");
+            }
+        }
+        for source in &policy.local_memory_sources {
+            if source.contains("://") {
+                anyhow::bail!(
+                    "routing.lane_memory_policies.local_memory_sources entries must be local filesystem paths"
+                );
+            }
+            if source.len() > 4096 {
+                anyhow::bail!(
+                    "routing.lane_memory_policies.local_memory_sources entry is too long (max 4096 chars)"
+                );
+            }
+        }
+    }
+
+    let mut seen_effective_lane_ids = HashMap::new();
+    for assignment in &config.assistant_assignments {
+        let human_identity_id = assignment.human_identity_id.trim();
+        let assistant_agent_id = assignment.assistant_agent_id.trim();
+        let memory_policy = config.lane_memory_policies.iter().find(|item| {
+            item.human_identity_id.trim() == human_identity_id
+                && item.assistant_agent_id.trim() == assistant_agent_id
+        });
+        let effective_lane_id =
+            canonical_lane_id(human_identity_id, assistant_agent_id, memory_policy);
+        let pair_key = format!("{human_identity_id}:{assistant_agent_id}");
+        if let Some(existing_pair) =
+            seen_effective_lane_ids.insert(effective_lane_id.clone(), pair_key.clone())
+        {
+            anyhow::bail!(
+                "routing assigns duplicate effective lane_id '{}' to {} and {}",
+                effective_lane_id,
+                existing_pair,
+                pair_key
+            );
+        }
+    }
+
+    Ok(())
+}
+
 fn validate_runtime_config(config: &RuntimeConfigResponse) -> AnyResult<()> {
     if config.schema_version != RUNTIME_CONFIG_SCHEMA_VERSION {
         anyhow::bail!(
@@ -28508,6 +33782,8 @@ fn validate_runtime_config(config: &RuntimeConfigResponse) -> AnyResult<()> {
             }
         }
     }
+
+    validate_runtime_routing_config(&config.routing)?;
 
     validate_secret_ref(
         &config.channels.discord.bot_token_secret_ref,
@@ -28656,6 +33932,7 @@ fn validate_runtime_config(config: &RuntimeConfigResponse) -> AnyResult<()> {
         );
     }
     if numquam.enabled {
+        let managed_requested = numquam.managed_runtime_enabled;
         let has_base_url = numquam
             .integration_base_url
             .as_ref()
@@ -28665,9 +33942,9 @@ fn validate_runtime_config(config: &RuntimeConfigResponse) -> AnyResult<()> {
                 .ok()
                 .map(|value| !value.trim().is_empty())
                 .unwrap_or(false);
-        if !has_base_url {
+        if !has_base_url && !managed_requested {
             anyhow::bail!(
-                "memory.numquam.integration_base_url (or CARSINOS_NUMQUAM_BASE_URL) is required when memory.numquam.enabled=true"
+                "memory.numquam.integration_base_url (or CARSINOS_NUMQUAM_BASE_URL) is required when memory.numquam.enabled=true unless memory.numquam.managed_runtime_enabled=true"
             );
         }
     }
@@ -28677,6 +33954,23 @@ fn validate_runtime_config(config: &RuntimeConfigResponse) -> AnyResult<()> {
                 "memory.numquam.integration_base_url must start with http:// or https:// when provided"
             );
         }
+    }
+    if let Some(repo_root) = &numquam.managed_repo_root {
+        if repo_root.contains("://") {
+            anyhow::bail!("memory.numquam.managed_repo_root must be a local filesystem path");
+        }
+    }
+    if let Some(lanes_root) = &numquam.managed_lanes_root {
+        if lanes_root.contains("://") {
+            anyhow::bail!("memory.numquam.managed_lanes_root must be a local filesystem path");
+        }
+    }
+    if numquam.managed_runtime_port_base >= numquam.managed_mcp_port_base
+        && numquam.transport != "http"
+    {
+        anyhow::bail!(
+            "memory.numquam.managed_runtime_port_base must be lower than memory.numquam.managed_mcp_port_base for mcp/dual transport"
+        );
     }
     validate_secret_ref(&numquam.token_secret_ref, "memory.numquam.token_secret_ref")?;
     let timeout_fields = [
@@ -28880,6 +34174,30 @@ fn validate_runtime_config(config: &RuntimeConfigResponse) -> AnyResult<()> {
     Ok(())
 }
 
+fn validate_runtime_routing_agent_refs(
+    state: &AppState,
+    routing: &RuntimeRoutingConfig,
+) -> AnyResult<()> {
+    for assignment in routing
+        .assistant_assignments
+        .iter()
+        .filter(|item| item.enabled)
+    {
+        let agent_id = assignment.assistant_agent_id.trim();
+        state
+            .storage
+            .get_agent(agent_id)
+            .with_context(|| format!("loading routing assistant agent {agent_id} failed"))?
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "routing.assistant_assignments references unknown assistant_agent_id: {}",
+                    assignment.assistant_agent_id
+                )
+            })?;
+    }
+    Ok(())
+}
+
 fn normalize_telegram_operation_mode(mode: &str) -> &'static str {
     if mode
         .trim()
@@ -28924,28 +34242,7 @@ fn build_discord_transport_client(
         return Ok(None);
     }
 
-    let secret_ref = runtime_config
-        .channels
-        .discord
-        .bot_token_secret_ref
-        .clone()
-        .unwrap_or_default();
-    if secret_ref.trim().is_empty() {
-        anyhow::bail!(
-            "channels.discord.bot_token_secret_ref is required when channels.discord.operation_mode=transport"
-        );
-    }
-    let secret_key = secret_key_from_secret_ref(&secret_ref)?;
-    let bot_token = secret_store
-        .get_raw(&secret_key)?
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| {
-            anyhow::anyhow!(
-                "discord secret value not found for configured ref {}",
-                secret_ref
-            )
-        })?;
+    let bot_token = resolve_discord_bot_token(runtime_config, secret_store)?;
 
     let timeout_ms = runtime_config
         .channels
@@ -28975,6 +34272,34 @@ fn build_discord_transport_client(
     let client = discord_channel::DiscordTransportClient::new(transport_config)
         .context("failed to initialize discord transport client")?;
     Ok(Some(client))
+}
+
+fn resolve_discord_bot_token(
+    runtime_config: &RuntimeConfigResponse,
+    secret_store: &SecretStore,
+) -> AnyResult<String> {
+    let secret_ref = runtime_config
+        .channels
+        .discord
+        .bot_token_secret_ref
+        .clone()
+        .unwrap_or_default();
+    if secret_ref.trim().is_empty() {
+        anyhow::bail!(
+            "channels.discord.bot_token_secret_ref is required when channels.discord.operation_mode=transport"
+        );
+    }
+    let secret_key = secret_key_from_secret_ref(&secret_ref)?;
+    secret_store
+        .get_raw(&secret_key)?
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "discord secret value not found for configured ref {}",
+                secret_ref
+            )
+        })
 }
 
 fn parse_discord_target(target: &str) -> AnyResult<(String, Option<String>)> {
@@ -29080,6 +34405,7 @@ fn build_telegram_transport_client(
         .long_poll_timeout_seconds
         .unwrap_or(25)
         .clamp(1, 120);
+    let effective_timeout_ms = timeout_ms.max(u64::from(long_poll_timeout_seconds) * 1000 + 5_000);
     let api_base_url = runtime_config
         .channels
         .telegram
@@ -29091,13 +34417,19 @@ fn build_telegram_transport_client(
     let transport_config = telegram_channel::TelegramTransportConfig {
         api_base_url,
         bot_token,
-        timeout_ms,
+        timeout_ms: effective_timeout_ms,
         retry_attempts,
         long_poll_timeout_seconds,
     };
     let client = telegram_channel::TelegramTransportClient::new(transport_config)
         .context("failed to initialize telegram transport client")?;
     Ok(Some(client))
+}
+
+fn is_expected_telegram_long_poll_idle_timeout(err: &anyhow::Error) -> bool {
+    let message = format_anyhow_error_chain(err).to_ascii_lowercase();
+    message.contains("telegram getupdates failed")
+        && (message.contains("timed out reading response") || message.contains("timed out"))
 }
 
 fn parse_telegram_target(target: &str) -> AnyResult<(i64, Option<i64>)> {
@@ -29550,6 +34882,10 @@ async fn execute_channel_action_tool(
                     })?;
                     chunk_count = transport_message_ids.len();
                     transport_dispatched = true;
+                    state.channel_runtime.record_outbound(
+                        "telegram",
+                        Some("Telegram sent a live outbound message".to_string()),
+                    );
                 }
             } else if action == "pin" {
                 let message_id = pin_telegram_message_via_transport(
@@ -29673,6 +35009,10 @@ async fn execute_channel_action_tool(
                     })?;
                     chunk_count = transport_message_ids.len();
                     transport_dispatched = true;
+                    state.channel_runtime.record_outbound(
+                        "discord",
+                        Some("Discord sent a live outbound message".to_string()),
+                    );
                 }
             } else if action == "pin" {
                 let message_id = pin_discord_message_via_transport(
@@ -29994,9 +35334,6 @@ async fn resolve_run_auth_profiles(
             if !profile.enabled {
                 anyhow::bail!("requested auth profile is disabled: {profile_id}");
             }
-            if profile.kill_switch_scope == KILL_SWITCH_SCOPE_PROFILE {
-                anyhow::bail!("requested auth profile is kill-switched at profile scope");
-            }
             if !provider_auth_mode_allowed(provider, &profile.auth_mode) {
                 anyhow::bail!(
                     "requested auth profile mode '{}' not allowed for provider '{}'",
@@ -30032,10 +35369,7 @@ async fn resolve_run_auth_profiles(
             let Some(profile) = state.storage.get_auth_profile(&profile_id)? else {
                 continue;
             };
-            if !profile.enabled
-                || profile.provider != provider
-                || profile.kill_switch_scope == KILL_SWITCH_SCOPE_PROFILE
-            {
+            if !profile.enabled || profile.provider != provider {
                 continue;
             }
             if !provider_auth_mode_allowed(provider, &profile.auth_mode) {
@@ -30092,9 +35426,6 @@ async fn resolve_run_auth_profiles(
         if !profile.enabled {
             anyhow::bail!("requested auth profile is disabled: {profile_id}");
         }
-        if profile.kill_switch_scope == KILL_SWITCH_SCOPE_PROFILE {
-            anyhow::bail!("requested auth profile is kill-switched at profile scope");
-        }
         if !provider_auth_mode_allowed(provider, &profile.auth_mode) {
             anyhow::bail!(
                 "requested auth profile mode '{}' not allowed for provider '{}'",
@@ -30133,10 +35464,7 @@ async fn resolve_run_auth_profiles(
         let Some(profile) = state.storage.get_auth_profile(&profile_id)? else {
             continue;
         };
-        if !profile.enabled
-            || profile.provider != provider
-            || profile.kill_switch_scope == KILL_SWITCH_SCOPE_PROFILE
-        {
+        if !profile.enabled || profile.provider != provider {
             continue;
         }
         let profile = match maybe_refresh_expired_auth_profile(state, profile).await {
@@ -30212,9 +35540,6 @@ async fn resolve_run_auth_profiles(
     let mut fallback_candidates = Vec::new();
     for profile in enabled_profiles {
         if seen.contains(&profile.auth_profile_id) {
-            continue;
-        }
-        if profile.kill_switch_scope == KILL_SWITCH_SCOPE_PROFILE {
             continue;
         }
         let profile = match maybe_refresh_expired_auth_profile(state, profile).await {
@@ -30348,7 +35673,7 @@ async fn maybe_refresh_expired_auth_profile(
     }
     if !matches!(
         profile.auth_mode.as_str(),
-        AUTH_MODE_OPENAI_OAUTH | AUTH_MODE_CLAUDE_CONSUMER_OAUTH | AUTH_MODE_AGENT_SDK
+        AUTH_MODE_OPENAI_OAUTH | AUTH_MODE_AGENT_SDK
     ) {
         return Ok(profile);
     }
@@ -30547,7 +35872,7 @@ fn secret_ref_from_metadata(payload: &serde_json::Value) -> Option<String> {
 fn auth_profile_credentials_expired(profile: &AuthProfileRecord) -> AnyResult<bool> {
     if !matches!(
         profile.auth_mode.as_str(),
-        AUTH_MODE_OPENAI_OAUTH | AUTH_MODE_CLAUDE_CONSUMER_OAUTH | AUTH_MODE_AGENT_SDK
+        AUTH_MODE_OPENAI_OAUTH | AUTH_MODE_AGENT_SDK
     ) {
         return Ok(false);
     }
@@ -30794,8 +36119,8 @@ fn build_numquam_context_policy(
     let message_window_chars = ((guardrails.max_provider_input_chars as f64) * 0.70) as u64;
     policy.message_window_max_chars = Some(message_window_chars.clamp(2_048, 120_000));
     policy.memory_preference = Some(match blend_mode {
-        "local_fallback_only" => "local_only".to_string(),
-        "local_augment" => "local_augment".to_string(),
+        "local_fallback_only" | "local_only" => "local_only".to_string(),
+        "local_augment" | "mno_with_local_sources" => "local_augment".to_string(),
         _ => "numquam_primary".to_string(),
     });
     let retrieval_query = input.trim();
@@ -30996,6 +36321,13 @@ fn internal_err(message: &str, err: anyhow::Error) -> StatusCode {
 fn internal_err_with_error(message: &str, err: anyhow::Error) -> (StatusCode, Json<ApiError>) {
     error!(error = ?err, "{message}");
     api_error(StatusCode::INTERNAL_SERVER_ERROR, "internal server error")
+}
+
+fn format_anyhow_error_chain(err: &anyhow::Error) -> String {
+    err.chain()
+        .map(|cause| cause.to_string())
+        .collect::<Vec<_>>()
+        .join(" -> ")
 }
 
 fn error_chain_contains(err: &anyhow::Error, needle: &str) -> bool {
@@ -31538,10 +36870,7 @@ fn provider_supports_optional_auth(provider: &str) -> bool {
 fn provider_auth_mode_allowed(provider: &str, auth_mode: &str) -> bool {
     match provider {
         "openai" => matches!(auth_mode, AUTH_MODE_API_KEY | AUTH_MODE_OPENAI_OAUTH),
-        "anthropic" => matches!(
-            auth_mode,
-            AUTH_MODE_API_KEY | AUTH_MODE_CLAUDE_CONSUMER_OAUTH | AUTH_MODE_AGENT_SDK
-        ),
+        "anthropic" => matches!(auth_mode, AUTH_MODE_API_KEY | AUTH_MODE_AGENT_SDK),
         "openrouter" | "ollama" | "vllm" | "lmstudio" => matches!(auth_mode, AUTH_MODE_API_KEY),
         "mock" | "unconfigured" => true,
         _ => false,
@@ -31561,12 +36890,6 @@ fn auth_mode_policy(auth_mode: &str) -> Option<AuthModePolicy> {
             risk_notes: "refreshable OAuth credentials require storage controls",
             requires_warning: false,
             requires_kill_switch: false,
-        }),
-        AUTH_MODE_CLAUDE_CONSUMER_OAUTH => Some(AuthModePolicy {
-            risk_level: "high",
-            risk_notes: "consumer OAuth path carries policy/compliance risk",
-            requires_warning: true,
-            requires_kill_switch: true,
         }),
         AUTH_MODE_AGENT_SDK => Some(AuthModePolicy {
             risk_level: "high",
@@ -32521,10 +37844,12 @@ mod tests {
     use axum::body::{to_bytes, Body};
     use axum::extract::State as AxumState;
     use axum::http::Request;
+    use futures_util::{SinkExt, StreamExt};
     use httpmock::Method::{GET, POST};
     use httpmock::MockServer;
     use tempfile::TempDir;
     use tokio::net::TcpListener;
+    use tokio_tungstenite::{accept_async, tungstenite::Message as WsMessage};
     use tower::util::ServiceExt;
 
     static ENV_LOCK: std::sync::LazyLock<std::sync::Mutex<()>> =
@@ -32604,6 +37929,8 @@ mod tests {
         );
         let mut runtime_config = load_runtime_config(&ctx.state).expect("load test runtime config");
         runtime_config.memory.numquam.enabled = true;
+        runtime_config.memory.numquam.integration_base_url =
+            Some(numquam_client.integration_base_url.clone());
         runtime_config.memory.numquam.transport = numquam_client.transport.as_str().to_string();
         let runtime_payload =
             serde_json::to_string(&runtime_config).expect("serialize test runtime config");
@@ -32836,6 +38163,7 @@ mod tests {
             auth_token: Arc::new(auth_token),
             jwt_auth: jwt_auth.map(Arc::new),
             jwt_replay_jti: Arc::new(StdRwLock::new(HashMap::new())),
+            ws_tickets: Arc::new(StdRwLock::new(HashMap::new())),
             rate_limiter: Arc::new(rate_limiter),
             trusted_proxy_headers,
             trusted_proxy_allowlist: Arc::new(trusted_proxy_allowlist),
@@ -32844,6 +38172,11 @@ mod tests {
                 .timeout(Duration::from_secs(15))
                 .build()
                 .expect("provider models http client"),
+            connector_http_client: reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .timeout(Duration::from_millis(connector_tool_timeout_ms()))
+                .build()
+                .expect("connector http client"),
             provider_models_cache: Arc::new(RwLock::new(HashMap::new())),
             providers: ProviderRegistry::new(),
             tool_registry,
@@ -32856,6 +38189,7 @@ mod tests {
             oauth_sessions: Arc::new(RwLock::new(HashMap::new())),
             numquam_client,
             numquam_runtime_status: Arc::new(RwLock::new(NumquamRuntimeStatus::default())),
+            numquam_lane_runtime_manager: Arc::new(NumquamLaneRuntimeManager::default()),
             plugin_registry: Arc::new(RwLock::new(plugin_registry)),
             hook_bus: hook_bus.clone(),
             skill_registry: skill_registry.clone(),
@@ -34150,7 +39484,8 @@ mod tests {
         refresh_token: Option<String>,
         expires_in: i64,
         expected_openai_bearer: Option<String>,
-        expected_anthropic_token: Option<String>,
+        expected_anthropic_api_key: Option<String>,
+        expected_anthropic_bearer: Option<String>,
     }
 
     impl AuthFlowStubConfig {
@@ -34161,7 +39496,8 @@ mod tests {
                 refresh_token: Some("refresh-from-stub".to_string()),
                 expires_in: 3600,
                 expected_openai_bearer: Some(access_token.to_string()),
-                expected_anthropic_token: None,
+                expected_anthropic_api_key: None,
+                expected_anthropic_bearer: None,
             }
         }
 
@@ -34172,7 +39508,8 @@ mod tests {
                 refresh_token: None,
                 expires_in: 3600,
                 expected_openai_bearer: None,
-                expected_anthropic_token: Some(setup_token.to_string()),
+                expected_anthropic_api_key: None,
+                expected_anthropic_bearer: Some(setup_token.to_string()),
             }
         }
     }
@@ -34188,9 +39525,17 @@ mod tests {
         }
     }
 
+    fn fake_anthropic_setup_token() -> String {
+        format!(
+            "{ANTHROPIC_SETUP_TOKEN_PREFIX}{}",
+            "a".repeat(ANTHROPIC_SETUP_TOKEN_MIN_LENGTH)
+        )
+    }
+
     async fn spawn_auth_flow_stub(config: AuthFlowStubConfig) -> AuthFlowStubServer {
         let app = Router::new()
             .route("/oauth/token", post(auth_stub_oauth_token))
+            .route("/api/oauth/usage", get(auth_stub_anthropic_oauth_usage))
             .route("/v1/chat/completions", post(auth_stub_openai_completion))
             .route("/v1/models", get(auth_stub_anthropic_models))
             .route("/v1/messages", post(auth_stub_anthropic_messages))
@@ -34262,7 +39607,7 @@ mod tests {
         AxumState(config): AxumState<AuthFlowStubConfig>,
         headers: HeaderMap,
     ) -> (StatusCode, Json<serde_json::Value>) {
-        if let Some(expected) = config.expected_anthropic_token {
+        if let Some(expected) = config.expected_anthropic_api_key {
             let token = headers
                 .get("x-api-key")
                 .and_then(|value| value.to_str().ok())
@@ -34288,18 +39633,51 @@ mod tests {
         )
     }
 
+    async fn auth_stub_anthropic_oauth_usage(
+        AxumState(config): AxumState<AuthFlowStubConfig>,
+        headers: HeaderMap,
+    ) -> (StatusCode, Json<serde_json::Value>) {
+        let Some(expected) = config.expected_anthropic_bearer else {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({
+                    "error": { "message": "oauth usage unsupported" }
+                })),
+            );
+        };
+        let token = parse_bearer_token(&headers).unwrap_or_default().to_string();
+        if token != expected {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "error": { "message": "invalid bearer" }
+                })),
+            );
+        }
+        (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "error": { "message": "scope requirement user:profile" }
+            })),
+        )
+    }
+
     async fn auth_stub_anthropic_messages(
         AxumState(config): AxumState<AuthFlowStubConfig>,
         headers: HeaderMap,
     ) -> (StatusCode, Json<serde_json::Value>) {
-        if let Some(expected) = config.expected_anthropic_token {
-            let token = headers
-                .get("x-api-key")
-                .and_then(|value| value.to_str().ok())
-                .unwrap_or_default()
-                .trim()
-                .to_string();
-            if token != expected {
+        let api_key = headers
+            .get("x-api-key")
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        let bearer = parse_bearer_token(&headers)
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        if let Some(expected) = config.expected_anthropic_api_key.clone() {
+            if !api_key.is_empty() && api_key != expected {
                 return (
                     StatusCode::UNAUTHORIZED,
                     Json(serde_json::json!({
@@ -34307,6 +39685,48 @@ mod tests {
                     })),
                 );
             }
+        }
+        if let Some(expected) = config.expected_anthropic_bearer.clone() {
+            if !bearer.is_empty() && bearer != expected {
+                return (
+                    StatusCode::UNAUTHORIZED,
+                    Json(serde_json::json!({
+                        "error": { "message": "invalid bearer" }
+                    })),
+                );
+            }
+            let oauth_beta = headers
+                .get("anthropic-beta")
+                .and_then(|value| value.to_str().ok())
+                .unwrap_or_default();
+            if !oauth_beta
+                .split(',')
+                .map(str::trim)
+                .any(|value| value == ANTHROPIC_OAUTH_BETA_HEADER)
+            {
+                return (
+                    StatusCode::UNAUTHORIZED,
+                    Json(serde_json::json!({
+                        "error": { "message": "missing oauth beta header" }
+                    })),
+                );
+            }
+        }
+        if config.expected_anthropic_api_key.is_some() && api_key.is_empty() && bearer.is_empty() {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "error": { "message": "missing auth" }
+                })),
+            );
+        }
+        if config.expected_anthropic_bearer.is_some() && api_key.is_empty() && bearer.is_empty() {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({
+                    "error": { "message": "missing auth" }
+                })),
+            );
         }
         (
             StatusCode::OK,
@@ -34356,6 +39776,28 @@ mod tests {
             .await
             .expect("body bytes");
         serde_json::from_slice(&bytes).expect("json body")
+    }
+
+    fn count_runs_for_session(ctx: &TestContext, session_id: &str) -> i64 {
+        ctx.storage
+            .get_session(session_id)
+            .expect("load session for run count")
+            .expect("session exists")
+            .run_count
+    }
+
+    fn count_created_run_audits(ctx: &TestContext) -> usize {
+        ctx.storage
+            .list_security_audit_events(
+                1000,
+                &SecurityAuditEventListFilter {
+                    action: Some("run.create".to_string()),
+                    status: Some(StatusCode::CREATED.as_u16().to_string()),
+                    ..SecurityAuditEventListFilter::default()
+                },
+            )
+            .expect("list created run audits")
+            .len()
     }
 
     async fn update_runtime_autonomy_guardrails(ctx: &TestContext, payload_json: &str) {
@@ -34427,6 +39869,306 @@ mod tests {
         assert_eq!(create_message_response.status(), StatusCode::CREATED);
 
         session_id
+    }
+
+    #[test]
+    fn normalize_runtime_routing_config_seeds_local_operator_defaults() {
+        let normalized = normalize_runtime_routing_config(RuntimeRoutingConfig::default());
+        assert_eq!(
+            normalized.local_operator_human_identity_id.as_deref(),
+            Some("local-operator")
+        );
+        assert_eq!(normalized.dm_unmapped_policy, "approval_required");
+        assert_eq!(normalized.shared_unmapped_policy, "block");
+        assert!(normalized
+            .human_identities
+            .iter()
+            .any(|item| item.human_identity_id == "local-operator"
+                && item.display_name == "You"
+                && item.enabled));
+    }
+
+    #[tokio::test]
+    async fn create_session_with_human_identity_uses_canonical_lane_route() {
+        let ctx = test_context();
+        let agent = create_test_agent(&ctx, "lane_local", "Lane Local", None);
+
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(format!(
+                    r#"{{
+                        "routing": {{
+                            "enabled": true,
+                            "local_operator_human_identity_id": "local-operator",
+                            "human_identities": [
+                                {{
+                                    "human_identity_id": "local-operator",
+                                    "display_name": "You"
+                                }}
+                            ],
+                            "assistant_assignments": [
+                                {{
+                                    "human_identity_id": "local-operator",
+                                    "assistant_agent_id": "{}"
+                                }}
+                            ]
+                        }}
+                    }}"#,
+                    agent.agent_id
+                )),
+            ))
+            .await
+            .expect("update runtime routing");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let create_session_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(
+                    serde_json::json!({
+                        "agent_id": agent.agent_id,
+                        "human_identity_id": "local-operator"
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("create lane session");
+        assert_eq!(create_session_response.status(), StatusCode::CREATED);
+        let create_session_json = parse_json(create_session_response).await;
+        let session_id = create_session_json["session"]["session_id"]
+            .as_str()
+            .expect("session_id")
+            .to_string();
+        let session = ctx
+            .storage
+            .get_session(&session_id)
+            .expect("load session")
+            .expect("session exists");
+        assert_eq!(session.agent_id, agent.agent_id);
+        assert_eq!(
+            session.session_key,
+            "lane:human:local-operator:assistant:lane_local:main"
+        );
+    }
+
+    #[tokio::test]
+    async fn create_session_with_human_identity_reuses_existing_canonical_lane_session() {
+        let ctx = test_context();
+        let agent = create_test_agent(&ctx, "lane_reuse", "Lane Reuse", None);
+
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(format!(
+                    r#"{{
+                        "routing": {{
+                            "enabled": true,
+                            "local_operator_human_identity_id": "local-operator",
+                            "human_identities": [
+                                {{
+                                    "human_identity_id": "local-operator",
+                                    "display_name": "You"
+                                }}
+                            ],
+                            "assistant_assignments": [
+                                {{
+                                    "human_identity_id": "local-operator",
+                                    "assistant_agent_id": "{}"
+                                }}
+                            ]
+                        }}
+                    }}"#,
+                    agent.agent_id
+                )),
+            ))
+            .await
+            .expect("update runtime routing");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let first_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(
+                    serde_json::json!({
+                        "agent_id": agent.agent_id,
+                        "human_identity_id": "local-operator"
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("create first lane session");
+        assert_eq!(first_response.status(), StatusCode::CREATED);
+        let first_json = parse_json(first_response).await;
+        let first_session_id = first_json["session"]["session_id"]
+            .as_str()
+            .expect("first session_id")
+            .to_string();
+
+        let second_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(
+                    serde_json::json!({
+                        "agent_id": agent.agent_id,
+                        "human_identity_id": "local-operator"
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("reuse lane session");
+        assert_eq!(second_response.status(), StatusCode::OK);
+        let second_json = parse_json(second_response).await;
+        let second_session_id = second_json["session"]["session_id"]
+            .as_str()
+            .expect("second session_id")
+            .to_string();
+
+        assert_eq!(second_session_id, first_session_id);
+    }
+
+    #[tokio::test]
+    async fn create_session_with_explicit_session_key_reuses_existing_session() {
+        let ctx = test_context();
+        let agent = create_test_agent(&ctx, "session_key_agent", "Session Key Agent", None);
+
+        let first_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(
+                    serde_json::json!({
+                        "agent_id": agent.agent_id,
+                        "session_key": "assistant:manual:main"
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("create keyed session");
+        assert_eq!(first_response.status(), StatusCode::CREATED);
+        let first_json = parse_json(first_response).await;
+        let first_session_id = first_json["session"]["session_id"]
+            .as_str()
+            .expect("first session_id")
+            .to_string();
+
+        let second_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(
+                    serde_json::json!({
+                        "agent_id": agent.agent_id,
+                        "session_key": "assistant:manual:main"
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("reuse keyed session");
+        assert_eq!(second_response.status(), StatusCode::OK);
+        let second_json = parse_json(second_response).await;
+        let second_session_id = second_json["session"]["session_id"]
+            .as_str()
+            .expect("second session_id")
+            .to_string();
+
+        assert_eq!(second_session_id, first_session_id);
+    }
+
+    #[tokio::test]
+    async fn create_session_rejects_lane_managed_session_key_without_human_identity() {
+        let ctx = test_context();
+        let agent = create_test_agent(&ctx, "lane_key_reject", "Lane Key Reject", None);
+
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(
+                    serde_json::json!({
+                        "agent_id": agent.agent_id,
+                        "session_key": "lane:human:spoof:assistant:lane_key_reject:main"
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("reject lane-managed session key");
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let json = parse_json(response).await;
+        assert!(json["error"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("lane-managed session keys"));
+    }
+
+    #[tokio::test]
+    async fn create_session_with_existing_session_key_bound_to_different_agent_returns_conflict() {
+        let ctx = test_context();
+        let agent_alpha = create_test_agent(&ctx, "key_agent_alpha", "Key Agent Alpha", None);
+        let agent_beta = create_test_agent(&ctx, "key_agent_beta", "Key Agent Beta", None);
+
+        let first_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(
+                    serde_json::json!({
+                        "agent_id": agent_alpha.agent_id,
+                        "session_key": "assistant:manual:conflict"
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("create keyed session");
+        assert_eq!(first_response.status(), StatusCode::CREATED);
+
+        let second_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(
+                    serde_json::json!({
+                        "agent_id": agent_beta.agent_id,
+                        "session_key": "assistant:manual:conflict"
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("conflicting keyed session");
+        assert_eq!(second_response.status(), StatusCode::CONFLICT);
     }
 
     async fn assistant_tool_call(
@@ -34692,6 +40434,14 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     fn parse_telegram_target_rejects_empty_message_id() {
         let err = parse_telegram_target("chat:1001/").expect_err("invalid telegram target");
         assert!(err.to_string().contains("message id must not be empty"));
+    }
+
+    #[test]
+    fn expected_telegram_long_poll_timeout_is_treated_as_idle_wait() {
+        let err = anyhow::anyhow!(
+            "telegram getUpdates failed: transport error: https://api.telegram.org/bot123/getUpdates: timed out reading response"
+        );
+        assert!(is_expected_telegram_long_poll_idle_timeout(&err));
     }
 
     #[test]
@@ -35344,14 +41094,20 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         let second_run_json = parse_json(second_run).await;
         assert_eq!(second_run_json["error_code"], "RATE_LIMITED");
         assert_eq!(second_run_json["rate_limit_scope"], "run.principal");
-        assert_eq!(second_run_json["retry_after_seconds"], 60);
+        let retry_after_seconds = second_run_json["retry_after_seconds"]
+            .as_i64()
+            .expect("retry_after_seconds");
+        assert!(
+            (59..=60).contains(&retry_after_seconds),
+            "retry_after_seconds should reflect the remaining 60s window, got {retry_after_seconds}"
+        );
     }
 
     #[tokio::test]
     async fn run_endpoint_rate_limit_retry_after_tracks_remaining_window() {
         let ctx = test_context_with_rate_limits(RequestRateLimitConfig {
             enabled: true,
-            window_seconds: 3,
+            window_seconds: 60,
             per_ip_limit: 100,
             per_principal_limit: 100,
             per_run_endpoint_limit: 1,
@@ -35416,8 +41172,8 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .as_i64()
             .expect("retry_after_seconds");
         assert!(
-            (1..=2).contains(&retry_after_seconds),
-            "expected retry_after_seconds between 1 and 2, got {retry_after_seconds}"
+            (1..=59).contains(&retry_after_seconds),
+            "expected retry_after_seconds below the 60s window after elapsed time, got {retry_after_seconds}"
         );
     }
 
@@ -35941,6 +41697,623 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     }
 
     #[tokio::test]
+    async fn lane_memory_policy_local_only_skips_numquam_context() {
+        let stub = spawn_numquam_stub(NumquamStubConfig::healthy()).await;
+        let ctx = test_context_with_numquam(build_test_numquam_client(&stub.base_url));
+        let agent = ctx
+            .storage
+            .create_agent(NewAgent {
+                agent_id: "lane_local_agent".to_string(),
+                name: "Lane Local Agent".to_string(),
+                workspace_root: ".".to_string(),
+                model_provider: "mock".to_string(),
+                model_id: "mock-echo-v1".to_string(),
+                tool_profile: "default".to_string(),
+                reports_to_agent_id: None,
+                role_label: None,
+                memory_binding: None,
+            })
+            .expect("create lane local agent");
+
+        let routing_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    r#"{
+                        "routing": {
+                            "enabled": true,
+                            "human_identities": [
+                                {
+                                    "human_identity_id": "operator_local",
+                                    "display_name": "Operator Local"
+                                }
+                            ],
+                            "assistant_assignments": [
+                                {
+                                    "human_identity_id": "operator_local",
+                                    "assistant_agent_id": "lane_local_agent"
+                                }
+                            ],
+                            "lane_memory_policies": [
+                                {
+                                    "human_identity_id": "operator_local",
+                                    "assistant_agent_id": "lane_local_agent",
+                                    "memory_mode": "local_only"
+                                }
+                            ]
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update runtime routing");
+        let routing_status = routing_update.status();
+        let routing_json = parse_json(routing_update).await;
+        assert_eq!(
+            routing_status,
+            StatusCode::OK,
+            "routing update failed: {routing_json}"
+        );
+
+        let create_note_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/memory/notes",
+                Body::from(
+                    r#"{"title":"Shell Preference","body":"Remember this user prefers zsh shell in terminal sessions.","tags":["preference"]}"#,
+                ),
+            ))
+            .await
+            .expect("create note");
+        assert_eq!(create_note_response.status(), StatusCode::CREATED);
+
+        let session = ctx
+            .storage
+            .create_session(NewSession {
+                session_key: Some(
+                    "lane:human:operator_local:assistant:lane_local_agent:main".to_string(),
+                ),
+                agent_id: agent.agent_id.clone(),
+                title: Some("lane-local-only".to_string()),
+            })
+            .expect("create lane session");
+        let session_id = session.session_id.clone();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(
+                    r#"{"role":"user","content_text":"Which shell should be used for terminal commands?"}"#,
+                ),
+            ))
+            .await
+            .expect("create message");
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("create run");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+        let run_json = parse_json(run_response).await;
+        assert_eq!(run_json["run"]["status"], "succeeded");
+        let usage_json = run_json["run"]["usage_json"].as_str().expect("usage_json");
+        let usage_value: serde_json::Value =
+            serde_json::from_str(usage_json).expect("usage json parse");
+        assert!(usage_value["memory"].is_null());
+        assert_eq!(usage_value["local_memory"]["enabled"], true);
+        assert_eq!(
+            usage_value["local_memory"]["lane_memory_mode"],
+            "local_only"
+        );
+
+        let messages_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/sessions/{session_id}/messages?limit=10"),
+                Body::empty(),
+            ))
+            .await
+            .expect("messages response");
+        let messages_json = parse_json(messages_response).await;
+        let items = messages_json["items"].as_array().expect("items");
+        let assistant_text = items[1]["content_text"].as_str().expect("assistant text");
+        assert!(assistant_text.contains("Local notes context"));
+        assert!(assistant_text.contains("prefers zsh shell"));
+        assert!(!assistant_text.contains("stored memory says user likes tea"));
+    }
+
+    #[tokio::test]
+    async fn lane_memory_policy_mno_only_skips_local_context_injection() {
+        let stub = spawn_numquam_stub(NumquamStubConfig::healthy()).await;
+        let ctx = test_context_with_numquam(build_test_numquam_client(&stub.base_url));
+        let agent = ctx
+            .storage
+            .create_agent(NewAgent {
+                agent_id: "lane_mno_agent".to_string(),
+                name: "Lane MNO Agent".to_string(),
+                workspace_root: ".".to_string(),
+                model_provider: "mock".to_string(),
+                model_id: "mock-echo-v1".to_string(),
+                tool_profile: "default".to_string(),
+                reports_to_agent_id: None,
+                role_label: None,
+                memory_binding: Some(create_test_agent_memory_binding(
+                    &stub.base_url,
+                    "none",
+                    None,
+                )),
+            })
+            .expect("create lane mno agent");
+
+        let routing_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    r#"{
+                        "routing": {
+                            "enabled": true,
+                            "human_identities": [
+                                {
+                                    "human_identity_id": "operator_mno",
+                                    "display_name": "Operator MNO"
+                                }
+                            ],
+                            "assistant_assignments": [
+                                {
+                                    "human_identity_id": "operator_mno",
+                                    "assistant_agent_id": "lane_mno_agent"
+                                }
+                            ],
+                            "lane_memory_policies": [
+                                {
+                                    "human_identity_id": "operator_mno",
+                                    "assistant_agent_id": "lane_mno_agent",
+                                    "memory_mode": "mno_only"
+                                }
+                            ]
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update runtime routing");
+        let routing_status = routing_update.status();
+        let routing_json = parse_json(routing_update).await;
+        assert_eq!(
+            routing_status,
+            StatusCode::OK,
+            "routing update failed: {routing_json}"
+        );
+
+        let create_note_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/memory/notes",
+                Body::from(
+                    r#"{"title":"Shell Preference","body":"Remember this user prefers zsh shell in terminal sessions.","tags":["preference"]}"#,
+                ),
+            ))
+            .await
+            .expect("create note");
+        assert_eq!(create_note_response.status(), StatusCode::CREATED);
+
+        let session = ctx
+            .storage
+            .create_session(NewSession {
+                session_key: Some(
+                    "lane:human:operator_mno:assistant:lane_mno_agent:main".to_string(),
+                ),
+                agent_id: agent.agent_id.clone(),
+                title: Some("lane-mno-only".to_string()),
+            })
+            .expect("create lane session");
+        let session_id = session.session_id.clone();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(r#"{"role":"user","content_text":"What do you remember about me?"}"#),
+            ))
+            .await
+            .expect("create message");
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("create run");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+        let run_json = parse_json(run_response).await;
+        assert_eq!(run_json["run"]["status"], "succeeded");
+        let usage_json = run_json["run"]["usage_json"].as_str().expect("usage_json");
+        let usage_value: serde_json::Value =
+            serde_json::from_str(usage_json).expect("usage json parse");
+        assert_eq!(usage_value["memory"]["enabled"], true);
+        assert_eq!(usage_value["memory"]["lane_memory_mode"], "mno_only");
+        assert_eq!(usage_value["local_memory"]["enabled"], false);
+        assert_eq!(usage_value["local_memory"]["lane_memory_mode"], "mno_only");
+
+        let messages_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/sessions/{session_id}/messages?limit=10"),
+                Body::empty(),
+            ))
+            .await
+            .expect("messages response");
+        let messages_json = parse_json(messages_response).await;
+        let items = messages_json["items"].as_array().expect("items");
+        let assistant_text = items[1]["content_text"].as_str().expect("assistant text");
+        assert!(assistant_text.contains("stored memory says user likes tea"));
+        assert!(!assistant_text.contains("Local notes context"));
+        assert!(!assistant_text.contains("prefers zsh shell"));
+    }
+
+    #[tokio::test]
+    async fn managed_numquam_lane_runtime_resolves_and_becomes_ready() {
+        let ctx = test_context();
+        let agent = create_test_agent(&ctx, "lane_managed_agent", "Lane Managed Agent", None);
+        let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()
+            .expect("canonical repo root");
+        let lanes_root = TempDir::new().expect("managed lanes tempdir");
+
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    serde_json::json!({
+                        "routing": {
+                            "enabled": true,
+                            "human_identities": [
+                                {
+                                    "human_identity_id": "operator_managed",
+                                    "display_name": "Operator Managed"
+                                }
+                            ],
+                            "assistant_assignments": [
+                                {
+                                    "human_identity_id": "operator_managed",
+                                    "assistant_agent_id": agent.agent_id.clone()
+                                }
+                            ],
+                            "lane_memory_policies": [
+                                {
+                                    "human_identity_id": "operator_managed",
+                                    "assistant_agent_id": agent.agent_id.clone(),
+                                    "memory_mode": "mno_only"
+                                }
+                            ]
+                        },
+                        "memory": {
+                            "blend_mode": "mno_primary",
+                            "memory_md_sources": [],
+                            "numquam": {
+                                "enabled": true,
+                                "managed_runtime_enabled": true,
+                                "managed_repo_root": repo_root.display().to_string(),
+                                "managed_lanes_root": lanes_root.path().display().to_string(),
+                                "transport": "http",
+                                "managed_launch_timeout_ms": 20000
+                            }
+                        }
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("update runtime config");
+        let runtime_status = runtime_update.status();
+        let runtime_json = parse_json(runtime_update).await;
+        assert_eq!(
+            runtime_status,
+            StatusCode::OK,
+            "runtime update failed: {runtime_json}"
+        );
+
+        let runtime_config = load_runtime_config(&ctx.state).expect("load runtime config");
+        let lane = resolve_managed_numquam_lane_for_pair(
+            &ctx.state,
+            &runtime_config,
+            "operator_managed",
+            &agent.agent_id,
+        )
+        .expect("resolve managed lane for pair")
+        .expect("managed lane for pair");
+        assert_eq!(
+            lane.lane_id,
+            "human:operator_managed:assistant:lane_managed_agent"
+        );
+
+        let session = ctx
+            .storage
+            .create_session(NewSession {
+                session_key: Some(canonical_lane_session_key(&lane.lane_id)),
+                agent_id: agent.agent_id.clone(),
+                title: Some("managed lane".to_string()),
+            })
+            .expect("create managed lane session");
+
+        let client =
+            resolve_numquam_client_for_session(&ctx.state, &runtime_config, &session.session_id)
+                .await
+                .expect("resolve numquam client for session")
+                .expect("managed numquam client");
+        let status = probe_numquam_status_for_client(&client).await;
+        assert!(status.enabled, "managed lane should be enabled: {status:?}");
+        assert!(
+            !status.degrade_mode,
+            "managed lane should not be degraded: {status:?}"
+        );
+        assert!(
+            status
+                .supported_schema_versions
+                .iter()
+                .any(|value| value.trim() == NUMQUAM_CONTRACT_VERSION),
+            "supported schema versions missing integration contract: {status:?}"
+        );
+
+        let lane_root = managed_numquam_lane_root(&ctx.state, &runtime_config, &lane.lane_id)
+            .expect("managed lane root");
+        assert!(
+            managed_numquam_store_path(&lane_root).exists(),
+            "managed lane atom store missing at {}",
+            managed_numquam_store_path(&lane_root).display()
+        );
+        let metadata_path = managed_numquam_metadata_path(&lane_root);
+        assert!(
+            metadata_path.exists(),
+            "managed lane metadata missing at {}",
+            metadata_path.display()
+        );
+        let metadata =
+            read_managed_numquam_lane_metadata(&lane_root).expect("read managed lane metadata");
+        let metadata = metadata.expect("managed lane metadata present");
+        assert_eq!(metadata.human_identity_id, "operator_managed");
+        assert_eq!(metadata.assistant_agent_id, agent.agent_id);
+
+        let reused_client = resolve_managed_numquam_lane_client(&ctx.state, &runtime_config, &lane)
+            .await
+            .expect("reuse managed lane client")
+            .expect("managed lane client on reuse");
+        assert_eq!(
+            reused_client.integration_base_url,
+            client.integration_base_url
+        );
+    }
+
+    #[tokio::test]
+    async fn run_execution_includes_session_system_messages_in_provider_input() {
+        let ctx = test_context();
+
+        let create_session_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"system-message-run"}"#),
+            ))
+            .await
+            .expect("create session");
+        let create_session_json = parse_json(create_session_response).await;
+        let session_id = create_session_json["session"]["session_id"]
+            .as_str()
+            .expect("session id")
+            .to_string();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(
+                    r#"{"role":"system","content_text":"Stay concise and answer in one sentence."}"#,
+                ),
+            ))
+            .await
+            .expect("create system message");
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(r#"{"role":"user","content_text":"hello from test"}"#),
+            ))
+            .await
+            .expect("create user message");
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from(r#"{"model_provider":"mock","model_id":"mock-echo-v1"}"#),
+            ))
+            .await
+            .expect("create run");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+
+        let messages = ctx
+            .storage
+            .list_messages(&session_id, 10)
+            .expect("list session messages");
+        let assistant_message = messages
+            .iter()
+            .find(|message| message.role == "assistant")
+            .expect("assistant message exists");
+        assert!(assistant_message
+            .content_text
+            .contains("System instructions:\nStay concise and answer in one sentence."));
+        assert!(assistant_message.content_text.contains("hello from test"));
+    }
+
+    #[tokio::test]
+    async fn run_execution_falls_back_to_default_system_prompt_when_session_has_none() {
+        let ctx = test_context();
+
+        let create_session_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"default-system-run"}"#),
+            ))
+            .await
+            .expect("create session");
+        let create_session_json = parse_json(create_session_response).await;
+        let session_id = create_session_json["session"]["session_id"]
+            .as_str()
+            .expect("session id")
+            .to_string();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(r#"{"role":"user","content_text":"do the default prompt show up?"}"#),
+            ))
+            .await
+            .expect("create user message");
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from(r#"{"model_provider":"mock","model_id":"mock-echo-v1"}"#),
+            ))
+            .await
+            .expect("create run");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+
+        let messages = ctx
+            .storage
+            .list_messages(&session_id, 10)
+            .expect("list session messages");
+        let assistant_message = messages
+            .iter()
+            .find(|message| message.role == "assistant")
+            .expect("assistant message exists");
+        assert!(assistant_message
+            .content_text
+            .contains("System instructions:\nYou are the CarsinOS assistant."));
+        assert!(assistant_message
+            .content_text
+            .contains("do the default prompt show up?"));
+    }
+
+    #[tokio::test]
+    async fn run_execution_falls_back_to_runtime_configured_system_prompt_when_present() {
+        let ctx = test_context();
+
+        let mut runtime = load_runtime_config(&ctx.state).expect("load runtime config");
+        runtime.global.assistant_system_prompt =
+            Some("You are the configured carsinOS runtime prompt.".to_string());
+        let payload = serde_json::to_string(&runtime).expect("serialize runtime config");
+        ctx.storage
+            .set_app_kv_json(APP_KV_RUNTIME_CONFIG, payload)
+            .expect("persist runtime config");
+
+        let create_session_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"runtime-configured-system-run"}"#),
+            ))
+            .await
+            .expect("create session");
+        let create_session_json = parse_json(create_session_response).await;
+        let session_id = create_session_json["session"]["session_id"]
+            .as_str()
+            .expect("session id")
+            .to_string();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(r#"{"role":"user","content_text":"which prompt is active?"}"#),
+            ))
+            .await
+            .expect("create user message");
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from(r#"{"model_provider":"mock","model_id":"mock-echo-v1"}"#),
+            ))
+            .await
+            .expect("create run");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+
+        let messages = ctx
+            .storage
+            .list_messages(&session_id, 10)
+            .expect("list session messages");
+        let assistant_message = messages
+            .iter()
+            .find(|message| message.role == "assistant")
+            .expect("assistant message exists");
+        assert!(assistant_message
+            .content_text
+            .contains("System instructions:\nYou are the configured carsinOS runtime prompt."));
+        assert!(assistant_message
+            .content_text
+            .contains("which prompt is active?"));
+    }
+
+    #[tokio::test]
     async fn numquam_context_and_writeback_are_wired_into_run_flow() {
         let stub = spawn_numquam_stub(NumquamStubConfig::healthy()).await;
         let ctx = test_context_with_numquam(build_test_numquam_client(&stub.base_url));
@@ -36452,6 +42825,193 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             payload["status"]["native_surface_availability"]["cards"],
             false
         );
+    }
+
+    #[tokio::test]
+    async fn agent_memory_lane_statuses_report_managed_lane_not_started_before_first_use() {
+        let ctx = test_context();
+        let agent = create_test_agent(
+            &ctx,
+            "memory_lane_managed_idle",
+            "Memory Lane Managed Idle",
+            None,
+        );
+        let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()
+            .expect("canonical repo root");
+        let lanes_root = TempDir::new().expect("managed lanes tempdir");
+
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    serde_json::json!({
+                        "routing": {
+                            "enabled": true,
+                            "human_identities": [
+                                {
+                                    "human_identity_id": "memory_lane_idle_human",
+                                    "display_name": "Memory Lane Idle Human"
+                                }
+                            ],
+                            "assistant_assignments": [
+                                {
+                                    "human_identity_id": "memory_lane_idle_human",
+                                    "assistant_agent_id": agent.agent_id
+                                }
+                            ],
+                            "lane_memory_policies": [
+                                {
+                                    "human_identity_id": "memory_lane_idle_human",
+                                    "assistant_agent_id": agent.agent_id,
+                                    "memory_mode": "mno_only"
+                                }
+                            ]
+                        },
+                        "memory": {
+                            "blend_mode": "mno_primary",
+                            "memory_md_sources": [],
+                            "numquam": {
+                                "enabled": true,
+                                "managed_runtime_enabled": true,
+                                "managed_repo_root": repo_root.display().to_string(),
+                                "managed_lanes_root": lanes_root.path().display().to_string(),
+                                "transport": "http"
+                            }
+                        }
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("update managed lane runtime config");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/agents/{}/memory/lanes/status", agent.agent_id),
+                Body::empty(),
+            ))
+            .await
+            .expect("agent lane memory statuses");
+        assert_eq!(response.status(), StatusCode::OK);
+        let payload = parse_json(response).await;
+        let items = payload["items"].as_array().expect("lane status items");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["source"], "managed_lane");
+        assert_eq!(items[0]["status"], "not_started");
+        assert!(items[0]["detail"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("has not started yet"));
+    }
+
+    #[tokio::test]
+    async fn agent_memory_lane_statuses_report_managed_lane_available_after_first_use() {
+        let ctx = test_context();
+        let agent = create_test_agent(
+            &ctx,
+            "memory_lane_managed_ready",
+            "Memory Lane Managed Ready",
+            None,
+        );
+        let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()
+            .expect("canonical repo root");
+        let lanes_root = TempDir::new().expect("managed lanes tempdir");
+
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    serde_json::json!({
+                        "routing": {
+                            "enabled": true,
+                            "human_identities": [
+                                {
+                                    "human_identity_id": "memory_lane_ready_human",
+                                    "display_name": "Memory Lane Ready Human"
+                                }
+                            ],
+                            "assistant_assignments": [
+                                {
+                                    "human_identity_id": "memory_lane_ready_human",
+                                    "assistant_agent_id": agent.agent_id
+                                }
+                            ],
+                            "lane_memory_policies": [
+                                {
+                                    "human_identity_id": "memory_lane_ready_human",
+                                    "assistant_agent_id": agent.agent_id,
+                                    "memory_mode": "mno_only"
+                                }
+                            ]
+                        },
+                        "memory": {
+                            "blend_mode": "mno_primary",
+                            "memory_md_sources": [],
+                            "numquam": {
+                                "enabled": true,
+                                "managed_runtime_enabled": true,
+                                "managed_repo_root": repo_root.display().to_string(),
+                                "managed_lanes_root": lanes_root.path().display().to_string(),
+                                "transport": "http",
+                                "managed_launch_timeout_ms": 20000
+                            }
+                        }
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("update managed lane runtime config");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let runtime_config = load_runtime_config(&ctx.state).expect("load runtime config");
+        let session = ctx
+            .storage
+            .create_session(NewSession {
+                session_key: Some(canonical_lane_session_key(
+                    "human:memory_lane_ready_human:assistant:memory_lane_managed_ready",
+                )),
+                agent_id: agent.agent_id.clone(),
+                title: Some("memory lane ready".to_string()),
+            })
+            .expect("create managed lane session");
+        let _ =
+            resolve_numquam_client_for_session(&ctx.state, &runtime_config, &session.session_id)
+                .await
+                .expect("resolve managed lane client")
+                .expect("managed lane client");
+
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/agents/{}/memory/lanes/status", agent.agent_id),
+                Body::empty(),
+            ))
+            .await
+            .expect("agent lane memory statuses");
+        assert_eq!(response.status(), StatusCode::OK);
+        let payload = parse_json(response).await;
+        let items = payload["items"].as_array().expect("lane status items");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["source"], "managed_lane");
+        assert_eq!(items[0]["status"], "available");
+        assert_eq!(items[0]["orchestration"]["enabled"], true);
     }
 
     #[tokio::test]
@@ -37917,14 +44477,15 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .create_auth_profile(NewAuthProfile {
                 provider: AUTH_PROVIDER_ANTHROPIC.to_string(),
                 display_name: "claude-primary".to_string(),
-                auth_mode: AUTH_MODE_CLAUDE_CONSUMER_OAUTH.to_string(),
+                auth_mode: AUTH_MODE_AGENT_SDK.to_string(),
                 risk_level: "high".to_string(),
                 enabled: true,
                 kill_switch_scope: KILL_SWITCH_SCOPE_PROFILE.to_string(),
                 api_base_url: Some("https://api.anthropic.com".to_string()),
                 credentials_json: serde_json::json!({
-                    "access_token": "token-1",
-                    "token": "token-1"
+                    "headless_enabled": true,
+                    "headless_command": "claude",
+                    "headless_args": ["-p"]
                 })
                 .to_string(),
             })
@@ -37935,14 +44496,15 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .create_auth_profile(NewAuthProfile {
                 provider: AUTH_PROVIDER_ANTHROPIC.to_string(),
                 display_name: "claude-primary".to_string(),
-                auth_mode: AUTH_MODE_CLAUDE_CONSUMER_OAUTH.to_string(),
+                auth_mode: AUTH_MODE_AGENT_SDK.to_string(),
                 risk_level: "high".to_string(),
                 enabled: true,
                 kill_switch_scope: KILL_SWITCH_SCOPE_PROFILE.to_string(),
                 api_base_url: Some("https://api.anthropic.com".to_string()),
                 credentials_json: serde_json::json!({
-                    "access_token": "token-2",
-                    "token": "token-2"
+                    "headless_enabled": true,
+                    "headless_command": "claude",
+                    "headless_args": ["-p", "--output-format", "text"]
                 })
                 .to_string(),
             })
@@ -37965,12 +44527,12 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                     r#"{
                         "provider":"anthropic",
                         "display_name":"claude-primary",
-                        "auth_mode":"claude_consumer_oauth",
+                        "auth_mode":"agent_sdk",
                         "risk_level":"high",
                         "enabled":true,
                         "kill_switch_scope":"profile",
                         "api_base_url":"https://api.anthropic.com",
-                        "credentials_json":{"access_token":"token-1","token":"token-1"}
+                        "credentials_json":{"headless_enabled":true,"headless_command":"claude","headless_args":["-p"]}
                     }"#,
                 ),
             ))
@@ -37988,12 +44550,12 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                     r#"{
                         "provider":"anthropic",
                         "display_name":"claude-primary",
-                        "auth_mode":"claude_consumer_oauth",
+                        "auth_mode":"agent_sdk",
                         "risk_level":"high",
                         "enabled":true,
                         "kill_switch_scope":"profile",
                         "api_base_url":"https://api.anthropic.com",
-                        "credentials_json":{"access_token":"token-2","token":"token-2"}
+                        "credentials_json":{"headless_enabled":true,"headless_command":"claude","headless_args":["-p","--output-format","text"]}
                     }"#,
                 ),
             ))
@@ -38228,6 +44790,38 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         assert!(items.iter().any(|item| {
             item["action"] == "security.secret.revoke" && item["decision"] == "allow"
         }));
+    }
+
+    #[test]
+    fn secret_store_file_backend_roundtrips_and_deletes() {
+        let temp_dir = tempfile::tempdir().expect("tempdir");
+        let root_dir = temp_dir.path().join("secrets");
+        let store = SecretStore {
+            service_name: "carsinos-test".to_string(),
+            backend: SecretStoreBackend::File(Arc::new(root_dir.clone())),
+        };
+        let secret_ref = "auth.test.file.roundtrip";
+        let payload = serde_json::json!({
+            "api_key": "test-secret",
+            "token_kind": "setup_token"
+        });
+
+        store
+            .set_json(secret_ref, &payload)
+            .expect("store file secret");
+        let stored = store
+            .get_json(secret_ref)
+            .expect("load file secret")
+            .expect("file secret exists");
+        assert_eq!(stored, payload);
+        assert!(secret_store_file_path(&root_dir, secret_ref).exists());
+
+        store.delete(secret_ref).expect("delete file secret");
+        assert!(store
+            .get_json(secret_ref)
+            .expect("load missing secret")
+            .is_none());
+        assert!(!secret_store_file_path(&root_dir, secret_ref).exists());
     }
 
     #[tokio::test]
@@ -38608,7 +45202,8 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     #[tokio::test]
     async fn anthropic_setup_token_ingest_creates_profile_and_supports_run_flow() {
         let ctx = test_context();
-        let stub = spawn_auth_flow_stub(AuthFlowStubConfig::anthropic("setup-token-123")).await;
+        let setup_token = fake_anthropic_setup_token();
+        let stub = spawn_auth_flow_stub(AuthFlowStubConfig::anthropic(&setup_token)).await;
 
         let ingest_response = ctx
             .app
@@ -38619,10 +45214,10 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                 Body::from(format!(
                     r#"{{
                         "display_name":"anthropic-setup",
-                        "setup_token":"setup-token-123",
+                        "setup_token":"{}",
                         "api_base_url":"{}"
                     }}"#,
-                    stub.base_url
+                    setup_token, stub.base_url
                 )),
             ))
             .await
@@ -38692,9 +45287,107 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     }
 
     #[tokio::test]
-    async fn anthropic_setup_token_ingest_returns_conflict_for_duplicate_display_name() {
+    async fn anthropic_setup_token_ingest_normalizes_wrapped_whitespace_before_storage_and_run() {
         let ctx = test_context();
-        let stub = spawn_auth_flow_stub(AuthFlowStubConfig::anthropic("setup-token-123")).await;
+        let normalized_setup_token = fake_anthropic_setup_token();
+        let wrapped_setup_token = format!(
+            "{} {}",
+            &normalized_setup_token[..40],
+            &normalized_setup_token[40..]
+        );
+        let stub =
+            spawn_auth_flow_stub(AuthFlowStubConfig::anthropic(&normalized_setup_token)).await;
+
+        let ingest_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/anthropic/setup-token/ingest",
+                Body::from(format!(
+                    r#"{{
+                        "display_name":"anthropic-setup-whitespace",
+                        "setup_token":"{}",
+                        "api_base_url":"{}"
+                    }}"#,
+                    wrapped_setup_token, stub.base_url
+                )),
+            ))
+            .await
+            .expect("ingest wrapped setup token");
+        assert_eq!(ingest_response.status(), StatusCode::CREATED);
+        let ingest_json = parse_json(ingest_response).await;
+        let profile_id = ingest_json["profile"]["auth_profile_id"]
+            .as_str()
+            .expect("profile id")
+            .to_string();
+
+        let record = ctx
+            .storage
+            .get_auth_profile(&profile_id)
+            .expect("load profile")
+            .expect("profile exists");
+        let credentials: serde_json::Value =
+            serde_json::from_str(&record.credentials_json).expect("credentials json");
+        let secret_ref = credentials["secret_ref"].as_str().expect("secret ref");
+        let stored_secret = ctx
+            .secret_store
+            .get_json(secret_ref)
+            .expect("load normalized secret")
+            .expect("secret exists");
+        assert_eq!(stored_secret["api_key"], normalized_setup_token);
+
+        let create_session_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"anthropic-setup-run-whitespace"}"#),
+            ))
+            .await
+            .expect("create session");
+        let create_session_json = parse_json(create_session_response).await;
+        let session_id = create_session_json["session"]["session_id"]
+            .as_str()
+            .expect("session id")
+            .to_string();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(
+                    r#"{"role":"user","content_text":"hello anthropic wrapped setup token"}"#,
+                ),
+            ))
+            .await
+            .expect("create message");
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from(format!(
+                    r#"{{"model_provider":"anthropic","model_id":"claude-test","auth_profile_id":"{profile_id}"}}"#
+                )),
+            ))
+            .await
+            .expect("run response");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+        let run_json = parse_json(run_response).await;
+        assert_eq!(run_json["run"]["status"], "succeeded");
+    }
+
+    #[tokio::test]
+    async fn anthropic_setup_token_ingest_replaces_duplicate_display_name() {
+        let ctx = test_context();
+        let setup_token = fake_anthropic_setup_token();
+        let stub = spawn_auth_flow_stub(AuthFlowStubConfig::anthropic(&setup_token)).await;
 
         let first = ctx
             .app
@@ -38705,10 +45398,10 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                 Body::from(format!(
                     r#"{{
                         "display_name":"claude-primary",
-                        "setup_token":"setup-token-123",
+                        "setup_token":"{}",
                         "api_base_url":"{}"
                     }}"#,
-                    stub.base_url
+                    setup_token, stub.base_url
                 )),
             ))
             .await
@@ -38724,20 +45417,18 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                 Body::from(format!(
                     r#"{{
                         "display_name":"claude-primary",
-                        "setup_token":"setup-token-123",
+                        "setup_token":"{}",
                         "api_base_url":"{}"
                     }}"#,
-                    stub.base_url
+                    setup_token, stub.base_url
                 )),
             ))
             .await
             .expect("duplicate anthropic setup-token profile");
-        assert_eq!(duplicate.status(), StatusCode::CONFLICT);
+        assert_eq!(duplicate.status(), StatusCode::OK);
         let duplicate_json = parse_json(duplicate).await;
-        assert_eq!(
-            duplicate_json["error"],
-            "auth profile display_name already exists for this provider"
-        );
+        assert_eq!(duplicate_json["profile"]["display_name"], "claude-primary");
+        assert_eq!(duplicate_json["profile"]["auth_mode"], "api_key");
     }
 
     #[tokio::test]
@@ -38926,13 +45617,11 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                             {
                                 "provider": "openai",
                                 "enabled": true,
-                                "allow_consumer_oauth": false,
                                 "kill_switch_scope": "none"
                             },
                             {
                                 "provider": "anthropic",
                                 "enabled": true,
-                                "allow_consumer_oauth": true,
                                 "kill_switch_scope": "profile"
                             }
                         ],
@@ -38982,10 +45671,6 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         assert_eq!(
             update_json["config"]["global"]["jwt_issuer_allowlist"][0],
             "https://issuer.example"
-        );
-        assert_eq!(
-            update_json["config"]["providers"][1]["allow_consumer_oauth"],
-            true
         );
         assert_eq!(
             update_json["config"]["channels"]["discord"]["enabled"],
@@ -39524,14 +46209,12 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                 {
                     "provider":"openai",
                     "enabled":true,
-                    "allow_consumer_oauth":false,
                     "kill_switch_scope":"none",
                     "daily_token_budget":10
                 },
                 {
                     "provider":"anthropic",
                     "enabled":true,
-                    "allow_consumer_oauth":false,
                     "kill_switch_scope":"none"
                 }
             ]"#,
@@ -39622,14 +46305,12 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                 {
                     "provider":"openai",
                     "enabled":true,
-                    "allow_consumer_oauth":false,
                     "kill_switch_scope":"none",
                     "daily_cost_usd_budget":0.01
                 },
                 {
                     "provider":"anthropic",
                     "enabled":true,
-                    "allow_consumer_oauth":false,
                     "kill_switch_scope":"none"
                 }
             ]"#,
@@ -40112,6 +46793,13 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         let items = status_json["items"].as_array().expect("status items");
         assert!(items.iter().any(|item| item["provider"] == "discord"));
         assert!(items.iter().any(|item| item["provider"] == "telegram"));
+        let telegram_status = items
+            .iter()
+            .find(|item| item["provider"] == "telegram")
+            .cloned()
+            .expect("telegram status");
+        assert_eq!(telegram_status["session_state"], "offline");
+        assert_eq!(telegram_status["proof_state"], "unproven");
 
         let reconnect_response = ctx
             .app
@@ -40128,6 +46816,8 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         assert_eq!(reconnect_json["status"]["provider"], "telegram");
         assert_eq!(reconnect_json["status"]["healthy"], true);
         assert_eq!(reconnect_json["status"]["lifecycle_state"], "running");
+        assert_eq!(reconnect_json["status"]["session_state"], "offline");
+        assert_eq!(reconnect_json["status"]["proof_state"], "unproven");
         assert!(
             reconnect_json["status"]["reconnect_attempts"]
                 .as_u64()
@@ -40204,6 +46894,8 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .expect("telegram status");
         assert_eq!(telegram_status["lifecycle_state"], "stopped");
         assert_eq!(telegram_status["healthy"], false);
+        assert_eq!(telegram_status["session_state"], "offline");
+        assert_eq!(telegram_status["proof_state"], "unproven");
         assert!(telegram_status["detail"]
             .as_str()
             .unwrap_or_default()
@@ -40224,6 +46916,8 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         assert_eq!(reconnect_json["status"]["provider"], "telegram");
         assert_eq!(reconnect_json["status"]["lifecycle_state"], "stopped");
         assert_eq!(reconnect_json["status"]["healthy"], false);
+        assert_eq!(reconnect_json["status"]["session_state"], "offline");
+        assert_eq!(reconnect_json["status"]["proof_state"], "unproven");
         assert_eq!(reconnect_json["status"]["reconnect_attempts"], 0);
 
         let focus_response = ctx
@@ -40367,7 +47061,11 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                 "/api/v1/config/channels",
                 Body::from(
                     r#"{
-                        "telegram":{"require_mention_in_groups":false,"allowlisted_user_ids":[1001]}
+                        "telegram":{
+                            "require_mention_in_groups":false,
+                            "allowlisted_user_ids":[1001],
+                            "dm_policy":"allowlist"
+                        }
                     }"#,
                 ),
             ))
@@ -40403,8 +47101,234 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     }
 
     #[tokio::test]
+    async fn telegram_channel_inbound_creates_pairing_request_for_unknown_dm_sender() {
+        let ctx = test_context();
+        let transport = MockServer::start();
+        let send_mock = transport.mock(|when, then| {
+            when.method(POST).path("/bottelegram-token/sendMessage");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(r#"{"ok":true,"result":{"message_id":321}}"#);
+        });
+        ctx.secret_store
+            .set_raw("runtime.channels.telegram.bot_token", "telegram-token")
+            .expect("set telegram token");
+        let runtime_update_payload = serde_json::json!({
+            "channels": {
+                "discord": {
+                    "bot_token_secret_ref": null,
+                    "operation_mode": "shim",
+                    "application_id": null,
+                    "intents": ["guilds"],
+                    "staging_guild_ids": [],
+                    "staging_channel_ids": []
+                },
+                "telegram": {
+                    "bot_token_secret_ref": "secret://runtime.channels.telegram.bot_token",
+                    "operation_mode": "transport",
+                    "api_base_url": transport.base_url(),
+                    "transport_timeout_ms": 1000,
+                    "transport_retry_attempts": 1,
+                    "long_poll_timeout_seconds": 1,
+                    "webhook_mode": "long_poll",
+                    "webhook_url": null,
+                    "staging_chat_ids": []
+                }
+            }
+        });
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(runtime_update_payload.to_string()),
+            ))
+            .await
+            .expect("update runtime config for telegram transport");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let inbound = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/telegram/inbound",
+                Body::from(
+                    r#"{
+                        "chat_id":991,
+                        "user_id":991,
+                        "text":"hello from stranger",
+                        "is_group_chat":false,
+                        "mentions_bot":false,
+                        "reply_to_bot":false,
+                        "run_immediately":false
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("telegram inbound");
+        assert_eq!(inbound.status(), StatusCode::OK);
+        let inbound_json = parse_json(inbound).await;
+        assert_eq!(inbound_json["decision"], "rejected");
+        assert_eq!(inbound_json["reason"], "pairing_required");
+        send_mock.assert_hits(1);
+
+        let status = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/channels/telegram/pairing/status",
+                Body::empty(),
+            ))
+            .await
+            .expect("pairing status");
+        assert_eq!(status.status(), StatusCode::OK);
+        let status_json = parse_json(status).await;
+        assert_eq!(status_json["pending_requests"][0]["user_id"], 991);
+    }
+
+    #[tokio::test]
+    async fn approve_telegram_pairing_moves_sender_into_allowlist() {
+        let ctx = test_context();
+        ctx.storage
+            .set_app_kv_json(
+                APP_KV_TELEGRAM_PAIRING_STATE,
+                serde_json::json!({
+                    "pending_requests": [{
+                        "code": "ABCD2345",
+                        "user_id": 991,
+                        "chat_id": 991,
+                        "preview_text": "hello",
+                        "first_seen_at": current_time_ms(),
+                        "last_seen_at": current_time_ms(),
+                        "expires_at": current_time_ms() + 60_000,
+                        "attempt_count": 1
+                    }],
+                    "blocked_senders": [],
+                    "updated_at": current_time_ms()
+                })
+                .to_string(),
+            )
+            .expect("seed telegram pairing state");
+
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/telegram/pairing/approve",
+                Body::from(r#"{"code":"ABCD2345"}"#),
+            ))
+            .await
+            .expect("approve telegram pairing");
+        assert_eq!(response.status(), StatusCode::OK);
+        let response_json = parse_json(response).await;
+        assert_eq!(response_json["approved_user_id"], 991);
+        assert!(response_json["status"]["pending_requests"]
+            .as_array()
+            .unwrap_or(&vec![])
+            .is_empty());
+
+        let config = load_channel_config(&ctx.state).expect("load channel config");
+        assert!(config.telegram.allowlisted_user_ids.contains(&991));
+    }
+
+    #[tokio::test]
+    async fn approve_telegram_pairing_can_link_sender_to_human_identity() {
+        let ctx = test_context();
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    r#"{
+                        "routing": {
+                            "enabled": true,
+                            "human_identities": [{
+                                "human_identity_id": "operator_local",
+                                "display_name": "You",
+                                "enabled": true
+                            }]
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update runtime config");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+        ctx.storage
+            .set_app_kv_json(
+                APP_KV_TELEGRAM_PAIRING_STATE,
+                serde_json::json!({
+                    "pending_requests": [{
+                        "code": "TG88ABCD",
+                        "user_id": 1234,
+                        "chat_id": 1234,
+                        "preview_text": "hello",
+                        "first_seen_at": current_time_ms(),
+                        "last_seen_at": current_time_ms(),
+                        "expires_at": current_time_ms() + 60_000,
+                        "attempt_count": 1
+                    }],
+                    "blocked_senders": [],
+                    "updated_at": current_time_ms()
+                })
+                .to_string(),
+            )
+            .expect("seed telegram pairing state");
+
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/telegram/pairing/approve",
+                Body::from(r#"{"code":"TG88ABCD","human_identity_id":"operator_local"}"#),
+            ))
+            .await
+            .expect("approve telegram pairing with link");
+        assert_eq!(response.status(), StatusCode::OK);
+        let response_json = parse_json(response).await;
+        assert_eq!(response_json["linked_human_identity_id"], "operator_local");
+
+        let runtime = load_runtime_config(&ctx.state).expect("load runtime config");
+        assert!(runtime.routing.platform_identity_links.iter().any(|item| {
+            item.provider == "telegram"
+                && item.platform_user_id == "1234"
+                && item.human_identity_id == "operator_local"
+        }));
+    }
+
+    #[tokio::test]
     async fn telegram_channel_inbound_accept_reuses_session_key() {
         let ctx = test_context();
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/channels",
+                Body::from(
+                    r#"{
+                        "telegram":{
+                            "require_mention_in_groups":true,
+                            "allowlisted_user_ids":[],
+                            "group_policy":"allowlist",
+                            "allowlisted_chat_ids":[777],
+                            "group_allowlisted_user_ids":[42],
+                            "auto_run_enabled":false,
+                            "default_model_provider":"mock",
+                            "default_model_id":"mock-echo-v1"
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update telegram channel config");
         let first = ctx
             .app
             .clone()
@@ -40464,8 +47388,314 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .list_messages(&session_id, 10)
             .expect("list messages for channel session");
         assert_eq!(messages.len(), 2);
-        assert_eq!(messages[0].content_text, "first");
-        assert_eq!(messages[1].content_text, "second");
+        assert!(messages[0]
+            .content_text
+            .contains("[Untrusted external telegram message"));
+        assert!(messages[0].content_text.contains("first"));
+        assert!(messages[1].content_text.contains("second"));
+    }
+
+    #[tokio::test]
+    async fn telegram_channel_inbound_uses_configured_agent_for_new_sessions() {
+        let ctx = test_context();
+        let agent = create_test_agent(&ctx, "telegram_agent", "Telegram Agent", None);
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/channels",
+                Body::from(
+                    r#"{
+                        "telegram":{
+                            "require_mention_in_groups":false,
+                            "allowlisted_user_ids":[77],
+                            "dm_policy":"allowlist",
+                            "auto_run_enabled":false,
+                            "default_agent_id":"telegram_agent",
+                            "default_model_provider":"mock",
+                            "default_model_id":"mock-echo-v1"
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update telegram channel config");
+
+        let inbound = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/telegram/inbound",
+                Body::from(
+                    r#"{
+                        "chat_id":444,
+                        "user_id":77,
+                        "text":"hello",
+                        "is_group_chat":false,
+                        "mentions_bot":false,
+                        "reply_to_bot":false,
+                        "run_immediately":false
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("telegram inbound");
+        assert_eq!(inbound.status(), StatusCode::OK);
+        let inbound_json = parse_json(inbound).await;
+        let session_id = inbound_json["session_id"].as_str().expect("session id");
+        let session = ctx
+            .storage
+            .get_session(session_id)
+            .expect("get session")
+            .expect("session exists");
+        assert_eq!(session.agent_id, agent.agent_id);
+    }
+
+    #[tokio::test]
+    async fn telegram_channel_inbound_backfills_missing_default_agent_from_unique_model_match() {
+        let ctx = test_context();
+        let agent = create_test_agent(&ctx, "telegram_auto", "Telegram Auto", None);
+        let session_key = "telegram:dm:77";
+        ctx.storage
+            .create_session(NewSession {
+                session_key: Some(session_key.to_string()),
+                agent_id: "default".to_string(),
+                title: Some("telegram dm".to_string()),
+            })
+            .expect("create default session");
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/channels",
+                Body::from(format!(
+                    r#"{{
+                            "telegram":{{
+                                "require_mention_in_groups":false,
+                                "allowlisted_user_ids":[77],
+                                "dm_policy":"allowlist",
+                                "auto_run_enabled":false,
+                                "default_model_provider":"{}",
+                                "default_model_id":"{}"
+                            }}
+                        }}"#,
+                    agent.model_provider, agent.model_id
+                )),
+            ))
+            .await
+            .expect("update telegram channel config");
+
+        let inbound = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/telegram/inbound",
+                Body::from(
+                    r#"{
+                        "chat_id":444,
+                        "user_id":77,
+                        "text":"hello again",
+                        "is_group_chat":false,
+                        "mentions_bot":false,
+                        "reply_to_bot":false,
+                        "run_immediately":false
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("telegram inbound");
+        assert_eq!(inbound.status(), StatusCode::OK);
+        let inbound_json = parse_json(inbound).await;
+        let session_id = inbound_json["session_id"].as_str().expect("session id");
+        let session = ctx
+            .storage
+            .get_session(session_id)
+            .expect("get session")
+            .expect("session exists");
+        assert_eq!(session.agent_id, agent.agent_id);
+
+        let config = load_channel_config(&ctx.state).expect("load channel config");
+        assert_eq!(
+            config.telegram.default_agent_id.as_deref(),
+            Some(agent.agent_id.as_str())
+        );
+    }
+
+    #[tokio::test]
+    async fn telegram_channel_inbound_uses_lane_assignment_for_linked_user() {
+        let ctx = test_context();
+        let agent = create_test_agent(&ctx, "lane_telegram", "Lane Telegram", None);
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(format!(
+                    r#"{{
+                        "routing": {{
+                            "enabled": true,
+                            "human_identities": [
+                                {{
+                                    "human_identity_id": "operator_alpha",
+                                    "display_name": "Operator Alpha"
+                                }}
+                            ],
+                            "platform_identity_links": [
+                                {{
+                                    "provider": "telegram",
+                                    "platform_user_id": "77",
+                                    "human_identity_id": "operator_alpha"
+                                }}
+                            ],
+                            "assistant_assignments": [
+                                {{
+                                    "human_identity_id": "operator_alpha",
+                                    "assistant_agent_id": "{}"
+                                }}
+                            ]
+                        }}
+                    }}"#,
+                    agent.agent_id
+                )),
+            ))
+            .await
+            .expect("update runtime routing");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/channels",
+                Body::from(
+                    r#"{
+                        "telegram":{
+                            "require_mention_in_groups":false,
+                            "allowlisted_user_ids":[77],
+                            "dm_policy":"allowlist",
+                            "auto_run_enabled":false,
+                            "default_model_provider":"mock",
+                            "default_model_id":"mock-echo-v1"
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update telegram config");
+
+        let inbound = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/telegram/inbound",
+                Body::from(
+                    r#"{
+                        "chat_id":444,
+                        "user_id":77,
+                        "text":"lane hello",
+                        "is_group_chat":false,
+                        "mentions_bot":false,
+                        "reply_to_bot":false,
+                        "run_immediately":false
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("telegram inbound");
+        assert_eq!(inbound.status(), StatusCode::OK);
+        let inbound_json = parse_json(inbound).await;
+        let session_id = inbound_json["session_id"].as_str().expect("session id");
+        let session = ctx
+            .storage
+            .get_session(session_id)
+            .expect("get session")
+            .expect("session exists");
+        assert_eq!(session.agent_id, agent.agent_id);
+        assert_eq!(
+            session.session_key,
+            "lane:human:operator_alpha:assistant:lane_telegram:main"
+        );
+    }
+
+    #[tokio::test]
+    async fn telegram_channel_inbound_requires_approval_when_lane_is_unmapped() {
+        let ctx = test_context();
+
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    r#"{
+                        "routing": {
+                            "enabled": true,
+                            "use_channel_defaults_as_fallback": false,
+                            "dm_unmapped_policy": "approval_required",
+                            "shared_unmapped_policy": "block"
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update runtime routing");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/channels",
+                Body::from(
+                    r#"{
+                        "telegram":{
+                            "require_mention_in_groups":false,
+                            "allowlisted_user_ids":[707],
+                            "dm_policy":"allowlist",
+                            "auto_run_enabled":false,
+                            "default_model_provider":"mock",
+                            "default_model_id":"mock-echo-v1"
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update telegram config");
+
+        let inbound = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/telegram/inbound",
+                Body::from(
+                    r#"{
+                        "chat_id":4447,
+                        "user_id":707,
+                        "text":"hello from unmapped telegram",
+                        "is_group_chat":false,
+                        "mentions_bot":false,
+                        "reply_to_bot":false,
+                        "run_immediately":false
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("telegram inbound");
+        assert_eq!(inbound.status(), StatusCode::OK);
+        let inbound_json = parse_json(inbound).await;
+        assert_eq!(inbound_json["decision"], "rejected");
+        assert_eq!(inbound_json["reason"], "pairing_required");
+        assert!(inbound_json["session_id"].is_null());
     }
 
     #[tokio::test]
@@ -40517,6 +47747,27 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .await
             .expect("update runtime config for telegram transport");
         assert_eq!(runtime_update.status(), StatusCode::OK);
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/channels",
+                Body::from(
+                    r#"{
+                        "telegram":{
+                            "require_mention_in_groups":false,
+                            "allowlisted_user_ids":[77],
+                            "dm_policy":"allowlist",
+                            "auto_run_enabled":true,
+                            "default_model_provider":"mock",
+                            "default_model_id":"mock-echo-v1"
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update telegram channel config");
 
         let inbound = ctx
             .app
@@ -40550,6 +47801,19 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .expect("get run")
             .expect("run exists");
         assert_eq!(run.status, "succeeded");
+        let session = ctx
+            .storage
+            .get_session_by_key("telegram:dm:77")
+            .expect("load telegram channel session")
+            .expect("telegram channel session exists");
+        let messages = ctx
+            .storage
+            .list_messages(&session.session_id, 10)
+            .expect("load telegram channel messages");
+        assert!(messages.iter().any(|message| message.role == "system"
+            && message
+                .content_text
+                .contains("You are the CarsinOS assistant.")));
         transport_mock.assert_hits(1);
     }
 
@@ -40617,6 +47881,264 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .expect("get run")
             .expect("run exists");
         assert_eq!(run.status, "succeeded");
+    }
+
+    #[tokio::test]
+    async fn discord_channel_inbound_uses_configured_agent_for_new_sessions() {
+        let ctx = test_context();
+        let agent = create_test_agent(&ctx, "discord_agent", "Discord Agent", None);
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/channels",
+                Body::from(
+                    r#"{
+                        "discord":{
+                            "require_mention_in_guild_channels":false,
+                            "allowlisted_user_ids":[],
+                            "auto_run_enabled":false,
+                            "default_agent_id":"DISCORD_AGENT",
+                            "default_model_provider":"mock",
+                            "default_model_id":"mock-echo-v1"
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update discord channel config");
+
+        let inbound = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/discord/inbound",
+                Body::from(
+                    r#"{
+                        "channel_id":"dm-c-agent",
+                        "author_id":"u-agent",
+                        "text":"hello",
+                        "mentions_bot":false,
+                        "is_dm":true,
+                        "run_immediately":false
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("discord inbound");
+        assert_eq!(inbound.status(), StatusCode::OK);
+        let inbound_json = parse_json(inbound).await;
+        let session_id = inbound_json["session_id"].as_str().expect("session id");
+        let session = ctx
+            .storage
+            .get_session(session_id)
+            .expect("get session")
+            .expect("session exists");
+        assert_eq!(session.agent_id, agent.agent_id);
+    }
+
+    #[tokio::test]
+    async fn discord_channel_inbound_rebinds_default_sessions_to_configured_agent() {
+        let ctx = test_context();
+        let agent = create_test_agent(&ctx, "discord_agent_rebind", "Discord Agent Rebind", None);
+        let session_key = "discord:dm:u-rebind";
+        ctx.storage
+            .create_session(NewSession {
+                session_key: Some(session_key.to_string()),
+                agent_id: "default".to_string(),
+                title: Some("discord dm".to_string()),
+            })
+            .expect("create default session");
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/channels",
+                Body::from(
+                    r#"{
+                        "discord":{
+                            "require_mention_in_guild_channels":false,
+                            "allowlisted_user_ids":[],
+                            "auto_run_enabled":false,
+                            "default_agent_id":"discord_agent_rebind",
+                            "default_model_provider":"mock",
+                            "default_model_id":"mock-echo-v1"
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update discord channel config");
+
+        let inbound = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/discord/inbound",
+                Body::from(
+                    r#"{
+                        "channel_id":"dm-c-rebind",
+                        "author_id":"u-rebind",
+                        "text":"hello again",
+                        "mentions_bot":false,
+                        "is_dm":true,
+                        "run_immediately":false
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("discord inbound");
+        assert_eq!(inbound.status(), StatusCode::OK);
+        let inbound_json = parse_json(inbound).await;
+        let session_id = inbound_json["session_id"].as_str().expect("session id");
+        let session = ctx
+            .storage
+            .get_session(session_id)
+            .expect("get session")
+            .expect("session exists");
+        assert_eq!(session.agent_id, agent.agent_id);
+    }
+
+    #[tokio::test]
+    async fn discord_and_telegram_linked_user_share_canonical_lane_session() {
+        let ctx = test_context();
+        let agent = create_test_agent(&ctx, "lane_shared", "Lane Shared", None);
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(format!(
+                    r#"{{
+                        "routing": {{
+                            "enabled": true,
+                            "human_identities": [
+                                {{
+                                    "human_identity_id": "shared_human",
+                                    "display_name": "Shared Human"
+                                }}
+                            ],
+                            "platform_identity_links": [
+                                {{
+                                    "provider": "telegram",
+                                    "platform_user_id": "77",
+                                    "human_identity_id": "shared_human"
+                                }},
+                                {{
+                                    "provider": "discord",
+                                    "platform_user_id": "u-shared",
+                                    "human_identity_id": "shared_human"
+                                }}
+                            ],
+                            "assistant_assignments": [
+                                {{
+                                    "human_identity_id": "shared_human",
+                                    "assistant_agent_id": "{}"
+                                }}
+                            ]
+                        }}
+                    }}"#,
+                    agent.agent_id
+                )),
+            ))
+            .await
+            .expect("update runtime routing");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/channels",
+                Body::from(
+                    r#"{
+                        "discord":{
+                            "require_mention_in_guild_channels":false,
+                            "allowlisted_user_ids":[],
+                            "auto_run_enabled":false,
+                            "default_model_provider":"mock",
+                            "default_model_id":"mock-echo-v1"
+                        },
+                        "telegram":{
+                            "require_mention_in_groups":false,
+                            "allowlisted_user_ids":[77],
+                            "dm_policy":"allowlist",
+                            "auto_run_enabled":false,
+                            "default_model_provider":"mock",
+                            "default_model_id":"mock-echo-v1"
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update channel config");
+
+        let telegram_inbound = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/telegram/inbound",
+                Body::from(
+                    r#"{
+                        "chat_id":444,
+                        "user_id":77,
+                        "text":"first lane message",
+                        "is_group_chat":false,
+                        "mentions_bot":false,
+                        "reply_to_bot":false,
+                        "run_immediately":false
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("telegram inbound");
+        assert_eq!(telegram_inbound.status(), StatusCode::OK);
+        let telegram_json = parse_json(telegram_inbound).await;
+        let telegram_session_id = telegram_json["session_id"]
+            .as_str()
+            .expect("telegram session id")
+            .to_string();
+
+        let discord_inbound = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/discord/inbound",
+                Body::from(
+                    r#"{
+                        "channel_id":"dm-shared",
+                        "author_id":"u-shared",
+                        "text":"second lane message",
+                        "mentions_bot":false,
+                        "is_dm":true,
+                        "run_immediately":false
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("discord inbound");
+        assert_eq!(discord_inbound.status(), StatusCode::OK);
+        let discord_json = parse_json(discord_inbound).await;
+        assert_eq!(discord_json["session_id"], telegram_session_id);
+
+        let session = ctx
+            .storage
+            .get_session(&telegram_session_id)
+            .expect("get lane session")
+            .expect("lane session exists");
+        assert_eq!(session.agent_id, agent.agent_id);
+        assert_eq!(
+            session.session_key,
+            "lane:human:shared_human:assistant:lane_shared:main"
+        );
     }
 
     #[tokio::test]
@@ -40700,6 +48222,167 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .expect("run exists");
         assert_eq!(run.status, "succeeded");
         transport_mock.assert_hits(1);
+    }
+
+    #[tokio::test]
+    async fn discord_channel_inbound_blocks_unmapped_dm_when_lane_is_unassigned() {
+        let ctx = test_context();
+
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    r#"{
+                        "routing": {
+                            "enabled": true,
+                            "use_channel_defaults_as_fallback": false,
+                            "dm_unmapped_policy": "approval_required",
+                            "shared_unmapped_policy": "block"
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update runtime routing");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/channels",
+                Body::from(
+                    r#"{
+                        "discord":{
+                            "require_mention_in_guild_channels":false,
+                            "allowlisted_user_ids":[],
+                            "auto_run_enabled":false,
+                            "default_model_provider":"mock",
+                            "default_model_id":"mock-echo-v1"
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update discord config");
+
+        let inbound = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/discord/inbound",
+                Body::from(
+                    r#"{
+                        "channel_id":"dm-unmapped",
+                        "author_id":"u-unmapped",
+                        "text":"hello from unmapped discord",
+                        "mentions_bot":false,
+                        "is_dm":true,
+                        "run_immediately":false
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("discord inbound");
+        assert_eq!(inbound.status(), StatusCode::OK);
+        let inbound_json = parse_json(inbound).await;
+        assert_eq!(inbound_json["decision"], "rejected");
+        assert_eq!(inbound_json["reason"], "pairing_required");
+        assert!(inbound_json["session_id"].is_null());
+
+        let status = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/channels/discord/pairing/status",
+                Body::empty(),
+            ))
+            .await
+            .expect("discord pairing status");
+        assert_eq!(status.status(), StatusCode::OK);
+        let status_json = parse_json(status).await;
+        assert_eq!(status_json["pending_requests"][0]["user_id"], "u-unmapped");
+    }
+
+    #[tokio::test]
+    async fn approve_discord_pairing_moves_sender_into_allowlist_and_link() {
+        let ctx = test_context();
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    r#"{
+                        "routing": {
+                            "enabled": true,
+                            "human_identities": [{
+                                "human_identity_id": "operator_local",
+                                "display_name": "You",
+                                "enabled": true
+                            }]
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update runtime config");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+        ctx.storage
+            .set_app_kv_json(
+                APP_KV_DISCORD_PAIRING_STATE,
+                serde_json::json!({
+                    "pending_requests": [{
+                        "code": "DC99ABCD",
+                        "user_id": "discord-user-1",
+                        "channel_id": "dm-discord-user-1",
+                        "preview_text": "hello",
+                        "first_seen_at": current_time_ms(),
+                        "last_seen_at": current_time_ms(),
+                        "expires_at": current_time_ms() + 60_000,
+                        "attempt_count": 1
+                    }],
+                    "blocked_senders": [],
+                    "updated_at": current_time_ms()
+                })
+                .to_string(),
+            )
+            .expect("seed discord pairing state");
+
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/discord/pairing/approve",
+                Body::from(r#"{"code":"DC99ABCD","human_identity_id":"operator_local"}"#),
+            ))
+            .await
+            .expect("approve discord pairing");
+        assert_eq!(response.status(), StatusCode::OK);
+        let response_json = parse_json(response).await;
+        assert_eq!(response_json["approved_user_id"], "discord-user-1");
+        assert_eq!(response_json["linked_human_identity_id"], "operator_local");
+
+        let config = load_channel_config(&ctx.state).expect("load channel config");
+        assert!(config
+            .discord
+            .allowlisted_user_ids
+            .contains(&"discord-user-1".to_string()));
+
+        let runtime = load_runtime_config(&ctx.state).expect("load runtime config");
+        assert!(runtime.routing.platform_identity_links.iter().any(|item| {
+            item.provider == "discord"
+                && item.platform_user_id == "discord-user-1"
+                && item.human_identity_id == "operator_local"
+        }));
     }
 
     #[tokio::test]
@@ -40841,7 +48524,8 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                     r#"{
                         "telegram":{
                             "require_mention_in_groups":false,
-                            "allowlisted_user_ids":[],
+                            "allowlisted_user_ids":[700],
+                            "dm_policy":"allowlist",
                             "auto_run_enabled":false,
                             "default_model_provider":"mock",
                             "default_model_id":"mock-echo-v1"
@@ -40908,7 +48592,7 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .list_messages(&session.session_id, 10)
             .expect("load telegram listener messages");
         assert_eq!(messages.len(), 1);
-        assert_eq!(messages[0].content_text, "listener hello");
+        assert!(messages[0].content_text.contains("listener hello"));
     }
 
     #[tokio::test]
@@ -41025,8 +48709,270 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .expect("messages u2");
         assert_eq!(messages_u1.len(), 1);
         assert_eq!(messages_u2.len(), 1);
-        assert_eq!(messages_u1[0].content_text, "first");
-        assert_eq!(messages_u2[0].content_text, "second");
+        assert!(messages_u1[0]
+            .content_text
+            .contains("[Untrusted external discord message"));
+        assert!(messages_u1[0].content_text.ends_with("\nfirst"));
+        assert!(messages_u2[0]
+            .content_text
+            .contains("[Untrusted external discord message"));
+        assert!(messages_u2[0].content_text.ends_with("\nsecond"));
+
+        let status = ctx
+            .state
+            .channel_runtime
+            .status("discord")
+            .expect("discord status");
+        assert_eq!(status.session_state, ChannelRuntimeSessionState::Offline);
+        assert_eq!(status.proof_state, ChannelRuntimeProofState::InboundSeen);
+        assert!(status.last_inbound_at.is_some());
+        assert!(status.last_outbound_at.is_none());
+        assert!(status.last_proven_at.is_none());
+    }
+
+    #[tokio::test]
+    async fn discord_gateway_session_marks_live_connection_and_inbound_proof() {
+        let ctx = test_context();
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/channels",
+                Body::from(
+                    r#"{
+                        "discord":{
+                            "require_mention_in_guild_channels":false,
+                            "allowlisted_user_ids":[],
+                            "auto_run_enabled":false,
+                            "default_model_provider":"mock",
+                            "default_model_id":"mock-echo-v1"
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update discord channel config");
+        ctx.secret_store
+            .set_raw("runtime.channels.discord.bot_token", "discord-token")
+            .expect("set discord gateway token");
+
+        let gateway_listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind discord gateway listener");
+        let gateway_addr = gateway_listener
+            .local_addr()
+            .expect("discord gateway local addr");
+        let gateway_task = tokio::spawn(async move {
+            let (stream, _) = gateway_listener
+                .accept()
+                .await
+                .expect("accept gateway stream");
+            let mut socket = accept_async(stream).await.expect("accept websocket");
+            socket
+                .send(WsMessage::Text(
+                    serde_json::json!({
+                        "op": 10,
+                        "d": { "heartbeat_interval": 1000 }
+                    })
+                    .to_string()
+                    .into(),
+                ))
+                .await
+                .expect("send hello");
+            let _identify = socket
+                .next()
+                .await
+                .expect("identify frame")
+                .expect("identify ok");
+            socket
+                .send(WsMessage::Text(
+                    serde_json::json!({
+                        "op": 0,
+                        "t": "READY",
+                        "s": 1,
+                        "d": { "user": { "id": "bot-user-1" } }
+                    })
+                    .to_string()
+                    .into(),
+                ))
+                .await
+                .expect("send ready");
+            socket
+                .send(WsMessage::Text(
+                    serde_json::json!({
+                        "op": 0,
+                        "t": "MESSAGE_CREATE",
+                        "s": 2,
+                        "d": {
+                            "id": "discord-live-1",
+                            "channel_id": "dm-live",
+                            "guild_id": null,
+                            "content": "hello from live gateway",
+                            "author": { "id": "user-live", "bot": false },
+                            "mentions": [{ "id": "bot-user-1" }]
+                        }
+                    })
+                    .to_string()
+                    .into(),
+                ))
+                .await
+                .expect("send live message");
+            socket
+                .send(WsMessage::Text(
+                    serde_json::json!({
+                        "op": 7,
+                        "d": null
+                    })
+                    .to_string()
+                    .into(),
+                ))
+                .await
+                .expect("send reconnect request");
+        });
+
+        let transport = MockServer::start();
+        let gateway_mock = transport.mock(|when, then| {
+            when.method(GET).path("/gateway/bot");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(
+                    serde_json::json!({
+                        "url": format!("ws://{}", gateway_addr)
+                    })
+                    .to_string(),
+                );
+        });
+
+        let runtime_update_payload = serde_json::json!({
+            "channels": {
+                "discord": {
+                    "bot_token_secret_ref": "secret://runtime.channels.discord.bot_token",
+                    "operation_mode": "transport",
+                    "api_base_url": transport.base_url(),
+                    "transport_timeout_ms": 1000,
+                    "transport_retry_attempts": 1,
+                    "application_id": null,
+                    "intents": ["guilds","guild_messages","direct_messages"],
+                    "staging_guild_ids": [],
+                    "staging_channel_ids": []
+                },
+                "telegram": {
+                    "bot_token_secret_ref": null,
+                    "operation_mode": "shim",
+                    "webhook_mode": "long_poll",
+                    "webhook_url": null,
+                    "staging_chat_ids": []
+                }
+            }
+        });
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(runtime_update_payload.to_string()),
+            ))
+            .await
+            .expect("runtime update for discord gateway");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let result = discord_gateway_session_once(&ctx.state).await;
+        assert!(result.is_err());
+        gateway_mock.assert_hits(1);
+        gateway_task.await.expect("gateway task");
+
+        let status = ctx
+            .state
+            .channel_runtime
+            .status("discord")
+            .expect("discord status after gateway");
+        assert_eq!(
+            status.session_state,
+            ChannelRuntimeSessionState::GatewayConnected
+        );
+        assert_eq!(status.proof_state, ChannelRuntimeProofState::InboundSeen);
+        assert!(status.last_inbound_at.is_some());
+        assert!(status.last_outbound_at.is_none());
+
+        let session = ctx
+            .storage
+            .get_session_by_key("discord:dm:user-live")
+            .expect("load discord live session")
+            .expect("discord live session exists");
+        let messages = ctx
+            .storage
+            .list_messages(&session.session_id, 10)
+            .expect("load discord live messages");
+        assert_eq!(messages.len(), 1);
+        assert!(messages[0]
+            .content_text
+            .contains("[Untrusted external discord message"));
+        assert!(messages[0].content_text.contains("hello from live gateway"));
+    }
+
+    #[tokio::test]
+    async fn discord_gateway_url_builder_adds_root_slash_before_query() {
+        let ctx = test_context();
+        ctx.secret_store
+            .set_raw("runtime.channels.discord.bot_token", "discord-token")
+            .expect("set discord gateway token");
+
+        let transport = MockServer::start();
+        let gateway_mock = transport.mock(|when, then| {
+            when.method(GET).path("/gateway/bot");
+            then.status(200)
+                .header("content-type", "application/json")
+                .body(
+                    serde_json::json!({
+                        "url": "wss://gateway.discord.gg"
+                    })
+                    .to_string(),
+                );
+        });
+
+        let runtime_update_payload = serde_json::json!({
+            "channels": {
+                "discord": {
+                    "bot_token_secret_ref": "secret://runtime.channels.discord.bot_token",
+                    "operation_mode": "transport",
+                    "api_base_url": transport.base_url(),
+                    "transport_timeout_ms": 1000,
+                    "transport_retry_attempts": 1,
+                    "application_id": null,
+                    "intents": ["guilds","guild_messages","direct_messages"],
+                    "staging_guild_ids": [],
+                    "staging_channel_ids": []
+                },
+                "telegram": {
+                    "bot_token_secret_ref": null,
+                    "operation_mode": "shim",
+                    "webhook_mode": "long_poll",
+                    "webhook_url": null,
+                    "staging_chat_ids": []
+                }
+            }
+        });
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(runtime_update_payload.to_string()),
+            ))
+            .await
+            .expect("runtime update for discord gateway url builder");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let runtime_config =
+            load_runtime_config_from_storage(&ctx.storage).expect("load runtime config");
+        let gateway_url = fetch_discord_gateway_url(&ctx.state, &runtime_config)
+            .await
+            .expect("gateway url");
+        assert_eq!(gateway_url, "wss://gateway.discord.gg/?v=10&encoding=json");
+        gateway_mock.assert_hits(1);
     }
 
     #[tokio::test]
@@ -41043,11 +48989,11 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                     r#"{
                         "provider":"anthropic",
                         "display_name":"bad-high-risk",
-                        "auth_mode":"claude_consumer_oauth",
+                        "auth_mode":"agent_sdk",
                         "risk_level":"high",
                         "enabled":true,
                         "kill_switch_scope":"none",
-                        "credentials_json":{"token":"x"}
+                        "credentials_json":{"headless_enabled":true,"headless_command":"claude","headless_args":["-p"]}
                     }"#,
                 ),
             ))
@@ -41065,11 +49011,11 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                     r#"{
                         "provider":"anthropic",
                         "display_name":"good-high-risk",
-                        "auth_mode":"claude_consumer_oauth",
+                        "auth_mode":"agent_sdk",
                         "risk_level":"high",
                         "enabled":true,
                         "kill_switch_scope":"profile",
-                        "credentials_json":{"token":"x"}
+                        "credentials_json":{"headless_enabled":true,"headless_command":"claude","headless_args":["-p"]}
                     }"#,
                 ),
             ))
@@ -42232,6 +50178,159 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     }
 
     #[tokio::test]
+    async fn heartbeat_run_job_can_target_canonical_lane_by_human_identity() {
+        let ctx = test_context();
+        let agent = create_test_agent(&ctx, "heartbeat_lane_agent", "Heartbeat Lane Agent", None);
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(format!(
+                    r#"{{
+                        "routing": {{
+                            "enabled": true,
+                            "human_identities": [
+                                {{
+                                    "human_identity_id": "heartbeat_human",
+                                    "display_name": "Heartbeat Human"
+                                }}
+                            ],
+                            "assistant_assignments": [
+                                {{
+                                    "human_identity_id": "heartbeat_human",
+                                    "assistant_agent_id": "{}"
+                                }}
+                            ]
+                        }}
+                    }}"#,
+                    agent.agent_id
+                )),
+            ))
+            .await
+            .expect("update runtime routing");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(
+                    r#"{
+                        "agent_id":"default",
+                        "name":"job-heartbeat-lane",
+                        "enabled":true,
+                        "schedule_kind":"interval",
+                        "interval_seconds":60,
+                        "payload_json":{
+                            "mode":"heartbeat.run",
+                            "input":"heartbeat lane ping",
+                            "human_identity_id":"heartbeat_human"
+                        },
+                        "max_retries":2,
+                        "retry_backoff_ms":5,
+                        "timeout_ms":1000
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create heartbeat lane job");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_json = parse_json(create_response).await;
+        let job_id = create_json["job"]["job_id"]
+            .as_str()
+            .expect("job_id")
+            .to_string();
+
+        let run_now_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/jobs/{job_id}/run"),
+                Body::empty(),
+            ))
+            .await
+            .expect("run heartbeat lane job");
+        assert_eq!(run_now_response.status(), StatusCode::OK);
+        let run_json = parse_json(run_now_response).await;
+        assert_eq!(run_json["job_run"]["status"], "succeeded");
+        let output_json = run_json["job_run"]["output_json"]
+            .as_str()
+            .expect("output_json");
+        let output: serde_json::Value = serde_json::from_str(output_json).expect("parse output");
+        assert_eq!(output["mode"], JOB_MODE_HEARTBEAT_RUN);
+        assert_eq!(output["human_identity_id"], "heartbeat_human");
+        assert_eq!(output["assistant_agent_id"], agent.agent_id);
+        assert_eq!(
+            output["session_key"],
+            format!(
+                "lane:human:heartbeat_human:assistant:{}:main",
+                agent.agent_id
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn heartbeat_run_rejects_assistant_target_without_human_identity() {
+        let ctx = test_context();
+
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(
+                    r#"{
+                        "agent_id":"default",
+                        "name":"job-heartbeat-bad-target",
+                        "enabled":true,
+                        "schedule_kind":"interval",
+                        "interval_seconds":60,
+                        "payload_json":{
+                            "mode":"heartbeat.run",
+                            "input":"heartbeat ping",
+                            "assistant_agent_id":"default"
+                        },
+                        "max_retries":2,
+                        "retry_backoff_ms":5,
+                        "timeout_ms":1000
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create heartbeat bad-target job");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_json = parse_json(create_response).await;
+        let job_id = create_json["job"]["job_id"]
+            .as_str()
+            .expect("job_id")
+            .to_string();
+
+        let run_now_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/jobs/{job_id}/run"),
+                Body::empty(),
+            ))
+            .await
+            .expect("run heartbeat bad-target job");
+        assert_eq!(run_now_response.status(), StatusCode::OK);
+        let run_json = parse_json(run_now_response).await;
+        assert_eq!(run_json["job_run"]["status"], "failed");
+        assert!(run_json["job_run"]["error_text"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("assistant_agent_id requires human_identity_id"));
+    }
+
+    #[tokio::test]
     async fn run_now_heartbeat_rejects_tool_lines_without_retry() {
         let ctx = test_context();
 
@@ -42497,6 +50596,626 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             messages.iter().any(|item| item.role == "assistant"),
             "expected assistant message from executed run"
         );
+    }
+
+    #[tokio::test]
+    async fn session_run_job_can_target_canonical_lane_by_human_identity() {
+        let ctx = test_context();
+        let agent = create_test_agent(&ctx, "lane_job_agent", "Lane Job Agent", None);
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(format!(
+                    r#"{{
+                        "routing": {{
+                            "enabled": true,
+                            "human_identities": [
+                                {{
+                                    "human_identity_id": "scheduler_human",
+                                    "display_name": "Scheduler Human"
+                                }}
+                            ],
+                            "assistant_assignments": [
+                                {{
+                                    "human_identity_id": "scheduler_human",
+                                    "assistant_agent_id": "{}"
+                                }}
+                            ]
+                        }}
+                    }}"#,
+                    agent.agent_id
+                )),
+            ))
+            .await
+            .expect("update runtime routing");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(
+                    r#"{
+                        "agent_id":"default",
+                        "name":"job-session-run-lane",
+                        "enabled":true,
+                        "schedule_kind":"interval",
+                        "interval_seconds":60,
+                        "payload_json":{
+                            "mode":"session.run",
+                            "human_identity_id":"scheduler_human",
+                            "input":"hello from lane scheduler run",
+                            "model_provider":"mock",
+                            "model_id":"mock-echo-v1"
+                        },
+                        "max_retries":1,
+                        "retry_backoff_ms":5,
+                        "timeout_ms":1000
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create lane session-run job");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_json = parse_json(create_response).await;
+        let job_id = create_json["job"]["job_id"]
+            .as_str()
+            .expect("job_id")
+            .to_string();
+
+        let run_now_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/jobs/{job_id}/run"),
+                Body::empty(),
+            ))
+            .await
+            .expect("run lane session-run job");
+        assert_eq!(run_now_response.status(), StatusCode::OK);
+        let run_json = parse_json(run_now_response).await;
+        assert_eq!(run_json["job_run"]["status"], "succeeded");
+
+        let output_json = run_json["job_run"]["output_json"]
+            .as_str()
+            .expect("job run output_json");
+        let output: serde_json::Value =
+            serde_json::from_str(output_json).expect("parse output_json as json");
+        assert_eq!(output["mode"], "session.run");
+        assert_eq!(output["agent_id"], "lane_job_agent");
+        assert_eq!(output["human_identity_id"], "scheduler_human");
+        assert_eq!(
+            output["session_key"],
+            "lane:human:scheduler_human:assistant:lane_job_agent:main"
+        );
+
+        let persisted_session = ctx
+            .storage
+            .get_session_by_key("lane:human:scheduler_human:assistant:lane_job_agent:main")
+            .expect("lookup lane session by key")
+            .expect("lane session should exist");
+        assert_eq!(persisted_session.agent_id, agent.agent_id);
+        let messages = ctx
+            .storage
+            .list_messages(&persisted_session.session_id, 50)
+            .expect("list messages");
+        assert!(
+            messages.iter().any(|item| item.role == "assistant"),
+            "expected assistant message from lane scheduler payload"
+        );
+    }
+
+    #[tokio::test]
+    async fn memory_sync_api_uses_lane_local_memory_sources_for_targeted_human_identity() {
+        let ctx = test_context();
+        let temp_dir = tempfile::tempdir().expect("tempdir");
+        let runtime_source = temp_dir.path().join("runtime-memory.md");
+        let lane_source = temp_dir.path().join("lane-memory.md");
+        std::fs::write(&runtime_source, "# Runtime\nruntime memory source")
+            .expect("write runtime source");
+        std::fs::write(&lane_source, "# Lane\nlane memory source").expect("write lane source");
+
+        let update_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    serde_json::json!({
+                        "memory": {
+                            "memory_md_sources": [runtime_source.display().to_string()]
+                        },
+                        "routing": {
+                            "enabled": true,
+                            "human_identities": [
+                                {
+                                    "human_identity_id": "sync_human",
+                                    "display_name": "Sync Human"
+                                }
+                            ],
+                            "assistant_assignments": [
+                                {
+                                    "human_identity_id": "sync_human",
+                                    "assistant_agent_id": "default"
+                                }
+                            ],
+                            "lane_memory_policies": [
+                                {
+                                    "human_identity_id": "sync_human",
+                                    "assistant_agent_id": "default",
+                                    "memory_mode": "mno_with_local_sources",
+                                    "local_memory_sources": [lane_source.display().to_string()]
+                                }
+                            ]
+                        }
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("update runtime config");
+        let update_status = update_response.status();
+        let update_json = parse_json(update_response).await;
+        assert_eq!(
+            update_status,
+            StatusCode::OK,
+            "unexpected runtime config response: {update_json}"
+        );
+
+        let sync_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/memory/sync",
+                Body::from(
+                    r#"{
+                        "human_identity_id":"sync_human"
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("sync memory");
+        assert_eq!(sync_response.status(), StatusCode::OK);
+        let sync_json = parse_json(sync_response).await;
+        assert_eq!(sync_json["synced"], 1);
+        assert_eq!(sync_json["failed"], 0);
+        let items = sync_json["items"].as_array().expect("items");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["source_path"], lane_source.display().to_string());
+    }
+
+    #[tokio::test]
+    async fn memory_sync_api_rejects_assistant_target_without_human_identity() {
+        let ctx = test_context();
+        let sync_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/memory/sync",
+                Body::from(
+                    r#"{
+                        "assistant_agent_id":"default"
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("sync memory");
+        assert_eq!(sync_response.status(), StatusCode::BAD_REQUEST);
+        let sync_json = parse_json(sync_response).await;
+        assert_eq!(
+            sync_json["error"],
+            "assistant_agent_id requires human_identity_id"
+        );
+    }
+
+    #[tokio::test]
+    async fn memory_sync_job_uses_lane_local_memory_sources_for_targeted_human_identity() {
+        let ctx = test_context();
+        let temp_dir = tempfile::tempdir().expect("tempdir");
+        let runtime_source = temp_dir.path().join("runtime-job-memory.md");
+        let lane_source = temp_dir.path().join("lane-job-memory.md");
+        std::fs::write(&runtime_source, "# Runtime\nruntime memory source")
+            .expect("write runtime source");
+        std::fs::write(&lane_source, "# Lane\nlane memory source").expect("write lane source");
+
+        let update_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    serde_json::json!({
+                        "memory": {
+                            "memory_md_sources": [runtime_source.display().to_string()]
+                        },
+                        "routing": {
+                            "enabled": true,
+                            "human_identities": [
+                                {
+                                    "human_identity_id": "job_sync_human",
+                                    "display_name": "Job Sync Human"
+                                }
+                            ],
+                            "assistant_assignments": [
+                                {
+                                    "human_identity_id": "job_sync_human",
+                                    "assistant_agent_id": "default"
+                                }
+                            ],
+                            "lane_memory_policies": [
+                                {
+                                    "human_identity_id": "job_sync_human",
+                                    "assistant_agent_id": "default",
+                                    "memory_mode": "mno_with_local_sources",
+                                    "local_memory_sources": [lane_source.display().to_string()]
+                                }
+                            ]
+                        }
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("update runtime config");
+        assert_eq!(update_response.status(), StatusCode::OK);
+
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(
+                    r#"{
+                        "agent_id":"default",
+                        "name":"job-memory-sync-lane",
+                        "enabled":true,
+                        "schedule_kind":"interval",
+                        "interval_seconds":60,
+                        "payload_json":{
+                            "mode":"memory.sync",
+                            "human_identity_id":"job_sync_human"
+                        },
+                        "max_retries":1,
+                        "retry_backoff_ms":5,
+                        "timeout_ms":1000
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create memory sync job");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_json = parse_json(create_response).await;
+        let job_id = create_json["job"]["job_id"]
+            .as_str()
+            .expect("job_id")
+            .to_string();
+
+        let run_now_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/jobs/{job_id}/run"),
+                Body::empty(),
+            ))
+            .await
+            .expect("run memory sync job");
+        assert_eq!(run_now_response.status(), StatusCode::OK);
+        let run_json = parse_json(run_now_response).await;
+        assert_eq!(run_json["job_run"]["status"], "succeeded");
+
+        let output_json = run_json["job_run"]["output_json"]
+            .as_str()
+            .expect("job run output_json");
+        let output: serde_json::Value =
+            serde_json::from_str(output_json).expect("parse output_json as json");
+        assert_eq!(output["mode"], "memory.sync");
+        assert_eq!(output["human_identity_id"], "job_sync_human");
+        assert_eq!(output["assistant_agent_id"], serde_json::Value::Null);
+        let items = output["items"].as_array().expect("items");
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["source_path"], lane_source.display().to_string());
+    }
+
+    #[tokio::test]
+    async fn memory_preflight_job_can_target_canonical_lane_by_human_identity() {
+        let stub = spawn_numquam_stub(NumquamStubConfig::healthy()).await;
+        let ctx = test_context_with_numquam(build_test_numquam_client(&stub.base_url));
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    r#"{
+                        "routing": {
+                            "enabled": true,
+                            "human_identities": [
+                                {
+                                    "human_identity_id": "preflight_human",
+                                    "display_name": "Preflight Human"
+                                }
+                            ],
+                            "assistant_assignments": [
+                                {
+                                    "human_identity_id": "preflight_human",
+                                    "assistant_agent_id": "default"
+                                }
+                            ]
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update runtime routing");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(
+                    r#"{
+                        "agent_id":"default",
+                        "name":"job-memory-preflight-lane",
+                        "enabled":true,
+                        "schedule_kind":"interval",
+                        "interval_seconds":60,
+                        "payload_json":{
+                            "mode":"memory.preflight",
+                            "human_identity_id":"preflight_human"
+                        },
+                        "max_retries":1,
+                        "retry_backoff_ms":5,
+                        "timeout_ms":1000
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create memory preflight job");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_json = parse_json(create_response).await;
+        let job_id = create_json["job"]["job_id"]
+            .as_str()
+            .expect("job_id")
+            .to_string();
+
+        let run_now_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/jobs/{job_id}/run"),
+                Body::empty(),
+            ))
+            .await
+            .expect("run memory preflight job");
+        assert_eq!(run_now_response.status(), StatusCode::OK);
+        let run_json = parse_json(run_now_response).await;
+        assert_eq!(run_json["job_run"]["status"], "succeeded");
+
+        let output_json = run_json["job_run"]["output_json"]
+            .as_str()
+            .expect("job run output_json");
+        let output: serde_json::Value =
+            serde_json::from_str(output_json).expect("parse output_json as json");
+        assert_eq!(output["mode"], "memory.preflight");
+        assert_eq!(output["human_identity_id"], "preflight_human");
+        assert_eq!(output["assistant_agent_id"], "default");
+        assert_eq!(
+            output["session_key"],
+            "lane:human:preflight_human:assistant:default:main"
+        );
+        assert_eq!(output["numquam"]["enabled"], true);
+    }
+
+    #[tokio::test]
+    async fn memory_parity_probe_job_can_target_canonical_lane_by_human_identity() {
+        let stub = spawn_numquam_stub(NumquamStubConfig::healthy()).await;
+        let ctx = test_context_with_numquam(build_test_numquam_client_with_transport(
+            &stub.base_url,
+            NumquamTransport::Dual,
+        ));
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    r#"{
+                        "routing": {
+                            "enabled": true,
+                            "human_identities": [
+                                {
+                                    "human_identity_id": "parity_human",
+                                    "display_name": "Parity Human"
+                                }
+                            ],
+                            "assistant_assignments": [
+                                {
+                                    "human_identity_id": "parity_human",
+                                    "assistant_agent_id": "default"
+                                }
+                            ]
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update runtime routing");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(
+                    r#"{
+                        "agent_id":"default",
+                        "name":"job-memory-parity-lane",
+                        "enabled":true,
+                        "schedule_kind":"interval",
+                        "interval_seconds":60,
+                        "payload_json":{
+                            "mode":"memory.parity_probe",
+                            "human_identity_id":"parity_human"
+                        },
+                        "max_retries":1,
+                        "retry_backoff_ms":5,
+                        "timeout_ms":1000
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create memory parity job");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_json = parse_json(create_response).await;
+        let job_id = create_json["job"]["job_id"]
+            .as_str()
+            .expect("job_id")
+            .to_string();
+
+        let run_now_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/jobs/{job_id}/run"),
+                Body::empty(),
+            ))
+            .await
+            .expect("run memory parity job");
+        assert_eq!(run_now_response.status(), StatusCode::OK);
+        let run_json = parse_json(run_now_response).await;
+        assert_eq!(run_json["job_run"]["status"], "succeeded");
+
+        let output_json = run_json["job_run"]["output_json"]
+            .as_str()
+            .expect("job run output_json");
+        let output: serde_json::Value =
+            serde_json::from_str(output_json).expect("parse output_json as json");
+        assert_eq!(output["mode"], "memory.parity_probe");
+        assert_eq!(output["human_identity_id"], "parity_human");
+        assert_eq!(output["assistant_agent_id"], "default");
+        assert_eq!(
+            output["session_key"],
+            "lane:human:parity_human:assistant:default:main"
+        );
+        assert_eq!(output["parity_match"], true);
+    }
+
+    #[tokio::test]
+    async fn memory_pipeline_hook_job_can_target_canonical_lane_by_human_identity() {
+        let ctx = test_context();
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    r#"{
+                        "routing": {
+                            "enabled": true,
+                            "human_identities": [
+                                {
+                                    "human_identity_id": "hook_human",
+                                    "display_name": "Hook Human"
+                                }
+                            ],
+                            "assistant_assignments": [
+                                {
+                                    "human_identity_id": "hook_human",
+                                    "assistant_agent_id": "default"
+                                }
+                            ]
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update runtime routing");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let create_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/jobs/add",
+                Body::from(
+                    r#"{
+                        "agent_id":"default",
+                        "name":"job-memory-hook-lane",
+                        "enabled":true,
+                        "schedule_kind":"interval",
+                        "interval_seconds":60,
+                        "payload_json":{
+                            "mode":"memory.pipeline.hook",
+                            "human_identity_id":"hook_human",
+                            "hook":"post_run",
+                            "hook_payload":{"source":"test"}
+                        },
+                        "max_retries":1,
+                        "retry_backoff_ms":5,
+                        "timeout_ms":1000
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create memory hook job");
+        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_json = parse_json(create_response).await;
+        let job_id = create_json["job"]["job_id"]
+            .as_str()
+            .expect("job_id")
+            .to_string();
+
+        let run_now_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/jobs/{job_id}/run"),
+                Body::empty(),
+            ))
+            .await
+            .expect("run memory hook job");
+        assert_eq!(run_now_response.status(), StatusCode::OK);
+        let run_json = parse_json(run_now_response).await;
+        assert_eq!(run_json["job_run"]["status"], "succeeded");
+
+        let output_json = run_json["job_run"]["output_json"]
+            .as_str()
+            .expect("job run output_json");
+        let output: serde_json::Value =
+            serde_json::from_str(output_json).expect("parse output_json as json");
+        assert_eq!(output["mode"], "memory.pipeline.hook");
+        assert_eq!(output["human_identity_id"], "hook_human");
+        assert_eq!(output["assistant_agent_id"], "default");
+        assert_eq!(
+            output["session_key"],
+            "lane:human:hook_human:assistant:default:main"
+        );
+        assert_eq!(output["hook"], "post_run");
+        assert_eq!(output["hook_payload"]["source"], "test");
     }
 
     #[tokio::test]
@@ -43167,8 +51886,11 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .await
             .expect("message");
 
+        let run_count_before = count_runs_for_session(&ctx, &session_id);
+        let created_audits_before = count_created_run_audits(&ctx);
         let lane = ctx.state.session_run_lanes.lane_for_session(&session_id);
         let _guard = lane.lock().await;
+        let mut event_rx = ctx.state.event_tx.subscribe();
 
         let blocked_response = ctx
             .app
@@ -43181,6 +51903,334 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .await
             .expect("run");
         assert_eq!(blocked_response.status(), StatusCode::CONFLICT);
+        assert_eq!(count_runs_for_session(&ctx, &session_id), run_count_before);
+        assert_eq!(count_created_run_audits(&ctx), created_audits_before);
+        let recv_result = tokio::time::timeout(Duration::from_millis(100), event_rx.recv()).await;
+        assert!(
+            recv_result.is_err(),
+            "expected no run.created event when lane is locked"
+        );
+    }
+
+    #[tokio::test]
+    async fn create_run_uses_session_assistant_route_for_canonical_lane_sessions() {
+        let ctx = test_context();
+        let agent = create_test_agent(&ctx, "lane_run_agent", "Lane Run Agent", None);
+
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(format!(
+                    r#"{{
+                        "routing": {{
+                            "enabled": true,
+                            "human_identities": [
+                                {{
+                                    "human_identity_id": "lane_run_human",
+                                    "display_name": "Lane Run Human"
+                                }}
+                            ],
+                            "assistant_assignments": [
+                                {{
+                                    "human_identity_id": "lane_run_human",
+                                    "assistant_agent_id": "{}"
+                                }}
+                            ]
+                        }}
+                    }}"#,
+                    agent.agent_id
+                )),
+            ))
+            .await
+            .expect("update runtime routing");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let create_session_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(format!(
+                    r#"{{"agent_id":"{}","human_identity_id":"lane_run_human"}}"#,
+                    agent.agent_id
+                )),
+            ))
+            .await
+            .expect("create lane session");
+        assert_eq!(create_session_response.status(), StatusCode::CREATED);
+        let create_session_json = parse_json(create_session_response).await;
+        let session_id = create_session_json["session"]["session_id"]
+            .as_str()
+            .expect("session_id")
+            .to_string();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(r#"{"role":"user","content_text":"lane run"}"#),
+            ))
+            .await
+            .expect("create lane message");
+
+        let create_run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from(
+                    r#"{
+                        "model_provider":"mock",
+                        "model_id":"mock-echo-v1"
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create lane run");
+        assert_eq!(create_run_response.status(), StatusCode::CREATED);
+        let create_run_json = parse_json(create_run_response).await;
+        assert_eq!(
+            create_run_json["run"]["model_provider"],
+            agent.model_provider
+        );
+        assert_eq!(create_run_json["run"]["model_id"], agent.model_id);
+    }
+
+    #[tokio::test]
+    async fn create_run_keeps_request_route_for_non_lane_sessions() {
+        let ctx = test_context();
+
+        let create_session_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"non-lane-run"}"#),
+            ))
+            .await
+            .expect("create non-lane session");
+        assert_eq!(create_session_response.status(), StatusCode::CREATED);
+        let create_session_json = parse_json(create_session_response).await;
+        let session_id = create_session_json["session"]["session_id"]
+            .as_str()
+            .expect("session_id")
+            .to_string();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(r#"{"role":"user","content_text":"plain run"}"#),
+            ))
+            .await
+            .expect("create non-lane message");
+
+        let create_run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from(
+                    r#"{
+                        "model_provider":"mock",
+                        "model_id":"mock-echo-v1"
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create non-lane run");
+        assert_eq!(create_run_response.status(), StatusCode::CREATED);
+        let create_run_json = parse_json(create_run_response).await;
+        assert_eq!(create_run_json["run"]["model_provider"], "mock");
+        assert_eq!(create_run_json["run"]["model_id"], "mock-echo-v1");
+        assert_eq!(create_run_json["run"]["status"], "succeeded");
+    }
+
+    #[tokio::test]
+    async fn create_run_returns_conflict_when_canonical_lane_session_route_has_drifted() {
+        let ctx = test_context();
+        let agent_alpha = create_test_agent(&ctx, "lane_drift_alpha", "Lane Drift Alpha", None);
+        let agent_beta = create_test_agent(&ctx, "lane_drift_beta", "Lane Drift Beta", None);
+
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(format!(
+                    r#"{{
+                        "routing": {{
+                            "enabled": true,
+                            "human_identities": [
+                                {{
+                                    "human_identity_id": "lane_drift_human",
+                                    "display_name": "Lane Drift Human"
+                                }}
+                            ],
+                            "assistant_assignments": [
+                                {{
+                                    "human_identity_id": "lane_drift_human",
+                                    "assistant_agent_id": "{}"
+                                }}
+                            ]
+                        }}
+                    }}"#,
+                    agent_alpha.agent_id
+                )),
+            ))
+            .await
+            .expect("set initial lane routing");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let create_session_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(format!(
+                    r#"{{"agent_id":"{}","human_identity_id":"lane_drift_human"}}"#,
+                    agent_alpha.agent_id
+                )),
+            ))
+            .await
+            .expect("create lane session");
+        assert_eq!(create_session_response.status(), StatusCode::CREATED);
+        let create_session_json = parse_json(create_session_response).await;
+        let session_id = create_session_json["session"]["session_id"]
+            .as_str()
+            .expect("session_id")
+            .to_string();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(r#"{"role":"user","content_text":"lane drift"}"#),
+            ))
+            .await
+            .expect("create lane message");
+
+        let runtime_drift_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(format!(
+                    r#"{{
+                        "routing": {{
+                            "enabled": true,
+                            "human_identities": [
+                                {{
+                                    "human_identity_id": "lane_drift_human",
+                                    "display_name": "Lane Drift Human"
+                                }}
+                            ],
+                            "assistant_assignments": [
+                                {{
+                                    "human_identity_id": "lane_drift_human",
+                                    "assistant_agent_id": "{}"
+                                }}
+                            ]
+                        }}
+                    }}"#,
+                    agent_beta.agent_id
+                )),
+            ))
+            .await
+            .expect("drift lane routing");
+        assert_eq!(runtime_drift_response.status(), StatusCode::OK);
+
+        let run_count_before = count_runs_for_session(&ctx, &session_id);
+        let create_run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from(
+                    r#"{
+                        "model_provider":"mock",
+                        "model_id":"mock-echo-v1"
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("reject drifted lane run");
+        assert_eq!(create_run_response.status(), StatusCode::CONFLICT);
+        assert_eq!(count_runs_for_session(&ctx, &session_id), run_count_before);
+        let json = parse_json(create_run_response).await;
+        assert!(json["error"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("no longer matches"));
+    }
+
+    #[test]
+    fn validate_runtime_routing_config_rejects_duplicate_effective_lane_ids() {
+        let err = validate_runtime_routing_config(&RuntimeRoutingConfig {
+            enabled: true,
+            local_operator_human_identity_id: None,
+            human_identities: vec![
+                RuntimeHumanIdentityConfig {
+                    human_identity_id: "human-a".to_string(),
+                    display_name: "Human A".to_string(),
+                    enabled: true,
+                },
+                RuntimeHumanIdentityConfig {
+                    human_identity_id: "human-b".to_string(),
+                    display_name: "Human B".to_string(),
+                    enabled: true,
+                },
+            ],
+            assistant_assignments: vec![
+                RuntimeAssistantAssignmentConfig {
+                    human_identity_id: "human-a".to_string(),
+                    assistant_agent_id: "assistant-a".to_string(),
+                    enabled: true,
+                },
+                RuntimeAssistantAssignmentConfig {
+                    human_identity_id: "human-b".to_string(),
+                    assistant_agent_id: "assistant-b".to_string(),
+                    enabled: true,
+                },
+            ],
+            lane_memory_policies: vec![
+                RuntimeLaneMemoryPolicyConfig {
+                    human_identity_id: "human-a".to_string(),
+                    assistant_agent_id: "assistant-a".to_string(),
+                    memory_mode: "inherit_runtime".to_string(),
+                    lane_id: Some("shared-lane".to_string()),
+                    local_memory_sources: Vec::new(),
+                },
+                RuntimeLaneMemoryPolicyConfig {
+                    human_identity_id: "human-b".to_string(),
+                    assistant_agent_id: "assistant-b".to_string(),
+                    memory_mode: "inherit_runtime".to_string(),
+                    lane_id: Some("shared-lane".to_string()),
+                    local_memory_sources: Vec::new(),
+                },
+            ],
+            ..RuntimeRoutingConfig::default()
+        })
+        .expect_err("duplicate effective lane ids should fail validation");
+
+        assert!(err.to_string().contains("duplicate effective lane_id"));
     }
 
     #[tokio::test]
@@ -43890,6 +52940,116 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
         let body = parse_json(response).await;
         assert_eq!(body["error_code"], "AUTH_REQUIRED");
+    }
+
+    #[tokio::test]
+    async fn provider_models_anthropic_agent_sdk_uses_curated_catalog_without_token() {
+        let ctx = test_context();
+        let create_profile_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(
+                    r#"{
+                        "provider":"anthropic",
+                        "display_name":"claude-headless-catalog",
+                        "auth_mode":"agent_sdk",
+                        "risk_level":"high",
+                        "enabled":true,
+                        "kill_switch_scope":"profile",
+                        "credentials_json":{"headless_enabled":true,"headless_command":"claude","headless_args":[]}
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("create anthropic agent sdk profile");
+        assert_eq!(create_profile_response.status(), StatusCode::CREATED);
+        let create_profile_json = parse_json(create_profile_response).await;
+        let auth_profile_id = create_profile_json["profile"]["auth_profile_id"]
+            .as_str()
+            .expect("auth profile id")
+            .to_string();
+
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!(
+                    "/api/v1/providers/models?provider=anthropic&auth_profile_id={auth_profile_id}&refresh=true"
+                ),
+                Body::empty(),
+            ))
+            .await
+            .expect("provider models anthropic agent sdk response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = parse_json(response).await;
+        let items = body["items"]
+            .as_array()
+            .expect("anthropic agent sdk model items");
+        assert!(items
+            .iter()
+            .any(|item| item["model_id"] == "claude-opus-4-5"));
+        assert!(items
+            .iter()
+            .any(|item| item["model_id"] == "claude-haiku-3-5"));
+    }
+
+    #[tokio::test]
+    async fn provider_models_anthropic_setup_token_uses_curated_catalog() {
+        let ctx = test_context();
+        let setup_token = fake_anthropic_setup_token();
+        let stub = spawn_auth_flow_stub(AuthFlowStubConfig::anthropic(&setup_token)).await;
+
+        let ingest_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/anthropic/setup-token/ingest",
+                Body::from(format!(
+                    r#"{{
+                        "display_name":"anthropic-setup-catalog",
+                        "setup_token":"{}",
+                        "api_base_url":"{}"
+                    }}"#,
+                    setup_token, stub.base_url
+                )),
+            ))
+            .await
+            .expect("ingest setup token for catalog");
+        assert_eq!(ingest_response.status(), StatusCode::CREATED);
+        let ingest_json = parse_json(ingest_response).await;
+        let auth_profile_id = ingest_json["profile"]["auth_profile_id"]
+            .as_str()
+            .expect("setup token auth profile id")
+            .to_string();
+
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!(
+                    "/api/v1/providers/models?provider=anthropic&auth_profile_id={auth_profile_id}&refresh=true"
+                ),
+                Body::empty(),
+            ))
+            .await
+            .expect("provider models anthropic setup-token response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = parse_json(response).await;
+        let items = body["items"]
+            .as_array()
+            .expect("anthropic setup-token model items");
+        assert!(items
+            .iter()
+            .any(|item| item["model_id"] == "claude-sonnet-4-5"));
+        assert!(items
+            .iter()
+            .any(|item| item["model_id"] == "claude-opus-4-6"));
     }
 
     #[tokio::test]
@@ -45239,6 +54399,8 @@ sys.stdout.write(json.dumps(response))
     #[tokio::test]
     async fn bootstrap_preset_manager_ids_are_normalized_across_create_update_and_import() {
         let ctx = test_context();
+        let preset_workspace = ctx._temp_dir.path().join("presets").display().to_string();
+        let imported_workspace = ctx._temp_dir.path().join("imported").display().to_string();
 
         let create_response = ctx
             .app
@@ -45256,7 +54418,7 @@ sys.stdout.write(json.dumps(response))
                         "default_model_provider": "openai",
                         "default_model_id": "gpt-5-mini",
                         "default_tool_profile": "default",
-                        "default_workspace_root": "/tmp/presets",
+                        "default_workspace_root": preset_workspace,
                         "default_reports_to_agent_id": " MiXeD-MaNaGeR ",
                         "setup_notes": "Seeded from test"
                     })
@@ -45265,8 +54427,13 @@ sys.stdout.write(json.dumps(response))
             ))
             .await
             .expect("create bootstrap preset response");
-        assert_eq!(create_response.status(), StatusCode::CREATED);
+        let create_status = create_response.status();
         let create_json = parse_json(create_response).await;
+        assert_eq!(
+            create_status,
+            StatusCode::CREATED,
+            "unexpected create response: {create_json}"
+        );
         assert_eq!(
             create_json["preset"]["default_reports_to_agent_id"],
             "mixed-manager"
@@ -45312,7 +54479,7 @@ sys.stdout.write(json.dumps(response))
                             "default_model_provider": "openai",
                             "default_model_id": "gpt-5-mini",
                             "default_tool_profile": "default",
-                            "default_workspace_root": "/tmp/imported",
+                            "default_workspace_root": imported_workspace,
                             "default_reports_to_agent_id": " Import-MANAGER ",
                             "setup_notes": "Imported from test",
                             "created_at": 0,
@@ -46561,5 +55728,305 @@ sys.stdout.write(json.dumps(response))
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
         let body = parse_json(response).await;
         assert_eq!(body["error"], "invalid_cursor");
+    }
+
+    #[test]
+    fn request_trace_uri_redacts_query_values() {
+        let uri = "/api/v1/ws?ticket=secret-ticket&token=legacy-secret"
+            .parse()
+            .expect("uri");
+        assert_eq!(redacted_request_uri(&uri), "/api/v1/ws?<redacted>");
+
+        let uri = "/api/v1/health".parse().expect("uri");
+        assert_eq!(redacted_request_uri(&uri), "/api/v1/health");
+    }
+
+    #[test]
+    fn websocket_ticket_is_single_use_and_hashed_at_rest() {
+        let ctx = test_context();
+        let auth = AuthContext {
+            principal_id: "principal-1".to_string(),
+            roles: HashSet::from([ROLE_OPERATOR_READONLY.to_string()]),
+            auth_method: "static_bearer",
+            token_id: None,
+            session_id: None,
+            client_ip: "127.0.0.1".to_string(),
+        };
+
+        let (ticket, expires_at) = issue_ws_ticket(&ctx.state, &auth);
+        assert!(expires_at > current_time_ms());
+        {
+            let tickets = ctx
+                .state
+                .ws_tickets
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            assert!(!tickets.contains_key(&ticket));
+            assert_eq!(tickets.len(), 1);
+        }
+
+        let consumed = consume_ws_ticket(&ctx.state, Some(&ticket)).expect("ticket consumes once");
+        assert_eq!(consumed.principal_id, "principal-1");
+        assert_eq!(consumed.auth_method, "websocket_ticket");
+        assert!(consumed.roles.contains(ROLE_OPERATOR_READONLY));
+        assert!(consume_ws_ticket(&ctx.state, Some(&ticket)).is_err());
+    }
+
+    #[test]
+    fn connector_endpoint_policy_rejects_private_or_local_targets() {
+        for raw in [
+            "http://127.0.0.1:8080",
+            "http://10.0.0.4",
+            "http://172.16.0.4",
+            "http://192.168.1.12",
+            "http://169.254.169.254",
+            "http://[::1]:8080",
+            "http://localhost:8080",
+            "http://service.local",
+            "file:///tmp/socket",
+            "https://user:pass@example.com",
+        ] {
+            let parsed = Url::parse(raw).expect("test URL parses");
+            assert!(
+                validate_connector_endpoint_url_shape(&parsed).is_err(),
+                "{raw} should be blocked"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn connector_network_policy_rejects_private_ip_execution_targets() {
+        let parsed = Url::parse("http://127.0.0.1:8080/api").expect("url");
+        let err = enforce_connector_network_policy(&parsed)
+            .await
+            .expect_err("private IP must be rejected");
+        assert!(
+            matches!(err, ToolError::PolicyDenied(message) if message.contains("CONNECTOR_NETWORK_DENIED"))
+        );
+    }
+
+    #[test]
+    fn connector_import_persists_and_infers_auth_required() {
+        let inferred = ImportConnectorRequest {
+            source_kind: "openapi".to_string(),
+            display_name: "Secure API".to_string(),
+            slug: Some("secure-api".to_string()),
+            catalog_item_id: None,
+            version_label: None,
+            origin_kind: None,
+            import_url: None,
+            source_text: None,
+            source_json: Some(serde_json::json!({
+                "openapi": "3.0.0",
+                "components": {
+                    "securitySchemes": {
+                        "bearerAuth": { "type": "http", "scheme": "bearer" }
+                    }
+                },
+                "paths": {
+                    "/things": {
+                        "get": {
+                            "operationId": "listThings",
+                            "security": [{ "bearerAuth": [] }]
+                        }
+                    }
+                }
+            })),
+            endpoint_url: Some("https://api.example.test".to_string()),
+            auth_required: None,
+            external_reference_policy: None,
+        };
+        let prepared = prepare_connector_import(&inferred).expect("prepare connector import");
+        let metadata = parse_storage_json_value(&prepared.import_metadata_json);
+        assert_eq!(metadata["auth_required"], true);
+
+        let explicit = ImportConnectorRequest {
+            auth_required: Some(false),
+            ..inferred
+        };
+        let prepared = prepare_connector_import(&explicit).expect("prepare connector import");
+        let metadata = parse_storage_json_value(&prepared.import_metadata_json);
+        assert_eq!(metadata["auth_required"], false);
+    }
+
+    #[test]
+    fn plugin_version_normalization_rejects_path_escape_values() {
+        assert_eq!(
+            normalize_plugin_version("1.2.3+build_5").expect("valid version"),
+            "1.2.3+build_5"
+        );
+        for raw in [
+            "", "../1.0.0", "1/2/3", r"1\2\3", ".1.0", "1.0.", "1..0", "con", "1.0.0 ", "1.0.0*",
+        ] {
+            assert!(normalize_plugin_version(raw).is_err(), "{raw}");
+        }
+    }
+
+    #[test]
+    fn plugin_bundle_dir_rejects_traversal_version_and_stays_contained() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let storage_root = temp.path().join("plugins");
+        let bundle = plugin_bundle_dir(&storage_root, "plugin.safe", "1.0.0")
+            .expect("valid bundle directory");
+        assert!(bundle.starts_with(storage_root.join("bundles")));
+        assert!(bundle.ends_with(PathBuf::from("plugin.safe").join("1.0.0")));
+        assert!(plugin_bundle_dir(&storage_root, "plugin.safe", "../escape").is_err());
+    }
+
+    #[test]
+    fn cors_dev_wildcard_is_disabled_for_public_bind_mode() {
+        with_env_vars(
+            &[
+                ("CARSINOS_ENV", None),
+                ("CARSINOS_PUBLIC_BIND_ALLOWED", Some("true")),
+            ],
+            || {
+                assert!(!cors_env_is_dev());
+            },
+        );
+        with_env_vars(
+            &[
+                ("CARSINOS_ENV", Some("local")),
+                ("CARSINOS_PUBLIC_BIND_ALLOWED", None),
+            ],
+            || {
+                assert!(cors_env_is_dev());
+            },
+        );
+    }
+
+    fn test_connector_source_record() -> ConnectorSourceRecord {
+        ConnectorSourceRecord {
+            connector_id: "conn-test".to_string(),
+            slug: "secure-api".to_string(),
+            display_name: "Secure API".to_string(),
+            source_kind: "openapi".to_string(),
+            origin_kind: "manual".to_string(),
+            catalog_item_id: None,
+            current_version_id: Some("version-test".to_string()),
+            latest_imported_version_id: Some("version-test".to_string()),
+            status: "enabled".to_string(),
+            trust_state: "reviewed".to_string(),
+            assigned_agent_count: 0,
+            published_tool_count: 0,
+            last_conversion_at: None,
+            last_review_at: None,
+            last_enabled_at: None,
+            last_disabled_at: None,
+            created_at: 0,
+            updated_at: 0,
+        }
+    }
+
+    fn test_connector_version_record(source_document: serde_json::Value) -> ConnectorVersionRecord {
+        ConnectorVersionRecord {
+            version_id: "version-test".to_string(),
+            connector_id: "conn-test".to_string(),
+            version_label: "v1".to_string(),
+            source_digest: "digest".to_string(),
+            raw_source_location: None,
+            import_metadata_json: canonical_json_string(&serde_json::json!({
+                "source_kind": "openapi",
+                "endpoint_url": "https://api.example.test",
+                "auth_required": true,
+                "source_json": source_document,
+            }))
+            .expect("metadata json"),
+            schema_summary_json: "{}".to_string(),
+            latest_conversion_id: None,
+            external_reference_policy: "inline".to_string(),
+            created_at: 0,
+            updated_at: 0,
+        }
+    }
+
+    #[test]
+    fn openapi_candidates_preserve_per_operation_auth_required() {
+        let source_document = serde_json::json!({
+            "openapi": "3.0.0",
+            "components": {
+                "securitySchemes": {
+                    "bearerAuth": { "type": "http", "scheme": "bearer" }
+                }
+            },
+            "paths": {
+                "/public": {
+                    "get": {
+                        "operationId": "listPublic"
+                    }
+                },
+                "/private": {
+                    "get": {
+                        "operationId": "listPrivate",
+                        "security": [{ "bearerAuth": [] }]
+                    }
+                }
+            }
+        });
+        let connector = test_connector_source_record();
+        let version = test_connector_version_record(source_document.clone());
+        let (candidates, _warnings, unsupported) =
+            build_openapi_candidates(&connector, &version, &source_document, &HashSet::new())
+                .expect("build candidates");
+        assert!(unsupported.is_empty());
+        let public = candidates
+            .iter()
+            .find(|item| item.operation_key == "listPublic")
+            .expect("public operation candidate");
+        let private = candidates
+            .iter()
+            .find(|item| item.operation_key == "listPrivate")
+            .expect("private operation candidate");
+        assert!(!public.auth_required);
+        assert_eq!(public.origin_metadata["auth_required"], false);
+        assert!(private.auth_required);
+        assert_eq!(private.origin_metadata["auth_required"], true);
+    }
+
+    #[test]
+    fn connector_tool_auth_required_prefers_published_operation_metadata() {
+        let source_document = serde_json::json!({
+            "openapi": "3.0.0",
+            "components": {
+                "securitySchemes": {
+                    "bearerAuth": { "type": "http", "scheme": "bearer" }
+                }
+            },
+            "paths": {}
+        });
+        let version = test_connector_version_record(source_document);
+        assert!(connector_auth_required(&version));
+
+        let binding = ConnectorRuntimeToolBinding {
+            connector: test_connector_source_record(),
+            version,
+            published_tool: ConnectorPublishedToolRecord {
+                published_tool_id: "tool-public".to_string(),
+                connector_id: "conn-test".to_string(),
+                version_id: "version-test".to_string(),
+                conversion_id: "conversion-test".to_string(),
+                tool_name: "connector.secure-api.public".to_string(),
+                display_name: "Public".to_string(),
+                tool_schema_json: "{}".to_string(),
+                origin_metadata_json: canonical_json_string(&serde_json::json!({
+                    "source_kind": "openapi",
+                    "auth_required": false,
+                    "endpoint_url": "https://api.example.test",
+                    "path": "/public",
+                    "method": "GET"
+                }))
+                .expect("origin metadata json"),
+                write_classification: "read_only".to_string(),
+                published_at: 0,
+                unpublished_at: None,
+                superseded_by_published_tool_id: None,
+                deprecation_state: "active".to_string(),
+            },
+            assignment: None,
+            shared_auth_binding: None,
+            agent_auth_binding: None,
+        };
+
+        assert!(!connector_tool_auth_required(&binding));
     }
 }

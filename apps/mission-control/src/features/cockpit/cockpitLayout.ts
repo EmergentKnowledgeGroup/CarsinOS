@@ -4,6 +4,7 @@ import { STORAGE_KEYS } from "../../storageKeys";
 
 const COCKPIT_V1_KEY = STORAGE_KEYS.cockpitPagesV1;
 const COCKPIT_V2_KEY = STORAGE_KEYS.cockpitPagesV2;
+const COCKPIT_V3_KEY = STORAGE_KEYS.cockpitPagesV3;
 
 /* ── Widget kinds ─────────────────────────────────────────────────────────── */
 
@@ -55,6 +56,9 @@ const COCKPIT_WIDGET_KINDS: CockpitWidgetKind[] = [
 
 /* ── v2 position model ────────────────────────────────────────────────────── */
 
+/** Grid column count — 10 cols gives a clean 5-per-row default (w=2 each). */
+export const COCKPIT_GRID_COLS = 10;
+
 export interface CockpitWidgetPosition {
   x: number;
   y: number;
@@ -70,31 +74,196 @@ export interface WidgetSizeConstraint {
 }
 
 export const WIDGET_SIZE_CONSTRAINTS: Record<CockpitWidgetKind, WidgetSizeConstraint> = {
-  health:            { minW: 6, minH: 2, defaultW: 12, defaultH: 2 },
-  focus:             { minW: 4, minH: 3, defaultW: 6, defaultH: 4 },
-  breakers:          { minW: 4, minH: 3, defaultW: 6, defaultH: 4 },
-  jobs:              { minW: 4, minH: 3, defaultW: 6, defaultH: 5 },
-  channels:          { minW: 4, minH: 3, defaultW: 6, defaultH: 4 },
-  profiles:          { minW: 6, minH: 4, defaultW: 8, defaultH: 5 },
-  skills:            { minW: 4, minH: 3, defaultW: 6, defaultH: 4 },
-  plugins:           { minW: 4, minH: 3, defaultW: 6, defaultH: 4 },
-  events:            { minW: 4, minH: 3, defaultW: 6, defaultH: 5 },
-  strategy_summary:  { minW: 6, minH: 3, defaultW: 12, defaultH: 3 },
-  blocked_work:      { minW: 4, minH: 3, defaultW: 6, defaultH: 5 },
-  stale_work:        { minW: 4, minH: 3, defaultW: 6, defaultH: 5 },
-  goal_progress:     { minW: 4, minH: 3, defaultW: 6, defaultH: 4 },
-  project_spend:     { minW: 4, minH: 3, defaultW: 6, defaultH: 4 },
-  approval_backlog:  { minW: 4, minH: 3, defaultW: 6, defaultH: 4 },
-  runbook_summary:   { minW: 6, minH: 3, defaultW: 12, defaultH: 3 },
-  runbook_attention: { minW: 4, minH: 3, defaultW: 6, defaultH: 4 },
+  health:            { minW: 2, minH: 3, defaultW: 2, defaultH: 4 },
+  focus:             { minW: 2, minH: 3, defaultW: 2, defaultH: 4 },
+  breakers:          { minW: 2, minH: 3, defaultW: 2, defaultH: 4 },
+  jobs:              { minW: 2, minH: 3, defaultW: 2, defaultH: 4 },
+  channels:          { minW: 2, minH: 3, defaultW: 2, defaultH: 4 },
+  profiles:          { minW: 2, minH: 3, defaultW: 2, defaultH: 4 },
+  skills:            { minW: 2, minH: 3, defaultW: 2, defaultH: 4 },
+  plugins:           { minW: 2, minH: 3, defaultW: 2, defaultH: 4 },
+  events:            { minW: 2, minH: 3, defaultW: 2, defaultH: 4 },
+  strategy_summary:  { minW: 4, minH: 3, defaultW: 10, defaultH: 3 },
+  blocked_work:      { minW: 3, minH: 3, defaultW: 5, defaultH: 5 },
+  stale_work:        { minW: 3, minH: 3, defaultW: 5, defaultH: 5 },
+  goal_progress:     { minW: 3, minH: 3, defaultW: 5, defaultH: 4 },
+  project_spend:     { minW: 3, minH: 3, defaultW: 5, defaultH: 4 },
+  approval_backlog:  { minW: 3, minH: 3, defaultW: 5, defaultH: 4 },
+  runbook_summary:   { minW: 4, minH: 3, defaultW: 10, defaultH: 3 },
+  runbook_attention: { minW: 3, minH: 3, defaultW: 5, defaultH: 4 },
 };
 
 const CUSTOM_WIDGET_SIZE_CONSTRAINTS: WidgetSizeConstraint = {
-  minW: 3,
+  minW: 2,
   minH: 2,
-  defaultW: 4,
-  defaultH: 3,
+  defaultW: 2,
+  defaultH: 4,
 };
+
+/* ── Reflow helper — re-lays out widgets using current grid defaults ─────── */
+
+function resolveWidgetSize(
+  widget: CockpitWidgetLayoutV2,
+  mode: "preserve-size" | "default-size",
+): { w: number; h: number } {
+  const constraints =
+    widget.widget === "custom"
+      ? CUSTOM_WIDGET_SIZE_CONSTRAINTS
+      : WIDGET_SIZE_CONSTRAINTS[widget.widget];
+  if (mode === "default-size") {
+    return {
+      w: constraints.defaultW,
+      h: constraints.defaultH,
+    };
+  }
+  return {
+    w: Math.max(
+      constraints.minW,
+      Math.min(COCKPIT_GRID_COLS, Math.round(widget.position.w)),
+    ),
+    h: Math.max(constraints.minH, Math.round(widget.position.h)),
+  };
+}
+
+export function packWidgetsRowFirst(
+  widgets: CockpitWidgetLayoutV2[],
+  mode: "preserve-size" | "default-size" = "preserve-size",
+): CockpitWidgetLayoutV2[] {
+  let cursorX = 0;
+  let cursorY = 0;
+  let rowMaxH = 0;
+
+  return widgets.map((widget) => {
+    const { w, h } = resolveWidgetSize(widget, mode);
+
+    if (cursorX + w > COCKPIT_GRID_COLS) {
+      cursorX = 0;
+      cursorY += rowMaxH || h;
+      rowMaxH = 0;
+    }
+
+    const result: CockpitWidgetLayoutV2 = {
+      ...widget,
+      position: { x: cursorX, y: cursorY, w, h },
+    };
+
+    cursorX += w;
+    rowMaxH = Math.max(rowMaxH, h);
+    if (cursorX >= COCKPIT_GRID_COLS) {
+      cursorX = 0;
+      cursorY += rowMaxH;
+      rowMaxH = 0;
+    }
+
+    return result;
+  });
+}
+
+export function reflowWidgetsToGrid(widgets: CockpitWidgetLayoutV2[]): CockpitWidgetLayoutV2[] {
+  return packWidgetsRowFirst(widgets, "default-size");
+}
+
+const OPS_TEMPLATE_INSTANCE_IDS = new Set([
+  "health-template",
+  "focus-template",
+  "breakers-template",
+  "jobs-template",
+  "channels-template",
+  "profiles-template",
+  "skills-template",
+  "plugins-template",
+  "events-template",
+]);
+
+function isLikelyCollapsedTemplateLayout(page: CockpitPageLayoutV2): boolean {
+  if (page.widgets.length < 6) {
+    return false;
+  }
+
+  const templateWidgetCount = page.widgets.filter((widget) =>
+    OPS_TEMPLATE_INSTANCE_IDS.has(widget.instance_id),
+  ).length;
+
+  if (templateWidgetCount < 6) {
+    return false;
+  }
+
+  const anchoredLeftCount = page.widgets.filter((widget) => widget.position.x === 0).length;
+  const nearFullWidthCount = page.widgets.filter(
+    (widget) => widget.position.w >= COCKPIT_GRID_COLS - 1,
+  ).length;
+  const bottomEdge = page.widgets.reduce(
+    (maxY, widget) => Math.max(maxY, widget.position.y + widget.position.h),
+    0,
+  );
+  const distinctColumns = new Set(page.widgets.map((widget) => widget.position.x)).size;
+
+  const mostlyLeftStacked =
+    anchoredLeftCount >= Math.ceil(page.widgets.length * 0.75) &&
+    nearFullWidthCount >= 2;
+  const veryTallForTemplate = bottomEdge >= 18 && distinctColumns <= 3;
+
+  return mostlyLeftStacked || veryTallForTemplate;
+}
+
+function isLikelyCollapsedFullWidthStackLayout(page: CockpitPageLayoutV2): boolean {
+  if (page.widgets.length < 5) {
+    return false;
+  }
+  const anchoredLeftCount = page.widgets.filter((widget) => widget.position.x === 0).length;
+  const nearFullWidthCount = page.widgets.filter(
+    (widget) => widget.position.w >= COCKPIT_GRID_COLS - 1,
+  ).length;
+  const bottomEdge = page.widgets.reduce(
+    (maxY, widget) => Math.max(maxY, widget.position.y + widget.position.h),
+    0,
+  );
+  const distinctColumns = new Set(page.widgets.map((widget) => widget.position.x)).size;
+
+  return (
+    anchoredLeftCount >= Math.ceil(page.widgets.length * 0.75) &&
+    nearFullWidthCount >= Math.ceil(page.widgets.length * 0.6) &&
+    distinctColumns <= 2 &&
+    bottomEdge >= page.widgets.length * 2
+  );
+}
+
+/**
+ * Detect layouts that need reflowing — either single-column stacks or
+ * positions left over from a different grid column count (e.g. old 12-col).
+ */
+export function needsGridReflow(page: CockpitPageLayoutV2): boolean {
+  if (page.widgets.length <= 1) return false;
+  // Any widget that overflows the current grid boundary → old column count
+  if (page.widgets.some((w) => w.position.x + w.position.w > COCKPIT_GRID_COLS)) return true;
+  // Any overlapping widgets means the saved layout is invalid and should be healed.
+  for (let i = 0; i < page.widgets.length; i += 1) {
+    const a = page.widgets[i].position;
+    for (let j = i + 1; j < page.widgets.length; j += 1) {
+      const b = page.widgets[j].position;
+      const overlaps =
+        a.x < b.x + b.w &&
+        a.x + a.w > b.x &&
+        a.y < b.y + b.h &&
+        a.y + a.h > b.y;
+      if (overlaps) {
+        return true;
+      }
+    }
+  }
+  // Some legacy template layouts were saved as very tall left-stacked cards.
+  // Reflow those back into row-first geometry.
+  if (isLikelyCollapsedTemplateLayout(page)) {
+    return true;
+  }
+  // Guard against pages saved as near-full-width left stacks.
+  if (isLikelyCollapsedFullWidthStackLayout(page)) {
+    return true;
+  }
+  // All non-full-width widgets stacked at x=0 → single-column
+  const narrow = page.widgets.filter((w) => w.position.w < COCKPIT_GRID_COLS);
+  return narrow.length >= 3 && narrow.every((w) => w.position.x === 0);
+}
 
 /* ── Custom widget config (Phase 5) ───────────────────────────────────────── */
 
@@ -255,11 +424,12 @@ export const COCKPIT_WIDGET_PALETTE: CockpitWidgetPaletteEntry[] = [
 /* ── Defaults ─────────────────────────────────────────────────────────────── */
 
 export function defaultCockpitPages(): CockpitPageLayoutV2[] {
+  const dashboardTemplate = opsDefaultTemplate();
   return [
     {
-      page_id: `page-${Date.now()}`,
+      page_id: "dashboard",
       name: "Dashboard",
-      widgets: [],
+      widgets: dashboardTemplate.widgets,
     },
   ];
 }
@@ -287,7 +457,7 @@ export function opsDefaultTemplate(): CockpitPageLayoutV2 {
     const w = constraints.defaultW;
     const h = constraints.defaultH;
 
-    if (cursorX + w > 12) {
+    if (cursorX + w > COCKPIT_GRID_COLS) {
       cursorX = 0;
       cursorY += rowMaxH || h;
       rowMaxH = 0;
@@ -302,7 +472,7 @@ export function opsDefaultTemplate(): CockpitPageLayoutV2 {
 
     cursorX += w;
     rowMaxH = Math.max(rowMaxH, h);
-    if (cursorX >= 12) {
+    if (cursorX >= COCKPIT_GRID_COLS) {
       cursorX = 0;
       cursorY += rowMaxH;
       rowMaxH = 0;
@@ -313,6 +483,58 @@ export function opsDefaultTemplate(): CockpitPageLayoutV2 {
     page_id: "ops-default",
     name: "Ops Default",
     widgets,
+  };
+}
+
+const LEGACY_OPS_TEMPLATE_WIDGETS: CockpitWidgetLayoutV2[] = [
+  { instance_id: "health-template", widget: "health", title: "Pinned Health Strip", position: { x: 0, y: 0, w: 12, h: 2 } },
+  { instance_id: "focus-template", widget: "focus", title: "Incident Queue", position: { x: 0, y: 2, w: 6, h: 4 } },
+  { instance_id: "breakers-template", widget: "breakers", title: "Breaker Radar", position: { x: 6, y: 2, w: 6, h: 4 } },
+  { instance_id: "jobs-template", widget: "jobs", title: "Scheduler Matrix", position: { x: 0, y: 6, w: 6, h: 5 } },
+  { instance_id: "channels-template", widget: "channels", title: "Channel Control", position: { x: 6, y: 6, w: 6, h: 4 } },
+  { instance_id: "profiles-template", widget: "profiles", title: "Agent Provider Routing", position: { x: 0, y: 11, w: 8, h: 5 } },
+  { instance_id: "skills-template", widget: "skills", title: "Skills Control", position: { x: 0, y: 16, w: 6, h: 4 } },
+  { instance_id: "plugins-template", widget: "plugins", title: "Plugins Control", position: { x: 6, y: 16, w: 6, h: 4 } },
+  { instance_id: "events-template", widget: "events", title: "Event Tail", position: { x: 0, y: 20, w: 6, h: 5 } },
+];
+
+/* NOTE: LEGACY_OPS_TEMPLATE_WIDGETS retains the old positions intentionally —
+   it is only used by upgradeLegacyOpsTemplatePage() to *detect* the old layout
+   and migrate it to the new 2-column default produced by opsDefaultTemplate(). */
+
+function matchesWidgetPosition(
+  left: CockpitWidgetLayoutV2,
+  right: CockpitWidgetLayoutV2,
+): boolean {
+  return (
+    left.instance_id === right.instance_id &&
+    left.widget === right.widget &&
+    left.title === right.title &&
+    left.position.x === right.position.x &&
+    left.position.y === right.position.y &&
+    left.position.w === right.position.w &&
+    left.position.h === right.position.h
+  );
+}
+
+function upgradeLegacyOpsTemplatePage(
+  page: CockpitPageLayoutV2,
+): CockpitPageLayoutV2 {
+  if (page.widgets.length !== LEGACY_OPS_TEMPLATE_WIDGETS.length) {
+    return page;
+  }
+  const isLegacyTemplate = LEGACY_OPS_TEMPLATE_WIDGETS.every((legacyWidget) => {
+    const existing = page.widgets.find(
+      (widget) => widget.instance_id === legacyWidget.instance_id,
+    );
+    return existing ? matchesWidgetPosition(existing, legacyWidget) : false;
+  });
+  if (!isLegacyTemplate) {
+    return page;
+  }
+  return {
+    ...page,
+    widgets: opsDefaultTemplate().widgets,
   };
 }
 
@@ -329,11 +551,11 @@ function migrateV1ToV2(v1Pages: CockpitPageLayoutV1[]): CockpitPageLayoutV2[] {
       const constraints = WIDGET_SIZE_CONSTRAINTS[w.widget];
       if (!constraints) continue;
 
-      const colSpan = Math.min(12, Math.max(1, Math.round(w.span * 3)));
+      const colSpan = Math.min(COCKPIT_GRID_COLS, Math.max(1, Math.round(w.span * 3)));
       const widgetW = Math.max(constraints.minW, colSpan);
       const widgetH = constraints.defaultH;
 
-      if (cursorX + widgetW > 12) {
+      if (cursorX + widgetW > COCKPIT_GRID_COLS) {
         cursorX = 0;
         cursorY += rowMaxH || widgetH;
         rowMaxH = 0;
@@ -380,16 +602,16 @@ function clampPosition(pos: Partial<CockpitWidgetPosition>, kind: CockpitWidgetK
 
   const clampedW = Math.max(
     constraints.minW,
-    Math.min(12, Math.round(finiteNumber(pos.w, constraints.defaultW))),
+    Math.min(COCKPIT_GRID_COLS, Math.round(finiteNumber(pos.w, constraints.defaultW))),
   );
   const clampedH = Math.max(
     constraints.minH,
     Math.round(finiteNumber(pos.h, constraints.defaultH)),
   );
-  let clampedX = Math.max(0, Math.min(11, Math.round(finiteNumber(pos.x, 0))));
+  let clampedX = Math.max(0, Math.min(COCKPIT_GRID_COLS - 1, Math.round(finiteNumber(pos.x, 0))));
   const clampedY = Math.max(0, Math.round(finiteNumber(pos.y, 0)));
-  if (clampedX + clampedW > 12) {
-    clampedX = Math.max(0, 12 - clampedW);
+  if (clampedX + clampedW > COCKPIT_GRID_COLS) {
+    clampedX = Math.max(0, COCKPIT_GRID_COLS - clampedW);
   }
 
   return {
@@ -453,7 +675,9 @@ export function sanitizeCockpitPages(input: unknown): CockpitPageLayoutV2[] {
       } satisfies CockpitPageLayoutV2;
     })
     .filter((page): page is CockpitPageLayoutV2 => page !== null);
-  return pages.length > 0 ? pages : defaultCockpitPages();
+  return pages.length > 0
+    ? pages.map(upgradeLegacyOpsTemplatePage)
+    : defaultCockpitPages();
 }
 
 /* ── Storage ──────────────────────────────────────────────────────────────── */
@@ -463,13 +687,30 @@ export function loadCockpitPagesFromStorage(): CockpitPageLayoutV2[] {
     return defaultCockpitPages();
   }
 
-  // Try v2 first
+  // Try v3 first (current format — 2-column grid layout)
+  const v3Raw = window.localStorage.getItem(COCKPIT_V3_KEY);
+  if (v3Raw) {
+    try {
+      return sanitizeCockpitPages(JSON.parse(v3Raw) as unknown);
+    } catch (error) {
+      console.warn("[cockpitLayout] failed to parse v3 cockpit layout", error);
+    }
+  }
+
+  // Auto-migrate from v2 — reflow widgets into the 2-column grid
   const v2Raw = window.localStorage.getItem(COCKPIT_V2_KEY);
   if (v2Raw) {
     try {
-      return sanitizeCockpitPages(JSON.parse(v2Raw) as unknown);
+      const v2Pages = sanitizeCockpitPages(JSON.parse(v2Raw) as unknown);
+      const reflowed = v2Pages.map((page) => ({
+        ...page,
+        widgets: reflowWidgetsToGrid(page.widgets),
+      }));
+      persistCockpitPagesToStorage(reflowed);
+      window.localStorage.removeItem(COCKPIT_V2_KEY);
+      return reflowed;
     } catch (error) {
-      console.warn("[cockpitLayout] failed to parse v2 cockpit layout", error);
+      console.warn("[cockpitLayout] failed to migrate v2 cockpit layout", error);
     }
   }
 
@@ -480,9 +721,13 @@ export function loadCockpitPagesFromStorage(): CockpitPageLayoutV2[] {
       const v1Parsed = JSON.parse(v1Raw) as CockpitPageLayoutV1[];
       if (Array.isArray(v1Parsed) && v1Parsed.length > 0) {
         const migrated = migrateV1ToV2(v1Parsed);
-        persistCockpitPagesToStorage(migrated);
+        const reflowed = migrated.map((page) => ({
+          ...page,
+          widgets: reflowWidgetsToGrid(page.widgets),
+        }));
+        persistCockpitPagesToStorage(reflowed);
         window.localStorage.removeItem(COCKPIT_V1_KEY);
-        return migrated;
+        return reflowed;
       }
     } catch (error) {
       console.warn("[cockpitLayout] failed to parse v1 cockpit layout", error);
@@ -496,5 +741,5 @@ export function persistCockpitPagesToStorage(pages: CockpitPageLayoutV2[]): void
   if (typeof window === "undefined") {
     return;
   }
-  window.localStorage.setItem(COCKPIT_V2_KEY, JSON.stringify(pages));
+  window.localStorage.setItem(COCKPIT_V3_KEY, JSON.stringify(pages));
 }

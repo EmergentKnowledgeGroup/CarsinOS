@@ -19,14 +19,14 @@ export function StepReview(props: StepReviewProps) {
     <OnboardingStepShell
       stepLabel="Step 5 of 6"
       title="Review"
-      subtitle="Confirm setup status before finalizing onboarding."
+      subtitle="If all four checks are ready, Finish setup closes the wizard and takes you into Mission Control."
       actions={
         <>
           <button type="button" className="ghost" onClick={props.onBack}>
             Back
           </button>
           <button type="button" disabled={!props.canFinishReview} onClick={() => void props.onNext()}>
-            Finalize
+            Finish setup
           </button>
         </>
       }

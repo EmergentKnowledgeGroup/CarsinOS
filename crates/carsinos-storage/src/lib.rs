@@ -4900,6 +4900,25 @@ impl Storage {
             .context("created session could not be reloaded")
     }
 
+    pub fn update_session_agent(
+        &self,
+        session_id: &str,
+        agent_id: &str,
+    ) -> Result<Option<SessionRecord>> {
+        let conn = self.connect()?;
+        self.ensure_agent_exists(&conn, agent_id)?;
+        if !self.session_exists(&conn, session_id)? {
+            return Ok(None);
+        }
+        let now = now_ms();
+        conn.execute(
+            "UPDATE sessions SET agent_id = ?1, updated_at = ?2 WHERE session_id = ?3",
+            params![agent_id, now, session_id],
+        )
+        .context("failed to update session agent")?;
+        self.get_session(session_id)
+    }
+
     pub fn create_message(&self, new_message: NewMessage) -> Result<Option<MessageRecord>> {
         let conn = self.connect()?;
         if !self.session_exists(&conn, &new_message.session_id)? {
@@ -5824,6 +5843,44 @@ impl Storage {
             params![credentials_json, now, auth_profile_id],
         )
         .context("failed to update auth profile credentials")?;
+        self.get_auth_profile(auth_profile_id)
+    }
+
+    pub fn replace_auth_profile(
+        &self,
+        auth_profile_id: &str,
+        replacement: NewAuthProfile,
+    ) -> Result<Option<AuthProfileRecord>> {
+        let conn = self.connect()?;
+        let now = now_ms();
+        conn.execute(
+            r#"
+            UPDATE auth_profiles
+            SET provider = ?1,
+                display_name = ?2,
+                auth_mode = ?3,
+                risk_level = ?4,
+                enabled = ?5,
+                kill_switch_scope = ?6,
+                api_base_url = ?7,
+                credentials_json = ?8,
+                updated_at = ?9
+            WHERE auth_profile_id = ?10
+            "#,
+            params![
+                replacement.provider,
+                replacement.display_name,
+                replacement.auth_mode,
+                replacement.risk_level,
+                if replacement.enabled { 1 } else { 0 },
+                replacement.kill_switch_scope,
+                replacement.api_base_url,
+                replacement.credentials_json,
+                now,
+                auth_profile_id
+            ],
+        )
+        .context("failed to replace auth profile")?;
         self.get_auth_profile(auth_profile_id)
     }
 
@@ -9922,6 +9979,29 @@ mod tests {
             .expect("list enabled profiles");
         assert_eq!(enabled_only.len(), 1);
         assert_eq!(enabled_only[0].auth_profile_id, profile_a.auth_profile_id);
+
+        let replaced = storage
+            .replace_auth_profile(
+                &profile_b.auth_profile_id,
+                NewAuthProfile {
+                    provider: "anthropic".to_string(),
+                    display_name: "claude-primary".to_string(),
+                    auth_mode: "api_key".to_string(),
+                    risk_level: "low".to_string(),
+                    enabled: true,
+                    kill_switch_scope: "none".to_string(),
+                    api_base_url: Some("https://api.anthropic.com".to_string()),
+                    credentials_json: r#"{"secret_ref":"auth.anthropic.setup-token.test","token_kind":"setup_token"}"#.to_string(),
+                },
+            )
+            .expect("replace auth profile")
+            .expect("profile exists");
+        assert_eq!(replaced.provider, "anthropic");
+        assert_eq!(replaced.display_name, "claude-primary");
+        assert_eq!(replaced.auth_mode, "api_key");
+        assert_eq!(replaced.risk_level, "low");
+        assert_eq!(replaced.kill_switch_scope, "none");
+        assert!(replaced.enabled);
     }
 
     #[test]
@@ -9932,12 +10012,14 @@ mod tests {
             .create_auth_profile(NewAuthProfile {
                 provider: "anthropic".to_string(),
                 display_name: "anthropic-test".to_string(),
-                auth_mode: "claude_consumer_oauth".to_string(),
+                auth_mode: "agent_sdk".to_string(),
                 risk_level: "high".to_string(),
                 enabled: true,
                 kill_switch_scope: "provider".to_string(),
                 api_base_url: Some("https://api.anthropic.com".to_string()),
-                credentials_json: r#"{"token":"redacted"}"#.to_string(),
+                credentials_json:
+                    r#"{"headless_enabled":true,"headless_command":"claude","headless_args":["-p"]}"#
+                        .to_string(),
             })
             .expect("create anthropic profile");
         assert!(storage
@@ -10736,7 +10818,9 @@ mod tests {
 
     #[test]
     fn bootstrap_presets_allow_unresolved_manager_defaults() {
-        let (_temp_dir, storage) = test_storage();
+        let (temp_dir, storage) = test_storage();
+        let workspace_root = temp_dir.path().join("shared");
+        let workspace_root_string = workspace_root.to_string_lossy().to_string();
         let created = storage
             .create_bootstrap_preset(NewBootstrapPreset {
                 preset_key: "cross-workspace".to_string(),
@@ -10747,14 +10831,14 @@ mod tests {
                 default_model_provider: Some("openai".to_string()),
                 default_model_id: Some("gpt-5-mini".to_string()),
                 default_tool_profile: Some("default".to_string()),
-                default_workspace_root: Some(" /tmp/shared ".to_string()),
+                default_workspace_root: Some(format!(" {workspace_root_string} ")),
                 default_reports_to_agent_id: Some("Missing-Manager".to_string()),
                 setup_notes: Some("Imported preset".to_string()),
             })
             .expect("create preset with soft manager reference");
         assert_eq!(
             created.default_workspace_root.as_deref(),
-            Some("/tmp/shared")
+            Some(workspace_root_string.as_str())
         );
         assert_eq!(
             created.default_reports_to_agent_id.as_deref(),
@@ -10903,7 +10987,9 @@ mod tests {
 
     #[test]
     fn project_workspace_roots_are_normalized() {
-        let (_temp_dir, storage) = test_storage();
+        let (temp_dir, storage) = test_storage();
+        let workspace_root = temp_dir.path().join("strategy-project");
+        let workspace_root_string = workspace_root.to_string_lossy().to_string();
         let goal = storage
             .create_goal(NewGoal {
                 slug: "normalized-roots".to_string(),
@@ -10922,13 +11008,13 @@ mod tests {
                 summary: String::new(),
                 status: PROJECT_STATUS_ACTIVE.to_string(),
                 owner_agent_id: None,
-                workspace_root: Some(" /tmp/strategy-project ".to_string()),
+                workspace_root: Some(format!(" {workspace_root_string} ")),
                 budget_month_usd: None,
             })
             .expect("create project");
         assert_eq!(
             created.workspace_root.as_deref(),
-            Some("/tmp/strategy-project")
+            Some(workspace_root_string.as_str())
         );
 
         let updated = storage

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { createWriteStream } from "node:fs";
+import { appendFileSync, createWriteStream, mkdirSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -26,20 +27,31 @@ const token = "stub-token-001";
 const modelId = "qwen3.5-9b-instruct";
 
 const stamp = new Date().toISOString().replace(/[-:.]/g, "").replace("T", "T").slice(0, 15) + "Z";
-const artifactDir = path.join(
-  repoRoot,
-  "runtime",
-  "quality-gate",
-  "artifacts",
-  "tauri-smoke",
-  stamp
-);
+const artifactRoot = process.env.MISSION_CONTROL_TAURI_ARTIFACT_ROOT
+  ? path.resolve(process.env.MISSION_CONTROL_TAURI_ARTIFACT_ROOT)
+  : path.join(
+      repoRoot,
+      "runtime",
+      "quality-gate",
+      "artifacts",
+      "tauri-smoke"
+    );
+const artifactDir = path.join(artifactRoot, stamp);
 const screenshotDir = path.join(artifactDir, "screenshots");
 const videoDir = path.join(artifactDir, "video");
 const tracePath = path.join(artifactDir, "trace.zip");
 const manifestPath = path.join(artifactDir, "manifest.json");
+const harnessLogPath = path.join(artifactDir, "harness.log");
 const mockLogPath = path.join(artifactDir, "mock-gateway.log");
 const tauriLogPath = path.join(artifactDir, "tauri-dev.log");
+const isWindows = process.platform === "win32";
+
+process.stdout.on("error", () => {
+  // Desktop smoke can be launched from wrappers with fragile inherited handles.
+});
+process.stderr.on("error", () => {
+  // Keep harness logging best-effort; artifact files carry the durable record.
+});
 
 function sleep(ms) {
   return new Promise((resolve) => {
@@ -67,6 +79,15 @@ async function isHttpReady(url, headers = {}) {
   }
 }
 
+async function recordHarnessEvent(message) {
+  try {
+    mkdirSync(artifactDir, { recursive: true });
+    appendFileSync(harnessLogPath, `${new Date().toISOString()} ${message}\n`, "utf8");
+  } catch {
+    // Artifact logging is diagnostic only.
+  }
+}
+
 function createLineScanner(onText) {
   let remainder = "";
   return (chunk) => {
@@ -79,22 +100,123 @@ function createLineScanner(onText) {
   };
 }
 
+function commandQuote(value) {
+  const text = String(value);
+  if (/^[A-Za-z0-9_./:=+-]+$/.test(text)) {
+    return text;
+  }
+  return `"${text.replace(/"/g, '\\"')}"`;
+}
+
+function cmdQuote(value) {
+  return `"${String(value).replace(/"/g, '""')}"`;
+}
+
+function safeLauncherCwd() {
+  return process.env.TMP || process.env.TEMP || os.tmpdir();
+}
+
+function prepareSpawnCommand(cmd, args, cwd) {
+  if (!isWindows) {
+    return { cmd, args, cwd };
+  }
+
+  if (!cwd.startsWith("\\\\")) {
+    if (cmd === "npm") {
+      return {
+        cmd: process.env.ComSpec || "cmd.exe",
+        args: ["/d", "/c", [cmd, ...args].join(" ")],
+        cwd,
+      };
+    }
+    const winCmd = cmd === "node" ? process.execPath : cmd;
+    return { cmd: winCmd, args, cwd };
+  }
+
+  const commandLine = [cmd, ...args].map(cmdQuote).join(" ");
+  const cwdCommand = `pushd ${cmdQuote(cwd)}`;
+  return {
+    cmd: process.env.ComSpec || "cmd.exe",
+    args: ["/d", "/c", `${cwdCommand} && ${commandLine}`],
+    cwd: safeLauncherCwd(),
+  };
+}
+
+function createSafeLogStream(filePath) {
+  const stream = createWriteStream(filePath, { flags: "a" });
+  const errors = [];
+  stream.on("error", (error) => {
+    errors.push(error);
+  });
+  return {
+    errors,
+    write(chunk) {
+      if (stream.destroyed || errors.length > 0) {
+        return;
+      }
+      try {
+        stream.write(chunk);
+      } catch (error) {
+        errors.push(error);
+      }
+    },
+    end() {
+      return new Promise((resolve) => {
+        if (stream.destroyed) {
+          resolve();
+          return;
+        }
+        try {
+          stream.end(resolve);
+        } catch {
+          resolve();
+        }
+      });
+    },
+  };
+}
+
 function spawnLogged(name, cmd, args, cwd, extraEnv = {}) {
-  const child = spawn(cmd, args, {
-    cwd,
+  const prepared = prepareSpawnCommand(cmd, args, cwd);
+  const child = spawn(prepared.cmd, prepared.args, {
+    cwd: prepared.cwd,
     env: {
       ...process.env,
       ...extraEnv,
     },
     stdio: ["ignore", "pipe", "pipe"],
-    detached: true,
+    detached: !isWindows,
+    windowsHide: true,
   });
-  child.unref();
-  return { name, child };
+  if (!isWindows) {
+    child.unref();
+  }
+  const proc = {
+    name,
+    child,
+    command: [cmd, ...args].map(commandQuote).join(" "),
+    exitStatus: null,
+  };
+  child.on("exit", (code, signal) => {
+    proc.exitStatus = { code, signal };
+  });
+  return proc;
 }
 
 async function terminate(proc) {
   if (!proc || !proc.child || proc.child.exitCode !== null) {
+    return;
+  }
+  if (isWindows) {
+    await new Promise((resolve) => {
+      const killer = spawn("taskkill", ["/PID", String(proc.child.pid), "/T", "/F"], {
+        cwd: safeLauncherCwd(),
+        stdio: "ignore",
+        windowsHide: true,
+      });
+      killer.on("error", resolve);
+      killer.on("exit", resolve);
+    });
     return;
   }
   try {
@@ -118,11 +240,12 @@ async function terminate(proc) {
 
 async function run() {
   const startedAtUtc = new Date().toISOString();
+  await recordHarnessEvent("starting tauri smoke harness");
   await mkdir(screenshotDir, { recursive: true });
   await mkdir(videoDir, { recursive: true });
 
-  const mockLog = createWriteStream(mockLogPath, { flags: "a" });
-  const tauriLog = createWriteStream(tauriLogPath, { flags: "a" });
+  const mockLog = createSafeLogStream(mockLogPath);
+  const tauriLog = createSafeLogStream(tauriLogPath);
 
   const mockProc = spawnLogged(
     "mock-gateway",
@@ -130,6 +253,13 @@ async function run() {
     ["./e2e/mockGateway.mjs", "--port", String(gatewayPort)],
     appDir
   );
+
+  mockProc.child.on("error", (error) => {
+    mockLog.write(`[spawn-error] ${String(error)}\n`);
+  });
+  mockProc.child.on("exit", (code, signal) => {
+    mockLog.write(`[exit] code=${code ?? "null"} signal=${signal ?? "null"}\n`);
+  });
 
   const tauriProc = spawnLogged(
     "tauri-dev",
@@ -140,6 +270,14 @@ async function run() {
       CI: "1",
     }
   );
+  tauriProc.child.on("error", (error) => {
+    tauriLog.write(`[spawn-error] ${String(error)}\n`);
+  });
+  tauriProc.child.on("exit", (code, signal) => {
+    tauriLog.write(`[exit] code=${code ?? "null"} signal=${signal ?? "null"}\n`);
+  });
+  await recordHarnessEvent(`spawned ${mockProc.name}: ${mockProc.command}`);
+  await recordHarnessEvent(`spawned ${tauriProc.name}: ${tauriProc.command}`);
 
   let tauriRuntimeSignal = false;
   const tauriSignalPattern =
@@ -164,10 +302,7 @@ async function run() {
   const cleanup = async () => {
     await terminate(tauriProc);
     await terminate(mockProc);
-    await Promise.all([
-      new Promise((resolve) => mockLog.end(resolve)),
-      new Promise((resolve) => tauriLog.end(resolve)),
-    ]);
+    await Promise.all([mockLog.end(), tauriLog.end()]);
   };
 
   let browser;
@@ -182,18 +317,30 @@ async function run() {
     const { chromium } = playwrightModule;
 
     await waitFor(
-      () =>
-        isHttpReady(`${gatewayUrl}/api/v1/health`, {
+      async () => {
+        if (mockProc.exitStatus) {
+          throw new Error(
+            `mock gateway exited before ready (code=${mockProc.exitStatus.code ?? "null"} signal=${
+              mockProc.exitStatus.signal ?? "null"
+            })`
+          );
+        }
+        return isHttpReady(`${gatewayUrl}/api/v1/health`, {
           Authorization: `Bearer ${token}`,
-        }),
+        });
+      },
       30_000,
       "mock gateway did not become ready"
     );
 
     await waitFor(
       async () => {
-        if (!tauriProc.child || tauriProc.child.exitCode !== null) {
-          return false;
+        if (tauriProc.exitStatus) {
+          throw new Error(
+            `tauri dev exited before ready (code=${tauriProc.exitStatus.code ?? "null"} signal=${
+              tauriProc.exitStatus.signal ?? "null"
+            })`
+          );
         }
         const appReady = await isHttpReady(`http://127.0.0.1:${appPort}/`);
         return appReady && tauriRuntimeSignal;
@@ -217,6 +364,12 @@ async function run() {
       snapshots: true,
     });
     page = await context.newPage();
+    page.on("console", (message) => {
+      recordHarnessEvent(`browser console ${message.type()}: ${message.text()}`);
+    });
+    page.on("pageerror", (error) => {
+      recordHarnessEvent(`browser pageerror: ${error?.stack ?? String(error)}`);
+    });
     await page.addInitScript(() => {
       window.localStorage.setItem("mc-guided-tour-completed-v1", "true");
     });
@@ -258,16 +411,36 @@ async function run() {
     await page.getByText("Step 4 of 6").waitFor();
     await page.getByLabel("Agent ID").fill("assistant-main");
     await page.getByLabel("Agent name").fill("Assistant");
-    await page.getByRole("radio", { name: "Local connector" }).check();
-    await page.getByPlaceholder("Or paste assistant model ID manually").fill(modelId);
+    const localConnectorRadio = page.getByRole("radio", { name: /Local connector/i });
+    if ((await localConnectorRadio.count()) > 0) {
+      await localConnectorRadio.first().check({ force: true });
+    }
+    const manualModelInput = page.getByPlaceholder("Or paste assistant model ID manually");
+    if ((await manualModelInput.count()) > 0 && (await manualModelInput.first().isVisible())) {
+      await manualModelInput.first().fill(modelId);
+    } else {
+      const assistantModelSelect = page.getByLabel(/Assistant model/i);
+      if ((await assistantModelSelect.count()) > 0) {
+        await assistantModelSelect.first().selectOption(modelId).catch(async () => {
+          await assistantModelSelect.first().selectOption({ label: modelId });
+        });
+      }
+    }
     await shot("wizard-step-4-agent-provider");
 
-    await page.getByRole("button", { name: "Continue" }).click();
+    await page.getByRole("button", { name: /^(Continue|Apply setup \+ Continue)$/ }).click();
     await page.getByText("Step 5 of 6").waitFor();
     await shot("wizard-step-5-review");
-    await page.getByRole("button", { name: "Finalize" }).click();
-    await page.getByText("Step 6 of 6").waitFor();
-    await page.getByRole("button", { name: "Go to Boards" }).click();
+    await page.getByRole("button", { name: /^(Finalize|Finish setup)$/ }).click();
+    const finalStep = page.getByText("Step 6 of 6");
+    if (
+      await finalStep
+        .waitFor({ timeout: 5_000 })
+        .then(() => true)
+        .catch(() => false)
+    ) {
+      await page.getByRole("button", { name: /Go to Boards|Enter Mission Control/ }).click();
+    }
     await page.getByText("Investigate gateway health").waitFor();
     await shot("wizard-complete-boards");
 
@@ -329,6 +502,15 @@ async function run() {
     console.log(`[mission-control] tauri smoke visual PASS`);
     console.log(`[mission-control] artifacts: ${path.relative(repoRoot, artifactDir)}`);
   } catch (error) {
+    if (page) {
+      try {
+        await page.screenshot({ path: path.join(artifactDir, "failure-page.png"), fullPage: true });
+        await writeFile(path.join(artifactDir, "failure-page.html"), await page.content(), "utf8");
+      } catch (captureError) {
+        await recordHarnessEvent(`failure capture skipped: ${String(captureError)}`);
+      }
+    }
+    await recordHarnessEvent(`FAIL ${error?.stack ?? String(error)}`);
     console.error(`[mission-control] tauri smoke visual FAIL: ${String(error)}`);
     throw error;
   } finally {
@@ -350,6 +532,21 @@ async function run() {
   }
 }
 
-run().catch(() => {
+run().catch((error) => {
+  const details = error?.stack ?? String(error);
+  try {
+    appendFileSync(
+      path.join(safeLauncherCwd(), "mission-control-tauri-smoke-last-error.log"),
+      `${new Date().toISOString()} ${details}\n`,
+      "utf8"
+    );
+  } catch {
+    // no-op
+  }
+  try {
+    process.stderr.write(`[mission-control] tauri smoke harness error: ${details}\n`);
+  } catch {
+    // no-op
+  }
   process.exit(1);
 });

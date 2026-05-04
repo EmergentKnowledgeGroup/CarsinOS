@@ -4,6 +4,7 @@ import { STORAGE_KEYS } from "../storageKeys";
 
 const SETTINGS_KEY = STORAGE_KEYS.gatewaySettings;
 const TOKEN_KEY_FALLBACK = STORAGE_KEYS.gatewayTokenFallback;
+let browserGatewayToken: string | null = null;
 
 function normalizeGatewayUrlOrEmpty(value: string): string {
   const trimmed = value.trim();
@@ -36,13 +37,44 @@ function preferEnvGatewayToken(): boolean {
   return value === "1" || value === "true" || value === "yes" || value === "on";
 }
 
+function isE2EMode(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  try {
+    return new URL(window.location.href).searchParams.get("e2e") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function isE2ESessionTokenStorageEnabled(): boolean {
+  const flag = (import.meta.env.VITE_CARSINOS_E2E_TOKEN_STORAGE ?? "")
+    .trim()
+    .toLowerCase();
+  return (
+    flag === "1" ||
+    flag === "true" ||
+    flag === "yes" ||
+    flag === "on" ||
+    isE2EMode()
+  );
+}
+
+function clearLegacyGatewayTokenFallback(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.removeItem(TOKEN_KEY_FALLBACK);
+}
+
 export function isTauriRuntime(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
 export function loadConnectionSettings(): RuntimeConnectionSettings {
   const envGatewayUrl = readEnvGatewayUrl();
-  if (envGatewayUrl) {
+  if (envGatewayUrl && !isE2EMode()) {
     // One-click/dev launch should override stale persisted URLs (for example old busy ports).
     return { gateway_url: envGatewayUrl };
   }
@@ -80,6 +112,7 @@ export async function setGatewayToken(token: string): Promise<void> {
   if (!value) {
     throw new Error("token cannot be empty");
   }
+  clearLegacyGatewayTokenFallback();
   if (isTauriRuntime()) {
     await invoke("set_gateway_token", { token: value });
     return;
@@ -87,23 +120,30 @@ export async function setGatewayToken(token: string): Promise<void> {
   if (typeof window === "undefined") {
     return;
   }
-  window.localStorage.setItem(TOKEN_KEY_FALLBACK, value);
+  if (isE2ESessionTokenStorageEnabled()) {
+    browserGatewayToken = null;
+    window.sessionStorage.setItem(TOKEN_KEY_FALLBACK, value);
+  } else {
+    window.sessionStorage.removeItem(TOKEN_KEY_FALLBACK);
+    browserGatewayToken = value;
+  }
 }
 
 export async function clearGatewayToken(): Promise<void> {
   if (isTauriRuntime()) {
     await invoke("clear_gateway_token");
-    return;
   }
   if (typeof window === "undefined") {
     return;
   }
-  window.localStorage.removeItem(TOKEN_KEY_FALLBACK);
+  browserGatewayToken = null;
+  window.sessionStorage.removeItem(TOKEN_KEY_FALLBACK);
+  clearLegacyGatewayTokenFallback();
 }
 
 export async function getGatewayToken(): Promise<string | null> {
   const envToken = readEnvGatewayToken();
-  if (preferEnvGatewayToken() && envToken) {
+  if (!isE2EMode() && preferEnvGatewayToken() && envToken) {
     return envToken;
   }
   if (isTauriRuntime()) {
@@ -116,16 +156,25 @@ export async function getGatewayToken(): Promise<string | null> {
   if (typeof window === "undefined") {
     return envToken;
   }
-  const storedToken = window.localStorage.getItem(TOKEN_KEY_FALLBACK);
-  if (storedToken && storedToken.trim().length > 0) {
-    return storedToken.trim();
+  clearLegacyGatewayTokenFallback();
+  if (envToken) {
+    return envToken;
   }
-  return envToken;
+  if (browserGatewayToken) {
+    return browserGatewayToken;
+  }
+  if (isE2ESessionTokenStorageEnabled()) {
+    const storedToken = window.sessionStorage.getItem(TOKEN_KEY_FALLBACK);
+    if (storedToken && storedToken.trim().length > 0) {
+      return storedToken.trim();
+    }
+  }
+  return null;
 }
 
 export async function isGatewayTokenConfigured(): Promise<boolean> {
   const envToken = readEnvGatewayToken();
-  if (preferEnvGatewayToken() && envToken) {
+  if (!isE2EMode() && preferEnvGatewayToken() && envToken) {
     return true;
   }
   if (isTauriRuntime()) {
@@ -135,8 +184,15 @@ export async function isGatewayTokenConfigured(): Promise<boolean> {
   if (typeof window === "undefined") {
     return Boolean(envToken);
   }
-  const storedToken = window.localStorage.getItem(TOKEN_KEY_FALLBACK);
-  return Boolean(storedToken && storedToken.trim().length > 0) || Boolean(envToken);
+  clearLegacyGatewayTokenFallback();
+  if (envToken || browserGatewayToken) {
+    return true;
+  }
+  if (isE2ESessionTokenStorageEnabled()) {
+    const storedToken = window.sessionStorage.getItem(TOKEN_KEY_FALLBACK);
+    return Boolean(storedToken && storedToken.trim().length > 0);
+  }
+  return false;
 }
 
 export interface SetupTokenLaunchResult {
