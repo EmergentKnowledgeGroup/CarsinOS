@@ -512,13 +512,13 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
             "That transcript is not routed to the local operator anymore. Reassign it in Team first."
           );
         }
+        await refreshMessages(normalizedId);
+        setSessionId(normalizedId);
         setSessionMode("pinned_session");
         setPinnedSessionAgentId(sessionAgentId);
         if (sessionAgentId !== activeAgentId) {
           suppressSessionResetRef.current = true;
         }
-        await refreshMessages(normalizedId);
-        setSessionId(normalizedId);
         setLastRunId(options?.runId ?? null);
         setLastRunStatus(null);
         return true;

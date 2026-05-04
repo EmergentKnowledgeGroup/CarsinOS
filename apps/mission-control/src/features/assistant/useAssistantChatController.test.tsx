@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from "react";
+import { act, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NotifyFn } from "../../app/useAppController";
@@ -252,7 +252,9 @@ function Harness(props: {
     resetCorePrompt: () => {},
     restoreDefaultCorePrompt: () => {},
   });
-  props.onReady(controller);
+  useEffect(() => {
+    props.onReady(controller);
+  }, [controller, props]);
   return null;
 }
 

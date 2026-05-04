@@ -26,7 +26,7 @@ describe("LiveFeedDrawer", () => {
     document.body.innerHTML = "";
   });
 
-  it("keeps the Show button clickable while the drawer is closed", async () => {
+  it("removes the drawer controls from the accessibility tree while closed", async () => {
     const root = createRoot(container);
     const onToggleOpen = vi.fn();
 
@@ -61,15 +61,9 @@ describe("LiveFeedDrawer", () => {
       );
     });
 
-    const toggle = Array.from(container.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("Show")
-    );
-    expect(toggle).toBeTruthy();
-
-    await act(async () => {
-      toggle?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-
-    expect(onToggleOpen).toHaveBeenCalledTimes(1);
+    const drawer = container.querySelector('[data-testid="live-feed-drawer"]');
+    expect(drawer?.getAttribute("aria-hidden")).toBe("true");
+    expect(drawer?.hasAttribute("inert")).toBe(true);
+    expect(onToggleOpen).not.toHaveBeenCalled();
   });
 });

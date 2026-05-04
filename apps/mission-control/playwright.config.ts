@@ -3,6 +3,7 @@ import { defineConfig } from "@playwright/test";
 const appPort = 1420;
 const gatewayPort = 19_789;
 const localBaseUrl = `http://127.0.0.1:${appPort}`;
+const externalBaseUrl = Boolean(process.env.MC_E2E_BASE_URL);
 
 export default defineConfig({
   testDir: "./e2e",
@@ -20,18 +21,20 @@ export default defineConfig({
     screenshot: "only-on-failure",
     video: "retain-on-failure",
   },
-  webServer: [
-    {
-      command: `node ./e2e/mockGateway.mjs --port ${gatewayPort}`,
-      port: gatewayPort,
-      timeout: 120_000,
-      reuseExistingServer: false,
-    },
-    {
-      command: `npm run dev -- --host 127.0.0.1 --port ${appPort}`,
-      port: appPort,
-      timeout: 120_000,
-      reuseExistingServer: false,
-    },
-  ],
+  webServer: externalBaseUrl
+    ? undefined
+    : [
+        {
+          command: `node ./e2e/mockGateway.mjs --port ${gatewayPort}`,
+          port: gatewayPort,
+          timeout: 120_000,
+          reuseExistingServer: !process.env.CI,
+        },
+        {
+          command: `npm run dev -- --host 127.0.0.1 --port ${appPort}`,
+          port: appPort,
+          timeout: 120_000,
+          reuseExistingServer: !process.env.CI,
+        },
+      ],
 });

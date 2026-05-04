@@ -116,6 +116,8 @@ export function LiveFeedDrawer(props: LiveFeedDrawerProps) {
       data-testid="live-feed-drawer"
       data-open={props.open ? "true" : "false"}
       aria-label="Live Feed"
+      aria-hidden={props.open ? undefined : true}
+      inert={props.open ? undefined : true}
     >
       <header className="mc-live-feed-header">
         <div>

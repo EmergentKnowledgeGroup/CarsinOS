@@ -314,7 +314,12 @@ function buildMemoryLaneSummaries(
     linksByHuman.set(link.human_identity_id, next);
   }
   return routing.assistant_assignments
-    .filter((item) => item.enabled && item.assistant_agent_id === assistantAgentId)
+    .filter(
+      (item) =>
+        item.enabled &&
+        item.assistant_agent_id === assistantAgentId &&
+        humans.has(item.human_identity_id)
+    )
     .map((assignment) => {
       const human = humans.get(assignment.human_identity_id);
       const policy =

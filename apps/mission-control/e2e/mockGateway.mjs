@@ -72,7 +72,7 @@ let nextCardCounter = 2;
 let nextRunCounter = 1;
 let nextJobRunCounter = 1;
 const wsClients = new Set();
-const wsTickets = new Set();
+const wsTickets = new Map();
 
 function looksLikeAnthropicSetupToken(value) {
   const trimmed = typeof value === "string" ? value.trim() : "";
@@ -931,6 +931,7 @@ const seedState = {
   approvals: cloneSeed(approvals),
   channelStatuses: cloneSeed(channelStatuses),
   channelConfig: cloneSeed(channelConfig),
+  telegramPairingStatus: cloneSeed(telegramPairingStatus),
   runtimeConfig: cloneSeed(runtimeConfig),
   runtimeSecrets: cloneSeed(runtimeSecrets),
   authProfiles: cloneSeed(authProfiles),
@@ -960,6 +961,7 @@ function resetMockState() {
   replaceArray(approvals, seedState.approvals);
   replaceArray(channelStatuses, seedState.channelStatuses);
   Object.assign(channelConfig, cloneSeed(seedState.channelConfig));
+  Object.assign(telegramPairingStatus, cloneSeed(seedState.telegramPairingStatus));
   Object.assign(runtimeConfig, cloneSeed(seedState.runtimeConfig));
   Object.keys(runtimeSecrets).forEach((key) => {
     delete runtimeSecrets[key];
@@ -2754,10 +2756,11 @@ async function routeRequest(req, res) {
 
   if (req.method === "POST" && requestUrl.pathname === "/api/v1/ws-ticket") {
     const ticket = `mock-ws-ticket-${randomUUID()}`;
-    wsTickets.add(ticket);
+    const expiresAt = Date.now() + 30_000;
+    wsTickets.set(ticket, expiresAt);
     sendJson(res, 200, {
       ticket,
-      expires_at: Date.now() + 30_000,
+      expires_at: expiresAt,
     });
     return;
   }
@@ -4277,8 +4280,13 @@ async function routeRequest(req, res) {
     if (payload.channels) {
       runtimeConfig.channels = {
         ...runtimeConfig.channels,
-        ...payload.channels,
       };
+      for (const [channel, update] of Object.entries(payload.channels)) {
+        runtimeConfig.channels[channel] = {
+          ...(runtimeConfig.channels[channel] ?? {}),
+          ...(update ?? {}),
+        };
+      }
     }
     if (payload.routing) {
       runtimeConfig.routing = {
@@ -4668,10 +4676,15 @@ server.on("upgrade", (req, socket, head) => {
     return;
   }
   const ticket = requestUrl.searchParams.get("ticket");
-  if (!ticket || !wsTickets.delete(ticket)) {
+  const expiresAt = ticket ? wsTickets.get(ticket) : undefined;
+  if (!ticket || !expiresAt || Date.now() > expiresAt) {
+    if (ticket) {
+      wsTickets.delete(ticket);
+    }
     socket.destroy();
     return;
   }
+  wsTickets.delete(ticket);
   wsServer.handleUpgrade(req, socket, head, (ws) => {
     wsServer.emit("connection", ws, req);
   });

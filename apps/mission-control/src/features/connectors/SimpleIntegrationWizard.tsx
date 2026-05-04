@@ -464,6 +464,7 @@ export function SimpleIntegrationWizard(props: SimpleIntegrationWizardProps) {
         const latestStatusResponse = await getChannelRuntimeStatus(props.settings, {
           timeoutMs: CHANNEL_RUNTIME_REQUEST_TIMEOUT_MS,
         });
+        setChannelStatuses(latestStatusResponse.items);
         const adapter =
           latestStatusResponse.items.find(
             (item) => item.provider === selectedIntegration.channelProvider

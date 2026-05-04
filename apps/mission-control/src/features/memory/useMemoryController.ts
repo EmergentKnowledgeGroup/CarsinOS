@@ -340,6 +340,7 @@ export function useMemoryController(options: UseMemoryControllerOptions) {
   const whyRequestIdRef = useRef(0);
   const citationRequestIdRef = useRef(0);
   const laneStatusRequestIdRef = useRef(0);
+  const routingRequestIdRef = useRef(0);
 
   const selectedAgentId = useMemo(
     () => selectMemoryAgentId(agents, preferredAgentId, selectedAgentIdState),
@@ -468,6 +469,8 @@ export function useMemoryController(options: UseMemoryControllerOptions) {
     graphRequestIdRef.current += 1;
     whyRequestIdRef.current += 1;
     citationRequestIdRef.current += 1;
+    laneStatusRequestIdRef.current += 1;
+    routingRequestIdRef.current += 1;
   }, []);
 
   const resetVisibleMemoryState = useCallback(
@@ -670,6 +673,7 @@ export function useMemoryController(options: UseMemoryControllerOptions) {
 
   const loadRoutingSnapshot = useCallback(
     async (runtimeSettings: RuntimeConnectionSettings = settings) => {
+      const requestId = ++routingRequestIdRef.current;
       if (!enabled || !runtimeSettings.gateway_url.trim()) {
         setRoutingConfig(null);
         setRuntimeMemoryConfig(null);
@@ -682,19 +686,27 @@ export function useMemoryController(options: UseMemoryControllerOptions) {
       setRoutingLoading(true);
       try {
         const response = await getRuntimeConfig(runtimeSettings);
+        if (routingRequestIdRef.current !== requestId) {
+          return createSuccessResult();
+        }
         setRoutingConfig(response.config.routing);
         setRuntimeMemoryConfig(response.config.memory);
         setRuntimeMemorySourceCount(response.config.memory.memory_md_sources.length);
         setRoutingError(null);
         return createSuccessResult();
       } catch (error: unknown) {
+        if (routingRequestIdRef.current !== requestId) {
+          return createFailureResult(error);
+        }
         setRoutingConfig(null);
         setRuntimeMemoryConfig(null);
         setRuntimeMemorySourceCount(0);
         setRoutingError(`Lane routing could not load. (${String(error)})`);
         return createFailureResult(error);
       } finally {
-        setRoutingLoading(false);
+        if (routingRequestIdRef.current === requestId) {
+          setRoutingLoading(false);
+        }
       }
     },
     [enabled, settings]
@@ -838,6 +850,7 @@ export function useMemoryController(options: UseMemoryControllerOptions) {
         setRoutingConfig(updateResponse.config.routing);
         setRuntimeMemoryConfig(updateResponse.config.memory);
         setRuntimeMemorySourceCount(updateResponse.config.memory.memory_md_sources.length);
+        await loadLaneStatuses(settings, selectedAgentId);
         setRoutingError(null);
         setNotice({
           tone: "info",
@@ -854,7 +867,7 @@ export function useMemoryController(options: UseMemoryControllerOptions) {
         setRuntimeMemorySavePending(false);
       }
     },
-    [setNotice, settings]
+    [loadLaneStatuses, selectedAgentId, setNotice, settings]
   );
 
   const syncRuntimeMemoryDefaults = useCallback(async () => {

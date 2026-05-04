@@ -142,7 +142,7 @@
           "present_substrings": [
             "const gatewayPort = 19_789;",
             "node ./e2e/mockGateway.mjs --port ${gatewayPort}",
-            "reuseExistingServer: false"
+            "reuseExistingServer: !process.env.CI"
           ]
         },
         {

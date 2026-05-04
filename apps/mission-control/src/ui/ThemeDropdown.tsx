@@ -12,7 +12,6 @@ interface ThemeDropdownProps {
   toggleMode: () => void;
   openRequestVersion?: number;
 }
-
 export function ThemeDropdown({
   family,
   mode,
@@ -54,7 +53,7 @@ export function ThemeDropdown({
     if (openRequestVersion <= 0) {
       return;
     }
-    if (openRequestVersion === lastOpenRequestVersionRef.current) {
+    if (openRequestVersion <= lastOpenRequestVersionRef.current) {
       return;
     }
     lastOpenRequestVersionRef.current = openRequestVersion;

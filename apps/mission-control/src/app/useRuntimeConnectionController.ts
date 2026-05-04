@@ -14,7 +14,6 @@ export interface BoardSummary {
   board_id: string;
   name: string;
 }
-
 interface UseRuntimeConnectionControllerOptions {
   settings: RuntimeConnectionSettings;
   gatewayDraft: string;
@@ -89,7 +88,7 @@ export function useRuntimeConnectionController(options: UseRuntimeConnectionCont
       ]);
 
       if (healthResult.status === "fulfilled") {
-        setHealthState(healthResult.value.ok === false ? "down" : "up");
+        setHealthState(healthResult.value.ok === true ? "up" : "down");
       } else {
         setHealthState("down");
         startupErrors.push(

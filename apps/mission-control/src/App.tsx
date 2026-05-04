@@ -358,6 +358,9 @@ export default function App() {
 
   const applyRuntimeGlobalConfig = useCallback((global: RuntimeGlobalConfigResponse | null) => {
     setRuntimeGlobalConfig(global);
+    if (!global) {
+      return;
+    }
     const resolved = resolveAssistantCorePrompt(global?.assistant_system_prompt);
     setAssistantSystemPromptSaved(resolved);
     setAssistantSystemPromptDraft(resolved);

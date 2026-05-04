@@ -468,14 +468,17 @@ export function StepProvider(props: StepProviderProps) {
                     </option>
                   ))}
                 </select>
-                {showLocalManualModelFallback ? (
+              </label>
+              {showLocalManualModelFallback ? (
+                <label>
+                  Assistant model ID (manual)
                   <input
                     value={props.localModelId}
                     onChange={(event) => props.onLocalModelIdChange(event.target.value)}
                     placeholder="Or paste assistant model ID manually"
                   />
-                ) : null}
-              </label>
+                </label>
+              ) : null}
             </div>
 
             <label className="mc-checkbox">
@@ -526,7 +529,10 @@ export function StepProvider(props: StepProviderProps) {
                       </option>
                     ))}
                   </select>
-                  {showLocalManualModelFallback ? (
+                </label>
+                {showLocalManualModelFallback ? (
+                  <label>
+                    Orchestrator model ID (manual)
                     <input
                       value={props.localOrchestratorModelId}
                       onChange={(event) =>
@@ -534,8 +540,8 @@ export function StepProvider(props: StepProviderProps) {
                       }
                       placeholder="Or paste orchestrator model ID manually"
                     />
-                  ) : null}
-                </label>
+                  </label>
+                ) : null}
               </div>
             ) : null}
           </div>

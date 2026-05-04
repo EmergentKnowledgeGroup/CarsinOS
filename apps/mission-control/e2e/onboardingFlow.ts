@@ -88,7 +88,7 @@ export async function completeQuickstartLocalOnboarding(
   if (!options?.startFromConnectionStep) {
     const visible = await moveWizardToConnectionStep(page, options);
     if (!visible) {
-      return;
+      throw new Error("Setup wizard did not appear before quickstart onboarding could run.");
     }
   }
   const setupWizard = wizard(page);

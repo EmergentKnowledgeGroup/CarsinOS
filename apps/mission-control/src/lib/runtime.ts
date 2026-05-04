@@ -157,9 +157,6 @@ export async function getGatewayToken(): Promise<string | null> {
     return envToken;
   }
   clearLegacyGatewayTokenFallback();
-  if (envToken) {
-    return envToken;
-  }
   if (browserGatewayToken) {
     return browserGatewayToken;
   }
@@ -169,7 +166,7 @@ export async function getGatewayToken(): Promise<string | null> {
       return storedToken.trim();
     }
   }
-  return null;
+  return envToken;
 }
 
 export async function isGatewayTokenConfigured(): Promise<boolean> {
@@ -185,14 +182,16 @@ export async function isGatewayTokenConfigured(): Promise<boolean> {
     return Boolean(envToken);
   }
   clearLegacyGatewayTokenFallback();
-  if (envToken || browserGatewayToken) {
+  if (browserGatewayToken) {
     return true;
   }
   if (isE2ESessionTokenStorageEnabled()) {
     const storedToken = window.sessionStorage.getItem(TOKEN_KEY_FALLBACK);
-    return Boolean(storedToken && storedToken.trim().length > 0);
+    if (storedToken && storedToken.trim().length > 0) {
+      return true;
+    }
   }
-  return false;
+  return Boolean(envToken);
 }
 
 export interface SetupTokenLaunchResult {

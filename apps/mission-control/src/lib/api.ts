@@ -229,10 +229,14 @@ async function fetchWithTimeout(
   timeoutMs = API_REQUEST_TIMEOUT_MS,
   path = url
 ): Promise<Response> {
+  const normalizedTimeoutMs =
+    Number.isFinite(timeoutMs) && timeoutMs > 0
+      ? Math.max(1, Math.floor(timeoutMs))
+      : API_REQUEST_TIMEOUT_MS;
   const controller = new AbortController();
   const timeoutId = globalThis.setTimeout(() => {
     controller.abort();
-  }, timeoutMs);
+  }, normalizedTimeoutMs);
   try {
     return await fetch(url, {
       ...init,
@@ -240,7 +244,7 @@ async function fetchWithTimeout(
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw createGatewayApiError(`Gateway request timed out after ${timeoutMs}ms.`, {
+      throw createGatewayApiError(`Gateway request timed out after ${normalizedTimeoutMs}ms.`, {
         kind: "timeout",
         path,
         cause: error,
@@ -1976,13 +1980,17 @@ export async function approveTelegramPairing(
   code: string,
   humanIdentityId?: string
 ): Promise<ResolveTelegramPairingResponse> {
+  const trimmedCode = code.trim();
+  if (!trimmedCode) {
+    throw new Error("Telegram pairing code is required.");
+  }
   return requestJson<ResolveTelegramPairingResponse>(
     settings,
     "/api/v1/channels/telegram/pairing/approve",
     {
       method: "POST",
       body: {
-        code,
+        code: trimmedCode,
         human_identity_id: humanIdentityId?.trim() ? humanIdentityId.trim() : undefined,
       },
     }
@@ -1994,13 +2002,17 @@ export async function denyTelegramPairing(
   code: string,
   humanIdentityId?: string
 ): Promise<ResolveTelegramPairingResponse> {
+  const trimmedCode = code.trim();
+  if (!trimmedCode) {
+    throw new Error("Telegram pairing code is required.");
+  }
   return requestJson<ResolveTelegramPairingResponse>(
     settings,
     "/api/v1/channels/telegram/pairing/deny",
     {
       method: "POST",
       body: {
-        code,
+        code: trimmedCode,
         human_identity_id: humanIdentityId?.trim() ? humanIdentityId.trim() : undefined,
       },
     }
@@ -2021,13 +2033,17 @@ export async function approveDiscordPairing(
   code: string,
   humanIdentityId?: string
 ): Promise<ResolveDiscordPairingResponse> {
+  const trimmedCode = code.trim();
+  if (!trimmedCode) {
+    throw new Error("Discord pairing code is required.");
+  }
   return requestJson<ResolveDiscordPairingResponse>(
     settings,
     "/api/v1/channels/discord/pairing/approve",
     {
       method: "POST",
       body: {
-        code,
+        code: trimmedCode,
         human_identity_id: humanIdentityId?.trim() ? humanIdentityId.trim() : undefined,
       },
     }
@@ -2039,13 +2055,17 @@ export async function denyDiscordPairing(
   code: string,
   humanIdentityId?: string
 ): Promise<ResolveDiscordPairingResponse> {
+  const trimmedCode = code.trim();
+  if (!trimmedCode) {
+    throw new Error("Discord pairing code is required.");
+  }
   return requestJson<ResolveDiscordPairingResponse>(
     settings,
     "/api/v1/channels/discord/pairing/deny",
     {
       method: "POST",
       body: {
-        code,
+        code: trimmedCode,
         human_identity_id: humanIdentityId?.trim() ? humanIdentityId.trim() : undefined,
       },
     }

@@ -1,4 +1,4 @@
-import { expect, test } from "./testHarness";
+import { expect, test, type Page } from "./testHarness";
 import { completeQuickstartLocalOnboarding } from "./onboardingFlow";
 
 async function enableConnectors(page: Page): Promise<void> {

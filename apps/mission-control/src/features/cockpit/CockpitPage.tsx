@@ -322,11 +322,10 @@ export function CockpitPage(props: CockpitPageProps) {
 
         {hasWidgets ? (
           <CockpitCanvas
-            key={`${props.activeCockpitPage.page_id}-${
-              props.isActive ? "active" : "hidden"
-            }-${props.editMode ? "edit" : "view"}`}
+            key={props.activeCockpitPage.page_id}
             widgets={visibleWidgets}
             editMode={props.editMode}
+            isActive={Boolean(props.isActive)}
             onLayoutChange={props.onLayoutChange}
           >
             {visibleWidgets.map((widget) => (

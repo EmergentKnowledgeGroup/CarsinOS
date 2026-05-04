@@ -235,10 +235,12 @@ export function AssistantChatPage(props: AssistantChatPageProps) {
           <button
             type="button"
             className="ghost"
-            onClick={() => void c.injectCorePrompt()}
-            disabled={c.busy}
+            onClick={() =>
+              void (c.corePromptDirty ? c.saveCorePrompt() : c.injectCorePrompt())
+            }
+            disabled={c.busy || c.corePromptLoading || c.corePromptSaving}
           >
-            {c.corePromptDirty ? "Save Shared Prompt" : "Prompt Applies Automatically"}
+            {c.corePromptDirty ? "Save Shared Prompt" : "Inject Core Prompt"}
           </button>
           <span className="chip">
             {c.sessionMode === "pinned_session" ? "view: pinned transcript" : "view: live lane"}

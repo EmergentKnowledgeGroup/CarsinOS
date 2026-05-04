@@ -174,13 +174,19 @@ function renderCockpitWidget(
 /** Active tab keeps its own flex column layout; inactive tabs are hidden. */
 function TabPane({
   active,
+  tab,
   children,
 }: {
   active: boolean;
+  tab: MissionControlTab;
   children: ReactNode;
 }) {
   return (
-    <div className="mc-tab-pane" style={{ display: active ? "flex" : "none" }}>
+    <div
+      className="mc-tab-pane"
+      data-active-tab={tab}
+      style={{ display: active ? "flex" : "none" }}
+    >
       {children}
     </div>
   );
@@ -210,7 +216,7 @@ function TabBoundaryPane({
   children: ReactNode;
 }) {
   return (
-    <TabPane active={active}>
+    <TabPane active={active} tab={tab}>
       <AppErrorBoundary
         scope="tab"
         title={title}

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, type ReactNode } from "react";
 import {
   Compass,
   ExternalLink,
@@ -93,7 +93,7 @@ const TAB_FOR_SECTION: Partial<Record<SectionId, MissionControlTab>> = {
 
 /* ── Reusable doc primitives ──────────────────────────────────────────── */
 
-function Tip({ children }: { children: React.ReactNode }) {
+function Tip({ children }: { children: ReactNode }) {
   return (
     <aside className="mc-docs-callout mc-docs-callout-tip">
       <Lightbulb size={14} aria-hidden />
@@ -102,7 +102,7 @@ function Tip({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Caution({ children }: { children: React.ReactNode }) {
+function Caution({ children }: { children: ReactNode }) {
   return (
     <aside className="mc-docs-callout mc-docs-callout-caution">
       <AlertTriangle size={14} aria-hidden />
@@ -724,7 +724,7 @@ function TroubleshootingDocs({ onOpenTab }: { onOpenTab: (t: MissionControlTab) 
 
 /* ── Section icon map ─────────────────────────────────────────────────── */
 
-const SECTION_ICON: Record<SectionId, React.ReactNode> = {
+const SECTION_ICON: Record<SectionId, ReactNode> = {
   "getting-started": <Compass size={16} />,
   boards: <Kanban size={16} />,
   calendar: <CalendarDays size={16} />,
@@ -746,7 +746,7 @@ const SECTION_ICON: Record<SectionId, React.ReactNode> = {
 
 const SECTION_CONTENT: Record<
   SectionId,
-  (props: HelpDocsPageProps & { onOpenTab: (t: MissionControlTab) => void }) => React.ReactNode
+  (props: HelpDocsPageProps & { onOpenTab: (t: MissionControlTab) => void }) => ReactNode
 > = {
   "getting-started": (p) => <GettingStarted {...p} />,
   boards: (p) => <BoardsDocs onOpenTab={p.onOpenTab} />,

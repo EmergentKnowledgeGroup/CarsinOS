@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -18,8 +19,6 @@ import RGLModule from "react-grid-layout";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
-const GridLayout = RGLModule as unknown as React.ComponentType<Record<string, unknown>>;
-
 interface LayoutItem {
   i: string;
   x: number;
@@ -30,9 +29,33 @@ interface LayoutItem {
   minH?: number;
 }
 
+interface GridLayoutProps {
+  className: string;
+  layout: LayoutItem[];
+  width: number;
+  cols: number;
+  rowHeight: number;
+  margin: [number, number];
+  containerPadding: [number, number];
+  isDraggable: boolean;
+  isResizable: boolean;
+  isBounded: boolean;
+  preventCollision: boolean;
+  useCSSTransforms: boolean;
+  resizeHandles: string[];
+  draggableCancel: string;
+  compactType: null;
+  onDragStop: (layout: LayoutItem[]) => void;
+  onResizeStop: (layout: LayoutItem[]) => void;
+  children: ReactNode;
+}
+
+const GridLayout = RGLModule as unknown as React.ComponentType<GridLayoutProps>;
+
 interface CockpitCanvasProps {
   widgets: CockpitWidgetLayoutV2[];
   editMode: boolean;
+  isActive: boolean;
   onLayoutChange: (layout: LayoutItem[]) => void;
   children: ReactNode;
 }
@@ -40,32 +63,42 @@ interface CockpitCanvasProps {
 export function CockpitCanvas({
   widgets,
   editMode,
+  isActive,
   onLayoutChange,
   children,
 }: CockpitCanvasProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerWidth, setContainerWidth] = useState(1200);
 
+  const measureContainer = useCallback(() => {
+    const element = containerRef.current;
+    if (!element) {
+      return;
+    }
+    const nextWidth = Math.max(640, Math.round(element.clientWidth));
+    setContainerWidth((prev) => (prev === nextWidth ? prev : nextWidth));
+  }, []);
+
   useEffect(() => {
     const element = containerRef.current;
     if (!element) {
       return;
     }
-    const measure = () => {
-      const nextWidth = Math.max(640, Math.round(element.clientWidth));
-      setContainerWidth((prev) => (prev === nextWidth ? prev : nextWidth));
-    };
-    measure();
+    measureContainer();
     const observer = new ResizeObserver(() => {
-      measure();
+      measureContainer();
     });
     observer.observe(element);
-    window.addEventListener("resize", measure);
+    window.addEventListener("resize", measureContainer);
     return () => {
       observer.disconnect();
-      window.removeEventListener("resize", measure);
+      window.removeEventListener("resize", measureContainer);
     };
-  }, []);
+  }, [measureContainer]);
+
+  useEffect(() => {
+    measureContainer();
+  }, [editMode, isActive, measureContainer]);
 
   const layout = useMemo(() => {
     return widgets.map((w) => {

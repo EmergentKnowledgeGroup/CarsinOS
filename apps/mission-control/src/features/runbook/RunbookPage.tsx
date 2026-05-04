@@ -28,7 +28,6 @@ import type {
 } from "../../types";
 import { formatDateTime, formatRelative } from "../../utils/datetime";
 import {
-  RUNBOOK_HISTORY_PREVIEW_LIMIT,
   RUNBOOK_KIND_OPTIONS,
   RUNBOOK_STATUS_OPTIONS,
 } from "./runbookConfig";
@@ -336,7 +335,7 @@ export function RunbookPage({ controller, agents, onOpenDeepLink }: RunbookPageP
 
   /* ── History pagination ── */
   const historyItems = detail
-    ? detail.history.slice(-RUNBOOK_HISTORY_PREVIEW_LIMIT).reverse()
+    ? detail.history.slice().reverse()
     : [];
   const totalHistoryPages = Math.max(1, Math.ceil(historyItems.length / HISTORY_PER_PAGE));
   const safeHistoryPage = Math.min(historyPage, totalHistoryPages - 1);

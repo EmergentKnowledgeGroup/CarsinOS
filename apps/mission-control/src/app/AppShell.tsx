@@ -217,7 +217,13 @@ export function AppShell(props: AppShellProps) {
     setGwUrlHistory(getGatewayUrlHistory());
     void props.onSaveConnection();
     setSettingsOpen(false);
+    setSettingsFocusTarget(null);
   };
+
+  const closeSettings = useCallback(() => {
+    setSettingsOpen(false);
+    setSettingsFocusTarget(null);
+  }, []);
 
   const handleOpenGuidedTourFromSettings = useCallback(() => {
     setSettingsOpen(false);
@@ -532,11 +538,11 @@ export function AppShell(props: AppShellProps) {
 
       {/* ── SETTINGS MODAL ── */}
       {settingsOpen ? (
-        <div className="mc-modal-overlay mc-settings-overlay" onClick={() => setSettingsOpen(false)}>
+        <div className="mc-modal-overlay mc-settings-overlay" onClick={closeSettings}>
           <div className="mc-modal mc-settings-modal" onClick={(e) => e.stopPropagation()}>
             <div className="mc-modal-header">
               <h2>Settings</h2>
-              <button type="button" className="mc-topbar-icon-btn" onClick={() => setSettingsOpen(false)}>
+              <button type="button" className="mc-topbar-icon-btn" onClick={closeSettings}>
                 <X size={18} />
               </button>
             </div>

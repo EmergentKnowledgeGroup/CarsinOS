@@ -554,15 +554,15 @@ body::before {
 .mc-live-feed-toggle-unavailable {
   opacity: 0.68;
   border-style: dashed;
-  border-color: color-mix(in srgb, var(--warning) 45%, transparent);
-  background: color-mix(in srgb, var(--surface-2) 75%, var(--warning) 8%);
+  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+  background: color-mix(in srgb, var(--surface-2) 75%, var(--warn) 8%);
 }
 
 .mc-live-feed-toggle-unavailable:hover,
 .mc-live-feed-toggle-unavailable:focus-visible {
   opacity: 1;
-  border-color: color-mix(in srgb, var(--warning) 70%, transparent);
-  background: color-mix(in srgb, var(--surface-2) 55%, var(--warning) 14%);
+  border-color: color-mix(in srgb, var(--warn) 70%, transparent);
+  background: color-mix(in srgb, var(--surface-2) 55%, var(--warn) 14%);
 }
 
 .mc-live-feed-toggle-active {
@@ -1539,7 +1539,8 @@ button.danger:hover {
   grid-area: title;
   min-width: 0;
   white-space: normal;
-  word-break: break-word;
+  overflow-wrap: anywhere;
+  word-break: normal;
 }
 
 .mc-cockpit-widget-editing .mc-widget-remove-btn {
@@ -1662,7 +1663,7 @@ button.danger:hover {
   padding: 0.34rem 0.45rem;
   border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--bg-elevated) 82%, transparent);
+  background: color-mix(in srgb, var(--surface-2) 82%, transparent);
   pointer-events: none;
   box-shadow: var(--shadow-sm);
 }

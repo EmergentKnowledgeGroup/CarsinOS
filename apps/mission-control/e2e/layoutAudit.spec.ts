@@ -27,7 +27,9 @@ test("audit desktop tab overflow", async ({ page }) => {
   const results: Array<Record<string, unknown>> = [];
   for (const item of MISSION_CONTROL_TABS) {
     await page.locator(`[data-tour-id="nav-${item.tab}"]`).click();
-    await page.waitForTimeout(250);
+    await expect(
+      page.locator(`.mc-tab-pane[data-active-tab="${item.tab}"]`)
+    ).toBeVisible();
     const metrics = await page.locator(".mc-content-area").evaluate((node) => {
       const area = node as HTMLElement;
       const root = document.documentElement;

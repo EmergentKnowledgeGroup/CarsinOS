@@ -587,9 +587,13 @@ export function StrategyPage({
 
   return (
     <section className="mc-strategy-page" data-testid="strategy-page">
-      <div className="mc-page-section-tabs" aria-label="Strategy sections">
+      <div className="mc-page-section-tabs" aria-label="Strategy sections" role="tablist">
         <button
           type="button"
+          id="strategy-tab-overview"
+          role="tab"
+          aria-selected={activeSection === "overview"}
+          aria-controls="strategy-panel-overview"
           className={`mc-page-section-btn${activeSection === "overview" ? " mc-page-section-btn-active" : ""}`}
           onClick={() => setActiveSection("overview")}
         >
@@ -597,6 +601,10 @@ export function StrategyPage({
         </button>
         <button
           type="button"
+          id="strategy-tab-plan"
+          role="tab"
+          aria-selected={activeSection === "plan"}
+          aria-controls="strategy-panel-plan"
           className={`mc-page-section-btn${activeSection === "plan" ? " mc-page-section-btn-active" : ""}`}
           onClick={() => setActiveSection("plan")}
         >
@@ -604,6 +612,10 @@ export function StrategyPage({
         </button>
         <button
           type="button"
+          id="strategy-tab-tasks"
+          role="tab"
+          aria-selected={activeSection === "tasks"}
+          aria-controls="strategy-panel-tasks"
           className={`mc-page-section-btn${activeSection === "tasks" ? " mc-page-section-btn-active" : ""}`}
           onClick={() => setActiveSection("tasks")}
         >
@@ -611,6 +623,10 @@ export function StrategyPage({
         </button>
         <button
           type="button"
+          id="strategy-tab-detail"
+          role="tab"
+          aria-selected={activeSection === "detail"}
+          aria-controls="strategy-panel-detail"
           className={`mc-page-section-btn${activeSection === "detail" ? " mc-page-section-btn-active" : ""}`}
           onClick={() => setActiveSection("detail")}
         >
@@ -618,6 +634,10 @@ export function StrategyPage({
         </button>
         <button
           type="button"
+          id="strategy-tab-insights"
+          role="tab"
+          aria-selected={activeSection === "insights"}
+          aria-controls="strategy-panel-insights"
           className={`mc-page-section-btn${activeSection === "insights" ? " mc-page-section-btn-active" : ""}`}
           onClick={() => setActiveSection("insights")}
         >
@@ -626,7 +646,12 @@ export function StrategyPage({
       </div>
 
       {activeSection === "overview" ? (
-        <div className="mc-strategy-summary-strip">
+        <div
+          className="mc-strategy-summary-strip"
+          id="strategy-panel-overview"
+          role="tabpanel"
+          aria-labelledby="strategy-tab-overview"
+        >
           <SummaryCard
             icon={<ShieldAlert size={14} />}
             label="Blocked Work"
@@ -749,7 +774,12 @@ export function StrategyPage({
       ) : null}
 
       {activeSection === "plan" ? (
-        <div className="mc-page-section-shell">
+        <div
+          className="mc-page-section-shell"
+          id="strategy-panel-plan"
+          role="tabpanel"
+          aria-labelledby="strategy-tab-plan"
+        >
         <Surface
           className="mc-strategy-nav"
           title="Goals + Projects"
@@ -882,7 +912,12 @@ export function StrategyPage({
       ) : null}
 
       {activeSection === "tasks" ? (
-        <div className="mc-page-section-shell">
+        <div
+          className="mc-page-section-shell"
+          id="strategy-panel-tasks"
+          role="tabpanel"
+          aria-labelledby="strategy-tab-tasks"
+        >
         <Surface
           className="mc-strategy-list"
           title="Tasks"
@@ -1108,7 +1143,12 @@ export function StrategyPage({
       ) : null}
 
       {activeSection === "detail" ? (
-        <div className="mc-page-section-shell">
+        <div
+          className="mc-page-section-shell"
+          id="strategy-panel-detail"
+          role="tabpanel"
+          aria-labelledby="strategy-tab-detail"
+        >
         <Surface
           className="mc-strategy-detail"
           title={
@@ -1459,7 +1499,12 @@ export function StrategyPage({
       ) : null}
 
       {activeSection === "insights" ? (
-        <div className="mc-page-section-shell">
+        <div
+          className="mc-page-section-shell"
+          id="strategy-panel-insights"
+          role="tabpanel"
+          aria-labelledby="strategy-tab-insights"
+        >
       <div className="mc-strategy-insights-grid">
         <Surface title="Spend by Agent" subtitle="Execution cost attributed to managed work.">
           <div className="mc-strategy-metric-list">

@@ -544,7 +544,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
         });
         const modelIds = response.items.map((item) => item.model_id);
         if (cloudModelRequestSeqRef.current !== requestSeq) {
-          return modelIds;
+          return [];
         }
         setCloudModelOptions(modelIds);
         setCloudModelId((current) => pickCatalogModel(current, modelIds));
@@ -1587,6 +1587,9 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
         const existing = await getAgentProviderProfileOrder(settings, targetAgent, providerPath);
         const nextOrder = reorderProfileFirst(existing.profile_ids, profileId);
         await setAgentProviderProfileOrder(settings, targetAgent, providerPath, nextOrder);
+        if (draftProviderProfileId === profileId) {
+          setDraftProviderProfileId(null);
+        }
       }
       const runtime = await getRuntimeConfig(settings);
       const nextRouting = applyOnboardingLaneRouting(runtime.config.routing, targetAgent);
@@ -1604,6 +1607,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   }, [
     agentIdDraft,
     clearError,
+    draftProviderProfileId,
     loadBaseline,
     providerPath,
     providerProfileId,

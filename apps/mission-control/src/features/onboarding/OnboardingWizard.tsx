@@ -223,7 +223,7 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
                 label: "Set up Discord or Telegram",
                 description: "Open the simple integration wizard next.",
                 onClick: () => {
-                  c.dismissWizard();
+                  c.completeAndExitTo("connectors");
                   props.onOpenSimpleIntegrationWizard();
                 },
               },

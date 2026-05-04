@@ -156,7 +156,10 @@ function buildRuntimeBackedStatus(
     };
   }
 
-  if (proofState === "roundtrip_confirmed") {
+  if (
+    proofState === "roundtrip_confirmed" &&
+    (sessionState === "gateway_connected" || sessionState === "listening")
+  ) {
     return {
       id: definition.id,
       displayName: definition.displayName,
