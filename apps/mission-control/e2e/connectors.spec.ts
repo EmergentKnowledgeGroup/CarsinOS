@@ -1,8 +1,9 @@
 import { expect, test, type Page } from "./testHarness";
-import { completeQuickstartLocalOnboarding } from "./onboardingFlow";
+import { clickAdvancedNav, completeQuickstartLocalOnboarding } from "./onboardingFlow";
 
 async function enableConnectors(page: Page): Promise<void> {
   await page.locator('[data-tour-id="nav-config"]').click();
+  await page.getByText("2. Choose what pages show").click();
   await page.getByRole("checkbox", { name: "Connectors page" }).check();
   await page.keyboard.press("Escape");
 }
@@ -20,7 +21,7 @@ test.describe("mission-control connectors registry", () => {
     });
 
     await enableConnectors(page);
-    await page.locator('[data-tour-id="nav-connectors"]').click();
+    await clickAdvancedNav(page, "connectors");
 
     await page
       .locator(".mc-connectors-quick-card", { hasText: "Discord" })
@@ -31,7 +32,7 @@ test.describe("mission-control connectors registry", () => {
       page.getByRole("dialog", { name: "Simple Integration Setup" })
     ).toBeVisible();
     await page.getByLabel("Discord bot token").fill("discord-test-token");
-    await page.getByLabel("Agent that should answer").selectOption("lyra");
+    await page.getByLabel("Agent that should answer").selectOption("default");
     await page.getByRole("button", { name: "Save + check connection" }).click();
 
     await expect(
@@ -60,8 +61,7 @@ test.describe("mission-control connectors registry", () => {
 
     await enableConnectors(page);
 
-    await expect(page.locator('[data-tour-id="nav-connectors"]')).toBeVisible();
-    await page.locator('[data-tour-id="nav-connectors"]').click();
+    await clickAdvancedNav(page, "connectors");
     await expect(page.getByTestId("connectors-page")).toBeVisible();
     await page.getByRole("button", { name: /^Import$/ }).click();
 
@@ -113,9 +113,11 @@ test.describe("mission-control connectors registry", () => {
     ).toBeVisible();
 
     await page.getByRole("button", { name: "Auth" }).click();
-    await page.getByTestId("connectors-assignment-agent").selectOption("lyra");
+    await page.getByTestId("connectors-assignment-agent").selectOption("default");
     await page.getByTestId("connectors-assignment-submit").click();
-    await expect(page.locator(".mc-connectors-list-row", { hasText: "Lyra" }).first()).toBeVisible();
+    await expect(
+      page.locator(".mc-connectors-list-row", { hasText: "Local Assistant" }).first()
+    ).toBeVisible();
 
     await page.getByTestId("connectors-auth-secret-ref").fill("secrets/connectors/github-ops");
     await page.getByTestId("connectors-auth-binding-submit").click();
