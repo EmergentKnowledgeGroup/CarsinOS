@@ -93,6 +93,23 @@ fn seed_default_entities(db_path: &Path) -> Result<()> {
         .map(|path| path.display().to_string())
         .unwrap_or_else(|_| ".".to_string());
 
+    tx.execute(
+        r#"
+        UPDATE agents
+        SET reports_to_agent_id = NULL,
+            archived_at = ?1,
+            updated_at = ?1
+        WHERE archived_at IS NULL
+          AND agent_id IN ('lyra', 'claude')
+          AND name IN ('Lyra', 'Claude')
+          AND model_provider = 'mock'
+          AND model_id = 'mock-echo-v1'
+          AND tool_profile = 'default'
+        "#,
+        params![now],
+    )
+    .context("failed to archive legacy seeded agents")?;
+
     for (agent_id, name) in [("default", "Default Agent")] {
         tx.execute(
             r#"
@@ -7559,6 +7576,7 @@ fn get_agent_with_conn(conn: &Connection, agent_id: &str) -> Result<Option<Agent
           created_at, updated_at
         FROM agents
         WHERE agent_id = ?1
+          AND archived_at IS NULL
         "#,
     )?;
     Ok(stmt
@@ -9578,6 +9596,60 @@ mod tests {
     }
 
     #[test]
+    fn seed_default_entities_archives_legacy_seeded_agents_on_upgrade() {
+        let temp_dir = TempDir::new().expect("tempdir");
+        let paths = AppPaths::from_root(temp_dir.path().to_path_buf());
+        ensure_dirs(&paths).expect("dirs");
+        migrate(&paths.db_path).expect("migrate");
+        let conn = open_sqlite_connection(&paths.db_path).expect("open db");
+        let now = now_ms();
+        for (agent_id, name) in [("lyra", "Lyra"), ("claude", "Claude")] {
+            conn.execute(
+                r#"
+                INSERT INTO agents (
+                  agent_id, name, workspace_root, model_provider, model_id,
+                  tool_profile, created_at, updated_at
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+                "#,
+                params![
+                    agent_id,
+                    name,
+                    ".",
+                    "mock",
+                    "mock-echo-v1",
+                    "default",
+                    now,
+                    now
+                ],
+            )
+            .expect("insert legacy seeded agent");
+        }
+        drop(conn);
+
+        seed_default_entities(&paths.db_path).expect("seed defaults");
+        let storage = Storage::from_paths(&paths);
+        let agents = storage.list_agents().expect("list agents");
+        assert!(agents.iter().any(|agent| agent.agent_id == "default"));
+        assert!(!agents.iter().any(|agent| agent.agent_id == "lyra"));
+        assert!(!agents.iter().any(|agent| agent.agent_id == "claude"));
+
+        let conn = open_sqlite_connection(&paths.db_path).expect("reopen db");
+        let archived_count: i64 = conn
+            .query_row(
+                r#"
+                SELECT COUNT(1)
+                FROM agents
+                WHERE agent_id IN ('lyra', 'claude')
+                  AND archived_at IS NOT NULL
+                "#,
+                [],
+                |row| row.get(0),
+            )
+            .expect("count archived legacy agents");
+        assert_eq!(archived_count, 2);
+    }
+
+    #[test]
     fn session_message_run_lifecycle_updates_counts() {
         let (_temp_dir, storage) = test_storage();
         let session = storage
@@ -10716,6 +10788,22 @@ mod tests {
                 title: Some("Should fail".to_string()),
             })
             .is_err());
+        let updated_archived = storage
+            .update_agent(
+                &created.agent_id,
+                AgentUpdatePatch {
+                    name: Some("Still Hidden".to_string()),
+                    workspace_root: None,
+                    model_provider: None,
+                    model_id: None,
+                    tool_profile: None,
+                    reports_to_agent_id: None,
+                    role_label: None,
+                    memory_binding: None,
+                },
+            )
+            .expect("update archived agent");
+        assert!(updated_archived.is_none());
     }
 
     #[test]

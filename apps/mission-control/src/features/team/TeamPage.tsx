@@ -493,16 +493,16 @@ export function TeamPage({
   const setHumanAssignment = useCallback(
     (humanIdentityId: string, assistantAgentId: string) => {
       patchRoutingDraft((next) => {
-        next.enabled = true;
-        if (!next.local_operator_human_identity_id?.trim()) {
-          next.local_operator_human_identity_id = humanIdentityId;
-        }
         next.assistant_assignments = next.assistant_assignments.filter(
           (item) => item.human_identity_id !== humanIdentityId
         );
         const normalizedAssistantAgentId = assistantAgentId.trim();
         if (!normalizedAssistantAgentId) {
           return;
+        }
+        next.enabled = true;
+        if (!next.local_operator_human_identity_id?.trim()) {
+          next.local_operator_human_identity_id = humanIdentityId;
         }
         next.assistant_assignments.push({
           human_identity_id: humanIdentityId,
@@ -1105,6 +1105,9 @@ export function TeamPage({
 
   const handleRemoveAgent = useCallback(
     async (agent: Agent) => {
+      if (deletingAgentId !== null) {
+        return;
+      }
       if (!settings.gateway_url.trim()) {
         setRoutingNotice({
           tone: "error",
@@ -1154,7 +1157,7 @@ export function TeamPage({
         setDeletingAgentId(null);
       }
     },
-    [loadRoutingConfig, refreshAll, routingConfig, settings]
+    [deletingAgentId, loadRoutingConfig, refreshAll, routingConfig, settings]
   );
 
   const exportPreset = useCallback(
@@ -1966,10 +1969,10 @@ export function TeamPage({
                       "mc-btn",
                       "mc-btn-sm",
                       "mc-btn-danger",
-                      deletingAgentId === agent.agent_id && "mc-btn-loading"
+                      deletingAgentId !== null && "mc-btn-loading"
                     )}
                     onClick={() => void handleRemoveAgent(agent)}
-                    disabled={deletingAgentId === agent.agent_id}
+                    disabled={deletingAgentId !== null}
                   >
                     <Trash2 size={14} />
                     Remove
