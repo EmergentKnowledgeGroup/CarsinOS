@@ -131,18 +131,14 @@ class CodexCliManager {
     ];
     const env = { ...process.env };
     if (input.codexHome) env.CODEX_HOME = path.resolve(String(input.codexHome));
+    const stdout = fs.createWriteStream(stdoutPath, { flags: "a" });
+    const stderr = fs.createWriteStream(stderrPath, { flags: "a" });
     const child = spawn(this.codexBin, [...this.codexArgsPrefix, ...args], {
       cwd,
       env,
       windowsHide: true,
       stdio: ["pipe", "pipe", "pipe"],
     });
-    const stdout = fs.createWriteStream(stdoutPath, { flags: "a" });
-    const stderr = fs.createWriteStream(stderrPath, { flags: "a" });
-    child.stdout.pipe(stdout);
-    child.stderr.pipe(stderr);
-    child.stdin.end(prompt);
-
     const startedAt = nowIso();
     const base = {
       sessionId,
@@ -158,22 +154,60 @@ class CodexCliManager {
       finalPath,
       metaPath,
     };
+    let settled = false;
+    const finish = (patch) => {
+      if (settled) return;
+      settled = true;
+      const endedAt = nowIso();
+      const next = {
+        sessionId,
+        endedAt,
+        updatedAt: endedAt,
+        ...patch,
+      };
+      this.upsertSession(next);
+      const currentMeta = fs.existsSync(metaPath)
+        ? JSON.parse(fs.readFileSync(metaPath, "utf8"))
+        : base;
+      fs.writeFileSync(
+        metaPath,
+        JSON.stringify(redact({ ...currentMeta, ...next }), null, 2) + "\n",
+        "utf8"
+      );
+      this.processes.delete(sessionId);
+      if (!stdout.writableEnded) stdout.end();
+      if (!stderr.writableEnded) stderr.end();
+    };
+    child.on("error", (error) => {
+      finish({
+        status: "failed",
+        exitCode: null,
+        signal: null,
+        error: String(error?.message || error),
+      });
+    });
+    child.stdin.on("error", () => {});
+    child.stdout.pipe(stdout);
+    child.stderr.pipe(stderr);
+    try {
+      child.stdin.end(prompt);
+    } catch (error) {
+      finish({
+        status: "failed",
+        exitCode: null,
+        signal: null,
+        error: String(error?.message || error),
+      });
+    }
     fs.writeFileSync(metaPath, JSON.stringify(redact({ ...base, args }), null, 2) + "\n", "utf8");
     this.upsertSession(base);
     this.processes.set(sessionId, child);
     child.on("exit", (code, signal) => {
-      const endedAt = nowIso();
-      this.upsertSession({
-        sessionId,
+      finish({
         status: code === 0 ? "succeeded" : "failed",
         exitCode: code,
         signal,
-        endedAt,
-        updatedAt: endedAt,
       });
-      this.processes.delete(sessionId);
-      stdout.end();
-      stderr.end();
     });
     return this.readSession(sessionId, 12000);
   }

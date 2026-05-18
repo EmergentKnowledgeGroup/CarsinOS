@@ -31,6 +31,24 @@ test("manager rejects path traversal session ids", () => {
   const root = tmpRoot();
   const manager = new CodexCliManager({ root, allowedRoots: [root] });
   assert.throws(() => manager.sessionDir("..\\bad"), /sessionId must match/);
+  assert.throws(() => manager.sessionDir("../bad"), /sessionId must match/);
+});
+
+test("manager records failed status when codex binary cannot spawn", async () => {
+  const root = tmpRoot();
+  const workspace = path.join(root, "workspace");
+  fs.mkdirSync(workspace, { recursive: true });
+  const manager = new CodexCliManager({
+    root,
+    codexBin: path.join(root, "missing-codex-bin.exe"),
+    allowedRoots: [root],
+  });
+  const started = manager.startExec({ sessionId: "missing-bin", cwd: workspace, prompt: "hi" });
+  assert.equal(started.status, "running");
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  const read = manager.readSession("missing-bin");
+  assert.equal(read.status, "failed");
+  assert.match(read.error, /ENOENT|spawn/i);
 });
 
 test("manager captures fake codex exec output and final text", async () => {

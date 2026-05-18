@@ -2603,14 +2603,14 @@ function buildMissionControlUsage(requestUrl) {
   const tokenOutputTotal = window === "today" ? 7_420 : 31_000;
   const byAgent = [
     {
-      agent_id: "default",
+      agent_id: "local-assistant",
       agent_name: "Local Assistant",
       estimated_cost_total: Number((estimatedCostTotal * 0.62).toFixed(4)),
       token_input_total: Math.round(tokenInputTotal * 0.6),
       token_output_total: Math.round(tokenOutputTotal * 0.58),
     },
     {
-      agent_id: "default",
+      agent_id: "default-agent",
       agent_name: "Default Agent",
       estimated_cost_total: Number((estimatedCostTotal * 0.38).toFixed(4)),
       token_input_total: Math.round(tokenInputTotal * 0.4),

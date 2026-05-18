@@ -10,15 +10,51 @@ const RUNTIME_ROOT = path.resolve(process.env.CODEX_BRIDGE_RUNTIME_ROOT || path.
 const cli = new CodexCliManager({ root: RUNTIME_ROOT });
 const app = new CodexAppBridge({ logsDir: path.join(RUNTIME_ROOT, "codex-app") });
 
-function json(res, status, body) {
-  res.writeHead(status, {
+const DEFAULT_MAX_BYTES = 65536;
+const MAX_MAX_BYTES = 512000;
+
+function isLoopbackOrigin(origin) {
+  if (!origin) return true;
+  try {
+    const url = new URL(origin);
+    return ["localhost", "127.0.0.1", "::1", "[::1]"].includes(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function boundedInt(value, fallback, min, max) {
+  if (value == null || value === "") return fallback;
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, Math.floor(number)));
+}
+
+function corsOrigin(req, allowAnyOrigin) {
+  if (allowAnyOrigin) return "*";
+  const origin = String(req.headers.origin || "");
+  return isLoopbackOrigin(origin) && origin ? origin : "http://127.0.0.1";
+}
+
+function json(req, res, status, body, options = {}) {
+  const allowAnyOrigin = options.allowAnyOrigin !== false;
+  const headers = {
     "content-type": "application/json; charset=utf-8",
-    "access-control-allow-origin": "*",
+    "access-control-allow-origin": corsOrigin(req, allowAnyOrigin),
     "access-control-allow-methods": "GET,POST,OPTIONS",
-    "access-control-allow-headers": "content-type",
+    "access-control-allow-headers": "content-type,authorization",
     "cache-control": "no-store",
-  });
+  };
+  if (!allowAnyOrigin) {
+    headers.vary = "Origin";
+  }
+  res.writeHead(status, headers);
   res.end(JSON.stringify(body, null, 2));
+}
+
+function rejectUnsafeMutationOrigin(req) {
+  const origin = String(req.headers.origin || "");
+  return origin && !isLoopbackOrigin(origin);
 }
 
 function readBody(req) {
@@ -45,11 +81,22 @@ function readBody(req) {
 }
 
 async function route(req, res) {
-  if (req.method === "OPTIONS") return json(res, 204, {});
+  const requestedMethod = String(req.headers["access-control-request-method"] || "");
+  if (
+    req.method === "OPTIONS" &&
+    requestedMethod.toUpperCase() === "POST" &&
+    rejectUnsafeMutationOrigin(req)
+  ) {
+    return json(req, res, 403, { ok: false, error: "forbidden origin" }, { allowAnyOrigin: false });
+  }
+  if (req.method === "OPTIONS") return json(req, res, 204, {});
+  if (req.method === "POST" && rejectUnsafeMutationOrigin(req)) {
+    return json(req, res, 403, { ok: false, error: "forbidden origin" }, { allowAnyOrigin: false });
+  }
   const url = new URL(req.url, `http://${req.headers.host || "127.0.0.1"}`);
   try {
     if (req.method === "GET" && url.pathname === "/status") {
-      return json(res, 200, {
+      return json(req, res, 200, {
         ok: true,
         service: "carsinos-codex-bridge",
         root: ROOT,
@@ -58,45 +105,49 @@ async function route(req, res) {
       });
     }
     if (req.method === "GET" && url.pathname === "/codex-cli/sessions") {
-      return json(res, 200, { ok: true, items: cli.listSessions() });
+      return json(req, res, 200, { ok: true, items: cli.listSessions() });
     }
     if (req.method === "GET" && url.pathname.startsWith("/codex-cli/sessions/")) {
       const sessionId = decodeURIComponent(url.pathname.split("/").pop());
-      return json(res, 200, { ok: true, session: cli.readSession(sessionId, Number(url.searchParams.get("maxBytes")) || 65536) });
+      const maxBytes = boundedInt(url.searchParams.get("maxBytes"), DEFAULT_MAX_BYTES, 1, MAX_MAX_BYTES);
+      return json(req, res, 200, { ok: true, session: cli.readSession(sessionId, maxBytes) });
     }
     if (req.method === "POST" && url.pathname === "/codex-cli/exec") {
       const body = await readBody(req);
-      return json(res, 202, { ok: true, session: cli.startExec(body) });
+      return json(req, res, 202, { ok: true, session: cli.startExec(body) }, { allowAnyOrigin: false });
     }
     if (req.method === "POST" && url.pathname === "/codex-cli/window") {
       const body = await readBody(req);
-      return json(res, 202, { ok: true, session: cli.startInteractiveWindow(body) });
+      return json(req, res, 202, { ok: true, session: cli.startInteractiveWindow(body) }, { allowAnyOrigin: false });
     }
     if (req.method === "GET" && url.pathname === "/codex-app/status") {
-      return json(res, 200, { ok: true, status: app.status() });
+      return json(req, res, 200, { ok: true, status: app.status() });
     }
     if (req.method === "GET" && url.pathname === "/codex-app/threads") {
-      return json(res, 200, { ok: true, response: await app.listThreads(Number(url.searchParams.get("limit")) || 10) });
+      const limit = boundedInt(url.searchParams.get("limit"), 10, 1, 100);
+      return json(req, res, 200, { ok: true, response: await app.listThreads(limit) });
     }
     if (req.method === "GET" && url.pathname.startsWith("/codex-app/threads/")) {
       const threadId = decodeURIComponent(url.pathname.split("/").pop());
-      return json(res, 200, { ok: true, response: await app.readThread(threadId, url.searchParams.get("includeTurns") !== "false") });
+      return json(req, res, 200, { ok: true, response: await app.readThread(threadId, url.searchParams.get("includeTurns") !== "false") });
     }
     if (req.method === "POST" && url.pathname === "/codex-app/thread") {
       const body = await readBody(req);
-      return json(res, 202, { ok: true, response: await app.startThread(body) });
+      return json(req, res, 202, { ok: true, response: await app.startThread(body) }, { allowAnyOrigin: false });
     }
     if (req.method === "POST" && url.pathname === "/codex-app/turn") {
       const body = await readBody(req);
-      return json(res, 202, { ok: true, response: await app.runTurn(body) });
+      return json(req, res, 202, { ok: true, response: await app.runTurn(body) }, { allowAnyOrigin: false });
     }
     if (req.method === "POST" && url.pathname === "/codex-app/run") {
       const body = await readBody(req);
-      return json(res, 202, { ok: true, response: await app.startThreadAndRun(body) });
+      return json(req, res, 202, { ok: true, response: await app.startThreadAndRun(body) }, { allowAnyOrigin: false });
     }
-    return json(res, 404, { ok: false, error: "not found" });
+    return json(req, res, 404, { ok: false, error: "not found" });
   } catch (err) {
-    return json(res, 500, { ok: false, error: err.message || String(err) });
+    return json(req, res, 500, { ok: false, error: err.message || String(err) }, {
+      allowAnyOrigin: req.method !== "POST",
+    });
   }
 }
 

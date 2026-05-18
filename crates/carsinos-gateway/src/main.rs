@@ -19560,6 +19560,7 @@ const ASSISTANT_DESK_SESSION_SCAN_LIMIT: u32 = 500;
 const ASSISTANT_DESK_APPROVAL_SCAN_LIMIT: u32 = 200;
 const ASSISTANT_DESK_DONE_WINDOW_MS: i64 = 24 * 60 * 60 * 1_000;
 const ASSISTANT_DESK_TRANSCRIPT_EVENT_LIMIT: u32 = 100;
+const ASSISTANT_DESK_TRANSCRIPT_SCAN_LIMIT: u32 = 1_000;
 
 #[derive(Debug, Clone, Serialize)]
 struct AssistantDeskResponse {
@@ -19641,6 +19642,11 @@ struct AssistantDeskTranscriptResponse {
     artifacts: Vec<AssistantDeskTranscriptArtifactRef>,
 }
 
+#[derive(Debug, Deserialize)]
+struct AssistantDeskTranscriptQuery {
+    cursor: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 struct AssistantDeskTranscriptEvent {
     id: String,
@@ -19685,6 +19691,7 @@ async fn get_assistant_desk_transcript(
     headers: HeaderMap,
     State(state): State<AppState>,
     Path(work_item_id): Path<String>,
+    Query(query): Query<AssistantDeskTranscriptQuery>,
 ) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
     let auth = require_bearer_auth_with_error(&headers, &state)?;
     require_roles_with_audit(
@@ -19700,8 +19707,11 @@ async fn get_assistant_desk_transcript(
         "assistant_desk.transcript",
     )?;
 
-    let Some(response) = build_assistant_desk_transcript_response(&state, &work_item_id)
-        .map_err(|err| internal_err_with_error("building assistant desk transcript failed", err))?
+    let Some(response) =
+        build_assistant_desk_transcript_response(&state, &work_item_id, query.cursor.as_deref())
+            .map_err(|err| {
+                internal_err_with_error("building assistant desk transcript failed", err)
+            })?
     else {
         return Err(api_error_with_code(
             StatusCode::NOT_FOUND,
@@ -20003,6 +20013,7 @@ fn assistant_desk_current_action(status: &str, approval: Option<&ApprovalRecord>
 fn build_assistant_desk_transcript_response(
     state: &AppState,
     work_item_id: &str,
+    cursor: Option<&str>,
 ) -> AnyResult<Option<AssistantDeskTranscriptResponse>> {
     let Some(run_id) = work_item_id.strip_prefix("run:") else {
         return Ok(None);
@@ -20017,6 +20028,24 @@ fn build_assistant_desk_transcript_response(
     let item =
         assistant_desk_item_from_run(state, &run, &session, approval.as_ref(), current_time_ms())?;
     let transcript_id = item.transcript_id.clone();
+    let session_runs = state
+        .storage
+        .list_runs_for_session(&session.session_id, ASSISTANT_DESK_TRANSCRIPT_SCAN_LIMIT)?;
+    let current_run_index = session_runs
+        .iter()
+        .position(|candidate| candidate.run_id == run.run_id);
+    let previous_run = current_run_index
+        .and_then(|index| index.checked_sub(1))
+        .and_then(|index| session_runs.get(index));
+    let next_run = current_run_index.and_then(|index| session_runs.get(index + 1));
+    let lower_bound_ms = previous_run
+        .map(|previous| previous.ended_at.unwrap_or(previous.created_at))
+        .unwrap_or(i64::MIN);
+    let upper_bound_ms = next_run
+        .map(|next| next.created_at)
+        .or_else(|| run.ended_at.map(|ended_at| ended_at.saturating_add(1)))
+        .unwrap_or(i64::MAX);
+    let cursor_ms = cursor.and_then(|value| value.trim().parse::<i64>().ok());
     let mut events = Vec::new();
 
     events.push(AssistantDeskTranscriptEvent {
@@ -20047,8 +20076,11 @@ fn build_assistant_desk_transcript_response(
 
     for message in state
         .storage
-        .list_messages(&session.session_id, ASSISTANT_DESK_TRANSCRIPT_EVENT_LIMIT)?
+        .list_messages(&session.session_id, ASSISTANT_DESK_TRANSCRIPT_SCAN_LIMIT)?
     {
+        if message.created_at < lower_bound_ms || message.created_at >= upper_bound_ms {
+            continue;
+        }
         events.push(AssistantDeskTranscriptEvent {
             id: format!("message:{}", message.message_id),
             at: utc_from_ms(message.created_at).to_rfc3339(),
@@ -20075,13 +20107,26 @@ fn build_assistant_desk_transcript_response(
             .cmp(&right.at_ms)
             .then_with(|| left.id.cmp(&right.id))
     });
-    events.truncate(ASSISTANT_DESK_TRANSCRIPT_EVENT_LIMIT as usize);
+    if let Some(cursor_ms) = cursor_ms {
+        events.retain(|event| event.at_ms < cursor_ms);
+    }
+    let event_limit = ASSISTANT_DESK_TRANSCRIPT_EVENT_LIMIT as usize;
+    let complete = events.len() <= event_limit;
+    if !complete {
+        let keep_from = events.len() - event_limit;
+        events = events.split_off(keep_from);
+    }
+    let next_cursor = if complete {
+        None
+    } else {
+        events.first().map(|event| event.at_ms.to_string())
+    };
 
     Ok(Some(AssistantDeskTranscriptResponse {
         work_item_id: work_item_id.to_string(),
         transcript_id,
-        complete: true,
-        next_cursor: None,
+        complete,
+        next_cursor,
         events,
         artifacts: Vec::new(),
     }))
@@ -20121,8 +20166,8 @@ fn assistant_desk_sanitize_text(input: &str) -> String {
         })
         .collect::<Vec<_>>()
         .join(" ");
-    if sanitized.len() > 300 {
-        format!("{}...", &sanitized[..300])
+    if let Some((idx, _)) = sanitized.char_indices().nth(300) {
+        format!("{}...", &sanitized[..idx])
     } else {
         sanitized
     }
@@ -20522,22 +20567,145 @@ fn assistant_codex_bridge_id(
     Ok(value.to_string())
 }
 
-fn assistant_codex_bridge_requires_approval(
-    arguments: &serde_json::Value,
-) -> std::result::Result<(), (String, Option<String>, String, Option<serde_json::Value>)> {
-    if arguments
-        .get("operator_approved")
-        .and_then(|value| value.as_bool())
-        .unwrap_or(false)
-    {
-        return Ok(());
+fn assistant_codex_bridge_execution_arguments(arguments: &serde_json::Value) -> serde_json::Value {
+    let mut value = arguments.clone();
+    if let Some(object) = value.as_object_mut() {
+        object.remove("operator_approved");
+        object.remove("approval_id");
     }
-    Err((
+    value
+}
+
+fn assistant_codex_bridge_approval_payload(
+    context: &AssistantToolExecutionContext,
+    tool_name: &str,
+    run_id: &str,
+    arguments: &serde_json::Value,
+) -> serde_json::Value {
+    serde_json::json!({
+        "tool_name": tool_name,
+        "root_session_id": &context.root_session_id,
+        "root_run_id": run_id,
+        "caller_agent_id": &context.caller_agent_id,
+        "boss_key": &context.boss_key,
+        "arguments": assistant_codex_bridge_execution_arguments(arguments)
+    })
+}
+
+fn assistant_codex_bridge_blocked_for_approval(
+    approval: &ApprovalRecord,
+    message: &str,
+) -> (String, Option<String>, String, Option<serde_json::Value>) {
+    (
         "blocked".to_string(),
         Some("APPROVAL_REQUIRED".to_string()),
-        "operator_approved=true is required before starting Codex CLI/App execution".to_string(),
-        None,
-    ))
+        message.to_string(),
+        Some(serde_json::json!({
+            "approval_id": approval.approval_id,
+            "approval_status": approval.status,
+            "root_run_id": approval.run_id
+        })),
+    )
+}
+
+fn assistant_codex_bridge_require_stored_approval(
+    state: &AppState,
+    context: &AssistantToolExecutionContext,
+    tool_name: &str,
+    arguments: &serde_json::Value,
+) -> std::result::Result<
+    std::result::Result<
+        serde_json::Value,
+        (String, Option<String>, String, Option<serde_json::Value>),
+    >,
+    (StatusCode, Json<ApiError>),
+> {
+    let anchor_run_id = resolve_assistant_anchor_run_id(state, context)?;
+    let execution_arguments = assistant_codex_bridge_execution_arguments(arguments);
+    let request_payload =
+        assistant_codex_bridge_approval_payload(context, tool_name, &anchor_run_id, arguments);
+    let request_json = serde_json::to_string(&request_payload).map_err(|err| {
+        internal_err_with_error(
+            "serializing Codex bridge approval payload failed",
+            err.into(),
+        )
+    })?;
+
+    let approval = if let Some(approval_id) = arguments
+        .get("approval_id")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        let approval_id = assistant_codex_bridge_id(
+            Some(&serde_json::Value::String(approval_id.to_string())),
+            "approval_id",
+        )?;
+        let approval = state
+            .storage
+            .get_approval(&approval_id)
+            .map_err(|err| internal_err_with_error("loading Codex bridge approval failed", err))?
+            .ok_or_else(|| {
+                api_error_with_code(
+                    StatusCode::BAD_REQUEST,
+                    "INVALID_APPROVAL",
+                    "Codex bridge approval was not found",
+                )
+            })?;
+        if approval.run_id != anchor_run_id || approval.kind != tool_name {
+            return Ok(Err((
+                "error".to_string(),
+                Some("INVALID_APPROVAL".to_string()),
+                "approval does not match this Codex bridge request".to_string(),
+                Some(serde_json::json!({ "approval_id": approval.approval_id })),
+            )));
+        }
+        let stored_payload: serde_json::Value = serde_json::from_str(&approval.request_json)
+            .map_err(|err| {
+                internal_err_with_error("parsing Codex bridge approval payload failed", err.into())
+            })?;
+        if stored_payload != request_payload {
+            return Ok(Err((
+                "error".to_string(),
+                Some("INVALID_APPROVAL".to_string()),
+                "approval payload does not match this Codex bridge request".to_string(),
+                Some(serde_json::json!({ "approval_id": approval.approval_id })),
+            )));
+        }
+        approval
+    } else if let Some(existing) = state
+        .storage
+        .find_latest_approval_for_request(&anchor_run_id, tool_name, &request_json)
+        .map_err(|err| internal_err_with_error("finding Codex bridge approval failed", err))?
+    {
+        existing
+    } else {
+        state
+            .storage
+            .create_approval(NewApproval {
+                run_id: anchor_run_id.clone(),
+                tool_call_id: None,
+                kind: tool_name.to_string(),
+                request_summary: format!("Approve {tool_name} through Codex bridge"),
+                request_json,
+            })
+            .map_err(|err| internal_err_with_error("creating Codex bridge approval failed", err))?
+            .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "run not found for approval"))?
+    };
+
+    match approval.status.as_str() {
+        "approved" => Ok(Ok(execution_arguments)),
+        "denied" => Ok(Err((
+            "error".to_string(),
+            Some("APPROVAL_DENIED".to_string()),
+            "Codex bridge execution approval was denied".to_string(),
+            Some(serde_json::json!({ "approval_id": approval.approval_id })),
+        ))),
+        _ => Ok(Err(assistant_codex_bridge_blocked_for_approval(
+            &approval,
+            "Codex bridge execution requires a stored CarsinOS approval",
+        ))),
+    }
 }
 
 fn assistant_codex_bridge_url(
@@ -23025,9 +23193,12 @@ async fn execute_assistant_tool(
             ))
         }
         ASSISTANT_TOOL_CODEX_CLI_EXEC => {
-            if let Err(blocked) = assistant_codex_bridge_requires_approval(&arguments) {
-                return Ok(blocked);
-            }
+            let arguments = match assistant_codex_bridge_require_stored_approval(
+                state, context, tool_name, &arguments,
+            )? {
+                Ok(arguments) => arguments,
+                Err(blocked) => return Ok(blocked),
+            };
             let data =
                 assistant_codex_bridge_post(state, "/codex-cli/exec", &arguments, 300_000).await?;
             Ok((
@@ -23038,9 +23209,12 @@ async fn execute_assistant_tool(
             ))
         }
         ASSISTANT_TOOL_CODEX_CLI_WINDOW => {
-            if let Err(blocked) = assistant_codex_bridge_requires_approval(&arguments) {
-                return Ok(blocked);
-            }
+            let arguments = match assistant_codex_bridge_require_stored_approval(
+                state, context, tool_name, &arguments,
+            )? {
+                Ok(arguments) => arguments,
+                Err(blocked) => return Ok(blocked),
+            };
             let data =
                 assistant_codex_bridge_post(state, "/codex-cli/window", &arguments, 60_000).await?;
             Ok((
@@ -23101,9 +23275,12 @@ async fn execute_assistant_tool(
             ))
         }
         ASSISTANT_TOOL_CODEX_APP_RUN => {
-            if let Err(blocked) = assistant_codex_bridge_requires_approval(&arguments) {
-                return Ok(blocked);
-            }
+            let arguments = match assistant_codex_bridge_require_stored_approval(
+                state, context, tool_name, &arguments,
+            )? {
+                Ok(arguments) => arguments,
+                Err(blocked) => return Ok(blocked),
+            };
             let data =
                 assistant_codex_bridge_post(state, "/codex-app/run", &arguments, 600_000).await?;
             Ok((
@@ -51349,6 +51526,7 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         }));
 
         let allowed_kinds = [
+            "run",
             "execass",
             "carsinos_worker",
             "codex_cli",
@@ -51499,6 +51677,116 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             transcript_json["events"][0]["id"],
             second_json["events"][0]["id"]
         );
+    }
+
+    #[tokio::test]
+    async fn assistant_desk_transcript_is_scoped_to_selected_run() {
+        let ctx = test_context();
+        let session = ctx
+            .storage
+            .create_session(NewSession {
+                session_key: None,
+                agent_id: "default".to_string(),
+                title: Some("Scoped transcript".to_string()),
+            })
+            .expect("create scoped transcript session");
+
+        ctx.storage
+            .create_message(NewMessage {
+                session_id: session.session_id.clone(),
+                source_channel: "assistant-chat".to_string(),
+                source_peer_id: None,
+                source_message_id: None,
+                role: "user".to_string(),
+                content_text: "first scoped prompt".to_string(),
+                content_format: "markdown".to_string(),
+            })
+            .expect("create first scoped user message");
+        let first_run = ctx
+            .storage
+            .create_run(NewRun {
+                session_id: session.session_id.clone(),
+                model_provider: "mock".to_string(),
+                model_id: "mock-echo-v1".to_string(),
+            })
+            .expect("create first scoped run")
+            .expect("first scoped run exists");
+        ctx.storage
+            .mark_run_started(&first_run.run_id)
+            .expect("mark first scoped run started");
+        ctx.storage
+            .create_message(NewMessage {
+                session_id: session.session_id.clone(),
+                source_channel: "assistant-chat".to_string(),
+                source_peer_id: None,
+                source_message_id: None,
+                role: "assistant".to_string(),
+                content_text: "first scoped answer".to_string(),
+                content_format: "markdown".to_string(),
+            })
+            .expect("create first scoped assistant message");
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        ctx.storage
+            .mark_run_succeeded(&first_run.run_id)
+            .expect("mark first scoped run succeeded");
+        std::thread::sleep(std::time::Duration::from_millis(2));
+
+        ctx.storage
+            .create_message(NewMessage {
+                session_id: session.session_id.clone(),
+                source_channel: "assistant-chat".to_string(),
+                source_peer_id: None,
+                source_message_id: None,
+                role: "user".to_string(),
+                content_text: "second scoped prompt".to_string(),
+                content_format: "markdown".to_string(),
+            })
+            .expect("create second scoped user message");
+        let second_run = ctx
+            .storage
+            .create_run(NewRun {
+                session_id: session.session_id.clone(),
+                model_provider: "mock".to_string(),
+                model_id: "mock-echo-v1".to_string(),
+            })
+            .expect("create second scoped run")
+            .expect("second scoped run exists");
+        ctx.storage
+            .mark_run_started(&second_run.run_id)
+            .expect("mark second scoped run started");
+        ctx.storage
+            .create_message(NewMessage {
+                session_id: session.session_id.clone(),
+                source_channel: "assistant-chat".to_string(),
+                source_peer_id: None,
+                source_message_id: None,
+                role: "assistant".to_string(),
+                content_text: "second scoped answer".to_string(),
+                content_format: "markdown".to_string(),
+            })
+            .expect("create second scoped assistant message");
+
+        let transcript_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!(
+                    "/api/v1/assistant-desk/run:{}/transcript",
+                    second_run.run_id
+                ),
+                Body::empty(),
+            ))
+            .await
+            .expect("assistant desk scoped transcript response");
+        assert_eq!(transcript_response.status(), StatusCode::OK);
+        let transcript_json = parse_json(transcript_response).await;
+        let serialized =
+            serde_json::to_string(&transcript_json).expect("serialize scoped transcript");
+        assert!(serialized.contains("second scoped prompt"));
+        assert!(serialized.contains("second scoped answer"));
+        assert!(!serialized.contains("first scoped prompt"));
+        assert!(!serialized.contains("first scoped answer"));
     }
 
     #[tokio::test]
@@ -57322,18 +57610,42 @@ sys.stdout.write(json.dumps(response))
         }
     }
 
-    #[test]
-    fn assistant_codex_bridge_execution_requires_explicit_operator_approval() {
-        let blocked = assistant_codex_bridge_requires_approval(&serde_json::json!({}))
-            .expect_err("unapproved execution should be blocked");
-        assert_eq!(blocked.0, "blocked");
-        assert_eq!(blocked.1.as_deref(), Some("APPROVAL_REQUIRED"));
-        assert!(blocked.2.contains("operator_approved=true"));
+    #[tokio::test]
+    async fn assistant_codex_bridge_execution_requires_stored_approval() {
+        let ctx = test_context();
+        let session_id =
+            create_session_with_user_message(&ctx, "codex-approval", "run codex bridge").await;
+        let run = ctx
+            .storage
+            .create_run(NewRun {
+                session_id: session_id.clone(),
+                model_provider: "mock".to_string(),
+                model_id: "mock-echo-v1".to_string(),
+            })
+            .expect("create root run")
+            .expect("root run exists");
 
-        assistant_codex_bridge_requires_approval(&serde_json::json!({
-            "operator_approved": true
-        }))
-        .expect("approved execution");
+        let (blocked_status, blocked_json) = assistant_tool_call(
+            &ctx,
+            serde_json::json!({
+                "contract_version": ASSISTANT_TOOL_CONTRACT_VERSION,
+                "request_id": "req_codex_bridge_self_attest",
+                "root_session_id": session_id,
+                "root_run_id": run.run_id,
+                "tool_name": ASSISTANT_TOOL_CODEX_CLI_EXEC,
+                "arguments": {
+                    "operator_approved": true,
+                    "prompt": "echo hi",
+                    "cwd": "Z:\\carsinos-codex-work\\carsinos"
+                }
+            }),
+        )
+        .await;
+
+        assert_eq!(blocked_status, StatusCode::OK);
+        assert_eq!(blocked_json["status"], "blocked");
+        assert_eq!(blocked_json["reason_code"], "APPROVAL_REQUIRED");
+        assert!(blocked_json["data"]["approval_id"].as_str().is_some());
     }
 
     #[test]

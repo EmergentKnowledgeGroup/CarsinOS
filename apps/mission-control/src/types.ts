@@ -834,6 +834,7 @@ export interface MissionControlFocusResponse {
 }
 
 export type AssistantDeskWorkItemKind =
+  | "run"
   | "execass"
   | "carsinos_worker"
   | "codex_cli"

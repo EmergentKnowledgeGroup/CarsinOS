@@ -244,7 +244,7 @@ function TranscriptDrawer(props: {
         {props.controller.transcriptError ? (
           <p className="mc-form-error">{props.controller.transcriptError}</p>
         ) : null}
-        {transcript?.events.length ? (
+        {!props.controller.transcriptLoading && transcript?.events.length ? (
           transcript.events.map((event) => (
             <article key={event.id} className="mc-assistant-desk-event">
               <div className="mc-assistant-desk-event-meta">
@@ -254,11 +254,11 @@ function TranscriptDrawer(props: {
               <TranscriptBody event={event} />
             </article>
           ))
-        ) : (
+        ) : !props.controller.transcriptLoading ? (
           <p className="mc-assistant-desk-muted">
             No transcript events yet. CarsinOS will show the audit trail here as work arrives.
           </p>
-        )}
+        ) : null}
       </div>
     </aside>
   );

@@ -782,32 +782,35 @@ describe("request URL resolution", () => {
 
   it("uses the longer run timeout for blocking model execution", async () => {
     vi.useFakeTimers();
-    vi.mocked(getGatewayToken).mockResolvedValue("token-123");
-    const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
-      return new Promise<Response>((_resolve, reject) => {
-        init?.signal?.addEventListener("abort", () => {
-          reject(new DOMException("aborted", "AbortError"));
+    try {
+      vi.mocked(getGatewayToken).mockResolvedValue("token-123");
+      const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("aborted", "AbortError"));
+          });
         });
       });
-    });
-    vi.stubGlobal("fetch", fetchMock);
+      vi.stubGlobal("fetch", fetchMock);
 
-    const promise = createSessionRun(
-      { gateway_url: "http://127.0.0.1:18789" },
-      "session-1"
-    );
-    const earlyFailure = vi.fn();
-    promise.catch(earlyFailure);
+      const promise = createSessionRun(
+        { gateway_url: "http://127.0.0.1:18789" },
+        "session-1"
+      );
+      const earlyFailure = vi.fn();
+      promise.catch(earlyFailure);
 
-    await vi.advanceTimersByTimeAsync(API_REQUEST_TIMEOUT_MS + 1);
-    await Promise.resolve();
-    expect(earlyFailure).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(API_REQUEST_TIMEOUT_MS + 1);
+      await Promise.resolve();
+      expect(earlyFailure).not.toHaveBeenCalled();
 
-    await vi.advanceTimersByTimeAsync(API_RUN_REQUEST_TIMEOUT_MS - API_REQUEST_TIMEOUT_MS);
-    await expect(promise).rejects.toMatchObject({
-      kind: "timeout",
-      message: `Gateway request timed out after ${API_RUN_REQUEST_TIMEOUT_MS}ms.`,
-    });
-    vi.useRealTimers();
+      await vi.advanceTimersByTimeAsync(API_RUN_REQUEST_TIMEOUT_MS - API_REQUEST_TIMEOUT_MS);
+      await expect(promise).rejects.toMatchObject({
+        kind: "timeout",
+        message: `Gateway request timed out after ${API_RUN_REQUEST_TIMEOUT_MS}ms.`,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

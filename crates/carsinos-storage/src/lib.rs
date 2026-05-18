@@ -5140,6 +5140,35 @@ impl Storage {
         Ok(record)
     }
 
+    pub fn list_runs_for_session(&self, session_id: &str, limit: u32) -> Result<Vec<RunRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              run_id,
+              session_id,
+              status,
+              model_provider,
+              model_id,
+              started_at,
+              ended_at,
+              error_text,
+              usage_json,
+              created_at
+            FROM runs
+            WHERE session_id = ?1
+            ORDER BY created_at ASC, rowid ASC
+            LIMIT ?2
+            "#,
+        )?;
+        let rows = stmt.query_map(params![session_id, i64::from(limit)], map_run_row)?;
+        let mut out = Vec::new();
+        for row in rows {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
     pub fn create_assistant_worker(
         &self,
         new_worker: NewAssistantWorker,

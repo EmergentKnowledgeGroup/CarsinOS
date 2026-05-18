@@ -77,6 +77,16 @@ function transcriptResponse(workItemId: string): AssistantDeskTranscriptResponse
   };
 }
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((innerResolve, innerReject) => {
+    resolve = innerResolve;
+    reject = innerReject;
+  });
+  return { promise, resolve, reject };
+}
+
 type Controller = ReturnType<typeof useAssistantDeskController>;
 
 function Harness(props: {
@@ -253,5 +263,65 @@ describe("useAssistantDeskController", () => {
       "run:1",
       "run:2",
     ]);
+  });
+
+  it("clears stale transcripts and ignores slower older transcript responses", async () => {
+    const oldTranscript = deferred<AssistantDeskTranscriptResponse>();
+    const slowTranscript = deferred<AssistantDeskTranscriptResponse>();
+    const fastTranscript = deferred<AssistantDeskTranscriptResponse>();
+    vi.mocked(getAssistantDeskTranscript)
+      .mockReturnValueOnce(oldTranscript.promise)
+      .mockReturnValueOnce(slowTranscript.promise)
+      .mockReturnValueOnce(fastTranscript.promise);
+
+    await act(async () => {
+      root.render(
+        <Harness
+          deskOpen
+          onReady={(controller) => {
+            latest = controller;
+          }}
+        />
+      );
+    });
+    await flush();
+
+    let oldCall: Promise<void> | undefined;
+    await act(async () => {
+      oldCall = latest?.openTranscript("run:old");
+      await Promise.resolve();
+    });
+    await act(async () => {
+      oldTranscript.resolve(transcriptResponse("run:old"));
+      await oldCall;
+    });
+    expect(latest?.transcript?.work_item_id).toBe("run:old");
+
+    let slowCall: Promise<void> | undefined;
+    await act(async () => {
+      slowCall = latest?.openTranscript("run:slow");
+      await Promise.resolve();
+    });
+    expect(latest?.selectedWorkItemId).toBe("run:slow");
+    expect(latest?.transcript).toBeNull();
+    expect(latest?.transcriptLoading).toBe(true);
+
+    let fastCall: Promise<void> | undefined;
+    await act(async () => {
+      fastCall = latest?.openTranscript("run:fast");
+      await Promise.resolve();
+    });
+    await act(async () => {
+      fastTranscript.resolve(transcriptResponse("run:fast"));
+      await fastCall;
+    });
+    await act(async () => {
+      slowTranscript.resolve(transcriptResponse("run:slow"));
+      await slowCall;
+    });
+
+    expect(latest?.selectedWorkItemId).toBe("run:fast");
+    expect(latest?.transcript?.work_item_id).toBe("run:fast");
+    expect(latest?.transcriptLoading).toBe(false);
   });
 });

@@ -2,7 +2,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 function normalizeForCompare(value) {
-  return path.resolve(value).toLowerCase();
+  const resolved = path.resolve(value);
+  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
 }
 
 function ensureDir(dir) {

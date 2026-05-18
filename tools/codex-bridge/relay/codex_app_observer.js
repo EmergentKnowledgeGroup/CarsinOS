@@ -262,12 +262,17 @@ class CodexAppBridge {
     fs.mkdirSync(this.logsDir, { recursive: true });
     const out = fs.openSync(path.join(this.logsDir, "app-server.out.log"), "a");
     const err = fs.openSync(path.join(this.logsDir, "app-server.err.log"), "a");
-    this.appServerProcess = spawn(this.codexBin, ["app-server", "--listen", this.url], {
-      windowsHide: true,
-      stdio: ["ignore", out, err],
-      detached: false,
-      env: { ...process.env, CODEX_HOME: this.codexHome },
-    });
+    try {
+      this.appServerProcess = spawn(this.codexBin, ["app-server", "--listen", this.url], {
+        windowsHide: true,
+        stdio: ["ignore", out, err],
+        detached: false,
+        env: { ...process.env, CODEX_HOME: this.codexHome },
+      });
+    } finally {
+      fs.closeSync(out);
+      fs.closeSync(err);
+    }
     const startedAt = Date.now();
     while (Date.now() - startedAt < 15000) {
       try {
