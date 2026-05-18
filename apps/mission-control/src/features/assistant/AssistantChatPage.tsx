@@ -1,13 +1,22 @@
-import { useEffect, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronDown, ChevronRight, Info, MessageSquareText } from "lucide-react";
 import type { MissionControlTab } from "../../app/useAppController";
 import type { BoardSummary } from "../../app/useRuntimeConnectionController";
 import type { Agent, RunbookSummaryItemResponse } from "../../types";
+import type { RuntimeConnectionSettings } from "../../types";
+import {
+  AssistantDeskPanel,
+  AssistantDeskStatusStrip,
+} from "../assistantDesk/AssistantDeskPanel";
+import { useAssistantDeskController } from "../assistantDesk/useAssistantDeskController";
 import { RunbookLinkPanel } from "../runbook/RunbookLinkPanel";
+import { AssistantMarkdown } from "./AssistantMarkdown";
 import type { useAssistantChatController } from "./useAssistantChatController";
 
 interface AssistantChatPageProps {
   active: boolean;
+  settings: RuntimeConnectionSettings;
+  tokenConfigured: boolean;
   agents: Agent[];
   boards: BoardSummary[];
   onTabChange: (tab: MissionControlTab) => void;
@@ -25,18 +34,52 @@ function formatTimestamp(unixMs: number): string {
   }
 }
 
+function FieldHelpIcon({ text }: { text: string }) {
+  return (
+    <span className="mc-assistant-info" title={text} aria-label={text} role="img">
+      <Info size={13} />
+    </span>
+  );
+}
+
 export function AssistantChatPage(props: AssistantChatPageProps) {
   const c = props.controller;
   const assistantRunId = c.lastRunId;
   const [promptOpen, setPromptOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<"chat" | "prompt">("chat");
+  const [deskOpen, setDeskOpen] = useState(false);
+  const transcriptRef = useRef<HTMLDivElement | null>(null);
+  const refreshRoutingState = c.refreshRoutingState;
+  const messageCount = c.messages.length;
+  const sendStatus = c.sendStatus;
+  const assistantDesk = useAssistantDeskController({
+    settings: props.settings,
+    tokenConfigured: props.tokenConfigured,
+    assistantDeskEnabled: props.active,
+    assistantDeskStatusStripEnabled: props.active,
+    deskOpen: props.active && deskOpen,
+  });
 
   useEffect(() => {
     if (!props.active) {
       return;
     }
-    void c.refreshRoutingState();
-  }, [c, props.active]);
+    void refreshRoutingState();
+  }, [props.active, refreshRoutingState]);
+
+  useEffect(() => {
+    if (!props.active || activePanel !== "chat") {
+      return;
+    }
+    const transcript = transcriptRef.current;
+    if (!transcript) {
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      transcript.scrollTop = transcript.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activePanel, messageCount, props.active, sendStatus]);
 
   if (props.agents.length === 0) {
     return (
@@ -91,7 +134,10 @@ export function AssistantChatPage(props: AssistantChatPageProps) {
       <article className="mc-surface mc-assistant-toolbar">
         <div className="mc-assistant-toolbar-grid">
           <label>
-            Assistant agent
+            <span className="mc-assistant-field-label">
+              Assistant agent
+              <FieldHelpIcon text={c.assistantAvailabilityMessage} />
+            </span>
             <select
               value={c.selectedAgentId}
               onChange={(event) => c.setSelectedAgentId(event.target.value)}
@@ -105,10 +151,12 @@ export function AssistantChatPage(props: AssistantChatPageProps) {
                 </option>
               ))}
             </select>
-            <small className="mc-field-help">{c.assistantAvailabilityMessage}</small>
           </label>
           <label>
-            Provider
+            <span className="mc-assistant-field-label">
+              Provider
+              <FieldHelpIcon text="Lane routing is authoritative here. Change provider in Team, not per chat run." />
+            </span>
             <select
               aria-label="Assistant provider"
               value={c.modelProvider}
@@ -126,21 +174,12 @@ export function AssistantChatPage(props: AssistantChatPageProps) {
                 </option>
               ))}
             </select>
-            {c.providerCapabilitiesLoading ? (
-              <small className="mc-field-help">Loading provider choices...</small>
-            ) : null}
-            {c.providerCapabilitiesError ? (
-              <small className="mc-form-error">
-                Team could not load assistant provider details cleanly.
-              </small>
-            ) : (
-              <small className="mc-field-help">
-                Lane routing is authoritative here. Change provider in Team, not per chat run.
-              </small>
-            )}
           </label>
           <label>
-            Login
+            <span className="mc-assistant-field-label">
+              Login
+              <FieldHelpIcon text="Assistant chat follows the assistant's saved routing and login path automatically." />
+            </span>
             <select
               aria-label="Assistant login"
               value={c.authProfileId}
@@ -157,12 +196,12 @@ export function AssistantChatPage(props: AssistantChatPageProps) {
                 </option>
               ))}
             </select>
-            <small className="mc-field-help">
-              Assistant chat follows the assistant’s saved routing and login path automatically.
-            </small>
           </label>
           <label>
-            Model
+            <span className="mc-assistant-field-label">
+              Model
+              <FieldHelpIcon text="carsinOS pulls the live model list in Team, and this chat stays locked to the selected assistant's saved route." />
+            </span>
             <select
               aria-label="Assistant model"
               value={c.modelId}
@@ -178,27 +217,32 @@ export function AssistantChatPage(props: AssistantChatPageProps) {
                 </option>
               ))}
             </select>
-            {c.catalogError ? (
-              <small className="mc-form-error">
-                Team could not load the assistant model details cleanly.
-              </small>
-            ) : (
-              <small className="mc-field-help">
-                carsinOS pulls the live model list in Team, and this chat stays locked to the
-                selected assistant’s saved route.
-              </small>
-            )}
           </label>
         </div>
+        {c.runtimeRoutingError ||
+        c.providerCapabilitiesError ||
+        c.catalogError ||
+        c.providerCapabilitiesLoading ||
+        c.catalogLoading ? (
+          <div className="mc-assistant-toolbar-alert" role="status">
+            {c.runtimeRoutingError ? (
+              <span>Team route refresh failed. Showing the last known local route.</span>
+            ) : null}
+            {c.providerCapabilitiesError ? (
+              <span>Provider details did not refresh cleanly.</span>
+            ) : null}
+            {c.catalogError ? <span>Model details did not refresh cleanly.</span> : null}
+            {c.providerCapabilitiesLoading ? <span>Loading provider choices...</span> : null}
+            {c.catalogLoading ? <span>Loading model list...</span> : null}
+          </div>
+        ) : null}
         <div className="mc-assistant-toolbar-actions">
-          <button
-            type="button"
-            className="ghost"
-            onClick={() => void c.refreshModelCatalog()}
-            disabled
+          <span
+            className="chip mc-assistant-route-chip"
+            title="Provider, login, and model come from Team setup."
           >
-            Assistant route locked to Team
-          </button>
+            Team route locked
+          </span>
           {c.sessionMode === "pinned_session" ? (
             <button type="button" className="ghost" onClick={c.resetToCanonicalLane} disabled={c.busy}>
               Return to my lane
@@ -250,6 +294,16 @@ export function AssistantChatPage(props: AssistantChatPageProps) {
           {c.lastRunStatus ? <span className="chip">run: {c.lastRunStatus}</span> : null}
         </div>
       </article>
+
+      <AssistantDeskStatusStrip
+        controller={assistantDesk}
+        onOpenDesk={() => setDeskOpen(true)}
+      />
+      <AssistantDeskPanel
+        open={deskOpen}
+        controller={assistantDesk}
+        onClose={() => setDeskOpen(false)}
+      />
 
       <div className="mc-page-section-tabs" aria-label="Assistant sections">
         <button
@@ -343,9 +397,13 @@ export function AssistantChatPage(props: AssistantChatPageProps) {
             </p>
           </header>
 
-          <div className="mc-assistant-transcript">
+          <div className="mc-assistant-transcript" ref={transcriptRef}>
             {c.messages.length === 0 ? (
-              <div className="mc-empty-drawer">No messages yet. Type a question below and hit Send to get started.</div>
+              <div className="mc-assistant-chat-empty">
+                <MessageSquareText size={24} />
+                <strong>Ready when you are.</strong>
+                <span>Type a request below. Replies will appear here as the live lane transcript.</span>
+              </div>
             ) : (
               c.messages.map((message) => (
                 <article key={message.message_id} className={`mc-assistant-msg mc-assistant-msg-${message.role}`}>
@@ -353,10 +411,16 @@ export function AssistantChatPage(props: AssistantChatPageProps) {
                     <strong>{message.role}</strong>
                     <span>{formatTimestamp(message.created_at)}</span>
                   </div>
-                  <p>{message.content_text}</p>
+                  <AssistantMarkdown content={message.content_text} />
                 </article>
               ))
             )}
+            {c.sendStatus ? (
+              <div className="mc-assistant-send-status" role="status" aria-live="polite">
+                <span />
+                {c.sendStatus}
+              </div>
+            ) : null}
           </div>
 
           {c.lastError ? <p className="mc-form-error">{c.lastError}</p> : null}

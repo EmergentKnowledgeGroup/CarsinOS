@@ -1961,8 +1961,8 @@ impl RequestRateLimitConfig {
         Self {
             enabled: bool_env("CARSINOS_RATE_LIMIT_ENABLED", true),
             window_seconds: i64_env("CARSINOS_RATE_LIMIT_WINDOW_SECONDS", 60).clamp(1, 3600),
-            per_ip_limit: usize_env("CARSINOS_RATE_LIMIT_PER_IP", 2400).clamp(10, 200_000),
-            per_principal_limit: usize_env("CARSINOS_RATE_LIMIT_PER_PRINCIPAL", 1200)
+            per_ip_limit: usize_env("CARSINOS_RATE_LIMIT_PER_IP", 24_000).clamp(10, 200_000),
+            per_principal_limit: usize_env("CARSINOS_RATE_LIMIT_PER_PRINCIPAL", 12_000)
                 .clamp(10, 200_000),
             per_run_endpoint_limit: usize_env("CARSINOS_RATE_LIMIT_RUN_ENDPOINT", 300)
                 .clamp(5, 50_000),
@@ -2163,6 +2163,7 @@ const APP_KV_RUNTIME_CONFIG_LAST_GOOD: &str = "config.runtime.last_good.v1";
 const APP_KV_SKILLS_STATE: &str = "config.skills.state";
 const TRUST_CONTRACT_LOCK_SCHEMA_VERSION: &str = "runtime.trust.lock.v1";
 const TRUST_CONTRACT_LOCK_REL_PATH: &str = "deployment/trust_contract.lock.json";
+const DEFAULT_MEMORY_MD_REL_PATH: &str = "memory/memory.md";
 const SCHEDULE_META_KEY: &str = "_carsinos_schedule";
 const SCHEDULE_META_CRON_EXPR: &str = "cron_expr";
 const INTERNAL_CHANNEL_INGEST_HEADER: &str = "x-carsinos-internal-ingest-token";
@@ -2184,7 +2185,22 @@ const OAUTH_OPENAI_DEFAULT_AUTHORIZE_URL: &str = "https://auth.openai.com/oauth/
 const OAUTH_OPENAI_DEFAULT_TOKEN_URL: &str = "https://auth.openai.com/oauth/token";
 const OPENAI_DEFAULT_API_BASE: &str = "https://api.openai.com";
 const ANTHROPIC_DEFAULT_API_BASE: &str = "https://api.anthropic.com";
-const DEFAULT_ASSISTANT_CORE_SYSTEM_PROMPT: &str = "You are the CarsinOS assistant.\n\nGoals:\n1) Help the operator complete tasks safely and quickly.\n2) Prefer clear plans and explicit next actions.\n3) Keep execution grounded in current system state.\n\nOperational rules:\n- Ask concise clarifying questions only when required.\n- Prefer reversible actions before risky actions.\n- When uncertain, state assumptions briefly.\n- Use Mission Control tabs intentionally: Boards for execution, Calendar for scheduling, Focus for incidents, Mail/Rooms for communication, Team for agent config.";
+const DEFAULT_ASSISTANT_CORE_SYSTEM_PROMPT: &str = r#"You are the CarsinOS assistant.
+
+Goals:
+1) Help the operator run local AI work without babysitting agent windows.
+2) Keep work grounded in the current CarsinOS lane, memory, tools, files, and approvals.
+3) Orchestrate other assistants and models through the tools actually available in this run.
+
+Operational rules:
+- Ask concise clarifying questions only when required.
+- Prefer reversible actions before risky actions.
+- When uncertain, state assumptions briefly.
+- The gateway injects an "Available CarsinOS tools for this run" inventory into each run. Use that inventory when describing or choosing tools.
+- Do not invent tool access. If a tool is not listed in the current inventory, say what is missing and what would need to be connected.
+- Treat local memory notes, configured memory.md sources, and lane-scoped memory as durable context when they are present.
+- Use local filesystem, process, web/search, board, runbook, mail, room, memory, team, and connector tools only when CarsinOS provides them and policy allows them.
+- Your main job is operator assist: inspect state, summarize blockers, suggest next actions, and help coordinate Codex CLI, Codex Desktop, ChatGPT Desktop, LM Studio, and other agent surfaces as connectors or screen-reading paths become available."#;
 const SYSTEM_SOURCE_CHANNEL_CORE: &str = "system.core";
 const ANTHROPIC_API_BASE_ALLOWLIST_ENV: &str = "CARSINOS_ANTHROPIC_API_BASE_ALLOWLIST";
 const ANTHROPIC_ALLOW_TEST_LOOPBACK_HTTP_ENV: &str = "CARSINOS_ANTHROPIC_ALLOW_TEST_LOOPBACK_HTTP";
@@ -2192,6 +2208,9 @@ const OPENROUTER_DEFAULT_API_BASE: &str = "https://openrouter.ai/api";
 const OLLAMA_DEFAULT_API_BASE: &str = "http://127.0.0.1:11434";
 const VLLM_DEFAULT_API_BASE: &str = "http://127.0.0.1:8000";
 const LMSTUDIO_DEFAULT_API_BASE: &str = "http://127.0.0.1:1234";
+const OLLAMA_API_BASE_URL_ENV: &str = "CARSINOS_PROVIDER_OLLAMA_API_BASE_URL";
+const VLLM_API_BASE_URL_ENV: &str = "CARSINOS_PROVIDER_VLLM_API_BASE_URL";
+const LMSTUDIO_API_BASE_URL_ENV: &str = "CARSINOS_PROVIDER_LMSTUDIO_API_BASE_URL";
 const PROVIDER_MODELS_CONTRACT_VERSION: &str = "v1";
 const PROVIDER_MODELS_CACHE_TTL_MS: i64 = 5 * 60 * 1000;
 const EXTERNAL_CHANNEL_MESSAGE_MAX_CHARS: usize = 12_000;
@@ -3435,7 +3454,7 @@ async fn main() -> AnyResult<()> {
     ));
     let oauth_sessions = Arc::new(RwLock::new(HashMap::new()));
     let numquam_client = NumquamClient::from_env()?;
-    let (event_tx, _) = broadcast::channel(256);
+    let (event_tx, _) = broadcast::channel(1024);
     let operator_allowlist = load_operator_allowlist_from_env();
     let operator_allowlist_entries = operator_allowlist.len();
     if let Some(client) = numquam_client.as_ref() {
@@ -3510,6 +3529,7 @@ async fn main() -> AnyResult<()> {
         trust_contract_lock_path: Arc::new(trust_contract_lock_path.display().to_string()),
         state_dir: Arc::new(config.state_dir.clone()),
     };
+    ensure_default_memory_md_source(&state)?;
     record_extension_hook_policy_denials(&state, &hook_policy_denials);
     state.channel_runtime.start_all();
 
@@ -3985,7 +4005,21 @@ fn provider_models_base_url(provider: &str, profile: Option<&ProviderAuthProfile
         .and_then(|item| item.api_base_url.as_ref())
         .map(|value| value.trim().trim_end_matches('/').to_string())
         .filter(|value| !value.is_empty())
+        .or_else(|| provider_models_env_base_url(provider))
         .unwrap_or_else(|| provider_models_default_base_url(provider).to_string())
+}
+
+fn provider_models_env_base_url(provider: &str) -> Option<String> {
+    let env_var = match provider {
+        "ollama" => OLLAMA_API_BASE_URL_ENV,
+        "vllm" => VLLM_API_BASE_URL_ENV,
+        "lmstudio" => LMSTUDIO_API_BASE_URL_ENV,
+        _ => return None,
+    };
+    std::env::var(env_var)
+        .ok()
+        .map(|value| value.trim().trim_end_matches('/').to_string())
+        .filter(|value| !value.is_empty())
 }
 
 fn provider_models_cache_key(
@@ -9657,6 +9691,11 @@ fn build_app(state: AppState) -> Router {
         )
         .route("/api/v1/ws-ticket", post(create_ws_ticket))
         .route("/api/v1/ws", get(ws_handler))
+        .route("/api/v1/assistant-desk", get(get_assistant_desk))
+        .route(
+            "/api/v1/assistant-desk/{work_item_id}/transcript",
+            get(get_assistant_desk_transcript),
+        )
         .route("/api/v1/sessions", get(list_sessions).post(create_session))
         .route("/api/v1/sessions/{session_id}", get(get_session))
         .route(
@@ -9916,6 +9955,15 @@ const ASSISTANT_TOOL_APPROVALS_LIST: &str = "assistant.approvals.list";
 const ASSISTANT_TOOL_MAIL_THREAD_CREATE: &str = "assistant.mail.thread.create";
 const ASSISTANT_TOOL_MAIL_SEND: &str = "assistant.mail.send";
 const ASSISTANT_TOOL_MAIL_INBOX_FETCH: &str = "assistant.mail.inbox.fetch";
+const ASSISTANT_TOOL_CODEX_BRIDGE_STATUS: &str = "codex_bridge.status";
+const ASSISTANT_TOOL_CODEX_CLI_SESSIONS: &str = "codex_cli.sessions";
+const ASSISTANT_TOOL_CODEX_CLI_READ: &str = "codex_cli.read";
+const ASSISTANT_TOOL_CODEX_CLI_EXEC: &str = "codex_cli.exec";
+const ASSISTANT_TOOL_CODEX_CLI_WINDOW: &str = "codex_cli.window";
+const ASSISTANT_TOOL_CODEX_APP_STATUS: &str = "codex_app.status";
+const ASSISTANT_TOOL_CODEX_APP_THREADS: &str = "codex_app.threads";
+const ASSISTANT_TOOL_CODEX_APP_READ: &str = "codex_app.read";
+const ASSISTANT_TOOL_CODEX_APP_RUN: &str = "codex_app.run";
 const ASSISTANT_TOOL_WORKER_SESSION_PERSISTENT: &str = "persistent";
 const ASSISTANT_TOOL_WORKER_SESSION_FRESH_PER_TASK: &str = "fresh_per_task";
 const ASSISTANT_TOOL_WORKER_KIND_EMPLOYEE: &str = "employee";
@@ -13358,6 +13406,74 @@ fn sync_memory_sources_internal(
     items
 }
 
+fn ensure_default_memory_md_source(state: &AppState) -> AnyResult<()> {
+    if !bool_env("CARSINOS_DEFAULT_MEMORY_MD_SOURCE", true) {
+        return Ok(());
+    }
+
+    let mut config = load_runtime_config(state)?;
+    if !config.memory.memory_md_sources.is_empty() {
+        return Ok(());
+    }
+
+    let source_path = state.state_dir.join(DEFAULT_MEMORY_MD_REL_PATH);
+    if let Some(parent) = source_path.parent() {
+        std::fs::create_dir_all(parent).with_context(|| {
+            format!(
+                "creating default memory.md parent directory {} failed",
+                parent.display()
+            )
+        })?;
+    }
+    if !source_path.exists() {
+        std::fs::write(
+            &source_path,
+            "# CarsinOS Local Memory\n\nUse this file for durable local operator notes that should be searchable by Assistant runs.\n\n- Add stable preferences, project facts, recurring workflows, and local environment notes here.\n- Keep secrets, API keys, and private credentials out of this file.\n",
+        )
+        .with_context(|| {
+            format!(
+                "creating default memory.md source {} failed",
+                source_path.display()
+            )
+        })?;
+    }
+
+    let source = source_path.display().to_string();
+    config.memory.memory_md_sources = vec![source.clone()];
+    config = normalize_runtime_config(config);
+    validate_runtime_config(&config)?;
+    let config_json = serde_json::to_string(&config)
+        .map_err(|err| anyhow::anyhow!("serializing runtime config failed: {err}"))?;
+    let updated_at = state
+        .storage
+        .set_app_kv_json(APP_KV_RUNTIME_CONFIG, config_json)?;
+    info!(
+        source_path = %source,
+        updated_at,
+        "default memory.md source configured"
+    );
+
+    let sync_items = sync_memory_sources_internal(state, &[source.clone()]);
+    let failed = sync_items
+        .iter()
+        .filter(|item| item.status == "failed")
+        .count();
+    if failed > 0 {
+        warn!(
+            source_path = %source,
+            failed,
+            "default memory.md source sync failed"
+        );
+    } else {
+        info!(
+            source_path = %source,
+            synced = sync_items.len(),
+            "default memory.md source synced"
+        );
+    }
+    Ok(())
+}
+
 async fn sync_memory_sources(
     headers: HeaderMap,
     State(state): State<AppState>,
@@ -16389,6 +16505,163 @@ fn compose_provider_system_prompt(system_messages: &[String]) -> Option<String> 
     }
 }
 
+fn core_tool_command_syntax(command: &str) -> String {
+    match command {
+        "exec" => "tool.exec <command>".to_string(),
+        "web_search" => "tool.web_search <query>".to_string(),
+        "web_fetch" => "tool.web_fetch <url>".to_string(),
+        "fs_read" => "tool.fs_read <path>".to_string(),
+        "fs_write" => "tool.fs_write <path>|<content>".to_string(),
+        "process" => "tool.process <status|terminate> [session_id]".to_string(),
+        "channel_send" => "tool.channel_send <provider>:<target>|<text>".to_string(),
+        "channel_reply" => "tool.channel_reply <provider>:<target>|<text>".to_string(),
+        "channel_pin" => "tool.channel_pin <provider>:<target>".to_string(),
+        "channel_reaction" => "tool.channel_reaction <provider>:<target>|<reaction>".to_string(),
+        other => format!("tool.{other} <args>"),
+    }
+}
+
+fn approval_label(requires_approval: bool) -> &'static str {
+    if requires_approval {
+        "approval required"
+    } else {
+        "no approval required"
+    }
+}
+
+fn push_tool_inventory_line(
+    lines: &mut Vec<String>,
+    name_or_syntax: &str,
+    risk_level: &str,
+    requires_approval: bool,
+    detail: Option<&str>,
+) {
+    match detail {
+        Some(detail) if !detail.trim().is_empty() => lines.push(format!(
+            "- `{}` ({}, {}; {}).",
+            name_or_syntax,
+            risk_level,
+            approval_label(requires_approval),
+            detail.trim()
+        )),
+        _ => lines.push(format!(
+            "- `{}` ({}, {}).",
+            name_or_syntax,
+            risk_level,
+            approval_label(requires_approval)
+        )),
+    }
+}
+
+fn compose_available_tools_system_context(
+    state: &AppState,
+    runtime_config: &RuntimeConfigResponse,
+    plugin_registry: &PluginRegistry,
+    connector_tool_bindings: &[ConnectorRuntimeToolBinding],
+    session_agent_id: &str,
+) -> String {
+    let mut lines = vec![
+        "Available CarsinOS tools for this run:".to_string(),
+        "This inventory is authoritative for the current run. If the operator asks what tools you can use, answer from this list.".to_string(),
+        "Do not name tools that are not listed here. Approval-gated tools must wait for CarsinOS approval before execution.".to_string(),
+        "Core run tools (CarsinOS tool-line syntax):".to_string(),
+    ];
+
+    let mut core_tools = state
+        .tool_registry
+        .definitions
+        .iter()
+        .map(|(command, definition)| (*command, definition))
+        .collect::<Vec<_>>();
+    core_tools.sort_by(
+        |(left_command, left_definition), (right_command, right_definition)| {
+            left_definition
+                .tool_name
+                .cmp(right_definition.tool_name)
+                .then_with(|| left_command.cmp(right_command))
+        },
+    );
+    for (command, definition) in core_tools {
+        let requires_approval = matches!(definition.approval_policy, ToolApprovalPolicy::Always);
+        push_tool_inventory_line(
+            &mut lines,
+            &core_tool_command_syntax(command),
+            definition.base_risk_level,
+            requires_approval,
+            Some(definition.tool_name),
+        );
+    }
+
+    lines.push("Assistant orchestration tools (Assistant Tools HTTP/MCP bridge):".to_string());
+    let mut assistant_tools = assistant_tool_capabilities_payload(runtime_config).tools;
+    assistant_tools.sort_by(|left, right| left.tool_name.cmp(&right.tool_name));
+    for tool in assistant_tools {
+        push_tool_inventory_line(
+            &mut lines,
+            &tool.tool_name,
+            &tool.risk_level,
+            tool.requires_approval,
+            None,
+        );
+    }
+
+    let mut plugin_tools = Vec::new();
+    for manifest in plugin_registry.list_manifests() {
+        if !manifest.enabled {
+            continue;
+        }
+        for tool in manifest.capabilities.tools {
+            plugin_tools.push((manifest.plugin_id.clone(), tool.name));
+        }
+    }
+    plugin_tools.sort_by(|left, right| left.1.cmp(&right.1).then_with(|| left.0.cmp(&right.0)));
+    lines.push("Enabled plugin tools:".to_string());
+    if plugin_tools.is_empty() {
+        lines.push("- None currently enabled.".to_string());
+    } else {
+        for (plugin_id, tool_name) in plugin_tools {
+            push_tool_inventory_line(
+                &mut lines,
+                &format!("tool.{tool_name} <args>"),
+                "high",
+                true,
+                Some(&format!("plugin:{plugin_id}")),
+            );
+        }
+    }
+
+    let mut connector_tools = connector_tool_bindings.to_vec();
+    connector_tools.sort_by(|left, right| {
+        left.published_tool
+            .tool_name
+            .cmp(&right.published_tool.tool_name)
+    });
+    lines.push(format!(
+        "Connector tools routed to assistant `{}`:",
+        session_agent_id
+    ));
+    if connector_tools.is_empty() {
+        lines.push("- None currently routed to this assistant.".to_string());
+    } else {
+        for binding in connector_tools {
+            let (risk_level, requires_approval) =
+                connector_risk_and_approval(&binding.published_tool.write_classification);
+            push_tool_inventory_line(
+                &mut lines,
+                &format!("tool.{} <json_args>", binding.published_tool.tool_name),
+                risk_level,
+                requires_approval,
+                Some(&format!(
+                    "{} / {}",
+                    binding.connector.display_name, binding.published_tool.display_name
+                )),
+            );
+        }
+    }
+
+    lines.join("\n")
+}
+
 fn ensure_session_core_system_message(state: &AppState, session: &SessionRecord) -> AnyResult<()> {
     let existing_messages = state.storage.list_messages(&session.session_id, 256)?;
     if !collect_unique_system_messages(&existing_messages, true).is_empty() {
@@ -19280,6 +19553,636 @@ async fn mission_control_focus(
     }))
 }
 
+const ASSISTANT_DESK_NEEDS_YOU_LIMIT: usize = 10;
+const ASSISTANT_DESK_WORKING_LIMIT: usize = 10;
+const ASSISTANT_DESK_DONE_LIMIT: usize = 5;
+const ASSISTANT_DESK_SESSION_SCAN_LIMIT: u32 = 500;
+const ASSISTANT_DESK_APPROVAL_SCAN_LIMIT: u32 = 200;
+const ASSISTANT_DESK_DONE_WINDOW_MS: i64 = 24 * 60 * 60 * 1_000;
+const ASSISTANT_DESK_TRANSCRIPT_EVENT_LIMIT: u32 = 100;
+const ASSISTANT_DESK_TRANSCRIPT_SCAN_LIMIT: u32 = 1_000;
+
+#[derive(Debug, Clone, Serialize)]
+struct AssistantDeskResponse {
+    generated_at: String,
+    stale: bool,
+    buckets: AssistantDeskBuckets,
+    summary: AssistantDeskSummary,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+struct AssistantDeskBuckets {
+    needs_you: Vec<AssistantDeskWorkItem>,
+    working: Vec<AssistantDeskWorkItem>,
+    done_recently: Vec<AssistantDeskWorkItem>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct AssistantDeskSummary {
+    needs_you_count: usize,
+    working_count: usize,
+    done_recently_count: usize,
+    stale_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct AssistantDeskWorkItem {
+    id: String,
+    kind: String,
+    bucket: String,
+    status: String,
+    title: String,
+    owner_label: String,
+    task_label: String,
+    current_action: String,
+    last_event_at: String,
+    last_event_at_ms: i64,
+    source_refs: Vec<AssistantDeskSourceRef>,
+    deep_links: Vec<AssistantDeskDeepLink>,
+    details: AssistantDeskWorkItemDetails,
+    transcript_id: String,
+    can_open_transcript: bool,
+    transcript_unavailable_reason: Option<String>,
+    artifact_count: usize,
+    changed_file_count: usize,
+    #[serde(skip_serializing)]
+    sort_ms: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct AssistantDeskSourceRef {
+    source: String,
+    id: String,
+    label: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct AssistantDeskDeepLink {
+    label: String,
+    target: String,
+    href: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct AssistantDeskWorkItemDetails {
+    provider_label: String,
+    model_label: String,
+    workspace_label: String,
+    source_health: String,
+    last_error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct AssistantDeskTranscriptResponse {
+    work_item_id: String,
+    transcript_id: String,
+    complete: bool,
+    next_cursor: Option<String>,
+    events: Vec<AssistantDeskTranscriptEvent>,
+    artifacts: Vec<AssistantDeskTranscriptArtifactRef>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AssistantDeskTranscriptQuery {
+    cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct AssistantDeskTranscriptEvent {
+    id: String,
+    at: String,
+    at_ms: i64,
+    role: String,
+    source: String,
+    text: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct AssistantDeskTranscriptArtifactRef {
+    id: String,
+    label: String,
+    source: String,
+}
+
+async fn get_assistant_desk(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_OPERATOR_READONLY,
+            ROLE_AUTOMATION_RUNNER,
+        ],
+        "assistant_desk.read",
+        "assistant_desk.read",
+    )?;
+
+    let response = build_assistant_desk_response(&state)
+        .map_err(|err| internal_err_with_error("building assistant desk read model failed", err))?;
+    Ok(Json(response))
+}
+
+async fn get_assistant_desk_transcript(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(work_item_id): Path<String>,
+    Query(query): Query<AssistantDeskTranscriptQuery>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_OPERATOR_READONLY,
+            ROLE_AUTOMATION_RUNNER,
+        ],
+        "assistant_desk.transcript",
+        "assistant_desk.transcript",
+    )?;
+
+    let Some(response) =
+        build_assistant_desk_transcript_response(&state, &work_item_id, query.cursor.as_deref())
+            .map_err(|err| {
+                internal_err_with_error("building assistant desk transcript failed", err)
+            })?
+    else {
+        return Err(api_error_with_code(
+            StatusCode::NOT_FOUND,
+            "NOT_FOUND",
+            "assistant desk work item not found",
+        ));
+    };
+    Ok(Json(response))
+}
+
+fn build_assistant_desk_response(state: &AppState) -> AnyResult<AssistantDeskResponse> {
+    let now_ms = current_time_ms();
+    let mut needs_you = Vec::new();
+    let mut working = Vec::new();
+    let mut done_recently = Vec::new();
+    let mut seen_item_ids = HashSet::new();
+
+    let approvals = state
+        .storage
+        .list_approvals(Some("requested"), ASSISTANT_DESK_APPROVAL_SCAN_LIMIT)?;
+    for approval in approvals {
+        let Some(run) = state.storage.get_run(&approval.run_id)? else {
+            continue;
+        };
+        let Some(session) = state.storage.get_session(&run.session_id)? else {
+            continue;
+        };
+        let item = assistant_desk_item_from_run(state, &run, &session, Some(&approval), now_ms)?;
+        if seen_item_ids.insert(item.id.clone()) {
+            needs_you.push(item);
+        }
+    }
+
+    let sessions = state
+        .storage
+        .list_sessions(ASSISTANT_DESK_SESSION_SCAN_LIMIT)?;
+    for session in sessions {
+        if session.closed_at.is_some() {
+            continue;
+        }
+        let Some(run) = state.storage.latest_run_for_session(&session.session_id)? else {
+            continue;
+        };
+        let item_id = format!("run:{}", run.run_id);
+        if seen_item_ids.contains(&item_id) {
+            continue;
+        }
+        let Some(item) = assistant_desk_item_from_latest_run(state, &run, &session, now_ms)? else {
+            continue;
+        };
+        if !seen_item_ids.insert(item.id.clone()) {
+            continue;
+        }
+        match item.bucket.as_str() {
+            "needs_you" => needs_you.push(item),
+            "done_recently" => done_recently.push(item),
+            _ => working.push(item),
+        }
+    }
+
+    let needs_you_count = needs_you.len();
+    let working_count = working.len();
+    let done_recently_count = done_recently.len();
+    let stale_count = needs_you
+        .iter()
+        .chain(working.iter())
+        .chain(done_recently.iter())
+        .filter(|item| item.details.source_health == "stale")
+        .count();
+
+    assistant_desk_sort_and_cap(&mut needs_you, ASSISTANT_DESK_NEEDS_YOU_LIMIT);
+    assistant_desk_sort_and_cap(&mut working, ASSISTANT_DESK_WORKING_LIMIT);
+    assistant_desk_sort_and_cap(&mut done_recently, ASSISTANT_DESK_DONE_LIMIT);
+
+    Ok(AssistantDeskResponse {
+        generated_at: Utc::now().to_rfc3339(),
+        stale: false,
+        buckets: AssistantDeskBuckets {
+            needs_you,
+            working,
+            done_recently,
+        },
+        summary: AssistantDeskSummary {
+            needs_you_count,
+            working_count,
+            done_recently_count,
+            stale_count,
+        },
+    })
+}
+
+fn assistant_desk_item_from_latest_run(
+    state: &AppState,
+    run: &RunRecord,
+    session: &SessionRecord,
+    now_ms: i64,
+) -> AnyResult<Option<AssistantDeskWorkItem>> {
+    let bucket = assistant_desk_bucket_for_run(run, now_ms);
+    if bucket == "ignored" {
+        return Ok(None);
+    }
+    Ok(Some(assistant_desk_item_from_run(
+        state, run, session, None, now_ms,
+    )?))
+}
+
+fn assistant_desk_item_from_run(
+    state: &AppState,
+    run: &RunRecord,
+    session: &SessionRecord,
+    approval: Option<&ApprovalRecord>,
+    now_ms: i64,
+) -> AnyResult<AssistantDeskWorkItem> {
+    let status = assistant_desk_status_for_run(run, approval);
+    let bucket = assistant_desk_bucket_for_status(&status, run, now_ms);
+    let sort_ms = approval
+        .map(|approval| approval.requested_at)
+        .or(run.ended_at)
+        .or(run.started_at)
+        .unwrap_or(run.created_at);
+    let agent = state.storage.get_agent(&session.agent_id)?;
+    let agent_name = agent
+        .as_ref()
+        .map(|agent| assistant_desk_sanitize_text(&agent.name))
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| assistant_desk_owner_label(&session.agent_id));
+    let workspace_label = agent
+        .as_ref()
+        .map(|agent| {
+            SanitizedPath::from_raw(&agent.workspace_root)
+                .as_str()
+                .to_string()
+        })
+        .unwrap_or_else(|| "<unset>".to_string());
+    let title = approval
+        .map(|approval| assistant_desk_sanitize_text(&approval.request_summary))
+        .filter(|value| !value.is_empty())
+        .or_else(|| {
+            session
+                .title
+                .as_ref()
+                .map(|title| assistant_desk_sanitize_text(title))
+                .filter(|value| !value.is_empty())
+        })
+        .unwrap_or_else(|| "Assistant work".to_string());
+    let item_id = format!("run:{}", run.run_id);
+    let transcript_id = format!("transcript:{item_id}");
+    let mut source_refs = vec![
+        AssistantDeskSourceRef {
+            source: "run".to_string(),
+            id: run.run_id.clone(),
+            label: "Run".to_string(),
+        },
+        AssistantDeskSourceRef {
+            source: "session".to_string(),
+            id: session.session_id.clone(),
+            label: "Session".to_string(),
+        },
+    ];
+    if let Some(approval) = approval {
+        source_refs.push(AssistantDeskSourceRef {
+            source: "approval".to_string(),
+            id: approval.approval_id.clone(),
+            label: "Approval".to_string(),
+        });
+    }
+
+    Ok(AssistantDeskWorkItem {
+        id: item_id,
+        kind: if approval.is_some() {
+            "approval".to_string()
+        } else {
+            "execass".to_string()
+        },
+        bucket: bucket.to_string(),
+        status: status.to_string(),
+        title,
+        owner_label: agent_name,
+        task_label: assistant_desk_task_label(run, approval),
+        current_action: assistant_desk_current_action(&status, approval),
+        last_event_at: utc_from_ms(sort_ms).to_rfc3339(),
+        last_event_at_ms: sort_ms,
+        source_refs,
+        deep_links: vec![
+            AssistantDeskDeepLink {
+                label: "Assistant chat".to_string(),
+                target: "assistant".to_string(),
+                href: format!("assistant://session/{}", session.session_id),
+            },
+            AssistantDeskDeepLink {
+                label: "Run".to_string(),
+                target: "run".to_string(),
+                href: format!("carsinos://run/{}", run.run_id),
+            },
+        ],
+        details: AssistantDeskWorkItemDetails {
+            provider_label: assistant_desk_sanitize_text(&run.model_provider),
+            model_label: assistant_desk_sanitize_text(&run.model_id),
+            workspace_label,
+            source_health: "fresh".to_string(),
+            last_error: run
+                .error_text
+                .as_ref()
+                .map(|error| assistant_desk_sanitize_text(error)),
+        },
+        transcript_id,
+        can_open_transcript: true,
+        transcript_unavailable_reason: None,
+        artifact_count: 0,
+        changed_file_count: 0,
+        sort_ms,
+    })
+}
+
+fn assistant_desk_sort_and_cap(items: &mut Vec<AssistantDeskWorkItem>, limit: usize) {
+    items.sort_by(|left, right| {
+        right
+            .sort_ms
+            .cmp(&left.sort_ms)
+            .then_with(|| left.id.cmp(&right.id))
+    });
+    items.truncate(limit);
+}
+
+fn assistant_desk_status_for_run(
+    run: &RunRecord,
+    approval: Option<&ApprovalRecord>,
+) -> &'static str {
+    if approval.is_some() {
+        return "needs_you";
+    }
+    match run.status.as_str() {
+        "queued" => "waiting",
+        "running" => "working",
+        "succeeded" => "done",
+        "failed" | "cancelled" => "failed",
+        _ => "working",
+    }
+}
+
+fn assistant_desk_bucket_for_run(run: &RunRecord, now_ms: i64) -> &'static str {
+    assistant_desk_bucket_for_status(&assistant_desk_status_for_run(run, None), run, now_ms)
+}
+
+fn assistant_desk_bucket_for_status(status: &str, run: &RunRecord, now_ms: i64) -> &'static str {
+    match status {
+        "needs_you" | "blocked" | "failed" => "needs_you",
+        "done" => {
+            let ended_at = run.ended_at.unwrap_or(run.created_at);
+            if now_ms.saturating_sub(ended_at) <= ASSISTANT_DESK_DONE_WINDOW_MS {
+                "done_recently"
+            } else {
+                "ignored"
+            }
+        }
+        _ => "working",
+    }
+}
+
+fn assistant_desk_owner_label(agent_id: &str) -> String {
+    if agent_id == "default" {
+        "ExecAss".to_string()
+    } else {
+        assistant_desk_sanitize_text(agent_id)
+    }
+}
+
+fn assistant_desk_task_label(run: &RunRecord, approval: Option<&ApprovalRecord>) -> String {
+    if let Some(approval) = approval {
+        return format!("Approval: {}", assistant_desk_sanitize_text(&approval.kind));
+    }
+    match run.status.as_str() {
+        "queued" => "Queued run".to_string(),
+        "running" => "Active run".to_string(),
+        "succeeded" => "Completed run".to_string(),
+        "failed" => "Failed run".to_string(),
+        "cancelled" => "Cancelled run".to_string(),
+        other => format!("{} run", assistant_desk_sanitize_text(other)),
+    }
+}
+
+fn assistant_desk_current_action(status: &str, approval: Option<&ApprovalRecord>) -> String {
+    if let Some(approval) = approval {
+        return format!(
+            "Needs your review: {}",
+            assistant_desk_sanitize_text(&approval.request_summary)
+        );
+    }
+    match status {
+        "waiting" => "Waiting to start".to_string(),
+        "working" => "Working".to_string(),
+        "done" => "Finished".to_string(),
+        "failed" => "Needs recovery".to_string(),
+        "needs_you" => "Needs your review".to_string(),
+        _ => "Working".to_string(),
+    }
+}
+
+fn build_assistant_desk_transcript_response(
+    state: &AppState,
+    work_item_id: &str,
+    cursor: Option<&str>,
+) -> AnyResult<Option<AssistantDeskTranscriptResponse>> {
+    let Some(run_id) = work_item_id.strip_prefix("run:") else {
+        return Ok(None);
+    };
+    let Some(run) = state.storage.get_run(run_id)? else {
+        return Ok(None);
+    };
+    let Some(session) = state.storage.get_session(&run.session_id)? else {
+        return Ok(None);
+    };
+    let approval = assistant_desk_latest_requested_approval_for_run(state, &run.run_id)?;
+    let item =
+        assistant_desk_item_from_run(state, &run, &session, approval.as_ref(), current_time_ms())?;
+    let transcript_id = item.transcript_id.clone();
+    let session_runs = state
+        .storage
+        .list_runs_for_session(&session.session_id, ASSISTANT_DESK_TRANSCRIPT_SCAN_LIMIT)?;
+    let current_run_index = session_runs
+        .iter()
+        .position(|candidate| candidate.run_id == run.run_id);
+    let previous_run = current_run_index
+        .and_then(|index| index.checked_sub(1))
+        .and_then(|index| session_runs.get(index));
+    let next_run = current_run_index.and_then(|index| session_runs.get(index + 1));
+    let lower_bound_ms = previous_run
+        .map(|previous| previous.ended_at.unwrap_or(previous.created_at))
+        .unwrap_or(i64::MIN);
+    let upper_bound_ms = next_run
+        .map(|next| next.created_at)
+        .or_else(|| run.ended_at.map(|ended_at| ended_at.saturating_add(1)))
+        .unwrap_or(i64::MAX);
+    let cursor_ms = cursor.and_then(|value| value.trim().parse::<i64>().ok());
+    let mut events = Vec::new();
+
+    events.push(AssistantDeskTranscriptEvent {
+        id: format!("run:{}:status", run.run_id),
+        at: utc_from_ms(item.last_event_at_ms).to_rfc3339(),
+        at_ms: item.last_event_at_ms,
+        role: "system".to_string(),
+        source: "run".to_string(),
+        text: assistant_desk_sanitize_text(&format!(
+            "Run {} is {} on {}/{}.",
+            run.run_id, run.status, run.model_provider, run.model_id
+        )),
+    });
+
+    if let Some(approval) = approval.as_ref() {
+        events.push(AssistantDeskTranscriptEvent {
+            id: format!("approval:{}", approval.approval_id),
+            at: utc_from_ms(approval.requested_at).to_rfc3339(),
+            at_ms: approval.requested_at,
+            role: "system".to_string(),
+            source: "approval".to_string(),
+            text: assistant_desk_sanitize_text(&format!(
+                "Approval requested for {}: {}",
+                approval.kind, approval.request_summary
+            )),
+        });
+    }
+
+    for message in state
+        .storage
+        .list_messages(&session.session_id, ASSISTANT_DESK_TRANSCRIPT_SCAN_LIMIT)?
+    {
+        if message.created_at < lower_bound_ms || message.created_at >= upper_bound_ms {
+            continue;
+        }
+        events.push(AssistantDeskTranscriptEvent {
+            id: format!("message:{}", message.message_id),
+            at: utc_from_ms(message.created_at).to_rfc3339(),
+            at_ms: message.created_at,
+            role: assistant_desk_sanitize_text(&message.role),
+            source: assistant_desk_sanitize_text(&message.source_channel),
+            text: assistant_desk_sanitize_text(&message.content_text),
+        });
+    }
+
+    if events.is_empty() {
+        events.push(AssistantDeskTranscriptEvent {
+            id: format!("fallback:{work_item_id}"),
+            at: utc_from_ms(run.created_at).to_rfc3339(),
+            at_ms: run.created_at,
+            role: "system".to_string(),
+            source: "fallback".to_string(),
+            text: "No transcript events were recorded yet.".to_string(),
+        });
+    }
+
+    events.sort_by(|left, right| {
+        left.at_ms
+            .cmp(&right.at_ms)
+            .then_with(|| left.id.cmp(&right.id))
+    });
+    if let Some(cursor_ms) = cursor_ms {
+        events.retain(|event| event.at_ms < cursor_ms);
+    }
+    let event_limit = ASSISTANT_DESK_TRANSCRIPT_EVENT_LIMIT as usize;
+    let complete = events.len() <= event_limit;
+    if !complete {
+        let keep_from = events.len() - event_limit;
+        events = events.split_off(keep_from);
+    }
+    let next_cursor = if complete {
+        None
+    } else {
+        events.first().map(|event| event.at_ms.to_string())
+    };
+
+    Ok(Some(AssistantDeskTranscriptResponse {
+        work_item_id: work_item_id.to_string(),
+        transcript_id,
+        complete,
+        next_cursor,
+        events,
+        artifacts: Vec::new(),
+    }))
+}
+
+fn assistant_desk_latest_requested_approval_for_run(
+    state: &AppState,
+    run_id: &str,
+) -> AnyResult<Option<ApprovalRecord>> {
+    Ok(state
+        .storage
+        .list_approvals(Some("requested"), ASSISTANT_DESK_APPROVAL_SCAN_LIMIT)?
+        .into_iter()
+        .filter(|approval| approval.run_id == run_id)
+        .max_by(|left, right| {
+            left.requested_at
+                .cmp(&right.requested_at)
+                .then_with(|| left.approval_id.cmp(&right.approval_id))
+        }))
+}
+
+fn assistant_desk_sanitize_text(input: &str) -> String {
+    let sanitized = input
+        .split_whitespace()
+        .map(|word| {
+            let trimmed = word.trim_matches(|ch: char| {
+                matches!(
+                    ch,
+                    '"' | '\'' | ',' | ';' | ':' | ')' | '(' | '[' | ']' | '{' | '}'
+                )
+            });
+            if assistant_desk_word_looks_secret(trimmed) {
+                word.replace(trimmed, "<redacted>")
+            } else {
+                word.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    if let Some((idx, _)) = sanitized.char_indices().nth(300) {
+        format!("{}...", &sanitized[..idx])
+    } else {
+        sanitized
+    }
+}
+
+fn assistant_desk_word_looks_secret(word: &str) -> bool {
+    let lowered = word.to_ascii_lowercase();
+    lowered.starts_with("sk-")
+        || lowered.starts_with("xox")
+        || lowered.starts_with("ghp_")
+        || lowered.starts_with("gho_")
+        || lowered.starts_with("github_pat_")
+        || (word.len() >= 24 && (lowered.contains("token") || lowered.contains("secret")))
+}
+
 fn resolve_agent_mail_principal(requested: Option<String>, auth: &AuthContext) -> String {
     requested
         .map(|value| value.trim().to_string())
@@ -19443,6 +20346,60 @@ fn assistant_tool_capabilities_payload(
                 requires_approval: false,
                 connector: None,
             },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CODEX_BRIDGE_STATUS.to_string(),
+                risk_level: "low".to_string(),
+                requires_approval: false,
+                connector: None,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CODEX_CLI_SESSIONS.to_string(),
+                risk_level: "low".to_string(),
+                requires_approval: false,
+                connector: None,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CODEX_CLI_READ.to_string(),
+                risk_level: "low".to_string(),
+                requires_approval: false,
+                connector: None,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CODEX_CLI_EXEC.to_string(),
+                risk_level: "high".to_string(),
+                requires_approval: true,
+                connector: None,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CODEX_CLI_WINDOW.to_string(),
+                risk_level: "high".to_string(),
+                requires_approval: true,
+                connector: None,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CODEX_APP_STATUS.to_string(),
+                risk_level: "low".to_string(),
+                requires_approval: false,
+                connector: None,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CODEX_APP_THREADS.to_string(),
+                risk_level: "low".to_string(),
+                requires_approval: false,
+                connector: None,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CODEX_APP_READ.to_string(),
+                risk_level: "low".to_string(),
+                requires_approval: false,
+                connector: None,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CODEX_APP_RUN.to_string(),
+                risk_level: "high".to_string(),
+                requires_approval: true,
+                connector: None,
+            },
         ],
         limits: assistant_tool_limits(runtime_config),
         templates: assistant_tool_templates(runtime_config),
@@ -19465,6 +20422,15 @@ fn assistant_tools_mcp_tools() -> &'static Vec<serde_json::Value> {
             ASSISTANT_TOOL_MAIL_THREAD_CREATE,
             ASSISTANT_TOOL_MAIL_SEND,
             ASSISTANT_TOOL_MAIL_INBOX_FETCH,
+            ASSISTANT_TOOL_CODEX_BRIDGE_STATUS,
+            ASSISTANT_TOOL_CODEX_CLI_SESSIONS,
+            ASSISTANT_TOOL_CODEX_CLI_READ,
+            ASSISTANT_TOOL_CODEX_CLI_EXEC,
+            ASSISTANT_TOOL_CODEX_CLI_WINDOW,
+            ASSISTANT_TOOL_CODEX_APP_STATUS,
+            ASSISTANT_TOOL_CODEX_APP_THREADS,
+            ASSISTANT_TOOL_CODEX_APP_READ,
+            ASSISTANT_TOOL_CODEX_APP_RUN,
         ]
         .into_iter()
         .map(|tool_name| {
@@ -19542,6 +20508,284 @@ fn assistant_tool_mcp_rpc_error_from_api(
             }
         }),
     }
+}
+
+fn assistant_codex_bridge_base_url() -> std::result::Result<Url, (StatusCode, Json<ApiError>)> {
+    let raw = std::env::var("CARSINOS_CODEX_BRIDGE_BASE_URL")
+        .unwrap_or_else(|_| "http://127.0.0.1:17889".to_string());
+    let url = Url::parse(raw.trim().trim_end_matches('/')).map_err(|_| {
+        api_error_with_code(
+            StatusCode::FAILED_DEPENDENCY,
+            "DEPENDENCY_UNAVAILABLE",
+            "CARSINOS_CODEX_BRIDGE_BASE_URL is not a valid URL",
+        )
+    })?;
+    if url.scheme() != "http" {
+        return Err(api_error_with_code(
+            StatusCode::FAILED_DEPENDENCY,
+            "DEPENDENCY_UNAVAILABLE",
+            "Codex bridge URL must use http on loopback",
+        ));
+    }
+    let host = url.host_str().unwrap_or("").to_ascii_lowercase();
+    if !matches!(host.as_str(), "127.0.0.1" | "localhost" | "::1") {
+        return Err(api_error_with_code(
+            StatusCode::FAILED_DEPENDENCY,
+            "DEPENDENCY_UNAVAILABLE",
+            "Codex bridge URL must point to localhost/loopback",
+        ));
+    }
+    Ok(url)
+}
+
+fn assistant_codex_bridge_id(
+    raw: Option<&serde_json::Value>,
+    field_name: &str,
+) -> std::result::Result<String, (StatusCode, Json<ApiError>)> {
+    let value = raw
+        .and_then(|item| item.as_str())
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .ok_or_else(|| {
+            api_error_with_code(
+                StatusCode::BAD_REQUEST,
+                "INVALID_INPUT",
+                &format!("{field_name} is required"),
+            )
+        })?;
+    let valid = value.len() <= 80
+        && value
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'));
+    if !valid {
+        return Err(api_error_with_code(
+            StatusCode::BAD_REQUEST,
+            "INVALID_INPUT",
+            &format!("{field_name} contains invalid characters"),
+        ));
+    }
+    Ok(value.to_string())
+}
+
+fn assistant_codex_bridge_execution_arguments(arguments: &serde_json::Value) -> serde_json::Value {
+    let mut value = arguments.clone();
+    if let Some(object) = value.as_object_mut() {
+        object.remove("operator_approved");
+        object.remove("approval_id");
+    }
+    value
+}
+
+fn assistant_codex_bridge_approval_payload(
+    context: &AssistantToolExecutionContext,
+    tool_name: &str,
+    run_id: &str,
+    arguments: &serde_json::Value,
+) -> serde_json::Value {
+    serde_json::json!({
+        "tool_name": tool_name,
+        "root_session_id": &context.root_session_id,
+        "root_run_id": run_id,
+        "caller_agent_id": &context.caller_agent_id,
+        "boss_key": &context.boss_key,
+        "arguments": assistant_codex_bridge_execution_arguments(arguments)
+    })
+}
+
+fn assistant_codex_bridge_blocked_for_approval(
+    approval: &ApprovalRecord,
+    message: &str,
+) -> (String, Option<String>, String, Option<serde_json::Value>) {
+    (
+        "blocked".to_string(),
+        Some("APPROVAL_REQUIRED".to_string()),
+        message.to_string(),
+        Some(serde_json::json!({
+            "approval_id": approval.approval_id,
+            "approval_status": approval.status,
+            "root_run_id": approval.run_id
+        })),
+    )
+}
+
+fn assistant_codex_bridge_require_stored_approval(
+    state: &AppState,
+    context: &AssistantToolExecutionContext,
+    tool_name: &str,
+    arguments: &serde_json::Value,
+) -> std::result::Result<
+    std::result::Result<
+        serde_json::Value,
+        (String, Option<String>, String, Option<serde_json::Value>),
+    >,
+    (StatusCode, Json<ApiError>),
+> {
+    let anchor_run_id = resolve_assistant_anchor_run_id(state, context)?;
+    let execution_arguments = assistant_codex_bridge_execution_arguments(arguments);
+    let request_payload =
+        assistant_codex_bridge_approval_payload(context, tool_name, &anchor_run_id, arguments);
+    let request_json = serde_json::to_string(&request_payload).map_err(|err| {
+        internal_err_with_error(
+            "serializing Codex bridge approval payload failed",
+            err.into(),
+        )
+    })?;
+
+    let approval = if let Some(approval_id) = arguments
+        .get("approval_id")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        let approval_id = assistant_codex_bridge_id(
+            Some(&serde_json::Value::String(approval_id.to_string())),
+            "approval_id",
+        )?;
+        let approval = state
+            .storage
+            .get_approval(&approval_id)
+            .map_err(|err| internal_err_with_error("loading Codex bridge approval failed", err))?
+            .ok_or_else(|| {
+                api_error_with_code(
+                    StatusCode::BAD_REQUEST,
+                    "INVALID_APPROVAL",
+                    "Codex bridge approval was not found",
+                )
+            })?;
+        if approval.run_id != anchor_run_id || approval.kind != tool_name {
+            return Ok(Err((
+                "error".to_string(),
+                Some("INVALID_APPROVAL".to_string()),
+                "approval does not match this Codex bridge request".to_string(),
+                Some(serde_json::json!({ "approval_id": approval.approval_id })),
+            )));
+        }
+        let stored_payload: serde_json::Value = serde_json::from_str(&approval.request_json)
+            .map_err(|err| {
+                internal_err_with_error("parsing Codex bridge approval payload failed", err.into())
+            })?;
+        if stored_payload != request_payload {
+            return Ok(Err((
+                "error".to_string(),
+                Some("INVALID_APPROVAL".to_string()),
+                "approval payload does not match this Codex bridge request".to_string(),
+                Some(serde_json::json!({ "approval_id": approval.approval_id })),
+            )));
+        }
+        approval
+    } else if let Some(existing) = state
+        .storage
+        .find_latest_approval_for_request(&anchor_run_id, tool_name, &request_json)
+        .map_err(|err| internal_err_with_error("finding Codex bridge approval failed", err))?
+    {
+        existing
+    } else {
+        state
+            .storage
+            .create_approval(NewApproval {
+                run_id: anchor_run_id.clone(),
+                tool_call_id: None,
+                kind: tool_name.to_string(),
+                request_summary: format!("Approve {tool_name} through Codex bridge"),
+                request_json,
+            })
+            .map_err(|err| internal_err_with_error("creating Codex bridge approval failed", err))?
+            .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "run not found for approval"))?
+    };
+
+    match approval.status.as_str() {
+        "approved" => Ok(Ok(execution_arguments)),
+        "denied" => Ok(Err((
+            "error".to_string(),
+            Some("APPROVAL_DENIED".to_string()),
+            "Codex bridge execution approval was denied".to_string(),
+            Some(serde_json::json!({ "approval_id": approval.approval_id })),
+        ))),
+        _ => Ok(Err(assistant_codex_bridge_blocked_for_approval(
+            &approval,
+            "Codex bridge execution requires a stored CarsinOS approval",
+        ))),
+    }
+}
+
+fn assistant_codex_bridge_url(
+    path: &str,
+    query: &[(&str, String)],
+) -> std::result::Result<Url, (StatusCode, Json<ApiError>)> {
+    let base = assistant_codex_bridge_base_url()?;
+    let mut url = base.join(path.trim_start_matches('/')).map_err(|_| {
+        api_error_with_code(
+            StatusCode::FAILED_DEPENDENCY,
+            "DEPENDENCY_UNAVAILABLE",
+            "failed to build Codex bridge URL",
+        )
+    })?;
+    if !query.is_empty() {
+        let mut pairs = url.query_pairs_mut();
+        for (key, value) in query {
+            pairs.append_pair(key, value);
+        }
+    }
+    Ok(url)
+}
+
+async fn assistant_codex_bridge_get(
+    state: &AppState,
+    path: &str,
+    query: &[(&str, String)],
+    timeout_ms: u64,
+) -> std::result::Result<serde_json::Value, (StatusCode, Json<ApiError>)> {
+    let url = assistant_codex_bridge_url(path, query)?;
+    let response = state
+        .provider_models_http_client
+        .get(url)
+        .timeout(Duration::from_millis(timeout_ms))
+        .send()
+        .await
+        .map_err(|err| internal_err_with_error("Codex bridge request failed", err.into()))?;
+    let status = response.status();
+    let body = response
+        .json::<serde_json::Value>()
+        .await
+        .map_err(|err| internal_err_with_error("Codex bridge JSON decode failed", err.into()))?;
+    if !status.is_success() {
+        return Err(api_error_with_code(
+            StatusCode::FAILED_DEPENDENCY,
+            "DEPENDENCY_UNAVAILABLE",
+            &format!("Codex bridge returned HTTP {status}"),
+        ));
+    }
+    Ok(body)
+}
+
+async fn assistant_codex_bridge_post(
+    state: &AppState,
+    path: &str,
+    payload: &serde_json::Value,
+    timeout_ms: u64,
+) -> std::result::Result<serde_json::Value, (StatusCode, Json<ApiError>)> {
+    let url = assistant_codex_bridge_url(path, &[])?;
+    let response = state
+        .provider_models_http_client
+        .post(url)
+        .timeout(Duration::from_millis(timeout_ms))
+        .json(payload)
+        .send()
+        .await
+        .map_err(|err| internal_err_with_error("Codex bridge request failed", err.into()))?;
+    let status = response.status();
+    let body = response
+        .json::<serde_json::Value>()
+        .await
+        .map_err(|err| internal_err_with_error("Codex bridge JSON decode failed", err.into()))?;
+    if !status.is_success() {
+        return Err(api_error_with_code(
+            StatusCode::FAILED_DEPENDENCY,
+            "DEPENDENCY_UNAVAILABLE",
+            &format!("Codex bridge returned HTTP {status}"),
+        ));
+    }
+    Ok(body)
 }
 
 fn normalize_assistant_worker_key(
@@ -20644,11 +21888,20 @@ fn require_assistant_tool_roles(
         ASSISTANT_TOOL_APPROVALS_LIST => &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
         ASSISTANT_TOOL_MAIL_THREAD_CREATE
         | ASSISTANT_TOOL_MAIL_SEND
-        | ASSISTANT_TOOL_MAIL_INBOX_FETCH => &[
+        | ASSISTANT_TOOL_MAIL_INBOX_FETCH
+        | ASSISTANT_TOOL_CODEX_BRIDGE_STATUS
+        | ASSISTANT_TOOL_CODEX_CLI_SESSIONS
+        | ASSISTANT_TOOL_CODEX_CLI_READ
+        | ASSISTANT_TOOL_CODEX_APP_STATUS
+        | ASSISTANT_TOOL_CODEX_APP_THREADS
+        | ASSISTANT_TOOL_CODEX_APP_READ => &[
             ROLE_OPERATOR_ADMIN,
             ROLE_OPERATOR_READONLY,
             ROLE_AUTOMATION_RUNNER,
         ],
+        ASSISTANT_TOOL_CODEX_CLI_EXEC
+        | ASSISTANT_TOOL_CODEX_CLI_WINDOW
+        | ASSISTANT_TOOL_CODEX_APP_RUN => &[ROLE_OPERATOR_ADMIN, ROLE_AUTOMATION_RUNNER],
         _ => {
             return Err(api_error_with_code(
                 StatusCode::BAD_REQUEST,
@@ -21896,6 +23149,145 @@ async fn execute_assistant_tool(
                 None,
                 "assistant inbox fetched".to_string(),
                 Some(serde_json::json!({ "threads": items })),
+            ))
+        }
+        ASSISTANT_TOOL_CODEX_BRIDGE_STATUS => {
+            let data = assistant_codex_bridge_get(state, "/status", &[], 20_000).await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Codex bridge status loaded".to_string(),
+                Some(data),
+            ))
+        }
+        ASSISTANT_TOOL_CODEX_CLI_SESSIONS => {
+            let data =
+                assistant_codex_bridge_get(state, "/codex-cli/sessions", &[], 20_000).await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Codex CLI sessions listed".to_string(),
+                Some(data),
+            ))
+        }
+        ASSISTANT_TOOL_CODEX_CLI_READ => {
+            let session_id = assistant_codex_bridge_id(arguments.get("session_id"), "session_id")?;
+            let max_bytes = arguments
+                .get("max_bytes")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(65_536)
+                .clamp(1_024, 512_000);
+            let path = format!("/codex-cli/sessions/{session_id}");
+            let data = assistant_codex_bridge_get(
+                state,
+                &path,
+                &[("maxBytes", max_bytes.to_string())],
+                20_000,
+            )
+            .await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Codex CLI session read".to_string(),
+                Some(data),
+            ))
+        }
+        ASSISTANT_TOOL_CODEX_CLI_EXEC => {
+            let arguments = match assistant_codex_bridge_require_stored_approval(
+                state, context, tool_name, &arguments,
+            )? {
+                Ok(arguments) => arguments,
+                Err(blocked) => return Ok(blocked),
+            };
+            let data =
+                assistant_codex_bridge_post(state, "/codex-cli/exec", &arguments, 300_000).await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Codex CLI exec started".to_string(),
+                Some(data),
+            ))
+        }
+        ASSISTANT_TOOL_CODEX_CLI_WINDOW => {
+            let arguments = match assistant_codex_bridge_require_stored_approval(
+                state, context, tool_name, &arguments,
+            )? {
+                Ok(arguments) => arguments,
+                Err(blocked) => return Ok(blocked),
+            };
+            let data =
+                assistant_codex_bridge_post(state, "/codex-cli/window", &arguments, 60_000).await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Codex CLI window started".to_string(),
+                Some(data),
+            ))
+        }
+        ASSISTANT_TOOL_CODEX_APP_STATUS => {
+            let data = assistant_codex_bridge_get(state, "/codex-app/status", &[], 20_000).await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Codex App status loaded".to_string(),
+                Some(data),
+            ))
+        }
+        ASSISTANT_TOOL_CODEX_APP_THREADS => {
+            let limit = arguments
+                .get("limit")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(10)
+                .clamp(1, 50);
+            let data = assistant_codex_bridge_get(
+                state,
+                "/codex-app/threads",
+                &[("limit", limit.to_string())],
+                30_000,
+            )
+            .await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Codex App threads listed".to_string(),
+                Some(data),
+            ))
+        }
+        ASSISTANT_TOOL_CODEX_APP_READ => {
+            let thread_id = assistant_codex_bridge_id(arguments.get("thread_id"), "thread_id")?;
+            let include_turns = arguments
+                .get("include_turns")
+                .and_then(|value| value.as_bool())
+                .unwrap_or(false);
+            let path = format!("/codex-app/threads/{thread_id}");
+            let data = assistant_codex_bridge_get(
+                state,
+                &path,
+                &[("includeTurns", include_turns.to_string())],
+                30_000,
+            )
+            .await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Codex App thread read".to_string(),
+                Some(data),
+            ))
+        }
+        ASSISTANT_TOOL_CODEX_APP_RUN => {
+            let arguments = match assistant_codex_bridge_require_stored_approval(
+                state, context, tool_name, &arguments,
+            )? {
+                Ok(arguments) => arguments,
+                Err(blocked) => return Ok(blocked),
+            };
+            let data =
+                assistant_codex_bridge_post(state, "/codex-app/run", &arguments, 600_000).await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Codex App run completed".to_string(),
+                Some(data),
             ))
         }
         _ => Ok((
@@ -25504,7 +26896,8 @@ async fn execute_run(
         .find(|message| message.role == "user")
         .map(|message| message.content_text.clone())
         .unwrap_or_default();
-    let system_messages = resolve_run_system_messages(state, &run.session_id, &session_messages)?;
+    let mut system_messages =
+        resolve_run_system_messages(state, &run.session_id, &session_messages)?;
     let autonomy_guardrails = load_runtime_autonomy_guardrails(state)?;
     enforce_run_wall_time_budget(started, autonomy_guardrails.max_run_ms)?;
 
@@ -26073,6 +27466,17 @@ async fn execute_run(
         )
     };
     let runtime_config = load_runtime_config(state)?;
+    system_messages.push(compose_available_tools_system_context(
+        state,
+        &runtime_config,
+        &plugin_registry_snapshot,
+        &connector_tool_bindings,
+        &session_agent_id,
+    ));
+    let provider_system_prompt_chars_for_budget = compose_provider_system_prompt(&system_messages)
+        .as_ref()
+        .map(|value| value.len())
+        .unwrap_or(0);
     let session_memory_policy =
         resolve_session_lane_memory_policy(state, &runtime_config, &run.session_id, agent_id)?;
     let memory_blend_mode = session_memory_policy.effective_mode.clone();
@@ -26253,6 +27657,7 @@ async fn execute_run(
                                     let context_cap = compute_numquam_context_char_cap(
                                         &autonomy_guardrails,
                                         provider_base_input.len(),
+                                        provider_system_prompt_chars_for_budget,
                                     );
                                     let (trimmed_context, truncated, original_chars) =
                                         truncate_text_to_chars(&context_text, context_cap);
@@ -36154,11 +37559,13 @@ fn build_numquam_context_policy(
 fn compute_numquam_context_char_cap(
     guardrails: &RuntimeAutonomyGuardrailsConfig,
     provider_base_input_len: usize,
+    provider_system_prompt_len: usize,
 ) -> usize {
     let max_provider_chars = guardrails.max_provider_input_chars as usize;
     let reserved_fixed = 512usize;
     let reserved_local = ((max_provider_chars as f64) * 0.20) as usize;
     let reserved_total = provider_base_input_len
+        .saturating_add(provider_system_prompt_len)
         .saturating_add(reserved_fixed)
         .saturating_add(reserved_local.clamp(256, 8_000));
     max_provider_chars.saturating_sub(reserved_total)
@@ -42522,6 +43929,72 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     }
 
     #[tokio::test]
+    async fn run_execution_injects_current_tool_inventory_into_system_prompt() {
+        let ctx = test_context();
+
+        let create_session_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"tool-inventory-system-run"}"#),
+            ))
+            .await
+            .expect("create session");
+        let create_session_json = parse_json(create_session_response).await;
+        let session_id = create_session_json["session"]["session_id"]
+            .as_str()
+            .expect("session id")
+            .to_string();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(r#"{"role":"user","content_text":"What tools do you have?"}"#),
+            ))
+            .await
+            .expect("create user message");
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from(r#"{"model_provider":"mock","model_id":"mock-echo-v1"}"#),
+            ))
+            .await
+            .expect("create run");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+
+        let messages = ctx
+            .storage
+            .list_messages(&session_id, 10)
+            .expect("list session messages");
+        let assistant_message = messages
+            .iter()
+            .find(|message| message.role == "assistant")
+            .expect("assistant message exists");
+        assert!(assistant_message
+            .content_text
+            .contains("Available CarsinOS tools for this run:"));
+        assert!(assistant_message
+            .content_text
+            .contains("tool.fs_read <path>"));
+        assert!(assistant_message
+            .content_text
+            .contains("tool.web_search <query>"));
+        assert!(assistant_message
+            .content_text
+            .contains("assistant.worker.spawn"));
+        assert!(!assistant_message.content_text.contains("file_manager"));
+    }
+
+    #[tokio::test]
     async fn run_execution_falls_back_to_runtime_configured_system_prompt_when_present() {
         let ctx = test_context();
 
@@ -42959,7 +44432,7 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         let ctx = test_context_with_numquam(build_test_numquam_client(&stub.base_url));
 
         let mut runtime = load_runtime_config(&ctx.state).expect("load runtime config");
-        runtime.autonomy_guardrails.max_provider_input_chars = 1_400;
+        runtime.autonomy_guardrails.max_provider_input_chars = 8_000;
         let payload = serde_json::to_string(&runtime).expect("serialize runtime config");
         ctx.storage
             .set_app_kv_json(APP_KV_RUNTIME_CONFIG, payload)
@@ -48089,7 +49562,16 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             && message
                 .content_text
                 .contains("You are the CarsinOS assistant.")));
-        transport_mock.assert_hits(1);
+        let assistant_reply = latest_assistant_reply_text(&ctx.state, &session.session_id)
+            .expect("load assistant reply")
+            .expect("assistant reply");
+        let expected_chunks = telegram_channel::split_outbound_chunks(
+            &assistant_reply,
+            telegram_channel::TELEGRAM_DEFAULT_CHUNK_LIMIT,
+        )
+        .len();
+        assert!(expected_chunks > 0);
+        transport_mock.assert_hits(expected_chunks);
     }
 
     #[tokio::test]
@@ -48496,7 +49978,21 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .expect("get run")
             .expect("run exists");
         assert_eq!(run.status, "succeeded");
-        transport_mock.assert_hits(1);
+        let session = ctx
+            .storage
+            .get_session_by_key("discord:dm:u-run-transport")
+            .expect("load discord channel session")
+            .expect("discord channel session exists");
+        let assistant_reply = latest_assistant_reply_text(&ctx.state, &session.session_id)
+            .expect("load assistant reply")
+            .expect("assistant reply");
+        let expected_chunks = discord_channel::split_outbound_chunks(
+            &assistant_reply,
+            discord_channel::DISCORD_DEFAULT_CHUNK_LIMIT,
+        )
+        .len();
+        assert!(expected_chunks > 0);
+        transport_mock.assert_hits(expected_chunks);
     }
 
     #[tokio::test]
@@ -49887,6 +51383,410 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                 .map(|value| value == format!("job_failure:{job_id}"))
                 .unwrap_or(false)
         }));
+    }
+
+    #[tokio::test]
+    async fn assistant_desk_requires_bearer_auth() {
+        let ctx = test_context();
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/v1/assistant-desk")
+                    .body(Body::empty())
+                    .expect("unauthenticated assistant desk request"),
+            )
+            .await
+            .expect("assistant desk unauthenticated response");
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn assistant_desk_read_model_caps_buckets_and_stable_ids() {
+        let ctx = test_context();
+        let mut approval_run_ids = Vec::new();
+        for index in 0..12 {
+            let session = ctx
+                .storage
+                .create_session(NewSession {
+                    session_key: None,
+                    agent_id: "default".to_string(),
+                    title: Some(format!("Approval session {index}")),
+                })
+                .expect("create approval session");
+            let run = ctx
+                .storage
+                .create_run(NewRun {
+                    session_id: session.session_id.clone(),
+                    model_provider: "mock".to_string(),
+                    model_id: "mock-echo-v1".to_string(),
+                })
+                .expect("create approval run")
+                .expect("approval run exists");
+            ctx.storage
+                .mark_run_started(&run.run_id)
+                .expect("mark approval run started");
+            ctx.storage
+                .create_approval(NewApproval {
+                    run_id: run.run_id.clone(),
+                    tool_call_id: None,
+                    kind: "exec".to_string(),
+                    request_summary: format!("Review command {index}"),
+                    request_json: serde_json::json!({ "cmd": "echo ok", "index": index })
+                        .to_string(),
+                })
+                .expect("create approval")
+                .expect("approval exists");
+            approval_run_ids.push(run.run_id);
+        }
+
+        let working_session = ctx
+            .storage
+            .create_session(NewSession {
+                session_key: None,
+                agent_id: "default".to_string(),
+                title: Some("Live assistant work".to_string()),
+            })
+            .expect("create working session");
+        let working_run = ctx
+            .storage
+            .create_run(NewRun {
+                session_id: working_session.session_id.clone(),
+                model_provider: "lmstudio".to_string(),
+                model_id: "local-model".to_string(),
+            })
+            .expect("create working run")
+            .expect("working run exists");
+        ctx.storage
+            .mark_run_started(&working_run.run_id)
+            .expect("mark working run started");
+
+        let mut done_run_ids = Vec::new();
+        for index in 0..6 {
+            let session = ctx
+                .storage
+                .create_session(NewSession {
+                    session_key: None,
+                    agent_id: "default".to_string(),
+                    title: Some(format!("Done session {index}")),
+                })
+                .expect("create done session");
+            let run = ctx
+                .storage
+                .create_run(NewRun {
+                    session_id: session.session_id.clone(),
+                    model_provider: "mock".to_string(),
+                    model_id: "mock-echo-v1".to_string(),
+                })
+                .expect("create done run")
+                .expect("done run exists");
+            ctx.storage
+                .mark_run_started(&run.run_id)
+                .expect("mark done run started");
+            ctx.storage
+                .mark_run_succeeded(&run.run_id)
+                .expect("mark done run succeeded");
+            done_run_ids.push(run.run_id);
+        }
+
+        let first_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request("GET", "/api/v1/assistant-desk", Body::empty()))
+            .await
+            .expect("assistant desk first response");
+        assert_eq!(first_response.status(), StatusCode::OK);
+        let first_json = parse_json(first_response).await;
+        assert_eq!(first_json["stale"], false);
+        assert_eq!(first_json["summary"]["needs_you_count"], 12);
+        assert_eq!(first_json["summary"]["done_recently_count"], 6);
+
+        let needs_you = first_json["buckets"]["needs_you"]
+            .as_array()
+            .expect("needs_you bucket");
+        let working = first_json["buckets"]["working"]
+            .as_array()
+            .expect("working bucket");
+        let done_recently = first_json["buckets"]["done_recently"]
+            .as_array()
+            .expect("done bucket");
+
+        assert_eq!(needs_you.len(), 10);
+        assert_eq!(done_recently.len(), 5);
+        assert!(working
+            .iter()
+            .any(|item| item["id"] == format!("run:{}", working_run.run_id)));
+        assert!(needs_you.iter().any(|item| {
+            item["source_refs"]
+                .as_array()
+                .is_some_and(|sources| sources.iter().any(|source| source["source"] == "approval"))
+        }));
+
+        let allowed_kinds = [
+            "run",
+            "execass",
+            "carsinos_worker",
+            "codex_cli",
+            "codex_app",
+            "approval",
+        ];
+        for bucket in [needs_you, working, done_recently] {
+            for item in bucket {
+                let kind = item["kind"].as_str().expect("desk item kind");
+                assert!(
+                    allowed_kinds.contains(&kind),
+                    "unexpected V1 desk kind: {kind}"
+                );
+                assert!(item["transcript_id"].as_str().unwrap_or_default().len() > 8);
+                assert_eq!(item["can_open_transcript"], true);
+            }
+        }
+
+        let second_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request("GET", "/api/v1/assistant-desk", Body::empty()))
+            .await
+            .expect("assistant desk second response");
+        assert_eq!(second_response.status(), StatusCode::OK);
+        let second_json = parse_json(second_response).await;
+        let first_ids = first_json["buckets"]
+            .as_object()
+            .expect("first buckets")
+            .values()
+            .flat_map(|bucket| bucket.as_array().into_iter().flatten())
+            .map(|item| item["id"].as_str().unwrap_or_default().to_string())
+            .collect::<Vec<_>>();
+        let second_ids = second_json["buckets"]
+            .as_object()
+            .expect("second buckets")
+            .values()
+            .flat_map(|bucket| bucket.as_array().into_iter().flatten())
+            .map(|item| item["id"].as_str().unwrap_or_default().to_string())
+            .collect::<Vec<_>>();
+        assert_eq!(first_ids, second_ids);
+        assert!(
+            approval_run_ids
+                .iter()
+                .any(|run_id| first_ids.contains(&format!("run:{run_id}"))),
+            "at least one approval-backed run should be visible"
+        );
+        assert!(
+            done_run_ids
+                .iter()
+                .any(|run_id| first_ids.contains(&format!("run:{run_id}"))),
+            "at least one done run should be visible"
+        );
+    }
+
+    #[tokio::test]
+    async fn assistant_desk_transcript_fallback_is_stable_nonempty_and_redacted() {
+        let ctx = test_context();
+        let session = ctx
+            .storage
+            .create_session(NewSession {
+                session_key: None,
+                agent_id: "default".to_string(),
+                title: Some("Transcript fallback".to_string()),
+            })
+            .expect("create transcript session");
+        let run = ctx
+            .storage
+            .create_run(NewRun {
+                session_id: session.session_id.clone(),
+                model_provider: "mock".to_string(),
+                model_id: "mock-echo-v1".to_string(),
+            })
+            .expect("create transcript run")
+            .expect("transcript run exists");
+        ctx.storage
+            .mark_run_started(&run.run_id)
+            .expect("mark transcript run started");
+        ctx.storage
+            .create_approval(NewApproval {
+                run_id: run.run_id.clone(),
+                tool_call_id: None,
+                kind: "exec".to_string(),
+                request_summary: "Review command with redacted payload".to_string(),
+                request_json: serde_json::json!({
+                    "cmd": "echo safe",
+                    "token": "sk-secret-123456789"
+                })
+                .to_string(),
+            })
+            .expect("create transcript approval")
+            .expect("transcript approval exists");
+
+        let desk_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request("GET", "/api/v1/assistant-desk", Body::empty()))
+            .await
+            .expect("assistant desk response");
+        assert_eq!(desk_response.status(), StatusCode::OK);
+        let desk_json = parse_json(desk_response).await;
+        let item_id = desk_json["buckets"]["needs_you"][0]["id"]
+            .as_str()
+            .expect("needs_you item id")
+            .to_string();
+        let item_payload = serde_json::to_string(&desk_json["buckets"]["needs_you"][0])
+            .expect("serialize desk item");
+        assert!(!item_payload.contains("sk-secret-123456789"));
+
+        let transcript_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/assistant-desk/{item_id}/transcript"),
+                Body::empty(),
+            ))
+            .await
+            .expect("assistant desk transcript response");
+        assert_eq!(transcript_response.status(), StatusCode::OK);
+        let transcript_json = parse_json(transcript_response).await;
+        assert_eq!(transcript_json["work_item_id"], item_id);
+        assert_eq!(transcript_json["complete"], true);
+        let events = transcript_json["events"]
+            .as_array()
+            .expect("transcript events");
+        assert!(!events.is_empty());
+        let serialized = serde_json::to_string(&transcript_json).expect("serialize transcript");
+        assert!(!serialized.contains("sk-secret-123456789"));
+
+        let second_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/assistant-desk/{item_id}/transcript"),
+                Body::empty(),
+            ))
+            .await
+            .expect("assistant desk transcript second response");
+        assert_eq!(second_response.status(), StatusCode::OK);
+        let second_json = parse_json(second_response).await;
+        assert_eq!(
+            transcript_json["transcript_id"],
+            second_json["transcript_id"]
+        );
+        assert_eq!(
+            transcript_json["events"][0]["id"],
+            second_json["events"][0]["id"]
+        );
+    }
+
+    #[tokio::test]
+    async fn assistant_desk_transcript_is_scoped_to_selected_run() {
+        let ctx = test_context();
+        let session = ctx
+            .storage
+            .create_session(NewSession {
+                session_key: None,
+                agent_id: "default".to_string(),
+                title: Some("Scoped transcript".to_string()),
+            })
+            .expect("create scoped transcript session");
+
+        ctx.storage
+            .create_message(NewMessage {
+                session_id: session.session_id.clone(),
+                source_channel: "assistant-chat".to_string(),
+                source_peer_id: None,
+                source_message_id: None,
+                role: "user".to_string(),
+                content_text: "first scoped prompt".to_string(),
+                content_format: "markdown".to_string(),
+            })
+            .expect("create first scoped user message");
+        let first_run = ctx
+            .storage
+            .create_run(NewRun {
+                session_id: session.session_id.clone(),
+                model_provider: "mock".to_string(),
+                model_id: "mock-echo-v1".to_string(),
+            })
+            .expect("create first scoped run")
+            .expect("first scoped run exists");
+        ctx.storage
+            .mark_run_started(&first_run.run_id)
+            .expect("mark first scoped run started");
+        ctx.storage
+            .create_message(NewMessage {
+                session_id: session.session_id.clone(),
+                source_channel: "assistant-chat".to_string(),
+                source_peer_id: None,
+                source_message_id: None,
+                role: "assistant".to_string(),
+                content_text: "first scoped answer".to_string(),
+                content_format: "markdown".to_string(),
+            })
+            .expect("create first scoped assistant message");
+        std::thread::sleep(std::time::Duration::from_millis(2));
+        ctx.storage
+            .mark_run_succeeded(&first_run.run_id)
+            .expect("mark first scoped run succeeded");
+        std::thread::sleep(std::time::Duration::from_millis(2));
+
+        ctx.storage
+            .create_message(NewMessage {
+                session_id: session.session_id.clone(),
+                source_channel: "assistant-chat".to_string(),
+                source_peer_id: None,
+                source_message_id: None,
+                role: "user".to_string(),
+                content_text: "second scoped prompt".to_string(),
+                content_format: "markdown".to_string(),
+            })
+            .expect("create second scoped user message");
+        let second_run = ctx
+            .storage
+            .create_run(NewRun {
+                session_id: session.session_id.clone(),
+                model_provider: "mock".to_string(),
+                model_id: "mock-echo-v1".to_string(),
+            })
+            .expect("create second scoped run")
+            .expect("second scoped run exists");
+        ctx.storage
+            .mark_run_started(&second_run.run_id)
+            .expect("mark second scoped run started");
+        ctx.storage
+            .create_message(NewMessage {
+                session_id: session.session_id.clone(),
+                source_channel: "assistant-chat".to_string(),
+                source_peer_id: None,
+                source_message_id: None,
+                role: "assistant".to_string(),
+                content_text: "second scoped answer".to_string(),
+                content_format: "markdown".to_string(),
+            })
+            .expect("create second scoped assistant message");
+
+        let transcript_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!(
+                    "/api/v1/assistant-desk/run:{}/transcript",
+                    second_run.run_id
+                ),
+                Body::empty(),
+            ))
+            .await
+            .expect("assistant desk scoped transcript response");
+        assert_eq!(transcript_response.status(), StatusCode::OK);
+        let transcript_json = parse_json(transcript_response).await;
+        let serialized =
+            serde_json::to_string(&transcript_json).expect("serialize scoped transcript");
+        assert!(serialized.contains("second scoped prompt"));
+        assert!(serialized.contains("second scoped answer"));
+        assert!(!serialized.contains("first scoped prompt"));
+        assert!(!serialized.contains("first scoped answer"));
     }
 
     #[tokio::test]
@@ -52987,6 +54887,35 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         assert_eq!(body["error_code"], "AUTH_REQUIRED");
     }
 
+    #[test]
+    fn provider_models_base_url_uses_local_provider_env_fallbacks() {
+        with_env_vars(
+            &[
+                (OLLAMA_API_BASE_URL_ENV, Some("http://env-ollama:11434/")),
+                (VLLM_API_BASE_URL_ENV, Some("http://env-vllm:8000/")),
+                (LMSTUDIO_API_BASE_URL_ENV, Some("http://env-lmstudio:1234/")),
+            ],
+            || {
+                assert_eq!(
+                    provider_models_base_url("ollama", None),
+                    "http://env-ollama:11434"
+                );
+                assert_eq!(
+                    provider_models_base_url("vllm", None),
+                    "http://env-vllm:8000"
+                );
+                assert_eq!(
+                    provider_models_base_url("lmstudio", None),
+                    "http://env-lmstudio:1234"
+                );
+                assert_eq!(
+                    provider_models_base_url("openai", None),
+                    OPENAI_DEFAULT_API_BASE
+                );
+            },
+        );
+    }
+
     #[tokio::test]
     async fn provider_models_lmstudio_uses_openai_compatible_catalog_path() {
         let ctx = test_context();
@@ -55633,6 +57562,124 @@ sys.stdout.write(json.dumps(response))
                 .expect("http tools")
                 .len()
         );
+    }
+
+    #[test]
+    fn assistant_tool_capabilities_include_codex_bridge_contract() {
+        let payload = assistant_tool_capabilities_payload(&default_runtime_config());
+        let by_name: std::collections::HashMap<&str, &AssistantToolCapabilityItem> = payload
+            .tools
+            .iter()
+            .map(|item| (item.tool_name.as_str(), item))
+            .collect();
+
+        let readonly_tools = [
+            ASSISTANT_TOOL_CODEX_BRIDGE_STATUS,
+            ASSISTANT_TOOL_CODEX_CLI_SESSIONS,
+            ASSISTANT_TOOL_CODEX_CLI_READ,
+            ASSISTANT_TOOL_CODEX_APP_STATUS,
+            ASSISTANT_TOOL_CODEX_APP_THREADS,
+            ASSISTANT_TOOL_CODEX_APP_READ,
+        ];
+        for tool_name in readonly_tools {
+            let item = by_name.get(tool_name).expect("readonly codex bridge tool");
+            assert_eq!(item.risk_level, "low");
+            assert!(!item.requires_approval);
+        }
+
+        let execution_tools = [
+            ASSISTANT_TOOL_CODEX_CLI_EXEC,
+            ASSISTANT_TOOL_CODEX_CLI_WINDOW,
+            ASSISTANT_TOOL_CODEX_APP_RUN,
+        ];
+        for tool_name in execution_tools {
+            let item = by_name.get(tool_name).expect("execution codex bridge tool");
+            assert_eq!(item.risk_level, "high");
+            assert!(item.requires_approval);
+        }
+
+        let mcp_names: std::collections::HashSet<&str> = assistant_tools_mcp_tools()
+            .iter()
+            .filter_map(|tool| tool.get("name").and_then(|name| name.as_str()))
+            .collect();
+        for tool_name in readonly_tools.into_iter().chain(execution_tools) {
+            assert!(
+                mcp_names.contains(tool_name),
+                "MCP tools missing {tool_name}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn assistant_codex_bridge_execution_requires_stored_approval() {
+        let ctx = test_context();
+        let session_id =
+            create_session_with_user_message(&ctx, "codex-approval", "run codex bridge").await;
+        let run = ctx
+            .storage
+            .create_run(NewRun {
+                session_id: session_id.clone(),
+                model_provider: "mock".to_string(),
+                model_id: "mock-echo-v1".to_string(),
+            })
+            .expect("create root run")
+            .expect("root run exists");
+
+        let (blocked_status, blocked_json) = assistant_tool_call(
+            &ctx,
+            serde_json::json!({
+                "contract_version": ASSISTANT_TOOL_CONTRACT_VERSION,
+                "request_id": "req_codex_bridge_self_attest",
+                "root_session_id": session_id,
+                "root_run_id": run.run_id,
+                "tool_name": ASSISTANT_TOOL_CODEX_CLI_EXEC,
+                "arguments": {
+                    "operator_approved": true,
+                    "prompt": "echo hi",
+                    "cwd": "Z:\\carsinos-codex-work\\carsinos"
+                }
+            }),
+        )
+        .await;
+
+        assert_eq!(blocked_status, StatusCode::OK);
+        assert_eq!(blocked_json["status"], "blocked");
+        assert_eq!(blocked_json["reason_code"], "APPROVAL_REQUIRED");
+        assert!(blocked_json["data"]["approval_id"].as_str().is_some());
+    }
+
+    #[test]
+    fn assistant_codex_bridge_id_rejects_path_and_shell_metacharacters() {
+        assert_eq!(
+            assistant_codex_bridge_id(Some(&serde_json::json!("session-1.ok")), "session_id")
+                .expect("valid bridge id"),
+            "session-1.ok"
+        );
+        assert!(
+            assistant_codex_bridge_id(Some(&serde_json::json!("../escape")), "session_id").is_err()
+        );
+        assert!(
+            assistant_codex_bridge_id(Some(&serde_json::json!("session;rm")), "session_id")
+                .is_err()
+        );
+        assert!(assistant_codex_bridge_id(Some(&serde_json::json!("")), "session_id").is_err());
+    }
+
+    #[test]
+    fn assistant_codex_bridge_url_stays_on_loopback_with_query() {
+        let url = assistant_codex_bridge_url(
+            "/codex-cli/sessions/session-1",
+            &[("maxBytes", "100".to_string())],
+        )
+        .expect("codex bridge url");
+
+        assert_eq!(url.scheme(), "http");
+        assert!(matches!(
+            url.host_str(),
+            Some("127.0.0.1") | Some("localhost") | Some("::1")
+        ));
+        assert_eq!(url.path(), "/codex-cli/sessions/session-1");
+        assert_eq!(url.query(), Some("maxBytes=100"));
     }
 
     #[tokio::test]

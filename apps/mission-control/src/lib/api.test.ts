@@ -2,8 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createWebSocketTicket,
   createBootstrapPreset,
+  createSessionRun,
   fetchBoardCardAssetBlob,
   GatewayApiError,
+  getAssistantDesk,
+  getAssistantDeskTranscript,
   getAgentMemoryGraphNeighbors,
   getAgentMemoryStatus,
   getRunbookDetail,
@@ -14,10 +17,13 @@ import {
   listTasks,
   getMissionControlUsage,
   removeAgent,
+  getRuntimeConfig,
   revokeAuthProfile,
+  updateRuntimeConfig,
   validateAnthropicSetupToken,
   websocketUrlFromGateway,
 } from "./api";
+import { API_REQUEST_TIMEOUT_MS, API_RUN_REQUEST_TIMEOUT_MS } from "../constants";
 import { getGatewayToken } from "./runtime";
 
 vi.mock("./runtime", () => ({
@@ -153,6 +159,26 @@ describe("request URL resolution", () => {
     } satisfies Partial<GatewayApiError>);
   });
 
+  it("includes gateway JSON error details in HTTP error messages", async () => {
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      new Response(JSON.stringify({ error: "That session key is already rebound." }), {
+        status: 409,
+        statusText: "Conflict",
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getGatewayHealth({ gateway_url: "http://127.0.0.1:19789" })).rejects.toMatchObject(
+      {
+        name: "GatewayApiError",
+        kind: "http",
+        status: 409,
+        message: "409 Conflict: That session key is already rebound.",
+      } satisfies Partial<GatewayApiError>
+    );
+  });
+
   it("throws typed timeout errors when fetch aborts", async () => {
     const fetchMock = vi.fn().mockRejectedValue(new DOMException("aborted", "AbortError"));
     vi.stubGlobal("fetch", fetchMock);
@@ -163,6 +189,173 @@ describe("request URL resolution", () => {
         kind: "timeout",
         path: "/api/v1/health",
       } satisfies Partial<GatewayApiError>
+    );
+  });
+
+  it("fetches the Assistant Desk read model with bearer auth", async () => {
+    const responseBody = {
+      generated_at: "2026-05-17T00:00:00Z",
+      stale: false,
+      buckets: {
+        needs_you: [],
+        working: [],
+        done_recently: [],
+      },
+      summary: {
+        needs_you_count: 0,
+        working_count: 0,
+        done_recently_count: 0,
+        stale_count: 0,
+      },
+    };
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      new Response(JSON.stringify(responseBody), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getAssistantDesk({ gateway_url: "http://127.0.0.1:19789" })).resolves.toEqual(
+      responseBody
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:19789/api/v1/assistant-desk",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer token-123",
+        }),
+      })
+    );
+  });
+
+  it("encodes Assistant Desk transcript IDs and cursors", async () => {
+    const responseBody = {
+      transcript_id: "fallback:run:abc/def",
+      work_item_id: "run:abc/def",
+      events: [],
+      complete: true,
+      next_cursor: null,
+    };
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      new Response(JSON.stringify(responseBody), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      getAssistantDeskTranscript(
+        { gateway_url: "http://127.0.0.1:19789" },
+        "run:abc/def",
+        "older cursor"
+      )
+    ).resolves.toEqual(responseBody);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:19789/api/v1/assistant-desk/run%3Aabc%2Fdef/transcript?cursor=older+cursor",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer token-123",
+        }),
+      })
+    );
+  });
+
+  it("coalesces bursty runtime config reads so hidden panels do not stampede the gateway", async () => {
+    const responseBody = {
+      config: {
+        global: {},
+        routing: {},
+        channels: {},
+        memory: {},
+      },
+    };
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      new Response(JSON.stringify(responseBody), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const settings = { gateway_url: "http://127.0.0.1:19891" };
+    const [first, second, third] = await Promise.all([
+      getRuntimeConfig(settings),
+      getRuntimeConfig(settings),
+      getRuntimeConfig(settings),
+    ]);
+
+    expect(first).toEqual(responseBody);
+    expect(second).toEqual(responseBody);
+    expect(third).toEqual(responseBody);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:19891/api/v1/config/runtime",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer token-123",
+        }),
+      })
+    );
+  });
+
+  it("invalidates the runtime config cache after saving config", async () => {
+    const firstRuntime = {
+      config: {
+        global: { assistant_system_prompt: "first" },
+        routing: {},
+        channels: {},
+        memory: {},
+      },
+    };
+    const updatedRuntime = {
+      config: {
+        global: { assistant_system_prompt: "updated" },
+        routing: {},
+        channels: {},
+        memory: {},
+      },
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(firstRuntime), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(updatedRuntime), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(updatedRuntime), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const settings = { gateway_url: "http://127.0.0.1:19892" };
+    await expect(getRuntimeConfig(settings)).resolves.toEqual(firstRuntime);
+    await expect(
+      updateRuntimeConfig(settings, {
+        global: updatedRuntime.config.global as never,
+      })
+    ).resolves.toEqual(updatedRuntime);
+    await expect(getRuntimeConfig(settings)).resolves.toEqual(updatedRuntime);
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "http://127.0.0.1:19892/api/v1/config/runtime",
+      expect.objectContaining({ method: "POST" })
     );
   });
 
@@ -585,5 +778,39 @@ describe("request URL resolution", () => {
     expect(neighborsUrl).toContain("link_limit=72");
     expect(neighborsUrl).toContain("include_root_detail=true");
     expect(neighborsUrl).toContain("include_shared_language=false");
+  });
+
+  it("uses the longer run timeout for blocking model execution", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(getGatewayToken).mockResolvedValue("token-123");
+      const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(new DOMException("aborted", "AbortError"));
+          });
+        });
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const promise = createSessionRun(
+        { gateway_url: "http://127.0.0.1:18789" },
+        "session-1"
+      );
+      const earlyFailure = vi.fn();
+      promise.catch(earlyFailure);
+
+      await vi.advanceTimersByTimeAsync(API_REQUEST_TIMEOUT_MS + 1);
+      await Promise.resolve();
+      expect(earlyFailure).not.toHaveBeenCalled();
+
+      await vi.advanceTimersByTimeAsync(API_RUN_REQUEST_TIMEOUT_MS - API_REQUEST_TIMEOUT_MS);
+      await expect(promise).rejects.toMatchObject({
+        kind: "timeout",
+        message: `Gateway request timed out after ${API_RUN_REQUEST_TIMEOUT_MS}ms.`,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

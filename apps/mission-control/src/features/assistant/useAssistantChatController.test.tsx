@@ -122,7 +122,8 @@ function makeRuntimeConfigResponse(
       routing: {
         enabled,
         use_channel_defaults_as_fallback: false,
-        local_operator_human_identity_id: enabled ? "local-operator" : null,
+        local_operator_human_identity_id:
+          assignedAgentIds.length > 0 ? "local-operator" : null,
         dm_unmapped_policy: "approval_required",
         shared_unmapped_policy: "block",
         human_identities: [
@@ -204,6 +205,16 @@ function makeRunResponse(sessionId: string): CreateRunResponse {
       created_at: 1,
     },
   };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((innerResolve, innerReject) => {
+    resolve = innerResolve;
+    reject = innerReject;
+  });
+  return { promise, resolve, reject };
 }
 
 function makeMessageResponse(): CreateMessageResponse {
@@ -403,9 +414,16 @@ describe("useAssistantChatController", () => {
     );
   });
 
-  it("refuses to silently fall back to a private session when lane routing is disabled", async () => {
+  it("shows the pending user message while the model run is still blocking", async () => {
     const setNotice = vi.fn();
-    vi.mocked(getRuntimeConfig).mockResolvedValue(makeRuntimeConfigResponse(false));
+    const runDeferred = deferred<CreateRunResponse>();
+    vi.mocked(createSessionRun).mockReturnValueOnce(runDeferred.promise);
+    vi.mocked(createSessionMessage).mockResolvedValueOnce({
+      message: {
+        ...makeMessageResponse().message,
+        content_text: "show progress please",
+      },
+    });
 
     await act(async () => {
       root.render(
@@ -422,17 +440,156 @@ describe("useAssistantChatController", () => {
     await flush();
 
     await act(async () => {
+      latest?.setDraft("show progress please");
+    });
+
+    let sendPromise: Promise<void> | undefined;
+    await act(async () => {
+      sendPromise = latest?.send();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(latest?.busy).toBe(true);
+    expect(latest?.sendStatus).toContain("Waiting for");
+    expect(latest?.messages.some((message) => message.content_text === "show progress please"))
+      .toBe(true);
+
+    await act(async () => {
+      runDeferred.resolve(makeRunResponse("sess-1"));
+      await sendPromise;
+    });
+  });
+
+  it("does not restore the draft when the user message persisted but the run failed", async () => {
+    const setNotice = vi.fn();
+    vi.mocked(createSessionMessage).mockResolvedValueOnce({
+      message: {
+        ...makeMessageResponse().message,
+        content_text: "already persisted",
+      },
+    });
+    vi.mocked(createSessionRun).mockRejectedValueOnce(new Error("provider offline"));
+
+    await act(async () => {
+      root.render(
+        <Harness
+          onReady={(controller) => {
+            latest = controller;
+          }}
+          settings={settings}
+          agents={[makeAgent("claude")]}
+          setNotice={setNotice}
+        />
+      );
+    });
+    await flush();
+
+    await act(async () => {
+      latest?.setDraft("already persisted");
+    });
+    await act(async () => {
+      await latest?.send();
+    });
+
+    expect(createSessionMessage).toHaveBeenCalledTimes(1);
+    expect(latest?.messages.some((message) => message.content_text === "already persisted"))
+      .toBe(true);
+    expect(latest?.draft).toBe("");
+    expect(setNotice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tone: "error",
+        message: expect.stringContaining("provider offline"),
+      })
+    );
+  });
+
+  it("uses the explicit local assistant route even when the legacy routing toggle is disabled", async () => {
+    const setNotice = vi.fn();
+    vi.mocked(getRuntimeConfig).mockResolvedValue(makeRuntimeConfigResponse(false));
+
+    await act(async () => {
+      root.render(
+        <Harness
+          onReady={(controller) => {
+            latest = controller;
+          }}
+          settings={settings}
+          agents={[makeAgent("claude")]}
+          setNotice={setNotice}
+        />
+      );
+    });
+    await flush();
+    await flush();
+
+    await act(async () => {
       latest?.setDraft("Hello from Assistant");
     });
     await act(async () => {
       await latest?.send();
     });
 
+
+    expect(createSession).toHaveBeenCalledWith(settings, {
+      agent_id: "claude",
+      human_identity_id: "local-operator",
+    });
+    expect(setNotice).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining("People-based lane routing is off"),
+      })
+    );
+  });
+
+  it("does not reuse cached Team routing across gateway URL changes", async () => {
+    const setNotice = vi.fn();
+    const nextSettings = { gateway_url: "http://127.0.0.1:18790" };
+    vi.mocked(getRuntimeConfig)
+      .mockResolvedValueOnce(makeRuntimeConfigResponse(true, ["claude"]))
+      .mockRejectedValue(new Error("new gateway offline"));
+
+    await act(async () => {
+      root.render(
+        <Harness
+          onReady={(controller) => {
+            latest = controller;
+          }}
+          settings={settings}
+          agents={[makeAgent("claude")]}
+          setNotice={setNotice}
+        />
+      );
+    });
+    await flush();
+    expect(latest?.availableAgents.map((agent) => agent.agent_id)).toEqual(["claude"]);
+
+    await act(async () => {
+      root.render(
+        <Harness
+          onReady={(controller) => {
+            latest = controller;
+          }}
+          settings={nextSettings}
+          agents={[makeAgent("claude")]}
+          setNotice={setNotice}
+        />
+      );
+    });
+    await flush();
+    await act(async () => {
+      latest?.setDraft("do not send through stale route");
+    });
+    await act(async () => {
+      await latest?.send();
+    });
+
     expect(createSession).not.toHaveBeenCalled();
+    expect(createSessionMessage).not.toHaveBeenCalled();
     expect(setNotice).toHaveBeenCalledWith(
       expect.objectContaining({
         tone: "error",
-        message: expect.stringContaining("People-based lane routing is off"),
+        message: expect.stringContaining("Team routing could not load cleanly"),
       })
     );
   });
@@ -529,6 +686,7 @@ describe("useAssistantChatController", () => {
       );
     });
     await flush();
+    vi.mocked(getRuntimeConfig).mockClear();
 
     await act(async () => {
       latest?.setDraft("first");
@@ -548,6 +706,7 @@ describe("useAssistantChatController", () => {
     expect(createSession).toHaveBeenCalledTimes(2);
     expect(createSessionRun).toHaveBeenLastCalledWith(settings, "sess-2", {});
     expect(latest?.sessionId).toBe("sess-2");
+    expect(getRuntimeConfig).not.toHaveBeenCalled();
   });
 
   it("keeps sending on an explicitly opened pinned transcript until returning to the canonical lane", async () => {

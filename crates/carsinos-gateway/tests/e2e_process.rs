@@ -239,10 +239,19 @@ async fn websocket_stream_includes_run_and_approval_events() -> Result<()> {
 
     let mut events = ObservedEvents::default();
     let deadline = Duration::from_secs(5);
+    let mut seen_events = Vec::new();
     while !events.is_complete() {
         let frame = timeout(deadline, next_ws_event(&mut ws))
             .await
-            .context("timed out waiting for websocket event")??;
+            .with_context(|| {
+                format!(
+                    "timed out waiting for websocket event; observed={:?}; seen={:?}",
+                    events, seen_events
+                )
+            })??;
+        if let Some(event) = frame["event"].as_str() {
+            seen_events.push(event.to_string());
+        }
         events.observe(&frame);
     }
 
@@ -2246,7 +2255,7 @@ async fn numquam_stub_writeback_resolve(
     }))
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct ObservedEvents {
     run_created: bool,
     run_status_running: bool,

@@ -131,7 +131,7 @@ const cards = [
     title: "Investigate gateway health",
     description: "Validate ws reconnect and service heartbeat.",
     owner_kind: "agent",
-    owner_agent_id: "lyra",
+    owner_agent_id: "default",
     owner_human_id: null,
     due_at: null,
     tags: ["ops", "reliability"],
@@ -148,7 +148,7 @@ const cards = [
 const jobs = [
   {
     job_id: "job-heartbeat",
-    agent_id: "lyra",
+    agent_id: "default",
     name: "Gateway heartbeat check",
     enabled: true,
     schedule_kind: "interval",
@@ -180,8 +180,8 @@ const agents = [
     memory_binding: null,
   },
   {
-    agent_id: "lyra",
-    name: "Lyra",
+    agent_id: "default",
+    name: "Local Assistant",
     model_provider: "ollama",
     model_id: "qwen3.5-9b-instruct",
     workspace_root: ".",
@@ -189,13 +189,13 @@ const agents = [
     role_label: "Reliability Lead",
     reports_to_agent_id: "agent-root",
     memory_binding: {
-      binding_id: "mno-lyra",
+      binding_id: "mno-default",
       provider_kind: "modelnumquamoblita",
       base_url: "http://127.0.0.1:4411",
       auth_mode: "none",
       auth_secret_ref: null,
-      principal_id: "lyra-operator",
-      principal_display_name: "Lyra",
+      principal_id: "local-operator",
+      principal_display_name: "Local Assistant",
       enabled: true,
       trusted_local_operator_actions: true,
     },
@@ -583,7 +583,7 @@ function createAgentMemoryLane(agentId, labelPrefix) {
 }
 
 const agentMemoryLanes = {
-  lyra: createAgentMemoryLane("lyra", "Lyra"),
+  default: createAgentMemoryLane("default", "Local Assistant"),
 };
 
 const strategyGoals = [
@@ -609,7 +609,7 @@ const strategyProjects = [
     name: "Gateway Health",
     summary: "Track jobs, approvals, and board execution against the gateway health objective.",
     status: "active",
-    owner_agent_id: "lyra",
+    owner_agent_id: "default",
     workspace_root: ".",
     budget_month_usd: 120,
     created_at: createdAt,
@@ -626,7 +626,7 @@ const strategyTasks = [
     detail: "Keep the board card, scheduled job, and approval queue aligned around gateway heartbeat health.",
     status: "in_progress",
     priority: "high",
-    owner_agent_id: "lyra",
+    owner_agent_id: "default",
     due_at: Date.now() + 2 * 86_400_000,
     blocked_reason: null,
     linked_board_card_id: "card-ops-1",
@@ -644,7 +644,7 @@ const strategyTasks = [
     detail: "Resolve any lingering approval requests that block runtime execution.",
     status: "blocked",
     priority: "critical",
-    owner_agent_id: "lyra",
+    owner_agent_id: "default",
     due_at: Date.now() + 86_400_000,
     blocked_reason: "Pending operator approval on the shell command request.",
     linked_board_card_id: null,
@@ -718,9 +718,9 @@ const channelConfig = {
     require_mention_in_guild_channels: true,
     allowlisted_user_ids: [],
     auto_run_enabled: true,
-    default_agent_id: "claude",
-    default_model_provider: "anthropic",
-    default_model_id: "claude-sonnet-4-5",
+    default_agent_id: "default",
+    default_model_provider: "ollama",
+    default_model_id: "qwen3.5-9b-instruct",
   },
   telegram: {
     require_mention_in_groups: true,
@@ -735,9 +735,9 @@ const channelConfig = {
     unauthorized_spam_threshold: 4,
     unauthorized_spam_block_seconds: 3600,
     auto_run_enabled: true,
-    default_agent_id: "claude",
-    default_model_provider: "anthropic",
-    default_model_id: "claude-sonnet-4-5",
+    default_agent_id: "default",
+    default_model_provider: "ollama",
+    default_model_id: "qwen3.5-9b-instruct",
   },
   updated_at: Date.now(),
 };
@@ -1518,8 +1518,8 @@ function getStrategySummaryPayload() {
     stale_tasks: staleTasks,
     spend_by_agent: [
       {
-        agent_id: "lyra",
-        agent_name: "Lyra",
+        agent_id: "default",
+        agent_name: "Local Assistant",
         estimated_cost_total: 18.4,
         linked_task_count: 2,
       },
@@ -2603,14 +2603,14 @@ function buildMissionControlUsage(requestUrl) {
   const tokenOutputTotal = window === "today" ? 7_420 : 31_000;
   const byAgent = [
     {
-      agent_id: "lyra",
-      agent_name: "Lyra",
+      agent_id: "local-assistant",
+      agent_name: "Local Assistant",
       estimated_cost_total: Number((estimatedCostTotal * 0.62).toFixed(4)),
       token_input_total: Math.round(tokenInputTotal * 0.6),
       token_output_total: Math.round(tokenOutputTotal * 0.58),
     },
     {
-      agent_id: "default",
+      agent_id: "default-agent",
       agent_name: "Default Agent",
       estimated_cost_total: Number((estimatedCostTotal * 0.38).toFixed(4)),
       token_input_total: Math.round(tokenInputTotal * 0.4),
@@ -2713,6 +2713,157 @@ function broadcastWsEvent(overrides = {}) {
   return event;
 }
 
+function assistantDeskWorkItem(overrides) {
+  const now = Date.now();
+  return {
+    id: "run:desk-default",
+    kind: "run",
+    bucket: "working",
+    status: "working",
+    title: "Tracking assistant handoff",
+    owner_label: "ExecAss",
+    task_label: "Assistant work",
+    current_action: "Collecting updates for the operator.",
+    last_event_at: new Date(now - 20_000).toISOString(),
+    last_event_at_ms: now - 20_000,
+    source_refs: [{ source: "run", id: "desk-default", label: "Assistant work" }],
+    deep_links: [],
+    details: {
+      provider_label: "LM Studio",
+      model_label: "qwen3.5-9b-instruct",
+      workspace_label: "carsinos",
+      source_health: "fresh",
+      last_error: null,
+    },
+    transcript_id: "transcript:run:desk-default",
+    can_open_transcript: true,
+    transcript_unavailable_reason: null,
+    artifact_count: 0,
+    changed_file_count: 0,
+    ...overrides,
+  };
+}
+
+function buildAssistantDeskPayload() {
+  const now = Date.now();
+  const needsYou = [
+    assistantDeskWorkItem({
+      id: "run:approval-001",
+      kind: "approval",
+      bucket: "needs_you",
+      status: "needs_you",
+      title: "Review shell approval",
+      task_label: "Operator approval",
+      current_action: "Waiting for you to approve or deny a shell command.",
+      last_event_at: new Date(now - 8_000).toISOString(),
+      last_event_at_ms: now - 8_000,
+      source_refs: [
+        { source: "run", id: "run-pending-001", label: "Assistant work" },
+        { source: "approval", id: "approval-001", label: "Approval" },
+      ],
+      transcript_id: "transcript:run:approval-001",
+    }),
+  ];
+  const working = [
+    assistantDeskWorkItem({
+      id: "run:worker-001",
+      title: "Checking local model route",
+      current_action: "Confirming the selected assistant can answer through the local provider.",
+      last_event_at: new Date(now - 24_000).toISOString(),
+      last_event_at_ms: now - 24_000,
+      transcript_id: "transcript:run:worker-001",
+    }),
+    assistantDeskWorkItem({
+      id: "run:worker-002",
+      title: "Reading current workspace state",
+      current_action: "Looking at open tasks and recent messages.",
+      last_event_at: new Date(now - 55_000).toISOString(),
+      last_event_at_ms: now - 55_000,
+      transcript_id: "transcript:run:worker-002",
+      changed_file_count: 2,
+    }),
+    assistantDeskWorkItem({
+      id: "run:worker-003",
+      title: "Preparing a short status note",
+      current_action: "Summarizing what changed and what still needs attention.",
+      last_event_at: new Date(now - 92_000).toISOString(),
+      last_event_at_ms: now - 92_000,
+      transcript_id: "transcript:run:worker-003",
+      artifact_count: 1,
+    }),
+    assistantDeskWorkItem({
+      id: "run:worker-004",
+      title: "Watching channel health",
+      current_action: "Keeping an eye on connected message sources.",
+      last_event_at: new Date(now - 118_000).toISOString(),
+      last_event_at_ms: now - 118_000,
+      transcript_id: "transcript:run:worker-004",
+    }),
+  ];
+  const doneRecently = [
+    assistantDeskWorkItem({
+      id: "run:done-001",
+      bucket: "done_recently",
+      status: "done",
+      title: "Saved assistant notes",
+      current_action: "Finished and ready to review.",
+      last_event_at: new Date(now - 180_000).toISOString(),
+      last_event_at_ms: now - 180_000,
+      transcript_id: "transcript:run:done-001",
+      artifact_count: 1,
+    }),
+  ];
+  return {
+    generated_at: new Date(now).toISOString(),
+    stale: false,
+    buckets: {
+      needs_you: needsYou,
+      working,
+      done_recently: doneRecently,
+    },
+    summary: {
+      needs_you_count: needsYou.length,
+      working_count: working.length,
+      done_recently_count: doneRecently.length,
+      stale_count: 0,
+    },
+  };
+}
+
+function buildAssistantDeskTranscript(workItemId) {
+  const now = Date.now();
+  return {
+    work_item_id: workItemId,
+    transcript_id: `transcript:${workItemId}`,
+    title: workItemId.includes("approval") ? "Review shell approval" : "Assistant work",
+    complete: true,
+    next_cursor: null,
+    events: [
+      {
+        id: `${workItemId}:event:1`,
+        at: new Date(now - 90_000).toISOString(),
+        role: "system",
+        source: "assistant",
+        title: "Started",
+        text: "ExecAss started tracking this item.",
+        body_markdown: "ExecAss started tracking **this item** and attached it to the Desk.",
+        artifact_refs: [],
+      },
+      {
+        id: `${workItemId}:event:2`,
+        at: new Date(now - 45_000).toISOString(),
+        role: "assistant",
+        source: "assistant",
+        title: "Current note",
+        text: "The next action is ready for review.",
+        body_markdown: "- Current action is visible.\n- Transcript text renders as markdown.",
+        artifact_refs: [],
+      },
+    ],
+    artifacts: [],
+  };
+}
+
 async function routeRequest(req, res) {
   const requestUrl = new URL(req.url ?? "/", `http://${req.headers.host ?? "127.0.0.1"}`);
   if (verbose) {
@@ -2767,6 +2918,20 @@ async function routeRequest(req, res) {
 
   if (req.method === "GET" && requestUrl.pathname === "/api/v1/status") {
     sendJson(res, 200, getStatusPayload());
+    return;
+  }
+
+  if (req.method === "GET" && requestUrl.pathname === "/api/v1/assistant-desk") {
+    sendJson(res, 200, buildAssistantDeskPayload());
+    return;
+  }
+
+  const assistantDeskTranscriptMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/assistant-desk\/([^/]+)\/transcript$/
+  );
+  if (req.method === "GET" && assistantDeskTranscriptMatch) {
+    const workItemId = decodeURIComponent(assistantDeskTranscriptMatch[1]);
+    sendJson(res, 200, buildAssistantDeskTranscript(workItemId));
     return;
   }
 
