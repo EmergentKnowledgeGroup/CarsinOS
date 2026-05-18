@@ -10933,7 +10933,7 @@ async fn remove_agent(
         RemoveAgentOutcome::HasReferences => {
             return Err(api_error(
                 StatusCode::CONFLICT,
-                "agent is still referenced by hierarchy or strategy records",
+                "agent still owns scheduled jobs and cannot be removed",
             ));
         }
         RemoveAgentOutcome::Removed => {}
@@ -12104,7 +12104,7 @@ async fn run_board_card(
     let agent_id = card
         .owner_agent_id
         .clone()
-        .unwrap_or_else(|| "lyra".to_string());
+        .unwrap_or_else(|| "default".to_string());
     let session_key = format!("board:{board_id}:card:{card_id}:agent:{agent_id}");
     let session = match state
         .storage
@@ -12439,7 +12439,7 @@ async fn upsert_board_automation_rule(
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .or_else(|| existing_rule.as_ref().map(|rule| rule.agent_id.clone()))
-        .unwrap_or_else(|| "lyra".to_string());
+        .unwrap_or_else(|| "default".to_string());
     let max_cards_per_run = request
         .max_cards_per_run
         .map(|value| value as i64)
@@ -12785,6 +12785,7 @@ async fn create_session(
         .as_ref()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
+    let lane_bound_request = requested_human_identity_id.is_some();
 
     let (session_key, agent_id, title) = if let Some(human_identity_id) =
         requested_human_identity_id.as_deref()
@@ -12837,13 +12838,38 @@ async fn create_session(
             .map_err(|err| internal_err_with_error("loading existing session by key failed", err))?
         {
             if existing.agent_id != agent_id {
-                return Err(api_error(
-                    StatusCode::CONFLICT,
-                    "That session key is already bound to a different assistant.",
-                ));
+                if lane_bound_request && session_key_looks_lane_managed(&existing.session_key) {
+                    info!(
+                        session_id = %existing.session_id,
+                        session_key = %existing.session_key,
+                        previous_agent_id = %existing.agent_id,
+                        next_agent_id = %agent_id,
+                        "lane-backed session route changed; rebinding session assistant"
+                    );
+                    let rebound = state
+                        .storage
+                        .update_session_agent(&existing.session_id, &agent_id)
+                        .map_err(|err| {
+                            internal_err_with_error("rebinding lane session assistant failed", err)
+                        })?
+                        .ok_or_else(|| {
+                            internal_err_with_error(
+                                "rebinding lane session assistant failed",
+                                anyhow::anyhow!("session disappeared during rebind"),
+                            )
+                        })?;
+                    reused_existing = true;
+                    rebound
+                } else {
+                    return Err(api_error(
+                        StatusCode::CONFLICT,
+                        "That session key is already bound to a different assistant.",
+                    ));
+                }
+            } else {
+                reused_existing = true;
+                existing
             }
-            reused_existing = true;
-            existing
         } else {
             state
                 .storage
@@ -15973,10 +15999,6 @@ fn resolve_lane_route_for_human_identity(
     human_identity_id: &str,
     requested_assistant_agent_id: Option<&str>,
 ) -> AnyResult<Option<ResolvedChannelLaneRoute>> {
-    if !routing.enabled {
-        return Ok(None);
-    }
-
     let normalized_human_identity_id = human_identity_id.trim();
     if normalized_human_identity_id.is_empty() {
         return Ok(None);
@@ -16037,10 +16059,6 @@ fn resolve_lane_route_for_session(
     routing: &RuntimeRoutingConfig,
     session: &SessionRecord,
 ) -> AnyResult<Option<ResolvedChannelLaneRoute>> {
-    if !routing.enabled {
-        return Ok(None);
-    }
-
     let session_key = session.session_key.trim();
     if session_key.is_empty() {
         return Ok(None);
@@ -40046,6 +40064,263 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn create_session_with_human_identity_rebinds_existing_lane_session_after_route_change() {
+        let ctx = test_context();
+        let agent_alpha = create_test_agent(&ctx, "lane_rebind_alpha", "Lane Rebind Alpha", None);
+        let agent_beta = create_test_agent(&ctx, "lane_rebind_beta", "Lane Rebind Beta", None);
+
+        let first_runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    serde_json::json!({
+                        "routing": {
+                            "enabled": true,
+                            "local_operator_human_identity_id": "local-operator",
+                            "human_identities": [
+                                {
+                                    "human_identity_id": "local-operator",
+                                    "display_name": "You"
+                                }
+                            ],
+                            "assistant_assignments": [
+                                {
+                                    "human_identity_id": "local-operator",
+                                    "assistant_agent_id": agent_alpha.agent_id
+                                }
+                            ],
+                            "lane_memory_policies": [
+                                {
+                                    "human_identity_id": "local-operator",
+                                    "assistant_agent_id": agent_alpha.agent_id,
+                                    "lane_id": "local-main"
+                                }
+                            ]
+                        }
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("set initial lane route");
+        assert_eq!(first_runtime_update.status(), StatusCode::OK);
+
+        let first_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(
+                    serde_json::json!({
+                        "agent_id": agent_alpha.agent_id,
+                        "human_identity_id": "local-operator"
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("create first lane session");
+        assert_eq!(first_response.status(), StatusCode::CREATED);
+        let first_json = parse_json(first_response).await;
+        let first_session_id = first_json["session"]["session_id"]
+            .as_str()
+            .expect("first session_id")
+            .to_string();
+
+        let second_runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    serde_json::json!({
+                        "routing": {
+                            "enabled": true,
+                            "local_operator_human_identity_id": "local-operator",
+                            "human_identities": [
+                                {
+                                    "human_identity_id": "local-operator",
+                                    "display_name": "You"
+                                }
+                            ],
+                            "assistant_assignments": [
+                                {
+                                    "human_identity_id": "local-operator",
+                                    "assistant_agent_id": agent_beta.agent_id
+                                }
+                            ],
+                            "lane_memory_policies": [
+                                {
+                                    "human_identity_id": "local-operator",
+                                    "assistant_agent_id": agent_beta.agent_id,
+                                    "lane_id": "local-main"
+                                }
+                            ]
+                        }
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("switch lane route");
+        assert_eq!(second_runtime_update.status(), StatusCode::OK);
+
+        let second_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(
+                    serde_json::json!({
+                        "agent_id": agent_beta.agent_id,
+                        "human_identity_id": "local-operator"
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("reuse rebound lane session");
+        assert_eq!(second_response.status(), StatusCode::OK);
+        let second_json = parse_json(second_response).await;
+        assert_eq!(
+            second_json["session"]["session_id"]
+                .as_str()
+                .expect("second session_id"),
+            first_session_id
+        );
+        assert_eq!(second_json["session"]["agent_id"], agent_beta.agent_id);
+
+        let session = ctx
+            .storage
+            .get_session(&first_session_id)
+            .expect("load rebound session")
+            .expect("session exists");
+        assert_eq!(session.agent_id, agent_beta.agent_id);
+        assert_eq!(session.session_key, "lane:local-main:main");
+
+        let message_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{first_session_id}/messages"),
+                Body::from(r#"{"role":"user","content_text":"send after route change"}"#),
+            ))
+            .await
+            .expect("create message after rebind");
+        assert_eq!(message_response.status(), StatusCode::CREATED);
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{first_session_id}/runs"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("create run after rebind");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+        let run_json = parse_json(run_response).await;
+        assert_eq!(run_json["run"]["model_provider"], agent_beta.model_provider);
+        assert_eq!(run_json["run"]["model_id"], agent_beta.model_id);
+    }
+
+    #[tokio::test]
+    async fn create_run_allows_explicit_human_lane_when_legacy_routing_toggle_is_off() {
+        let ctx = test_context();
+        let agent = create_test_agent(&ctx, "lane_toggle_off", "Lane Toggle Off", None);
+
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    serde_json::json!({
+                        "routing": {
+                            "enabled": false,
+                            "local_operator_human_identity_id": "local-operator",
+                            "human_identities": [
+                                {
+                                    "human_identity_id": "local-operator",
+                                    "display_name": "You"
+                                }
+                            ],
+                            "assistant_assignments": [
+                                {
+                                    "human_identity_id": "local-operator",
+                                    "assistant_agent_id": agent.agent_id
+                                }
+                            ]
+                        }
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("set lane route with legacy toggle off");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let create_session_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(
+                    serde_json::json!({
+                        "agent_id": agent.agent_id,
+                        "human_identity_id": "local-operator"
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("create lane session");
+        assert_eq!(create_session_response.status(), StatusCode::CREATED);
+        let create_session_json = parse_json(create_session_response).await;
+        let session_id = create_session_json["session"]["session_id"]
+            .as_str()
+            .expect("session_id")
+            .to_string();
+
+        let message_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(r#"{"role":"user","content_text":"legacy toggle off"}"#),
+            ))
+            .await
+            .expect("create message");
+        assert_eq!(message_response.status(), StatusCode::CREATED);
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("create run");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+        let run_json = parse_json(run_response).await;
+        assert_eq!(run_json["run"]["model_provider"], agent.model_provider);
+        assert_eq!(run_json["run"]["model_id"], agent.model_id);
+    }
+
+    #[tokio::test]
     async fn create_session_with_explicit_session_key_reuses_existing_session() {
         let ctx = test_context();
         let agent = create_test_agent(&ctx, "session_key_agent", "Session Key Agent", None);
@@ -54381,7 +54656,7 @@ sys.stdout.write(json.dumps(response))
     }
 
     #[tokio::test]
-    async fn agents_api_lists_seeded_lyra_and_claude() {
+    async fn agents_api_lists_only_neutral_starter_agent_by_default() {
         let ctx = test_context();
         let response = ctx
             .app
@@ -54392,8 +54667,9 @@ sys.stdout.write(json.dumps(response))
         assert_eq!(response.status(), StatusCode::OK);
         let json = parse_json(response).await;
         let items = json["items"].as_array().expect("agents items");
-        assert!(items.iter().any(|item| item["agent_id"] == "lyra"));
-        assert!(items.iter().any(|item| item["agent_id"] == "claude"));
+        assert!(items.iter().any(|item| item["agent_id"] == "default"));
+        assert!(!items.iter().any(|item| item["agent_id"] == "lyra"));
+        assert!(!items.iter().any(|item| item["agent_id"] == "claude"));
     }
 
     #[tokio::test]
@@ -54560,7 +54836,7 @@ sys.stdout.write(json.dumps(response))
                     "column_id":"{}",
                     "title":"Ship MC3 tasks board",
                     "owner_kind":"agent",
-                    "owner_agent_id":"lyra",
+                    "owner_agent_id":"default",
                     "tags":["mc3","pipeline"]
                 }}"#,
                     backlog_column_id
@@ -54860,7 +55136,7 @@ sys.stdout.write(json.dumps(response))
                     "column_id":"{}",
                     "title":"Draft intro script",
                     "owner_kind":"agent",
-                    "owner_agent_id":"claude",
+                    "owner_agent_id":"default",
                     "script_markdown":"- intro beat"
                 }}"#,
                     scripting_column_id
@@ -54950,7 +55226,7 @@ sys.stdout.write(json.dumps(response))
                     r#"{{
                     "name":"Script to Thumbnail",
                     "enabled":false,
-                    "agent_id":"lyra",
+                    "agent_id":"default",
                     "schedule_kind":"interval",
                     "interval_seconds":3600,
                     "target_column_id":"{}",
@@ -55020,7 +55296,7 @@ sys.stdout.write(json.dumps(response))
                     "column_id":"{}",
                     "title":"Automation Script Item",
                     "owner_kind":"agent",
-                    "owner_agent_id":"lyra"
+                    "owner_agent_id":"default"
                 }}"#,
                     scripting_column_id
                 )),
@@ -55131,7 +55407,7 @@ sys.stdout.write(json.dumps(response))
                     r#"{{
                     "name":"Daily Limit Rule",
                     "enabled":false,
-                    "agent_id":"lyra",
+                    "agent_id":"default",
                     "schedule_kind":"interval",
                     "interval_seconds":3600,
                     "target_column_id":"{}",
@@ -55167,7 +55443,7 @@ sys.stdout.write(json.dumps(response))
                     "column_id":"{}",
                     "title":"Daily Limit Card",
                     "owner_kind":"agent",
-                    "owner_agent_id":"lyra"
+                    "owner_agent_id":"default"
                 }}"#,
                     scripting_column_id
                 )),

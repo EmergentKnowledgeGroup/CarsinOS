@@ -73,6 +73,13 @@ fn migrate(db_path: &Path) -> Result<()> {
         "connector registry schema",
         None,
     )?;
+    apply_sql_migration(
+        &mut conn,
+        6,
+        MIGRATION_0006,
+        "agent archival schema",
+        Some(migration_0006_already_applied),
+    )?;
     Ok(())
 }
 
@@ -86,11 +93,24 @@ fn seed_default_entities(db_path: &Path) -> Result<()> {
         .map(|path| path.display().to_string())
         .unwrap_or_else(|_| ".".to_string());
 
-    for (agent_id, name) in [
-        ("default", "Default Agent"),
-        ("lyra", "Lyra"),
-        ("claude", "Claude"),
-    ] {
+    tx.execute(
+        r#"
+        UPDATE agents
+        SET reports_to_agent_id = NULL,
+            archived_at = ?1,
+            updated_at = ?1
+        WHERE archived_at IS NULL
+          AND agent_id IN ('lyra', 'claude')
+          AND name IN ('Lyra', 'Claude')
+          AND model_provider = 'mock'
+          AND model_id = 'mock-echo-v1'
+          AND tool_profile = 'default'
+        "#,
+        params![now],
+    )
+    .context("failed to archive legacy seeded agents")?;
+
+    for (agent_id, name) in [("default", "Default Agent")] {
         tx.execute(
             r#"
         INSERT OR IGNORE INTO agents
@@ -219,6 +239,10 @@ fn migration_0004_already_applied(conn: &Connection) -> Result<bool> {
         && column_exists(conn, "agents", "memory_principal_display_name")?
         && column_exists(conn, "agents", "memory_enabled")?
         && column_exists(conn, "agents", "memory_trusted_local_operator_actions")?)
+}
+
+fn migration_0006_already_applied(conn: &Connection) -> Result<bool> {
+    column_exists(conn, "agents", "archived_at")
 }
 
 fn bootstrap_preset_manager_has_agent_fk(conn: &Connection) -> Result<bool> {
@@ -1554,6 +1578,7 @@ impl Storage {
               memory_enabled, memory_trusted_local_operator_actions,
               created_at, updated_at
             FROM agents
+            WHERE archived_at IS NULL
             ORDER BY updated_at DESC, agent_id ASC
             "#,
         )?;
@@ -1578,6 +1603,7 @@ impl Storage {
               created_at, updated_at
             FROM agents
             WHERE agent_id = ?1
+              AND archived_at IS NULL
             "#,
         )?;
         Ok(stmt
@@ -1765,7 +1791,7 @@ impl Storage {
         let tx = conn.transaction()?;
         let exists = tx
             .query_row(
-                "SELECT 1 FROM agents WHERE agent_id = ?1 LIMIT 1",
+                "SELECT 1 FROM agents WHERE agent_id = ?1 AND archived_at IS NULL LIMIT 1",
                 params![agent_id.as_str()],
                 |_| Ok(()),
             )
@@ -1780,57 +1806,41 @@ impl Storage {
             params![agent_id.as_str()],
             |row| row.get(0),
         )?;
-        if session_refs > 0 {
-            return Ok(RemoveAgentOutcome::HasSessions);
-        }
 
-        let hierarchy_refs: i64 = tx.query_row(
-            "SELECT COUNT(1) FROM agents WHERE reports_to_agent_id = ?1",
-            params![agent_id.as_str()],
-            |row| row.get(0),
-        )?;
-        let goal_refs: i64 = tx.query_row(
-            "SELECT COUNT(1) FROM goals WHERE owner_agent_id = ?1",
-            params![agent_id.as_str()],
-            |row| row.get(0),
-        )?;
-        let project_refs: i64 = tx.query_row(
-            "SELECT COUNT(1) FROM projects WHERE owner_agent_id = ?1",
-            params![agent_id.as_str()],
-            |row| row.get(0),
-        )?;
-        let task_refs: i64 = tx.query_row(
-            "SELECT COUNT(1) FROM tasks WHERE owner_agent_id = ?1",
-            params![agent_id.as_str()],
-            |row| row.get(0),
-        )?;
-        let preset_refs: i64 = tx.query_row(
-            "SELECT COUNT(1) FROM bootstrap_presets WHERE default_reports_to_agent_id = ?1",
-            params![agent_id.as_str()],
-            |row| row.get(0),
-        )?;
         let job_refs: i64 = tx.query_row(
-            "SELECT COUNT(1) FROM jobs WHERE agent_id = ?1",
+            "SELECT COUNT(1) FROM jobs WHERE agent_id = ?1 AND deleted_at IS NULL",
             params![agent_id.as_str()],
             |row| row.get(0),
         )?;
-        let board_refs: i64 = tx.query_row(
-            "SELECT COUNT(1) FROM board_cards WHERE owner_agent_id = ?1",
-            params![agent_id.as_str()],
-            |row| row.get(0),
-        )?;
-        if hierarchy_refs
-            + goal_refs
-            + project_refs
-            + task_refs
-            + preset_refs
-            + job_refs
-            + board_refs
-            > 0
-        {
+        if job_refs > 0 {
             return Ok(RemoveAgentOutcome::HasReferences);
         }
 
+        let now = now_ms();
+        tx.execute(
+            "UPDATE agents SET reports_to_agent_id = NULL, updated_at = ?1 WHERE reports_to_agent_id = ?2",
+            params![now, agent_id.as_str()],
+        )?;
+        tx.execute(
+            "UPDATE goals SET owner_agent_id = NULL, updated_at = ?1 WHERE owner_agent_id = ?2",
+            params![now, agent_id.as_str()],
+        )?;
+        tx.execute(
+            "UPDATE projects SET owner_agent_id = NULL, updated_at = ?1 WHERE owner_agent_id = ?2",
+            params![now, agent_id.as_str()],
+        )?;
+        tx.execute(
+            "UPDATE tasks SET owner_agent_id = NULL, updated_at = ?1 WHERE owner_agent_id = ?2",
+            params![now, agent_id.as_str()],
+        )?;
+        tx.execute(
+            "UPDATE bootstrap_presets SET default_reports_to_agent_id = NULL, updated_at = ?1 WHERE default_reports_to_agent_id = ?2",
+            params![now, agent_id.as_str()],
+        )?;
+        tx.execute(
+            "UPDATE board_cards SET owner_kind = 'unassigned', owner_agent_id = NULL, updated_at = ?1 WHERE owner_agent_id = ?2",
+            params![now, agent_id.as_str()],
+        )?;
         tx.execute(
             "UPDATE assistant_workers SET agent_id = NULL WHERE agent_id = ?1",
             params![agent_id.as_str()],
@@ -1843,10 +1853,29 @@ impl Storage {
             "DELETE FROM routing_rules WHERE agent_id = ?1",
             params![agent_id.as_str()],
         )?;
-        let removed = tx.execute(
-            "DELETE FROM agents WHERE agent_id = ?1",
+        tx.execute(
+            "DELETE FROM connector_assignments WHERE agent_id = ?1",
             params![agent_id.as_str()],
         )?;
+        tx.execute(
+            "UPDATE connector_auth_bindings SET agent_id = NULL, updated_at = ?1 WHERE agent_id = ?2",
+            params![now, agent_id.as_str()],
+        )?;
+        tx.execute(
+            "UPDATE connector_interactions SET agent_id = NULL, updated_at = ?1 WHERE agent_id = ?2",
+            params![now, agent_id.as_str()],
+        )?;
+        let removed = if session_refs > 0 {
+            tx.execute(
+                "UPDATE agents SET reports_to_agent_id = NULL, archived_at = ?1, updated_at = ?1 WHERE agent_id = ?2",
+                params![now, agent_id.as_str()],
+            )?
+        } else {
+            tx.execute(
+                "DELETE FROM agents WHERE agent_id = ?1",
+                params![agent_id.as_str()],
+            )?
+        };
         tx.commit()?;
         if removed > 0 {
             Ok(RemoveAgentOutcome::Removed)
@@ -7412,7 +7441,7 @@ impl Storage {
     fn ensure_agent_exists(&self, conn: &Connection, agent_id: &str) -> Result<()> {
         let exists = conn
             .query_row(
-                "SELECT 1 FROM agents WHERE agent_id = ?1 LIMIT 1",
+                "SELECT 1 FROM agents WHERE agent_id = ?1 AND archived_at IS NULL LIMIT 1",
                 params![agent_id],
                 |_| Ok(()),
             )
@@ -7547,6 +7576,7 @@ fn get_agent_with_conn(conn: &Connection, agent_id: &str) -> Result<Option<Agent
           created_at, updated_at
         FROM agents
         WHERE agent_id = ?1
+          AND archived_at IS NULL
         "#,
     )?;
     Ok(stmt
@@ -7972,7 +8002,7 @@ fn validate_optional_owner_agent(
     if let Some(agent_id) = owner_agent_id {
         let exists = conn
             .query_row(
-                "SELECT 1 FROM agents WHERE agent_id = ?1 LIMIT 1",
+                "SELECT 1 FROM agents WHERE agent_id = ?1 AND archived_at IS NULL LIMIT 1",
                 params![agent_id],
                 |_| Ok(()),
             )
@@ -9551,6 +9581,7 @@ const MIGRATION_0002: &str = include_str!("../../../migrations/0002_strategy_pha
 const MIGRATION_0003: &str = include_str!("../../../migrations/0003_strategy_schema_cleanup.sql");
 const MIGRATION_0004: &str = include_str!("../../../migrations/0004_agent_memory_bindings.sql");
 const MIGRATION_0005: &str = include_str!("../../../migrations/0005_connector_registry.sql");
+const MIGRATION_0006: &str = include_str!("../../../migrations/0006_agent_archival.sql");
 
 #[cfg(test)]
 mod tests {
@@ -9562,6 +9593,60 @@ mod tests {
         let paths = AppPaths::from_root(temp_dir.path().to_path_buf());
         init(&paths).expect("storage init");
         (temp_dir, Storage::from_paths(&paths))
+    }
+
+    #[test]
+    fn seed_default_entities_archives_legacy_seeded_agents_on_upgrade() {
+        let temp_dir = TempDir::new().expect("tempdir");
+        let paths = AppPaths::from_root(temp_dir.path().to_path_buf());
+        ensure_dirs(&paths).expect("dirs");
+        migrate(&paths.db_path).expect("migrate");
+        let conn = open_sqlite_connection(&paths.db_path).expect("open db");
+        let now = now_ms();
+        for (agent_id, name) in [("lyra", "Lyra"), ("claude", "Claude")] {
+            conn.execute(
+                r#"
+                INSERT INTO agents (
+                  agent_id, name, workspace_root, model_provider, model_id,
+                  tool_profile, created_at, updated_at
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+                "#,
+                params![
+                    agent_id,
+                    name,
+                    ".",
+                    "mock",
+                    "mock-echo-v1",
+                    "default",
+                    now,
+                    now
+                ],
+            )
+            .expect("insert legacy seeded agent");
+        }
+        drop(conn);
+
+        seed_default_entities(&paths.db_path).expect("seed defaults");
+        let storage = Storage::from_paths(&paths);
+        let agents = storage.list_agents().expect("list agents");
+        assert!(agents.iter().any(|agent| agent.agent_id == "default"));
+        assert!(!agents.iter().any(|agent| agent.agent_id == "lyra"));
+        assert!(!agents.iter().any(|agent| agent.agent_id == "claude"));
+
+        let conn = open_sqlite_connection(&paths.db_path).expect("reopen db");
+        let archived_count: i64 = conn
+            .query_row(
+                r#"
+                SELECT COUNT(1)
+                FROM agents
+                WHERE agent_id IN ('lyra', 'claude')
+                  AND archived_at IS NOT NULL
+                "#,
+                [],
+                |row| row.get(0),
+            )
+            .expect("count archived legacy agents");
+        assert_eq!(archived_count, 2);
     }
 
     #[test]
@@ -10660,7 +10745,7 @@ mod tests {
     }
 
     #[test]
-    fn remove_agent_rejects_agent_with_sessions() {
+    fn remove_agent_archives_agent_with_sessions() {
         let (_temp_dir, storage) = test_storage();
         let created = storage
             .create_agent(NewAgent {
@@ -10686,15 +10771,43 @@ mod tests {
         let outcome = storage
             .remove_agent(&created.agent_id)
             .expect("remove should return outcome");
-        assert_eq!(outcome, RemoveAgentOutcome::HasSessions);
+        assert_eq!(outcome, RemoveAgentOutcome::Removed);
         assert!(storage
             .get_agent(&created.agent_id)
-            .expect("reload retained agent")
-            .is_some());
+            .expect("reload removed agent")
+            .is_none());
+        let retained_session = storage
+            .get_session_by_key("session-bound-agent")
+            .expect("reload archived session")
+            .expect("session remains");
+        assert_eq!(retained_session.agent_id, created.agent_id);
+        assert!(storage
+            .create_session(NewSession {
+                session_key: Some("new-session-for-archived-agent".to_string()),
+                agent_id: created.agent_id.clone(),
+                title: Some("Should fail".to_string()),
+            })
+            .is_err());
+        let updated_archived = storage
+            .update_agent(
+                &created.agent_id,
+                AgentUpdatePatch {
+                    name: Some("Still Hidden".to_string()),
+                    workspace_root: None,
+                    model_provider: None,
+                    model_id: None,
+                    tool_profile: None,
+                    reports_to_agent_id: None,
+                    role_label: None,
+                    memory_binding: None,
+                },
+            )
+            .expect("update archived agent");
+        assert!(updated_archived.is_none());
     }
 
     #[test]
-    fn remove_agent_rejects_agent_referenced_by_bootstrap_preset_manager() {
+    fn remove_agent_detaches_bootstrap_preset_manager_reference() {
         let (_temp_dir, storage) = test_storage();
         let created = storage
             .create_agent(NewAgent {
@@ -10728,11 +10841,20 @@ mod tests {
         let outcome = storage
             .remove_agent(&created.agent_id)
             .expect("remove should return outcome");
-        assert_eq!(outcome, RemoveAgentOutcome::HasReferences);
+        assert_eq!(outcome, RemoveAgentOutcome::Removed);
+        assert!(storage
+            .get_agent(&created.agent_id)
+            .expect("reload removed agent")
+            .is_none());
+        let preset = storage
+            .get_bootstrap_preset("ops-manager")
+            .expect("reload preset")
+            .expect("preset remains");
+        assert_eq!(preset.default_reports_to_agent_id, None);
     }
 
     #[test]
-    fn remove_agent_rejects_agent_referenced_by_jobs_and_board_cards() {
+    fn remove_agent_rejects_active_jobs_and_detaches_board_cards() {
         let (_temp_dir, storage) = test_storage();
         let job_agent = storage
             .create_agent(NewAgent {
@@ -10813,7 +10935,17 @@ mod tests {
         let board_outcome = storage
             .remove_agent(&board_agent.agent_id)
             .expect("remove board owner should return outcome");
-        assert_eq!(board_outcome, RemoveAgentOutcome::HasReferences);
+        assert_eq!(board_outcome, RemoveAgentOutcome::Removed);
+        assert!(storage
+            .get_agent(&board_agent.agent_id)
+            .expect("reload board owner")
+            .is_none());
+        let card = storage
+            .get_board_card(&_card.card_id)
+            .expect("reload board card")
+            .expect("board card remains");
+        assert_eq!(card.owner_kind, "unassigned");
+        assert_eq!(card.owner_agent_id, None);
     }
 
     #[test]
