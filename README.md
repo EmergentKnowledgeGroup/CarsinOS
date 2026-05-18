@@ -24,12 +24,26 @@ cd "$REPO_DIR" # set to your local carsinos clone path
 scripts/one_click_launch.sh
 ```
 
+Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\one_click_launch.ps1
+```
+
+Windows double-click:
+
+```text
+scripts\one_click_launch.cmd
+```
+
 Notes:
 - Script prompts for a gateway token; press Enter to auto-generate one.
 - New one-click launches automatically reclaim prior repo-owned Mission Control and gateway processes from the same local checkout before starting.
 - Gateway and UI ports auto-shift when busy in `--web` mode.
+- PowerShell prompts for Desktop/Web mode by default, and still accepts explicit `-Web` / `-Tauri`, `-GatewayPort`, `-UiPort`, `-Token`, `-StateDir`, and `-CargoTargetDir`.
 - Use `scripts/one_click_launch.sh --tauri` for desktop mode (requires free port `1420`).
 - Finder double-click launcher: `scripts/one_click_launch.command` (desktop mode by default, with mode prompt).
+- Windows double-click launcher: `scripts\one_click_launch.cmd` (desktop mode by default, with mode prompt).
 - Logs are written to `runtime/oneclick-state/logs/`.
 
 ## Test endpoint
