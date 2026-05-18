@@ -1047,6 +1047,7 @@ export default function App() {
         onStartGuidedTour={openGuidedTour}
         onRefreshBaseline={() => loadBaseline(settings)}
         settings={settings}
+        tokenConfigured={tokenConfigured}
         boards={boards}
         agents={agents}
         boardsController={boardsController}

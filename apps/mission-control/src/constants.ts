@@ -1,5 +1,6 @@
 export const DEFAULT_GATEWAY_URL = "http://127.0.0.1:18789";
 export const API_REQUEST_TIMEOUT_MS = 15_000;
+export const API_RUN_REQUEST_TIMEOUT_MS = 300_000;
 export const WS_RECONNECT_INITIAL_MS = 750;
 export const WS_RECONNECT_MAX_MS = 5_000;
 export const WS_MAX_RECONNECT_ATTEMPTS = 40;

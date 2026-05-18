@@ -22,8 +22,10 @@ const HEADLESS_DEFAULT_COMMAND: &str = "claude";
 const HEADLESS_DEFAULT_TIMEOUT_MS: u64 = 45_000;
 const PROVIDER_VLLM_API_BASE_URL_ENV: &str = "CARSINOS_PROVIDER_VLLM_API_BASE_URL";
 const PROVIDER_OLLAMA_API_BASE_URL_ENV: &str = "CARSINOS_PROVIDER_OLLAMA_API_BASE_URL";
+const PROVIDER_LMSTUDIO_API_BASE_URL_ENV: &str = "CARSINOS_PROVIDER_LMSTUDIO_API_BASE_URL";
 const PROVIDER_VLLM_DEFAULT_API_BASE_URL: &str = "http://127.0.0.1:8000";
 const PROVIDER_OLLAMA_DEFAULT_API_BASE_URL: &str = "http://127.0.0.1:11434";
+const PROVIDER_LMSTUDIO_DEFAULT_API_BASE_URL: &str = "http://127.0.0.1:1234";
 
 #[derive(Debug, Clone)]
 pub struct ProviderAuthProfile {
@@ -56,6 +58,24 @@ impl ProviderAuthProfile {
             }
         }
         anyhow::bail!("provider credentials missing API token material")
+    }
+
+    fn optional_api_key(&self) -> Result<Option<String>> {
+        let payload = self.credentials_payload()?;
+        let use_normalized_anthropic_bearer = anthropic_profile_uses_bearer_auth(self)?;
+        for key in provider_auth_token_keys() {
+            if let Some(value) = payload.get(*key).and_then(|value| value.as_str()) {
+                let trimmed = value.trim();
+                if !trimmed.is_empty() {
+                    return Ok(Some(if use_normalized_anthropic_bearer {
+                        normalize_anthropic_setup_token_value(trimmed)
+                    } else {
+                        trimmed.to_string()
+                    }));
+                }
+            }
+        }
+        Ok(None)
     }
 }
 
@@ -675,7 +695,7 @@ async fn complete_openrouter(
 
 async fn complete_vllm(client: &Client, request: CompletionRequest) -> Result<CompletionResponse> {
     let (base_url, bearer_token) = if let Some(auth) = request.auth_profile.as_ref() {
-        let token = auth.api_key().map_err(|err| {
+        let token = auth.optional_api_key().map_err(|err| {
             anyhow!(
                 "PROVIDER_ERROR:vllm:AUTH_REQUIRED:invalid_credentials:{}",
                 err.to_string().replace(':', "_")
@@ -687,7 +707,7 @@ async fn complete_vllm(client: &Client, request: CompletionRequest) -> Result<Co
                 PROVIDER_VLLM_API_BASE_URL_ENV,
                 PROVIDER_VLLM_DEFAULT_API_BASE_URL,
             ),
-            Some(token),
+            token,
         )
     } else {
         (
@@ -716,22 +736,29 @@ async fn complete_lmstudio(
     request: CompletionRequest,
 ) -> Result<CompletionResponse> {
     let (base_url, bearer_token) = if let Some(auth) = request.auth_profile.as_ref() {
-        let token = auth.api_key().map_err(|err| {
+        let token = auth.optional_api_key().map_err(|err| {
             anyhow!(
                 "PROVIDER_ERROR:lmstudio:AUTH_REQUIRED:invalid_credentials:{}",
                 err.to_string().replace(':', "_")
             )
         })?;
         (
-            auth.api_base_url
-                .as_deref()
-                .unwrap_or("http://127.0.0.1:1234")
-                .trim_end_matches('/')
-                .to_string(),
-            Some(token),
+            provider_api_base_url(
+                Some(auth),
+                PROVIDER_LMSTUDIO_API_BASE_URL_ENV,
+                PROVIDER_LMSTUDIO_DEFAULT_API_BASE_URL,
+            ),
+            token,
         )
     } else {
-        ("http://127.0.0.1:1234".to_string(), None)
+        (
+            provider_api_base_url(
+                None,
+                PROVIDER_LMSTUDIO_API_BASE_URL_ENV,
+                PROVIDER_LMSTUDIO_DEFAULT_API_BASE_URL,
+            ),
+            None,
+        )
     };
     complete_openai_compatible(
         client,
@@ -750,7 +777,7 @@ async fn complete_ollama(
     request: CompletionRequest,
 ) -> Result<CompletionResponse> {
     let (base_url, bearer_token) = if let Some(auth) = request.auth_profile.as_ref() {
-        let token = auth.api_key().map_err(|err| {
+        let token = auth.optional_api_key().map_err(|err| {
             anyhow!(
                 "PROVIDER_ERROR:ollama:AUTH_REQUIRED:invalid_credentials:{}",
                 err.to_string().replace(':', "_")
@@ -762,7 +789,7 @@ async fn complete_ollama(
                 PROVIDER_OLLAMA_API_BASE_URL_ENV,
                 PROVIDER_OLLAMA_DEFAULT_API_BASE_URL,
             ),
-            Some(token),
+            token,
         )
     } else {
         (
@@ -1836,6 +1863,108 @@ mod tests {
         assert_eq!(response.output_text, "vllm says hi");
     }
 
+    #[tokio::test]
+    async fn optional_auth_local_providers_allow_base_url_only_profiles() {
+        let lmstudio_server = MockServer::start_async().await;
+        let lmstudio_mock = lmstudio_server
+            .mock_async(|when, then| {
+                when.method(POST).path("/v1/chat/completions");
+                then.status(200).json_body(json!({
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "lmstudio base-url only"
+                            }
+                        }
+                    ]
+                }));
+            })
+            .await;
+        let vllm_server = MockServer::start_async().await;
+        let vllm_mock = vllm_server
+            .mock_async(|when, then| {
+                when.method(POST).path("/v1/chat/completions");
+                then.status(200).json_body(json!({
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "vllm base-url only"
+                            }
+                        }
+                    ]
+                }));
+            })
+            .await;
+        let ollama_server = MockServer::start_async().await;
+        let ollama_mock = ollama_server
+            .mock_async(|when, then| {
+                when.method(POST).path("/api/chat");
+                then.status(200).json_body(json!({
+                    "message": {
+                        "content": "ollama base-url only"
+                    }
+                }));
+            })
+            .await;
+
+        let registry = ProviderRegistry::new();
+        let lmstudio = registry
+            .complete(CompletionRequest {
+                model_provider: "lmstudio".to_string(),
+                model_id: "lmstudio-model".to_string(),
+                input: "hello".to_string(),
+                system_prompt: None,
+                auth_profile: Some(ProviderAuthProfile {
+                    auth_profile_id: Some("local-lmstudio".to_string()),
+                    auth_mode: "api_key".to_string(),
+                    risk_level: "low".to_string(),
+                    api_base_url: Some(lmstudio_server.base_url()),
+                    credentials_json: "{}".to_string(),
+                }),
+            })
+            .await
+            .expect("lmstudio completion without token");
+        let vllm = registry
+            .complete(CompletionRequest {
+                model_provider: "vllm".to_string(),
+                model_id: "vllm-model".to_string(),
+                input: "hello".to_string(),
+                system_prompt: None,
+                auth_profile: Some(ProviderAuthProfile {
+                    auth_profile_id: Some("local-vllm".to_string()),
+                    auth_mode: "api_key".to_string(),
+                    risk_level: "low".to_string(),
+                    api_base_url: Some(vllm_server.base_url()),
+                    credentials_json: "{}".to_string(),
+                }),
+            })
+            .await
+            .expect("vllm completion without token");
+        let ollama = registry
+            .complete(CompletionRequest {
+                model_provider: "ollama".to_string(),
+                model_id: "llama3.2".to_string(),
+                input: "hello".to_string(),
+                system_prompt: None,
+                auth_profile: Some(ProviderAuthProfile {
+                    auth_profile_id: Some("local-ollama".to_string()),
+                    auth_mode: "api_key".to_string(),
+                    risk_level: "low".to_string(),
+                    api_base_url: Some(ollama_server.base_url()),
+                    credentials_json: "{}".to_string(),
+                }),
+            })
+            .await
+            .expect("ollama completion without token");
+
+        lmstudio_mock.assert_async().await;
+        vllm_mock.assert_async().await;
+        ollama_mock.assert_async().await;
+        assert_eq!(lmstudio.output_text, "lmstudio base-url only");
+        assert_eq!(vllm.output_text, "vllm base-url only");
+        assert_eq!(ollama.output_text, "ollama base-url only");
+    }
+
     #[test]
     fn provider_api_base_url_uses_env_override_when_profile_base_is_missing() {
         with_env_vars(
@@ -1847,6 +1976,10 @@ mod tests {
                 (
                     PROVIDER_OLLAMA_API_BASE_URL_ENV,
                     Some("http://env-ollama:9500/"),
+                ),
+                (
+                    PROVIDER_LMSTUDIO_API_BASE_URL_ENV,
+                    Some("http://env-lmstudio:9600/"),
                 ),
             ],
             || {
@@ -1865,6 +1998,14 @@ mod tests {
                         PROVIDER_OLLAMA_DEFAULT_API_BASE_URL,
                     ),
                     "http://env-ollama:9500"
+                );
+                assert_eq!(
+                    provider_api_base_url(
+                        None,
+                        PROVIDER_LMSTUDIO_API_BASE_URL_ENV,
+                        PROVIDER_LMSTUDIO_DEFAULT_API_BASE_URL,
+                    ),
+                    "http://env-lmstudio:9600"
                 );
             },
         );
@@ -1956,6 +2097,52 @@ mod tests {
 
         mock.assert_async().await;
         assert_eq!(response.output_text, "ollama env says hi");
+    }
+
+    #[tokio::test]
+    async fn lmstudio_provider_uses_env_api_base_when_profile_base_is_missing() {
+        let server = MockServer::start_async().await;
+        let server_base_url = server.base_url();
+        let mock = server
+            .mock_async(|when, then| {
+                when.method(POST).path("/v1/chat/completions");
+                then.status(200).json_body(json!({
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "lmstudio env says hi"
+                            }
+                        }
+                    ]
+                }));
+            })
+            .await;
+
+        let registry = ProviderRegistry::new();
+        let response = with_env_vars_async(
+            &[(
+                PROVIDER_LMSTUDIO_API_BASE_URL_ENV,
+                Some(server_base_url.as_str()),
+            )],
+            registry.complete(CompletionRequest {
+                model_provider: "lmstudio".to_string(),
+                model_id: "lmstudio-model".to_string(),
+                input: "hello".to_string(),
+                system_prompt: None,
+                auth_profile: Some(ProviderAuthProfile {
+                    auth_profile_id: Some("p6-env".to_string()),
+                    auth_mode: "api_key".to_string(),
+                    risk_level: "low".to_string(),
+                    api_base_url: None,
+                    credentials_json: "{}".to_string(),
+                }),
+            }),
+        )
+        .await
+        .expect("lmstudio completion");
+
+        mock.assert_async().await;
+        assert_eq!(response.output_text, "lmstudio env says hi");
     }
 
     #[tokio::test]
