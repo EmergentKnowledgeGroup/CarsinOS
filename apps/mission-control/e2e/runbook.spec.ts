@@ -1,8 +1,9 @@
 import { expect, test, type Page } from "./testHarness";
-import { completeQuickstartLocalOnboarding } from "./onboardingFlow";
+import { clickAdvancedNav, completeQuickstartLocalOnboarding } from "./onboardingFlow";
 
 async function enableRunbook(page: Page, options?: { strategy?: boolean }): Promise<void> {
   await page.locator('[data-tour-id="nav-config"]').click();
+  await page.getByText("2. Choose what pages show").click();
   if (options?.strategy) {
     await page.getByRole("checkbox", { name: "Strategy page" }).check();
   }
@@ -26,8 +27,7 @@ test.describe("mission-control runbook @core", () => {
 
     await enableRunbook(page);
 
-    await expect(page.locator('[data-tour-id="nav-runbook"]')).toBeVisible();
-    await page.locator('[data-tour-id="nav-runbook"]').click();
+    await clickAdvancedNav(page, "runbook");
     await expect(page.getByTestId("runbook-page")).toBeVisible();
     const approvalRunbookCard = page.getByRole("button", {
       name: /Approval gate for incident recovery session/i,
@@ -59,7 +59,7 @@ test.describe("mission-control runbook @core", () => {
       },
     });
     await enableRunbook(page, { strategy: true });
-    await page.locator('[data-tour-id="nav-runbook"]').click();
+    await clickAdvancedNav(page, "runbook");
     await expect(page.getByTestId("runbook-page")).toBeVisible();
     await expect(
       page.getByRole("button", { name: /Approval gate for incident recovery session/i })

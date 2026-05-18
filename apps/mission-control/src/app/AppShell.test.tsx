@@ -114,7 +114,7 @@ describe("AppShell live feed toggle", () => {
       container.querySelectorAll('input[type="checkbox"]')
     ) as HTMLInputElement[];
     const checkbox = checkboxes[1] ?? null;
-    expect(container.textContent).toContain("Features");
+    expect(container.textContent).toContain("Choose what pages show");
     expect(checkbox).toBeTruthy();
   });
 

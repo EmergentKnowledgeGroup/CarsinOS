@@ -34,6 +34,8 @@ import {
   PanelRightOpen,
   PanelRightClose,
   Lightbulb,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { NotificationCenter } from "../ui/NotificationCenter";
 import { ThemeDropdown } from "../ui/ThemeDropdown";
@@ -150,13 +152,26 @@ function applyDensity(density: "comfortable" | "compact") {
   localStorage.setItem(STORAGE_KEYS.density, density);
 }
 
+function shouldOpenAdvancedNavForHarness(): boolean {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("e2e") === "1";
+}
+
 /* ── Component ─────────────────────────────────────────────────────── */
 
 export function AppShell(props: AppShellProps) {
+  const activeTabIsAdvanced = MISSION_CONTROL_TABS.some(
+    (item) => item.tab === props.activeTab && item.tier === "advanced"
+  );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
   const [clearTokenConfirmOpen, setClearTokenConfirmOpen] = useState(false);
   const [settingsFocusTarget, setSettingsFocusTarget] = useState<"live-feed" | null>(null);
+  const [advancedNavOpen, setAdvancedNavOpen] = useState(
+    activeTabIsAdvanced || shouldOpenAdvancedNavForHarness()
+  );
+  const [settingsFeatureOpen, setSettingsFeatureOpen] = useState(false);
+  const [settingsAssistantOpen, setSettingsAssistantOpen] = useState(false);
   const [gwUrlHistory, setGwUrlHistory] = useState<string[]>(getGatewayUrlHistory);
   const [density, setDensity] = useState<"comfortable" | "compact">(getDensity);
   const liveFeedSettingsInputRef = useRef<HTMLInputElement | null>(null);
@@ -166,6 +181,13 @@ export function AppShell(props: AppShellProps) {
   useEffect(() => {
     applyDensity(density);
   }, [density]);
+
+  useEffect(() => {
+    if (props.assistantSystemPromptDirty || props.assistantSystemPromptError) {
+      const frame = window.requestAnimationFrame(() => setSettingsAssistantOpen(true));
+      return () => window.cancelAnimationFrame(frame);
+    }
+  }, [props.assistantSystemPromptDirty, props.assistantSystemPromptError]);
 
   const toggleDensity = useCallback(() => {
     setDensity((d) => (d === "comfortable" ? "compact" : "comfortable"));
@@ -234,6 +256,8 @@ export function AppShell(props: AppShellProps) {
   }, [onOpenGuidedTour]);
 
   const openSettingsToLiveFeed = useCallback(() => {
+    setAdvancedNavOpen(false);
+    setSettingsFeatureOpen(true);
     setSettingsFocusTarget("live-feed");
     setSettingsOpen(true);
   }, []);
@@ -356,7 +380,10 @@ export function AppShell(props: AppShellProps) {
                 key={item.tab}
                 type="button"
                 className={clsx("mc-nav-item", props.activeTab === item.tab && "mc-nav-item-active")}
-                onClick={() => props.onTabChange(item.tab)}
+                onClick={() => {
+                  props.onTabChange(item.tab);
+                  setAdvancedNavOpen(false);
+                }}
                 title={`${item.label} (${item.shortcut})`}
                 data-tour-id={`nav-${item.tab}`}
               >
@@ -370,12 +397,43 @@ export function AppShell(props: AppShellProps) {
             <>
               {coreTabs.map(renderTab)}
               {advancedTabs.length > 0 ? (
-                <div className="mc-nav-divider" aria-hidden="true">
-                  <hr />
-                  <span>Advanced</span>
-                </div>
+                <>
+                  <button
+                    type="button"
+                    className={clsx(
+                      "mc-nav-item",
+                      "mc-nav-advanced-toggle",
+                      activeTabIsAdvanced && "mc-nav-item-active",
+                      advancedNavOpen && "mc-nav-advanced-toggle-open"
+                    )}
+                    onClick={() => setAdvancedNavOpen((open) => !open)}
+                    title={
+                      advancedNavOpen
+                        ? "Hide advanced tools"
+                        : "Show advanced tools: events, cockpit, strategy, runbook, memory, connectors"
+                    }
+                    aria-expanded={advancedNavOpen}
+                    aria-controls="mc-nav-advanced-group"
+                    data-tour-id="nav-advanced"
+                  >
+                    {advancedNavOpen ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
+                    <span className="mc-nav-label">Tools</span>
+                    <span className="mc-nav-count" aria-label={`${advancedTabs.length} advanced pages`}>
+                      {advancedTabs.length}
+                    </span>
+                  </button>
+                  <div
+                    id="mc-nav-advanced-group"
+                    className={clsx(
+                      "mc-nav-advanced-group",
+                      advancedNavOpen && "mc-nav-advanced-group-open"
+                    )}
+                    hidden={!advancedNavOpen}
+                  >
+                    {advancedTabs.map(renderTab)}
+                  </div>
+                </>
               ) : null}
-              {advancedTabs.map(renderTab)}
             </>
           );
         })()}
@@ -383,7 +441,10 @@ export function AppShell(props: AppShellProps) {
         <button
           type="button"
           className="mc-nav-item"
-          onClick={() => props.onOpenHelpDocs()}
+          onClick={() => {
+            setAdvancedNavOpen(false);
+            props.onOpenHelpDocs();
+          }}
           title="Help and Docs"
           data-tour-id="nav-help-shortcut"
         >
@@ -393,7 +454,10 @@ export function AppShell(props: AppShellProps) {
         <button
           type="button"
           className="mc-nav-item"
-          onClick={() => setSettingsOpen(true)}
+          onClick={() => {
+            setAdvancedNavOpen(false);
+            setSettingsOpen(true);
+          }}
           title="Settings"
           data-tour-id="nav-config"
         >
@@ -484,7 +548,10 @@ export function AppShell(props: AppShellProps) {
             <button
               type="button"
               className="mc-topbar-icon-btn"
-              onClick={props.onOpenGuidedTour}
+              onClick={() => {
+                setAdvancedNavOpen(false);
+                props.onOpenGuidedTour();
+              }}
               title="Start guided tour"
               data-tour-id="topbar-tour"
             >
@@ -493,7 +560,10 @@ export function AppShell(props: AppShellProps) {
             <button
               type="button"
               className="mc-topbar-icon-btn"
-              onClick={() => props.onOpenHelpDocs()}
+              onClick={() => {
+                setAdvancedNavOpen(false);
+                props.onOpenHelpDocs();
+              }}
               title="Help and docs"
             >
               <BookOpen size={16} />
@@ -505,7 +575,15 @@ export function AppShell(props: AppShellProps) {
               setMode={theme.setMode}
               toggleMode={theme.toggleMode}
             />
-            <button type="button" className="mc-topbar-icon-btn" onClick={() => setSettingsOpen(true)} title="Settings">
+            <button
+              type="button"
+              className="mc-topbar-icon-btn"
+              onClick={() => {
+                setAdvancedNavOpen(false);
+                setSettingsOpen(true);
+              }}
+              title="Settings"
+            >
               <Settings size={16} />
             </button>
             <span className={clsx("mc-connection-dot", `mc-connection-dot-${connectionTone}`)} title={`ws: ${props.wsState}`} aria-label={`Connection status: ${props.wsState}`} role="status" />
@@ -529,7 +607,11 @@ export function AppShell(props: AppShellProps) {
         onTabChange={(tab) => { props.onTabChange(tab); setCmdPaletteOpen(false); }}
         onToggleIncidentMode={toggleIncidentMode}
         onRefresh={() => props.onRefresh?.()}
-        onOpenSettings={() => { setSettingsOpen(true); setCmdPaletteOpen(false); }}
+        onOpenSettings={() => {
+          setAdvancedNavOpen(false);
+          setSettingsOpen(true);
+          setCmdPaletteOpen(false);
+        }}
         currentThemeMode={theme.mode}
         onToggleThemeMode={theme.toggleMode}
         density={density}
@@ -548,246 +630,285 @@ export function AppShell(props: AppShellProps) {
             </div>
             <div className="mc-modal-body mc-settings-body">
               {/* Connection section */}
-              <div className="mc-settings-section">
-                <h3 className="mc-settings-section-title">Connect carsinOS</h3>
-                <p className="mc-settings-help">
-                  Tell Mission Control where your gateway lives, then save the token for this
-                  machine.
-                </p>
-                <label className="mc-modal-field">
-                  Gateway URL
-                  <input
-                    list="mc-gw-url-history"
-                    value={props.gatewayDraft}
-                    onChange={(e) => props.onGatewayDraftChange(e.target.value)}
-                    placeholder={DEFAULT_GATEWAY_URL}
-                  />
-                  <datalist id="mc-gw-url-history">
-                    {gwUrlHistory.map((url) => (
-                      <option key={url} value={url} />
-                    ))}
-                  </datalist>
-                </label>
-                <label className="mc-modal-field">
-                  Gateway Token
-                  <input
-                    value={props.tokenDraft}
-                    onChange={(e) => props.onTokenDraftChange(e.target.value)}
-                    placeholder={props.tokenConfigured ? "token configured" : "paste token"}
-                    type="password"
-                  />
-                </label>
-                <div className="mc-modal-status-row">
-                  <Chip label={gatewayHealthLabel} tone={props.healthState} />
-                  <Chip label={liveLinkLabel} tone={props.wsState} />
-                  <Chip label={tokenLabel} tone={props.tokenConfigured ? "connected" : "warning"} />
+              <details className="mc-settings-section mc-settings-disclosure" open>
+                <summary className="mc-settings-summary">
+                  <span>
+                    <strong>1. Connect this app</strong>
+                    <small>Gateway address, token, and reconnect buttons.</small>
+                  </span>
+                  <span className="mc-settings-summary-status">
+                    <Chip label={gatewayHealthLabel} tone={props.healthState} />
+                    <Chip label={tokenLabel} tone={props.tokenConfigured ? "connected" : "warning"} />
+                  </span>
+                </summary>
+                <div className="mc-settings-disclosure-body">
+                  <p className="mc-settings-help">
+                    Tell Mission Control where carsinOS is running. Most people only touch this once.
+                  </p>
+                  <label className="mc-modal-field">
+                    Gateway URL
+                    <input
+                      list="mc-gw-url-history"
+                      value={props.gatewayDraft}
+                      onChange={(e) => props.onGatewayDraftChange(e.target.value)}
+                      placeholder={DEFAULT_GATEWAY_URL}
+                    />
+                    <datalist id="mc-gw-url-history">
+                      {gwUrlHistory.map((url) => (
+                        <option key={url} value={url} />
+                      ))}
+                    </datalist>
+                  </label>
+                  <label className="mc-modal-field">
+                    Gateway Token
+                    <input
+                      value={props.tokenDraft}
+                      onChange={(e) => props.onTokenDraftChange(e.target.value)}
+                      placeholder={props.tokenConfigured ? "token configured" : "paste token"}
+                      type="password"
+                    />
+                  </label>
+                  <div className="mc-modal-status-row">
+                    <Chip label={liveLinkLabel} tone={props.wsState} />
+                  </div>
+                  <p className="mc-settings-help">
+                    Desktop stores the gateway token in the OS keychain. Browser runs keep it in memory, with
+                    session-only storage reserved for the explicit E2E harness.
+                  </p>
+                  <div className="mc-modal-actions">
+                    <button type="button" onClick={handleSaveAndConnect}>
+                      Save and connect
+                    </button>
+                    <button type="button" className="ghost" onClick={() => void props.onReconnect()}>
+                      Try reconnect
+                    </button>
+                    <button type="button" className="ghost" onClick={props.onOpenSetupWizard}>
+                      Open setup wizard
+                    </button>
+                    <button type="button" className="ghost" onClick={handleOpenGuidedTourFromSettings}>
+                      Start guided tour
+                    </button>
+                    <button type="button" className="danger" onClick={handleClearToken}>
+                      Forget token
+                    </button>
+                  </div>
                 </div>
-                <p className="mc-settings-help">
-                  Desktop stores the gateway token in the OS keychain. Browser runs keep it in memory, with
-                  session-only storage reserved for the explicit E2E harness.
-                </p>
-                <div className="mc-modal-actions">
-                  <button type="button" onClick={handleSaveAndConnect}>
-                    Save and connect
-                  </button>
-                  <button type="button" className="ghost" onClick={() => void props.onReconnect()}>
-                    Try reconnect
-                  </button>
-                  <button type="button" className="ghost" onClick={props.onOpenSetupWizard}>
-                    Open setup wizard
-                  </button>
-                  <button type="button" className="ghost" onClick={handleOpenGuidedTourFromSettings}>
-                    Start guided tour
-                  </button>
-                  <button type="button" className="danger" onClick={handleClearToken}>
-                    Forget token
-                  </button>
-                </div>
-              </div>
+              </details>
 
               {/* Reliability / feature controls */}
-              <div className="mc-settings-section">
-                <h3 className="mc-settings-section-title">Features</h3>
-                <p className="mc-settings-help">
-                  The first switch is the main switch. If it is off, the pages below wait even if
-                  their own switch is on.
-                </p>
-                <div className="mc-settings-toggle-row">
-                  <label className="mc-settings-toggle">
-                    <input
-                      type="checkbox"
-                      checked={!props.opsUxConfig.controls.global_kill_switch}
-                      onChange={(event) =>
-                        patchOpsControl("global_kill_switch", !event.target.checked)
-                      }
-                    />
-                    <span>Allow optional pages and tools</span>
-                  </label>
-                  <Chip label={mainSwitchStatus.label} tone={mainSwitchStatus.tone} />
+              <details
+                className="mc-settings-section mc-settings-disclosure"
+                open={settingsFeatureOpen}
+                onToggle={(event) => setSettingsFeatureOpen(event.currentTarget.open)}
+              >
+                <summary className="mc-settings-summary">
+                  <span>
+                    <strong>2. Choose what pages show</strong>
+                    <small>Keep daily use simple. Turn on expert pages only when needed.</small>
+                  </span>
+                  <span className="mc-settings-summary-status">
+                    <Chip label={mainSwitchStatus.label} tone={mainSwitchStatus.tone} />
+                  </span>
+                </summary>
+                <div className="mc-settings-disclosure-body">
+                  <p className="mc-settings-help">
+                    These switches control optional tools. The everyday path is Boards, Calendar,
+                    Focus, Mail, Rooms, Assistant, and Team.
+                  </p>
+                  <div className="mc-settings-toggle-row">
+                    <label className="mc-settings-toggle">
+                      <input
+                        type="checkbox"
+                        checked={!props.opsUxConfig.controls.global_kill_switch}
+                        onChange={(event) =>
+                          patchOpsControl("global_kill_switch", !event.target.checked)
+                        }
+                      />
+                      <span>Allow optional pages and tools</span>
+                    </label>
+                    <Chip label={mainSwitchStatus.label} tone={mainSwitchStatus.tone} />
+                  </div>
+                  <div className="mc-settings-toggle-row">
+                    <label className="mc-settings-toggle">
+                      <input
+                        ref={liveFeedSettingsInputRef}
+                        type="checkbox"
+                        autoFocus={settingsFocusTarget === "live-feed"}
+                        checked={props.opsUxConfig.controls.live_feed_drawer}
+                        onChange={(event) =>
+                          patchOpsControl("live_feed_drawer", event.target.checked)
+                        }
+                      />
+                      <span>Live Feed panel</span>
+                    </label>
+                    <Chip label={liveFeedStatus.label} tone={liveFeedStatus.tone} />
+                  </div>
+                  <div className="mc-settings-toggle-row">
+                    <label className="mc-settings-toggle">
+                      <input
+                        type="checkbox"
+                        checked={props.opsUxConfig.controls.incident_auto_trigger}
+                        onChange={(event) =>
+                          patchOpsControl("incident_auto_trigger", event.target.checked)
+                        }
+                      />
+                      <span>Auto-switch to incident mode</span>
+                    </label>
+                    <Chip label={incidentAutoStatus.label} tone={incidentAutoStatus.tone} />
+                  </div>
+                  <div className="mc-settings-toggle-row">
+                    <label className="mc-settings-toggle">
+                      <input
+                        type="checkbox"
+                        checked={props.opsUxConfig.controls.usage_charts}
+                        onChange={(event) =>
+                          patchOpsControl("usage_charts", event.target.checked)
+                        }
+                      />
+                      <span>Usage charts</span>
+                    </label>
+                    <Chip label={usageChartsStatus.label} tone={usageChartsStatus.tone} />
+                  </div>
+                  <div className="mc-settings-toggle-row">
+                    <label className="mc-settings-toggle">
+                      <input
+                        type="checkbox"
+                        checked={props.opsUxConfig.controls.strategy_hub}
+                        onChange={(event) =>
+                          patchOpsControl("strategy_hub", event.target.checked)
+                        }
+                      />
+                      <span>Strategy page</span>
+                    </label>
+                    <Chip label={strategyStatus.label} tone={strategyStatus.tone} />
+                  </div>
+                  <div className="mc-settings-toggle-row">
+                    <label className="mc-settings-toggle">
+                      <input
+                        type="checkbox"
+                        checked={props.opsUxConfig.controls.runbook_hub}
+                        onChange={(event) =>
+                          patchOpsControl("runbook_hub", event.target.checked)
+                        }
+                      />
+                      <span>Runbook page</span>
+                    </label>
+                    <Chip label={runbookStatus.label} tone={runbookStatus.tone} />
+                  </div>
+                  <div className="mc-settings-toggle-row">
+                    <label className="mc-settings-toggle">
+                      <input
+                        type="checkbox"
+                        checked={props.opsUxConfig.controls.memory_hub}
+                        onChange={(event) =>
+                          patchOpsControl("memory_hub", event.target.checked)
+                        }
+                      />
+                      <span>Memory page</span>
+                    </label>
+                    <Chip label={memoryStatus.label} tone={memoryStatus.tone} />
+                  </div>
+                  <div className="mc-settings-toggle-row">
+                    <label className="mc-settings-toggle">
+                      <input
+                        type="checkbox"
+                        checked={props.opsUxConfig.controls.connectors_hub}
+                        onChange={(event) =>
+                          patchOpsControl("connectors_hub", event.target.checked)
+                        }
+                      />
+                      <span>Connectors page</span>
+                    </label>
+                    <Chip label={connectorsStatus.label} tone={connectorsStatus.tone} />
+                  </div>
+                  <p className="mc-settings-help">
+                    Yellow means the page is ready but the main switch is still off, or the page is
+                    waiting for data to arrive.
+                  </p>
+                  {props.opsUxConfigError ? (
+                    <p className="mc-settings-inline-error">{props.opsUxConfigError}</p>
+                  ) : null}
                 </div>
-                <div className="mc-settings-toggle-row">
-                  <label className="mc-settings-toggle">
-                    <input
-                      ref={liveFeedSettingsInputRef}
-                      type="checkbox"
-                      autoFocus={settingsFocusTarget === "live-feed"}
-                      checked={props.opsUxConfig.controls.live_feed_drawer}
-                      onChange={(event) =>
-                        patchOpsControl("live_feed_drawer", event.target.checked)
-                      }
-                    />
-                    <span>Live Feed panel</span>
-                  </label>
-                  <Chip label={liveFeedStatus.label} tone={liveFeedStatus.tone} />
-                </div>
-                <div className="mc-settings-toggle-row">
-                  <label className="mc-settings-toggle">
-                    <input
-                      type="checkbox"
-                      checked={props.opsUxConfig.controls.incident_auto_trigger}
-                      onChange={(event) =>
-                        patchOpsControl("incident_auto_trigger", event.target.checked)
-                      }
-                    />
-                    <span>Auto-switch to incident mode</span>
-                  </label>
-                  <Chip label={incidentAutoStatus.label} tone={incidentAutoStatus.tone} />
-                </div>
-                <div className="mc-settings-toggle-row">
-                  <label className="mc-settings-toggle">
-                    <input
-                      type="checkbox"
-                      checked={props.opsUxConfig.controls.usage_charts}
-                      onChange={(event) =>
-                        patchOpsControl("usage_charts", event.target.checked)
-                      }
-                    />
-                    <span>Usage charts</span>
-                  </label>
-                  <Chip label={usageChartsStatus.label} tone={usageChartsStatus.tone} />
-                </div>
-                <div className="mc-settings-toggle-row">
-                  <label className="mc-settings-toggle">
-                    <input
-                      type="checkbox"
-                      checked={props.opsUxConfig.controls.strategy_hub}
-                      onChange={(event) =>
-                        patchOpsControl("strategy_hub", event.target.checked)
-                      }
-                    />
-                    <span>Strategy page</span>
-                  </label>
-                  <Chip label={strategyStatus.label} tone={strategyStatus.tone} />
-                </div>
-                <div className="mc-settings-toggle-row">
-                  <label className="mc-settings-toggle">
-                    <input
-                      type="checkbox"
-                      checked={props.opsUxConfig.controls.runbook_hub}
-                      onChange={(event) =>
-                        patchOpsControl("runbook_hub", event.target.checked)
-                      }
-                    />
-                    <span>Runbook page</span>
-                  </label>
-                  <Chip label={runbookStatus.label} tone={runbookStatus.tone} />
-                </div>
-                <div className="mc-settings-toggle-row">
-                  <label className="mc-settings-toggle">
-                    <input
-                      type="checkbox"
-                      checked={props.opsUxConfig.controls.memory_hub}
-                      onChange={(event) =>
-                        patchOpsControl("memory_hub", event.target.checked)
-                      }
-                    />
-                    <span>Memory page</span>
-                  </label>
-                  <Chip label={memoryStatus.label} tone={memoryStatus.tone} />
-                </div>
-                <div className="mc-settings-toggle-row">
-                  <label className="mc-settings-toggle">
-                    <input
-                      type="checkbox"
-                      checked={props.opsUxConfig.controls.connectors_hub}
-                      onChange={(event) =>
-                        patchOpsControl("connectors_hub", event.target.checked)
-                      }
-                    />
-                    <span>Connectors page</span>
-                  </label>
-                  <Chip label={connectorsStatus.label} tone={connectorsStatus.tone} />
-                </div>
-                <p className="mc-settings-help">
-                  Yellow means the page is ready but the main switch is still off, or the page is
-                  waiting for data to arrive.
-                </p>
-                {props.opsUxConfigError ? (
-                  <p className="mc-settings-inline-error">{props.opsUxConfigError}</p>
-                ) : null}
-              </div>
+              </details>
 
               {/* Theme section */}
-              <div className="mc-settings-section mc-settings-section-wide">
-                <h3 className="mc-settings-section-title">Assistant</h3>
-                <p className="mc-settings-help">
-                  This is the shared carsinOS system prompt. New Assistant chats, Telegram, and
-                  Discord runs use it unless that conversation already has its own system prompt.
-                </p>
-                <textarea
-                  className="mc-settings-prompt"
-                  value={props.assistantSystemPrompt}
-                  onChange={(event) => props.onAssistantSystemPromptChange(event.target.value)}
-                  rows={8}
-                  placeholder="Describe how carsinOS should behave, what it should prioritize, and any standing constraints."
-                />
-                <div className="mc-settings-actions">
-                  <button
-                    type="button"
-                    className="mc-btn"
-                    onClick={() => void props.onSaveAssistantSystemPrompt()}
-                    disabled={
-                      props.assistantSystemPromptLoading ||
-                      props.assistantSystemPromptSaving ||
-                      !props.assistantSystemPromptDirty
-                    }
-                  >
-                    {props.assistantSystemPromptSaving
-                      ? "Saving prompt..."
-                      : "Save shared prompt"}
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost"
-                    onClick={props.onResetAssistantSystemPrompt}
-                    disabled={
-                      props.assistantSystemPromptLoading ||
-                      props.assistantSystemPromptSaving ||
-                      !props.assistantSystemPromptDirty
-                    }
-                  >
-                    Reset changes
-                  </button>
-                  <button
-                    type="button"
-                    className="ghost"
-                    onClick={props.onRestoreDefaultAssistantSystemPrompt}
-                    disabled={
-                      props.assistantSystemPromptLoading || props.assistantSystemPromptSaving
-                    }
-                  >
-                    Use built-in default
-                  </button>
+              <details
+                className="mc-settings-section mc-settings-disclosure"
+                open={settingsAssistantOpen}
+                onToggle={(event) => setSettingsAssistantOpen(event.currentTarget.open)}
+              >
+                <summary className="mc-settings-summary">
+                  <span>
+                    <strong>3. Shared assistant instructions</strong>
+                    <small>Default behavior for new Assistant, Telegram, and Discord runs.</small>
+                  </span>
+                  <span className="mc-settings-summary-status">
+                    <Chip
+                      label={props.assistantSystemPromptDirty ? "Unsaved" : "Saved"}
+                      tone={props.assistantSystemPromptDirty ? "warning" : "connected"}
+                    />
+                  </span>
+                </summary>
+                <div className="mc-settings-disclosure-body">
+                  <p className="mc-settings-help">
+                    Edit this only when you want every new carsinOS conversation to follow the same
+                    standing rules.
+                  </p>
+                  <textarea
+                    className="mc-settings-prompt"
+                    value={props.assistantSystemPrompt}
+                    onChange={(event) => props.onAssistantSystemPromptChange(event.target.value)}
+                    rows={8}
+                    placeholder="Describe how carsinOS should behave, what it should prioritize, and any standing constraints."
+                  />
+                  <div className="mc-settings-actions">
+                    <button
+                      type="button"
+                      className="mc-btn"
+                      onClick={() => void props.onSaveAssistantSystemPrompt()}
+                      disabled={
+                        props.assistantSystemPromptLoading ||
+                        props.assistantSystemPromptSaving ||
+                        !props.assistantSystemPromptDirty
+                      }
+                    >
+                      {props.assistantSystemPromptSaving
+                        ? "Saving prompt..."
+                        : "Save shared prompt"}
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={props.onResetAssistantSystemPrompt}
+                      disabled={
+                        props.assistantSystemPromptLoading ||
+                        props.assistantSystemPromptSaving ||
+                        !props.assistantSystemPromptDirty
+                      }
+                    >
+                      Reset changes
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={props.onRestoreDefaultAssistantSystemPrompt}
+                      disabled={
+                        props.assistantSystemPromptLoading || props.assistantSystemPromptSaving
+                      }
+                    >
+                      Use built-in default
+                    </button>
+                  </div>
+                  {props.assistantSystemPromptError ? (
+                    <p className="mc-settings-inline-error">{props.assistantSystemPromptError}</p>
+                  ) : null}
+                  <p className="mc-settings-help">
+                    {props.assistantSystemPromptDirty
+                      ? "You have unsaved prompt changes."
+                      : "Shared prompt saved. Use Insert Core Prompt in Assistant if you want the current chat to pick up the latest version immediately."}
+                  </p>
                 </div>
-                {props.assistantSystemPromptError ? (
-                  <p className="mc-settings-inline-error">{props.assistantSystemPromptError}</p>
-                ) : null}
-                <p className="mc-settings-help">
-                  {props.assistantSystemPromptDirty
-                    ? "You have unsaved prompt changes."
-                    : "Shared prompt saved. Use Insert Core Prompt in Assistant if you want the current chat to pick up the latest version immediately."}
-                </p>
-              </div>
+              </details>
             </div>
           </div>
         </div>

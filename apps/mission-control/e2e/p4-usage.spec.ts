@@ -4,6 +4,7 @@ import {
   type APIRequestContext,
   type Page,
 } from "./testHarness";
+import { clickAdvancedNav } from "./onboardingFlow";
 
 const E2E_APP_URL = "/?e2e=1";
 const GATEWAY_URL = "http://127.0.0.1:19789";
@@ -81,7 +82,7 @@ async function completeLocalOnboarding(page: Page): Promise<void> {
 }
 
 async function openCockpitTemplate(page: Page): Promise<void> {
-  await page.locator('[data-tour-id="nav-cockpit"]').click();
+  await clickAdvancedNav(page, "cockpit");
   await expect(page.locator(".mc-cockpit-grid")).toBeVisible();
   const loadTemplateButton = page.getByRole("button", { name: "Load Ops Template" });
   const usagePanel = page.getByTestId("mc-usage-panel");
