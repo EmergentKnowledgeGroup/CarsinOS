@@ -5157,7 +5157,7 @@ impl Storage {
               created_at
             FROM runs
             WHERE session_id = ?1
-            ORDER BY created_at ASC, rowid ASC
+            ORDER BY created_at DESC, rowid DESC
             LIMIT ?2
             "#,
         )?;
@@ -5166,6 +5166,7 @@ impl Storage {
         for row in rows {
             out.push(row?);
         }
+        out.reverse();
         Ok(out)
     }
 
@@ -9786,6 +9787,51 @@ mod tests {
             })
             .expect("create run result");
         assert!(run.is_none());
+    }
+
+    #[test]
+    fn list_runs_for_session_returns_latest_limit_in_chronological_order() {
+        let (_temp_dir, storage) = test_storage();
+        let session = storage
+            .create_session(NewSession {
+                session_key: None,
+                agent_id: "default".to_string(),
+                title: Some("run window".to_string()),
+            })
+            .expect("create session");
+
+        let first = storage
+            .create_run(NewRun {
+                session_id: session.session_id.clone(),
+                model_provider: "mock".to_string(),
+                model_id: "first".to_string(),
+            })
+            .expect("create first run")
+            .expect("first run exists");
+        let second = storage
+            .create_run(NewRun {
+                session_id: session.session_id.clone(),
+                model_provider: "mock".to_string(),
+                model_id: "second".to_string(),
+            })
+            .expect("create second run")
+            .expect("second run exists");
+        let third = storage
+            .create_run(NewRun {
+                session_id: session.session_id.clone(),
+                model_provider: "mock".to_string(),
+                model_id: "third".to_string(),
+            })
+            .expect("create third run")
+            .expect("third run exists");
+
+        let runs = storage
+            .list_runs_for_session(&session.session_id, 2)
+            .expect("list latest runs");
+        let run_ids: Vec<&str> = runs.iter().map(|run| run.run_id.as_str()).collect();
+
+        assert_eq!(run_ids, vec![second.run_id.as_str(), third.run_id.as_str()]);
+        assert!(!run_ids.contains(&first.run_id.as_str()));
     }
 
     #[test]

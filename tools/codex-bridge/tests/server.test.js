@@ -1,6 +1,11 @@
 const assert = require("node:assert/strict");
 const http = require("node:http");
+const path = require("node:path");
 const test = require("node:test");
+
+process.env.CODEX_BRIDGE_ALLOWED_ROOTS = [process.cwd(), process.env.CODEX_BRIDGE_ALLOWED_ROOTS]
+  .filter(Boolean)
+  .join(path.delimiter);
 const { route } = require("../relay/server.js");
 
 async function withServer(fn) {
@@ -39,7 +44,7 @@ test("server allows mutating requests without a browser origin header", async ()
       body: JSON.stringify({ prompt: "hi", cwd: process.cwd() }),
     });
 
-    assert.notEqual(response.status, 403);
+    assert.equal(response.status, 202);
     assert.notEqual(response.headers.get("access-control-allow-origin"), "*");
   });
 });

@@ -166,9 +166,14 @@ class CodexCliManager {
         ...patch,
       };
       this.upsertSession(next);
-      const currentMeta = fs.existsSync(metaPath)
-        ? JSON.parse(fs.readFileSync(metaPath, "utf8"))
-        : base;
+      let currentMeta = base;
+      if (fs.existsSync(metaPath)) {
+        try {
+          currentMeta = JSON.parse(fs.readFileSync(metaPath, "utf8"));
+        } catch (error) {
+          console.warn(`codex bridge ignored unreadable metadata for ${sessionId}: ${error.message}`);
+        }
+      }
       fs.writeFileSync(
         metaPath,
         JSON.stringify(redact({ ...currentMeta, ...next }), null, 2) + "\n",

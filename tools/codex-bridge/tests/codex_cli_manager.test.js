@@ -51,6 +51,32 @@ test("manager records failed status when codex binary cannot spawn", async () =>
   assert.match(read.error, /ENOENT|spawn/i);
 });
 
+test("manager tolerates corrupted metadata while finishing a run", async () => {
+  const root = tmpRoot();
+  const workspace = path.join(root, "workspace");
+  fs.mkdirSync(workspace, { recursive: true });
+  const fake = path.join(root, "fake-codex.js");
+  fs.writeFileSync(
+    fake,
+    "console.log(JSON.stringify({ event: 'started' }));\nsetTimeout(() => {}, 150);\n",
+    "utf8"
+  );
+  const manager = new CodexCliManager({
+    root,
+    codexBin: process.execPath,
+    codexArgsPrefix: [fake],
+    allowedRoots: [root],
+  });
+
+  manager.startExec({ sessionId: "corrupt-meta", cwd: workspace, prompt: "hi" });
+  fs.writeFileSync(path.join(manager.sessionDir("corrupt-meta"), "meta.json"), "{ nope", "utf8");
+  await new Promise((resolve) => setTimeout(resolve, 400));
+
+  const read = manager.readSession("corrupt-meta");
+  assert.equal(read.status, "succeeded");
+  assert.equal(read.stdoutEvents.at(-1)?.event, "started");
+});
+
 test("manager captures fake codex exec output and final text", async () => {
   const root = tmpRoot();
   const workspace = path.join(root, "workspace");
@@ -67,6 +93,6 @@ test("manager captures fake codex exec output and final text", async () => {
   assert.equal(started.status, "running");
   await new Promise((resolve) => setTimeout(resolve, 500));
   const read = manager.readSession("test-run");
-  assert.ok(["succeeded", "running", "failed"].includes(read.status));
-  assert.equal(read.stdoutEvents.at(-1).event, "started");
+  assert.ok(["succeeded", "running"].includes(read.status), `unexpected status: ${read.status}`);
+  assert.equal(read.stdoutEvents.at(-1)?.event, "started");
 });
