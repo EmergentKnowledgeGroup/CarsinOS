@@ -4,6 +4,7 @@ param(
   [int]$GatewayPort = 0,
   [int]$UiPort = 0,
   [string]$GatewayHost = "127.0.0.1",
+  [string]$GatewayConnectHost = "",
   [string]$Token = "",
   [string]$StateDir = "",
   [string]$CargoTargetDir = "",
@@ -27,6 +28,7 @@ Options:
   -GatewayPort <port>      Preferred gateway port (default: 18789; falls forward if busy).
   -UiPort <port>           Preferred UI port in web mode (default: 1420; falls forward if busy).
   -GatewayHost <host>      Gateway host bind (default: 127.0.0.1).
+  -GatewayConnectHost <h>  Gateway host used by launcher/UI checks (default: bind host, or 127.0.0.1 for wildcard binds).
   -Token <value>           Use explicit gateway token.
   -StateDir <path>         Runtime state/log/pid directory (default: runtime\oneclick-state).
   -CargoTargetDir <path>   Cargo target dir (default: <StateDir>\cargo-target).
@@ -169,7 +171,6 @@ function Test-RepoOwned([int]$ProcessId) {
     if (-not $proc) { return $false }
     $cmd = [string]$proc.CommandLine
     $exe = [string]$proc.ExecutablePath
-    $name = [string]$proc.Name
     foreach ($text in @($cmd, $exe)) {
       if (-not $text) { continue }
       if ($text.IndexOf($RepoRoot, [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
@@ -179,8 +180,7 @@ function Test-RepoOwned([int]$ProcessId) {
         return $true
       }
     }
-    if ($name -ieq "carsinos-gateway.exe" -or
-        $cmd.IndexOf("cargo run -p carsinos-gateway", [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+    if ($cmd.IndexOf("cargo run -p carsinos-gateway", [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
         $cmd.IndexOf("cargo  run -p carsinos-gateway", [StringComparison]::OrdinalIgnoreCase) -ge 0) {
       return $true
     }
@@ -257,6 +257,7 @@ function Stop-PidFileProcess([string]$Path, [string]$Label) {
 
 function Reclaim-PreviousRuntime {
   New-Item -ItemType Directory -Force -Path $StateDir, $PidDir, $LogDir, $ScriptOutDir | Out-Null
+  Remove-LauncherScripts
   Stop-PidFileProcess $LauncherPidFile "previous one-click launcher"
   Stop-PidFileProcess $UiPidFile "previous Mission Control UI"
   Stop-PidFileProcess $GatewayPidFile "previous gateway"
@@ -319,10 +320,28 @@ function Ensure-MissionControlDeps {
   }
 }
 
-function Start-ChildPowerShell([string]$Name, [string]$Content) {
-  $path = Join-Path $ScriptOutDir "$Name.ps1"
+function Remove-LauncherScripts {
+  if (-not (Test-Path -LiteralPath $ScriptOutDir)) { return }
+  Get-ChildItem -LiteralPath $ScriptOutDir -Filter "*.ps1" -ErrorAction SilentlyContinue |
+    Remove-Item -Force -ErrorAction SilentlyContinue
+}
+
+function Start-ChildPowerShell([string]$Name, [string]$Content, [hashtable]$Environment = @{}) {
+  $safeName = $Name -replace '[^A-Za-z0-9_.-]', '-'
+  $path = Join-Path $ScriptOutDir "$safeName-$([Guid]::NewGuid().ToString('N')).ps1"
   [IO.File]::WriteAllText($path, $Content, [Text.UTF8Encoding]::new($false))
-  Start-Process -FilePath powershell.exe -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $path) -PassThru -WindowStyle Hidden
+  $previousEnvironment = @{}
+  try {
+    foreach ($key in $Environment.Keys) {
+      $previousEnvironment[$key] = [Environment]::GetEnvironmentVariable($key, "Process")
+      [Environment]::SetEnvironmentVariable($key, [string]$Environment[$key], "Process")
+    }
+    Start-Process -FilePath powershell.exe -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $path) -PassThru -WindowStyle Hidden
+  } finally {
+    foreach ($key in $Environment.Keys) {
+      [Environment]::SetEnvironmentVariable($key, $previousEnvironment[$key], "Process")
+    }
+  }
 }
 
 function Start-CodexBridge {
@@ -337,14 +356,15 @@ function Start-CodexBridge {
   $bridgeScript = @"
 `$ErrorActionPreference = "Stop"
 Set-Location -LiteralPath $(ConvertTo-PsLiteral $CodexBridgeDir)
-`$env:CODEX_BRIDGE_PORT = $(ConvertTo-PsLiteral ([string]$CodexBridgePortSelected))
-`$env:CODEX_BRIDGE_ALLOWED_ROOTS = $(ConvertTo-PsLiteral $allowedRoots)
-`$env:CODEX_BRIDGE_RUNTIME_ROOT = $(ConvertTo-PsLiteral $bridgeRuntime)
 New-Item -ItemType Directory -Force -Path $(ConvertTo-PsLiteral $bridgeRuntime) | Out-Null
 & node.exe "relay\server.js" > $(ConvertTo-PsLiteral $CodexBridgeLog) 2>&1
 exit `$LASTEXITCODE
 "@
-  $Script:CodexBridgeProcess = Start-ChildPowerShell "codex-bridge-oneclick" $bridgeScript
+  $Script:CodexBridgeProcess = Start-ChildPowerShell "codex-bridge-oneclick" $bridgeScript @{
+    CODEX_BRIDGE_PORT = [string]$CodexBridgePortSelected
+    CODEX_BRIDGE_ALLOWED_ROOTS = $allowedRoots
+    CODEX_BRIDGE_RUNTIME_ROOT = $bridgeRuntime
+  }
   Write-PidFile $CodexBridgePidFile $Script:CodexBridgeProcess.Id
 }
 
@@ -374,22 +394,25 @@ function Start-Gateway {
   $gatewayScript = @"
 `$ErrorActionPreference = "Stop"
 Set-Location -LiteralPath $(ConvertTo-PsLiteral $RepoRoot)
-`$env:CARSINOS_GATEWAY_BIND = $(ConvertTo-PsLiteral $bind)
-`$env:CARSINOS_GATEWAY_TOKEN = $(ConvertTo-PsLiteral $Token)
-`$env:CARSINOS_STATE_DIR = $(ConvertTo-PsLiteral $StateDir)
-`$env:CARSINOS_CODEX_BRIDGE_BASE_URL = $(ConvertTo-PsLiteral $CodexBridgeUrl)
 if (-not `$env:CARSINOS_SECRET_STORE) { `$env:CARSINOS_SECRET_STORE = "file" }
-if (-not `$env:CARSINOS_SECRET_FILE_DIR) { `$env:CARSINOS_SECRET_FILE_DIR = $(ConvertTo-PsLiteral (Join-Path $StateDir "secrets")) }
+if (-not `$env:CARSINOS_SECRET_FILE_DIR) { `$env:CARSINOS_SECRET_FILE_DIR = Join-Path `$env:CARSINOS_STATE_DIR "secrets" }
 if (-not `$env:CARSINOS_NUMQUAM_MANAGED_REPO_ROOT) { `$env:CARSINOS_NUMQUAM_MANAGED_REPO_ROOT = $(ConvertTo-PsLiteral $RepoRoot) }
-if (-not `$env:CARSINOS_NUMQUAM_MANAGED_LANES_ROOT) { `$env:CARSINOS_NUMQUAM_MANAGED_LANES_ROOT = $(ConvertTo-PsLiteral (Join-Path $StateDir "mno-lanes")) }
-`$env:CARGO_TARGET_DIR = $(ConvertTo-PsLiteral $CargoTargetDir)
-`$env:TEMP = $(ConvertTo-PsLiteral $tmpDir)
+if (-not `$env:CARSINOS_NUMQUAM_MANAGED_LANES_ROOT) { `$env:CARSINOS_NUMQUAM_MANAGED_LANES_ROOT = Join-Path `$env:CARSINOS_STATE_DIR "mno-lanes" }
 `$env:TMP = `$env:TEMP
 New-Item -ItemType Directory -Force -Path `$env:CARGO_TARGET_DIR, `$env:TEMP | Out-Null
-& cmd.exe /d /c "cargo run -p carsinos-gateway > ""$GatewayLog"" 2>&1"
+& cmd.exe /d /c "cargo run -p carsinos-gateway > ""`$env:CARSINOS_ONECLICK_GATEWAY_LOG"" 2>&1"
 exit `$LASTEXITCODE
 "@
-  $Script:GatewayProcess = Start-ChildPowerShell "gateway-oneclick" $gatewayScript
+  $Script:GatewayProcess = Start-ChildPowerShell "gateway-oneclick" $gatewayScript @{
+    CARSINOS_GATEWAY_BIND = $bind
+    CARSINOS_GATEWAY_TOKEN = $Token
+    CARSINOS_STATE_DIR = $StateDir
+    CARSINOS_CODEX_BRIDGE_BASE_URL = $CodexBridgeUrl
+    CARGO_TARGET_DIR = $CargoTargetDir
+    TEMP = $tmpDir
+    TMP = $tmpDir
+    CARSINOS_ONECLICK_GATEWAY_LOG = $GatewayLog
+  }
   Write-PidFile $GatewayPidFile $Script:GatewayProcess.Id
 }
 
@@ -423,20 +446,23 @@ function Start-MissionControl {
   $uiScript = @"
 `$ErrorActionPreference = "Stop"
 Set-Location -LiteralPath $(ConvertTo-PsLiteral $MissionControlDir)
-`$env:npm_config_cache = $(ConvertTo-PsLiteral (Join-Path $StateDir "npm-cache"))
 `$env:CHOKIDAR_USEPOLLING = "true"
 `$env:WATCHPACK_POLLING = "true"
-`$env:CARGO_TARGET_DIR = $(ConvertTo-PsLiteral $CargoTargetDir)
-`$env:VITE_CARSINOS_GATEWAY_URL = $(ConvertTo-PsLiteral $GatewayUrl)
-`$env:VITE_CARSINOS_GATEWAY_TOKEN = $(ConvertTo-PsLiteral $Token)
 `$env:VITE_CARSINOS_PREFER_ENV_TOKEN = "true"
-`$env:TEMP = $(ConvertTo-PsLiteral $tmpDir)
 `$env:TMP = `$env:TEMP
 New-Item -ItemType Directory -Force -Path `$env:npm_config_cache, `$env:CARGO_TARGET_DIR, `$env:TEMP | Out-Null
-& cmd.exe /d /c "$run > ""$UiLog"" 2>&1"
+& cmd.exe /d /c "$run > ""`$env:CARSINOS_ONECLICK_UI_LOG"" 2>&1"
 exit `$LASTEXITCODE
 "@
-  $Script:UiProcess = Start-ChildPowerShell "mission-control-oneclick" $uiScript
+  $Script:UiProcess = Start-ChildPowerShell "mission-control-oneclick" $uiScript @{
+    npm_config_cache = (Join-Path $StateDir "npm-cache")
+    CARGO_TARGET_DIR = $CargoTargetDir
+    VITE_CARSINOS_GATEWAY_URL = $GatewayUrl
+    VITE_CARSINOS_GATEWAY_TOKEN = $Token
+    TEMP = $tmpDir
+    TMP = $tmpDir
+    CARSINOS_ONECLICK_UI_LOG = $UiLog
+  }
   Write-PidFile $UiPidFile $Script:UiProcess.Id
   if ($Mode -eq "web") {
     $uiUrl = "http://127.0.0.1:$UiPortSelected"
@@ -493,6 +519,7 @@ function Cleanup {
   Clear-PidFile $UiPidFile
   Clear-PidFile $GatewayPidFile
   Clear-PidFile $CodexBridgePidFile
+  Remove-LauncherScripts
 }
 
 try {
@@ -530,7 +557,12 @@ try {
     }
   }
 
-  $GatewayUrl = "http://$GatewayHost`:$GatewayPortSelected"
+  $gatewayConnectHost = $GatewayConnectHost
+  if (-not $gatewayConnectHost) { $gatewayConnectHost = $GatewayHost }
+  if ($gatewayConnectHost -eq "0.0.0.0" -or $gatewayConnectHost -eq "::") {
+    $gatewayConnectHost = "127.0.0.1"
+  }
+  $GatewayUrl = "http://$gatewayConnectHost`:$GatewayPortSelected"
   if (-not $NoCodexBridge) {
     $CodexBridgeUrl = "http://127.0.0.1`:$CodexBridgePortSelected"
   } else {
