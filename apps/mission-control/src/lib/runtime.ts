@@ -193,26 +193,3 @@ export async function isGatewayTokenConfigured(): Promise<boolean> {
   }
   return Boolean(envToken);
 }
-
-export interface SetupTokenLaunchResult {
-  launched: boolean;
-  command: string;
-  detail: string;
-}
-
-export async function launchAnthropicSetupTokenFlow(): Promise<SetupTokenLaunchResult> {
-  const command = "claude setup-token";
-  if (isTauriRuntime()) {
-    const detail = await invoke<string>("launch_anthropic_setup_token");
-    return {
-      launched: true,
-      command,
-      detail,
-    };
-  }
-  return {
-    launched: false,
-    command,
-    detail: "Desktop launcher unavailable in web mode. Run the command in a terminal, then paste the token.",
-  };
-}

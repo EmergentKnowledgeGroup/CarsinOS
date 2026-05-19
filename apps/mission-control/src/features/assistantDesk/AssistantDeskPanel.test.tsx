@@ -211,29 +211,6 @@ describe("AssistantDeskPanel", () => {
     }
   });
 
-  it("shows transcript loading without rendering the empty transcript message", async () => {
-    const desk = makeDesk();
-    const firstItem = desk.buckets.needs_you[0]!;
-    await act(async () => {
-      root.render(
-        <AssistantDeskPanel
-          open
-          controller={makeController({
-            desk,
-            selectedWorkItemId: firstItem.id,
-            selectedWorkItem: firstItem,
-            transcript: null,
-            transcriptLoading: true,
-          })}
-          onClose={vi.fn()}
-        />
-      );
-    });
-
-    expect(container.textContent).toContain("Loading transcript...");
-    expect(container.textContent).not.toContain("No transcript events yet");
-  });
-
   it("returns focus to the transcript opener when the drawer closes", async () => {
     const originalRaf = window.requestAnimationFrame;
     window.requestAnimationFrame = ((callback: FrameRequestCallback) => {

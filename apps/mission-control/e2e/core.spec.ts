@@ -10,7 +10,7 @@ import {
   wizard,
 } from "./onboardingFlow";
 
-const CLAUDE_SETUP_TOKEN = `sk-ant-oat01-${"a".repeat(80)}`;
+const CLAUDE_API_KEY = "sk-ant-api03-test-key";
 const CLAUDE_MODEL_ID = "claude-sonnet-4-5";
 
 test.describe("mission-control core onboarding + crash-proofing @core", () => {
@@ -316,7 +316,7 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
     await expect(setupWizard.getByText("Step 4 of 6")).toBeVisible();
   });
 
-  test("auto-verifies a Claude setup token and loads live model choices without extra hidden steps", async ({
+  test("saves a direct Anthropic API key and loads live model choices without hidden account paths", async ({
     page,
   }) => {
     await expect(await moveWizardToConnectionStep(page)).toBe(true);
@@ -332,7 +332,8 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
     await setupWizard.getByLabel("Agent name").fill("Claude Assistant");
     await setupWizard.getByRole("radio", { name: "Anthropic (Claude)" }).check();
     await setupWizard.getByLabel("Profile name").fill("claude-primary");
-    await setupWizard.getByRole("textbox", { name: "Setup token" }).fill(CLAUDE_SETUP_TOKEN);
+    await setupWizard.getByRole("textbox", { name: "Anthropic API key" }).fill(CLAUDE_API_KEY);
+    await setupWizard.getByRole("button", { name: "Save key + load models" }).click();
 
     await expect(
       setupWizard.getByRole("combobox", { name: "Assistant model" })

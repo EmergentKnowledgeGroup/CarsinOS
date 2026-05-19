@@ -25,8 +25,6 @@ import type {
   AgentProviderProfileOrderResponse,
   AssistantDeskResponse,
   AssistantDeskTranscriptResponse,
-  AnthropicSetupTokenIngestResponse,
-  AnthropicSetupTokenValidateResponse,
   AuthProfileResponse,
   BoardDetail,
   BoardDetailResponse,
@@ -1790,43 +1788,6 @@ export async function finishOpenAiOauth(
         code,
         state,
       },
-    }
-  );
-}
-
-export async function ingestAnthropicSetupToken(
-  settings: RuntimeConnectionSettings,
-  payload: {
-    display_name: string;
-    setup_token: string;
-    api_base_url?: string;
-    enabled?: boolean;
-    kill_switch_scope?: string;
-  }
-): Promise<AnthropicSetupTokenIngestResponse> {
-  return requestJson<AnthropicSetupTokenIngestResponse>(
-    settings,
-    "/api/v1/auth/anthropic/setup-token/ingest",
-    {
-      method: "POST",
-      body: payload,
-    }
-  );
-}
-
-export async function validateAnthropicSetupToken(
-  settings: RuntimeConnectionSettings,
-  payload: {
-    setup_token: string;
-    api_base_url?: string;
-  }
-): Promise<AnthropicSetupTokenValidateResponse> {
-  return requestJson<AnthropicSetupTokenValidateResponse>(
-    settings,
-    "/api/v1/auth/anthropic/setup-token/validate",
-    {
-      method: "POST",
-      body: payload,
     }
   );
 }

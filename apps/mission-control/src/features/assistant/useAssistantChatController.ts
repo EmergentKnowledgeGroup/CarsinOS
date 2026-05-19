@@ -135,25 +135,22 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
   const [sessionMode, setSessionMode] = useState<AssistantSessionMode>("canonical_lane");
   const suppressSessionResetRef = useRef(false);
   const runtimeRoutingRef = useRef<RuntimeRoutingConfigResponse | null>(null);
-  const runtimeRoutingGatewayRef = useRef<string>("");
 
-  const applyRuntimeRouting = useCallback((routing: RuntimeRoutingConfigResponse, gatewayUrl: string) => {
+  const applyRuntimeRouting = useCallback((routing: RuntimeRoutingConfigResponse) => {
     runtimeRoutingRef.current = routing;
-    runtimeRoutingGatewayRef.current = gatewayUrl;
     setRuntimeRouting(routing);
     setRuntimeRoutingLoaded(true);
     setRuntimeRoutingError(null);
   }, []);
   const refreshRoutingState = useCallback(async () => {
-    const gatewayUrl = settings.gateway_url.trim();
     try {
       const response = await getRuntimeConfig(settings);
-      applyRuntimeRouting(response.config.routing, gatewayUrl);
+      applyRuntimeRouting(response.config.routing);
       return response.config.routing;
     } catch (error: unknown) {
       setRuntimeRoutingLoaded(true);
       setRuntimeRoutingError(String(error));
-      return runtimeRoutingGatewayRef.current === gatewayUrl ? runtimeRoutingRef.current : null;
+      return runtimeRoutingRef.current;
     }
   }, [applyRuntimeRouting, settings]);
 
@@ -404,15 +401,10 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
   );
 
   const resolveLocalOperatorRouting = useCallback(async (options?: { preferCached?: boolean }) => {
-    const gatewayUrl = settings.gateway_url.trim();
     let routing =
-      options?.preferCached === true && runtimeRoutingGatewayRef.current === gatewayUrl
-        ? runtimeRoutingRef.current
-        : null;
+      options?.preferCached === true ? runtimeRoutingRef.current : null;
     if (!routing) {
-      routing = (await refreshRoutingState()) ?? (
-        runtimeRoutingGatewayRef.current === gatewayUrl ? runtimeRoutingRef.current : null
-      );
+      routing = (await refreshRoutingState()) ?? runtimeRoutingRef.current;
     }
     if (!routing) {
       throw new Error(
@@ -436,7 +428,7 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
       localOperatorId,
       localOperatorAgentIds: assignedAgentIdsForHuman(routing, localOperatorId),
     };
-  }, [refreshRoutingState, settings.gateway_url]);
+  }, [refreshRoutingState]);
 
   const ensureCanonicalLaneSession = useCallback(async () => {
     const selectedAssistantId =
@@ -646,7 +638,6 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
     setDraft("");
     setLastRunStatus(null);
     setLastRunId(null);
-    let messagePersisted = false;
     try {
       const id = await ensureSession();
       setOptimisticUserMessage({ ...pendingMessage, session_id: id });
@@ -656,7 +647,6 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
         content_format: "markdown",
         source_channel: "assistant-chat",
       });
-      messagePersisted = true;
       setMessages((current) => mergeMessage(current, createdMessage.message));
       setOptimisticUserMessage(null);
       setSendStatus("Waiting for the model response...");
@@ -681,9 +671,7 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
     } catch (error: unknown) {
       const text = String(error);
       setLastError(text);
-      if (!messagePersisted) {
-        setDraft((current) => (current.trim() ? current : body));
-      }
+      setDraft((current) => (current.trim() ? current : body));
       setNotice({ tone: "error", message: `Assistant run failed: ${text}` });
     } finally {
       setOptimisticUserMessage(null);
