@@ -569,6 +569,58 @@ describe("useAssistantChatController", () => {
     expect(latest?.sessionId).toBe("sess-2");
   });
 
+  it("does not reuse cached routing after the gateway URL changes and the new gateway fails", async () => {
+    const setNotice = vi.fn();
+    const firstSettings = settings;
+    const secondSettings: RuntimeConnectionSettings = {
+      gateway_url: "http://127.0.0.1:18890",
+    };
+    vi.mocked(getRuntimeConfig)
+      .mockResolvedValueOnce(makeRuntimeConfigResponse(true, ["lyra"]))
+      .mockRejectedValueOnce(new Error("new gateway offline"));
+    vi.mocked(getSession).mockResolvedValue(makeSessionResponse("sess-2", "lyra"));
+
+    await act(async () => {
+      root.render(
+        <Harness
+          onReady={(controller) => {
+            latest = controller;
+          }}
+          settings={firstSettings}
+          agents={[makeAgent("lyra")]}
+          setNotice={setNotice}
+        />
+      );
+    });
+    await flush();
+
+    await act(async () => {
+      root.render(
+        <Harness
+          onReady={(controller) => {
+            latest = controller;
+          }}
+          settings={secondSettings}
+          agents={[makeAgent("lyra")]}
+          setNotice={setNotice}
+        />
+      );
+    });
+    await flush();
+
+    await act(async () => {
+      await latest?.openSession("sess-2");
+    });
+
+    expect(getSession).not.toHaveBeenCalled();
+    expect(setNotice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tone: "error",
+        message: expect.stringContaining("Team routing could not load cleanly"),
+      })
+    );
+  });
+
   it("re-resolves the canonical lane on later sends instead of sticking to a stale session id", async () => {
     const setNotice = vi.fn();
     vi.mocked(createSession)
@@ -612,6 +664,44 @@ describe("useAssistantChatController", () => {
     expect(createSessionRun).toHaveBeenLastCalledWith(settings, "sess-2", {});
     expect(latest?.sessionId).toBe("sess-2");
     expect(getRuntimeConfig).not.toHaveBeenCalled();
+  });
+
+  it("does not restore a persisted message into the draft when run creation fails", async () => {
+    const setNotice = vi.fn();
+    vi.mocked(createSessionMessage).mockResolvedValueOnce({
+      message: {
+        ...makeMessageResponse().message,
+        message_id: "msg-persisted",
+        content_text: "already persisted",
+      },
+    });
+    vi.mocked(createSessionRun).mockRejectedValueOnce(new Error("provider down"));
+
+    await act(async () => {
+      root.render(
+        <Harness
+          onReady={(controller) => {
+            latest = controller;
+          }}
+          settings={settings}
+          agents={[makeAgent("claude")]}
+          setNotice={setNotice}
+        />
+      );
+    });
+    await flush();
+
+    await act(async () => {
+      latest?.setDraft("already persisted");
+    });
+    await act(async () => {
+      await latest?.send();
+    });
+
+    expect(createSessionMessage).toHaveBeenCalledTimes(1);
+    expect(createSessionRun).toHaveBeenCalledTimes(1);
+    expect(latest?.draft).toBe("");
+    expect(latest?.messages.some((message) => message.message_id === "msg-persisted")).toBe(true);
   });
 
   it("keeps sending on an explicitly opened pinned transcript until returning to the canonical lane", async () => {

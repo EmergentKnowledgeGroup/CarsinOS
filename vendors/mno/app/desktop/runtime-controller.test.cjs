@@ -767,11 +767,15 @@ test('deriveShellStartupState accepts actual wizard-emitted MNO store kinds', ()
   assert.equal(state.status, 'stopped');
 });
 
-test('waitForRuntimeReady retries until health responds ok', async () => {
+test('waitForRuntimeReady retries until matching health responds ok', async () => {
   let calls = 0;
   let now = 0;
+  const expectedBinding = buildExpectedBinding(makeWizardState());
   const ok = await waitForRuntimeReady({
     runtimeHealthUrl: 'http://127.0.0.1:7340/api/runtime/health',
+    expectedBinding,
+    expectedRuntimeVersion: '0.1.0',
+    expectedRuntimeUrl: 'http://127.0.0.1:7340',
     timeoutMs: 1000,
     intervalMs: 10,
     fetchImpl: async () => {
@@ -781,7 +785,13 @@ test('waitForRuntimeReady retries until health responds ok', async () => {
       }
       return {
         ok: true,
-        json: async () => ({ ok: true }),
+        json: async () => ({
+          ok: true,
+          service: 'modelnumquamoblita-runtime',
+          runtime_version: '0.1.0',
+          runtime_url: 'http://127.0.0.1:7340',
+          binding: expectedBinding,
+        }),
       };
     },
     sleepImpl: async (ms) => {
@@ -791,6 +801,34 @@ test('waitForRuntimeReady retries until health responds ok', async () => {
   });
   assert.equal(ok, true);
   assert.equal(calls, 3);
+});
+
+test('waitForRuntimeReady ignores healthy responses from the wrong runtime', async () => {
+  let now = 0;
+  const expectedBinding = buildExpectedBinding(makeWizardState());
+  const ok = await waitForRuntimeReady({
+    runtimeHealthUrl: 'http://127.0.0.1:7340/api/runtime/health',
+    expectedBinding,
+    expectedRuntimeVersion: '0.1.0',
+    expectedRuntimeUrl: 'http://127.0.0.1:7340',
+    timeoutMs: 25,
+    intervalMs: 10,
+    fetchImpl: async () => ({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        service: 'other-runtime',
+        runtime_version: '0.1.0',
+        runtime_url: 'http://127.0.0.1:7340',
+        binding: expectedBinding,
+      }),
+    }),
+    sleepImpl: async (ms) => {
+      now += ms;
+    },
+    nowImpl: () => now,
+  });
+  assert.equal(ok, false);
 });
 
 test('waitForRuntimeReady fails cleanly on timeout', async () => {

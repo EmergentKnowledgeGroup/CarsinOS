@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Agent, AuthProfileResponse, BootstrapPresetResponse } from "../../../types";
 import { OnboardingStepShell } from "../OnboardingStepShell";
 import type {
@@ -105,6 +106,7 @@ interface StepProviderProps {
 }
 
 export function StepProvider(props: StepProviderProps) {
+  const [showAnthropicApiKey, setShowAnthropicApiKey] = useState(false);
   const hasExistingProfiles = props.existingProviderProfiles.length > 0;
   const providerTransitionBusy =
     props.busy ||
@@ -612,11 +614,12 @@ export function StepProvider(props: StepProviderProps) {
                       <label>
                         Anthropic API key
                         <input
-                          type="text"
+                          type={showAnthropicApiKey ? "text" : "password"}
                           autoComplete="off"
                           autoCapitalize="none"
                           autoCorrect="off"
                           spellCheck={false}
+                          aria-label="Anthropic API key"
                           value={props.anthropicSetupToken}
                           onChange={(event) =>
                             props.onAnthropicSetupTokenChange(event.target.value)
@@ -624,6 +627,14 @@ export function StepProvider(props: StepProviderProps) {
                           placeholder="Paste an Anthropic API key"
                         />
                       </label>
+                      <button
+                        type="button"
+                        className="ghost"
+                        aria-label={showAnthropicApiKey ? "Hide Anthropic API key" : "Show Anthropic API key"}
+                        onClick={() => setShowAnthropicApiKey((value) => !value)}
+                      >
+                        {showAnthropicApiKey ? "Hide key" : "Show key"}
+                      </button>
                     </div>
                     <div className="mc-onboarding-inline-actions">
                       <button

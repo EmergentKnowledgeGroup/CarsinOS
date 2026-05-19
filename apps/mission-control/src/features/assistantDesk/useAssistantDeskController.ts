@@ -53,6 +53,7 @@ export function useAssistantDeskController(options: UseAssistantDeskControllerOp
   const [transcriptLoading, setTranscriptLoading] = useState(false);
   const [transcriptError, setTranscriptError] = useState<string | null>(null);
   const inFlightRef = useRef(false);
+  const transcriptRequestSeqRef = useRef(0);
 
   const pollingEnabled =
     tokenConfigured &&
@@ -112,22 +113,33 @@ export function useAssistantDeskController(options: UseAssistantDeskControllerOp
 
   const openTranscript = useCallback(
     async (workItemId: string, cursor?: string | null) => {
+      const requestSeq = transcriptRequestSeqRef.current + 1;
+      transcriptRequestSeqRef.current = requestSeq;
       setSelectedWorkItemId(workItemId);
       setTranscriptLoading(true);
       setTranscriptError(null);
       try {
         const response = await getAssistantDeskTranscript(settings, workItemId, cursor);
+        if (transcriptRequestSeqRef.current !== requestSeq) {
+          return;
+        }
         setTranscript(response);
       } catch (err) {
+        if (transcriptRequestSeqRef.current !== requestSeq) {
+          return;
+        }
         setTranscriptError(errorMessage(err));
       } finally {
-        setTranscriptLoading(false);
+        if (transcriptRequestSeqRef.current === requestSeq) {
+          setTranscriptLoading(false);
+        }
       }
     },
     [settings]
   );
 
   const closeTranscript = useCallback(() => {
+    transcriptRequestSeqRef.current += 1;
     setTranscript(null);
     setTranscriptError(null);
     setTranscriptLoading(false);

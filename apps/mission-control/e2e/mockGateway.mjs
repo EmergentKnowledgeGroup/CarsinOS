@@ -2600,7 +2600,7 @@ function buildMissionControlUsage(requestUrl) {
       token_output_total: Math.round(tokenOutputTotal * 0.58),
     },
     {
-      agent_id: "default",
+      agent_id: "secondary_agent",
       agent_name: "Default Agent",
       estimated_cost_total: Number((estimatedCostTotal * 0.38).toFixed(4)),
       token_input_total: Math.round(tokenInputTotal * 0.4),
@@ -4534,7 +4534,6 @@ async function routeRequest(req, res) {
   }
 
   if (req.method === "POST" && requestUrl.pathname === "/api/v1/auth/anthropic/setup-token/validate") {
-    await readJson(req);
     sendJson(res, 410, {
       error: "Claude setup-token auth has been removed. Create an Anthropic API key profile instead.",
     });
@@ -4542,7 +4541,6 @@ async function routeRequest(req, res) {
   }
 
   if (req.method === "POST" && requestUrl.pathname === "/api/v1/auth/anthropic/setup-token/ingest") {
-    await readJson(req);
     sendJson(res, 410, {
       error: "Claude setup-token auth has been removed. Create an Anthropic API key profile instead.",
     });

@@ -52,3 +52,23 @@ test("manager captures fake codex exec output and final text", async () => {
   assert.ok(["succeeded", "running", "failed"].includes(read.status));
   assert.equal(read.stdoutEvents.at(-1).event, "started");
 });
+
+test("manager marks exec sessions failed when spawn emits error", async () => {
+  const root = tmpRoot();
+  const workspace = path.join(root, "workspace");
+  fs.mkdirSync(workspace, { recursive: true });
+  const missingBin = path.join(root, "missing-codex-bin");
+  const manager = new CodexCliManager({
+    root,
+    codexBin: missingBin,
+    allowedRoots: [root],
+  });
+
+  const started = manager.startExec({ sessionId: "spawn-error", cwd: workspace, prompt: "hi" });
+  assert.equal(started.status, "running");
+
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  const read = manager.readSession("spawn-error");
+  assert.equal(read.status, "failed");
+  assert.match(read.error, /ENOENT|not found|spawn/i);
+});

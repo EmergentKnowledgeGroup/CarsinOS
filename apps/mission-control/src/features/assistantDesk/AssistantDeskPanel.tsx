@@ -254,11 +254,11 @@ function TranscriptDrawer(props: {
               <TranscriptBody event={event} />
             </article>
           ))
-        ) : (
+        ) : !props.controller.transcriptLoading ? (
           <p className="mc-assistant-desk-muted">
             No transcript events yet. CarsinOS will show the audit trail here as work arrives.
           </p>
-        )}
+        ) : null}
       </div>
     </aside>
   );

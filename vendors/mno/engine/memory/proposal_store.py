@@ -344,9 +344,26 @@ class SqliteProposalStore:
         source_refs: list[SourceRef],
         metadata: dict[str, str] | None = None,
     ) -> None:
-        with self._lock:
-            row = self._conn.execute("SELECT COUNT(*) AS count FROM proposal_events").fetchone()
-            ordinal = int(row["count"]) + 1 if row else 1
+        with self._lock, self._conn:
+            self._append_event_locked(
+                event_type=event_type,
+                record_id=record_id,
+                reason=reason,
+                source_refs=source_refs,
+                metadata=metadata,
+            )
+
+    def _append_event_locked(
+        self,
+        *,
+        event_type: ProposalEventType,
+        record_id: str,
+        reason: str,
+        source_refs: list[SourceRef],
+        metadata: dict[str, str] | None = None,
+    ) -> None:
+        row = self._conn.execute("SELECT COUNT(*) AS count FROM proposal_events").fetchone()
+        ordinal = int(row["count"]) + 1 if row else 1
         event = ProposalEvent(
             event_id=_event_id(
                 event_type=event_type.value,
@@ -361,35 +378,33 @@ class SqliteProposalStore:
             source_refs=list(source_refs),
             metadata=dict(metadata or {}),
         )
-        with self._lock, self._conn:
-            self._conn.execute(
-                """
-                INSERT INTO proposal_events (
-                    event_id, event_type, record_id, timestamp, reason, source_refs_json, metadata_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    event.event_id,
-                    event.event_type.value,
-                    event.record_id,
-                    event.timestamp.isoformat(),
-                    event.reason,
-                    self._serialize_refs(event.source_refs),
-                    self._serialize_metadata(event.metadata),
-                ),
-            )
+        self._conn.execute(
+            """
+            INSERT INTO proposal_events (
+                event_id, event_type, record_id, timestamp, reason, source_refs_json, metadata_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                event.event_id,
+                event.event_type.value,
+                event.record_id,
+                event.timestamp.isoformat(),
+                event.reason,
+                self._serialize_refs(event.source_refs),
+                self._serialize_metadata(event.metadata),
+            ),
+        )
 
     def upsert_candidate(self, candidate: ProposalCandidate, *, reason: str) -> ProposalRecord:
-        with self._lock:
+        with self._lock, self._conn:
             row = self._conn.execute(
                 "SELECT * FROM proposal_records WHERE dedupe_key = ?",
                 (candidate.dedupe_key,),
             ).fetchone()
-        if row is not None:
-            record = self._row_to_record(row)
-            updated_refs = record.source_refs + list(candidate.source_refs)
-            now = _now_utc()
-            with self._lock, self._conn:
+            if row is not None:
+                record = self._row_to_record(row)
+                updated_refs = record.source_refs + list(candidate.source_refs)
+                now = _now_utc()
                 self._conn.execute(
                     """
                     UPDATE proposal_records
@@ -404,20 +419,22 @@ class SqliteProposalStore:
                         record.record_id,
                     ),
                 )
-            self._append_event(
-                event_type=ProposalEventType.REINFORCE,
-                record_id=record.record_id,
-                reason=reason,
-                source_refs=candidate.source_refs,
-                metadata={"dedupe_key": candidate.dedupe_key},
-            )
-            refreshed = self._records_for_id(record.record_id)
-            if not refreshed:
-                raise RuntimeError(f"proposal record missing after reinforce: {record.record_id}")
-            return refreshed[0]
+                self._append_event_locked(
+                    event_type=ProposalEventType.REINFORCE,
+                    record_id=record.record_id,
+                    reason=reason,
+                    source_refs=candidate.source_refs,
+                    metadata={"dedupe_key": candidate.dedupe_key},
+                )
+                refreshed = self._conn.execute(
+                    "SELECT * FROM proposal_records WHERE record_id = ?",
+                    (record.record_id,),
+                ).fetchone()
+                if refreshed is None:
+                    raise RuntimeError(f"proposal record missing after reinforce: {record.record_id}")
+                return self._row_to_record(refreshed)
 
-        record = _build_record(candidate, now=_now_utc())
-        with self._lock, self._conn:
+            record = _build_record(candidate, now=_now_utc())
             self._conn.execute(
                 """
                 INSERT INTO proposal_records (
@@ -445,13 +462,13 @@ class SqliteProposalStore:
                     candidate.dedupe_key,
                 ),
             )
-        self._append_event(
-            event_type=ProposalEventType.ADD,
-            record_id=record.record_id,
-            reason=reason,
-            source_refs=candidate.source_refs,
-            metadata={"dedupe_key": candidate.dedupe_key},
-        )
+            self._append_event_locked(
+                event_type=ProposalEventType.ADD,
+                record_id=record.record_id,
+                reason=reason,
+                source_refs=candidate.source_refs,
+                metadata={"dedupe_key": candidate.dedupe_key},
+            )
         return record
 
     def _records_for_id(self, record_id: str) -> list[ProposalRecord]:

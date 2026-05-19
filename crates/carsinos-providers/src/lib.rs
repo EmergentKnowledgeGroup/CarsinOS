@@ -357,9 +357,13 @@ async fn complete_anthropic(
     request: CompletionRequest,
 ) -> Result<CompletionResponse> {
     let auth = require_auth_profile("anthropic", &request)?;
-    if !auth.auth_mode.trim().eq_ignore_ascii_case("api_key")
-        || anthropic_profile_uses_setup_token_runtime(auth)?
-    {
+    let uses_setup_token = anthropic_profile_uses_setup_token_runtime(auth).map_err(|err| {
+        anyhow!(
+            "PROVIDER_ERROR:anthropic:AUTH_REQUIRED:invalid_credentials:{}",
+            err.to_string().replace(':', "_")
+        )
+    })?;
+    if !auth.auth_mode.trim().eq_ignore_ascii_case("api_key") || uses_setup_token {
         anyhow::bail!(
             "PROVIDER_ERROR:anthropic:AUTH_REQUIRED:api_key_required:anthropic_provider_accepts_direct_api_keys_only"
         );

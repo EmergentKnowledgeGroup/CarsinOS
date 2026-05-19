@@ -161,19 +161,29 @@ class CodexCliManager {
     fs.writeFileSync(metaPath, JSON.stringify(redact({ ...base, args }), null, 2) + "\n", "utf8");
     this.upsertSession(base);
     this.processes.set(sessionId, child);
-    child.on("exit", (code, signal) => {
+    let settled = false;
+    const settle = (status, code = null, signal = null, error = null) => {
+      if (settled) return;
+      settled = true;
       const endedAt = nowIso();
       this.upsertSession({
         sessionId,
-        status: code === 0 ? "succeeded" : "failed",
+        status,
         exitCode: code,
         signal,
+        ...(error ? { error: String(error.message || error) } : {}),
         endedAt,
         updatedAt: endedAt,
       });
       this.processes.delete(sessionId);
       stdout.end();
       stderr.end();
+    };
+    child.on("exit", (code, signal) => {
+      settle(code === 0 ? "succeeded" : "failed", code, signal);
+    });
+    child.on("error", (err) => {
+      settle("failed", null, null, err);
     });
     return this.readSession(sessionId, 12000);
   }

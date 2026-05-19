@@ -130,9 +130,10 @@ class ClaudeCodeManager {
     });
     const stdout = fs.createWriteStream(stdoutPath, { flags: "a" });
     const stderr = fs.createWriteStream(stderrPath, { flags: "a" });
+    const final = fs.createWriteStream(finalPath, { flags: "a" });
     child.stdout.pipe(stdout);
     child.stderr.pipe(stderr);
-    child.stdout.on("data", (chunk) => fs.appendFileSync(finalPath, chunk));
+    child.stdout.on("data", (chunk) => final.write(chunk));
 
     const startedAt = nowIso();
     const base = {
@@ -153,19 +154,30 @@ class ClaudeCodeManager {
     fs.writeFileSync(metaPath, JSON.stringify(redact({ ...base, args: ["--print", "--output-format", "text", "--model", model, "--permission-mode", mode, "[prompt]"] }), null, 2) + "\n", "utf8");
     this.upsertSession(base);
     this.processes.set(sessionId, child);
-    child.on("exit", (code, signal) => {
+    let settled = false;
+    const settle = (status, code = null, signal = null, error = null) => {
+      if (settled) return;
+      settled = true;
       const endedAt = nowIso();
       this.upsertSession({
         sessionId,
-        status: code === 0 ? "succeeded" : "failed",
+        status,
         exitCode: code,
         signal,
+        ...(error ? { error: String(error.message || error) } : {}),
         endedAt,
         updatedAt: endedAt,
       });
       this.processes.delete(sessionId);
       stdout.end();
       stderr.end();
+      final.end();
+    };
+    child.on("exit", (code, signal) => {
+      settle(code === 0 ? "succeeded" : "failed", code, signal);
+    });
+    child.on("error", (err) => {
+      settle("failed", null, null, err);
     });
     return this.readSession(sessionId, 12000);
   }

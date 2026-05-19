@@ -124,7 +124,7 @@ class ContinuityStore:
             return {}
         self._ensure_graph_cache(revision=revision, snapshot=active)
         with self._cache_lock:
-            return self._cached_constellation_neighbors
+            return {atom_id: set(neighbors) for atom_id, neighbors in self._cached_constellation_neighbors.items()}
 
     def arc_neighbors(self, snapshot: ContinuitySnapshot | None = None) -> dict[str, set[str]]:
         if snapshot is not None:
@@ -134,7 +134,7 @@ class ContinuityStore:
             return {}
         self._ensure_graph_cache(revision=revision, snapshot=active)
         with self._cache_lock:
-            return self._cached_arc_neighbors
+            return {atom_id: set(neighbors) for atom_id, neighbors in self._cached_arc_neighbors.items()}
 
     def shared_language_match_ids(self, query: str, *, snapshot: ContinuitySnapshot | None = None) -> set[str]:
         return set(self.shared_language_boosts(query, snapshot=snapshot).keys())
@@ -189,8 +189,10 @@ class ContinuityStore:
         self._ensure_graph_cache(revision=revision, snapshot=snapshot)
         shared_boosts = self.shared_language_boosts(query, snapshot=snapshot)
         with self._cache_lock:
-            constellation_neighbors = self._cached_constellation_neighbors
-            arc_neighbors = self._cached_arc_neighbors
+            constellation_neighbors = {
+                atom_id: set(neighbors) for atom_id, neighbors in self._cached_constellation_neighbors.items()
+            }
+            arc_neighbors = {atom_id: set(neighbors) for atom_id, neighbors in self._cached_arc_neighbors.items()}
             atom_ids = set(self._cached_atom_ids)
         return ContinuityExpansion(
             revision=revision,

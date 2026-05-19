@@ -432,25 +432,87 @@ class SqliteAtomStore:
     def supersede_atom(self, atom_id: str, replacement: CandidateAtom, *, reason: str = "manual_update") -> MemoryAtom:
         old = self.get_atom(atom_id)
         now = self._now()
+        replacement_key = AtomStore._dedupe_key(
+            atom_type=replacement.atom_type,
+            canonical_text=replacement.canonical_text,
+            entities=replacement.entities,
+            topics=replacement.topics,
+        )
+        replacement_atom = MemoryAtom(
+            atom_id=f"mem_{uuid4().hex}",
+            atom_type=replacement.atom_type,
+            canonical_text=replacement.canonical_text.strip(),
+            source_refs=list(replacement.source_refs),
+            entities=list(replacement.entities),
+            topics=list(replacement.topics),
+            confidence=replacement.confidence,
+            salience=replacement.salience,
+            salience_half_life_days=half_life_days_for_atom_type(
+                base_half_life_days=self.salience_half_life_days,
+                atom_type=replacement.atom_type,
+            ),
+            last_reinforced_at=now,
+            version_of=old.atom_id,
+            created_at=now,
+            updated_at=now,
+        )
         with self._lock, self._conn:
             self._conn.execute(
-                "UPDATE atoms SET status = ?, updated_at = ? WHERE atom_id = ?",
-                (AtomStatus.SUPERSEDED.value, now.isoformat(), old.atom_id),
+                "UPDATE atoms SET status = ?, updated_at = ?, dedupe_key = ? WHERE atom_id = ?",
+                (
+                    AtomStatus.SUPERSEDED.value,
+                    now.isoformat(),
+                    f"superseded:{old.atom_id}:{replacement_key}",
+                    old.atom_id,
+                ),
             )
-        replacement_atom = self.add_candidate(replacement, reason=reason)
-        replacement_atom.version_of = old.atom_id
-        replacement_atom.updated_at = self._now()
-        with self._lock, self._conn:
             self._conn.execute(
-                "UPDATE atoms SET version_of = ?, updated_at = ? WHERE atom_id = ?",
-                (replacement_atom.version_of, replacement_atom.updated_at.isoformat(), replacement_atom.atom_id),
+                """
+                INSERT INTO atoms (
+                    atom_id, atom_type, canonical_text, source_refs_json, entities_json, topics_json,
+                    confidence, salience, salience_half_life_days, last_reinforced_at, support_count,
+                    contradiction_count, status, version_of, tombstoned_at, purge_after, created_at, updated_at, dedupe_key
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    replacement_atom.atom_id,
+                    replacement_atom.atom_type.value,
+                    replacement_atom.canonical_text,
+                    json.dumps([contract_to_dict(ref) for ref in replacement_atom.source_refs], ensure_ascii=False),
+                    json.dumps(replacement_atom.entities, ensure_ascii=False),
+                    json.dumps(replacement_atom.topics, ensure_ascii=False),
+                    replacement_atom.confidence,
+                    replacement_atom.salience,
+                    replacement_atom.salience_half_life_days,
+                    replacement_atom.last_reinforced_at.isoformat() if replacement_atom.last_reinforced_at else None,
+                    replacement_atom.support_count,
+                    replacement_atom.contradiction_count,
+                    replacement_atom.status.value,
+                    replacement_atom.version_of,
+                    replacement_atom.tombstoned_at.isoformat() if replacement_atom.tombstoned_at else None,
+                    replacement_atom.purge_after.isoformat() if replacement_atom.purge_after else None,
+                    replacement_atom.created_at.isoformat(),
+                    replacement_atom.updated_at.isoformat(),
+                    replacement_key,
+                ),
             )
+        self.ledger.append(
+            ProvenanceEvent(
+                event_id=f"evt_{uuid4().hex}",
+                event_type=EventType.ADD,
+                atom_id=replacement_atom.atom_id,
+                timestamp=now,
+                source_refs=list(replacement.source_refs),
+                reason=reason,
+                metadata={"supersedes_atom_id": old.atom_id},
+            )
+        )
         self.ledger.append(
             ProvenanceEvent(
                 event_id=f"evt_{uuid4().hex}",
                 event_type=EventType.SUPERSEDE,
                 atom_id=old.atom_id,
-                timestamp=self._now(),
+                timestamp=now,
                 source_refs=list(replacement.source_refs),
                 reason=reason,
                 metadata={"replacement_atom_id": replacement_atom.atom_id},
@@ -465,22 +527,25 @@ class SqliteAtomStore:
         right = self.get_atom(right_atom_id)
         now = self._now()
         with self._lock, self._conn:
-            self._conn.execute(
-                "UPDATE atoms SET status = ?, contradiction_count = contradiction_count + 1, updated_at = ? WHERE atom_id = ?",
-                (AtomStatus.CONFLICTED.value, now.isoformat(), left.atom_id),
-            )
-            self._conn.execute(
-                "UPDATE atoms SET status = ?, contradiction_count = contradiction_count + 1, updated_at = ? WHERE atom_id = ?",
-                (AtomStatus.CONFLICTED.value, now.isoformat(), right.atom_id),
-            )
-            self._conn.execute(
+            left_insert = self._conn.execute(
                 "INSERT OR IGNORE INTO conflicts (left_atom_id, right_atom_id, created_at, reason) VALUES (?, ?, ?, ?)",
                 (left_atom_id, right_atom_id, now.isoformat(), reason),
             )
-            self._conn.execute(
+            right_insert = self._conn.execute(
                 "INSERT OR IGNORE INTO conflicts (left_atom_id, right_atom_id, created_at, reason) VALUES (?, ?, ?, ?)",
                 (right_atom_id, left_atom_id, now.isoformat(), reason),
             )
+            if left_insert.rowcount > 0:
+                self._conn.execute(
+                    "UPDATE atoms SET status = ?, contradiction_count = contradiction_count + 1, updated_at = ? WHERE atom_id = ?",
+                    (AtomStatus.CONFLICTED.value, now.isoformat(), left.atom_id),
+                )
+            if right_insert.rowcount > 0:
+                self._conn.execute(
+                    "UPDATE atoms SET status = ?, contradiction_count = contradiction_count + 1, updated_at = ? WHERE atom_id = ?",
+                    (AtomStatus.CONFLICTED.value, now.isoformat(), right.atom_id),
+                )
+            inserted = left_insert.rowcount > 0 or right_insert.rowcount > 0
 
         edge = ContradictionEdge(
             left_atom_id=left_atom_id,
@@ -488,17 +553,18 @@ class SqliteAtomStore:
             created_at=now,
             reason=reason,
         )
-        self.ledger.append(
-            ProvenanceEvent(
-                event_id=f"evt_{uuid4().hex}",
-                event_type=EventType.CONFLICT,
-                atom_id=left_atom_id,
-                timestamp=now,
-                source_refs=[],
-                reason=reason,
-                metadata={"other_atom_id": right_atom_id},
+        if inserted:
+            self.ledger.append(
+                ProvenanceEvent(
+                    event_id=f"evt_{uuid4().hex}",
+                    event_type=EventType.CONFLICT,
+                    atom_id=left_atom_id,
+                    timestamp=now,
+                    source_refs=[],
+                    reason=reason,
+                    metadata={"other_atom_id": right_atom_id},
+                )
             )
-        )
         return edge
 
     def conflict_neighbors(self, atom_id: str) -> set[str]:
@@ -618,6 +684,7 @@ class SqliteAtomStore:
         with self._lock, self._conn:
             for atom_id in to_purge:
                 self._conn.execute("DELETE FROM conflicts WHERE left_atom_id = ? OR right_atom_id = ?", (atom_id, atom_id))
+                self._conn.execute("DELETE FROM shared_language_links WHERE atom_id = ?", (atom_id,))
                 self._conn.execute("DELETE FROM atoms WHERE atom_id = ?", (atom_id,))
                 self.ledger.append(
                     ProvenanceEvent(

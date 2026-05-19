@@ -14,8 +14,12 @@ from .contracts import (
     contract_to_dict,
 )
 from .retrieval import ClaimVerifier, MemoryRetriever
-from .runtime import RuntimeSession
 from .write_gate import StageAWriteGate, StageBWriteGate
+
+try:
+    from .runtime import RuntimeSession
+except ModuleNotFoundError:
+    RuntimeSession = None  # type: ignore[assignment]
 
 __all__ = [
     "AtomType",

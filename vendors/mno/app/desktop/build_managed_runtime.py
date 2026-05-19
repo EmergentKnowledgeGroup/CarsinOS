@@ -35,10 +35,14 @@ ASSET_SHA256 = {
 
 def _target_key() -> str:
     platform_key = platform.system().lower()
+    machine = platform.machine().lower()
     if platform_key.startswith("linux"):
-        return "linux-x64"
+        if any(token in machine for token in ("x86_64", "amd64")):
+            return "linux-x64"
+        if "arm" in machine or "aarch64" in machine:
+            return "linux-arm64"
+        raise SystemExit(f"unsupported Linux architecture for managed-runtime build: {machine or 'unknown'}")
     if platform_key.startswith("darwin"):
-        machine = platform.machine().lower()
         return "darwin-arm64" if "arm" in machine or "aarch64" in machine else "darwin-x64"
     if platform_key.startswith("windows"):
         return "win32-x64"

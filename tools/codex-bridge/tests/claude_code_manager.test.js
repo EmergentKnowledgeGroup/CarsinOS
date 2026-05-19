@@ -52,3 +52,29 @@ test("starts a Claude Code exec session through a bounded command", async () => 
   assert.match(read.finalText, /CLAUDE_CODE_BRIDGE_OK/);
   assert.match(read.stderrTail, /--permission-mode plan/);
 });
+
+test("marks Claude Code exec sessions failed when spawn emits error", async () => {
+  const root = tempRoot();
+  const cwd = path.join(root, "workspace");
+  fs.mkdirSync(cwd, { recursive: true });
+  const missingBin = path.join(root, "missing-claude-bin");
+  const manager = new ClaudeCodeManager({
+    root,
+    claudeBin: missingBin,
+    allowedRoots: [root],
+    defaultModel: "sonnet",
+  });
+
+  const session = manager.startExec({
+    sessionId: "claude-spawn-error",
+    cwd,
+    prompt: "Say ok.",
+    permission_mode: "plan",
+  });
+  assert.equal(session.status, "running");
+
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  const read = manager.readSession("claude-spawn-error");
+  assert.equal(read.status, "failed");
+  assert.match(read.error, /ENOENT|not found|spawn/i);
+});

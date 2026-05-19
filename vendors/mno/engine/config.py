@@ -460,6 +460,29 @@ def _validate_float(name: str, value: Any, *, min_value: float | None = None, ma
         raise ValueError(f"{name} must be <= {max_value}")
 
 
+def _validate_gate_thresholds(gate: GateThresholds) -> None:
+    if not isinstance(gate, GateThresholds):
+        raise TypeError("gate must be GateThresholds")
+    for key in (
+        "min_trust",
+        "min_salience",
+        "min_identity_relevance",
+        "add_threshold",
+        "stage_a_add_floor",
+        "update_threshold",
+        "max_confidence_without_recurrence",
+        "abstain_threshold",
+    ):
+        _validate_float(f"gate.{key}", getattr(gate, key), min_value=0.0, max_value=1.0)
+
+
+def _validate_decay_policy(decay: DecayPolicy) -> None:
+    if not isinstance(decay, DecayPolicy):
+        raise TypeError("decay must be DecayPolicy")
+    _validate_int("decay.half_life_days", decay.half_life_days, min_value=1, max_value=100_000)
+    _validate_float("decay.minimum_salience", decay.minimum_salience, min_value=0.0, max_value=1.0)
+
+
 def _validate_profile_policy(name: str, profile: RetrievalProfilePolicy) -> None:
     if not isinstance(profile, RetrievalProfilePolicy):
         raise TypeError(f"{name} must be RetrievalProfilePolicy")
@@ -765,7 +788,9 @@ def _validate_continuity_adds_policy(policy: ContinuityAddsPolicy) -> None:
 def _validate_config(cfg: NumquamOblitaConfig) -> None:
     """Validate cross-field bounds that must hold after merges."""
 
+    _validate_gate_thresholds(cfg.gate)
     _validate_retrieval_config(cfg.retrieval)
+    _validate_decay_policy(cfg.decay)
     _validate_runtime_policy(cfg.runtime)
     _validate_provisional_memory_policy(cfg.provisional_memory)
     _validate_retrieval_feedback_policy(cfg.retrieval_feedback)

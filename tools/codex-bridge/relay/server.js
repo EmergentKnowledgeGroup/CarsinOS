@@ -105,7 +105,7 @@ async function route(req, res) {
         cliSessions: cli.listSessions(),
         claudeCodeSessions: claude.listSessions(),
         codexApp: app.status(),
-      });
+      }, { allowAnyOrigin: false });
     }
     if (req.method === "GET" && url.pathname === "/codex-cli/sessions") {
       return json(req, res, 200, { ok: true, items: cli.listSessions() });
@@ -124,12 +124,12 @@ async function route(req, res) {
       return json(req, res, 202, { ok: true, session: cli.startInteractiveWindow(body) }, { allowAnyOrigin: false });
     }
     if (req.method === "GET" && url.pathname === "/claude-code/sessions") {
-      return json(req, res, 200, { ok: true, items: claude.listSessions() });
+      return json(req, res, 200, { ok: true, items: claude.listSessions() }, { allowAnyOrigin: false });
     }
     if (req.method === "GET" && url.pathname.startsWith("/claude-code/sessions/")) {
       const sessionId = decodeURIComponent(url.pathname.split("/").pop());
       const maxBytes = boundedInt(url.searchParams.get("maxBytes"), DEFAULT_MAX_BYTES, 1, MAX_MAX_BYTES);
-      return json(req, res, 200, { ok: true, session: claude.readSession(sessionId, maxBytes) });
+      return json(req, res, 200, { ok: true, session: claude.readSession(sessionId, maxBytes) }, { allowAnyOrigin: false });
     }
     if (req.method === "POST" && url.pathname === "/claude-code/exec") {
       const body = await readBody(req);

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -64,13 +65,17 @@ class MutationReviewQueue:
         """Return all proposals in insertion order."""
 
         with self._lock:
-            return list(self._proposals.values())
+            return [deepcopy(proposal) for proposal in self._proposals.values()]
 
     def list_pending(self) -> list[MutationProposal]:
         """Return pending proposals."""
 
         with self._lock:
-            return [proposal for proposal in self._proposals.values() if proposal.status is ProposalStatus.PENDING]
+            return [
+                deepcopy(proposal)
+                for proposal in self._proposals.values()
+                if proposal.status is ProposalStatus.PENDING
+            ]
 
     def propose_edit(
         self,
@@ -93,7 +98,7 @@ class MutationReviewQueue:
         )
         with self._lock:
             self._proposals[proposal.proposal_id] = proposal
-        return proposal
+        return deepcopy(proposal)
 
     def propose_create(
         self,
@@ -115,7 +120,7 @@ class MutationReviewQueue:
         )
         with self._lock:
             self._proposals[proposal.proposal_id] = proposal
-        return proposal
+        return deepcopy(proposal)
 
     def propose_delete(
         self,
@@ -138,7 +143,7 @@ class MutationReviewQueue:
         )
         with self._lock:
             self._proposals[proposal.proposal_id] = proposal
-        return proposal
+        return deepcopy(proposal)
 
     def approve(self, proposal_id: str, *, reviewer: str) -> MutationProposal:
         """Approve proposal for later application."""
@@ -150,7 +155,7 @@ class MutationReviewQueue:
             proposal.status = ProposalStatus.APPROVED
             proposal.reviewer = reviewer
             proposal.reviewed_at = datetime.now(timezone.utc)
-            return proposal
+            return deepcopy(proposal)
 
     def reject(self, proposal_id: str, *, reviewer: str, reason: str) -> MutationProposal:
         """Reject proposal and preserve audit context."""
@@ -163,7 +168,7 @@ class MutationReviewQueue:
             proposal.reviewer = reviewer
             proposal.reviewed_at = datetime.now(timezone.utc)
             proposal.metadata["rejection_reason"] = reason
-            return proposal
+            return deepcopy(proposal)
 
     def apply(self, proposal_id: str) -> MutationProposal:
         """Apply approved proposal to store. Reject unapproved execution."""
@@ -193,7 +198,7 @@ class MutationReviewQueue:
                     retention_days=proposal.retention_days,
                 )
             proposal.status = ProposalStatus.APPLIED
-            return proposal
+            return deepcopy(proposal)
 
     def run_purge(self, *, now: Optional[datetime] = None) -> list[str]:
         """Execute delayed purge for expired tombstones."""

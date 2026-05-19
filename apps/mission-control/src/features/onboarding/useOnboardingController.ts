@@ -1194,6 +1194,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   const completeProvider = useCallback(async (): Promise<{ ok: boolean; profileId: string | null }> => {
     clearError();
     setBusy(true);
+    let createdAnthropicProfileId: string | null = null;
     try {
       const targetAgentId = selectedAgentId.trim() || agentIdDraft.trim().toLowerCase();
       if (providerPath === "local") {
@@ -1349,6 +1350,8 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
             },
           });
           nextProfileId = response.profile.auth_profile_id;
+          createdAnthropicProfileId = nextProfileId;
+          setDraftProviderProfileId(nextProfileId);
         }
         if (!targetAgentId) {
           throw new Error("Select or create an agent first.");
@@ -1393,6 +1396,12 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
       }
       throw new Error("Unsupported provider path.");
     } catch (error: unknown) {
+      if (createdAnthropicProfileId) {
+        await cleanupDraftProviderProfile(createdAnthropicProfileId);
+        setDraftProviderProfileId((current) =>
+          current === createdAnthropicProfileId ? null : current
+        );
+      }
       setProviderReady(false);
       setErrorText(`Provider setup failed: ${String(error)}`);
       return {

@@ -282,18 +282,55 @@ class AtomStore:
         """
 
         old = self._atoms[atom_id]
+        now = self._now()
         old.status = AtomStatus.SUPERSEDED
-        old.updated_at = self._now()
-        replacement_atom = self.add_candidate(replacement, reason=reason)
+        old.updated_at = now
+        self._drop_dedupe_links(old.atom_id)
+        replacement_atom = MemoryAtom(
+            atom_id=f"mem_{uuid4().hex}",
+            atom_type=replacement.atom_type,
+            canonical_text=replacement.canonical_text.strip(),
+            source_refs=list(replacement.source_refs),
+            entities=list(replacement.entities),
+            topics=list(replacement.topics),
+            confidence=replacement.confidence,
+            salience=replacement.salience,
+            salience_half_life_days=half_life_days_for_atom_type(
+                base_half_life_days=self.salience_half_life_days,
+                atom_type=replacement.atom_type,
+            ),
+            last_reinforced_at=now,
+            version_of=old.atom_id,
+            created_at=now,
+            updated_at=now,
+        )
+        self._atoms[replacement_atom.atom_id] = replacement_atom
+        replacement_key = self._dedupe_key(
+            atom_type=replacement.atom_type,
+            canonical_text=replacement.canonical_text,
+            entities=replacement.entities,
+            topics=replacement.topics,
+        )
+        self._dedupe_index[replacement_key] = replacement_atom.atom_id
         replacement_atom.version_of = old.atom_id
-        replacement_atom.updated_at = self._now()
 
+        self.ledger.append(
+            ProvenanceEvent(
+                event_id=f"evt_{uuid4().hex}",
+                event_type=EventType.ADD,
+                atom_id=replacement_atom.atom_id,
+                timestamp=now,
+                source_refs=list(replacement.source_refs),
+                reason=reason,
+                metadata={"supersedes_atom_id": old.atom_id},
+            )
+        )
         self.ledger.append(
             ProvenanceEvent(
                 event_id=f"evt_{uuid4().hex}",
                 event_type=EventType.SUPERSEDE,
                 atom_id=old.atom_id,
-                timestamp=self._now(),
+                timestamp=now,
                 source_refs=list(replacement.source_refs),
                 reason=reason,
                 metadata={"replacement_atom_id": replacement_atom.atom_id},
@@ -306,6 +343,13 @@ class AtomStore:
 
         if left_atom_id == right_atom_id:
             raise ValueError("conflict requires two distinct atom ids")
+        if right_atom_id in self._conflicts.get(left_atom_id, set()):
+            return ContradictionEdge(
+                left_atom_id=left_atom_id,
+                right_atom_id=right_atom_id,
+                created_at=self._now(),
+                reason=reason,
+            )
         left = self._atoms[left_atom_id]
         right = self._atoms[right_atom_id]
         left.status = AtomStatus.CONFLICTED

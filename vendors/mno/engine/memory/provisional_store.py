@@ -669,9 +669,26 @@ class SqliteProvisionalMemoryStore:
         source_refs: list[SourceRef],
         metadata: dict[str, str] | None = None,
     ) -> None:
-        with self._lock:
-            row = self._conn.execute("SELECT COUNT(*) AS count FROM provisional_events").fetchone()
-            ordinal = int(row["count"]) + 1 if row else 1
+        with self._lock, self._conn:
+            self._append_event_locked(
+                event_type=event_type,
+                record_id=record_id,
+                reason=reason,
+                source_refs=source_refs,
+                metadata=metadata,
+            )
+
+    def _append_event_locked(
+        self,
+        *,
+        event_type: ProvisionalMemoryEventType,
+        record_id: str,
+        reason: str,
+        source_refs: list[SourceRef],
+        metadata: dict[str, str] | None = None,
+    ) -> None:
+        row = self._conn.execute("SELECT COUNT(*) AS count FROM provisional_events").fetchone()
+        ordinal = int(row["count"]) + 1 if row else 1
         event = ProvisionalMemoryEvent(
             event_id=_event_id(
                 event_type=event_type.value,
@@ -686,23 +703,22 @@ class SqliteProvisionalMemoryStore:
             source_refs=list(source_refs),
             metadata=dict(metadata or {}),
         )
-        with self._lock, self._conn:
-            self._conn.execute(
-                """
-                INSERT INTO provisional_events (
-                    event_id, event_type, record_id, timestamp, reason, source_refs_json, metadata_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    event.event_id,
-                    event.event_type.value,
-                    event.record_id,
-                    event.timestamp.isoformat(),
-                    event.reason,
-                    self._serialize_refs(event.source_refs),
-                    self._serialize_metadata(event.metadata),
-                ),
-            )
+        self._conn.execute(
+            """
+            INSERT INTO provisional_events (
+                event_id, event_type, record_id, timestamp, reason, source_refs_json, metadata_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                event.event_id,
+                event.event_type.value,
+                event.record_id,
+                event.timestamp.isoformat(),
+                event.reason,
+                self._serialize_refs(event.source_refs),
+                self._serialize_metadata(event.metadata),
+            ),
+        )
 
     def get_record(self, record_id: str) -> ProvisionalMemoryRecord:
         with self._lock:
@@ -744,21 +760,20 @@ class SqliteProvisionalMemoryStore:
         *,
         reason: str,
     ) -> ProvisionalMemoryRecord:
-        with self._lock:
+        with self._lock, self._conn:
             row = self._conn.execute(
                 "SELECT * FROM provisional_records WHERE dedupe_key = ?",
                 (candidate.dedupe_key,),
             ).fetchone()
-        if row is not None:
-            record = self._row_to_record(row)
-            if record.status in _LIVE_STATUSES:
-                now = _now_utc()
-                updated_refs = record.source_refs + list(candidate.source_refs)
-                updated_confidence = max(record.confidence, candidate.confidence)
-                updated_salience = max(record.salience, candidate.salience)
-                updated_stability = max(record.stability, candidate.stability)
-                updated_metadata = _metadata_with_session_ids(record.metadata, candidate.session_id)
-                with self._lock, self._conn:
+            if row is not None:
+                record = self._row_to_record(row)
+                if record.status in _LIVE_STATUSES:
+                    now = _now_utc()
+                    updated_refs = record.source_refs + list(candidate.source_refs)
+                    updated_confidence = max(record.confidence, candidate.confidence)
+                    updated_salience = max(record.salience, candidate.salience)
+                    updated_stability = max(record.stability, candidate.stability)
+                    updated_metadata = _metadata_with_session_ids(record.metadata, candidate.session_id)
                     self._conn.execute(
                         """
                         UPDATE provisional_records
@@ -778,26 +793,31 @@ class SqliteProvisionalMemoryStore:
                             record.record_id,
                         ),
                     )
-                self._append_event(
-                    event_type=ProvisionalMemoryEventType.REINFORCE,
-                    record_id=record.record_id,
-                    reason=reason,
-                    source_refs=candidate.source_refs,
-                    metadata={"dedupe_key": candidate.dedupe_key},
-                )
-                return self.get_record(record.record_id)
+                    self._append_event_locked(
+                        event_type=ProvisionalMemoryEventType.REINFORCE,
+                        record_id=record.record_id,
+                        reason=reason,
+                        source_refs=candidate.source_refs,
+                        metadata={"dedupe_key": candidate.dedupe_key},
+                    )
+                    refreshed = self._conn.execute(
+                        "SELECT * FROM provisional_records WHERE record_id = ?",
+                        (record.record_id,),
+                    ).fetchone()
+                    if refreshed is None:
+                        raise RuntimeError(f"provisional record missing after reinforce: {record.record_id}")
+                    return self._row_to_record(refreshed)
 
-        now = _now_utc()
-        record = _build_record(
-            candidate,
-            record_id=_record_id_for_candidate(
-                kind=candidate.kind.value,
-                canonical_text=candidate.canonical_text,
-                source_role=candidate.source_role,
-            ),
-            now=now,
-        )
-        with self._lock, self._conn:
+            now = _now_utc()
+            record = _build_record(
+                candidate,
+                record_id=_record_id_for_candidate(
+                    kind=candidate.kind.value,
+                    canonical_text=candidate.canonical_text,
+                    source_role=candidate.source_role,
+                ),
+                now=now,
+            )
             self._conn.execute(
                 """
                 INSERT INTO provisional_records (
@@ -828,14 +848,14 @@ class SqliteProvisionalMemoryStore:
                     candidate.dedupe_key,
                 ),
             )
-        self._append_event(
-            event_type=ProvisionalMemoryEventType.ADD,
-            record_id=record.record_id,
-            reason=reason,
-            source_refs=candidate.source_refs,
-            metadata={"dedupe_key": candidate.dedupe_key},
-        )
-        return self.get_record(record.record_id)
+            self._append_event_locked(
+                event_type=ProvisionalMemoryEventType.ADD,
+                record_id=record.record_id,
+                reason=reason,
+                source_refs=candidate.source_refs,
+                metadata={"dedupe_key": candidate.dedupe_key},
+            )
+            return record
 
     def mark_conflict(
         self,
@@ -844,16 +864,29 @@ class SqliteProvisionalMemoryStore:
         *,
         reason: str,
     ) -> tuple[ProvisionalMemoryRecord, ProvisionalMemoryRecord]:
-        left = self.get_record(record_id)
-        right = self.get_record(other_record_id)
-        if left.record_id == right.record_id:
-            raise ValueError("conflict requires two distinct provisional records")
-        if left.status not in _LIVE_STATUSES or right.status not in _LIVE_STATUSES:
-            raise ValueError("only live provisional records can be marked conflicted")
-        now = _now_utc().isoformat()
-        left_conflicts = _dedupe_ids(list(left.conflict_with_record_ids) + [right.record_id])
-        right_conflicts = _dedupe_ids(list(right.conflict_with_record_ids) + [left.record_id])
         with self._lock, self._conn:
+            left_row = self._conn.execute(
+                "SELECT * FROM provisional_records WHERE record_id = ?",
+                (record_id,),
+            ).fetchone()
+            right_row = self._conn.execute(
+                "SELECT * FROM provisional_records WHERE record_id = ?",
+                (other_record_id,),
+            ).fetchone()
+            if left_row is None:
+                raise KeyError(f"unknown provisional record: {record_id}")
+            if right_row is None:
+                raise KeyError(f"unknown provisional record: {other_record_id}")
+            left = self._row_to_record(left_row)
+            right = self._row_to_record(right_row)
+            if left.record_id == right.record_id:
+                raise ValueError("conflict requires two distinct provisional records")
+            if left.status not in _LIVE_STATUSES or right.status not in _LIVE_STATUSES:
+                raise ValueError("only live provisional records can be marked conflicted")
+            now = _now_utc().isoformat()
+            already_linked = right.record_id in set(left.conflict_with_record_ids)
+            left_conflicts = _dedupe_ids(list(left.conflict_with_record_ids) + [right.record_id])
+            right_conflicts = _dedupe_ids(list(right.conflict_with_record_ids) + [left.record_id])
             self._conn.execute(
                 """
                 UPDATE provisional_records
@@ -880,20 +913,21 @@ class SqliteProvisionalMemoryStore:
                     right.record_id,
                 ),
             )
-        self._append_event(
-            event_type=ProvisionalMemoryEventType.CONFLICT,
-            record_id=left.record_id,
-            reason=reason,
-            source_refs=right.source_refs,
-            metadata={"other_record_id": right.record_id},
-        )
-        self._append_event(
-            event_type=ProvisionalMemoryEventType.CONFLICT,
-            record_id=right.record_id,
-            reason=reason,
-            source_refs=left.source_refs,
-            metadata={"other_record_id": left.record_id},
-        )
+            if not already_linked:
+                self._append_event_locked(
+                    event_type=ProvisionalMemoryEventType.CONFLICT,
+                    record_id=left.record_id,
+                    reason=reason,
+                    source_refs=right.source_refs,
+                    metadata={"other_record_id": right.record_id},
+                )
+                self._append_event_locked(
+                    event_type=ProvisionalMemoryEventType.CONFLICT,
+                    record_id=right.record_id,
+                    reason=reason,
+                    source_refs=left.source_refs,
+                    metadata={"other_record_id": left.record_id},
+                )
         return self.get_record(left.record_id), self.get_record(right.record_id)
 
     def supersede_record(
@@ -926,13 +960,14 @@ class SqliteProvisionalMemoryStore:
             self._conn.execute(
                 """
                 UPDATE provisional_records
-                SET status = ?, superseded_by_record_id = ?, updated_at = ?
+                SET status = ?, superseded_by_record_id = ?, updated_at = ?, dedupe_key = ?
                 WHERE record_id = ?
                 """,
                 (
                     ProvisionalMemoryStatus.SUPERSEDED.value,
                     replacement.record_id,
                     _now_utc().isoformat(),
+                    f"superseded:{previous.record_id}:{replacement_candidate.dedupe_key}",
                     previous.record_id,
                 ),
             )
@@ -992,20 +1027,20 @@ class SqliteProvisionalMemoryStore:
                             neighbor_id,
                         ),
                     )
-        self._append_event(
-            event_type=ProvisionalMemoryEventType.SUPERSEDE,
-            record_id=previous.record_id,
-            reason=reason,
-            source_refs=replacement_candidate.source_refs,
-            metadata={"replacement_record_id": replacement.record_id},
-        )
-        self._append_event(
-            event_type=ProvisionalMemoryEventType.ADD,
-            record_id=replacement.record_id,
-            reason=reason,
-            source_refs=replacement_candidate.source_refs,
-            metadata={"supersedes_record_id": previous.record_id},
-        )
+            self._append_event_locked(
+                event_type=ProvisionalMemoryEventType.SUPERSEDE,
+                record_id=previous.record_id,
+                reason=reason,
+                source_refs=replacement_candidate.source_refs,
+                metadata={"replacement_record_id": replacement.record_id},
+            )
+            self._append_event_locked(
+                event_type=ProvisionalMemoryEventType.ADD,
+                record_id=replacement.record_id,
+                reason=reason,
+                source_refs=replacement_candidate.source_refs,
+                metadata={"supersedes_record_id": previous.record_id},
+            )
         return self.get_record(replacement.record_id)
 
     def record_near_duplicate(
@@ -1016,27 +1051,41 @@ class SqliteProvisionalMemoryStore:
         similarity_score: float,
         metadata: dict[str, str] | None = None,
     ) -> ProvisionalMemoryEvent:
-        record = self.get_record(record_id)
-        other = self.get_record(other_record_id)
-        event = ProvisionalMemoryEvent(
-            event_id=_event_id(
-                event_type=ProvisionalMemoryEventType.NEAR_DUPLICATE.value,
-                record_id=record.record_id,
-                reason="near_duplicate_detected",
-                ordinal=len(self.list_events()) + 1,
-            ),
-            event_type=ProvisionalMemoryEventType.NEAR_DUPLICATE,
-            record_id=record.record_id,
-            timestamp=_now_utc(),
-            reason="near_duplicate_detected",
-            source_refs=list(other.source_refs),
-            metadata={
-                "other_record_id": other.record_id,
-                "similarity_score": f"{max(0.0, min(1.0, float(similarity_score))):.4f}",
-                **dict(metadata or {}),
-            },
-        )
         with self._lock, self._conn:
+            record_row = self._conn.execute(
+                "SELECT * FROM provisional_records WHERE record_id = ?",
+                (record_id,),
+            ).fetchone()
+            other_row = self._conn.execute(
+                "SELECT * FROM provisional_records WHERE record_id = ?",
+                (other_record_id,),
+            ).fetchone()
+            if record_row is None:
+                raise KeyError(f"unknown provisional record: {record_id}")
+            if other_row is None:
+                raise KeyError(f"unknown provisional record: {other_record_id}")
+            record = self._row_to_record(record_row)
+            other = self._row_to_record(other_row)
+            row = self._conn.execute("SELECT COUNT(*) AS count FROM provisional_events").fetchone()
+            ordinal = int(row["count"]) + 1 if row else 1
+            event = ProvisionalMemoryEvent(
+                event_id=_event_id(
+                    event_type=ProvisionalMemoryEventType.NEAR_DUPLICATE.value,
+                    record_id=record.record_id,
+                    reason="near_duplicate_detected",
+                    ordinal=ordinal,
+                ),
+                event_type=ProvisionalMemoryEventType.NEAR_DUPLICATE,
+                record_id=record.record_id,
+                timestamp=_now_utc(),
+                reason="near_duplicate_detected",
+                source_refs=list(other.source_refs),
+                metadata={
+                    "other_record_id": other.record_id,
+                    "similarity_score": f"{max(0.0, min(1.0, float(similarity_score))):.4f}",
+                    **dict(metadata or {}),
+                },
+            )
             self._conn.execute(
                 """
                 INSERT INTO provisional_events (

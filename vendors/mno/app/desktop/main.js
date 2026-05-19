@@ -376,9 +376,15 @@ function logDir() {
 
 function writeShellLog(line) {
   writeShellDiagnostic(line);
-  const logPath = state.logPath || path.join(logDir(), `desktop_shell_${new Date().toISOString().replace(/[:.]/g, '-')}.log`);
-  state.logPath = logPath;
-  fs.appendFileSync(logPath, `${localLogStamp()} ${line}${os.EOL}`, 'utf8');
+  try {
+    const logPath = state.logPath || path.join(logDir(), `desktop_shell_${new Date().toISOString().replace(/[:.]/g, '-')}.log`);
+    fs.appendFileSync(logPath, `${localLogStamp()} ${line}${os.EOL}`, 'utf8');
+    state.logPath = logPath;
+  } catch (error) {
+    try {
+      process.stderr.write(`${localLogStamp()} desktop shell log write failed: ${String(error?.message || error)}${os.EOL}`);
+    } catch (_ignored) {}
+  }
 }
 
 async function fetchMcpHealthOnce({ healthUrl = desiredMcpHealthUrl() } = {}) {
@@ -914,14 +920,14 @@ function hydrateStateFromDisk({ runtimeHealth = null, lastError = '' } = {}) {
     if (cliReady) {
       derived = {
         ...derived,
-        status: prefs.runtime_desired_state === 'stopped' || prefs.auto_start === 'manual_start_only' ? 'stopped' : derived.status,
-        label: stateLabel(prefs.runtime_desired_state === 'stopped' || prefs.auto_start === 'manual_start_only' ? 'stopped' : derived.status),
+        status: preferences.runtime_desired_state === 'stopped' || preferences.auto_start === 'manual_start_only' ? 'stopped' : derived.status,
+        label: stateLabel(preferences.runtime_desired_state === 'stopped' || preferences.auto_start === 'manual_start_only' ? 'stopped' : derived.status),
         bootStage: cliEpisodesReady
           ? 'Runtime is configured from explicit CLI overrides.'
           : 'Runtime is configured from an explicit store override.',
         statusReason: 'Explicit CLI runtime binding is active.',
         readyConfiguration: true,
-        autoStartAllowed: prefs.auto_start === 'auto_start_if_ready' && prefs.runtime_desired_state !== 'stopped',
+        autoStartAllowed: preferences.auto_start === 'auto_start_if_ready' && preferences.runtime_desired_state !== 'stopped',
         canStartRuntime: true,
         storePath: explicitCliBinding.store_path,
         episodeCardsPath: explicitCliBinding.episodes_path,
@@ -1639,7 +1645,13 @@ async function startRuntime({ setupMode = false, openWorkspace = null, workspace
     expectedRuntimeExit = false;
     const { spawnErrorPromise, earlyExitPromise } = attachRuntimeLogging(runtimeChild, launchPlan, { childLogBundle, attachmentMode });
     const bootWaiters = [
-      waitForRuntimeReady({ runtimeHealthUrl: launchPlan.runtimeHealthUrl, timeoutMs: Number(cli.bootTimeoutMs || 30000) }).then((ready) => ({ type: 'health', ready })),
+      waitForRuntimeReady({
+        runtimeHealthUrl: launchPlan.runtimeHealthUrl,
+        expectedBinding: expectedBindingForLaunchPlan(launchPlan),
+        expectedRuntimeVersion: expectedRuntimeHealthVersion(),
+        expectedRuntimeUrl: launchPlan.runtimeUrl,
+        timeoutMs: Number(cli.bootTimeoutMs || 30000),
+      }).then((ready) => ({ type: 'health', ready })),
       spawnErrorPromise.then((error) => ({ type: 'spawn_error', error })),
     ];
     if (attachmentMode !== 'launcher') {

@@ -624,6 +624,31 @@ function deriveShellStartupState({ wizardRunId = '', wizardState = null, prefere
     };
   }
 
+  if (String(lockSummary.status || '') === 'matching_live') {
+    if (runtimeHealthPayload) {
+      return {
+        ...base,
+        status: 'ready',
+        label: stateLabel('ready'),
+        bootStage: 'Runtime is live and serving requests.',
+        statusReason: 'Matching runtime health detected.',
+        autoStartAllowed: false,
+        canStartRuntime: false,
+        canRepairRuntime: staleLockRepairAvailable,
+      };
+    }
+    return {
+      ...base,
+      status: 'booting',
+      label: stateLabel('booting'),
+      bootStage: 'Runtime ownership is established and startup is still in progress.',
+      statusReason: 'Matching runtime lock exists while health is not ready yet.',
+      autoStartAllowed: false,
+      canStartRuntime: false,
+      canRepairRuntime: staleLockRepairAvailable,
+    };
+  }
+
   if (explicitStop || prefs.auto_start === 'manual_start_only') {
     return {
       ...base,
@@ -906,11 +931,15 @@ async function requestRuntimeShutdown({ runtimeShutdownUrl, fetchImpl = globalTh
 
 async function waitForRuntimeReady({
   runtimeHealthUrl,
+  expectedBinding = {},
+  expectedRuntimeVersion = '',
+  expectedRuntimeUrl = '',
   timeoutMs = 30000,
   intervalMs = 250,
   fetchImpl = globalThis.fetch,
   sleepImpl = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   nowImpl = () => Date.now(),
+  platform = process.platform,
 } = {}) {
   if (typeof fetchImpl !== 'function') {
     throw new Error('fetch implementation is required');
@@ -921,7 +950,16 @@ async function waitForRuntimeReady({
       const response = await fetchImpl(runtimeHealthUrl, { method: 'GET' });
       if (response && response.ok) {
         const payload = await response.json();
-        if (payload && payload.ok === true) {
+        if (
+          payload
+          && payload.ok === true
+          && runtimeHealthMatchesExpected(payload, {
+            expectedBinding,
+            expectedRuntimeVersion,
+            expectedRuntimeUrl,
+            platform,
+          })
+        ) {
           return true;
         }
       }

@@ -146,6 +146,7 @@ def verify_reply_against_package(package: Mapping[str, Any], reply_text: str) ->
 
     allowed = _evidence_citations(package)
     service_citations = _service_citations(package)
+    allowed.update(service_citations)
     citations_visible = _citations_visible(package)
     found = sorted([token for token in allowed if token in text])
     all_tokens = set(_CITATION_TOKEN_RE.findall(text))

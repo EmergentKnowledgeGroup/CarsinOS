@@ -378,7 +378,7 @@ export function TeamPage({
         setRoutingError(null);
         setRoutingNotice(null);
         setRoutingLoading(false);
-        return;
+        return null;
       }
 
       setRoutingLoading(true);
@@ -388,10 +388,12 @@ export function TeamPage({
         setRoutingConfig(nextRouting);
         setRoutingDraft(cloneRoutingConfig(nextRouting));
         setRoutingError(null);
+        return nextRouting;
       } catch (loadError: unknown) {
         setRoutingConfig(null);
         setRoutingDraft(null);
         setRoutingError(`People and routing could not load. (${String(loadError)})`);
+        return null;
       } finally {
         setRoutingLoading(false);
       }
@@ -493,16 +495,16 @@ export function TeamPage({
   const setHumanAssignment = useCallback(
     (humanIdentityId: string, assistantAgentId: string) => {
       patchRoutingDraft((next) => {
-        next.enabled = true;
-        if (!next.local_operator_human_identity_id?.trim()) {
-          next.local_operator_human_identity_id = humanIdentityId;
-        }
         next.assistant_assignments = next.assistant_assignments.filter(
           (item) => item.human_identity_id !== humanIdentityId
         );
         const normalizedAssistantAgentId = assistantAgentId.trim();
         if (!normalizedAssistantAgentId) {
           return;
+        }
+        next.enabled = true;
+        if (!next.local_operator_human_identity_id?.trim()) {
+          next.local_operator_human_identity_id = humanIdentityId;
         }
         next.assistant_assignments.push({
           human_identity_id: humanIdentityId,
@@ -1105,6 +1107,9 @@ export function TeamPage({
 
   const handleRemoveAgent = useCallback(
     async (agent: Agent) => {
+      if (deletingAgentId !== null) {
+        return;
+      }
       if (!settings.gateway_url.trim()) {
         setRoutingNotice({
           tone: "error",
@@ -1122,8 +1127,9 @@ export function TeamPage({
       setDeletingAgentId(agent.agent_id);
       setRoutingNotice(null);
       try {
-        if (routingConfig) {
-          const nextRouting = cloneRoutingConfig(routingConfig);
+        const latestRouting = await loadRoutingConfig(settings);
+        if (latestRouting) {
+          const nextRouting = cloneRoutingConfig(latestRouting);
           nextRouting.assistant_assignments = nextRouting.assistant_assignments.filter(
             (assignment) => assignment.assistant_agent_id !== agent.agent_id
           );
@@ -1154,7 +1160,7 @@ export function TeamPage({
         setDeletingAgentId(null);
       }
     },
-    [loadRoutingConfig, refreshAll, routingConfig, settings]
+    [deletingAgentId, loadRoutingConfig, refreshAll, settings]
   );
 
   const exportPreset = useCallback(
@@ -1969,7 +1975,7 @@ export function TeamPage({
                       deletingAgentId === agent.agent_id && "mc-btn-loading"
                     )}
                     onClick={() => void handleRemoveAgent(agent)}
-                    disabled={deletingAgentId === agent.agent_id}
+                    disabled={deletingAgentId !== null}
                   >
                     <Trash2 size={14} />
                     Remove

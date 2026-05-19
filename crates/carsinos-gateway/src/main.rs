@@ -2146,6 +2146,7 @@ const AUTH_MODE_OPENAI_OAUTH: &str = "openai_oauth";
 const AUTH_MODE_AGENT_SDK: &str = "agent_sdk";
 const ANTHROPIC_SETUP_TOKEN_PREFIX: &str = "sk-ant-oat01-";
 const ANTHROPIC_SETUP_TOKEN_MIN_LENGTH: usize = 80;
+#[cfg(test)]
 const ANTHROPIC_OAUTH_BETA_HEADER: &str = "oauth-2025-04-20";
 
 const KILL_SWITCH_SCOPE_NONE: &str = "none";
@@ -3831,8 +3832,8 @@ async fn list_provider_models(
     if provider == AUTH_PROVIDER_ANTHROPIC
         && resolved_auth_profile
             .as_ref()
-            .map(anthropic_profile_uses_setup_token)
-            .unwrap_or(false)
+            .map(|profile| !anthropic_profile_is_direct_api_key(profile))
+            .unwrap_or(true)
     {
         return Err(api_error_with_code(
             StatusCode::BAD_REQUEST,
@@ -4088,15 +4089,17 @@ fn is_anthropic_setup_token_value(raw: &str) -> bool {
         && trimmed.len() >= ANTHROPIC_SETUP_TOKEN_MIN_LENGTH
 }
 
-fn anthropic_profile_uses_bearer_auth(profile: &ProviderAuthProfile) -> bool {
-    let _ = profile;
-    false
-}
-
-fn anthropic_profile_uses_setup_token(profile: &ProviderAuthProfile) -> bool {
+fn anthropic_profile_is_direct_api_key(profile: &ProviderAuthProfile) -> bool {
+    if !profile
+        .auth_mode
+        .trim()
+        .eq_ignore_ascii_case(AUTH_MODE_API_KEY)
+    {
+        return false;
+    }
     let Ok(payload) = parse_provider_credentials_json(
         profile,
-        "failed to parse anthropic provider credentials for setup-token policy",
+        "failed to parse anthropic provider credentials for direct-api-key policy",
     ) else {
         return false;
     };
@@ -4106,22 +4109,32 @@ fn anthropic_profile_uses_setup_token(profile: &ProviderAuthProfile) -> bool {
         .map(|value| value.trim().eq_ignore_ascii_case("setup_token"))
         .unwrap_or(false)
     {
-        return true;
+        return false;
     }
-    ["api_key", "token", "access_token", "bearer_token"]
+    if ["token", "access_token", "bearer_token", "refresh_token"]
         .iter()
         .any(|key| {
             payload
                 .get(*key)
                 .and_then(|value| value.as_str())
-                .map(is_anthropic_setup_token_value)
+                .map(|value| !value.trim().is_empty())
                 .unwrap_or(false)
         })
+    {
+        return false;
+    }
+    payload
+        .get("api_key")
+        .and_then(|value| value.as_str())
+        .map(|value| {
+            let trimmed = value.trim();
+            !trimmed.is_empty() && !is_anthropic_setup_token_value(trimmed)
+        })
+        .unwrap_or(false)
 }
 
 fn anthropic_profile_uses_curated_catalog(profile: &ProviderAuthProfile) -> bool {
-    let _ = profile;
-    false
+    !anthropic_profile_is_direct_api_key(profile)
 }
 
 fn parse_openai_models_payload(payload: &serde_json::Value) -> AnyResult<Vec<String>> {
@@ -4381,16 +4394,7 @@ async fn fetch_provider_models_from_upstream(
     };
     if let Some(token) = token.as_ref() {
         if provider == "anthropic" {
-            if auth_profile
-                .map(anthropic_profile_uses_bearer_auth)
-                .unwrap_or(false)
-            {
-                request = request
-                    .bearer_auth(token)
-                    .header("anthropic-beta", ANTHROPIC_OAUTH_BETA_HEADER);
-            } else {
-                request = request.header("x-api-key", token);
-            }
+            request = request.header("x-api-key", token);
         } else {
             request = request.bearer_auth(token);
         }
@@ -19909,8 +19913,10 @@ fn assistant_desk_sanitize_text(input: &str) -> String {
         })
         .collect::<Vec<_>>()
         .join(" ");
-    if sanitized.len() > 300 {
-        format!("{}...", &sanitized[..300])
+    let mut chars = sanitized.chars();
+    let preview: String = chars.by_ref().take(300).collect();
+    if chars.next().is_some() {
+        format!("{preview}...")
     } else {
         sanitized
     }
@@ -20338,22 +20344,91 @@ fn assistant_codex_bridge_id(
     Ok(value.to_string())
 }
 
-fn assistant_codex_bridge_requires_approval(
+fn assistant_codex_bridge_approval_id(
     arguments: &serde_json::Value,
-) -> std::result::Result<(), (String, Option<String>, String, Option<serde_json::Value>)> {
-    if arguments
-        .get("operator_approved")
-        .and_then(|value| value.as_bool())
-        .unwrap_or(false)
-    {
-        return Ok(());
+) -> std::result::Result<String, (String, Option<String>, String, Option<serde_json::Value>)> {
+    let approval_id = arguments
+        .get("approval_id")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .ok_or_else(|| {
+            (
+                "blocked".to_string(),
+                Some("APPROVAL_REQUIRED".to_string()),
+                "approval_id from an approved CarsinOS approval is required before starting bridge execution".to_string(),
+                None,
+            )
+        })?;
+    Ok(approval_id)
+}
+
+fn assistant_codex_bridge_approval_arguments(arguments: &serde_json::Value) -> serde_json::Value {
+    let mut normalized = arguments.clone();
+    if let Some(object) = normalized.as_object_mut() {
+        object.remove("approval_id");
+        object.remove("operator_approved");
     }
-    Err((
+    normalized
+}
+
+fn assistant_codex_bridge_blocked(
+    message: impl Into<String>,
+) -> (String, Option<String>, String, Option<serde_json::Value>) {
+    (
         "blocked".to_string(),
         Some("APPROVAL_REQUIRED".to_string()),
-        "operator_approved=true is required before starting Codex CLI/App execution".to_string(),
+        message.into(),
         None,
-    ))
+    )
+}
+
+fn assistant_codex_bridge_requires_approval(
+    state: &AppState,
+    context: &AssistantToolExecutionContext,
+    tool_name: &str,
+    arguments: &serde_json::Value,
+) -> std::result::Result<(), (String, Option<String>, String, Option<serde_json::Value>)> {
+    let approval_id = assistant_codex_bridge_approval_id(arguments)?;
+    let Some(root_run_id) = context.root_run_id.as_deref() else {
+        return Err(assistant_codex_bridge_blocked(
+            "bridge execution requires a root run before approval can be validated",
+        ));
+    };
+    let approval = state
+        .storage
+        .get_approval(&approval_id)
+        .map_err(|err| {
+            assistant_codex_bridge_blocked(format!(
+                "approval lookup failed before bridge execution: {err}"
+            ))
+        })?
+        .ok_or_else(|| assistant_codex_bridge_blocked("approval_id was not found"))?;
+    if approval.status != "approved" {
+        return Err(assistant_codex_bridge_blocked(
+            "approval_id has not been approved for bridge execution",
+        ));
+    }
+    if approval.run_id != root_run_id {
+        return Err(assistant_codex_bridge_blocked(
+            "approval_id belongs to a different run",
+        ));
+    }
+    if approval.kind != tool_name {
+        return Err(assistant_codex_bridge_blocked(
+            "approval_id was issued for a different bridge tool",
+        ));
+    }
+    let expected_request = serde_json::from_str::<serde_json::Value>(&approval.request_json)
+        .unwrap_or_else(|_| serde_json::json!({}));
+    let actual_request = assistant_codex_bridge_approval_arguments(arguments);
+    if expected_request != actual_request {
+        return Err(assistant_codex_bridge_blocked(
+            "approval_id request payload does not match the requested bridge action",
+        ));
+    }
+    Ok(())
 }
 
 fn assistant_codex_bridge_url(
@@ -22845,7 +22920,9 @@ async fn execute_assistant_tool(
             ))
         }
         ASSISTANT_TOOL_CODEX_CLI_EXEC => {
-            if let Err(blocked) = assistant_codex_bridge_requires_approval(&arguments) {
+            if let Err(blocked) =
+                assistant_codex_bridge_requires_approval(state, context, tool_name, &arguments)
+            {
                 return Ok(blocked);
             }
             let data =
@@ -22858,7 +22935,9 @@ async fn execute_assistant_tool(
             ))
         }
         ASSISTANT_TOOL_CODEX_CLI_WINDOW => {
-            if let Err(blocked) = assistant_codex_bridge_requires_approval(&arguments) {
+            if let Err(blocked) =
+                assistant_codex_bridge_requires_approval(state, context, tool_name, &arguments)
+            {
                 return Ok(blocked);
             }
             let data =
@@ -22903,7 +22982,9 @@ async fn execute_assistant_tool(
             ))
         }
         ASSISTANT_TOOL_CLAUDE_CODE_EXEC => {
-            if let Err(blocked) = assistant_codex_bridge_requires_approval(&arguments) {
+            if let Err(blocked) =
+                assistant_codex_bridge_requires_approval(state, context, tool_name, &arguments)
+            {
                 return Ok(blocked);
             }
             let data = assistant_codex_bridge_post(state, "/claude-code/exec", &arguments, 600_000)
@@ -22916,7 +22997,9 @@ async fn execute_assistant_tool(
             ))
         }
         ASSISTANT_TOOL_CLAUDE_CODE_WINDOW => {
-            if let Err(blocked) = assistant_codex_bridge_requires_approval(&arguments) {
+            if let Err(blocked) =
+                assistant_codex_bridge_requires_approval(state, context, tool_name, &arguments)
+            {
                 return Ok(blocked);
             }
             let data =
@@ -22980,7 +23063,9 @@ async fn execute_assistant_tool(
             ))
         }
         ASSISTANT_TOOL_CODEX_APP_RUN => {
-            if let Err(blocked) = assistant_codex_bridge_requires_approval(&arguments) {
+            if let Err(blocked) =
+                assistant_codex_bridge_requires_approval(state, context, tool_name, &arguments)
+            {
                 return Ok(blocked);
             }
             let data =
@@ -39044,7 +39129,7 @@ mod tests {
             "anthropic",
             AUTH_MODE_AGENT_SDK
         ));
-        assert!(!anthropic_profile_uses_bearer_auth(&ProviderAuthProfile {
+        assert!(!anthropic_profile_is_direct_api_key(&ProviderAuthProfile {
             auth_profile_id: Some("legacy-setup".to_string()),
             auth_mode: AUTH_MODE_API_KEY.to_string(),
             risk_level: "low".to_string(),
@@ -39052,6 +39137,26 @@ mod tests {
             credentials_json: serde_json::json!({
                 "api_key": fake_anthropic_setup_token(),
                 "token_kind": "setup_token"
+            })
+            .to_string(),
+        }));
+        assert!(!anthropic_profile_is_direct_api_key(&ProviderAuthProfile {
+            auth_profile_id: Some("legacy-bearer".to_string()),
+            auth_mode: AUTH_MODE_API_KEY.to_string(),
+            risk_level: "low".to_string(),
+            api_base_url: Some(ANTHROPIC_DEFAULT_API_BASE.to_string()),
+            credentials_json: serde_json::json!({
+                "access_token": "legacy-oauth-token"
+            })
+            .to_string(),
+        }));
+        assert!(anthropic_profile_is_direct_api_key(&ProviderAuthProfile {
+            auth_profile_id: Some("direct".to_string()),
+            auth_mode: AUTH_MODE_API_KEY.to_string(),
+            risk_level: "low".to_string(),
+            api_base_url: Some(ANTHROPIC_DEFAULT_API_BASE.to_string()),
+            credentials_json: serde_json::json!({
+                "api_key": "sk-ant-api03-direct-key"
             })
             .to_string(),
         }));
@@ -57256,16 +57361,114 @@ sys.stdout.write(json.dumps(response))
 
     #[test]
     fn assistant_codex_bridge_execution_requires_explicit_operator_approval() {
-        let blocked = assistant_codex_bridge_requires_approval(&serde_json::json!({}))
+        let blocked = assistant_codex_bridge_approval_id(&serde_json::json!({}))
             .expect_err("unapproved execution should be blocked");
         assert_eq!(blocked.0, "blocked");
         assert_eq!(blocked.1.as_deref(), Some("APPROVAL_REQUIRED"));
-        assert!(blocked.2.contains("operator_approved=true"));
+        assert!(blocked.2.contains("approval"));
 
-        assistant_codex_bridge_requires_approval(&serde_json::json!({
+        let forged = assistant_codex_bridge_approval_id(&serde_json::json!({
             "operator_approved": true
         }))
-        .expect("approved execution");
+        .expect_err("caller-controlled approval flag must not approve execution");
+        assert_eq!(forged.1.as_deref(), Some("APPROVAL_REQUIRED"));
+    }
+
+    #[test]
+    fn assistant_codex_bridge_execution_requires_matching_stored_approval() {
+        let ctx = test_context();
+        let session = ctx
+            .storage
+            .create_session(NewSession {
+                session_key: None,
+                agent_id: "default".to_string(),
+                title: Some("Bridge approval test".to_string()),
+            })
+            .expect("create session");
+        let run = ctx
+            .storage
+            .create_run(NewRun {
+                session_id: session.session_id.clone(),
+                model_provider: "openai".to_string(),
+                model_id: "gpt-5".to_string(),
+            })
+            .expect("create run")
+            .expect("run exists");
+        let requested_args = serde_json::json!({
+            "prompt": "say bridge-ok",
+            "cwd": "Z:\\carsinos-codex-work"
+        });
+        let approval = ctx
+            .storage
+            .create_approval(NewApproval {
+                run_id: run.run_id.clone(),
+                tool_call_id: None,
+                kind: ASSISTANT_TOOL_CODEX_CLI_EXEC.to_string(),
+                request_summary: "Start Codex CLI exec".to_string(),
+                request_json: requested_args.to_string(),
+            })
+            .expect("create approval")
+            .expect("approval exists");
+        let execution_context = AssistantToolExecutionContext {
+            request_id: "req-bridge-approval".to_string(),
+            root_session_id: session.session_id.clone(),
+            root_run_id: Some(run.run_id.clone()),
+            caller_agent_id: "default".to_string(),
+            memory_scope: None,
+            boss_key: "default".to_string(),
+        };
+        let approved_args = serde_json::json!({
+            "prompt": "say bridge-ok",
+            "cwd": "Z:\\carsinos-codex-work",
+            "approval_id": approval.approval_id,
+            "operator_approved": true
+        });
+
+        let pending = assistant_codex_bridge_requires_approval(
+            &ctx.state,
+            &execution_context,
+            ASSISTANT_TOOL_CODEX_CLI_EXEC,
+            &approved_args,
+        )
+        .expect_err("requested approval must not execute yet");
+        assert_eq!(pending.1.as_deref(), Some("APPROVAL_REQUIRED"));
+
+        match ctx
+            .storage
+            .resolve_approval(
+                approved_args["approval_id"].as_str().expect("approval_id"),
+                "approve",
+                Some("operator".to_string()),
+                Some("local-operator".to_string()),
+            )
+            .expect("resolve approval")
+        {
+            ApprovalResolveResult::Resolved(_) => {}
+            other => panic!("approval should resolve freshly, got {other:?}"),
+        }
+
+        assistant_codex_bridge_requires_approval(
+            &ctx.state,
+            &execution_context,
+            ASSISTANT_TOOL_CODEX_CLI_EXEC,
+            &approved_args,
+        )
+        .expect("matching stored approval should allow bridge execution");
+
+        let forged_args = serde_json::json!({
+            "prompt": "say something else",
+            "cwd": "Z:\\carsinos-codex-work",
+            "approval_id": approved_args["approval_id"]
+        });
+        let forged = assistant_codex_bridge_requires_approval(
+            &ctx.state,
+            &execution_context,
+            ASSISTANT_TOOL_CODEX_CLI_EXEC,
+            &forged_args,
+        )
+        .expect_err("approved id must not authorize a different bridge payload");
+        assert_eq!(forged.1.as_deref(), Some("APPROVAL_REQUIRED"));
+        assert!(forged.2.contains("does not match"));
     }
 
     #[test]

@@ -113,4 +113,3 @@ These are acceptable for the project goal as long as continuity, evidence precis
 - `patch_applied`:
 - `regression_test_added`:
 - `status` (`open`, `mitigated`, `verified`):
-fied`):
