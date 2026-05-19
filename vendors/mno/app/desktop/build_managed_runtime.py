@@ -67,9 +67,23 @@ def _download(asset_name: str) -> Path:
         _verify_archive(asset_name, archive_path)
         return archive_path
     url = _asset_url(asset_name)
-    with urllib.request.urlopen(url, timeout=180) as response, archive_path.open("wb") as output:
-        shutil.copyfileobj(response, output)
-    _verify_archive(asset_name, archive_path)
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "wb",
+            dir=CACHE_ROOT,
+            prefix=f".{archive_path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as output:
+            temp_path = Path(output.name)
+            with urllib.request.urlopen(url, timeout=180) as response:
+                shutil.copyfileobj(response, output)
+        _verify_archive(asset_name, temp_path)
+        os.replace(temp_path, archive_path)
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
     return archive_path
 
 
