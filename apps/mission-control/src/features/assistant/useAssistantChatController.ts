@@ -137,6 +137,7 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
   const runtimeRoutingRef = useRef<RuntimeRoutingConfigResponse | null>(null);
   const runtimeRoutingGatewayRef = useRef("");
   const runtimeRoutingErrorGatewayRef = useRef("");
+  const routingRequestSeqRef = useRef(0);
 
   const applyRuntimeRouting = useCallback((routing: RuntimeRoutingConfigResponse, gatewayUrl: string) => {
     runtimeRoutingRef.current = routing;
@@ -147,6 +148,8 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
     setRuntimeRoutingError(null);
   }, []);
   const refreshRoutingState = useCallback(async () => {
+    const requestSeq = routingRequestSeqRef.current + 1;
+    routingRequestSeqRef.current = requestSeq;
     const gatewayUrl = settings.gateway_url.trim();
     if (runtimeRoutingGatewayRef.current && runtimeRoutingGatewayRef.current !== gatewayUrl) {
       runtimeRoutingRef.current = null;
@@ -156,9 +159,15 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
     }
     try {
       const response = await getRuntimeConfig(settings);
+      if (routingRequestSeqRef.current !== requestSeq) {
+        return runtimeRoutingRef.current;
+      }
       applyRuntimeRouting(response.config.routing, gatewayUrl);
       return response.config.routing;
     } catch (error: unknown) {
+      if (routingRequestSeqRef.current !== requestSeq) {
+        return runtimeRoutingRef.current;
+      }
       runtimeRoutingErrorGatewayRef.current = gatewayUrl;
       setRuntimeRoutingLoaded(true);
       setRuntimeRoutingError(String(error));

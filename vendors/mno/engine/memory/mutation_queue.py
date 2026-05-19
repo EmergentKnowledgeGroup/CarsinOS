@@ -179,13 +179,19 @@ class MutationReviewQueue:
                 raise PermissionError("proposal must be approved before apply")
 
             if proposal.action is WriteAction.PROPOSE_CREATE:
-                assert proposal.replacement_candidate is not None
+                if proposal.replacement_candidate is None:
+                    raise ValueError(
+                        f"proposal {proposal.proposal_id} cannot apply PROPOSE_CREATE without replacement_candidate"
+                    )
                 self.store.add_candidate(
                     proposal.replacement_candidate,
                     reason=f"proposal:{proposal.proposal_id}",
                 )
             elif proposal.action is WriteAction.PROPOSE_EDIT:
-                assert proposal.replacement_candidate is not None
+                if proposal.replacement_candidate is None:
+                    raise ValueError(
+                        f"proposal {proposal.proposal_id} cannot apply PROPOSE_EDIT without replacement_candidate"
+                    )
                 self.store.supersede_atom(
                     proposal.target_atom_id,
                     proposal.replacement_candidate,

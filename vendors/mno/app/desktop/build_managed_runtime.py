@@ -40,7 +40,7 @@ def _target_key() -> str:
         if any(token in machine for token in ("x86_64", "amd64")):
             return "linux-x64"
         if "arm" in machine or "aarch64" in machine:
-            return "linux-arm64"
+            raise SystemExit("managed-runtime build does not ship a Linux ARM64 asset yet")
         raise SystemExit(f"unsupported Linux architecture for managed-runtime build: {machine or 'unknown'}")
     if platform_key.startswith("darwin"):
         return "darwin-arm64" if "arm" in machine or "aarch64" in machine else "darwin-x64"
@@ -64,10 +64,12 @@ def _download(asset_name: str) -> Path:
     CACHE_ROOT.mkdir(parents=True, exist_ok=True)
     archive_path = CACHE_ROOT / asset_name
     if archive_path.exists():
+        _verify_archive(asset_name, archive_path)
         return archive_path
     url = _asset_url(asset_name)
     with urllib.request.urlopen(url, timeout=180) as response, archive_path.open("wb") as output:
         shutil.copyfileobj(response, output)
+    _verify_archive(asset_name, archive_path)
     return archive_path
 
 

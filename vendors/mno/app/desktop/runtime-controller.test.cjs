@@ -13,6 +13,7 @@ const {
   collectMissingArtifacts,
   defaultShellPreferences,
   deriveShellStartupState,
+  fetchRuntimeHealthOnce,
   formatTimeoutLabel,
   hydratedRuntimeUrl,
   loadDesktopAppVersion,
@@ -33,6 +34,7 @@ const {
   saveShellPreferences,
   stateLabel,
   summarizeRuntimeLock,
+  requestRuntimeShutdown,
   waitForChildExit,
   waitForRuntimeReady,
 } = require('./runtime-controller.cjs');
@@ -865,6 +867,36 @@ test('formatTimeoutLabel renders configured timeout text', () => {
   assert.equal(formatTimeoutLabel(30000), '30 seconds');
   assert.equal(formatTimeoutLabel(1000), '1 second');
   assert.equal(formatTimeoutLabel(1250), '1.3 seconds');
+});
+
+test('fetchRuntimeHealthOnce passes a timeout abort signal to fetch', async () => {
+  let observedSignal = null;
+  const payload = await fetchRuntimeHealthOnce({
+    runtimeHealthUrl: 'http://127.0.0.1:7340/api/runtime/health',
+    timeoutMs: 1234,
+    fetchImpl: async (_url, options) => {
+      observedSignal = options.signal;
+      return { ok: true, json: async () => ({ ok: true }) };
+    },
+  });
+
+  assert.deepEqual(payload, { ok: true });
+  assert.ok(observedSignal instanceof AbortSignal);
+});
+
+test('requestRuntimeShutdown passes a timeout abort signal to fetch', async () => {
+  let observedSignal = null;
+  const payload = await requestRuntimeShutdown({
+    runtimeShutdownUrl: 'http://127.0.0.1:7340/api/runtime/shutdown',
+    timeoutMs: 1234,
+    fetchImpl: async (_url, options) => {
+      observedSignal = options.signal;
+      return { ok: true, json: async () => ({ ok: true, status: 'stopping' }) };
+    },
+  });
+
+  assert.deepEqual(payload, { ok: true, status: 'stopping' });
+  assert.ok(observedSignal instanceof AbortSignal);
 });
 
 test('loadDesktopAppVersion reads the desktop package version', () => {

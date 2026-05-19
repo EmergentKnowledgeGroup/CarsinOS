@@ -211,6 +211,31 @@ describe("AssistantDeskPanel", () => {
     }
   });
 
+  it("does not render transcript events from a stale selected work item", async () => {
+    const desk = makeDesk();
+    const firstItem = desk.buckets.needs_you[0]!;
+    const secondItem = desk.buckets.working[0]!;
+
+    await act(async () => {
+      root.render(
+        <AssistantDeskPanel
+          open
+          controller={makeController({
+            desk,
+            selectedWorkItemId: secondItem.id,
+            selectedWorkItem: secondItem,
+            transcript: makeTranscript(firstItem.id),
+          })}
+          onClose={vi.fn()}
+        />
+      );
+    });
+
+    const transcriptPane = container.querySelector(".mc-assistant-desk-transcript-events");
+    expect(transcriptPane?.textContent).not.toContain("Ready for");
+    expect(transcriptPane?.textContent).toContain("No transcript events yet.");
+  });
+
   it("returns focus to the transcript opener when the drawer closes", async () => {
     const originalRaf = window.requestAnimationFrame;
     window.requestAnimationFrame = ((callback: FrameRequestCallback) => {

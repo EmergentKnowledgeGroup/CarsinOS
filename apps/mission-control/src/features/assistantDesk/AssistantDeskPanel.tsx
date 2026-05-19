@@ -208,6 +208,8 @@ function TranscriptDrawer(props: {
   }, [onClose]);
 
   const transcript = props.controller.transcript;
+  const selectedTranscript =
+    transcript?.work_item_id === props.controller.selectedWorkItemId ? transcript : null;
   const title =
     props.controller.selectedWorkItem?.title || transcript?.title || "Assistant transcript";
 
@@ -244,8 +246,8 @@ function TranscriptDrawer(props: {
         {props.controller.transcriptError ? (
           <p className="mc-form-error">{props.controller.transcriptError}</p>
         ) : null}
-        {transcript?.events.length ? (
-          transcript.events.map((event) => (
+        {selectedTranscript?.events.length ? (
+          selectedTranscript.events.map((event) => (
             <article key={event.id} className="mc-assistant-desk-event">
               <div className="mc-assistant-desk-event-meta">
                 <strong>{event.title || event.role || event.source || "System"}</strong>
@@ -254,7 +256,7 @@ function TranscriptDrawer(props: {
               <TranscriptBody event={event} />
             </article>
           ))
-        ) : !props.controller.transcriptLoading ? (
+        ) : !props.controller.transcriptLoading && !props.controller.transcriptError ? (
           <p className="mc-assistant-desk-muted">
             No transcript events yet. CarsinOS will show the audit trail here as work arrives.
           </p>

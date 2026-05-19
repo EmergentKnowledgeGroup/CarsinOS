@@ -850,12 +850,25 @@ function formatTimeoutLabel(timeoutMs) {
   return `${seconds} ${Number(wholeSeconds) === 1 ? 'second' : 'seconds'}`;
 }
 
-async function fetchRuntimeHealthOnce({ runtimeHealthUrl, fetchImpl = globalThis.fetch } = {}) {
+async function fetchWithTimeout(fetchImpl, url, options = {}, timeoutMs = 5000) {
+  if (typeof AbortController !== 'function' || Number(timeoutMs) <= 0) {
+    return fetchImpl(url, options);
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), Number(timeoutMs));
+  try {
+    return await fetchImpl(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchRuntimeHealthOnce({ runtimeHealthUrl, fetchImpl = globalThis.fetch, timeoutMs = 5000 } = {}) {
   if (typeof fetchImpl !== 'function') {
     throw new Error('fetch implementation is required');
   }
   try {
-    const response = await fetchImpl(runtimeHealthUrl, { method: 'GET' });
+    const response = await fetchWithTimeout(fetchImpl, runtimeHealthUrl, { method: 'GET' }, timeoutMs);
     if (!response || !response.ok) {
       return null;
     }
@@ -918,11 +931,21 @@ function assessExistingRuntime({ healthPayload = null, lockSummary = {}, expecte
   return { action: 'terminate', reason: 'untrusted_runtime' };
 }
 
-async function requestRuntimeShutdown({ runtimeShutdownUrl, fetchImpl = globalThis.fetch } = {}) {
+async function requestRuntimeShutdown({ runtimeShutdownUrl, fetchImpl = globalThis.fetch, timeoutMs = 10000 } = {}) {
   if (typeof fetchImpl !== 'function') {
     throw new Error('fetch implementation is required');
   }
-  const response = await fetchImpl(runtimeShutdownUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  let response;
+  try {
+    response = await fetchWithTimeout(
+      fetchImpl,
+      runtimeShutdownUrl,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
+      timeoutMs,
+    );
+  } catch (error) {
+    throw new Error(`runtime shutdown request failed: ${error?.message || String(error)}`);
+  }
   if (!response || !response.ok) {
     throw new Error(`runtime shutdown failed with status ${response?.status || 'unknown'}`);
   }

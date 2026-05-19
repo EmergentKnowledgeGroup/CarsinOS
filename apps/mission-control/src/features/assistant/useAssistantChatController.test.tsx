@@ -621,6 +621,64 @@ describe("useAssistantChatController", () => {
     );
   });
 
+  it("does not let an older routing refresh overwrite a newer gateway failure", async () => {
+    const setNotice = vi.fn();
+    const firstSettings = settings;
+    const secondSettings: RuntimeConnectionSettings = {
+      gateway_url: "http://127.0.0.1:18890",
+    };
+    const firstRouting = deferred<GetRuntimeConfigResponse>();
+    vi.mocked(getRuntimeConfig)
+      .mockImplementationOnce(() => firstRouting.promise)
+      .mockRejectedValueOnce(new Error("new gateway offline"));
+    vi.mocked(getSession).mockResolvedValue(makeSessionResponse("sess-2", "lyra"));
+
+    await act(async () => {
+      root.render(
+        <Harness
+          onReady={(controller) => {
+            latest = controller;
+          }}
+          settings={firstSettings}
+          agents={[makeAgent("lyra")]}
+          setNotice={setNotice}
+        />
+      );
+    });
+    await flush();
+
+    await act(async () => {
+      root.render(
+        <Harness
+          onReady={(controller) => {
+            latest = controller;
+          }}
+          settings={secondSettings}
+          agents={[makeAgent("lyra")]}
+          setNotice={setNotice}
+        />
+      );
+    });
+    await flush();
+
+    await act(async () => {
+      firstRouting.resolve(makeRuntimeConfigResponse(true, ["lyra"]));
+    });
+    await flush();
+
+    await act(async () => {
+      await latest?.openSession("sess-2");
+    });
+
+    expect(getSession).not.toHaveBeenCalled();
+    expect(setNotice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tone: "error",
+        message: expect.stringContaining("Team routing could not load cleanly"),
+      })
+    );
+  });
+
   it("re-resolves the canonical lane on later sends instead of sticking to a stale session id", async () => {
     const setNotice = vi.fn();
     vi.mocked(createSession)
