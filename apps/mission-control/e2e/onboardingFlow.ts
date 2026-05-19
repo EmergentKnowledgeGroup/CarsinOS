@@ -12,6 +12,15 @@ export function wizard(page: Page) {
   return page.getByRole("dialog", { name: "Setup Wizard" });
 }
 
+export async function clickAdvancedNav(page: Page, tab: string): Promise<void> {
+  const target = page.locator(`[data-tour-id="nav-${tab}"]`);
+  if (!(await target.isVisible())) {
+    await page.locator('[data-tour-id="nav-advanced"]').click();
+    await expect(target).toBeVisible();
+  }
+  await target.click();
+}
+
 export async function openWizard(
   page: Page,
   options?: {

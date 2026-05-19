@@ -3,27 +3,15 @@ use async_trait::async_trait;
 use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::process::Stdio;
-use std::time::Duration;
 
-const AGENT_SDK_AUTH_MODE: &str = "agent_sdk";
-const ANTHROPIC_OAUTH_BETA_HEADER: &str = "oauth-2025-04-20";
-const ANTHROPIC_CLAUDE_CODE_BETA_HEADER: &str = "claude-code-20250219";
-const ANTHROPIC_FINE_GRAINED_TOOL_STREAMING_BETA: &str = "fine-grained-tool-streaming-2025-05-14";
-const ANTHROPIC_INTERLEAVED_THINKING_BETA: &str = "interleaved-thinking-2025-05-14";
 const ANTHROPIC_SETUP_TOKEN_PREFIX: &str = "sk-ant-oat";
 const ANTHROPIC_SETUP_TOKEN_KIND: &str = "setup_token";
-const ANTHROPIC_DIRECT_BROWSER_ACCESS_HEADER: &str = "true";
-const CLAUDE_CODE_USER_AGENT: &str = "claude-cli/2.1.75";
-const CLAUDE_CODE_X_APP: &str = "cli";
-const CLAUDE_CODE_SYSTEM_IDENTITY: &str =
-    "You are Claude Code, Anthropic's official CLI for Claude.";
-const HEADLESS_DEFAULT_COMMAND: &str = "claude";
-const HEADLESS_DEFAULT_TIMEOUT_MS: u64 = 45_000;
 const PROVIDER_VLLM_API_BASE_URL_ENV: &str = "CARSINOS_PROVIDER_VLLM_API_BASE_URL";
 const PROVIDER_OLLAMA_API_BASE_URL_ENV: &str = "CARSINOS_PROVIDER_OLLAMA_API_BASE_URL";
+const PROVIDER_LMSTUDIO_API_BASE_URL_ENV: &str = "CARSINOS_PROVIDER_LMSTUDIO_API_BASE_URL";
 const PROVIDER_VLLM_DEFAULT_API_BASE_URL: &str = "http://127.0.0.1:8000";
 const PROVIDER_OLLAMA_DEFAULT_API_BASE_URL: &str = "http://127.0.0.1:11434";
+const PROVIDER_LMSTUDIO_DEFAULT_API_BASE_URL: &str = "http://127.0.0.1:1234";
 
 #[derive(Debug, Clone)]
 pub struct ProviderAuthProfile {
@@ -42,20 +30,28 @@ impl ProviderAuthProfile {
 
     fn api_key(&self) -> Result<String> {
         let payload = self.credentials_payload()?;
-        let use_normalized_anthropic_bearer = anthropic_profile_uses_bearer_auth(self)?;
         for key in provider_auth_token_keys() {
             if let Some(value) = payload.get(*key).and_then(|value| value.as_str()) {
                 let trimmed = value.trim();
                 if !trimmed.is_empty() {
-                    return Ok(if use_normalized_anthropic_bearer {
-                        normalize_anthropic_setup_token_value(trimmed)
-                    } else {
-                        trimmed.to_string()
-                    });
+                    return Ok(trimmed.to_string());
                 }
             }
         }
         anyhow::bail!("provider credentials missing API token material")
+    }
+
+    fn optional_api_key(&self) -> Result<Option<String>> {
+        let payload = self.credentials_payload()?;
+        for key in provider_auth_token_keys() {
+            if let Some(value) = payload.get(*key).and_then(|value| value.as_str()) {
+                let trimmed = value.trim();
+                if !trimmed.is_empty() {
+                    return Ok(Some(trimmed.to_string()));
+                }
+            }
+        }
+        Ok(None)
     }
 }
 
@@ -65,33 +61,6 @@ fn provider_auth_token_keys() -> &'static [&'static str] {
 
 fn normalize_anthropic_setup_token_value(raw: &str) -> String {
     raw.chars().filter(|char| !char.is_whitespace()).collect()
-}
-
-fn anthropic_profile_uses_bearer_auth(profile: &ProviderAuthProfile) -> Result<bool> {
-    if !profile.auth_mode.trim().eq_ignore_ascii_case("api_key") {
-        return Ok(false);
-    }
-
-    let payload = profile.credentials_payload()?;
-    let token_kind = payload
-        .get("token_kind")
-        .and_then(|value| value.as_str())
-        .map(str::trim)
-        .unwrap_or_default();
-    if token_kind.eq_ignore_ascii_case(ANTHROPIC_SETUP_TOKEN_KIND) {
-        return Ok(true);
-    }
-
-    Ok(provider_auth_token_keys().iter().any(|key| {
-        payload
-            .get(*key)
-            .and_then(|value| value.as_str())
-            .map(normalize_anthropic_setup_token_value)
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty())
-            .map(|value| value.starts_with(ANTHROPIC_SETUP_TOKEN_PREFIX))
-            .unwrap_or(false)
-    }))
 }
 
 fn anthropic_profile_uses_setup_token_runtime(profile: &ProviderAuthProfile) -> Result<bool> {
@@ -117,26 +86,6 @@ fn anthropic_profile_uses_setup_token_runtime(profile: &ProviderAuthProfile) -> 
             .map(|value| value.starts_with(ANTHROPIC_SETUP_TOKEN_PREFIX))
             .unwrap_or(false)
     }))
-}
-
-fn anthropic_supports_adaptive_thinking(model_id: &str) -> bool {
-    let normalized = model_id.trim().to_ascii_lowercase();
-    normalized.contains("opus-4-6")
-        || normalized.contains("opus-4.6")
-        || normalized.contains("sonnet-4-6")
-        || normalized.contains("sonnet-4.6")
-}
-
-fn anthropic_setup_token_beta_header(model_id: &str) -> String {
-    let mut betas = vec![
-        ANTHROPIC_CLAUDE_CODE_BETA_HEADER.to_string(),
-        ANTHROPIC_OAUTH_BETA_HEADER.to_string(),
-        ANTHROPIC_FINE_GRAINED_TOOL_STREAMING_BETA.to_string(),
-    ];
-    if !anthropic_supports_adaptive_thinking(model_id) {
-        betas.push(ANTHROPIC_INTERLEAVED_THINKING_BETA.to_string());
-    }
-    betas.join(",")
 }
 
 #[derive(Debug, Clone)]
@@ -316,24 +265,7 @@ fn openai_style_messages(input: &str, system_prompt: Option<&str>) -> Vec<serde_
     messages
 }
 
-fn anthropic_system_payload(
-    system_prompt: Option<&str>,
-    uses_setup_token_runtime: bool,
-) -> Option<serde_json::Value> {
-    if uses_setup_token_runtime {
-        let mut blocks = vec![json!({
-            "type": "text",
-            "text": CLAUDE_CODE_SYSTEM_IDENTITY
-        })];
-        if let Some(system_prompt) = normalized_system_prompt(system_prompt) {
-            blocks.push(json!({
-                "type": "text",
-                "text": system_prompt
-            }));
-        }
-        return Some(json!(blocks));
-    }
-
+fn anthropic_system_payload(system_prompt: Option<&str>) -> Option<serde_json::Value> {
     normalized_system_prompt(system_prompt).map(|value| json!(value))
 }
 
@@ -425,12 +357,12 @@ async fn complete_anthropic(
     request: CompletionRequest,
 ) -> Result<CompletionResponse> {
     let auth = require_auth_profile("anthropic", &request)?;
-    if auth
-        .auth_mode
-        .trim()
-        .eq_ignore_ascii_case(AGENT_SDK_AUTH_MODE)
+    if !auth.auth_mode.trim().eq_ignore_ascii_case("api_key")
+        || anthropic_profile_uses_setup_token_runtime(auth)?
     {
-        return complete_anthropic_headless(&request, auth).await;
+        anyhow::bail!(
+            "PROVIDER_ERROR:anthropic:AUTH_REQUIRED:api_key_required:anthropic_provider_accepts_direct_api_keys_only"
+        );
     }
     let token = auth.api_key().map_err(|err| {
         anyhow!(
@@ -445,7 +377,6 @@ async fn complete_anthropic(
         .unwrap_or("https://api.anthropic.com")
         .trim_end_matches('/');
     let url = format!("{base_url}/v1/messages");
-    let uses_setup_token_runtime = anthropic_profile_uses_setup_token_runtime(auth)?;
 
     let mut body = json!({
         "model": request.model_id,
@@ -458,36 +389,14 @@ async fn complete_anthropic(
         ],
         "stream": false
     });
-    if let Some(system_payload) =
-        anthropic_system_payload(request.system_prompt.as_deref(), uses_setup_token_runtime)
-    {
+    if let Some(system_payload) = anthropic_system_payload(request.system_prompt.as_deref()) {
         body["system"] = system_payload;
     }
 
-    let mut response_request = client.post(url).header("anthropic-version", "2023-06-01");
-    if uses_setup_token_runtime {
-        response_request = response_request
-            .header("accept", "application/json")
-            .header(
-                "anthropic-dangerous-direct-browser-access",
-                ANTHROPIC_DIRECT_BROWSER_ACCESS_HEADER,
-            )
-            .header(
-                "anthropic-beta",
-                anthropic_setup_token_beta_header(&request.model_id),
-            )
-            .header("user-agent", CLAUDE_CODE_USER_AGENT)
-            .header("x-app", CLAUDE_CODE_X_APP)
-            .bearer_auth(token);
-    } else if anthropic_profile_uses_bearer_auth(auth)? {
-        response_request = response_request
-            .bearer_auth(token)
-            .header("anthropic-beta", ANTHROPIC_OAUTH_BETA_HEADER);
-    } else {
-        response_request = response_request.header("x-api-key", token);
-    }
-
-    let response = response_request
+    let response = client
+        .post(url)
+        .header("anthropic-version", "2023-06-01")
+        .header("x-api-key", token)
         .json(&body)
         .send()
         .await
@@ -508,135 +417,6 @@ async fn complete_anthropic(
     let usage_input = merged_prompt_text(&request.input, request.system_prompt.as_deref());
     let usage = usage_from_anthropic_payload(&payload, &usage_input, &output_text);
 
-    Ok(CompletionResponse {
-        deltas: split_word_deltas(&output_text),
-        output_text,
-        usage,
-    })
-}
-
-async fn complete_anthropic_headless(
-    request: &CompletionRequest,
-    auth: &ProviderAuthProfile,
-) -> Result<CompletionResponse> {
-    let credentials = auth.credentials_payload().map_err(|err| {
-        anyhow!(
-            "PROVIDER_ERROR:anthropic:AUTH_REQUIRED:invalid_credentials:{}",
-            err.to_string().replace(':', "_")
-        )
-    })?;
-
-    let command = credentials
-        .get("headless_command")
-        .and_then(|value| value.as_str())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or(HEADLESS_DEFAULT_COMMAND)
-        .to_string();
-    let mut args = credentials
-        .get("headless_args")
-        .and_then(|value| value.as_array())
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|value| value.as_str().map(str::trim))
-                .filter(|value| !value.is_empty())
-                .map(|value| value.to_string())
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_else(|| {
-            vec![
-                "-p".to_string(),
-                "{prompt}".to_string(),
-                "--output-format".to_string(),
-                "text".to_string(),
-            ]
-        });
-    let timeout_ms = parse_u64_value(credentials.get("headless_timeout_ms"))
-        .unwrap_or(HEADLESS_DEFAULT_TIMEOUT_MS)
-        .clamp(1_000, 300_000);
-    let workdir = credentials
-        .get("headless_workdir")
-        .and_then(|value| value.as_str())
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(|value| value.to_string());
-
-    let prompt_text = merged_prompt_text(&request.input, request.system_prompt.as_deref());
-    let mut prompt_injected = false;
-    let mut has_prompt_flag = false;
-    for arg in &mut args {
-        if arg == "-p" || arg == "--prompt" {
-            has_prompt_flag = true;
-        }
-        if arg.contains("{prompt}") {
-            *arg = arg.replace("{prompt}", prompt_text.as_str());
-            prompt_injected = true;
-        }
-        if arg.contains("{model}") {
-            *arg = arg.replace("{model}", request.model_id.as_str());
-        }
-    }
-    if !prompt_injected {
-        if !has_prompt_flag {
-            args.push("-p".to_string());
-        }
-        args.push(prompt_text.clone());
-    }
-
-    let mut process = tokio::process::Command::new(command.as_str());
-    process.args(args.iter());
-    process.stdin(Stdio::null());
-    process.stdout(Stdio::piped());
-    process.stderr(Stdio::piped());
-    process.kill_on_drop(true);
-    if let Some(workdir) = workdir {
-        process.current_dir(workdir);
-    }
-    let child = process.spawn().map_err(|err| {
-        anyhow!(
-            "PROVIDER_ERROR:anthropic:DEPENDENCY_UNAVAILABLE:headless_spawn_failed:{}",
-            err.to_string().replace(':', "_")
-        )
-    })?;
-    let output =
-        match tokio::time::timeout(Duration::from_millis(timeout_ms), child.wait_with_output())
-            .await
-        {
-            Ok(Ok(output)) => output,
-            Ok(Err(err)) => {
-                return Err(anyhow!(
-                    "PROVIDER_ERROR:anthropic:DEPENDENCY_UNAVAILABLE:headless_spawn_failed:{}",
-                    err.to_string().replace(':', "_")
-                ));
-            }
-            Err(_) => {
-                return Err(anyhow!(
-                    "PROVIDER_ERROR:anthropic:TIMEOUT:headless_timeout_after_{}ms",
-                    timeout_ms
-                ));
-            }
-        };
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let stderr = stderr.trim();
-        let stderr = stderr.chars().take(200).collect::<String>();
-        let status = output.status.code().unwrap_or(-1);
-        return Err(anyhow!(
-            "PROVIDER_ERROR:anthropic:DEPENDENCY_UNAVAILABLE:headless_exit_status_{}:{}",
-            status,
-            stderr.replace(':', "_")
-        ));
-    }
-
-    let output_text = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if output_text.is_empty() {
-        return Err(anyhow!(
-            "PROVIDER_ERROR:anthropic:INTERNAL_ERROR:headless_output_empty"
-        ));
-    }
-
-    let usage = usage_from_token_counts(&prompt_text, &output_text, None, None, None, None);
     Ok(CompletionResponse {
         deltas: split_word_deltas(&output_text),
         output_text,
@@ -675,7 +455,7 @@ async fn complete_openrouter(
 
 async fn complete_vllm(client: &Client, request: CompletionRequest) -> Result<CompletionResponse> {
     let (base_url, bearer_token) = if let Some(auth) = request.auth_profile.as_ref() {
-        let token = auth.api_key().map_err(|err| {
+        let token = auth.optional_api_key().map_err(|err| {
             anyhow!(
                 "PROVIDER_ERROR:vllm:AUTH_REQUIRED:invalid_credentials:{}",
                 err.to_string().replace(':', "_")
@@ -687,7 +467,7 @@ async fn complete_vllm(client: &Client, request: CompletionRequest) -> Result<Co
                 PROVIDER_VLLM_API_BASE_URL_ENV,
                 PROVIDER_VLLM_DEFAULT_API_BASE_URL,
             ),
-            Some(token),
+            token,
         )
     } else {
         (
@@ -716,22 +496,29 @@ async fn complete_lmstudio(
     request: CompletionRequest,
 ) -> Result<CompletionResponse> {
     let (base_url, bearer_token) = if let Some(auth) = request.auth_profile.as_ref() {
-        let token = auth.api_key().map_err(|err| {
+        let token = auth.optional_api_key().map_err(|err| {
             anyhow!(
                 "PROVIDER_ERROR:lmstudio:AUTH_REQUIRED:invalid_credentials:{}",
                 err.to_string().replace(':', "_")
             )
         })?;
         (
-            auth.api_base_url
-                .as_deref()
-                .unwrap_or("http://127.0.0.1:1234")
-                .trim_end_matches('/')
-                .to_string(),
-            Some(token),
+            provider_api_base_url(
+                Some(auth),
+                PROVIDER_LMSTUDIO_API_BASE_URL_ENV,
+                PROVIDER_LMSTUDIO_DEFAULT_API_BASE_URL,
+            ),
+            token,
         )
     } else {
-        ("http://127.0.0.1:1234".to_string(), None)
+        (
+            provider_api_base_url(
+                None,
+                PROVIDER_LMSTUDIO_API_BASE_URL_ENV,
+                PROVIDER_LMSTUDIO_DEFAULT_API_BASE_URL,
+            ),
+            None,
+        )
     };
     complete_openai_compatible(
         client,
@@ -750,7 +537,7 @@ async fn complete_ollama(
     request: CompletionRequest,
 ) -> Result<CompletionResponse> {
     let (base_url, bearer_token) = if let Some(auth) = request.auth_profile.as_ref() {
-        let token = auth.api_key().map_err(|err| {
+        let token = auth.optional_api_key().map_err(|err| {
             anyhow!(
                 "PROVIDER_ERROR:ollama:AUTH_REQUIRED:invalid_credentials:{}",
                 err.to_string().replace(':', "_")
@@ -762,7 +549,7 @@ async fn complete_ollama(
                 PROVIDER_OLLAMA_API_BASE_URL_ENV,
                 PROVIDER_OLLAMA_DEFAULT_API_BASE_URL,
             ),
-            Some(token),
+            token,
         )
     } else {
         (
@@ -1194,25 +981,6 @@ mod tests {
     static ENV_LOCK: Mutex<()> = Mutex::new(());
     static ASYNC_ENV_LOCK: AsyncMutex<()> = AsyncMutex::const_new(());
 
-    fn resolve_python_command() -> Option<String> {
-        if let Ok(explicit) = std::env::var("PYTHON") {
-            let trimmed = explicit.trim();
-            if !trimmed.is_empty() {
-                return Some(trimmed.to_string());
-            }
-        }
-        for candidate in ["python3", "python"] {
-            if std::process::Command::new(candidate)
-                .arg("--version")
-                .output()
-                .is_ok()
-            {
-                return Some(candidate.to_string());
-            }
-        }
-        None
-    }
-
     fn with_env_vars<T>(values: &[(&str, Option<&str>)], run: impl FnOnce() -> T) -> T {
         let _guard = ENV_LOCK.lock().expect("env lock");
         let previous = values
@@ -1342,50 +1110,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn anthropic_setup_token_uses_bearer_header_and_oauth_beta() {
+    async fn anthropic_provider_rejects_setup_token_profiles() {
         let server = MockServer::start_async().await;
-        let mock = server
-            .mock_async(|when, then| {
-                when.method(POST)
-                    .path("/v1/messages")
-                    .header("authorization", "Bearer sk-ant-oat01-setup-token")
-                    .header(
-                        "anthropic-beta",
-                        "claude-code-20250219,oauth-2025-04-20,fine-grained-tool-streaming-2025-05-14,interleaved-thinking-2025-05-14",
-                    )
-                    .header("anthropic-dangerous-direct-browser-access", "true")
-                    .header("user-agent", CLAUDE_CODE_USER_AGENT)
-                    .header("x-app", CLAUDE_CODE_X_APP)
-                    .json_body(json!({
-                        "model": "claude-sonnet-4-5",
-                        "max_tokens": 1024,
-                        "system": [
-                            {
-                                "type": "text",
-                                "text": "You are Claude Code, Anthropic's official CLI for Claude."
-                            }
-                        ],
-                        "messages": [
-                            {
-                                "role": "user",
-                                "content": "hello setup token"
-                            }
-                        ],
-                        "stream": false
-                    }));
-                then.status(200).json_body(json!({
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "anthropic setup token says hi"
-                        }
-                    ]
-                }));
-            })
-            .await;
-
         let registry = ProviderRegistry::new();
-        let response = registry
+        let error = registry
             .complete(CompletionRequest {
                 model_provider: "anthropic".to_string(),
                 model_id: "claude-sonnet-4-5".to_string(),
@@ -1402,208 +1130,17 @@ mod tests {
                 }),
             })
             .await
-            .expect("anthropic setup-token completion");
+            .expect_err("setup-token profiles must not reach Anthropic provider HTTP");
 
-        mock.assert_async().await;
-        assert_eq!(response.output_text, "anthropic setup token says hi");
+        assert!(error
+            .to_string()
+            .contains("PROVIDER_ERROR:anthropic:AUTH_REQUIRED:api_key_required"));
     }
 
     #[tokio::test]
-    async fn anthropic_setup_token_sends_system_prompt_in_system_field() {
-        let server = MockServer::start_async().await;
-        let mock = server
-            .mock_async(|when, then| {
-                when.method(POST)
-                    .path("/v1/messages")
-                    .header("authorization", "Bearer sk-ant-oat01-setup-token")
-                    .header(
-                        "anthropic-beta",
-                        "claude-code-20250219,oauth-2025-04-20,fine-grained-tool-streaming-2025-05-14,interleaved-thinking-2025-05-14",
-                    )
-                    .header("anthropic-dangerous-direct-browser-access", "true")
-                    .header("user-agent", CLAUDE_CODE_USER_AGENT)
-                    .header("x-app", CLAUDE_CODE_X_APP)
-                    .json_body(json!({
-                        "model": "claude-sonnet-4-5",
-                        "max_tokens": 1024,
-                        "system": [
-                            {
-                                "type": "text",
-                                "text": "You are Claude Code, Anthropic's official CLI for Claude."
-                            },
-                            {
-                                "type": "text",
-                                "text": "You are the CarsinOS assistant."
-                            }
-                        ],
-                        "messages": [
-                            {
-                                "role": "user",
-                                "content": "reply to the inbound message"
-                            }
-                        ],
-                        "stream": false
-                    }));
-                then.status(200).json_body(json!({
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "system field ok"
-                        }
-                    ]
-                }));
-            })
-            .await;
-
+    async fn anthropic_provider_rejects_agent_sdk_profiles() {
         let registry = ProviderRegistry::new();
-        let response = registry
-            .complete(CompletionRequest {
-                model_provider: "anthropic".to_string(),
-                model_id: "claude-sonnet-4-5".to_string(),
-                input: "reply to the inbound message".to_string(),
-                system_prompt: Some("You are the CarsinOS assistant.".to_string()),
-                auth_profile: Some(ProviderAuthProfile {
-                    auth_profile_id: Some("p-setup-system".to_string()),
-                    auth_mode: "api_key".to_string(),
-                    risk_level: "low".to_string(),
-                    api_base_url: Some(server.base_url()),
-                    credentials_json:
-                        r#"{"api_key":"sk-ant-oat01-setup-token","token_kind":"setup_token"}"#
-                            .to_string(),
-                }),
-            })
-            .await
-            .expect("anthropic setup-token completion with system prompt");
-
-        mock.assert_async().await;
-        assert_eq!(response.output_text, "system field ok");
-    }
-
-    #[tokio::test]
-    async fn anthropic_setup_token_strips_wrapped_whitespace_before_bearer_send() {
-        let server = MockServer::start_async().await;
-        let normalized = "sk-ant-oat01-setup-token";
-        let wrapped = "sk-ant-oat01-setu p-token";
-        let mock = server
-            .mock_async(|when, then| {
-                when.method(POST)
-                    .path("/v1/messages")
-                    .header("authorization", format!("Bearer {normalized}"))
-                    .header(
-                        "anthropic-beta",
-                        "claude-code-20250219,oauth-2025-04-20,fine-grained-tool-streaming-2025-05-14,interleaved-thinking-2025-05-14",
-                    )
-                    .header("anthropic-dangerous-direct-browser-access", "true")
-                    .header("user-agent", CLAUDE_CODE_USER_AGENT)
-                    .header("x-app", CLAUDE_CODE_X_APP)
-                    .json_body(json!({
-                        "model": "claude-sonnet-4-5",
-                        "max_tokens": 1024,
-                        "system": [
-                            {
-                                "type": "text",
-                                "text": "You are Claude Code, Anthropic's official CLI for Claude."
-                            }
-                        ],
-                        "messages": [
-                            {
-                                "role": "user",
-                                "content": "hello whitespace"
-                            }
-                        ],
-                        "stream": false
-                    }));
-                then.status(200).json_body(json!({
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "anthropic whitespace normalized"
-                        }
-                    ]
-                }));
-            })
-            .await;
-
-        let registry = ProviderRegistry::new();
-        let response = registry
-            .complete(CompletionRequest {
-                model_provider: "anthropic".to_string(),
-                model_id: "claude-sonnet-4-5".to_string(),
-                input: "hello whitespace".to_string(),
-                system_prompt: None,
-                auth_profile: Some(ProviderAuthProfile {
-                    auth_profile_id: Some("p-setup-space".to_string()),
-                    auth_mode: "api_key".to_string(),
-                    risk_level: "low".to_string(),
-                    api_base_url: Some(server.base_url()),
-                    credentials_json: serde_json::json!({
-                        "api_key": wrapped,
-                        "token_kind": "setup_token"
-                    })
-                    .to_string(),
-                }),
-            })
-            .await
-            .expect("anthropic setup-token whitespace completion");
-
-        mock.assert_async().await;
-        assert_eq!(response.output_text, "anthropic whitespace normalized");
-    }
-
-    #[tokio::test]
-    async fn anthropic_setup_token_adaptive_models_drop_interleaved_thinking_beta() {
-        let server = MockServer::start_async().await;
-        let mock = server
-            .mock_async(|when, then| {
-                when.method(POST)
-                    .path("/v1/messages")
-                    .header("authorization", "Bearer sk-ant-oat01-setup-token")
-                    .header(
-                        "anthropic-beta",
-                        "claude-code-20250219,oauth-2025-04-20,fine-grained-tool-streaming-2025-05-14",
-                    );
-                then.status(200).json_body(json!({
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "adaptive ok"
-                        }
-                    ]
-                }));
-            })
-            .await;
-
-        let registry = ProviderRegistry::new();
-        let response = registry
-            .complete(CompletionRequest {
-                model_provider: "anthropic".to_string(),
-                model_id: "claude-sonnet-4-6".to_string(),
-                input: "hello adaptive".to_string(),
-                system_prompt: None,
-                auth_profile: Some(ProviderAuthProfile {
-                    auth_profile_id: Some("p-setup-adaptive".to_string()),
-                    auth_mode: "api_key".to_string(),
-                    risk_level: "low".to_string(),
-                    api_base_url: Some(server.base_url()),
-                    credentials_json:
-                        r#"{"api_key":"sk-ant-oat01-setup-token","token_kind":"setup_token"}"#
-                            .to_string(),
-                }),
-            })
-            .await
-            .expect("anthropic adaptive setup-token completion");
-
-        mock.assert_async().await;
-        assert_eq!(response.output_text, "adaptive ok");
-    }
-
-    #[tokio::test]
-    async fn anthropic_agent_sdk_headless_executes_local_command() {
-        let Some(python) = resolve_python_command() else {
-            return;
-        };
-        let registry = ProviderRegistry::new();
-        let response = registry
+        let error = registry
             .complete(CompletionRequest {
                 model_provider: "anthropic".to_string(),
                 model_id: "claude-sonnet".to_string(),
@@ -1611,63 +1148,22 @@ mod tests {
                 system_prompt: None,
                 auth_profile: Some(ProviderAuthProfile {
                     auth_profile_id: Some("p-headless".to_string()),
-                    auth_mode: AGENT_SDK_AUTH_MODE.to_string(),
+                    auth_mode: "agent_sdk".to_string(),
                     risk_level: "high".to_string(),
                     api_base_url: None,
                     credentials_json: serde_json::json!({
-                        "headless_command": python,
-                        "headless_args": [
-                            "-c",
-                            "import sys;print('headless:'+sys.argv[-1])"
-                        ],
-                        "headless_timeout_ms": 5000
+                        "headless_command": "claude"
                     })
                     .to_string(),
                 }),
             })
             .await
-            .expect("anthropic headless completion");
-
-        assert_eq!(response.output_text, "headless:ship patch");
-        assert!(response.usage.total_tokens >= 1);
-    }
-
-    #[tokio::test]
-    async fn anthropic_agent_sdk_headless_timeout_maps_to_provider_timeout() {
-        let Some(python) = resolve_python_command() else {
-            return;
-        };
-        let registry = ProviderRegistry::new();
-        let error = registry
-            .complete(CompletionRequest {
-                model_provider: "anthropic".to_string(),
-                model_id: "claude-sonnet".to_string(),
-                input: "slow job".to_string(),
-                system_prompt: None,
-                auth_profile: Some(ProviderAuthProfile {
-                    auth_profile_id: Some("p-headless-timeout".to_string()),
-                    auth_mode: AGENT_SDK_AUTH_MODE.to_string(),
-                    risk_level: "high".to_string(),
-                    api_base_url: None,
-                    credentials_json: serde_json::json!({
-                        "headless_command": python,
-                        "headless_args": [
-                            "-c",
-                            "import time;time.sleep(2);print('done')"
-                        ],
-                        "headless_timeout_ms": 1000
-                    })
-                    .to_string(),
-                }),
-            })
-            .await
-            .expect_err("expected headless timeout");
+            .expect_err("agent_sdk profiles must not execute through Anthropic provider");
 
         assert!(error
             .to_string()
-            .contains("PROVIDER_ERROR:anthropic:TIMEOUT"));
+            .contains("PROVIDER_ERROR:anthropic:AUTH_REQUIRED:api_key_required"));
     }
-
     #[tokio::test]
     async fn provider_auth_is_required_for_external_providers() {
         let registry = ProviderRegistry::new();

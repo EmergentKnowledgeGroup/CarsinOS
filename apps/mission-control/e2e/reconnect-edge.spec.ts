@@ -5,6 +5,7 @@ import {
   type Page,
 } from "./testHarness";
 import {
+  clickAdvancedNav,
   completeQuickstartLocalOnboarding,
   GATEWAY_URL,
   TEST_TOKEN,
@@ -62,7 +63,7 @@ test.describe("mission-control reconnect edge handling @p3", () => {
         job_id: "post-malformed-job",
       },
     });
-    await page.locator('[data-tour-id="nav-events"]').click();
+    await clickAdvancedNav(page, "events");
     await expect(page.getByText("Realtime Event Stream")).toBeVisible();
     await expect(page.getByText("post-malformed-job")).toBeVisible();
 

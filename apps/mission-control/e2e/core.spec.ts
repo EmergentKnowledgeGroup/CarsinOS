@@ -3,17 +3,18 @@ import {
   ASSISTANT_MODEL_ID,
   GATEWAY_URL,
   TEST_TOKEN,
+  clickAdvancedNav,
   completeQuickstartLocalOnboarding,
   moveWizardToConnectionStep,
   openWizard,
   wizard,
 } from "./onboardingFlow";
 
-const CLAUDE_SETUP_TOKEN = `sk-ant-oat01-${"a".repeat(80)}`;
+const CLAUDE_API_KEY = "sk-ant-api03-test-key";
 const CLAUDE_MODEL_ID = "claude-sonnet-4-5";
 
 test.describe("mission-control core onboarding + crash-proofing @core", () => {
-  test("settings modal uses a wide desktop layout without nested internal scrollbars", async ({
+  test("settings modal uses caveman-friendly setup accordions without default scroll overload", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
@@ -24,29 +25,31 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
 
     const modal = page.locator(".mc-settings-modal");
     const modalBody = page.locator(".mc-settings-body");
-    const promptField = page.locator(".mc-settings-prompt");
 
     const modalBox = await modal.boundingBox();
-    expect(modalBox?.width ?? 0).toBeGreaterThan(900);
+    expect(modalBox?.width ?? 0).toBeGreaterThan(760);
+    expect(modalBox?.width ?? 0).toBeLessThanOrEqual(920);
     await expect(page.getByText("Appearance")).toHaveCount(0);
+    await expect(page.getByText("1. Connect this app")).toBeVisible();
+    await expect(page.getByText("2. Choose what pages show")).toBeVisible();
+    await expect(page.getByText("3. Shared assistant instructions")).toBeVisible();
 
-    const bodyLayout = await modalBody.evaluate((node) => {
+    const defaultBodyLayout = await modalBody.evaluate((node) => {
       const element = node as HTMLElement;
       const style = window.getComputedStyle(element);
       return {
         overflowY: style.overflowY,
-        columnCount: style.gridTemplateColumns
-          .split(" ")
-          .map((value) => value.trim())
-          .filter(Boolean).length,
         scrollHeight: element.scrollHeight,
         clientHeight: element.clientHeight,
       };
     });
 
-    expect(bodyLayout.columnCount).toBeGreaterThanOrEqual(2);
-    expect(bodyLayout.overflowY).toBe("visible");
-    expect(bodyLayout.scrollHeight - bodyLayout.clientHeight).toBeLessThanOrEqual(1);
+    expect(defaultBodyLayout.overflowY).toBe("auto");
+    expect(defaultBodyLayout.scrollHeight - defaultBodyLayout.clientHeight).toBeLessThanOrEqual(1);
+
+    await page.getByText("3. Shared assistant instructions").click();
+    const promptField = page.locator(".mc-settings-prompt");
+    await expect(promptField).toBeVisible();
 
     const promptMetrics = await promptField.evaluate((node) => {
       const element = node as HTMLTextAreaElement;
@@ -63,7 +66,7 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
     expect(["auto", "hidden", "clip"]).toContain(promptMetrics.overflowY);
     expect(promptMetrics.clientHeight).toBeGreaterThan(160);
     expect(promptMetrics.clientHeight).toBeLessThan(280);
-    expect(promptBox?.width ?? 0).toBeGreaterThan(900);
+    expect(promptBox?.width ?? 0).toBeGreaterThan(700);
     expect(promptBox?.height ?? 0).toBeLessThan(280);
   });
 
@@ -99,7 +102,7 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await completeQuickstartLocalOnboarding(page);
 
-    await page.locator('[data-tour-id="nav-cockpit"]').click();
+    await clickAdvancedNav(page, "cockpit");
     await expect(page.locator(".mc-cockpit-grid")).toBeVisible();
     await expect(page.locator(".mc-rgl-canvas .react-grid-item")).toHaveCount(9);
 
@@ -130,7 +133,7 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
     );
 
     await page.locator('[data-tour-id="nav-boards"]').click();
-    await page.locator('[data-tour-id="nav-cockpit"]').click();
+    await clickAdvancedNav(page, "cockpit");
 
     const storageAfterTabChange = await page.evaluate(() =>
       window.localStorage.getItem("mc-cockpit-pages-v3")
@@ -184,7 +187,7 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
       },
     });
 
-    await page.locator('[data-tour-id="nav-cockpit"]').click();
+    await clickAdvancedNav(page, "cockpit");
     await expect(page.locator(".mc-rgl-canvas .react-grid-item")).toHaveCount(9);
 
     const healedLayout = await page.evaluate(() =>
@@ -313,7 +316,7 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
     await expect(setupWizard.getByText("Step 4 of 6")).toBeVisible();
   });
 
-  test("auto-verifies a Claude setup token and loads live model choices without extra hidden steps", async ({
+  test("saves a direct Anthropic API key and loads live model choices without hidden account paths", async ({
     page,
   }) => {
     await expect(await moveWizardToConnectionStep(page)).toBe(true);
@@ -329,7 +332,8 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
     await setupWizard.getByLabel("Agent name").fill("Claude Assistant");
     await setupWizard.getByRole("radio", { name: "Anthropic (Claude)" }).check();
     await setupWizard.getByLabel("Profile name").fill("claude-primary");
-    await setupWizard.getByRole("textbox", { name: "Setup token" }).fill(CLAUDE_SETUP_TOKEN);
+    await setupWizard.getByRole("textbox", { name: "Anthropic API key" }).fill(CLAUDE_API_KEY);
+    await setupWizard.getByRole("button", { name: "Save key + load models" }).click();
 
     await expect(
       setupWizard.getByRole("combobox", { name: "Assistant model" })
@@ -364,7 +368,7 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
     await expect(page.getByRole("heading", { name: "Chat", exact: true })).toBeVisible();
     await expect(page.getByLabel("Assistant provider")).toHaveValue("ollama");
     await expect(page.getByLabel("Assistant model", { exact: true })).toHaveValue(ASSISTANT_MODEL_ID);
-    await expect(page.getByText("carsinOS pulls the live model list")).toBeVisible();
+    await expect(page.getByRole("img", { name: /carsinOS pulls the live model list/i })).toBeVisible();
     await expect(page.getByRole("textbox", { name: "Model provider" })).toHaveCount(0);
     await expect(page.getByRole("textbox", { name: "Model ID" })).toHaveCount(0);
   });
@@ -374,14 +378,15 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
   }) => {
     await completeQuickstartLocalOnboarding(page);
 
-    await page.locator('[data-tour-id="nav-strategy"]').click();
+    await clickAdvancedNav(page, "strategy");
     await expect(page.getByText("Strategy hub is disabled")).toBeVisible();
 
     await page.locator('[data-tour-id="nav-config"]').click();
+    await page.getByText("2. Choose what pages show").click();
     await page.getByRole("checkbox", { name: "Strategy page" }).check();
     await page.keyboard.press("Escape");
 
-    await page.locator('[data-tour-id="nav-strategy"]').click();
+    await clickAdvancedNav(page, "strategy");
     await expect(page.getByTestId("strategy-page")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Tasks" })).toBeVisible();
     await expect(

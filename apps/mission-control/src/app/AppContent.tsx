@@ -52,6 +52,7 @@ interface AppContentProps {
   onStartGuidedTour: () => void;
   onRefreshBaseline: () => Promise<void>;
   settings: RuntimeConnectionSettings;
+  tokenConfigured: boolean;
   boards: BoardSummary[];
   agents: Agent[];
   boardsController: ReturnType<typeof useBoardsController>;
@@ -714,6 +715,8 @@ export function AppContent(props: AppContentProps) {
         {renderQuickGuide("assistant")}
         <AssistantChatPage
           active={active === "assistant"}
+          settings={props.settings}
+          tokenConfigured={props.tokenConfigured}
           agents={props.agents}
           boards={props.boards}
           onTabChange={props.onTabChange}

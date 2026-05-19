@@ -1,5 +1,5 @@
 import { test, expect } from "./testHarness";
-import { completeQuickstartLocalOnboarding } from "./onboardingFlow";
+import { clickAdvancedNav, completeQuickstartLocalOnboarding } from "./onboardingFlow";
 import { MISSION_CONTROL_TABS } from "../src/app/tabs";
 
 test("audit desktop tab overflow", async ({ page }) => {
@@ -8,6 +8,7 @@ test("audit desktop tab overflow", async ({ page }) => {
 
   await page.locator('[data-tour-id="nav-config"]').click();
   await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+  await page.getByText("2. Choose what pages show").click();
   for (const label of [
     "Memory page",
     "Strategy page",
@@ -26,7 +27,11 @@ test("audit desktop tab overflow", async ({ page }) => {
 
   const results: Array<Record<string, unknown>> = [];
   for (const item of MISSION_CONTROL_TABS) {
-    await page.locator(`[data-tour-id="nav-${item.tab}"]`).click();
+    if (item.tier === "advanced") {
+      await clickAdvancedNav(page, item.tab);
+    } else {
+      await page.locator(`[data-tour-id="nav-${item.tab}"]`).click();
+    }
     await expect(
       page.locator(`.mc-tab-pane[data-active-tab="${item.tab}"]`)
     ).toBeVisible();

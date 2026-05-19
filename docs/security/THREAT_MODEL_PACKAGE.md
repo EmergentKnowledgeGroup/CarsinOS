@@ -67,7 +67,7 @@ It defines trust boundaries, asset classes, attack paths, risk ratings, and miti
 | `/api/v1/auth/profiles/{auth_profile_id}/state` | POST | Critical | Enable/disable high-risk auth paths |
 | `/api/v1/auth/openai/oauth/start` | POST | High | OAuth initiation abuse risk |
 | `/api/v1/auth/openai/oauth/finish` | POST | Critical | Token material ingress path |
-| `/api/v1/auth/anthropic/setup-token/ingest` | POST | Critical | Token setup ingress path |
+| `/api/v1/auth/anthropic/setup-token/ingest` | POST | Deprecated | Removed setup-token path returns `410 Gone`; use direct API-key auth profiles |
 | `/api/v1/auth/agents/{agent_id}/providers/{provider}/profile-order` | GET/POST | High | Auth fallback/selection mutation |
 | `/api/v1/config/channels` | GET/POST | Critical | Channel policy and routing config mutation |
 | `/api/v1/channels/telegram/inbound` | POST | High | External inbound message ingestion |

@@ -404,27 +404,6 @@ impl Default for OpenAiOauthDraft {
     }
 }
 
-#[derive(Debug, Clone)]
-struct AnthropicSetupTokenDraft {
-    display_name: String,
-    setup_token: String,
-    api_base_url: String,
-    enabled: bool,
-    kill_switch_scope: String,
-}
-
-impl Default for AnthropicSetupTokenDraft {
-    fn default() -> Self {
-        Self {
-            display_name: "anthropic-setup-token".to_string(),
-            setup_token: String::new(),
-            api_base_url: "https://api.anthropic.com".to_string(),
-            enabled: true,
-            kill_switch_scope: "none".to_string(),
-        }
-    }
-}
-
 #[derive(Debug)]
 struct GuiApp {
     theme_applied: bool,
@@ -477,7 +456,6 @@ struct GuiApp {
 
     auth_profile_draft: AuthProfileDraft,
     openai_oauth_draft: OpenAiOauthDraft,
-    anthropic_setup_draft: AnthropicSetupTokenDraft,
     auth_order_agent_id: String,
     auth_order_provider: String,
     auth_order_profile_ids_csv: String,
@@ -545,7 +523,6 @@ impl Default for GuiApp {
             script_drafts: HashMap::new(),
             auth_profile_draft: AuthProfileDraft::default(),
             openai_oauth_draft: OpenAiOauthDraft::default(),
-            anthropic_setup_draft: AnthropicSetupTokenDraft::default(),
             auth_order_agent_id: "default".to_string(),
             auth_order_provider: "openai".to_string(),
             auth_order_profile_ids_csv: String::new(),
@@ -1333,40 +1310,6 @@ impl GuiApp {
                         format!(": {profile_id}")
                     }
                 ));
-            }
-            Err(err) => self.set_error(err),
-        }
-    }
-
-    fn ingest_anthropic_setup_token(&mut self) {
-        let display_name = self.anthropic_setup_draft.display_name.trim().to_string();
-        if display_name.is_empty() {
-            self.set_error("anthropic setup display_name cannot be empty");
-            return;
-        }
-        let setup_token = self.anthropic_setup_draft.setup_token.trim().to_string();
-        if setup_token.is_empty() {
-            self.set_error("anthropic setup_token cannot be empty");
-            return;
-        }
-        let payload = json!({
-            "display_name": display_name,
-            "setup_token": setup_token,
-            "api_base_url": self.anthropic_setup_draft.api_base_url.trim(),
-            "enabled": self.anthropic_setup_draft.enabled,
-            "kill_switch_scope": self.anthropic_setup_draft.kill_switch_scope.trim().to_ascii_lowercase()
-        });
-        match send_json(
-            &self.gateway_base_url,
-            "/api/v1/auth/anthropic/setup-token/ingest",
-            "POST",
-            &self.gateway_token,
-            Some(&payload),
-        ) {
-            Ok(_) => {
-                self.anthropic_setup_draft.setup_token.clear();
-                self.refresh_gateway_state();
-                self.set_info("Anthropic setup-token profile created");
             }
             Err(err) => self.set_error(err),
         }
@@ -3228,32 +3171,13 @@ impl GuiApp {
                     }
                 });
 
-                card(ui, "Anthropic Setup Token", |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label("display_name");
-                        ui.text_edit_singleline(&mut self.anthropic_setup_draft.display_name);
-                    });
-                    ui.horizontal(|ui| {
-                        ui.label("setup_token");
-                        ui.add(
-                            egui::TextEdit::singleline(
-                                &mut self.anthropic_setup_draft.setup_token,
-                            )
-                            .password(true),
-                        );
-                    });
-                    ui.horizontal(|ui| {
-                        ui.label("api_base_url");
-                        ui.text_edit_singleline(&mut self.anthropic_setup_draft.api_base_url);
-                    });
-                    ui.horizontal(|ui| {
-                        ui.checkbox(&mut self.anthropic_setup_draft.enabled, "enabled");
-                        ui.label("kill_switch_scope");
-                        ui.text_edit_singleline(&mut self.anthropic_setup_draft.kill_switch_scope);
-                    });
-                    if ui.button("Ingest Setup Token").clicked() {
-                        self.ingest_anthropic_setup_token();
-                    }
+                card(ui, "Anthropic", |ui| {
+                    ui.label(
+                        "Anthropic provider access is direct API-key-only. Create an Anthropic auth profile below with provider=anthropic and auth_mode=api_key.",
+                    );
+                    ui.label(
+                        "Claude Code terminal access is handled as a separate approved bridge, not as provider login.",
+                    );
                 });
 
                 card(ui, "Create Auth Profile (Manual)", |ui| {

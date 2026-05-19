@@ -26,8 +26,7 @@ use carsinos_protocol::{
     AgentMailThreadSummaryResponse, AgentMemoryBindingRequest, AgentMemoryBindingResponse,
     AgentMemoryJsonPayloadResponse, AgentMemoryLaneStatusResponse,
     AgentMemoryNativeSurfaceAvailabilityResponse, AgentMemoryStatusResponse, AgentResponse,
-    AnthropicSetupTokenIngestRequest, AnthropicSetupTokenIngestResponse,
-    AnthropicSetupTokenValidateRequest, AnthropicSetupTokenValidateResponse, ApprovalResponse,
+    AnthropicSetupTokenIngestRequest, AnthropicSetupTokenValidateRequest, ApprovalResponse,
     AssistantMemoryScope, AssistantTaskHandle, AssistantToolCapabilitiesResponse,
     AssistantToolCapabilityItem, AssistantToolLimitsResponse, AssistantToolRpcRequest,
     AssistantToolRpcResponse, AssistantWorkerSummary, AssistantWorkerTemplateResponse,
@@ -1961,8 +1960,8 @@ impl RequestRateLimitConfig {
         Self {
             enabled: bool_env("CARSINOS_RATE_LIMIT_ENABLED", true),
             window_seconds: i64_env("CARSINOS_RATE_LIMIT_WINDOW_SECONDS", 60).clamp(1, 3600),
-            per_ip_limit: usize_env("CARSINOS_RATE_LIMIT_PER_IP", 2400).clamp(10, 200_000),
-            per_principal_limit: usize_env("CARSINOS_RATE_LIMIT_PER_PRINCIPAL", 1200)
+            per_ip_limit: usize_env("CARSINOS_RATE_LIMIT_PER_IP", 24_000).clamp(10, 200_000),
+            per_principal_limit: usize_env("CARSINOS_RATE_LIMIT_PER_PRINCIPAL", 12_000)
                 .clamp(10, 200_000),
             per_run_endpoint_limit: usize_env("CARSINOS_RATE_LIMIT_RUN_ENDPOINT", 300)
                 .clamp(5, 50_000),
@@ -2163,6 +2162,7 @@ const APP_KV_RUNTIME_CONFIG_LAST_GOOD: &str = "config.runtime.last_good.v1";
 const APP_KV_SKILLS_STATE: &str = "config.skills.state";
 const TRUST_CONTRACT_LOCK_SCHEMA_VERSION: &str = "runtime.trust.lock.v1";
 const TRUST_CONTRACT_LOCK_REL_PATH: &str = "deployment/trust_contract.lock.json";
+const DEFAULT_MEMORY_MD_REL_PATH: &str = "memory/memory.md";
 const SCHEDULE_META_KEY: &str = "_carsinos_schedule";
 const SCHEDULE_META_CRON_EXPR: &str = "cron_expr";
 const INTERNAL_CHANNEL_INGEST_HEADER: &str = "x-carsinos-internal-ingest-token";
@@ -2184,14 +2184,30 @@ const OAUTH_OPENAI_DEFAULT_AUTHORIZE_URL: &str = "https://auth.openai.com/oauth/
 const OAUTH_OPENAI_DEFAULT_TOKEN_URL: &str = "https://auth.openai.com/oauth/token";
 const OPENAI_DEFAULT_API_BASE: &str = "https://api.openai.com";
 const ANTHROPIC_DEFAULT_API_BASE: &str = "https://api.anthropic.com";
-const DEFAULT_ASSISTANT_CORE_SYSTEM_PROMPT: &str = "You are the CarsinOS assistant.\n\nGoals:\n1) Help the operator complete tasks safely and quickly.\n2) Prefer clear plans and explicit next actions.\n3) Keep execution grounded in current system state.\n\nOperational rules:\n- Ask concise clarifying questions only when required.\n- Prefer reversible actions before risky actions.\n- When uncertain, state assumptions briefly.\n- Use Mission Control tabs intentionally: Boards for execution, Calendar for scheduling, Focus for incidents, Mail/Rooms for communication, Team for agent config.";
+const DEFAULT_ASSISTANT_CORE_SYSTEM_PROMPT: &str = r#"You are the CarsinOS assistant.
+
+Goals:
+1) Help the operator run local AI work without babysitting agent windows.
+2) Keep work grounded in the current CarsinOS lane, memory, tools, files, and approvals.
+3) Orchestrate other assistants and models through the tools actually available in this run.
+
+Operational rules:
+- Ask concise clarifying questions only when required.
+- Prefer reversible actions before risky actions.
+- When uncertain, state assumptions briefly.
+- The gateway injects an "Available CarsinOS tools for this run" inventory into each run. Use that inventory when describing or choosing tools.
+- Do not invent tool access. If a tool is not listed in the current inventory, say what is missing and what would need to be connected.
+- Treat local memory notes, configured memory.md sources, and lane-scoped memory as durable context when they are present.
+- Use local filesystem, process, web/search, board, runbook, mail, room, memory, team, and connector tools only when CarsinOS provides them and policy allows them.
+- Your main job is operator assist: inspect state, summarize blockers, suggest next actions, and help coordinate Codex CLI, Codex Desktop, ChatGPT Desktop, LM Studio, and other agent surfaces as connectors or screen-reading paths become available."#;
 const SYSTEM_SOURCE_CHANNEL_CORE: &str = "system.core";
-const ANTHROPIC_API_BASE_ALLOWLIST_ENV: &str = "CARSINOS_ANTHROPIC_API_BASE_ALLOWLIST";
-const ANTHROPIC_ALLOW_TEST_LOOPBACK_HTTP_ENV: &str = "CARSINOS_ANTHROPIC_ALLOW_TEST_LOOPBACK_HTTP";
 const OPENROUTER_DEFAULT_API_BASE: &str = "https://openrouter.ai/api";
 const OLLAMA_DEFAULT_API_BASE: &str = "http://127.0.0.1:11434";
 const VLLM_DEFAULT_API_BASE: &str = "http://127.0.0.1:8000";
 const LMSTUDIO_DEFAULT_API_BASE: &str = "http://127.0.0.1:1234";
+const OLLAMA_API_BASE_URL_ENV: &str = "CARSINOS_PROVIDER_OLLAMA_API_BASE_URL";
+const VLLM_API_BASE_URL_ENV: &str = "CARSINOS_PROVIDER_VLLM_API_BASE_URL";
+const LMSTUDIO_API_BASE_URL_ENV: &str = "CARSINOS_PROVIDER_LMSTUDIO_API_BASE_URL";
 const PROVIDER_MODELS_CONTRACT_VERSION: &str = "v1";
 const PROVIDER_MODELS_CACHE_TTL_MS: i64 = 5 * 60 * 1000;
 const EXTERNAL_CHANNEL_MESSAGE_MAX_CHARS: usize = 12_000;
@@ -3435,7 +3451,7 @@ async fn main() -> AnyResult<()> {
     ));
     let oauth_sessions = Arc::new(RwLock::new(HashMap::new()));
     let numquam_client = NumquamClient::from_env()?;
-    let (event_tx, _) = broadcast::channel(256);
+    let (event_tx, _) = broadcast::channel(1024);
     let operator_allowlist = load_operator_allowlist_from_env();
     let operator_allowlist_entries = operator_allowlist.len();
     if let Some(client) = numquam_client.as_ref() {
@@ -3510,6 +3526,7 @@ async fn main() -> AnyResult<()> {
         trust_contract_lock_path: Arc::new(trust_contract_lock_path.display().to_string()),
         state_dir: Arc::new(config.state_dir.clone()),
     };
+    ensure_default_memory_md_source(&state)?;
     record_extension_hook_policy_denials(&state, &hook_policy_denials);
     state.channel_runtime.start_all();
 
@@ -3811,6 +3828,18 @@ async fn list_provider_models(
         })?),
         None => None,
     };
+    if provider == AUTH_PROVIDER_ANTHROPIC
+        && resolved_auth_profile
+            .as_ref()
+            .map(anthropic_profile_uses_setup_token)
+            .unwrap_or(false)
+    {
+        return Err(api_error_with_code(
+            StatusCode::BAD_REQUEST,
+            "AUTH_REQUIRED",
+            "Anthropic model catalog requires a direct Anthropic API key profile",
+        ));
+    }
 
     let base_url = provider_models_base_url(&provider, resolved_auth_profile.as_ref());
     let cache_key =
@@ -3985,7 +4014,21 @@ fn provider_models_base_url(provider: &str, profile: Option<&ProviderAuthProfile
         .and_then(|item| item.api_base_url.as_ref())
         .map(|value| value.trim().trim_end_matches('/').to_string())
         .filter(|value| !value.is_empty())
+        .or_else(|| provider_models_env_base_url(provider))
         .unwrap_or_else(|| provider_models_default_base_url(provider).to_string())
+}
+
+fn provider_models_env_base_url(provider: &str) -> Option<String> {
+    let env_var = match provider {
+        "ollama" => OLLAMA_API_BASE_URL_ENV,
+        "vllm" => VLLM_API_BASE_URL_ENV,
+        "lmstudio" => LMSTUDIO_API_BASE_URL_ENV,
+        _ => return None,
+    };
+    std::env::var(env_var)
+        .ok()
+        .map(|value| value.trim().trim_end_matches('/').to_string())
+        .filter(|value| !value.is_empty())
 }
 
 fn provider_models_cache_key(
@@ -4028,9 +4071,6 @@ fn extract_provider_auth_token(profile: &ProviderAuthProfile) -> AnyResult<Optio
         if let Some(value) = payload.get(key).and_then(|value| value.as_str()) {
             let trimmed = value.trim();
             if !trimmed.is_empty() {
-                if is_anthropic_setup_token_value(trimmed) {
-                    return Ok(Some(normalize_anthropic_setup_token_value(trimmed)));
-                }
                 return Ok(Some(trimmed.to_string()));
             }
         }
@@ -4049,48 +4089,39 @@ fn is_anthropic_setup_token_value(raw: &str) -> bool {
 }
 
 fn anthropic_profile_uses_bearer_auth(profile: &ProviderAuthProfile) -> bool {
-    if profile.auth_mode != AUTH_MODE_API_KEY {
-        return false;
-    }
+    let _ = profile;
+    false
+}
+
+fn anthropic_profile_uses_setup_token(profile: &ProviderAuthProfile) -> bool {
     let Ok(payload) = parse_provider_credentials_json(
         profile,
-        "failed to parse anthropic provider credentials for bearer auth policy",
+        "failed to parse anthropic provider credentials for setup-token policy",
     ) else {
         return false;
     };
     if payload
         .get("token_kind")
         .and_then(|value| value.as_str())
-        .map(|value| value.eq_ignore_ascii_case("setup_token"))
+        .map(|value| value.trim().eq_ignore_ascii_case("setup_token"))
         .unwrap_or(false)
     {
         return true;
     }
-    extract_provider_auth_token(profile)
-        .ok()
-        .flatten()
-        .map(|token| is_anthropic_setup_token_value(&token))
-        .unwrap_or(false)
+    ["api_key", "token", "access_token", "bearer_token"]
+        .iter()
+        .any(|key| {
+            payload
+                .get(*key)
+                .and_then(|value| value.as_str())
+                .map(is_anthropic_setup_token_value)
+                .unwrap_or(false)
+        })
 }
 
 fn anthropic_profile_uses_curated_catalog(profile: &ProviderAuthProfile) -> bool {
-    if profile.auth_mode == AUTH_MODE_AGENT_SDK {
-        return true;
-    }
-    if profile.auth_mode != AUTH_MODE_API_KEY {
-        return false;
-    }
-    let Ok(payload) = parse_provider_credentials_json(
-        profile,
-        "failed to parse anthropic provider credentials for catalog policy",
-    ) else {
-        return false;
-    };
-    payload
-        .get("token_kind")
-        .and_then(|value| value.as_str())
-        .map(|value| value.eq_ignore_ascii_case("setup_token"))
-        .unwrap_or(false)
+    let _ = profile;
+    false
 }
 
 fn parse_openai_models_payload(payload: &serde_json::Value) -> AnyResult<Vec<String>> {
@@ -4304,10 +4335,9 @@ async fn fetch_provider_models_from_upstream(
             .map(anthropic_profile_uses_curated_catalog)
             .unwrap_or(false)
     {
-        // Claude Code headless flows do not provide a reliable upstream model-catalog
-        // endpoint, and Claude setup-tokens are inference tokens rather than a stable
-        // catalog-discovery surface. Use a curated Claude catalog so onboarding, Team,
-        // and other catalog readers stay deterministic.
+        // Non-direct Anthropic auth profiles are no longer valid for live catalog
+        // discovery. Keep the fallback deterministic for legacy rows while the
+        // creation and execution paths reject those profiles.
         return Ok(curated_anthropic_provider_models());
     }
 
@@ -9657,6 +9687,11 @@ fn build_app(state: AppState) -> Router {
         )
         .route("/api/v1/ws-ticket", post(create_ws_ticket))
         .route("/api/v1/ws", get(ws_handler))
+        .route("/api/v1/assistant-desk", get(get_assistant_desk))
+        .route(
+            "/api/v1/assistant-desk/{work_item_id}/transcript",
+            get(get_assistant_desk_transcript),
+        )
         .route("/api/v1/sessions", get(list_sessions).post(create_session))
         .route("/api/v1/sessions/{session_id}", get(get_session))
         .route(
@@ -9916,6 +9951,19 @@ const ASSISTANT_TOOL_APPROVALS_LIST: &str = "assistant.approvals.list";
 const ASSISTANT_TOOL_MAIL_THREAD_CREATE: &str = "assistant.mail.thread.create";
 const ASSISTANT_TOOL_MAIL_SEND: &str = "assistant.mail.send";
 const ASSISTANT_TOOL_MAIL_INBOX_FETCH: &str = "assistant.mail.inbox.fetch";
+const ASSISTANT_TOOL_CODEX_BRIDGE_STATUS: &str = "codex_bridge.status";
+const ASSISTANT_TOOL_CODEX_CLI_SESSIONS: &str = "codex_cli.sessions";
+const ASSISTANT_TOOL_CODEX_CLI_READ: &str = "codex_cli.read";
+const ASSISTANT_TOOL_CODEX_CLI_EXEC: &str = "codex_cli.exec";
+const ASSISTANT_TOOL_CODEX_CLI_WINDOW: &str = "codex_cli.window";
+const ASSISTANT_TOOL_CLAUDE_CODE_SESSIONS: &str = "claude_code.sessions";
+const ASSISTANT_TOOL_CLAUDE_CODE_READ: &str = "claude_code.read";
+const ASSISTANT_TOOL_CLAUDE_CODE_EXEC: &str = "claude_code.exec";
+const ASSISTANT_TOOL_CLAUDE_CODE_WINDOW: &str = "claude_code.window";
+const ASSISTANT_TOOL_CODEX_APP_STATUS: &str = "codex_app.status";
+const ASSISTANT_TOOL_CODEX_APP_THREADS: &str = "codex_app.threads";
+const ASSISTANT_TOOL_CODEX_APP_READ: &str = "codex_app.read";
+const ASSISTANT_TOOL_CODEX_APP_RUN: &str = "codex_app.run";
 const ASSISTANT_TOOL_WORKER_SESSION_PERSISTENT: &str = "persistent";
 const ASSISTANT_TOOL_WORKER_SESSION_FRESH_PER_TASK: &str = "fresh_per_task";
 const ASSISTANT_TOOL_WORKER_KIND_EMPLOYEE: &str = "employee";
@@ -10933,7 +10981,7 @@ async fn remove_agent(
         RemoveAgentOutcome::HasReferences => {
             return Err(api_error(
                 StatusCode::CONFLICT,
-                "agent is still referenced by hierarchy or strategy records",
+                "agent still owns scheduled jobs and cannot be removed",
             ));
         }
         RemoveAgentOutcome::Removed => {}
@@ -12104,7 +12152,7 @@ async fn run_board_card(
     let agent_id = card
         .owner_agent_id
         .clone()
-        .unwrap_or_else(|| "lyra".to_string());
+        .unwrap_or_else(|| "default".to_string());
     let session_key = format!("board:{board_id}:card:{card_id}:agent:{agent_id}");
     let session = match state
         .storage
@@ -12439,7 +12487,7 @@ async fn upsert_board_automation_rule(
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .or_else(|| existing_rule.as_ref().map(|rule| rule.agent_id.clone()))
-        .unwrap_or_else(|| "lyra".to_string());
+        .unwrap_or_else(|| "default".to_string());
     let max_cards_per_run = request
         .max_cards_per_run
         .map(|value| value as i64)
@@ -12785,6 +12833,7 @@ async fn create_session(
         .as_ref()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty());
+    let lane_bound_request = requested_human_identity_id.is_some();
 
     let (session_key, agent_id, title) = if let Some(human_identity_id) =
         requested_human_identity_id.as_deref()
@@ -12837,13 +12886,38 @@ async fn create_session(
             .map_err(|err| internal_err_with_error("loading existing session by key failed", err))?
         {
             if existing.agent_id != agent_id {
-                return Err(api_error(
-                    StatusCode::CONFLICT,
-                    "That session key is already bound to a different assistant.",
-                ));
+                if lane_bound_request && session_key_looks_lane_managed(&existing.session_key) {
+                    info!(
+                        session_id = %existing.session_id,
+                        session_key = %existing.session_key,
+                        previous_agent_id = %existing.agent_id,
+                        next_agent_id = %agent_id,
+                        "lane-backed session route changed; rebinding session assistant"
+                    );
+                    let rebound = state
+                        .storage
+                        .update_session_agent(&existing.session_id, &agent_id)
+                        .map_err(|err| {
+                            internal_err_with_error("rebinding lane session assistant failed", err)
+                        })?
+                        .ok_or_else(|| {
+                            internal_err_with_error(
+                                "rebinding lane session assistant failed",
+                                anyhow::anyhow!("session disappeared during rebind"),
+                            )
+                        })?;
+                    reused_existing = true;
+                    rebound
+                } else {
+                    return Err(api_error(
+                        StatusCode::CONFLICT,
+                        "That session key is already bound to a different assistant.",
+                    ));
+                }
+            } else {
+                reused_existing = true;
+                existing
             }
-            reused_existing = true;
-            existing
         } else {
             state
                 .storage
@@ -13330,6 +13404,74 @@ fn sync_memory_sources_internal(
         }
     }
     items
+}
+
+fn ensure_default_memory_md_source(state: &AppState) -> AnyResult<()> {
+    if !bool_env("CARSINOS_DEFAULT_MEMORY_MD_SOURCE", true) {
+        return Ok(());
+    }
+
+    let mut config = load_runtime_config(state)?;
+    if !config.memory.memory_md_sources.is_empty() {
+        return Ok(());
+    }
+
+    let source_path = state.state_dir.join(DEFAULT_MEMORY_MD_REL_PATH);
+    if let Some(parent) = source_path.parent() {
+        std::fs::create_dir_all(parent).with_context(|| {
+            format!(
+                "creating default memory.md parent directory {} failed",
+                parent.display()
+            )
+        })?;
+    }
+    if !source_path.exists() {
+        std::fs::write(
+            &source_path,
+            "# CarsinOS Local Memory\n\nUse this file for durable local operator notes that should be searchable by Assistant runs.\n\n- Add stable preferences, project facts, recurring workflows, and local environment notes here.\n- Keep secrets, API keys, and private credentials out of this file.\n",
+        )
+        .with_context(|| {
+            format!(
+                "creating default memory.md source {} failed",
+                source_path.display()
+            )
+        })?;
+    }
+
+    let source = source_path.display().to_string();
+    config.memory.memory_md_sources = vec![source.clone()];
+    config = normalize_runtime_config(config);
+    validate_runtime_config(&config)?;
+    let config_json = serde_json::to_string(&config)
+        .map_err(|err| anyhow::anyhow!("serializing runtime config failed: {err}"))?;
+    let updated_at = state
+        .storage
+        .set_app_kv_json(APP_KV_RUNTIME_CONFIG, config_json)?;
+    info!(
+        source_path = %source,
+        updated_at,
+        "default memory.md source configured"
+    );
+
+    let sync_items = sync_memory_sources_internal(state, &[source.clone()]);
+    let failed = sync_items
+        .iter()
+        .filter(|item| item.status == "failed")
+        .count();
+    if failed > 0 {
+        warn!(
+            source_path = %source,
+            failed,
+            "default memory.md source sync failed"
+        );
+    } else {
+        info!(
+            source_path = %source,
+            synced = sync_items.len(),
+            "default memory.md source synced"
+        );
+    }
+    Ok(())
 }
 
 async fn sync_memory_sources(
@@ -14172,222 +14314,27 @@ async fn openai_oauth_finish(
 async fn anthropic_setup_token_ingest(
     headers: HeaderMap,
     State(state): State<AppState>,
-    Json(request): Json<AnthropicSetupTokenIngestRequest>,
-) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    Json(_request): Json<AnthropicSetupTokenIngestRequest>,
+) -> std::result::Result<(), (StatusCode, Json<ApiError>)> {
     let auth = require_bearer_auth_with_error(&headers, &state)?;
     require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_AUTOMATION_RUNNER])?;
-
-    let display_name = request.display_name.trim().to_string();
-    if display_name.is_empty() {
-        return Err(api_error(
-            StatusCode::BAD_REQUEST,
-            "display_name cannot be empty",
-        ));
-    }
-    let setup_token = normalize_anthropic_setup_token_value(&request.setup_token);
-    if setup_token.is_empty() {
-        return Err(api_error(
-            StatusCode::BAD_REQUEST,
-            "setup_token cannot be empty",
-        ));
-    }
-    let api_base_url =
-        normalize_anthropic_api_base_url(request.api_base_url.as_deref()).map_err(|_| {
-            api_error(
-                StatusCode::BAD_REQUEST,
-                "api_base_url must be an allowlisted https Anthropic endpoint",
-            )
-        })?;
-    let setup_token_valid = validate_anthropic_setup_token(&api_base_url, &setup_token)
-        .await
-        .map_err(|err| {
-            warn!(error = %err, "anthropic setup token ingest validation upstream failure");
-            api_error(StatusCode::BAD_GATEWAY, "setup token validation failed")
-        })?;
-    if !setup_token_valid {
-        return Err(api_error(
-            StatusCode::BAD_REQUEST,
-            "setup token validation failed",
-        ));
-    }
-
-    let kill_switch_scope = request
-        .kill_switch_scope
-        .unwrap_or_else(|| KILL_SWITCH_SCOPE_NONE.to_string())
-        .trim()
-        .to_ascii_lowercase();
-    validate_kill_switch_scope(&kill_switch_scope)?;
-    validate_high_risk_controls(
-        AUTH_MODE_API_KEY,
-        request.enabled.unwrap_or(true),
-        &kill_switch_scope,
-    )?;
-
-    let secret_ref = format!("auth.anthropic.setup-token.{}", uuid::Uuid::new_v4());
-    let secret_payload = serde_json::json!({
-        "api_key": setup_token,
-        "token_kind": "setup_token"
-    });
-    state
-        .secret_store
-        .set_json(&secret_ref, &secret_payload)
-        .map_err(|err| internal_err_with_error("storing anthropic setup token failed", err))?;
-    let credentials_json = serde_json::json!({
-        "secret_ref": secret_ref,
-        "token_kind": "setup_token",
-        "validated_at_unix": current_time_ms() / 1000
-    })
-    .to_string();
-    let replacement = NewAuthProfile {
-        provider: AUTH_PROVIDER_ANTHROPIC.to_string(),
-        display_name: display_name.clone(),
-        auth_mode: AUTH_MODE_API_KEY.to_string(),
-        risk_level: auth_mode_policy(AUTH_MODE_API_KEY)
-            .expect("api key policy")
-            .risk_level
-            .to_string(),
-        enabled: request.enabled.unwrap_or(true),
-        kill_switch_scope: kill_switch_scope.clone(),
-        api_base_url: Some(api_base_url.clone()),
-        credentials_json,
-    };
-
-    let created = state.storage.create_auth_profile(replacement.clone());
-    let (status, profile) = match created {
-        Ok(profile) => (StatusCode::CREATED, profile),
-        Err(err) if is_unique_constraint_violation(&err, None) => {
-            let existing = state
-                .storage
-                .list_auth_profiles(Some(AUTH_PROVIDER_ANTHROPIC), true)
-                .map_err(|list_err| {
-                    if let Err(cleanup_err) = state.secret_store.delete(&secret_ref) {
-                        warn!(
-                            error = ?cleanup_err,
-                            secret_ref = %secret_ref,
-                            "failed cleaning up anthropic setup-token secret after duplicate auth profile lookup failure"
-                        );
-                    }
-                    internal_err_with_error(
-                        "listing anthropic auth profiles for duplicate setup-token replace failed",
-                        list_err,
-                    )
-                })?
-                .into_iter()
-                .find(|profile| profile.display_name == display_name)
-                .ok_or_else(|| {
-                    if let Err(cleanup_err) = state.secret_store.delete(&secret_ref) {
-                        warn!(
-                            error = ?cleanup_err,
-                            secret_ref = %secret_ref,
-                            "failed cleaning up anthropic setup-token secret after missing duplicate auth profile"
-                        );
-                    }
-                    api_error(
-                        StatusCode::CONFLICT,
-                        "auth profile display_name already exists for this provider",
-                    )
-                })?;
-            let previous_secret_ref = auth_profile_credentials_payload(&existing)
-                .ok()
-                .and_then(|payload| secret_ref_from_metadata(&payload));
-            let replaced = state
-                .storage
-                .replace_auth_profile(&existing.auth_profile_id, replacement)
-                .map_err(|replace_err| {
-                    if let Err(cleanup_err) = state.secret_store.delete(&secret_ref) {
-                        warn!(
-                            error = ?cleanup_err,
-                            secret_ref = %secret_ref,
-                            "failed cleaning up anthropic setup-token secret after duplicate auth profile replace failure"
-                        );
-                    }
-                    internal_err_with_error(
-                        "replacing duplicate anthropic setup-token auth profile failed",
-                        replace_err,
-                    )
-                })?
-                .ok_or_else(|| {
-                    if let Err(cleanup_err) = state.secret_store.delete(&secret_ref) {
-                        warn!(
-                            error = ?cleanup_err,
-                            secret_ref = %secret_ref,
-                            "failed cleaning up anthropic setup-token secret after duplicate auth profile vanished"
-                        );
-                    }
-                    api_error(StatusCode::NOT_FOUND, "auth profile not found")
-                })?;
-            if let Some(previous_secret_ref) = previous_secret_ref {
-                if previous_secret_ref != secret_ref {
-                    if let Err(cleanup_err) = state.secret_store.delete(&previous_secret_ref) {
-                        warn!(
-                            error = ?cleanup_err,
-                            secret_ref = %previous_secret_ref,
-                            auth_profile_id = %replaced.auth_profile_id,
-                            "failed cleaning up superseded anthropic auth profile secret_ref"
-                        );
-                    }
-                }
-            }
-            (StatusCode::OK, replaced)
-        }
-        Err(err) => {
-            if let Err(cleanup_err) = state.secret_store.delete(&secret_ref) {
-                warn!(
-                    error = ?cleanup_err,
-                    secret_ref = %secret_ref,
-                    "failed cleaning up anthropic setup-token secret after create failure"
-                );
-            }
-            return Err(internal_err_with_error(
-                "creating anthropic setup-token profile failed",
-                err,
-            ));
-        }
-    };
-
-    info!(
-        auth_profile_id = %profile.auth_profile_id,
-        provider = %profile.provider,
-        auth_mode = %profile.auth_mode,
-        status = %status.as_u16(),
-        "anthropic setup-token ingested"
-    );
-    Ok((
-        status,
-        Json(AnthropicSetupTokenIngestResponse {
-            profile: to_auth_profile_response(profile),
-        }),
+    Err(api_error(
+        StatusCode::GONE,
+        "Claude setup-token auth has been removed. Create an Anthropic API key profile instead.",
     ))
 }
 
 async fn anthropic_setup_token_validate(
     headers: HeaderMap,
     State(state): State<AppState>,
-    Json(request): Json<AnthropicSetupTokenValidateRequest>,
-) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    Json(_request): Json<AnthropicSetupTokenValidateRequest>,
+) -> std::result::Result<(), (StatusCode, Json<ApiError>)> {
     let auth = require_bearer_auth_with_error(&headers, &state)?;
     require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_AUTOMATION_RUNNER])?;
-    let setup_token = normalize_anthropic_setup_token_value(&request.setup_token);
-    if setup_token.is_empty() {
-        return Err(api_error(
-            StatusCode::BAD_REQUEST,
-            "setup_token cannot be empty",
-        ));
-    }
-    let api_base_url =
-        normalize_anthropic_api_base_url(request.api_base_url.as_deref()).map_err(|_| {
-            api_error(
-                StatusCode::BAD_REQUEST,
-                "api_base_url must be an allowlisted https Anthropic endpoint",
-            )
-        })?;
-    let valid = validate_anthropic_setup_token(&api_base_url, &setup_token)
-        .await
-        .map_err(|err| {
-            warn!(error = %err, "anthropic setup token validation upstream failure");
-            api_error(StatusCode::BAD_GATEWAY, "setup token validation failed")
-        })?;
-    Ok(Json(AnthropicSetupTokenValidateResponse { valid }))
+    Err(api_error(
+        StatusCode::GONE,
+        "Claude setup-token auth has been removed. Create an Anthropic API key profile instead.",
+    ))
 }
 
 fn random_urlsafe_token(min_len: usize) -> String {
@@ -14518,53 +14465,6 @@ async fn exchange_openai_oauth_code(
         anyhow::bail!("oauth token exchange response missing access_token");
     }
     Ok(payload)
-}
-
-fn normalize_anthropic_api_base_url(raw: Option<&str>) -> AnyResult<String> {
-    let candidate = raw
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or(ANTHROPIC_DEFAULT_API_BASE);
-    let mut parsed = Url::parse(candidate).context("api_base_url must be a valid URL")?;
-    let host = parsed
-        .host_str()
-        .map(|value| value.to_ascii_lowercase())
-        .filter(|value| !value.is_empty())
-        .context("api_base_url must include host")?;
-    let allow_test_loopback_http = (cfg!(test)
-        || bool_env(ANTHROPIC_ALLOW_TEST_LOOPBACK_HTTP_ENV, false))
-        && parsed.scheme() == "http"
-        && matches!(host.as_str(), "localhost" | "127.0.0.1" | "::1");
-    if parsed.scheme() != "https" && !allow_test_loopback_http {
-        anyhow::bail!("api_base_url must use https");
-    }
-    let mut allowed_hosts: HashSet<String> = HashSet::from([String::from("api.anthropic.com")]);
-    if let Ok(configured_allowlist) = std::env::var(ANTHROPIC_API_BASE_ALLOWLIST_ENV) {
-        allowed_hosts.extend(parse_csv_set_lower(&configured_allowlist));
-    }
-    if !allowed_hosts.contains(&host) && !allow_test_loopback_http {
-        anyhow::bail!("api_base_url host is not allowlisted");
-    }
-    if let Some(port) = parsed.port() {
-        if !allow_test_loopback_http && port != 443 {
-            anyhow::bail!("api_base_url port must be 443 when specified");
-        }
-    }
-    parsed.set_path("");
-    parsed.set_query(None);
-    parsed.set_fragment(None);
-    Ok(parsed.to_string().trim_end_matches('/').to_string())
-}
-
-fn validate_anthropic_setup_token_shape(setup_token: &str) -> bool {
-    is_anthropic_setup_token_value(setup_token)
-}
-
-async fn validate_anthropic_setup_token(_api_base_url: &str, setup_token: &str) -> AnyResult<bool> {
-    // Align with OpenClaw's setup-token flow: accept Claude CLI setup-tokens by shape
-    // and let real inference be the final auth check. Anthropic's auxiliary usage/catalog
-    // endpoints are not reliable validity probes for these tokens.
-    Ok(validate_anthropic_setup_token_shape(setup_token))
 }
 
 fn extract_account_id_from_jwt(access_token: &str) -> Option<String> {
@@ -15973,10 +15873,6 @@ fn resolve_lane_route_for_human_identity(
     human_identity_id: &str,
     requested_assistant_agent_id: Option<&str>,
 ) -> AnyResult<Option<ResolvedChannelLaneRoute>> {
-    if !routing.enabled {
-        return Ok(None);
-    }
-
     let normalized_human_identity_id = human_identity_id.trim();
     if normalized_human_identity_id.is_empty() {
         return Ok(None);
@@ -16037,10 +15933,6 @@ fn resolve_lane_route_for_session(
     routing: &RuntimeRoutingConfig,
     session: &SessionRecord,
 ) -> AnyResult<Option<ResolvedChannelLaneRoute>> {
-    if !routing.enabled {
-        return Ok(None);
-    }
-
     let session_key = session.session_key.trim();
     if session_key.is_empty() {
         return Ok(None);
@@ -16369,6 +16261,163 @@ fn compose_provider_system_prompt(system_messages: &[String]) -> Option<String> 
     } else {
         Some(system_messages.join("\n\n"))
     }
+}
+
+fn core_tool_command_syntax(command: &str) -> String {
+    match command {
+        "exec" => "tool.exec <command>".to_string(),
+        "web_search" => "tool.web_search <query>".to_string(),
+        "web_fetch" => "tool.web_fetch <url>".to_string(),
+        "fs_read" => "tool.fs_read <path>".to_string(),
+        "fs_write" => "tool.fs_write <path>|<content>".to_string(),
+        "process" => "tool.process <status|terminate> [session_id]".to_string(),
+        "channel_send" => "tool.channel_send <provider>:<target>|<text>".to_string(),
+        "channel_reply" => "tool.channel_reply <provider>:<target>|<text>".to_string(),
+        "channel_pin" => "tool.channel_pin <provider>:<target>".to_string(),
+        "channel_reaction" => "tool.channel_reaction <provider>:<target>|<reaction>".to_string(),
+        other => format!("tool.{other} <args>"),
+    }
+}
+
+fn approval_label(requires_approval: bool) -> &'static str {
+    if requires_approval {
+        "approval required"
+    } else {
+        "no approval required"
+    }
+}
+
+fn push_tool_inventory_line(
+    lines: &mut Vec<String>,
+    name_or_syntax: &str,
+    risk_level: &str,
+    requires_approval: bool,
+    detail: Option<&str>,
+) {
+    match detail {
+        Some(detail) if !detail.trim().is_empty() => lines.push(format!(
+            "- `{}` ({}, {}; {}).",
+            name_or_syntax,
+            risk_level,
+            approval_label(requires_approval),
+            detail.trim()
+        )),
+        _ => lines.push(format!(
+            "- `{}` ({}, {}).",
+            name_or_syntax,
+            risk_level,
+            approval_label(requires_approval)
+        )),
+    }
+}
+
+fn compose_available_tools_system_context(
+    state: &AppState,
+    runtime_config: &RuntimeConfigResponse,
+    plugin_registry: &PluginRegistry,
+    connector_tool_bindings: &[ConnectorRuntimeToolBinding],
+    session_agent_id: &str,
+) -> String {
+    let mut lines = vec![
+        "Available CarsinOS tools for this run:".to_string(),
+        "This inventory is authoritative for the current run. If the operator asks what tools you can use, answer from this list.".to_string(),
+        "Do not name tools that are not listed here. Approval-gated tools must wait for CarsinOS approval before execution.".to_string(),
+        "Core run tools (CarsinOS tool-line syntax):".to_string(),
+    ];
+
+    let mut core_tools = state
+        .tool_registry
+        .definitions
+        .iter()
+        .map(|(command, definition)| (*command, definition))
+        .collect::<Vec<_>>();
+    core_tools.sort_by(
+        |(left_command, left_definition), (right_command, right_definition)| {
+            left_definition
+                .tool_name
+                .cmp(right_definition.tool_name)
+                .then_with(|| left_command.cmp(right_command))
+        },
+    );
+    for (command, definition) in core_tools {
+        let requires_approval = matches!(definition.approval_policy, ToolApprovalPolicy::Always);
+        push_tool_inventory_line(
+            &mut lines,
+            &core_tool_command_syntax(command),
+            definition.base_risk_level,
+            requires_approval,
+            Some(definition.tool_name),
+        );
+    }
+
+    lines.push("Assistant orchestration tools (Assistant Tools HTTP/MCP bridge):".to_string());
+    let mut assistant_tools = assistant_tool_capabilities_payload(runtime_config).tools;
+    assistant_tools.sort_by(|left, right| left.tool_name.cmp(&right.tool_name));
+    for tool in assistant_tools {
+        push_tool_inventory_line(
+            &mut lines,
+            &tool.tool_name,
+            &tool.risk_level,
+            tool.requires_approval,
+            None,
+        );
+    }
+
+    let mut plugin_tools = Vec::new();
+    for manifest in plugin_registry.list_manifests() {
+        if !manifest.enabled {
+            continue;
+        }
+        for tool in manifest.capabilities.tools {
+            plugin_tools.push((manifest.plugin_id.clone(), tool.name));
+        }
+    }
+    plugin_tools.sort_by(|left, right| left.1.cmp(&right.1).then_with(|| left.0.cmp(&right.0)));
+    lines.push("Enabled plugin tools:".to_string());
+    if plugin_tools.is_empty() {
+        lines.push("- None currently enabled.".to_string());
+    } else {
+        for (plugin_id, tool_name) in plugin_tools {
+            push_tool_inventory_line(
+                &mut lines,
+                &format!("tool.{tool_name} <args>"),
+                "high",
+                true,
+                Some(&format!("plugin:{plugin_id}")),
+            );
+        }
+    }
+
+    let mut connector_tools = connector_tool_bindings.to_vec();
+    connector_tools.sort_by(|left, right| {
+        left.published_tool
+            .tool_name
+            .cmp(&right.published_tool.tool_name)
+    });
+    lines.push(format!(
+        "Connector tools routed to assistant `{}`:",
+        session_agent_id
+    ));
+    if connector_tools.is_empty() {
+        lines.push("- None currently routed to this assistant.".to_string());
+    } else {
+        for binding in connector_tools {
+            let (risk_level, requires_approval) =
+                connector_risk_and_approval(&binding.published_tool.write_classification);
+            push_tool_inventory_line(
+                &mut lines,
+                &format!("tool.{} <json_args>", binding.published_tool.tool_name),
+                risk_level,
+                requires_approval,
+                Some(&format!(
+                    "{} / {}",
+                    binding.connector.display_name, binding.published_tool.display_name
+                )),
+            );
+        }
+    }
+
+    lines.join("\n")
 }
 
 fn ensure_session_core_system_message(state: &AppState, session: &SessionRecord) -> AnyResult<()> {
@@ -19262,6 +19311,621 @@ async fn mission_control_focus(
     }))
 }
 
+const ASSISTANT_DESK_NEEDS_YOU_LIMIT: usize = 10;
+const ASSISTANT_DESK_WORKING_LIMIT: usize = 10;
+const ASSISTANT_DESK_DONE_LIMIT: usize = 5;
+const ASSISTANT_DESK_SESSION_SCAN_LIMIT: u32 = 500;
+const ASSISTANT_DESK_APPROVAL_SCAN_LIMIT: u32 = 200;
+const ASSISTANT_DESK_DONE_WINDOW_MS: i64 = 24 * 60 * 60 * 1_000;
+const ASSISTANT_DESK_TRANSCRIPT_EVENT_LIMIT: u32 = 100;
+
+#[derive(Debug, Clone, Serialize)]
+struct AssistantDeskResponse {
+    generated_at: String,
+    stale: bool,
+    buckets: AssistantDeskBuckets,
+    summary: AssistantDeskSummary,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+struct AssistantDeskBuckets {
+    needs_you: Vec<AssistantDeskWorkItem>,
+    working: Vec<AssistantDeskWorkItem>,
+    done_recently: Vec<AssistantDeskWorkItem>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct AssistantDeskSummary {
+    needs_you_count: usize,
+    working_count: usize,
+    done_recently_count: usize,
+    stale_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct AssistantDeskWorkItem {
+    id: String,
+    kind: String,
+    bucket: String,
+    status: String,
+    title: String,
+    owner_label: String,
+    task_label: String,
+    current_action: String,
+    last_event_at: String,
+    last_event_at_ms: i64,
+    source_refs: Vec<AssistantDeskSourceRef>,
+    deep_links: Vec<AssistantDeskDeepLink>,
+    details: AssistantDeskWorkItemDetails,
+    transcript_id: String,
+    can_open_transcript: bool,
+    transcript_unavailable_reason: Option<String>,
+    artifact_count: usize,
+    changed_file_count: usize,
+    #[serde(skip_serializing)]
+    sort_ms: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct AssistantDeskSourceRef {
+    source: String,
+    id: String,
+    label: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct AssistantDeskDeepLink {
+    label: String,
+    target: String,
+    href: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct AssistantDeskWorkItemDetails {
+    provider_label: String,
+    model_label: String,
+    workspace_label: String,
+    source_health: String,
+    last_error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct AssistantDeskTranscriptResponse {
+    work_item_id: String,
+    transcript_id: String,
+    complete: bool,
+    next_cursor: Option<String>,
+    events: Vec<AssistantDeskTranscriptEvent>,
+    artifacts: Vec<AssistantDeskTranscriptArtifactRef>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct AssistantDeskTranscriptEvent {
+    id: String,
+    at: String,
+    at_ms: i64,
+    role: String,
+    source: String,
+    text: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct AssistantDeskTranscriptArtifactRef {
+    id: String,
+    label: String,
+    source: String,
+}
+
+async fn get_assistant_desk(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_OPERATOR_READONLY,
+            ROLE_AUTOMATION_RUNNER,
+        ],
+        "assistant_desk.read",
+        "assistant_desk.read",
+    )?;
+
+    let response = build_assistant_desk_response(&state)
+        .map_err(|err| internal_err_with_error("building assistant desk read model failed", err))?;
+    Ok(Json(response))
+}
+
+async fn get_assistant_desk_transcript(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(work_item_id): Path<String>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[
+            ROLE_OPERATOR_ADMIN,
+            ROLE_OPERATOR_READONLY,
+            ROLE_AUTOMATION_RUNNER,
+        ],
+        "assistant_desk.transcript",
+        "assistant_desk.transcript",
+    )?;
+
+    let Some(response) = build_assistant_desk_transcript_response(&state, &work_item_id)
+        .map_err(|err| internal_err_with_error("building assistant desk transcript failed", err))?
+    else {
+        return Err(api_error_with_code(
+            StatusCode::NOT_FOUND,
+            "NOT_FOUND",
+            "assistant desk work item not found",
+        ));
+    };
+    Ok(Json(response))
+}
+
+fn build_assistant_desk_response(state: &AppState) -> AnyResult<AssistantDeskResponse> {
+    let now_ms = current_time_ms();
+    let mut needs_you = Vec::new();
+    let mut working = Vec::new();
+    let mut done_recently = Vec::new();
+    let mut seen_item_ids = HashSet::new();
+
+    let approvals = state
+        .storage
+        .list_approvals(Some("requested"), ASSISTANT_DESK_APPROVAL_SCAN_LIMIT)?;
+    for approval in approvals {
+        let Some(run) = state.storage.get_run(&approval.run_id)? else {
+            continue;
+        };
+        let Some(session) = state.storage.get_session(&run.session_id)? else {
+            continue;
+        };
+        let item = assistant_desk_item_from_run(state, &run, &session, Some(&approval), now_ms)?;
+        if seen_item_ids.insert(item.id.clone()) {
+            needs_you.push(item);
+        }
+    }
+
+    let sessions = state
+        .storage
+        .list_sessions(ASSISTANT_DESK_SESSION_SCAN_LIMIT)?;
+    for session in sessions {
+        if session.closed_at.is_some() {
+            continue;
+        }
+        let Some(run) = state.storage.latest_run_for_session(&session.session_id)? else {
+            continue;
+        };
+        let item_id = format!("run:{}", run.run_id);
+        if seen_item_ids.contains(&item_id) {
+            continue;
+        }
+        let Some(item) = assistant_desk_item_from_latest_run(state, &run, &session, now_ms)? else {
+            continue;
+        };
+        if !seen_item_ids.insert(item.id.clone()) {
+            continue;
+        }
+        match item.bucket.as_str() {
+            "needs_you" => needs_you.push(item),
+            "done_recently" => done_recently.push(item),
+            _ => working.push(item),
+        }
+    }
+
+    let needs_you_count = needs_you.len();
+    let working_count = working.len();
+    let done_recently_count = done_recently.len();
+    let stale_count = needs_you
+        .iter()
+        .chain(working.iter())
+        .chain(done_recently.iter())
+        .filter(|item| item.details.source_health == "stale")
+        .count();
+
+    assistant_desk_sort_and_cap(&mut needs_you, ASSISTANT_DESK_NEEDS_YOU_LIMIT);
+    assistant_desk_sort_and_cap(&mut working, ASSISTANT_DESK_WORKING_LIMIT);
+    assistant_desk_sort_and_cap(&mut done_recently, ASSISTANT_DESK_DONE_LIMIT);
+
+    Ok(AssistantDeskResponse {
+        generated_at: Utc::now().to_rfc3339(),
+        stale: false,
+        buckets: AssistantDeskBuckets {
+            needs_you,
+            working,
+            done_recently,
+        },
+        summary: AssistantDeskSummary {
+            needs_you_count,
+            working_count,
+            done_recently_count,
+            stale_count,
+        },
+    })
+}
+
+fn assistant_desk_item_from_latest_run(
+    state: &AppState,
+    run: &RunRecord,
+    session: &SessionRecord,
+    now_ms: i64,
+) -> AnyResult<Option<AssistantDeskWorkItem>> {
+    if assistant_desk_run_is_expired_provider_breaker(run, now_ms) {
+        return Ok(None);
+    }
+    let bucket = assistant_desk_bucket_for_run(run, now_ms);
+    if bucket == "ignored" {
+        return Ok(None);
+    }
+    Ok(Some(assistant_desk_item_from_run(
+        state, run, session, None, now_ms,
+    )?))
+}
+
+fn assistant_desk_item_from_run(
+    state: &AppState,
+    run: &RunRecord,
+    session: &SessionRecord,
+    approval: Option<&ApprovalRecord>,
+    now_ms: i64,
+) -> AnyResult<AssistantDeskWorkItem> {
+    let status = assistant_desk_status_for_run(run, approval);
+    let bucket = assistant_desk_bucket_for_status(&status, run, now_ms);
+    let sort_ms = approval
+        .map(|approval| approval.requested_at)
+        .or(run.ended_at)
+        .or(run.started_at)
+        .unwrap_or(run.created_at);
+    let agent = state.storage.get_agent(&session.agent_id)?;
+    let agent_name = agent
+        .as_ref()
+        .map(|agent| assistant_desk_sanitize_text(&agent.name))
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| assistant_desk_owner_label(&session.agent_id));
+    let workspace_label = agent
+        .as_ref()
+        .map(|agent| {
+            SanitizedPath::from_raw(&agent.workspace_root)
+                .as_str()
+                .to_string()
+        })
+        .unwrap_or_else(|| "<unset>".to_string());
+    let title = approval
+        .map(|approval| assistant_desk_sanitize_text(&approval.request_summary))
+        .filter(|value| !value.is_empty())
+        .or_else(|| {
+            session
+                .title
+                .as_ref()
+                .map(|title| assistant_desk_sanitize_text(title))
+                .filter(|value| !value.is_empty())
+        })
+        .unwrap_or_else(|| "Assistant work".to_string());
+    let item_id = format!("run:{}", run.run_id);
+    let transcript_id = format!("transcript:{item_id}");
+    let mut source_refs = vec![
+        AssistantDeskSourceRef {
+            source: "run".to_string(),
+            id: run.run_id.clone(),
+            label: "Run".to_string(),
+        },
+        AssistantDeskSourceRef {
+            source: "session".to_string(),
+            id: session.session_id.clone(),
+            label: "Session".to_string(),
+        },
+    ];
+    if let Some(approval) = approval {
+        source_refs.push(AssistantDeskSourceRef {
+            source: "approval".to_string(),
+            id: approval.approval_id.clone(),
+            label: "Approval".to_string(),
+        });
+    }
+
+    Ok(AssistantDeskWorkItem {
+        id: item_id,
+        kind: if approval.is_some() {
+            "approval".to_string()
+        } else {
+            "execass".to_string()
+        },
+        bucket: bucket.to_string(),
+        status: status.to_string(),
+        title,
+        owner_label: agent_name,
+        task_label: assistant_desk_task_label(run, approval),
+        current_action: assistant_desk_current_action(&status, approval),
+        last_event_at: utc_from_ms(sort_ms).to_rfc3339(),
+        last_event_at_ms: sort_ms,
+        source_refs,
+        deep_links: vec![
+            AssistantDeskDeepLink {
+                label: "Assistant chat".to_string(),
+                target: "assistant".to_string(),
+                href: format!("assistant://session/{}", session.session_id),
+            },
+            AssistantDeskDeepLink {
+                label: "Run".to_string(),
+                target: "run".to_string(),
+                href: format!("carsinos://run/{}", run.run_id),
+            },
+        ],
+        details: AssistantDeskWorkItemDetails {
+            provider_label: assistant_desk_sanitize_text(&run.model_provider),
+            model_label: assistant_desk_sanitize_text(&run.model_id),
+            workspace_label,
+            source_health: "fresh".to_string(),
+            last_error: run
+                .error_text
+                .as_ref()
+                .map(|error| assistant_desk_sanitize_text(error)),
+        },
+        transcript_id,
+        can_open_transcript: true,
+        transcript_unavailable_reason: None,
+        artifact_count: 0,
+        changed_file_count: 0,
+        sort_ms,
+    })
+}
+
+fn assistant_desk_sort_and_cap(items: &mut Vec<AssistantDeskWorkItem>, limit: usize) {
+    items.sort_by(|left, right| {
+        right
+            .sort_ms
+            .cmp(&left.sort_ms)
+            .then_with(|| left.id.cmp(&right.id))
+    });
+    items.truncate(limit);
+}
+
+fn assistant_desk_status_for_run(
+    run: &RunRecord,
+    approval: Option<&ApprovalRecord>,
+) -> &'static str {
+    if approval.is_some() {
+        return "needs_you";
+    }
+    match run.status.as_str() {
+        "queued" => "waiting",
+        "running" => "working",
+        "succeeded" => "done",
+        "failed" | "cancelled" => "failed",
+        _ => "working",
+    }
+}
+
+fn assistant_desk_bucket_for_run(run: &RunRecord, now_ms: i64) -> &'static str {
+    assistant_desk_bucket_for_status(&assistant_desk_status_for_run(run, None), run, now_ms)
+}
+
+fn assistant_desk_bucket_for_status(status: &str, run: &RunRecord, now_ms: i64) -> &'static str {
+    match status {
+        "needs_you" | "blocked" | "failed" => "needs_you",
+        "done" => {
+            let ended_at = run.ended_at.unwrap_or(run.created_at);
+            if now_ms.saturating_sub(ended_at) <= ASSISTANT_DESK_DONE_WINDOW_MS {
+                "done_recently"
+            } else {
+                "ignored"
+            }
+        }
+        _ => "working",
+    }
+}
+
+fn assistant_desk_run_is_expired_provider_breaker(run: &RunRecord, now_ms: i64) -> bool {
+    if run.status != "failed" && run.status != "cancelled" {
+        return false;
+    }
+    let Some(error_text) = run.error_text.as_deref() else {
+        return false;
+    };
+    assistant_desk_provider_breaker_cooldown_until(error_text)
+        .is_some_and(|cooldown_until| cooldown_until <= now_ms)
+}
+
+fn assistant_desk_provider_breaker_cooldown_until(error_text: &str) -> Option<i64> {
+    if !error_text.contains(REASON_BREAKER_PROVIDER_OPEN) {
+        return None;
+    }
+    let after_until = error_text.split_once(" until ")?.1;
+    let digits = after_until
+        .chars()
+        .skip_while(|ch| !ch.is_ascii_digit())
+        .take_while(|ch| ch.is_ascii_digit())
+        .collect::<String>();
+    if digits.is_empty() {
+        return None;
+    }
+    digits.parse::<i64>().ok()
+}
+
+fn assistant_desk_owner_label(agent_id: &str) -> String {
+    if agent_id == "default" {
+        "ExecAss".to_string()
+    } else {
+        assistant_desk_sanitize_text(agent_id)
+    }
+}
+
+fn assistant_desk_task_label(run: &RunRecord, approval: Option<&ApprovalRecord>) -> String {
+    if let Some(approval) = approval {
+        return format!("Approval: {}", assistant_desk_sanitize_text(&approval.kind));
+    }
+    match run.status.as_str() {
+        "queued" => "Queued run".to_string(),
+        "running" => "Active run".to_string(),
+        "succeeded" => "Completed run".to_string(),
+        "failed" => "Failed run".to_string(),
+        "cancelled" => "Cancelled run".to_string(),
+        other => format!("{} run", assistant_desk_sanitize_text(other)),
+    }
+}
+
+fn assistant_desk_current_action(status: &str, approval: Option<&ApprovalRecord>) -> String {
+    if let Some(approval) = approval {
+        return format!(
+            "Needs your review: {}",
+            assistant_desk_sanitize_text(&approval.request_summary)
+        );
+    }
+    match status {
+        "waiting" => "Waiting to start".to_string(),
+        "working" => "Working".to_string(),
+        "done" => "Finished".to_string(),
+        "failed" => "Needs recovery".to_string(),
+        "needs_you" => "Needs your review".to_string(),
+        _ => "Working".to_string(),
+    }
+}
+
+fn build_assistant_desk_transcript_response(
+    state: &AppState,
+    work_item_id: &str,
+) -> AnyResult<Option<AssistantDeskTranscriptResponse>> {
+    let Some(run_id) = work_item_id.strip_prefix("run:") else {
+        return Ok(None);
+    };
+    let Some(run) = state.storage.get_run(run_id)? else {
+        return Ok(None);
+    };
+    let Some(session) = state.storage.get_session(&run.session_id)? else {
+        return Ok(None);
+    };
+    let approval = assistant_desk_latest_requested_approval_for_run(state, &run.run_id)?;
+    let item =
+        assistant_desk_item_from_run(state, &run, &session, approval.as_ref(), current_time_ms())?;
+    let transcript_id = item.transcript_id.clone();
+    let mut events = Vec::new();
+
+    events.push(AssistantDeskTranscriptEvent {
+        id: format!("run:{}:status", run.run_id),
+        at: utc_from_ms(item.last_event_at_ms).to_rfc3339(),
+        at_ms: item.last_event_at_ms,
+        role: "system".to_string(),
+        source: "run".to_string(),
+        text: assistant_desk_sanitize_text(&format!(
+            "Run {} is {} on {}/{}.",
+            run.run_id, run.status, run.model_provider, run.model_id
+        )),
+    });
+
+    if let Some(approval) = approval.as_ref() {
+        events.push(AssistantDeskTranscriptEvent {
+            id: format!("approval:{}", approval.approval_id),
+            at: utc_from_ms(approval.requested_at).to_rfc3339(),
+            at_ms: approval.requested_at,
+            role: "system".to_string(),
+            source: "approval".to_string(),
+            text: assistant_desk_sanitize_text(&format!(
+                "Approval requested for {}: {}",
+                approval.kind, approval.request_summary
+            )),
+        });
+    }
+
+    for message in state
+        .storage
+        .list_messages(&session.session_id, ASSISTANT_DESK_TRANSCRIPT_EVENT_LIMIT)?
+    {
+        events.push(AssistantDeskTranscriptEvent {
+            id: format!("message:{}", message.message_id),
+            at: utc_from_ms(message.created_at).to_rfc3339(),
+            at_ms: message.created_at,
+            role: assistant_desk_sanitize_text(&message.role),
+            source: assistant_desk_sanitize_text(&message.source_channel),
+            text: assistant_desk_sanitize_text(&message.content_text),
+        });
+    }
+
+    if events.is_empty() {
+        events.push(AssistantDeskTranscriptEvent {
+            id: format!("fallback:{work_item_id}"),
+            at: utc_from_ms(run.created_at).to_rfc3339(),
+            at_ms: run.created_at,
+            role: "system".to_string(),
+            source: "fallback".to_string(),
+            text: "No transcript events were recorded yet.".to_string(),
+        });
+    }
+
+    events.sort_by(|left, right| {
+        left.at_ms
+            .cmp(&right.at_ms)
+            .then_with(|| left.id.cmp(&right.id))
+    });
+    events.truncate(ASSISTANT_DESK_TRANSCRIPT_EVENT_LIMIT as usize);
+
+    Ok(Some(AssistantDeskTranscriptResponse {
+        work_item_id: work_item_id.to_string(),
+        transcript_id,
+        complete: true,
+        next_cursor: None,
+        events,
+        artifacts: Vec::new(),
+    }))
+}
+
+fn assistant_desk_latest_requested_approval_for_run(
+    state: &AppState,
+    run_id: &str,
+) -> AnyResult<Option<ApprovalRecord>> {
+    Ok(state
+        .storage
+        .list_approvals(Some("requested"), ASSISTANT_DESK_APPROVAL_SCAN_LIMIT)?
+        .into_iter()
+        .filter(|approval| approval.run_id == run_id)
+        .max_by(|left, right| {
+            left.requested_at
+                .cmp(&right.requested_at)
+                .then_with(|| left.approval_id.cmp(&right.approval_id))
+        }))
+}
+
+fn assistant_desk_sanitize_text(input: &str) -> String {
+    let sanitized = input
+        .split_whitespace()
+        .map(|word| {
+            let trimmed = word.trim_matches(|ch: char| {
+                matches!(
+                    ch,
+                    '"' | '\'' | ',' | ';' | ':' | ')' | '(' | '[' | ']' | '{' | '}'
+                )
+            });
+            if assistant_desk_word_looks_secret(trimmed) {
+                word.replace(trimmed, "<redacted>")
+            } else {
+                word.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    if sanitized.len() > 300 {
+        format!("{}...", &sanitized[..300])
+    } else {
+        sanitized
+    }
+}
+
+fn assistant_desk_word_looks_secret(word: &str) -> bool {
+    let lowered = word.to_ascii_lowercase();
+    lowered.starts_with("sk-")
+        || lowered.starts_with("xox")
+        || lowered.starts_with("ghp_")
+        || lowered.starts_with("gho_")
+        || lowered.starts_with("github_pat_")
+        || (word.len() >= 24 && (lowered.contains("token") || lowered.contains("secret")))
+}
+
 fn resolve_agent_mail_principal(requested: Option<String>, auth: &AuthContext) -> String {
     requested
         .map(|value| value.trim().to_string())
@@ -19425,6 +20089,84 @@ fn assistant_tool_capabilities_payload(
                 requires_approval: false,
                 connector: None,
             },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CODEX_BRIDGE_STATUS.to_string(),
+                risk_level: "low".to_string(),
+                requires_approval: false,
+                connector: None,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CODEX_CLI_SESSIONS.to_string(),
+                risk_level: "low".to_string(),
+                requires_approval: false,
+                connector: None,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CODEX_CLI_READ.to_string(),
+                risk_level: "low".to_string(),
+                requires_approval: false,
+                connector: None,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CODEX_CLI_EXEC.to_string(),
+                risk_level: "high".to_string(),
+                requires_approval: true,
+                connector: None,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CODEX_CLI_WINDOW.to_string(),
+                risk_level: "high".to_string(),
+                requires_approval: true,
+                connector: None,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CLAUDE_CODE_SESSIONS.to_string(),
+                risk_level: "low".to_string(),
+                requires_approval: false,
+                connector: None,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CLAUDE_CODE_READ.to_string(),
+                risk_level: "low".to_string(),
+                requires_approval: false,
+                connector: None,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CLAUDE_CODE_EXEC.to_string(),
+                risk_level: "high".to_string(),
+                requires_approval: true,
+                connector: None,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CLAUDE_CODE_WINDOW.to_string(),
+                risk_level: "high".to_string(),
+                requires_approval: true,
+                connector: None,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CODEX_APP_STATUS.to_string(),
+                risk_level: "low".to_string(),
+                requires_approval: false,
+                connector: None,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CODEX_APP_THREADS.to_string(),
+                risk_level: "low".to_string(),
+                requires_approval: false,
+                connector: None,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CODEX_APP_READ.to_string(),
+                risk_level: "low".to_string(),
+                requires_approval: false,
+                connector: None,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CODEX_APP_RUN.to_string(),
+                risk_level: "high".to_string(),
+                requires_approval: true,
+                connector: None,
+            },
         ],
         limits: assistant_tool_limits(runtime_config),
         templates: assistant_tool_templates(runtime_config),
@@ -19447,6 +20189,19 @@ fn assistant_tools_mcp_tools() -> &'static Vec<serde_json::Value> {
             ASSISTANT_TOOL_MAIL_THREAD_CREATE,
             ASSISTANT_TOOL_MAIL_SEND,
             ASSISTANT_TOOL_MAIL_INBOX_FETCH,
+            ASSISTANT_TOOL_CODEX_BRIDGE_STATUS,
+            ASSISTANT_TOOL_CODEX_CLI_SESSIONS,
+            ASSISTANT_TOOL_CODEX_CLI_READ,
+            ASSISTANT_TOOL_CODEX_CLI_EXEC,
+            ASSISTANT_TOOL_CODEX_CLI_WINDOW,
+            ASSISTANT_TOOL_CLAUDE_CODE_SESSIONS,
+            ASSISTANT_TOOL_CLAUDE_CODE_READ,
+            ASSISTANT_TOOL_CLAUDE_CODE_EXEC,
+            ASSISTANT_TOOL_CLAUDE_CODE_WINDOW,
+            ASSISTANT_TOOL_CODEX_APP_STATUS,
+            ASSISTANT_TOOL_CODEX_APP_THREADS,
+            ASSISTANT_TOOL_CODEX_APP_READ,
+            ASSISTANT_TOOL_CODEX_APP_RUN,
         ]
         .into_iter()
         .map(|tool_name| {
@@ -19524,6 +20279,161 @@ fn assistant_tool_mcp_rpc_error_from_api(
             }
         }),
     }
+}
+
+fn assistant_codex_bridge_base_url() -> std::result::Result<Url, (StatusCode, Json<ApiError>)> {
+    let raw = std::env::var("CARSINOS_CODEX_BRIDGE_BASE_URL")
+        .unwrap_or_else(|_| "http://127.0.0.1:17889".to_string());
+    let url = Url::parse(raw.trim().trim_end_matches('/')).map_err(|_| {
+        api_error_with_code(
+            StatusCode::FAILED_DEPENDENCY,
+            "DEPENDENCY_UNAVAILABLE",
+            "CARSINOS_CODEX_BRIDGE_BASE_URL is not a valid URL",
+        )
+    })?;
+    if url.scheme() != "http" {
+        return Err(api_error_with_code(
+            StatusCode::FAILED_DEPENDENCY,
+            "DEPENDENCY_UNAVAILABLE",
+            "Codex bridge URL must use http on loopback",
+        ));
+    }
+    let host = url.host_str().unwrap_or("").to_ascii_lowercase();
+    if !matches!(host.as_str(), "127.0.0.1" | "localhost" | "::1") {
+        return Err(api_error_with_code(
+            StatusCode::FAILED_DEPENDENCY,
+            "DEPENDENCY_UNAVAILABLE",
+            "Codex bridge URL must point to localhost/loopback",
+        ));
+    }
+    Ok(url)
+}
+
+fn assistant_codex_bridge_id(
+    raw: Option<&serde_json::Value>,
+    field_name: &str,
+) -> std::result::Result<String, (StatusCode, Json<ApiError>)> {
+    let value = raw
+        .and_then(|item| item.as_str())
+        .map(str::trim)
+        .filter(|item| !item.is_empty())
+        .ok_or_else(|| {
+            api_error_with_code(
+                StatusCode::BAD_REQUEST,
+                "INVALID_INPUT",
+                &format!("{field_name} is required"),
+            )
+        })?;
+    let valid = value.len() <= 80
+        && value
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'));
+    if !valid {
+        return Err(api_error_with_code(
+            StatusCode::BAD_REQUEST,
+            "INVALID_INPUT",
+            &format!("{field_name} contains invalid characters"),
+        ));
+    }
+    Ok(value.to_string())
+}
+
+fn assistant_codex_bridge_requires_approval(
+    arguments: &serde_json::Value,
+) -> std::result::Result<(), (String, Option<String>, String, Option<serde_json::Value>)> {
+    if arguments
+        .get("operator_approved")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false)
+    {
+        return Ok(());
+    }
+    Err((
+        "blocked".to_string(),
+        Some("APPROVAL_REQUIRED".to_string()),
+        "operator_approved=true is required before starting Codex CLI/App execution".to_string(),
+        None,
+    ))
+}
+
+fn assistant_codex_bridge_url(
+    path: &str,
+    query: &[(&str, String)],
+) -> std::result::Result<Url, (StatusCode, Json<ApiError>)> {
+    let base = assistant_codex_bridge_base_url()?;
+    let mut url = base.join(path.trim_start_matches('/')).map_err(|_| {
+        api_error_with_code(
+            StatusCode::FAILED_DEPENDENCY,
+            "DEPENDENCY_UNAVAILABLE",
+            "failed to build Codex bridge URL",
+        )
+    })?;
+    if !query.is_empty() {
+        let mut pairs = url.query_pairs_mut();
+        for (key, value) in query {
+            pairs.append_pair(key, value);
+        }
+    }
+    Ok(url)
+}
+
+async fn assistant_codex_bridge_get(
+    state: &AppState,
+    path: &str,
+    query: &[(&str, String)],
+    timeout_ms: u64,
+) -> std::result::Result<serde_json::Value, (StatusCode, Json<ApiError>)> {
+    let url = assistant_codex_bridge_url(path, query)?;
+    let response = state
+        .provider_models_http_client
+        .get(url)
+        .timeout(Duration::from_millis(timeout_ms))
+        .send()
+        .await
+        .map_err(|err| internal_err_with_error("Codex bridge request failed", err.into()))?;
+    let status = response.status();
+    let body = response
+        .json::<serde_json::Value>()
+        .await
+        .map_err(|err| internal_err_with_error("Codex bridge JSON decode failed", err.into()))?;
+    if !status.is_success() {
+        return Err(api_error_with_code(
+            StatusCode::FAILED_DEPENDENCY,
+            "DEPENDENCY_UNAVAILABLE",
+            &format!("Codex bridge returned HTTP {status}"),
+        ));
+    }
+    Ok(body)
+}
+
+async fn assistant_codex_bridge_post(
+    state: &AppState,
+    path: &str,
+    payload: &serde_json::Value,
+    timeout_ms: u64,
+) -> std::result::Result<serde_json::Value, (StatusCode, Json<ApiError>)> {
+    let url = assistant_codex_bridge_url(path, &[])?;
+    let response = state
+        .provider_models_http_client
+        .post(url)
+        .timeout(Duration::from_millis(timeout_ms))
+        .json(payload)
+        .send()
+        .await
+        .map_err(|err| internal_err_with_error("Codex bridge request failed", err.into()))?;
+    let status = response.status();
+    let body = response
+        .json::<serde_json::Value>()
+        .await
+        .map_err(|err| internal_err_with_error("Codex bridge JSON decode failed", err.into()))?;
+    if !status.is_success() {
+        return Err(api_error_with_code(
+            StatusCode::FAILED_DEPENDENCY,
+            "DEPENDENCY_UNAVAILABLE",
+            &format!("Codex bridge returned HTTP {status}"),
+        ));
+    }
+    Ok(body)
 }
 
 fn normalize_assistant_worker_key(
@@ -20626,11 +21536,24 @@ fn require_assistant_tool_roles(
         ASSISTANT_TOOL_APPROVALS_LIST => &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
         ASSISTANT_TOOL_MAIL_THREAD_CREATE
         | ASSISTANT_TOOL_MAIL_SEND
-        | ASSISTANT_TOOL_MAIL_INBOX_FETCH => &[
+        | ASSISTANT_TOOL_MAIL_INBOX_FETCH
+        | ASSISTANT_TOOL_CODEX_BRIDGE_STATUS
+        | ASSISTANT_TOOL_CODEX_CLI_SESSIONS
+        | ASSISTANT_TOOL_CODEX_CLI_READ
+        | ASSISTANT_TOOL_CLAUDE_CODE_SESSIONS
+        | ASSISTANT_TOOL_CLAUDE_CODE_READ
+        | ASSISTANT_TOOL_CODEX_APP_STATUS
+        | ASSISTANT_TOOL_CODEX_APP_THREADS
+        | ASSISTANT_TOOL_CODEX_APP_READ => &[
             ROLE_OPERATOR_ADMIN,
             ROLE_OPERATOR_READONLY,
             ROLE_AUTOMATION_RUNNER,
         ],
+        ASSISTANT_TOOL_CODEX_CLI_EXEC
+        | ASSISTANT_TOOL_CODEX_CLI_WINDOW
+        | ASSISTANT_TOOL_CLAUDE_CODE_EXEC
+        | ASSISTANT_TOOL_CLAUDE_CODE_WINDOW
+        | ASSISTANT_TOOL_CODEX_APP_RUN => &[ROLE_OPERATOR_ADMIN, ROLE_AUTOMATION_RUNNER],
         _ => {
             return Err(api_error_with_code(
                 StatusCode::BAD_REQUEST,
@@ -21878,6 +22801,195 @@ async fn execute_assistant_tool(
                 None,
                 "assistant inbox fetched".to_string(),
                 Some(serde_json::json!({ "threads": items })),
+            ))
+        }
+        ASSISTANT_TOOL_CODEX_BRIDGE_STATUS => {
+            let data = assistant_codex_bridge_get(state, "/status", &[], 20_000).await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Codex bridge status loaded".to_string(),
+                Some(data),
+            ))
+        }
+        ASSISTANT_TOOL_CODEX_CLI_SESSIONS => {
+            let data =
+                assistant_codex_bridge_get(state, "/codex-cli/sessions", &[], 20_000).await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Codex CLI sessions listed".to_string(),
+                Some(data),
+            ))
+        }
+        ASSISTANT_TOOL_CODEX_CLI_READ => {
+            let session_id = assistant_codex_bridge_id(arguments.get("session_id"), "session_id")?;
+            let max_bytes = arguments
+                .get("max_bytes")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(65_536)
+                .clamp(1_024, 512_000);
+            let path = format!("/codex-cli/sessions/{session_id}");
+            let data = assistant_codex_bridge_get(
+                state,
+                &path,
+                &[("maxBytes", max_bytes.to_string())],
+                20_000,
+            )
+            .await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Codex CLI session read".to_string(),
+                Some(data),
+            ))
+        }
+        ASSISTANT_TOOL_CODEX_CLI_EXEC => {
+            if let Err(blocked) = assistant_codex_bridge_requires_approval(&arguments) {
+                return Ok(blocked);
+            }
+            let data =
+                assistant_codex_bridge_post(state, "/codex-cli/exec", &arguments, 300_000).await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Codex CLI exec started".to_string(),
+                Some(data),
+            ))
+        }
+        ASSISTANT_TOOL_CODEX_CLI_WINDOW => {
+            if let Err(blocked) = assistant_codex_bridge_requires_approval(&arguments) {
+                return Ok(blocked);
+            }
+            let data =
+                assistant_codex_bridge_post(state, "/codex-cli/window", &arguments, 60_000).await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Codex CLI window started".to_string(),
+                Some(data),
+            ))
+        }
+        ASSISTANT_TOOL_CLAUDE_CODE_SESSIONS => {
+            let data =
+                assistant_codex_bridge_get(state, "/claude-code/sessions", &[], 20_000).await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Claude Code sessions listed".to_string(),
+                Some(data),
+            ))
+        }
+        ASSISTANT_TOOL_CLAUDE_CODE_READ => {
+            let session_id = assistant_codex_bridge_id(arguments.get("session_id"), "session_id")?;
+            let max_bytes = arguments
+                .get("max_bytes")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(65_536)
+                .clamp(1_024, 512_000);
+            let path = format!("/claude-code/sessions/{session_id}");
+            let data = assistant_codex_bridge_get(
+                state,
+                &path,
+                &[("maxBytes", max_bytes.to_string())],
+                20_000,
+            )
+            .await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Claude Code session read".to_string(),
+                Some(data),
+            ))
+        }
+        ASSISTANT_TOOL_CLAUDE_CODE_EXEC => {
+            if let Err(blocked) = assistant_codex_bridge_requires_approval(&arguments) {
+                return Ok(blocked);
+            }
+            let data = assistant_codex_bridge_post(state, "/claude-code/exec", &arguments, 600_000)
+                .await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Claude Code exec started".to_string(),
+                Some(data),
+            ))
+        }
+        ASSISTANT_TOOL_CLAUDE_CODE_WINDOW => {
+            if let Err(blocked) = assistant_codex_bridge_requires_approval(&arguments) {
+                return Ok(blocked);
+            }
+            let data =
+                assistant_codex_bridge_post(state, "/claude-code/window", &arguments, 60_000)
+                    .await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Claude Code window started".to_string(),
+                Some(data),
+            ))
+        }
+        ASSISTANT_TOOL_CODEX_APP_STATUS => {
+            let data = assistant_codex_bridge_get(state, "/codex-app/status", &[], 20_000).await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Codex App status loaded".to_string(),
+                Some(data),
+            ))
+        }
+        ASSISTANT_TOOL_CODEX_APP_THREADS => {
+            let limit = arguments
+                .get("limit")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(10)
+                .clamp(1, 50);
+            let data = assistant_codex_bridge_get(
+                state,
+                "/codex-app/threads",
+                &[("limit", limit.to_string())],
+                30_000,
+            )
+            .await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Codex App threads listed".to_string(),
+                Some(data),
+            ))
+        }
+        ASSISTANT_TOOL_CODEX_APP_READ => {
+            let thread_id = assistant_codex_bridge_id(arguments.get("thread_id"), "thread_id")?;
+            let include_turns = arguments
+                .get("include_turns")
+                .and_then(|value| value.as_bool())
+                .unwrap_or(false);
+            let path = format!("/codex-app/threads/{thread_id}");
+            let data = assistant_codex_bridge_get(
+                state,
+                &path,
+                &[("includeTurns", include_turns.to_string())],
+                30_000,
+            )
+            .await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Codex App thread read".to_string(),
+                Some(data),
+            ))
+        }
+        ASSISTANT_TOOL_CODEX_APP_RUN => {
+            if let Err(blocked) = assistant_codex_bridge_requires_approval(&arguments) {
+                return Ok(blocked);
+            }
+            let data =
+                assistant_codex_bridge_post(state, "/codex-app/run", &arguments, 600_000).await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Codex App run completed".to_string(),
+                Some(data),
             ))
         }
         _ => Ok((
@@ -23981,6 +25093,29 @@ fn reset_circuit_breaker_state_on_success(
     Ok(())
 }
 
+fn provider_circuit_breaker_target(
+    provider: &str,
+    auth_profile: Option<&AuthProfileRecord>,
+) -> String {
+    auth_profile
+        .map(|profile| format!("{provider}:auth:{}", profile.auth_profile_id))
+        .unwrap_or_else(|| provider.to_string())
+}
+
+fn provider_circuit_breaker_label(
+    provider: &str,
+    auth_profile: Option<&AuthProfileRecord>,
+) -> String {
+    auth_profile
+        .map(|profile| {
+            format!(
+                "provider '{provider}' auth profile '{}'",
+                profile.display_name
+            )
+        })
+        .unwrap_or_else(|| format!("provider '{provider}'"))
+}
+
 fn record_circuit_breaker_failure(
     state: &AppState,
     scope: &str,
@@ -25486,7 +26621,8 @@ async fn execute_run(
         .find(|message| message.role == "user")
         .map(|message| message.content_text.clone())
         .unwrap_or_default();
-    let system_messages = resolve_run_system_messages(state, &run.session_id, &session_messages)?;
+    let mut system_messages =
+        resolve_run_system_messages(state, &run.session_id, &session_messages)?;
     let autonomy_guardrails = load_runtime_autonomy_guardrails(state)?;
     enforce_run_wall_time_budget(started, autonomy_guardrails.max_run_ms)?;
 
@@ -26055,6 +27191,17 @@ async fn execute_run(
         )
     };
     let runtime_config = load_runtime_config(state)?;
+    system_messages.push(compose_available_tools_system_context(
+        state,
+        &runtime_config,
+        &plugin_registry_snapshot,
+        &connector_tool_bindings,
+        &session_agent_id,
+    ));
+    let provider_system_prompt_chars_for_budget = compose_provider_system_prompt(&system_messages)
+        .as_ref()
+        .map(|value| value.len())
+        .unwrap_or(0);
     let session_memory_policy =
         resolve_session_lane_memory_policy(state, &runtime_config, &run.session_id, agent_id)?;
     let memory_blend_mode = session_memory_policy.effective_mode.clone();
@@ -26235,6 +27382,7 @@ async fn execute_run(
                                     let context_cap = compute_numquam_context_char_cap(
                                         &autonomy_guardrails,
                                         provider_base_input.len(),
+                                        provider_system_prompt_chars_for_budget,
                                     );
                                     let (trimmed_context, truncated, original_chars) =
                                         truncate_text_to_chars(&context_text, context_cap);
@@ -26490,35 +27638,6 @@ async fn execute_run(
         ));
     }
     enforce_run_wall_time_budget(started, autonomy_guardrails.max_run_ms)?;
-    if let Some(active_breaker) = get_active_circuit_breaker_state(
-        state,
-        CIRCUIT_BREAKER_SCOPE_PROVIDER,
-        &run.model_provider,
-    )? {
-        emit_event(
-            state,
-            "run.guardrail",
-            serde_json::json!({
-                "run_id": &run.run_id,
-                "session_id": &run.session_id,
-                "reason_code": REASON_BREAKER_PROVIDER_OPEN,
-                "scope": CIRCUIT_BREAKER_SCOPE_PROVIDER,
-                "target_id": &run.model_provider,
-                "cooldown_until": active_breaker.cooldown_until,
-                "consecutive_failures": active_breaker.consecutive_failures,
-                "last_error_code": active_breaker.last_error_code
-            }),
-        );
-        return Err(budget_error(
-            REASON_BREAKER_PROVIDER_OPEN,
-            format!(
-                "provider '{}' circuit breaker open until {}",
-                run.model_provider,
-                active_breaker.cooldown_until.unwrap_or(0)
-            ),
-        ));
-    }
-
     let auth_candidates = resolve_run_auth_profiles(
         state,
         &run.model_provider,
@@ -26569,6 +27688,41 @@ async fn execute_run(
             },
             None => None,
         };
+        let breaker_target =
+            provider_circuit_breaker_target(&run.model_provider, auth_record.as_ref());
+        let breaker_label =
+            provider_circuit_breaker_label(&run.model_provider, auth_record.as_ref());
+        if let Some(active_breaker) = get_active_circuit_breaker_state(
+            state,
+            CIRCUIT_BREAKER_SCOPE_PROVIDER,
+            &breaker_target,
+        )? {
+            emit_event(
+                state,
+                "run.guardrail",
+                serde_json::json!({
+                    "run_id": &run.run_id,
+                    "session_id": &run.session_id,
+                    "reason_code": REASON_BREAKER_PROVIDER_OPEN,
+                    "scope": CIRCUIT_BREAKER_SCOPE_PROVIDER,
+                    "target_id": &breaker_target,
+                    "provider": &run.model_provider,
+                    "auth_profile_id": auth_record.as_ref().map(|profile| profile.auth_profile_id.as_str()),
+                    "cooldown_until": active_breaker.cooldown_until,
+                    "consecutive_failures": active_breaker.consecutive_failures,
+                    "last_error_code": active_breaker.last_error_code
+                }),
+            );
+            last_error = Some(anyhow::anyhow!(
+                "{REASON_BREAKER_PROVIDER_OPEN}: {breaker_label} breaker open until {} after {} consecutive failures",
+                active_breaker.cooldown_until.unwrap_or(0),
+                active_breaker.consecutive_failures
+            ));
+            if attempt_index + 1 >= attempts_total {
+                break;
+            }
+            continue;
+        }
         let selected_health_score = auth_record
             .as_ref()
             .map(auth_profile_health_score)
@@ -26654,7 +27808,7 @@ async fn execute_run(
                 reset_circuit_breaker_state_on_success(
                     state,
                     CIRCUIT_BREAKER_SCOPE_PROVIDER,
-                    &run.model_provider,
+                    &breaker_target,
                 )?;
                 selected_auth_profile = auth_record.clone();
                 completion = Some(response);
@@ -26693,7 +27847,7 @@ async fn execute_run(
                 let breaker_state = record_circuit_breaker_failure(
                     state,
                     CIRCUIT_BREAKER_SCOPE_PROVIDER,
-                    &run.model_provider,
+                    &breaker_target,
                     Some(error_code.as_str()),
                     breaker_failure_limit,
                 )?;
@@ -26706,19 +27860,23 @@ async fn execute_run(
                             "session_id": &run.session_id,
                             "reason_code": REASON_BREAKER_PROVIDER_OPEN,
                             "scope": CIRCUIT_BREAKER_SCOPE_PROVIDER,
-                            "target_id": &run.model_provider,
+                            "target_id": &breaker_target,
+                            "provider": &run.model_provider,
+                            "auth_profile_id": auth_record.as_ref().map(|profile| profile.auth_profile_id.as_str()),
                             "cooldown_until": breaker_state.cooldown_until,
                             "consecutive_failures": breaker_state.consecutive_failures,
                             "last_error_code": breaker_state.last_error_code
                         }),
                     );
                     last_error = Some(anyhow::anyhow!(
-                        "{REASON_BREAKER_PROVIDER_OPEN}: provider '{}' breaker opened until {} after {} consecutive failures",
-                        run.model_provider,
+                        "{REASON_BREAKER_PROVIDER_OPEN}: {breaker_label} breaker opened until {} after {} consecutive failures",
                         breaker_state.cooldown_until.unwrap_or(0),
                         breaker_state.consecutive_failures
                     ));
-                    break;
+                    if attempt_index + 1 >= attempts_total {
+                        break;
+                    }
+                    continue;
                 }
                 if !can_retry || attempt_index + 1 >= attempts_total {
                     break;
@@ -36136,11 +37294,13 @@ fn build_numquam_context_policy(
 fn compute_numquam_context_char_cap(
     guardrails: &RuntimeAutonomyGuardrailsConfig,
     provider_base_input_len: usize,
+    provider_system_prompt_len: usize,
 ) -> usize {
     let max_provider_chars = guardrails.max_provider_input_chars as usize;
     let reserved_fixed = 512usize;
     let reserved_local = ((max_provider_chars as f64) * 0.20) as usize;
     let reserved_total = provider_base_input_len
+        .saturating_add(provider_system_prompt_len)
         .saturating_add(reserved_fixed)
         .saturating_add(reserved_local.clamp(256, 8_000));
     max_provider_chars.saturating_sub(reserved_total)
@@ -36870,7 +38030,7 @@ fn provider_supports_optional_auth(provider: &str) -> bool {
 fn provider_auth_mode_allowed(provider: &str, auth_mode: &str) -> bool {
     match provider {
         "openai" => matches!(auth_mode, AUTH_MODE_API_KEY | AUTH_MODE_OPENAI_OAUTH),
-        "anthropic" => matches!(auth_mode, AUTH_MODE_API_KEY | AUTH_MODE_AGENT_SDK),
+        "anthropic" => matches!(auth_mode, AUTH_MODE_API_KEY),
         "openrouter" | "ollama" | "vllm" | "lmstudio" => matches!(auth_mode, AUTH_MODE_API_KEY),
         "mock" | "unconfigured" => true,
         _ => false,
@@ -37875,6 +39035,26 @@ mod tests {
             }
         }
         result
+    }
+
+    #[test]
+    fn anthropic_provider_allows_only_direct_api_key_profiles() {
+        assert!(provider_auth_mode_allowed("anthropic", AUTH_MODE_API_KEY));
+        assert!(!provider_auth_mode_allowed(
+            "anthropic",
+            AUTH_MODE_AGENT_SDK
+        ));
+        assert!(!anthropic_profile_uses_bearer_auth(&ProviderAuthProfile {
+            auth_profile_id: Some("legacy-setup".to_string()),
+            auth_mode: AUTH_MODE_API_KEY.to_string(),
+            risk_level: "low".to_string(),
+            api_base_url: Some(ANTHROPIC_DEFAULT_API_BASE.to_string()),
+            credentials_json: serde_json::json!({
+                "api_key": fake_anthropic_setup_token(),
+                "token_kind": "setup_token"
+            })
+            .to_string(),
+        }));
     }
 
     struct TestContext {
@@ -39500,18 +40680,6 @@ mod tests {
                 expected_anthropic_bearer: None,
             }
         }
-
-        fn anthropic(setup_token: &str) -> Self {
-            Self {
-                token_status: StatusCode::OK,
-                access_token: "unused".to_string(),
-                refresh_token: None,
-                expires_in: 3600,
-                expected_openai_bearer: None,
-                expected_anthropic_api_key: None,
-                expected_anthropic_bearer: Some(setup_token.to_string()),
-            }
-        }
     }
 
     struct AuthFlowStubServer {
@@ -40043,6 +41211,263 @@ mod tests {
             .to_string();
 
         assert_eq!(second_session_id, first_session_id);
+    }
+
+    #[tokio::test]
+    async fn create_session_with_human_identity_rebinds_existing_lane_session_after_route_change() {
+        let ctx = test_context();
+        let agent_alpha = create_test_agent(&ctx, "lane_rebind_alpha", "Lane Rebind Alpha", None);
+        let agent_beta = create_test_agent(&ctx, "lane_rebind_beta", "Lane Rebind Beta", None);
+
+        let first_runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    serde_json::json!({
+                        "routing": {
+                            "enabled": true,
+                            "local_operator_human_identity_id": "local-operator",
+                            "human_identities": [
+                                {
+                                    "human_identity_id": "local-operator",
+                                    "display_name": "You"
+                                }
+                            ],
+                            "assistant_assignments": [
+                                {
+                                    "human_identity_id": "local-operator",
+                                    "assistant_agent_id": agent_alpha.agent_id
+                                }
+                            ],
+                            "lane_memory_policies": [
+                                {
+                                    "human_identity_id": "local-operator",
+                                    "assistant_agent_id": agent_alpha.agent_id,
+                                    "lane_id": "local-main"
+                                }
+                            ]
+                        }
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("set initial lane route");
+        assert_eq!(first_runtime_update.status(), StatusCode::OK);
+
+        let first_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(
+                    serde_json::json!({
+                        "agent_id": agent_alpha.agent_id,
+                        "human_identity_id": "local-operator"
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("create first lane session");
+        assert_eq!(first_response.status(), StatusCode::CREATED);
+        let first_json = parse_json(first_response).await;
+        let first_session_id = first_json["session"]["session_id"]
+            .as_str()
+            .expect("first session_id")
+            .to_string();
+
+        let second_runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    serde_json::json!({
+                        "routing": {
+                            "enabled": true,
+                            "local_operator_human_identity_id": "local-operator",
+                            "human_identities": [
+                                {
+                                    "human_identity_id": "local-operator",
+                                    "display_name": "You"
+                                }
+                            ],
+                            "assistant_assignments": [
+                                {
+                                    "human_identity_id": "local-operator",
+                                    "assistant_agent_id": agent_beta.agent_id
+                                }
+                            ],
+                            "lane_memory_policies": [
+                                {
+                                    "human_identity_id": "local-operator",
+                                    "assistant_agent_id": agent_beta.agent_id,
+                                    "lane_id": "local-main"
+                                }
+                            ]
+                        }
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("switch lane route");
+        assert_eq!(second_runtime_update.status(), StatusCode::OK);
+
+        let second_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(
+                    serde_json::json!({
+                        "agent_id": agent_beta.agent_id,
+                        "human_identity_id": "local-operator"
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("reuse rebound lane session");
+        assert_eq!(second_response.status(), StatusCode::OK);
+        let second_json = parse_json(second_response).await;
+        assert_eq!(
+            second_json["session"]["session_id"]
+                .as_str()
+                .expect("second session_id"),
+            first_session_id
+        );
+        assert_eq!(second_json["session"]["agent_id"], agent_beta.agent_id);
+
+        let session = ctx
+            .storage
+            .get_session(&first_session_id)
+            .expect("load rebound session")
+            .expect("session exists");
+        assert_eq!(session.agent_id, agent_beta.agent_id);
+        assert_eq!(session.session_key, "lane:local-main:main");
+
+        let message_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{first_session_id}/messages"),
+                Body::from(r#"{"role":"user","content_text":"send after route change"}"#),
+            ))
+            .await
+            .expect("create message after rebind");
+        assert_eq!(message_response.status(), StatusCode::CREATED);
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{first_session_id}/runs"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("create run after rebind");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+        let run_json = parse_json(run_response).await;
+        assert_eq!(run_json["run"]["model_provider"], agent_beta.model_provider);
+        assert_eq!(run_json["run"]["model_id"], agent_beta.model_id);
+    }
+
+    #[tokio::test]
+    async fn create_run_allows_explicit_human_lane_when_legacy_routing_toggle_is_off() {
+        let ctx = test_context();
+        let agent = create_test_agent(&ctx, "lane_toggle_off", "Lane Toggle Off", None);
+
+        let runtime_update = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/runtime",
+                Body::from(
+                    serde_json::json!({
+                        "routing": {
+                            "enabled": false,
+                            "local_operator_human_identity_id": "local-operator",
+                            "human_identities": [
+                                {
+                                    "human_identity_id": "local-operator",
+                                    "display_name": "You"
+                                }
+                            ],
+                            "assistant_assignments": [
+                                {
+                                    "human_identity_id": "local-operator",
+                                    "assistant_agent_id": agent.agent_id
+                                }
+                            ]
+                        }
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("set lane route with legacy toggle off");
+        assert_eq!(runtime_update.status(), StatusCode::OK);
+
+        let create_session_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(
+                    serde_json::json!({
+                        "agent_id": agent.agent_id,
+                        "human_identity_id": "local-operator"
+                    })
+                    .to_string(),
+                ),
+            ))
+            .await
+            .expect("create lane session");
+        assert_eq!(create_session_response.status(), StatusCode::CREATED);
+        let create_session_json = parse_json(create_session_response).await;
+        let session_id = create_session_json["session"]["session_id"]
+            .as_str()
+            .expect("session_id")
+            .to_string();
+
+        let message_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(r#"{"role":"user","content_text":"legacy toggle off"}"#),
+            ))
+            .await
+            .expect("create message");
+        assert_eq!(message_response.status(), StatusCode::CREATED);
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from("{}"),
+            ))
+            .await
+            .expect("create run");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+        let run_json = parse_json(run_response).await;
+        assert_eq!(run_json["run"]["model_provider"], agent.model_provider);
+        assert_eq!(run_json["run"]["model_id"], agent.model_id);
     }
 
     #[tokio::test]
@@ -42247,6 +43672,72 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     }
 
     #[tokio::test]
+    async fn run_execution_injects_current_tool_inventory_into_system_prompt() {
+        let ctx = test_context();
+
+        let create_session_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/sessions",
+                Body::from(r#"{"title":"tool-inventory-system-run"}"#),
+            ))
+            .await
+            .expect("create session");
+        let create_session_json = parse_json(create_session_response).await;
+        let session_id = create_session_json["session"]["session_id"]
+            .as_str()
+            .expect("session id")
+            .to_string();
+
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/messages"),
+                Body::from(r#"{"role":"user","content_text":"What tools do you have?"}"#),
+            ))
+            .await
+            .expect("create user message");
+
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from(r#"{"model_provider":"mock","model_id":"mock-echo-v1"}"#),
+            ))
+            .await
+            .expect("create run");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+
+        let messages = ctx
+            .storage
+            .list_messages(&session_id, 10)
+            .expect("list session messages");
+        let assistant_message = messages
+            .iter()
+            .find(|message| message.role == "assistant")
+            .expect("assistant message exists");
+        assert!(assistant_message
+            .content_text
+            .contains("Available CarsinOS tools for this run:"));
+        assert!(assistant_message
+            .content_text
+            .contains("tool.fs_read <path>"));
+        assert!(assistant_message
+            .content_text
+            .contains("tool.web_search <query>"));
+        assert!(assistant_message
+            .content_text
+            .contains("assistant.worker.spawn"));
+        assert!(!assistant_message.content_text.contains("file_manager"));
+    }
+
+    #[tokio::test]
     async fn run_execution_falls_back_to_runtime_configured_system_prompt_when_present() {
         let ctx = test_context();
 
@@ -42684,7 +44175,7 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         let ctx = test_context_with_numquam(build_test_numquam_client(&stub.base_url));
 
         let mut runtime = load_runtime_config(&ctx.state).expect("load runtime config");
-        runtime.autonomy_guardrails.max_provider_input_chars = 1_400;
+        runtime.autonomy_guardrails.max_provider_input_chars = 8_000;
         let payload = serde_json::to_string(&runtime).expect("serialize runtime config");
         ctx.storage
             .set_app_kv_json(APP_KV_RUNTIME_CONFIG, payload)
@@ -45200,12 +46691,10 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     }
 
     #[tokio::test]
-    async fn anthropic_setup_token_ingest_creates_profile_and_supports_run_flow() {
+    async fn anthropic_setup_token_endpoints_are_gone() {
         let ctx = test_context();
         let setup_token = fake_anthropic_setup_token();
-        let stub = spawn_auth_flow_stub(AuthFlowStubConfig::anthropic(&setup_token)).await;
-
-        let ingest_response = ctx
+        let ingest = ctx
             .app
             .clone()
             .oneshot(auth_request(
@@ -45215,222 +46704,33 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                     r#"{{
                         "display_name":"anthropic-setup",
                         "setup_token":"{}",
-                        "api_base_url":"{}"
+                        "api_base_url":"https://api.anthropic.com"
                     }}"#,
-                    setup_token, stub.base_url
+                    setup_token
                 )),
             ))
             .await
-            .expect("ingest setup token");
-        assert_eq!(ingest_response.status(), StatusCode::CREATED);
-        let ingest_json = parse_json(ingest_response).await;
-        let profile_id = ingest_json["profile"]["auth_profile_id"]
-            .as_str()
-            .expect("profile id")
-            .to_string();
+            .expect("setup-token ingest response");
+        assert_eq!(ingest.status(), StatusCode::GONE);
 
-        let record = ctx
-            .storage
-            .get_auth_profile(&profile_id)
-            .expect("load profile")
-            .expect("profile exists");
-        let credentials: serde_json::Value =
-            serde_json::from_str(&record.credentials_json).expect("credentials json");
-        assert!(credentials
-            .get("secret_ref")
-            .and_then(|value| value.as_str())
-            .is_some());
-        assert!(credentials.get("api_key").is_none());
-
-        let create_session_response = ctx
+        let validate = ctx
             .app
             .clone()
             .oneshot(auth_request(
                 "POST",
-                "/api/v1/sessions",
-                Body::from(r#"{"title":"anthropic-setup-run"}"#),
-            ))
-            .await
-            .expect("create session");
-        let create_session_json = parse_json(create_session_response).await;
-        let session_id = create_session_json["session"]["session_id"]
-            .as_str()
-            .expect("session id")
-            .to_string();
-
-        let _ = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "POST",
-                &format!("/api/v1/sessions/{session_id}/messages"),
-                Body::from(r#"{"role":"user","content_text":"hello anthropic setup token"}"#),
-            ))
-            .await
-            .expect("create message");
-
-        let run_response = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "POST",
-                &format!("/api/v1/sessions/{session_id}/runs"),
-                Body::from(format!(
-                    r#"{{"model_provider":"anthropic","model_id":"claude-test","auth_profile_id":"{profile_id}"}}"#
-                )),
-            ))
-            .await
-            .expect("run response");
-        assert_eq!(run_response.status(), StatusCode::CREATED);
-        let run_json = parse_json(run_response).await;
-        assert_eq!(run_json["run"]["status"], "succeeded");
-    }
-
-    #[tokio::test]
-    async fn anthropic_setup_token_ingest_normalizes_wrapped_whitespace_before_storage_and_run() {
-        let ctx = test_context();
-        let normalized_setup_token = fake_anthropic_setup_token();
-        let wrapped_setup_token = format!(
-            "{} {}",
-            &normalized_setup_token[..40],
-            &normalized_setup_token[40..]
-        );
-        let stub =
-            spawn_auth_flow_stub(AuthFlowStubConfig::anthropic(&normalized_setup_token)).await;
-
-        let ingest_response = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "POST",
-                "/api/v1/auth/anthropic/setup-token/ingest",
+                "/api/v1/auth/anthropic/setup-token/validate",
                 Body::from(format!(
                     r#"{{
-                        "display_name":"anthropic-setup-whitespace",
                         "setup_token":"{}",
-                        "api_base_url":"{}"
+                        "api_base_url":"https://api.anthropic.com"
                     }}"#,
-                    wrapped_setup_token, stub.base_url
+                    setup_token
                 )),
             ))
             .await
-            .expect("ingest wrapped setup token");
-        assert_eq!(ingest_response.status(), StatusCode::CREATED);
-        let ingest_json = parse_json(ingest_response).await;
-        let profile_id = ingest_json["profile"]["auth_profile_id"]
-            .as_str()
-            .expect("profile id")
-            .to_string();
-
-        let record = ctx
-            .storage
-            .get_auth_profile(&profile_id)
-            .expect("load profile")
-            .expect("profile exists");
-        let credentials: serde_json::Value =
-            serde_json::from_str(&record.credentials_json).expect("credentials json");
-        let secret_ref = credentials["secret_ref"].as_str().expect("secret ref");
-        let stored_secret = ctx
-            .secret_store
-            .get_json(secret_ref)
-            .expect("load normalized secret")
-            .expect("secret exists");
-        assert_eq!(stored_secret["api_key"], normalized_setup_token);
-
-        let create_session_response = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "POST",
-                "/api/v1/sessions",
-                Body::from(r#"{"title":"anthropic-setup-run-whitespace"}"#),
-            ))
-            .await
-            .expect("create session");
-        let create_session_json = parse_json(create_session_response).await;
-        let session_id = create_session_json["session"]["session_id"]
-            .as_str()
-            .expect("session id")
-            .to_string();
-
-        let _ = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "POST",
-                &format!("/api/v1/sessions/{session_id}/messages"),
-                Body::from(
-                    r#"{"role":"user","content_text":"hello anthropic wrapped setup token"}"#,
-                ),
-            ))
-            .await
-            .expect("create message");
-
-        let run_response = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "POST",
-                &format!("/api/v1/sessions/{session_id}/runs"),
-                Body::from(format!(
-                    r#"{{"model_provider":"anthropic","model_id":"claude-test","auth_profile_id":"{profile_id}"}}"#
-                )),
-            ))
-            .await
-            .expect("run response");
-        assert_eq!(run_response.status(), StatusCode::CREATED);
-        let run_json = parse_json(run_response).await;
-        assert_eq!(run_json["run"]["status"], "succeeded");
+            .expect("setup-token validate response");
+        assert_eq!(validate.status(), StatusCode::GONE);
     }
-
-    #[tokio::test]
-    async fn anthropic_setup_token_ingest_replaces_duplicate_display_name() {
-        let ctx = test_context();
-        let setup_token = fake_anthropic_setup_token();
-        let stub = spawn_auth_flow_stub(AuthFlowStubConfig::anthropic(&setup_token)).await;
-
-        let first = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "POST",
-                "/api/v1/auth/anthropic/setup-token/ingest",
-                Body::from(format!(
-                    r#"{{
-                        "display_name":"claude-primary",
-                        "setup_token":"{}",
-                        "api_base_url":"{}"
-                    }}"#,
-                    setup_token, stub.base_url
-                )),
-            ))
-            .await
-            .expect("create first anthropic setup-token profile");
-        assert_eq!(first.status(), StatusCode::CREATED);
-
-        let duplicate = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "POST",
-                "/api/v1/auth/anthropic/setup-token/ingest",
-                Body::from(format!(
-                    r#"{{
-                        "display_name":"claude-primary",
-                        "setup_token":"{}",
-                        "api_base_url":"{}"
-                    }}"#,
-                    setup_token, stub.base_url
-                )),
-            ))
-            .await
-            .expect("duplicate anthropic setup-token profile");
-        assert_eq!(duplicate.status(), StatusCode::OK);
-        let duplicate_json = parse_json(duplicate).await;
-        assert_eq!(duplicate_json["profile"]["display_name"], "claude-primary");
-        assert_eq!(duplicate_json["profile"]["auth_mode"], "api_key");
-    }
-
     #[tokio::test]
     async fn channel_config_endpoints_round_trip() {
         let ctx = test_context();
@@ -46436,6 +47736,20 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .await
             .expect("create auth profile");
         assert_eq!(create_profile.status(), StatusCode::CREATED);
+        let create_profile_json = parse_json(create_profile).await;
+        let auth_profile_id = create_profile_json["profile"]["auth_profile_id"]
+            .as_str()
+            .expect("auth profile id")
+            .to_string();
+        let breaker_target = provider_circuit_breaker_target(
+            "openai",
+            Some(
+                &ctx.storage
+                    .get_auth_profile(&auth_profile_id)
+                    .expect("load auth profile")
+                    .expect("auth profile exists"),
+            ),
+        );
 
         let first_session =
             create_session_with_user_message(&ctx, "provider-breaker-first", "first run").await;
@@ -46455,7 +47769,7 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
 
         let provider_breaker = ctx
             .storage
-            .get_circuit_breaker_state(CIRCUIT_BREAKER_SCOPE_PROVIDER, "openai")
+            .get_circuit_breaker_state(CIRCUIT_BREAKER_SCOPE_PROVIDER, &breaker_target)
             .expect("load provider breaker")
             .expect("provider breaker exists");
         assert_eq!(provider_breaker.state, CIRCUIT_BREAKER_STATE_OPEN);
@@ -46520,12 +47834,23 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .await
             .expect("create auth profile");
         assert_eq!(create_profile.status(), StatusCode::CREATED);
+        let create_profile_json = parse_json(create_profile).await;
+        let auth_profile_id = create_profile_json["profile"]["auth_profile_id"]
+            .as_str()
+            .expect("auth profile id")
+            .to_string();
+        let auth_profile = ctx
+            .storage
+            .get_auth_profile(&auth_profile_id)
+            .expect("load auth profile")
+            .expect("auth profile exists");
+        let breaker_target = provider_circuit_breaker_target("openai", Some(&auth_profile));
 
         let now = current_time_ms();
         ctx.storage
             .upsert_circuit_breaker_state(CircuitBreakerStateUpsert {
                 scope: CIRCUIT_BREAKER_SCOPE_PROVIDER.to_string(),
-                target_id: "openai".to_string(),
+                target_id: breaker_target.clone(),
                 state: CIRCUIT_BREAKER_STATE_OPEN.to_string(),
                 consecutive_failures: 4,
                 opened_at: Some(now.saturating_sub(10_000)),
@@ -46553,11 +47878,164 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
 
         let breaker = ctx
             .storage
-            .get_circuit_breaker_state(CIRCUIT_BREAKER_SCOPE_PROVIDER, "openai")
+            .get_circuit_breaker_state(CIRCUIT_BREAKER_SCOPE_PROVIDER, &breaker_target)
             .expect("load provider breaker after success")
             .expect("provider breaker exists");
         assert_eq!(breaker.state, CIRCUIT_BREAKER_STATE_CLOSED);
         assert_eq!(breaker.consecutive_failures, 0);
+    }
+
+    #[tokio::test]
+    async fn provider_circuit_breaker_is_auth_profile_scoped_and_allows_fallback() {
+        let ctx = test_context();
+        update_runtime_autonomy_guardrails(
+            &ctx,
+            r#"{
+                "autonomy_guardrails": {
+                    "max_consecutive_failures_before_breaker": 1,
+                    "max_provider_attempts": 2
+                }
+            }"#,
+        )
+        .await;
+
+        let failing_server = MockServer::start_async().await;
+        let failing_completion = failing_server
+            .mock_async(|when, then| {
+                when.method(POST).path("/v1/chat/completions");
+                then.status(429)
+                    .header("content-type", "application/json")
+                    .body(r#"{"error":{"message":"first profile is rate limited"}}"#);
+            })
+            .await;
+        let working_server = MockServer::start_async().await;
+        let working_completion = working_server
+            .mock_async(|when, then| {
+                when.method(POST).path("/v1/chat/completions");
+                then.status(200)
+                    .header("content-type", "application/json")
+                    .body(r#"{"choices":[{"message":{"content":"fallback profile ok"}}]}"#);
+            })
+            .await;
+
+        let create_failing = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(format!(
+                    r#"{{
+                        "provider":"openai",
+                        "display_name":"failing-route",
+                        "auth_mode":"api_key",
+                        "risk_level":"low",
+                        "enabled":true,
+                        "kill_switch_scope":"none",
+                        "api_base_url":"{}",
+                        "credentials_json":{{"api_key":"bad-key"}}
+                    }}"#,
+                    failing_server.url("")
+                )),
+            ))
+            .await
+            .expect("create failing auth profile");
+        assert_eq!(create_failing.status(), StatusCode::CREATED);
+        let failing_json = parse_json(create_failing).await;
+        let failing_profile_id = failing_json["profile"]["auth_profile_id"]
+            .as_str()
+            .expect("failing profile id")
+            .to_string();
+
+        let create_working = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(format!(
+                    r#"{{
+                        "provider":"openai",
+                        "display_name":"working-route",
+                        "auth_mode":"api_key",
+                        "risk_level":"low",
+                        "enabled":true,
+                        "kill_switch_scope":"none",
+                        "api_base_url":"{}",
+                        "credentials_json":{{"api_key":"good-key"}}
+                    }}"#,
+                    working_server.url("")
+                )),
+            ))
+            .await
+            .expect("create working auth profile");
+        assert_eq!(create_working.status(), StatusCode::CREATED);
+        let working_json = parse_json(create_working).await;
+        let working_profile_id = working_json["profile"]["auth_profile_id"]
+            .as_str()
+            .expect("working profile id")
+            .to_string();
+
+        let set_order = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/agents/default/providers/openai/profile-order",
+                Body::from(format!(
+                    r#"{{"profile_ids":["{failing_profile_id}","{working_profile_id}"]}}"#
+                )),
+            ))
+            .await
+            .expect("set profile order");
+        assert_eq!(set_order.status(), StatusCode::OK);
+
+        let now = current_time_ms();
+        ctx.storage
+            .upsert_circuit_breaker_state(CircuitBreakerStateUpsert {
+                scope: CIRCUIT_BREAKER_SCOPE_PROVIDER.to_string(),
+                target_id: "openai".to_string(),
+                state: CIRCUIT_BREAKER_STATE_OPEN.to_string(),
+                consecutive_failures: 9,
+                opened_at: Some(now),
+                cooldown_until: Some(now.saturating_add(60_000)),
+                last_error_code: Some("RATE_LIMITED".to_string()),
+            })
+            .expect("seed legacy provider breaker");
+
+        let session_id =
+            create_session_with_user_message(&ctx, "provider-breaker-fallback", "fallback run")
+                .await;
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from(r#"{"model_provider":"openai","model_id":"gpt-test"}"#),
+            ))
+            .await
+            .expect("provider run with fallback profile");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+        let run_json = parse_json(run_response).await;
+        assert_eq!(run_json["run"]["status"], "succeeded");
+
+        let failing_profile = ctx
+            .storage
+            .get_auth_profile(&failing_profile_id)
+            .expect("load failing profile")
+            .expect("failing profile exists");
+        let failing_breaker_target =
+            provider_circuit_breaker_target("openai", Some(&failing_profile));
+        let failing_breaker = ctx
+            .storage
+            .get_circuit_breaker_state(CIRCUIT_BREAKER_SCOPE_PROVIDER, &failing_breaker_target)
+            .expect("load failing profile breaker")
+            .expect("failing profile breaker exists");
+        assert_eq!(failing_breaker.state, CIRCUIT_BREAKER_STATE_OPEN);
+
+        assert_eq!(failing_completion.hits_async().await, 1);
+        assert_eq!(working_completion.hits_async().await, 1);
     }
 
     #[tokio::test]
@@ -47814,7 +49292,16 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             && message
                 .content_text
                 .contains("You are the CarsinOS assistant.")));
-        transport_mock.assert_hits(1);
+        let assistant_reply = latest_assistant_reply_text(&ctx.state, &session.session_id)
+            .expect("load assistant reply")
+            .expect("assistant reply");
+        let expected_chunks = telegram_channel::split_outbound_chunks(
+            &assistant_reply,
+            telegram_channel::TELEGRAM_DEFAULT_CHUNK_LIMIT,
+        )
+        .len();
+        assert!(expected_chunks > 0);
+        transport_mock.assert_hits(expected_chunks);
     }
 
     #[tokio::test]
@@ -48221,7 +49708,21 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .expect("get run")
             .expect("run exists");
         assert_eq!(run.status, "succeeded");
-        transport_mock.assert_hits(1);
+        let session = ctx
+            .storage
+            .get_session_by_key("discord:dm:u-run-transport")
+            .expect("load discord channel session")
+            .expect("discord channel session exists");
+        let assistant_reply = latest_assistant_reply_text(&ctx.state, &session.session_id)
+            .expect("load assistant reply")
+            .expect("assistant reply");
+        let expected_chunks = discord_channel::split_outbound_chunks(
+            &assistant_reply,
+            discord_channel::DISCORD_DEFAULT_CHUNK_LIMIT,
+        )
+        .len();
+        assert!(expected_chunks > 0);
+        transport_mock.assert_hits(expected_chunks);
     }
 
     #[tokio::test]
@@ -49612,6 +51113,381 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                 .map(|value| value == format!("job_failure:{job_id}"))
                 .unwrap_or(false)
         }));
+    }
+
+    #[tokio::test]
+    async fn assistant_desk_requires_bearer_auth() {
+        let ctx = test_context();
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri("/api/v1/assistant-desk")
+                    .body(Body::empty())
+                    .expect("unauthenticated assistant desk request"),
+            )
+            .await
+            .expect("assistant desk unauthenticated response");
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn assistant_desk_read_model_caps_buckets_and_stable_ids() {
+        let ctx = test_context();
+        let mut approval_run_ids = Vec::new();
+        for index in 0..12 {
+            let session = ctx
+                .storage
+                .create_session(NewSession {
+                    session_key: None,
+                    agent_id: "default".to_string(),
+                    title: Some(format!("Approval session {index}")),
+                })
+                .expect("create approval session");
+            let run = ctx
+                .storage
+                .create_run(NewRun {
+                    session_id: session.session_id.clone(),
+                    model_provider: "mock".to_string(),
+                    model_id: "mock-echo-v1".to_string(),
+                })
+                .expect("create approval run")
+                .expect("approval run exists");
+            ctx.storage
+                .mark_run_started(&run.run_id)
+                .expect("mark approval run started");
+            ctx.storage
+                .create_approval(NewApproval {
+                    run_id: run.run_id.clone(),
+                    tool_call_id: None,
+                    kind: "exec".to_string(),
+                    request_summary: format!("Review command {index}"),
+                    request_json: serde_json::json!({ "cmd": "echo ok", "index": index })
+                        .to_string(),
+                })
+                .expect("create approval")
+                .expect("approval exists");
+            approval_run_ids.push(run.run_id);
+        }
+
+        let working_session = ctx
+            .storage
+            .create_session(NewSession {
+                session_key: None,
+                agent_id: "default".to_string(),
+                title: Some("Live assistant work".to_string()),
+            })
+            .expect("create working session");
+        let working_run = ctx
+            .storage
+            .create_run(NewRun {
+                session_id: working_session.session_id.clone(),
+                model_provider: "lmstudio".to_string(),
+                model_id: "local-model".to_string(),
+            })
+            .expect("create working run")
+            .expect("working run exists");
+        ctx.storage
+            .mark_run_started(&working_run.run_id)
+            .expect("mark working run started");
+
+        let mut done_run_ids = Vec::new();
+        for index in 0..6 {
+            let session = ctx
+                .storage
+                .create_session(NewSession {
+                    session_key: None,
+                    agent_id: "default".to_string(),
+                    title: Some(format!("Done session {index}")),
+                })
+                .expect("create done session");
+            let run = ctx
+                .storage
+                .create_run(NewRun {
+                    session_id: session.session_id.clone(),
+                    model_provider: "mock".to_string(),
+                    model_id: "mock-echo-v1".to_string(),
+                })
+                .expect("create done run")
+                .expect("done run exists");
+            ctx.storage
+                .mark_run_started(&run.run_id)
+                .expect("mark done run started");
+            ctx.storage
+                .mark_run_succeeded(&run.run_id)
+                .expect("mark done run succeeded");
+            done_run_ids.push(run.run_id);
+        }
+
+        let first_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request("GET", "/api/v1/assistant-desk", Body::empty()))
+            .await
+            .expect("assistant desk first response");
+        assert_eq!(first_response.status(), StatusCode::OK);
+        let first_json = parse_json(first_response).await;
+        assert_eq!(first_json["stale"], false);
+        assert_eq!(first_json["summary"]["needs_you_count"], 12);
+        assert_eq!(first_json["summary"]["done_recently_count"], 6);
+
+        let needs_you = first_json["buckets"]["needs_you"]
+            .as_array()
+            .expect("needs_you bucket");
+        let working = first_json["buckets"]["working"]
+            .as_array()
+            .expect("working bucket");
+        let done_recently = first_json["buckets"]["done_recently"]
+            .as_array()
+            .expect("done bucket");
+
+        assert_eq!(needs_you.len(), 10);
+        assert_eq!(done_recently.len(), 5);
+        assert!(working
+            .iter()
+            .any(|item| item["id"] == format!("run:{}", working_run.run_id)));
+        assert!(needs_you.iter().any(|item| {
+            item["source_refs"]
+                .as_array()
+                .is_some_and(|sources| sources.iter().any(|source| source["source"] == "approval"))
+        }));
+
+        let allowed_kinds = [
+            "execass",
+            "carsinos_worker",
+            "codex_cli",
+            "codex_app",
+            "approval",
+        ];
+        for bucket in [needs_you, working, done_recently] {
+            for item in bucket {
+                let kind = item["kind"].as_str().expect("desk item kind");
+                assert!(
+                    allowed_kinds.contains(&kind),
+                    "unexpected V1 desk kind: {kind}"
+                );
+                assert!(item["transcript_id"].as_str().unwrap_or_default().len() > 8);
+                assert_eq!(item["can_open_transcript"], true);
+            }
+        }
+
+        let second_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request("GET", "/api/v1/assistant-desk", Body::empty()))
+            .await
+            .expect("assistant desk second response");
+        assert_eq!(second_response.status(), StatusCode::OK);
+        let second_json = parse_json(second_response).await;
+        let first_ids = first_json["buckets"]
+            .as_object()
+            .expect("first buckets")
+            .values()
+            .flat_map(|bucket| bucket.as_array().into_iter().flatten())
+            .map(|item| item["id"].as_str().unwrap_or_default().to_string())
+            .collect::<Vec<_>>();
+        let second_ids = second_json["buckets"]
+            .as_object()
+            .expect("second buckets")
+            .values()
+            .flat_map(|bucket| bucket.as_array().into_iter().flatten())
+            .map(|item| item["id"].as_str().unwrap_or_default().to_string())
+            .collect::<Vec<_>>();
+        assert_eq!(first_ids, second_ids);
+        assert!(
+            approval_run_ids
+                .iter()
+                .any(|run_id| first_ids.contains(&format!("run:{run_id}"))),
+            "at least one approval-backed run should be visible"
+        );
+        assert!(
+            done_run_ids
+                .iter()
+                .any(|run_id| first_ids.contains(&format!("run:{run_id}"))),
+            "at least one done run should be visible"
+        );
+    }
+
+    #[tokio::test]
+    async fn assistant_desk_hides_expired_provider_breaker_failures() {
+        let ctx = test_context();
+        let expired_session = ctx
+            .storage
+            .create_session(NewSession {
+                session_key: None,
+                agent_id: "default".to_string(),
+                title: Some("Expired provider breaker".to_string()),
+            })
+            .expect("create expired breaker session");
+        let expired_run = ctx
+            .storage
+            .create_run(NewRun {
+                session_id: expired_session.session_id.clone(),
+                model_provider: "anthropic".to_string(),
+                model_id: "claude-sonnet-4-5".to_string(),
+            })
+            .expect("create expired breaker run")
+            .expect("expired breaker run exists");
+        ctx.storage
+            .mark_run_started(&expired_run.run_id)
+            .expect("mark expired breaker run started");
+        let expired_until = current_time_ms().saturating_sub(60_000);
+        ctx.storage
+            .mark_run_failed(
+                &expired_run.run_id,
+                &format!(
+                    "{REASON_BREAKER_PROVIDER_OPEN}: provider 'anthropic' breaker opened until {expired_until} after 3 consecutive failures"
+                ),
+            )
+            .expect("mark expired breaker run failed");
+
+        let active_session = ctx
+            .storage
+            .create_session(NewSession {
+                session_key: None,
+                agent_id: "default".to_string(),
+                title: Some("Active provider breaker".to_string()),
+            })
+            .expect("create active breaker session");
+        let active_run = ctx
+            .storage
+            .create_run(NewRun {
+                session_id: active_session.session_id.clone(),
+                model_provider: "anthropic".to_string(),
+                model_id: "claude-sonnet-4-5".to_string(),
+            })
+            .expect("create active breaker run")
+            .expect("active breaker run exists");
+        ctx.storage
+            .mark_run_started(&active_run.run_id)
+            .expect("mark active breaker run started");
+        let active_until = current_time_ms().saturating_add(60_000);
+        ctx.storage
+            .mark_run_failed(
+                &active_run.run_id,
+                &format!(
+                    "{REASON_BREAKER_PROVIDER_OPEN}: provider 'anthropic' breaker opened until {active_until} after 3 consecutive failures"
+                ),
+            )
+            .expect("mark active breaker run failed");
+
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request("GET", "/api/v1/assistant-desk", Body::empty()))
+            .await
+            .expect("assistant desk response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let json = parse_json(response).await;
+        let serialized = serde_json::to_string(&json).expect("serialize desk response");
+        assert!(
+            !serialized.contains(&expired_run.run_id),
+            "expired provider breaker failures should not stay pinned on the Desk"
+        );
+        assert!(
+            serialized.contains(&active_run.run_id),
+            "active provider breaker failures should remain visible"
+        );
+    }
+
+    #[tokio::test]
+    async fn assistant_desk_transcript_fallback_is_stable_nonempty_and_redacted() {
+        let ctx = test_context();
+        let session = ctx
+            .storage
+            .create_session(NewSession {
+                session_key: None,
+                agent_id: "default".to_string(),
+                title: Some("Transcript fallback".to_string()),
+            })
+            .expect("create transcript session");
+        let run = ctx
+            .storage
+            .create_run(NewRun {
+                session_id: session.session_id.clone(),
+                model_provider: "mock".to_string(),
+                model_id: "mock-echo-v1".to_string(),
+            })
+            .expect("create transcript run")
+            .expect("transcript run exists");
+        ctx.storage
+            .mark_run_started(&run.run_id)
+            .expect("mark transcript run started");
+        ctx.storage
+            .create_approval(NewApproval {
+                run_id: run.run_id.clone(),
+                tool_call_id: None,
+                kind: "exec".to_string(),
+                request_summary: "Review command with redacted payload".to_string(),
+                request_json: serde_json::json!({
+                    "cmd": "echo safe",
+                    "token": "sk-secret-123456789"
+                })
+                .to_string(),
+            })
+            .expect("create transcript approval")
+            .expect("transcript approval exists");
+
+        let desk_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request("GET", "/api/v1/assistant-desk", Body::empty()))
+            .await
+            .expect("assistant desk response");
+        assert_eq!(desk_response.status(), StatusCode::OK);
+        let desk_json = parse_json(desk_response).await;
+        let item_id = desk_json["buckets"]["needs_you"][0]["id"]
+            .as_str()
+            .expect("needs_you item id")
+            .to_string();
+        let item_payload = serde_json::to_string(&desk_json["buckets"]["needs_you"][0])
+            .expect("serialize desk item");
+        assert!(!item_payload.contains("sk-secret-123456789"));
+
+        let transcript_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/assistant-desk/{item_id}/transcript"),
+                Body::empty(),
+            ))
+            .await
+            .expect("assistant desk transcript response");
+        assert_eq!(transcript_response.status(), StatusCode::OK);
+        let transcript_json = parse_json(transcript_response).await;
+        assert_eq!(transcript_json["work_item_id"], item_id);
+        assert_eq!(transcript_json["complete"], true);
+        let events = transcript_json["events"]
+            .as_array()
+            .expect("transcript events");
+        assert!(!events.is_empty());
+        let serialized = serde_json::to_string(&transcript_json).expect("serialize transcript");
+        assert!(!serialized.contains("sk-secret-123456789"));
+
+        let second_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                &format!("/api/v1/assistant-desk/{item_id}/transcript"),
+                Body::empty(),
+            ))
+            .await
+            .expect("assistant desk transcript second response");
+        assert_eq!(second_response.status(), StatusCode::OK);
+        let second_json = parse_json(second_response).await;
+        assert_eq!(
+            transcript_json["transcript_id"],
+            second_json["transcript_id"]
+        );
+        assert_eq!(
+            transcript_json["events"][0]["id"],
+            second_json["events"][0]["id"]
+        );
     }
 
     #[tokio::test]
@@ -52712,6 +54588,35 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         assert_eq!(body["error_code"], "AUTH_REQUIRED");
     }
 
+    #[test]
+    fn provider_models_base_url_uses_local_provider_env_fallbacks() {
+        with_env_vars(
+            &[
+                (OLLAMA_API_BASE_URL_ENV, Some("http://env-ollama:11434/")),
+                (VLLM_API_BASE_URL_ENV, Some("http://env-vllm:8000/")),
+                (LMSTUDIO_API_BASE_URL_ENV, Some("http://env-lmstudio:1234/")),
+            ],
+            || {
+                assert_eq!(
+                    provider_models_base_url("ollama", None),
+                    "http://env-ollama:11434"
+                );
+                assert_eq!(
+                    provider_models_base_url("vllm", None),
+                    "http://env-vllm:8000"
+                );
+                assert_eq!(
+                    provider_models_base_url("lmstudio", None),
+                    "http://env-lmstudio:1234"
+                );
+                assert_eq!(
+                    provider_models_base_url("openai", None),
+                    OPENAI_DEFAULT_API_BASE
+                );
+            },
+        );
+    }
+
     #[tokio::test]
     async fn provider_models_lmstudio_uses_openai_compatible_catalog_path() {
         let ctx = test_context();
@@ -52943,7 +54848,7 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     }
 
     #[tokio::test]
-    async fn provider_models_anthropic_agent_sdk_uses_curated_catalog_without_token() {
+    async fn provider_models_rejects_anthropic_agent_sdk_profiles() {
         let ctx = test_context();
         let create_profile_response = ctx
             .app
@@ -52964,45 +54869,14 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                 ),
             ))
             .await
-            .expect("create anthropic agent sdk profile");
-        assert_eq!(create_profile_response.status(), StatusCode::CREATED);
-        let create_profile_json = parse_json(create_profile_response).await;
-        let auth_profile_id = create_profile_json["profile"]["auth_profile_id"]
-            .as_str()
-            .expect("auth profile id")
-            .to_string();
-
-        let response = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "GET",
-                &format!(
-                    "/api/v1/providers/models?provider=anthropic&auth_profile_id={auth_profile_id}&refresh=true"
-                ),
-                Body::empty(),
-            ))
-            .await
-            .expect("provider models anthropic agent sdk response");
-        assert_eq!(response.status(), StatusCode::OK);
-        let body = parse_json(response).await;
-        let items = body["items"]
-            .as_array()
-            .expect("anthropic agent sdk model items");
-        assert!(items
-            .iter()
-            .any(|item| item["model_id"] == "claude-opus-4-5"));
-        assert!(items
-            .iter()
-            .any(|item| item["model_id"] == "claude-haiku-3-5"));
+            .expect("create anthropic agent sdk profile response");
+        assert_eq!(create_profile_response.status(), StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]
-    async fn provider_models_anthropic_setup_token_uses_curated_catalog() {
+    async fn provider_models_anthropic_setup_token_ingest_is_gone() {
         let ctx = test_context();
         let setup_token = fake_anthropic_setup_token();
-        let stub = spawn_auth_flow_stub(AuthFlowStubConfig::anthropic(&setup_token)).await;
-
         let ingest_response = ctx
             .app
             .clone()
@@ -53013,45 +54887,15 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                     r#"{{
                         "display_name":"anthropic-setup-catalog",
                         "setup_token":"{}",
-                        "api_base_url":"{}"
+                        "api_base_url":"https://api.anthropic.com"
                     }}"#,
-                    setup_token, stub.base_url
+                    setup_token
                 )),
             ))
             .await
-            .expect("ingest setup token for catalog");
-        assert_eq!(ingest_response.status(), StatusCode::CREATED);
-        let ingest_json = parse_json(ingest_response).await;
-        let auth_profile_id = ingest_json["profile"]["auth_profile_id"]
-            .as_str()
-            .expect("setup token auth profile id")
-            .to_string();
-
-        let response = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "GET",
-                &format!(
-                    "/api/v1/providers/models?provider=anthropic&auth_profile_id={auth_profile_id}&refresh=true"
-                ),
-                Body::empty(),
-            ))
-            .await
-            .expect("provider models anthropic setup-token response");
-        assert_eq!(response.status(), StatusCode::OK);
-        let body = parse_json(response).await;
-        let items = body["items"]
-            .as_array()
-            .expect("anthropic setup-token model items");
-        assert!(items
-            .iter()
-            .any(|item| item["model_id"] == "claude-sonnet-4-5"));
-        assert!(items
-            .iter()
-            .any(|item| item["model_id"] == "claude-opus-4-6"));
+            .expect("setup-token ingest response");
+        assert_eq!(ingest_response.status(), StatusCode::GONE);
     }
-
     #[tokio::test]
     async fn tool_capabilities_endpoint_includes_core_and_plugin_tools() {
         let ctx = test_context_with_plugins(vec![
@@ -54381,7 +56225,7 @@ sys.stdout.write(json.dumps(response))
     }
 
     #[tokio::test]
-    async fn agents_api_lists_seeded_lyra_and_claude() {
+    async fn agents_api_lists_only_neutral_starter_agent_by_default() {
         let ctx = test_context();
         let response = ctx
             .app
@@ -54392,8 +56236,9 @@ sys.stdout.write(json.dumps(response))
         assert_eq!(response.status(), StatusCode::OK);
         let json = parse_json(response).await;
         let items = json["items"].as_array().expect("agents items");
-        assert!(items.iter().any(|item| item["agent_id"] == "lyra"));
-        assert!(items.iter().any(|item| item["agent_id"] == "claude"));
+        assert!(items.iter().any(|item| item["agent_id"] == "default"));
+        assert!(!items.iter().any(|item| item["agent_id"] == "lyra"));
+        assert!(!items.iter().any(|item| item["agent_id"] == "claude"));
     }
 
     #[tokio::test]
@@ -54560,7 +56405,7 @@ sys.stdout.write(json.dumps(response))
                     "column_id":"{}",
                     "title":"Ship MC3 tasks board",
                     "owner_kind":"agent",
-                    "owner_agent_id":"lyra",
+                    "owner_agent_id":"default",
                     "tags":["mc3","pipeline"]
                 }}"#,
                     backlog_column_id
@@ -54860,7 +56705,7 @@ sys.stdout.write(json.dumps(response))
                     "column_id":"{}",
                     "title":"Draft intro script",
                     "owner_kind":"agent",
-                    "owner_agent_id":"claude",
+                    "owner_agent_id":"default",
                     "script_markdown":"- intro beat"
                 }}"#,
                     scripting_column_id
@@ -54950,7 +56795,7 @@ sys.stdout.write(json.dumps(response))
                     r#"{{
                     "name":"Script to Thumbnail",
                     "enabled":false,
-                    "agent_id":"lyra",
+                    "agent_id":"default",
                     "schedule_kind":"interval",
                     "interval_seconds":3600,
                     "target_column_id":"{}",
@@ -55020,7 +56865,7 @@ sys.stdout.write(json.dumps(response))
                     "column_id":"{}",
                     "title":"Automation Script Item",
                     "owner_kind":"agent",
-                    "owner_agent_id":"lyra"
+                    "owner_agent_id":"default"
                 }}"#,
                     scripting_column_id
                 )),
@@ -55131,7 +56976,7 @@ sys.stdout.write(json.dumps(response))
                     r#"{{
                     "name":"Daily Limit Rule",
                     "enabled":false,
-                    "agent_id":"lyra",
+                    "agent_id":"default",
                     "schedule_kind":"interval",
                     "interval_seconds":3600,
                     "target_column_id":"{}",
@@ -55167,7 +57012,7 @@ sys.stdout.write(json.dumps(response))
                     "column_id":"{}",
                     "title":"Daily Limit Card",
                     "owner_kind":"agent",
-                    "owner_agent_id":"lyra"
+                    "owner_agent_id":"default"
                 }}"#,
                     scripting_column_id
                 )),
@@ -55357,6 +57202,104 @@ sys.stdout.write(json.dumps(response))
                 .expect("http tools")
                 .len()
         );
+    }
+
+    #[test]
+    fn assistant_tool_capabilities_include_codex_bridge_contract() {
+        let payload = assistant_tool_capabilities_payload(&default_runtime_config());
+        let by_name: std::collections::HashMap<&str, &AssistantToolCapabilityItem> = payload
+            .tools
+            .iter()
+            .map(|item| (item.tool_name.as_str(), item))
+            .collect();
+
+        let readonly_tools = [
+            ASSISTANT_TOOL_CODEX_BRIDGE_STATUS,
+            ASSISTANT_TOOL_CODEX_CLI_SESSIONS,
+            ASSISTANT_TOOL_CODEX_CLI_READ,
+            ASSISTANT_TOOL_CLAUDE_CODE_SESSIONS,
+            ASSISTANT_TOOL_CLAUDE_CODE_READ,
+            ASSISTANT_TOOL_CODEX_APP_STATUS,
+            ASSISTANT_TOOL_CODEX_APP_THREADS,
+            ASSISTANT_TOOL_CODEX_APP_READ,
+        ];
+        for tool_name in readonly_tools {
+            let item = by_name.get(tool_name).expect("readonly codex bridge tool");
+            assert_eq!(item.risk_level, "low");
+            assert!(!item.requires_approval);
+        }
+
+        let execution_tools = [
+            ASSISTANT_TOOL_CODEX_CLI_EXEC,
+            ASSISTANT_TOOL_CODEX_CLI_WINDOW,
+            ASSISTANT_TOOL_CLAUDE_CODE_EXEC,
+            ASSISTANT_TOOL_CLAUDE_CODE_WINDOW,
+            ASSISTANT_TOOL_CODEX_APP_RUN,
+        ];
+        for tool_name in execution_tools {
+            let item = by_name.get(tool_name).expect("execution codex bridge tool");
+            assert_eq!(item.risk_level, "high");
+            assert!(item.requires_approval);
+        }
+
+        let mcp_names: std::collections::HashSet<&str> = assistant_tools_mcp_tools()
+            .iter()
+            .filter_map(|tool| tool.get("name").and_then(|name| name.as_str()))
+            .collect();
+        for tool_name in readonly_tools.into_iter().chain(execution_tools) {
+            assert!(
+                mcp_names.contains(tool_name),
+                "MCP tools missing {tool_name}"
+            );
+        }
+    }
+
+    #[test]
+    fn assistant_codex_bridge_execution_requires_explicit_operator_approval() {
+        let blocked = assistant_codex_bridge_requires_approval(&serde_json::json!({}))
+            .expect_err("unapproved execution should be blocked");
+        assert_eq!(blocked.0, "blocked");
+        assert_eq!(blocked.1.as_deref(), Some("APPROVAL_REQUIRED"));
+        assert!(blocked.2.contains("operator_approved=true"));
+
+        assistant_codex_bridge_requires_approval(&serde_json::json!({
+            "operator_approved": true
+        }))
+        .expect("approved execution");
+    }
+
+    #[test]
+    fn assistant_codex_bridge_id_rejects_path_and_shell_metacharacters() {
+        assert_eq!(
+            assistant_codex_bridge_id(Some(&serde_json::json!("session-1.ok")), "session_id")
+                .expect("valid bridge id"),
+            "session-1.ok"
+        );
+        assert!(
+            assistant_codex_bridge_id(Some(&serde_json::json!("../escape")), "session_id").is_err()
+        );
+        assert!(
+            assistant_codex_bridge_id(Some(&serde_json::json!("session;rm")), "session_id")
+                .is_err()
+        );
+        assert!(assistant_codex_bridge_id(Some(&serde_json::json!("")), "session_id").is_err());
+    }
+
+    #[test]
+    fn assistant_codex_bridge_url_stays_on_loopback_with_query() {
+        let url = assistant_codex_bridge_url(
+            "/codex-cli/sessions/session-1",
+            &[("maxBytes", "100".to_string())],
+        )
+        .expect("codex bridge url");
+
+        assert_eq!(url.scheme(), "http");
+        assert!(matches!(
+            url.host_str(),
+            Some("127.0.0.1") | Some("localhost") | Some("::1")
+        ));
+        assert_eq!(url.path(), "/codex-cli/sessions/session-1");
+        assert_eq!(url.query(), Some("maxBytes=100"));
     }
 
     #[tokio::test]
