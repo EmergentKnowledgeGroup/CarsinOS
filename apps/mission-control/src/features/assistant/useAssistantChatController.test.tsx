@@ -461,49 +461,6 @@ describe("useAssistantChatController", () => {
     });
   });
 
-  it("does not restore the draft when the user message persisted but the run failed", async () => {
-    const setNotice = vi.fn();
-    vi.mocked(createSessionMessage).mockResolvedValueOnce({
-      message: {
-        ...makeMessageResponse().message,
-        content_text: "already persisted",
-      },
-    });
-    vi.mocked(createSessionRun).mockRejectedValueOnce(new Error("provider offline"));
-
-    await act(async () => {
-      root.render(
-        <Harness
-          onReady={(controller) => {
-            latest = controller;
-          }}
-          settings={settings}
-          agents={[makeAgent("claude")]}
-          setNotice={setNotice}
-        />
-      );
-    });
-    await flush();
-
-    await act(async () => {
-      latest?.setDraft("already persisted");
-    });
-    await act(async () => {
-      await latest?.send();
-    });
-
-    expect(createSessionMessage).toHaveBeenCalledTimes(1);
-    expect(latest?.messages.some((message) => message.content_text === "already persisted"))
-      .toBe(true);
-    expect(latest?.draft).toBe("");
-    expect(setNotice).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tone: "error",
-        message: expect.stringContaining("provider offline"),
-      })
-    );
-  });
-
   it("uses the explicit local assistant route even when the legacy routing toggle is disabled", async () => {
     const setNotice = vi.fn();
     vi.mocked(getRuntimeConfig).mockResolvedValue(makeRuntimeConfigResponse(false));
@@ -538,58 +495,6 @@ describe("useAssistantChatController", () => {
     expect(setNotice).not.toHaveBeenCalledWith(
       expect.objectContaining({
         message: expect.stringContaining("People-based lane routing is off"),
-      })
-    );
-  });
-
-  it("does not reuse cached Team routing across gateway URL changes", async () => {
-    const setNotice = vi.fn();
-    const nextSettings = { gateway_url: "http://127.0.0.1:18790" };
-    vi.mocked(getRuntimeConfig)
-      .mockResolvedValueOnce(makeRuntimeConfigResponse(true, ["claude"]))
-      .mockRejectedValue(new Error("new gateway offline"));
-
-    await act(async () => {
-      root.render(
-        <Harness
-          onReady={(controller) => {
-            latest = controller;
-          }}
-          settings={settings}
-          agents={[makeAgent("claude")]}
-          setNotice={setNotice}
-        />
-      );
-    });
-    await flush();
-    expect(latest?.availableAgents.map((agent) => agent.agent_id)).toEqual(["claude"]);
-
-    await act(async () => {
-      root.render(
-        <Harness
-          onReady={(controller) => {
-            latest = controller;
-          }}
-          settings={nextSettings}
-          agents={[makeAgent("claude")]}
-          setNotice={setNotice}
-        />
-      );
-    });
-    await flush();
-    await act(async () => {
-      latest?.setDraft("do not send through stale route");
-    });
-    await act(async () => {
-      await latest?.send();
-    });
-
-    expect(createSession).not.toHaveBeenCalled();
-    expect(createSessionMessage).not.toHaveBeenCalled();
-    expect(setNotice).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tone: "error",
-        message: expect.stringContaining("Team routing could not load cleanly"),
       })
     );
   });
@@ -664,6 +569,116 @@ describe("useAssistantChatController", () => {
     expect(latest?.sessionId).toBe("sess-2");
   });
 
+  it("does not reuse cached routing after the gateway URL changes and the new gateway fails", async () => {
+    const setNotice = vi.fn();
+    const firstSettings = settings;
+    const secondSettings: RuntimeConnectionSettings = {
+      gateway_url: "http://127.0.0.1:18890",
+    };
+    vi.mocked(getRuntimeConfig)
+      .mockResolvedValueOnce(makeRuntimeConfigResponse(true, ["lyra"]))
+      .mockRejectedValueOnce(new Error("new gateway offline"));
+    vi.mocked(getSession).mockResolvedValue(makeSessionResponse("sess-2", "lyra"));
+
+    await act(async () => {
+      root.render(
+        <Harness
+          onReady={(controller) => {
+            latest = controller;
+          }}
+          settings={firstSettings}
+          agents={[makeAgent("lyra")]}
+          setNotice={setNotice}
+        />
+      );
+    });
+    await flush();
+
+    await act(async () => {
+      root.render(
+        <Harness
+          onReady={(controller) => {
+            latest = controller;
+          }}
+          settings={secondSettings}
+          agents={[makeAgent("lyra")]}
+          setNotice={setNotice}
+        />
+      );
+    });
+    await flush();
+
+    await act(async () => {
+      await latest?.openSession("sess-2");
+    });
+
+    expect(getSession).not.toHaveBeenCalled();
+    expect(setNotice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tone: "error",
+        message: expect.stringContaining("Team routing could not load cleanly"),
+      })
+    );
+  });
+
+  it("does not let an older routing refresh overwrite a newer gateway failure", async () => {
+    const setNotice = vi.fn();
+    const firstSettings = settings;
+    const secondSettings: RuntimeConnectionSettings = {
+      gateway_url: "http://127.0.0.1:18890",
+    };
+    const firstRouting = deferred<GetRuntimeConfigResponse>();
+    vi.mocked(getRuntimeConfig)
+      .mockImplementationOnce(() => firstRouting.promise)
+      .mockRejectedValueOnce(new Error("new gateway offline"));
+    vi.mocked(getSession).mockResolvedValue(makeSessionResponse("sess-2", "lyra"));
+
+    await act(async () => {
+      root.render(
+        <Harness
+          onReady={(controller) => {
+            latest = controller;
+          }}
+          settings={firstSettings}
+          agents={[makeAgent("lyra")]}
+          setNotice={setNotice}
+        />
+      );
+    });
+    await flush();
+
+    await act(async () => {
+      root.render(
+        <Harness
+          onReady={(controller) => {
+            latest = controller;
+          }}
+          settings={secondSettings}
+          agents={[makeAgent("lyra")]}
+          setNotice={setNotice}
+        />
+      );
+    });
+    await flush();
+
+    await act(async () => {
+      firstRouting.resolve(makeRuntimeConfigResponse(true, ["lyra"]));
+    });
+    await flush();
+
+    await act(async () => {
+      await latest?.openSession("sess-2");
+    });
+
+    expect(getSession).not.toHaveBeenCalled();
+    expect(setNotice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tone: "error",
+        message: expect.stringContaining("Team routing could not load cleanly"),
+      })
+    );
+  });
+
   it("re-resolves the canonical lane on later sends instead of sticking to a stale session id", async () => {
     const setNotice = vi.fn();
     vi.mocked(createSession)
@@ -707,6 +722,44 @@ describe("useAssistantChatController", () => {
     expect(createSessionRun).toHaveBeenLastCalledWith(settings, "sess-2", {});
     expect(latest?.sessionId).toBe("sess-2");
     expect(getRuntimeConfig).not.toHaveBeenCalled();
+  });
+
+  it("does not restore a persisted message into the draft when run creation fails", async () => {
+    const setNotice = vi.fn();
+    vi.mocked(createSessionMessage).mockResolvedValueOnce({
+      message: {
+        ...makeMessageResponse().message,
+        message_id: "msg-persisted",
+        content_text: "already persisted",
+      },
+    });
+    vi.mocked(createSessionRun).mockRejectedValueOnce(new Error("provider down"));
+
+    await act(async () => {
+      root.render(
+        <Harness
+          onReady={(controller) => {
+            latest = controller;
+          }}
+          settings={settings}
+          agents={[makeAgent("claude")]}
+          setNotice={setNotice}
+        />
+      );
+    });
+    await flush();
+
+    await act(async () => {
+      latest?.setDraft("already persisted");
+    });
+    await act(async () => {
+      await latest?.send();
+    });
+
+    expect(createSessionMessage).toHaveBeenCalledTimes(1);
+    expect(createSessionRun).toHaveBeenCalledTimes(1);
+    expect(latest?.draft).toBe("");
+    expect(latest?.messages.some((message) => message.message_id === "msg-persisted")).toBe(true);
   });
 
   it("keeps sending on an explicitly opened pinned transcript until returning to the canonical lane", async () => {

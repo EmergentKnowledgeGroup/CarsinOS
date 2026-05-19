@@ -2,6 +2,7 @@ const http = require("node:http");
 const path = require("node:path");
 const { CodexCliManager } = require("./codex_cli_manager.js");
 const { CodexAppBridge } = require("./codex_app_observer.js");
+const { ClaudeCodeManager } = require("./claude_code_manager.js");
 
 const PORT = Number(process.env.CODEX_BRIDGE_PORT || 17889);
 const ROOT = path.resolve(__dirname, "..");
@@ -9,6 +10,7 @@ const RUNTIME_ROOT = path.resolve(process.env.CODEX_BRIDGE_RUNTIME_ROOT || path.
 
 const cli = new CodexCliManager({ root: RUNTIME_ROOT });
 const app = new CodexAppBridge({ logsDir: path.join(RUNTIME_ROOT, "codex-app") });
+const claude = new ClaudeCodeManager({ root: RUNTIME_ROOT });
 
 const DEFAULT_MAX_BYTES = 65536;
 const MAX_MAX_BYTES = 512000;
@@ -101,8 +103,9 @@ async function route(req, res) {
         service: "carsinos-codex-bridge",
         root: ROOT,
         cliSessions: cli.listSessions(),
+        claudeCodeSessions: claude.listSessions(),
         codexApp: app.status(),
-      });
+      }, { allowAnyOrigin: false });
     }
     if (req.method === "GET" && url.pathname === "/codex-cli/sessions") {
       return json(req, res, 200, { ok: true, items: cli.listSessions() });
@@ -119,6 +122,22 @@ async function route(req, res) {
     if (req.method === "POST" && url.pathname === "/codex-cli/window") {
       const body = await readBody(req);
       return json(req, res, 202, { ok: true, session: cli.startInteractiveWindow(body) }, { allowAnyOrigin: false });
+    }
+    if (req.method === "GET" && url.pathname === "/claude-code/sessions") {
+      return json(req, res, 200, { ok: true, items: claude.listSessions() }, { allowAnyOrigin: false });
+    }
+    if (req.method === "GET" && url.pathname.startsWith("/claude-code/sessions/")) {
+      const sessionId = decodeURIComponent(url.pathname.split("/").pop());
+      const maxBytes = boundedInt(url.searchParams.get("maxBytes"), DEFAULT_MAX_BYTES, 1, MAX_MAX_BYTES);
+      return json(req, res, 200, { ok: true, session: claude.readSession(sessionId, maxBytes) }, { allowAnyOrigin: false });
+    }
+    if (req.method === "POST" && url.pathname === "/claude-code/exec") {
+      const body = await readBody(req);
+      return json(req, res, 202, { ok: true, session: claude.startExec(body) }, { allowAnyOrigin: false });
+    }
+    if (req.method === "POST" && url.pathname === "/claude-code/window") {
+      const body = await readBody(req);
+      return json(req, res, 202, { ok: true, session: claude.startInteractiveWindow(body) }, { allowAnyOrigin: false });
     }
     if (req.method === "GET" && url.pathname === "/codex-app/status") {
       return json(req, res, 200, { ok: true, status: app.status() });

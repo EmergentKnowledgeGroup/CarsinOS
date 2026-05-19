@@ -7,7 +7,6 @@ import {
   getGatewayHealth,
   getRuntimeConfig,
   getGatewayStatus,
-  ingestAnthropicSetupToken,
   listAgents,
   listAuthProfiles,
   listProviderCapabilities,
@@ -18,7 +17,6 @@ import {
   startOpenAiOauth,
   updateAgent,
   updateRuntimeConfig,
-  validateAnthropicSetupToken,
 } from "../../lib/api";
 import {
   localProviderCapabilities,
@@ -35,7 +33,6 @@ import type {
 import { applyBootstrapPresetToDraft } from "../strategy/bootstrapPresetUtils";
 import {
   loadDismissedAt,
-  type OnboardingAnthropicAuthMode,
   type OnboardingMode,
   type OnboardingProviderPath,
   reorderProfileFirst,
@@ -43,14 +40,11 @@ import {
   shouldAutoOpenWizard,
 } from "./onboardingState";
 import { DEFAULT_GATEWAY_URL } from "../../constants";
-import { launchAnthropicSetupTokenFlow as launchAnthropicSetupTokenFlowRuntime } from "../../lib/runtime";
 import {
   enabledAuthProfilesForProvider,
   formatModelDiscoveryNote,
-  normalizeAnthropicSetupToken,
   pickCatalogModel,
   profileSupportsSelection,
-  validateAnthropicSetupTokenFormat,
 } from "../providers/providerModelCatalog";
 
 export interface OnboardingPreflightState {
@@ -244,18 +238,11 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   const [cloudModelsError, setCloudModelsError] = useState<string | null>(null);
   const [cloudModelDiscoveryNote, setCloudModelDiscoveryNote] = useState<string | null>(null);
 
-  const [anthropicAuthMode, setAnthropicAuthMode] =
-    useState<OnboardingAnthropicAuthMode>("api_key");
   const [anthropicDisplayName, setAnthropicDisplayName] = useState("claude-primary");
   const [anthropicSetupToken, setAnthropicSetupToken] = useState("");
-  const [anthropicSetupLaunchNote, setAnthropicSetupLaunchNote] = useState<string | null>(null);
   const [anthropicValidationBusy, setAnthropicValidationBusy] = useState(false);
   const [anthropicValidationNote, setAnthropicValidationNote] = useState<string | null>(null);
   const [anthropicApiBaseUrl, setAnthropicApiBaseUrl] = useState("");
-  const [anthropicHeadlessCommand, setAnthropicHeadlessCommand] = useState("claude");
-  const [anthropicHeadlessArgs, setAnthropicHeadlessArgs] = useState(
-    "-p --output-format text"
-  );
 
   const [openAiDisplayName, setOpenAiDisplayName] = useState("openai-primary");
   const [openAiClientId, setOpenAiClientId] = useState("");
@@ -571,19 +558,11 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   );
 
   const prepareAnthropicSetupTokenProfile = useCallback(
-    async (setupTokenOverride?: string): Promise<boolean> => {
+    async (apiKeyOverride?: string): Promise<boolean> => {
       clearError();
-      const setupToken = normalizeAnthropicSetupToken(
-        setupTokenOverride ?? anthropicSetupToken
-      );
-      if (!setupToken) {
-        setAnthropicValidationNote("Paste a Claude setup token first.");
-        setProviderReady(false);
-        return false;
-      }
-      const formatError = validateAnthropicSetupTokenFormat(setupToken);
-      if (formatError) {
-        setAnthropicValidationNote(formatError);
+      const apiKey = (apiKeyOverride ?? anthropicSetupToken).trim();
+      if (!apiKey) {
+        setAnthropicValidationNote("Paste an Anthropic API key first.");
         setProviderReady(false);
         return false;
       }
@@ -592,30 +571,21 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
       anthropicSetupRequestSeqRef.current = requestSeq;
       setAnthropicValidationBusy(true);
       try {
-        const validation = await validateAnthropicSetupToken(settings, {
-          setup_token: setupToken,
-          api_base_url: anthropicApiBaseUrl.trim() || undefined,
-        });
-        if (!validation.valid) {
-          setProviderReady(false);
-          setAnthropicValidationNote(
-            "That does not look like a complete Claude setup token. Paste the full token from Claude CLI auth and try again."
-          );
-          return false;
-        }
-        if (anthropicSetupRequestSeqRef.current !== requestSeq) {
-          return false;
-        }
-
         if (draftProviderProfileId) {
           await cleanupDraftProviderProfile(draftProviderProfileId);
         }
 
-        const response = await ingestAnthropicSetupToken(settings, {
+        const response = await createAuthProfile(settings, {
+          provider: "anthropic",
           display_name: anthropicDisplayName.trim() || "claude-primary",
-          setup_token: setupToken,
-          api_base_url: anthropicApiBaseUrl.trim() || undefined,
+          auth_mode: "api_key",
+          risk_level: "high",
           enabled: true,
+          kill_switch_scope: "profile",
+          api_base_url: anthropicApiBaseUrl.trim() || undefined,
+          credentials_json: {
+            api_key: apiKey,
+          },
         });
         const nextProfileId = response.profile.auth_profile_id;
         if (anthropicSetupRequestSeqRef.current !== requestSeq) {
@@ -633,8 +603,8 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
         setProviderReady(modelIds.length > 0);
         setAnthropicValidationNote(
           modelIds.length > 0
-            ? "Claude setup token accepted and models loaded. Keep the suggested model or choose another below."
-            : "Key verified, but Anthropic did not report any models yet."
+            ? "Anthropic API key saved and models loaded. Keep the suggested model or choose another below."
+            : "API key saved, but Anthropic did not report any models yet."
         );
         await loadBaseline(settings);
         return modelIds.length > 0;
@@ -644,11 +614,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
         }
         setProviderReady(false);
         const message = String(error);
-        setAnthropicValidationNote(
-          message.includes("setup token validation failed")
-            ? "Claude setup token was accepted, but carsinOS could not finish wiring the login. Paste a fresh token from Claude CLI auth and try again."
-            : `Claude setup token check failed: ${message}`
-        );
+        setAnthropicValidationNote(`Anthropic API key setup failed: ${message}`);
         return false;
       } finally {
         if (anthropicSetupRequestSeqRef.current === requestSeq) {
@@ -686,40 +652,6 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     },
     [cloudModelDiscoveryNote, cloudModelId, cloudModelsError, refreshCloudModels]
   );
-
-  useEffect(() => {
-    if (
-      !isOpen ||
-      providerPath !== "anthropic" ||
-      anthropicAuthMode !== "api_key" ||
-      useExistingProfile
-    ) {
-      return;
-    }
-      const normalizedToken = normalizeAnthropicSetupToken(anthropicSetupToken);
-      if (!normalizedToken || anthropicValidationBusy) {
-        return;
-      }
-    if (normalizedToken === anthropicAutoAttemptTokenRef.current) {
-      return;
-    }
-    const timeoutId = window.setTimeout(() => {
-      anthropicAutoAttemptTokenRef.current = normalizedToken;
-      setAnthropicValidationNote("Checking Claude login and loading model choices...");
-      void prepareAnthropicSetupTokenProfile(normalizedToken);
-    }, 550);
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [
-    anthropicAuthMode,
-    anthropicSetupToken,
-    anthropicValidationBusy,
-    isOpen,
-    prepareAnthropicSetupTokenProfile,
-    providerPath,
-    useExistingProfile,
-  ]);
 
   useEffect(() => {
     if (!isOpen || providerPath !== "local") {
@@ -875,25 +807,6 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     setRoutingReady(false);
   }, [cleanupDraftProviderProfile, draftProviderProfileId]);
 
-  const setAnthropicAuthModeAndInvalidate = useCallback(
-    (value: OnboardingAnthropicAuthMode) => {
-      if (draftProviderProfileId) {
-        void cleanupDraftProviderProfile(draftProviderProfileId);
-      }
-      anthropicAutoAttemptTokenRef.current = "";
-      anthropicSetupRequestSeqRef.current += 1;
-      cloudModelRequestSeqRef.current += 1;
-      setAnthropicAuthMode(value);
-      setProviderProfileId(null);
-      setDraftProviderProfileId(null);
-      setProviderReady(false);
-      setRoutingReady(false);
-      setAnthropicSetupLaunchNote(null);
-      setAnthropicValidationNote(null);
-    },
-    [cleanupDraftProviderProfile, draftProviderProfileId]
-  );
-
   const setAnthropicDisplayNameAndInvalidate = useCallback((value: string) => {
     if (draftProviderProfileId) {
       void cleanupDraftProviderProfile(draftProviderProfileId);
@@ -909,22 +822,21 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     setCloudModelOptions([]);
     setCloudModelsError(null);
     setCloudModelDiscoveryNote(
-      normalizeAnthropicSetupToken(anthropicSetupToken)
-        ? "Updating Claude login details will reload the model choices automatically."
+      anthropicSetupToken.trim()
+        ? "Updating Anthropic login details requires saving the API key again."
         : null
     );
     setAnthropicValidationNote(null);
   }, [anthropicSetupToken, cleanupDraftProviderProfile, draftProviderProfileId]);
 
   const setAnthropicSetupTokenAndInvalidate = useCallback((value: string) => {
-    const normalizedValue = normalizeAnthropicSetupToken(value);
     if (draftProviderProfileId) {
       void cleanupDraftProviderProfile(draftProviderProfileId);
     }
     anthropicAutoAttemptTokenRef.current = "";
     anthropicSetupRequestSeqRef.current += 1;
     cloudModelRequestSeqRef.current += 1;
-    setAnthropicSetupToken(normalizedValue);
+    setAnthropicSetupToken(value);
     setProviderProfileId(null);
     setDraftProviderProfileId(null);
     setProviderReady(false);
@@ -932,8 +844,8 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     setCloudModelOptions([]);
     setCloudModelsError(null);
     setCloudModelDiscoveryNote(
-      normalizedValue
-        ? "carsinOS will check this Claude setup token, remove any pasted spaces or line breaks, and load model choices automatically."
+      value.trim()
+        ? "Click Save key + load models when the Anthropic API key is ready."
         : null
     );
     setAnthropicValidationNote(null);
@@ -955,30 +867,11 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     setCloudModelsError(null);
     setCloudModelDiscoveryNote(
       anthropicSetupToken.trim()
-        ? "Updating Claude endpoint details will reload the model choices automatically."
+        ? "Updating Anthropic endpoint details requires saving the API key again."
         : null
     );
     setAnthropicValidationNote(null);
   }, [anthropicSetupToken, cleanupDraftProviderProfile, draftProviderProfileId]);
-
-  const launchAnthropicSetupTokenFlow = useCallback(async () => {
-    clearError();
-    setBusy(true);
-    try {
-      const result = await launchAnthropicSetupTokenFlowRuntime();
-      if (result.launched) {
-        setAnthropicSetupLaunchNote(
-          `${result.detail} Copy the Claude setup token from Terminal and paste it into the Claude setup token box below.`
-        );
-        return;
-      }
-      setAnthropicSetupLaunchNote(`${result.detail} Command: ${result.command}`);
-    } catch (error: unknown) {
-      setErrorText(`Unable to launch setup-token helper: ${String(error)}`);
-    } finally {
-      setBusy(false);
-    }
-  }, [clearError]);
 
   const runAnthropicSetupTokenValidation = useCallback(async () => {
     await prepareAnthropicSetupTokenProfile();
@@ -1301,6 +1194,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   const completeProvider = useCallback(async (): Promise<{ ok: boolean; profileId: string | null }> => {
     clearError();
     setBusy(true);
+    let createdAnthropicProfileId: string | null = null;
     try {
       const targetAgentId = selectedAgentId.trim() || agentIdDraft.trim().toLowerCase();
       if (providerPath === "local") {
@@ -1437,59 +1331,28 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
       }
 
       if (providerPath === "anthropic") {
-        if (anthropicAuthMode === "api_key") {
-          const nextProfileId =
-            providerProfileId?.trim() ||
-            (
-              await ingestAnthropicSetupToken(settings, {
-                display_name: anthropicDisplayName.trim() || "claude-primary",
-                setup_token: anthropicSetupToken.trim(),
-                api_base_url: anthropicApiBaseUrl.trim() || undefined,
-                enabled: true,
-              })
-            ).profile.auth_profile_id;
-          if (!targetAgentId) {
-            throw new Error("Select or create an agent first.");
+        let nextProfileId = providerProfileId?.trim() || "";
+        if (!nextProfileId) {
+          const apiKey = anthropicSetupToken.trim();
+          if (!apiKey) {
+            throw new Error("Paste an Anthropic API key, then save it before continuing.");
           }
-          const assistantModel = await resolveCloudModelId("anthropic", nextProfileId);
-          await updateAgent(settings, targetAgentId, {
-            model_provider: "anthropic",
-            model_id: assistantModel,
+          const response = await createAuthProfile(settings, {
+            provider: "anthropic",
+            display_name: anthropicDisplayName.trim() || "claude-primary",
+            auth_mode: "api_key",
+            risk_level: "high",
+            enabled: true,
+            kill_switch_scope: "profile",
+            api_base_url: anthropicApiBaseUrl.trim() || undefined,
+            credentials_json: {
+              api_key: apiKey,
+            },
           });
-          setProviderProfileId(nextProfileId);
+          nextProfileId = response.profile.auth_profile_id;
+          createdAnthropicProfileId = nextProfileId;
           setDraftProviderProfileId(nextProfileId);
-          setProviderReady(true);
-          setAnthropicSetupToken("");
-          await loadBaseline(settings);
-          return {
-            ok: true,
-            profileId: nextProfileId,
-          };
         }
-
-        const credentialsJson: Record<string, unknown> = {};
-        if (anthropicAuthMode === "agent_sdk") {
-          credentialsJson.headless_enabled = true;
-          credentialsJson.headless_command =
-            anthropicHeadlessCommand.trim() || "claude";
-          const rawArgs = anthropicHeadlessArgs.trim();
-          credentialsJson.headless_args = rawArgs
-            ? rawArgs.split(/\s+/).filter((part) => part.length > 0)
-            : [];
-        }
-        const response = await createAuthProfile(settings, {
-          provider: "anthropic",
-          display_name:
-            anthropicDisplayName.trim() ||
-            (anthropicAuthMode === "agent_sdk" ? "claude-headless" : "claude-primary"),
-          auth_mode: anthropicAuthMode,
-          risk_level: "high",
-          enabled: true,
-          kill_switch_scope: "profile",
-          api_base_url: anthropicApiBaseUrl.trim() || undefined,
-          credentials_json: credentialsJson,
-        });
-        const nextProfileId = response.profile.auth_profile_id;
         if (!targetAgentId) {
           throw new Error("Select or create an agent first.");
         }
@@ -1499,7 +1362,9 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
           model_id: assistantModel,
         });
         setProviderProfileId(nextProfileId);
+        setDraftProviderProfileId(nextProfileId);
         setProviderReady(true);
+        setAnthropicSetupToken("");
         await loadBaseline(settings);
         return {
           ok: true,
@@ -1531,6 +1396,12 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
       }
       throw new Error("Unsupported provider path.");
     } catch (error: unknown) {
+      if (createdAnthropicProfileId) {
+        await cleanupDraftProviderProfile(createdAnthropicProfileId);
+        setDraftProviderProfileId((current) =>
+          current === createdAnthropicProfileId ? null : current
+        );
+      }
       setProviderReady(false);
       setErrorText(`Provider setup failed: ${String(error)}`);
       return {
@@ -1543,10 +1414,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   }, [
     agentIdDraft,
     anthropicApiBaseUrl,
-    anthropicAuthMode,
     anthropicDisplayName,
-    anthropicHeadlessArgs,
-    anthropicHeadlessCommand,
     anthropicSetupToken,
     clearError,
     loadBaseline,
@@ -1773,21 +1641,14 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     cloudModelsLoading,
     cloudModelsError,
     cloudModelDiscoveryNote,
-    anthropicAuthMode,
-    setAnthropicAuthMode: setAnthropicAuthModeAndInvalidate,
     anthropicDisplayName,
     setAnthropicDisplayName: setAnthropicDisplayNameAndInvalidate,
     anthropicSetupToken,
     setAnthropicSetupToken: setAnthropicSetupTokenAndInvalidate,
-    anthropicSetupLaunchNote,
     anthropicValidationBusy,
     anthropicValidationNote,
     anthropicApiBaseUrl,
     setAnthropicApiBaseUrl: setAnthropicApiBaseUrlAndInvalidate,
-    anthropicHeadlessCommand,
-    setAnthropicHeadlessCommand,
-    anthropicHeadlessArgs,
-    setAnthropicHeadlessArgs,
     openAiDisplayName,
     setOpenAiDisplayName,
     openAiClientId,
@@ -1803,7 +1664,6 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     setOpenAiCode,
     openAiState,
     setOpenAiState,
-    launchAnthropicSetupTokenFlow,
     prepareAnthropicSetupTokenProfile,
     runAnthropicSetupTokenValidation,
     startOpenAiOauthFlow,

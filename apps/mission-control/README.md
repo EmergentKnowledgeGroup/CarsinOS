@@ -51,7 +51,7 @@ Users can reopen onboarding at any time using `Setup Wizard` in the top bar.
 
 ### V1 provider paths
 
-- Anthropic setup token ingest
+- Anthropic direct API key profile
 - OpenAI OAuth (start + finish)
 - Local connector mode (no OAuth)
 

@@ -834,7 +834,6 @@ export interface MissionControlFocusResponse {
 }
 
 export type AssistantDeskWorkItemKind =
-  | "run"
   | "execass"
   | "carsinos_worker"
   | "codex_cli"
@@ -1467,14 +1466,6 @@ export interface OpenAiOauthFinishResponse {
   profile: AuthProfileResponse;
   account_id: string | null;
   expires_at_unix: number | null;
-}
-
-export interface AnthropicSetupTokenIngestResponse {
-  profile: AuthProfileResponse;
-}
-
-export interface AnthropicSetupTokenValidateResponse {
-  valid: boolean;
 }
 
 export interface RemoveAgentResponse {

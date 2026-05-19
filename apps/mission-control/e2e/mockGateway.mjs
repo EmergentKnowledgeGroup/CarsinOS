@@ -64,8 +64,6 @@ const port = parsePort(process.argv.slice(2));
 const verbose = process.env.MC_E2E_VERBOSE === "1";
 const startedAtMs = Date.now() - 90_000;
 const createdAt = startedAtMs - 12_000;
-const ANTHROPIC_SETUP_TOKEN_PREFIX = "sk-ant-oat01-";
-const ANTHROPIC_SETUP_TOKEN_MIN_LENGTH = 80;
 let nextAuthProfileCounter = 1;
 let nextEventCounter = 1;
 let nextCardCounter = 2;
@@ -73,14 +71,6 @@ let nextRunCounter = 1;
 let nextJobRunCounter = 1;
 const wsClients = new Set();
 const wsTickets = new Map();
-
-function looksLikeAnthropicSetupToken(value) {
-  const trimmed = typeof value === "string" ? value.trim() : "";
-  return (
-    trimmed.startsWith(ANTHROPIC_SETUP_TOKEN_PREFIX) &&
-    trimmed.length >= ANTHROPIC_SETUP_TOKEN_MIN_LENGTH
-  );
-}
 
 const board = {
   board_id: "ops-board",
@@ -2603,14 +2593,14 @@ function buildMissionControlUsage(requestUrl) {
   const tokenOutputTotal = window === "today" ? 7_420 : 31_000;
   const byAgent = [
     {
-      agent_id: "local-assistant",
+      agent_id: "default",
       agent_name: "Local Assistant",
       estimated_cost_total: Number((estimatedCostTotal * 0.62).toFixed(4)),
       token_input_total: Math.round(tokenInputTotal * 0.6),
       token_output_total: Math.round(tokenOutputTotal * 0.58),
     },
     {
-      agent_id: "default-agent",
+      agent_id: "secondary_agent",
       agent_name: "Default Agent",
       estimated_cost_total: Number((estimatedCostTotal * 0.38).toFixed(4)),
       token_input_total: Math.round(tokenInputTotal * 0.4),
@@ -4544,62 +4534,16 @@ async function routeRequest(req, res) {
   }
 
   if (req.method === "POST" && requestUrl.pathname === "/api/v1/auth/anthropic/setup-token/validate") {
-    const payload = await readJson(req);
-    const setupToken = typeof payload.setup_token === "string" ? payload.setup_token.trim() : "";
-    if (!setupToken) {
-      sendJson(res, 400, { error: "setup token required" });
-      return;
-    }
-    sendJson(res, 200, { valid: looksLikeAnthropicSetupToken(setupToken) });
+    sendJson(res, 410, {
+      error: "Claude setup-token auth has been removed. Create an Anthropic API key profile instead.",
+    });
     return;
   }
 
   if (req.method === "POST" && requestUrl.pathname === "/api/v1/auth/anthropic/setup-token/ingest") {
-    const payload = await readJson(req);
-    const setupToken = typeof payload.setup_token === "string" ? payload.setup_token.trim() : "";
-    if (!setupToken) {
-      sendJson(res, 400, { error: "setup token required" });
-      return;
-    }
-    if (!looksLikeAnthropicSetupToken(setupToken)) {
-      sendJson(res, 400, { error: "setup token validation failed" });
-      return;
-    }
-    const now = Date.now();
-    const displayName = String(payload.display_name ?? "claude-primary");
-    const existingIndex = authProfiles.findIndex(
-      (profile) => profile.provider === "anthropic" && profile.display_name === displayName
-    );
-    const profile =
-      existingIndex >= 0
-        ? {
-            ...authProfiles[existingIndex],
-            auth_mode: "api_key",
-            risk_level: "low",
-            enabled: payload.enabled !== false,
-            kill_switch_scope: String(payload.kill_switch_scope ?? "none"),
-            api_base_url: typeof payload.api_base_url === "string" ? payload.api_base_url : null,
-            updated_at: now,
-          }
-        : {
-            auth_profile_id: `profile-${String(nextAuthProfileCounter++).padStart(3, "0")}`,
-            provider: "anthropic",
-            display_name: displayName,
-            auth_mode: "api_key",
-            risk_level: "low",
-            enabled: payload.enabled !== false,
-            kill_switch_scope: String(payload.kill_switch_scope ?? "none"),
-            api_base_url: typeof payload.api_base_url === "string" ? payload.api_base_url : null,
-            created_at: now,
-            updated_at: now,
-          };
-    if (existingIndex >= 0) {
-      authProfiles[existingIndex] = profile;
-      sendJson(res, 200, { profile });
-      return;
-    }
-    authProfiles.push(profile);
-    sendJson(res, 200, { profile });
+    sendJson(res, 410, {
+      error: "Claude setup-token auth has been removed. Create an Anthropic API key profile instead.",
+    });
     return;
   }
 

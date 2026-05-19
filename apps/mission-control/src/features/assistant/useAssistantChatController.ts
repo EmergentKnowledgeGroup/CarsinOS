@@ -135,25 +135,49 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
   const [sessionMode, setSessionMode] = useState<AssistantSessionMode>("canonical_lane");
   const suppressSessionResetRef = useRef(false);
   const runtimeRoutingRef = useRef<RuntimeRoutingConfigResponse | null>(null);
-  const runtimeRoutingGatewayRef = useRef<string>("");
+  const runtimeRoutingGatewayRef = useRef("");
+  const runtimeRoutingErrorGatewayRef = useRef("");
+  const routingRequestSeqRef = useRef(0);
 
   const applyRuntimeRouting = useCallback((routing: RuntimeRoutingConfigResponse, gatewayUrl: string) => {
     runtimeRoutingRef.current = routing;
     runtimeRoutingGatewayRef.current = gatewayUrl;
+    runtimeRoutingErrorGatewayRef.current = "";
     setRuntimeRouting(routing);
     setRuntimeRoutingLoaded(true);
     setRuntimeRoutingError(null);
   }, []);
   const refreshRoutingState = useCallback(async () => {
+    const requestSeq = routingRequestSeqRef.current + 1;
+    routingRequestSeqRef.current = requestSeq;
     const gatewayUrl = settings.gateway_url.trim();
+    if (runtimeRoutingGatewayRef.current && runtimeRoutingGatewayRef.current !== gatewayUrl) {
+      runtimeRoutingRef.current = null;
+      runtimeRoutingGatewayRef.current = gatewayUrl;
+      setRuntimeRouting(null);
+      setRuntimeRoutingLoaded(false);
+    }
     try {
       const response = await getRuntimeConfig(settings);
+      if (routingRequestSeqRef.current !== requestSeq) {
+        return runtimeRoutingRef.current;
+      }
       applyRuntimeRouting(response.config.routing, gatewayUrl);
       return response.config.routing;
     } catch (error: unknown) {
+      if (routingRequestSeqRef.current !== requestSeq) {
+        return runtimeRoutingRef.current;
+      }
+      runtimeRoutingErrorGatewayRef.current = gatewayUrl;
       setRuntimeRoutingLoaded(true);
       setRuntimeRoutingError(String(error));
-      return runtimeRoutingGatewayRef.current === gatewayUrl ? runtimeRoutingRef.current : null;
+      if (runtimeRoutingGatewayRef.current !== gatewayUrl) {
+        runtimeRoutingRef.current = null;
+        runtimeRoutingGatewayRef.current = gatewayUrl;
+        setRuntimeRouting(null);
+        return null;
+      }
+      return runtimeRoutingRef.current;
     }
   }, [applyRuntimeRouting, settings]);
 
@@ -405,16 +429,23 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
 
   const resolveLocalOperatorRouting = useCallback(async (options?: { preferCached?: boolean }) => {
     const gatewayUrl = settings.gateway_url.trim();
+    if (
+      runtimeRoutingErrorGatewayRef.current === gatewayUrl &&
+      runtimeRoutingGatewayRef.current === gatewayUrl &&
+      !runtimeRoutingRef.current
+    ) {
+      throw new Error(
+        "Team routing could not load cleanly. Retry once the local operator route is available."
+      );
+    }
     let routing =
       options?.preferCached === true && runtimeRoutingGatewayRef.current === gatewayUrl
         ? runtimeRoutingRef.current
         : null;
     if (!routing) {
-      routing = (await refreshRoutingState()) ?? (
-        runtimeRoutingGatewayRef.current === gatewayUrl ? runtimeRoutingRef.current : null
-      );
+      routing = await refreshRoutingState();
     }
-    if (!routing) {
+    if (!routing || runtimeRoutingGatewayRef.current !== gatewayUrl) {
       throw new Error(
         "Team routing could not load cleanly. Retry once the local operator route is available."
       );

@@ -378,7 +378,7 @@ export function TeamPage({
         setRoutingError(null);
         setRoutingNotice(null);
         setRoutingLoading(false);
-        return;
+        return null;
       }
 
       setRoutingLoading(true);
@@ -388,10 +388,12 @@ export function TeamPage({
         setRoutingConfig(nextRouting);
         setRoutingDraft(cloneRoutingConfig(nextRouting));
         setRoutingError(null);
+        return nextRouting;
       } catch (loadError: unknown) {
         setRoutingConfig(null);
         setRoutingDraft(null);
         setRoutingError(`People and routing could not load. (${String(loadError)})`);
+        return null;
       } finally {
         setRoutingLoading(false);
       }
@@ -1125,8 +1127,9 @@ export function TeamPage({
       setDeletingAgentId(agent.agent_id);
       setRoutingNotice(null);
       try {
-        if (routingConfig) {
-          const nextRouting = cloneRoutingConfig(routingConfig);
+        const latestRouting = await loadRoutingConfig(settings);
+        if (latestRouting) {
+          const nextRouting = cloneRoutingConfig(latestRouting);
           nextRouting.assistant_assignments = nextRouting.assistant_assignments.filter(
             (assignment) => assignment.assistant_agent_id !== agent.agent_id
           );
@@ -1157,7 +1160,7 @@ export function TeamPage({
         setDeletingAgentId(null);
       }
     },
-    [deletingAgentId, loadRoutingConfig, refreshAll, routingConfig, settings]
+    [deletingAgentId, loadRoutingConfig, refreshAll, settings]
   );
 
   const exportPreset = useCallback(
@@ -1969,7 +1972,7 @@ export function TeamPage({
                       "mc-btn",
                       "mc-btn-sm",
                       "mc-btn-danger",
-                      deletingAgentId !== null && "mc-btn-loading"
+                      deletingAgentId === agent.agent_id && "mc-btn-loading"
                     )}
                     onClick={() => void handleRemoveAgent(agent)}
                     disabled={deletingAgentId !== null}

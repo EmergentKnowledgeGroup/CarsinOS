@@ -1,7 +1,7 @@
+import { useState } from "react";
 import type { Agent, AuthProfileResponse, BootstrapPresetResponse } from "../../../types";
 import { OnboardingStepShell } from "../OnboardingStepShell";
 import type {
-  OnboardingAnthropicAuthMode,
   OnboardingMode,
   OnboardingProviderPath,
 } from "../onboardingState";
@@ -47,15 +47,11 @@ interface StepProviderProps {
   cloudModelsLoading: boolean;
   cloudModelsError: string | null;
   cloudModelDiscoveryNote: string | null;
-  anthropicAuthMode: OnboardingAnthropicAuthMode;
   anthropicDisplayName: string;
   anthropicSetupToken: string;
-  anthropicSetupLaunchNote: string | null;
   anthropicValidationBusy: boolean;
   anthropicValidationNote: string | null;
   anthropicApiBaseUrl: string;
-  anthropicHeadlessCommand: string;
-  anthropicHeadlessArgs: string;
   openAiDisplayName: string;
   openAiClientId: string;
   openAiApiBaseUrl: string;
@@ -92,14 +88,10 @@ interface StepProviderProps {
   onLocalOrchestratorModelIdChange: (value: string) => void;
   onRefreshLocalModels: () => Promise<void>;
   onCloudModelIdChange: (value: string) => void;
-  onAnthropicAuthModeChange: (value: OnboardingAnthropicAuthMode) => void;
   onAnthropicDisplayNameChange: (value: string) => void;
   onAnthropicSetupTokenChange: (value: string) => void;
-  onLaunchAnthropicSetupTokenFlow: () => Promise<void>;
   onValidateAnthropicSetupToken: () => Promise<void>;
   onAnthropicApiBaseUrlChange: (value: string) => void;
-  onAnthropicHeadlessCommandChange: (value: string) => void;
-  onAnthropicHeadlessArgsChange: (value: string) => void;
   onOpenAiDisplayNameChange: (value: string) => void;
   onOpenAiClientIdChange: (value: string) => void;
   onOpenAiApiBaseUrlChange: (value: string) => void;
@@ -114,8 +106,8 @@ interface StepProviderProps {
 }
 
 export function StepProvider(props: StepProviderProps) {
+  const [showAnthropicApiKey, setShowAnthropicApiKey] = useState(false);
   const hasExistingProfiles = props.existingProviderProfiles.length > 0;
-  const canLaunchAnthropicCliAuth = props.anthropicAuthMode === "api_key";
   const providerTransitionBusy =
     props.busy ||
     props.localModelsLoading ||
@@ -332,7 +324,7 @@ export function StepProvider(props: StepProviderProps) {
             />
             <div>
               <strong>Anthropic (Claude)</strong>
-              <p>Choose a Claude setup token or Claude Code headless profile mode.</p>
+              <p>Use a direct Anthropic API key. Claude Code is managed separately.</p>
             </div>
           </label>
           <label className="mc-onboarding-choice">
@@ -609,20 +601,6 @@ export function StepProvider(props: StepProviderProps) {
                         />
                       </label>
                       <label>
-                        Auth method
-                        <select
-                          value={props.anthropicAuthMode}
-                          onChange={(event) =>
-                            props.onAnthropicAuthModeChange(
-                              event.target.value as OnboardingAnthropicAuthMode
-                            )
-                          }
-                        >
-                          <option value="api_key">Claude setup token (recommended)</option>
-                          <option value="agent_sdk">Claude Code headless profile (advanced)</option>
-                        </select>
-                      </label>
-                      <label>
                         API base URL (optional)
                         <input
                           value={props.anthropicApiBaseUrl}
@@ -632,126 +610,64 @@ export function StepProvider(props: StepProviderProps) {
                       </label>
                     </div>
 
-                    {canLaunchAnthropicCliAuth ? (
-                      <>
-                        <div className="mc-onboarding-inline-actions">
-                          <button
-                            type="button"
-                            className="ghost"
-                            disabled={props.busy}
-                            onClick={() => {
-                              if (props.busy) {
-                                return;
-                              }
-                              void props.onLaunchAnthropicSetupTokenFlow();
-                            }}
-                          >
-                            {props.busy ? "Opening..." : "Open Claude CLI"}
-                          </button>
-                        </div>
-                        <p className="mc-onboarding-note">
-                          Open Claude CLI to generate a fresh Claude setup token. If you already
-                          have one, paste it below and carsinOS will verify it and load the model
-                          choices for you automatically.
-                        </p>
-                        {props.anthropicSetupLaunchNote ? (
-                          <p className="mc-onboarding-note">{props.anthropicSetupLaunchNote}</p>
-                        ) : null}
-                      </>
+                    <div className="mc-onboarding-field-grid">
+                      <label>
+                        Anthropic API key
+                        <input
+                          type={showAnthropicApiKey ? "text" : "password"}
+                          autoComplete="off"
+                          autoCapitalize="none"
+                          autoCorrect="off"
+                          spellCheck={false}
+                          aria-label="Anthropic API key"
+                          value={props.anthropicSetupToken}
+                          onChange={(event) =>
+                            props.onAnthropicSetupTokenChange(event.target.value)
+                          }
+                          placeholder="Paste an Anthropic API key"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        className="ghost"
+                        aria-label={showAnthropicApiKey ? "Hide Anthropic API key" : "Show Anthropic API key"}
+                        onClick={() => setShowAnthropicApiKey((value) => !value)}
+                      >
+                        {showAnthropicApiKey ? "Hide key" : "Show key"}
+                      </button>
+                    </div>
+                    <div className="mc-onboarding-inline-actions">
+                      <button
+                        type="button"
+                        className="ghost"
+                        disabled={props.busy || props.anthropicValidationBusy}
+                        onClick={() => {
+                          if (props.busy || props.anthropicValidationBusy) {
+                            return;
+                          }
+                          void props.onValidateAnthropicSetupToken();
+                        }}
+                      >
+                        {props.anthropicValidationBusy
+                          ? "Checking..."
+                          : "Save key + load models"}
+                      </button>
+                    </div>
+                    {props.anthropicValidationBusy || props.cloudModelsLoading ? (
+                      <p className="mc-onboarding-note">
+                        Saving the Anthropic API key and loading the real model choices...
+                      </p>
                     ) : null}
-
-                    {props.anthropicAuthMode === "api_key" ? (
-                      <>
-                        <div className="mc-onboarding-field-grid">
-                          <label>
-                            Claude setup token
-                            <input
-                              type="text"
-                              autoComplete="off"
-                              autoCapitalize="none"
-                              autoCorrect="off"
-                              spellCheck={false}
-                              value={props.anthropicSetupToken}
-                              onChange={(event) =>
-                                props.onAnthropicSetupTokenChange(event.target.value)
-                              }
-                              placeholder="Paste token starting with sk-ant-oat01-"
-                            />
-                          </label>
-                        </div>
-                        <div className="mc-onboarding-inline-actions">
-                          <button
-                            type="button"
-                            className="ghost"
-                            disabled={props.busy || props.anthropicValidationBusy}
-                            onClick={() => {
-                              if (props.busy || props.anthropicValidationBusy) {
-                                return;
-                              }
-                              void props.onValidateAnthropicSetupToken();
-                            }}
-                          >
-                            {props.anthropicValidationBusy
-                              ? "Checking..."
-                              : "Check token + load models"}
-                          </button>
-                        </div>
-                        {props.anthropicValidationBusy || props.cloudModelsLoading ? (
-                          <p className="mc-onboarding-note">
-                            Checking the Claude token format and loading the real model choices...
-                          </p>
-                        ) : null}
-                        {props.anthropicValidationNote ? (
-                          <p className="mc-onboarding-note">{props.anthropicValidationNote}</p>
-                        ) : null}
-                        {!props.anthropicValidationNote &&
-                        !props.anthropicValidationBusy &&
-                        !props.cloudModelsLoading ? (
-                          <p className="mc-onboarding-note">
-                            Paste the Claude setup token from Terminal. carsinOS will verify it,
-                            create the login, strip pasted spaces or line breaks automatically,
-                            and load the model choices automatically.
-                          </p>
-                        ) : null}
-                      </>
+                    {props.anthropicValidationNote ? (
+                      <p className="mc-onboarding-note">{props.anthropicValidationNote}</p>
                     ) : null}
-
-                    {props.anthropicAuthMode === "agent_sdk" ? (
-                      <>
-                        <div className="mc-onboarding-risk-note">
-                          Advanced mode: this path runs Claude headless through the local CLI
-                          profile. Use it only when setup-token auth is not the right fit.
-                        </div>
-                        <p className="mc-onboarding-note">
-                          This mode does not store a separate cloud token. It uses your local
-                          Claude CLI installation instead.
-                        </p>
-                      </>
-                    ) : null}
-
-                    {props.anthropicAuthMode === "agent_sdk" ? (
-                      <div className="mc-onboarding-field-grid">
-                        <label>
-                          Claude CLI command
-                          <input
-                            value={props.anthropicHeadlessCommand}
-                            onChange={(event) =>
-                              props.onAnthropicHeadlessCommandChange(event.target.value)
-                            }
-                            placeholder="claude"
-                          />
-                        </label>
-                        <label>
-                          CLI args (optional)
-                          <input
-                            value={props.anthropicHeadlessArgs}
-                            onChange={(event) =>
-                              props.onAnthropicHeadlessArgsChange(event.target.value)
-                            }
-                            placeholder="-p --output-format text"
-                          />
-                        </label>
-                      </div>
+                    {!props.anthropicValidationNote &&
+                    !props.anthropicValidationBusy &&
+                    !props.cloudModelsLoading ? (
+                      <p className="mc-onboarding-note">
+                        Paste a direct Anthropic API key. Claude Code terminal access is handled
+                        later as a separate approved bridge, not as provider login.
+                      </p>
                     ) : null}
                   </div>
                 ) : null}

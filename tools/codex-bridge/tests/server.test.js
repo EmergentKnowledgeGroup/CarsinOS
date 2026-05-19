@@ -48,3 +48,14 @@ test("server allows mutating requests without a browser origin header", async ()
     assert.notEqual(response.headers.get("access-control-allow-origin"), "*");
   });
 });
+
+test("server does not expose Claude session data to arbitrary browser origins", async () => {
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/claude-code/sessions`, {
+      headers: { origin: "https://evil.example" },
+    });
+
+    assert.equal(response.status, 200);
+    assert.notEqual(response.headers.get("access-control-allow-origin"), "*");
+  });
+});

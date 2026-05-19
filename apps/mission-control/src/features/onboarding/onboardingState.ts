@@ -8,7 +8,7 @@ export const ONBOARDING_DISMISS_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export type OnboardingMode = "quickstart" | "manual";
 export type OnboardingProviderPath = "anthropic" | "openai" | "local";
-export type OnboardingAnthropicAuthMode = "api_key" | "agent_sdk";
+export type OnboardingAnthropicAuthMode = "api_key";
 
 export type OnboardingStepId =
   | "mode"

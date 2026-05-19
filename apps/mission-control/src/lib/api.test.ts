@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  createAuthProfile,
   createWebSocketTicket,
   createBootstrapPreset,
   createSessionRun,
@@ -20,7 +21,6 @@ import {
   getRuntimeConfig,
   revokeAuthProfile,
   updateRuntimeConfig,
-  validateAnthropicSetupToken,
   websocketUrlFromGateway,
 } from "./api";
 import { API_REQUEST_TIMEOUT_MS, API_RUN_REQUEST_TIMEOUT_MS } from "../constants";
@@ -409,7 +409,7 @@ describe("request URL resolution", () => {
     expect(calledUrl).toContain("tz_offset_minutes=-360");
   });
 
-  it("hits remove-agent and auth validation endpoints with POST", async () => {
+  it("hits remove-agent, direct auth profile, and revoke endpoints with POST", async () => {
     const fetchMock = vi.fn().mockImplementation(async () =>
       new Response(JSON.stringify({ removed: true, valid: true, profile: {} }), {
         status: 200,
@@ -419,9 +419,18 @@ describe("request URL resolution", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await removeAgent({ gateway_url: "http://127.0.0.1:18888" }, "assistant-main");
-    await validateAnthropicSetupToken(
+    await createAuthProfile(
       { gateway_url: "http://127.0.0.1:18888" },
-      { setup_token: "token-1", api_base_url: "https://api.anthropic.com" }
+      {
+        provider: "anthropic",
+        display_name: "claude-primary",
+        auth_mode: "api_key",
+        risk_level: "high",
+        enabled: true,
+        kill_switch_scope: "profile",
+        api_base_url: "https://api.anthropic.com",
+        credentials_json: { api_key: "token-1" },
+      }
     );
     await revokeAuthProfile(
       { gateway_url: "http://127.0.0.1:18888" },
@@ -435,16 +444,22 @@ describe("request URL resolution", () => {
     expect(removeInit.method).toBe("POST");
     expect(removeInit.body).toBeUndefined();
 
-    const [validateUrl, validateInit] = fetchMock.mock.calls[1] as [string, RequestInit];
-    expect(validateUrl).toContain("/api/v1/auth/anthropic/setup-token/validate");
-    expect(validateInit.method).toBe("POST");
-    expect(validateInit.body).toBe(
+    const [profileUrl, profileInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(profileUrl).toContain("/api/v1/auth/profiles");
+    expect(profileInit.method).toBe("POST");
+    expect(profileInit.body).toBe(
       JSON.stringify({
-        setup_token: "token-1",
+        provider: "anthropic",
+        display_name: "claude-primary",
+        auth_mode: "api_key",
+        risk_level: "high",
+        enabled: true,
+        kill_switch_scope: "profile",
         api_base_url: "https://api.anthropic.com",
+        credentials_json: { api_key: "token-1" },
       })
     );
-    expect((validateInit.headers as Record<string, string>)["Content-Type"]).toBe(
+    expect((profileInit.headers as Record<string, string>)["Content-Type"]).toBe(
       "application/json"
     );
 
@@ -782,35 +797,32 @@ describe("request URL resolution", () => {
 
   it("uses the longer run timeout for blocking model execution", async () => {
     vi.useFakeTimers();
-    try {
-      vi.mocked(getGatewayToken).mockResolvedValue("token-123");
-      const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
-        return new Promise<Response>((_resolve, reject) => {
-          init?.signal?.addEventListener("abort", () => {
-            reject(new DOMException("aborted", "AbortError"));
-          });
+    vi.mocked(getGatewayToken).mockResolvedValue("token-123");
+    const fetchMock = vi.fn((_url: string, init?: RequestInit) => {
+      return new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          reject(new DOMException("aborted", "AbortError"));
         });
       });
-      vi.stubGlobal("fetch", fetchMock);
+    });
+    vi.stubGlobal("fetch", fetchMock);
 
-      const promise = createSessionRun(
-        { gateway_url: "http://127.0.0.1:18789" },
-        "session-1"
-      );
-      const earlyFailure = vi.fn();
-      promise.catch(earlyFailure);
+    const promise = createSessionRun(
+      { gateway_url: "http://127.0.0.1:18789" },
+      "session-1"
+    );
+    const earlyFailure = vi.fn();
+    promise.catch(earlyFailure);
 
-      await vi.advanceTimersByTimeAsync(API_REQUEST_TIMEOUT_MS + 1);
-      await Promise.resolve();
-      expect(earlyFailure).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(API_REQUEST_TIMEOUT_MS + 1);
+    await Promise.resolve();
+    expect(earlyFailure).not.toHaveBeenCalled();
 
-      await vi.advanceTimersByTimeAsync(API_RUN_REQUEST_TIMEOUT_MS - API_REQUEST_TIMEOUT_MS);
-      await expect(promise).rejects.toMatchObject({
-        kind: "timeout",
-        message: `Gateway request timed out after ${API_RUN_REQUEST_TIMEOUT_MS}ms.`,
-      });
-    } finally {
-      vi.useRealTimers();
-    }
+    await vi.advanceTimersByTimeAsync(API_RUN_REQUEST_TIMEOUT_MS - API_REQUEST_TIMEOUT_MS);
+    await expect(promise).rejects.toMatchObject({
+      kind: "timeout",
+      message: `Gateway request timed out after ${API_RUN_REQUEST_TIMEOUT_MS}ms.`,
+    });
+    vi.useRealTimers();
   });
 });

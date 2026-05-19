@@ -26,8 +26,7 @@ use carsinos_protocol::{
     AgentMailThreadSummaryResponse, AgentMemoryBindingRequest, AgentMemoryBindingResponse,
     AgentMemoryJsonPayloadResponse, AgentMemoryLaneStatusResponse,
     AgentMemoryNativeSurfaceAvailabilityResponse, AgentMemoryStatusResponse, AgentResponse,
-    AnthropicSetupTokenIngestRequest, AnthropicSetupTokenIngestResponse,
-    AnthropicSetupTokenValidateRequest, AnthropicSetupTokenValidateResponse, ApprovalResponse,
+    AnthropicSetupTokenIngestRequest, AnthropicSetupTokenValidateRequest, ApprovalResponse,
     AssistantMemoryScope, AssistantTaskHandle, AssistantToolCapabilitiesResponse,
     AssistantToolCapabilityItem, AssistantToolLimitsResponse, AssistantToolRpcRequest,
     AssistantToolRpcResponse, AssistantWorkerSummary, AssistantWorkerTemplateResponse,
@@ -2147,6 +2146,7 @@ const AUTH_MODE_OPENAI_OAUTH: &str = "openai_oauth";
 const AUTH_MODE_AGENT_SDK: &str = "agent_sdk";
 const ANTHROPIC_SETUP_TOKEN_PREFIX: &str = "sk-ant-oat01-";
 const ANTHROPIC_SETUP_TOKEN_MIN_LENGTH: usize = 80;
+#[cfg(test)]
 const ANTHROPIC_OAUTH_BETA_HEADER: &str = "oauth-2025-04-20";
 
 const KILL_SWITCH_SCOPE_NONE: &str = "none";
@@ -2202,8 +2202,6 @@ Operational rules:
 - Use local filesystem, process, web/search, board, runbook, mail, room, memory, team, and connector tools only when CarsinOS provides them and policy allows them.
 - Your main job is operator assist: inspect state, summarize blockers, suggest next actions, and help coordinate Codex CLI, Codex Desktop, ChatGPT Desktop, LM Studio, and other agent surfaces as connectors or screen-reading paths become available."#;
 const SYSTEM_SOURCE_CHANNEL_CORE: &str = "system.core";
-const ANTHROPIC_API_BASE_ALLOWLIST_ENV: &str = "CARSINOS_ANTHROPIC_API_BASE_ALLOWLIST";
-const ANTHROPIC_ALLOW_TEST_LOOPBACK_HTTP_ENV: &str = "CARSINOS_ANTHROPIC_ALLOW_TEST_LOOPBACK_HTTP";
 const OPENROUTER_DEFAULT_API_BASE: &str = "https://openrouter.ai/api";
 const OLLAMA_DEFAULT_API_BASE: &str = "http://127.0.0.1:11434";
 const VLLM_DEFAULT_API_BASE: &str = "http://127.0.0.1:8000";
@@ -3831,6 +3829,18 @@ async fn list_provider_models(
         })?),
         None => None,
     };
+    if provider == AUTH_PROVIDER_ANTHROPIC
+        && resolved_auth_profile
+            .as_ref()
+            .map(|profile| !anthropic_profile_is_direct_api_key(profile))
+            .unwrap_or(true)
+    {
+        return Err(api_error_with_code(
+            StatusCode::BAD_REQUEST,
+            "AUTH_REQUIRED",
+            "Anthropic model catalog requires a direct Anthropic API key profile",
+        ));
+    }
 
     let base_url = provider_models_base_url(&provider, resolved_auth_profile.as_ref());
     let cache_key =
@@ -4062,9 +4072,6 @@ fn extract_provider_auth_token(profile: &ProviderAuthProfile) -> AnyResult<Optio
         if let Some(value) = payload.get(key).and_then(|value| value.as_str()) {
             let trimmed = value.trim();
             if !trimmed.is_empty() {
-                if is_anthropic_setup_token_value(trimmed) {
-                    return Ok(Some(normalize_anthropic_setup_token_value(trimmed)));
-                }
                 return Ok(Some(trimmed.to_string()));
             }
         }
@@ -4082,49 +4089,52 @@ fn is_anthropic_setup_token_value(raw: &str) -> bool {
         && trimmed.len() >= ANTHROPIC_SETUP_TOKEN_MIN_LENGTH
 }
 
-fn anthropic_profile_uses_bearer_auth(profile: &ProviderAuthProfile) -> bool {
-    if profile.auth_mode != AUTH_MODE_API_KEY {
+fn anthropic_profile_is_direct_api_key(profile: &ProviderAuthProfile) -> bool {
+    if !profile
+        .auth_mode
+        .trim()
+        .eq_ignore_ascii_case(AUTH_MODE_API_KEY)
+    {
         return false;
     }
     let Ok(payload) = parse_provider_credentials_json(
         profile,
-        "failed to parse anthropic provider credentials for bearer auth policy",
+        "failed to parse anthropic provider credentials for direct-api-key policy",
     ) else {
         return false;
     };
     if payload
         .get("token_kind")
         .and_then(|value| value.as_str())
-        .map(|value| value.eq_ignore_ascii_case("setup_token"))
+        .map(|value| value.trim().eq_ignore_ascii_case("setup_token"))
         .unwrap_or(false)
     {
-        return true;
+        return false;
     }
-    extract_provider_auth_token(profile)
-        .ok()
-        .flatten()
-        .map(|token| is_anthropic_setup_token_value(&token))
+    if ["token", "access_token", "bearer_token", "refresh_token"]
+        .iter()
+        .any(|key| {
+            payload
+                .get(*key)
+                .and_then(|value| value.as_str())
+                .map(|value| !value.trim().is_empty())
+                .unwrap_or(false)
+        })
+    {
+        return false;
+    }
+    payload
+        .get("api_key")
+        .and_then(|value| value.as_str())
+        .map(|value| {
+            let trimmed = value.trim();
+            !trimmed.is_empty() && !is_anthropic_setup_token_value(trimmed)
+        })
         .unwrap_or(false)
 }
 
 fn anthropic_profile_uses_curated_catalog(profile: &ProviderAuthProfile) -> bool {
-    if profile.auth_mode == AUTH_MODE_AGENT_SDK {
-        return true;
-    }
-    if profile.auth_mode != AUTH_MODE_API_KEY {
-        return false;
-    }
-    let Ok(payload) = parse_provider_credentials_json(
-        profile,
-        "failed to parse anthropic provider credentials for catalog policy",
-    ) else {
-        return false;
-    };
-    payload
-        .get("token_kind")
-        .and_then(|value| value.as_str())
-        .map(|value| value.eq_ignore_ascii_case("setup_token"))
-        .unwrap_or(false)
+    !anthropic_profile_is_direct_api_key(profile)
 }
 
 fn parse_openai_models_payload(payload: &serde_json::Value) -> AnyResult<Vec<String>> {
@@ -4338,10 +4348,9 @@ async fn fetch_provider_models_from_upstream(
             .map(anthropic_profile_uses_curated_catalog)
             .unwrap_or(false)
     {
-        // Claude Code headless flows do not provide a reliable upstream model-catalog
-        // endpoint, and Claude setup-tokens are inference tokens rather than a stable
-        // catalog-discovery surface. Use a curated Claude catalog so onboarding, Team,
-        // and other catalog readers stay deterministic.
+        // Non-direct Anthropic auth profiles are no longer valid for live catalog
+        // discovery. Keep the fallback deterministic for legacy rows while the
+        // creation and execution paths reject those profiles.
         return Ok(curated_anthropic_provider_models());
     }
 
@@ -4385,16 +4394,7 @@ async fn fetch_provider_models_from_upstream(
     };
     if let Some(token) = token.as_ref() {
         if provider == "anthropic" {
-            if auth_profile
-                .map(anthropic_profile_uses_bearer_auth)
-                .unwrap_or(false)
-            {
-                request = request
-                    .bearer_auth(token)
-                    .header("anthropic-beta", ANTHROPIC_OAUTH_BETA_HEADER);
-            } else {
-                request = request.header("x-api-key", token);
-            }
+            request = request.header("x-api-key", token);
         } else {
             request = request.bearer_auth(token);
         }
@@ -9960,6 +9960,10 @@ const ASSISTANT_TOOL_CODEX_CLI_SESSIONS: &str = "codex_cli.sessions";
 const ASSISTANT_TOOL_CODEX_CLI_READ: &str = "codex_cli.read";
 const ASSISTANT_TOOL_CODEX_CLI_EXEC: &str = "codex_cli.exec";
 const ASSISTANT_TOOL_CODEX_CLI_WINDOW: &str = "codex_cli.window";
+const ASSISTANT_TOOL_CLAUDE_CODE_SESSIONS: &str = "claude_code.sessions";
+const ASSISTANT_TOOL_CLAUDE_CODE_READ: &str = "claude_code.read";
+const ASSISTANT_TOOL_CLAUDE_CODE_EXEC: &str = "claude_code.exec";
+const ASSISTANT_TOOL_CLAUDE_CODE_WINDOW: &str = "claude_code.window";
 const ASSISTANT_TOOL_CODEX_APP_STATUS: &str = "codex_app.status";
 const ASSISTANT_TOOL_CODEX_APP_THREADS: &str = "codex_app.threads";
 const ASSISTANT_TOOL_CODEX_APP_READ: &str = "codex_app.read";
@@ -14314,222 +14318,27 @@ async fn openai_oauth_finish(
 async fn anthropic_setup_token_ingest(
     headers: HeaderMap,
     State(state): State<AppState>,
-    Json(request): Json<AnthropicSetupTokenIngestRequest>,
-) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    Json(_request): Json<AnthropicSetupTokenIngestRequest>,
+) -> std::result::Result<(), (StatusCode, Json<ApiError>)> {
     let auth = require_bearer_auth_with_error(&headers, &state)?;
     require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_AUTOMATION_RUNNER])?;
-
-    let display_name = request.display_name.trim().to_string();
-    if display_name.is_empty() {
-        return Err(api_error(
-            StatusCode::BAD_REQUEST,
-            "display_name cannot be empty",
-        ));
-    }
-    let setup_token = normalize_anthropic_setup_token_value(&request.setup_token);
-    if setup_token.is_empty() {
-        return Err(api_error(
-            StatusCode::BAD_REQUEST,
-            "setup_token cannot be empty",
-        ));
-    }
-    let api_base_url =
-        normalize_anthropic_api_base_url(request.api_base_url.as_deref()).map_err(|_| {
-            api_error(
-                StatusCode::BAD_REQUEST,
-                "api_base_url must be an allowlisted https Anthropic endpoint",
-            )
-        })?;
-    let setup_token_valid = validate_anthropic_setup_token(&api_base_url, &setup_token)
-        .await
-        .map_err(|err| {
-            warn!(error = %err, "anthropic setup token ingest validation upstream failure");
-            api_error(StatusCode::BAD_GATEWAY, "setup token validation failed")
-        })?;
-    if !setup_token_valid {
-        return Err(api_error(
-            StatusCode::BAD_REQUEST,
-            "setup token validation failed",
-        ));
-    }
-
-    let kill_switch_scope = request
-        .kill_switch_scope
-        .unwrap_or_else(|| KILL_SWITCH_SCOPE_NONE.to_string())
-        .trim()
-        .to_ascii_lowercase();
-    validate_kill_switch_scope(&kill_switch_scope)?;
-    validate_high_risk_controls(
-        AUTH_MODE_API_KEY,
-        request.enabled.unwrap_or(true),
-        &kill_switch_scope,
-    )?;
-
-    let secret_ref = format!("auth.anthropic.setup-token.{}", uuid::Uuid::new_v4());
-    let secret_payload = serde_json::json!({
-        "api_key": setup_token,
-        "token_kind": "setup_token"
-    });
-    state
-        .secret_store
-        .set_json(&secret_ref, &secret_payload)
-        .map_err(|err| internal_err_with_error("storing anthropic setup token failed", err))?;
-    let credentials_json = serde_json::json!({
-        "secret_ref": secret_ref,
-        "token_kind": "setup_token",
-        "validated_at_unix": current_time_ms() / 1000
-    })
-    .to_string();
-    let replacement = NewAuthProfile {
-        provider: AUTH_PROVIDER_ANTHROPIC.to_string(),
-        display_name: display_name.clone(),
-        auth_mode: AUTH_MODE_API_KEY.to_string(),
-        risk_level: auth_mode_policy(AUTH_MODE_API_KEY)
-            .expect("api key policy")
-            .risk_level
-            .to_string(),
-        enabled: request.enabled.unwrap_or(true),
-        kill_switch_scope: kill_switch_scope.clone(),
-        api_base_url: Some(api_base_url.clone()),
-        credentials_json,
-    };
-
-    let created = state.storage.create_auth_profile(replacement.clone());
-    let (status, profile) = match created {
-        Ok(profile) => (StatusCode::CREATED, profile),
-        Err(err) if is_unique_constraint_violation(&err, None) => {
-            let existing = state
-                .storage
-                .list_auth_profiles(Some(AUTH_PROVIDER_ANTHROPIC), true)
-                .map_err(|list_err| {
-                    if let Err(cleanup_err) = state.secret_store.delete(&secret_ref) {
-                        warn!(
-                            error = ?cleanup_err,
-                            secret_ref = %secret_ref,
-                            "failed cleaning up anthropic setup-token secret after duplicate auth profile lookup failure"
-                        );
-                    }
-                    internal_err_with_error(
-                        "listing anthropic auth profiles for duplicate setup-token replace failed",
-                        list_err,
-                    )
-                })?
-                .into_iter()
-                .find(|profile| profile.display_name == display_name)
-                .ok_or_else(|| {
-                    if let Err(cleanup_err) = state.secret_store.delete(&secret_ref) {
-                        warn!(
-                            error = ?cleanup_err,
-                            secret_ref = %secret_ref,
-                            "failed cleaning up anthropic setup-token secret after missing duplicate auth profile"
-                        );
-                    }
-                    api_error(
-                        StatusCode::CONFLICT,
-                        "auth profile display_name already exists for this provider",
-                    )
-                })?;
-            let previous_secret_ref = auth_profile_credentials_payload(&existing)
-                .ok()
-                .and_then(|payload| secret_ref_from_metadata(&payload));
-            let replaced = state
-                .storage
-                .replace_auth_profile(&existing.auth_profile_id, replacement)
-                .map_err(|replace_err| {
-                    if let Err(cleanup_err) = state.secret_store.delete(&secret_ref) {
-                        warn!(
-                            error = ?cleanup_err,
-                            secret_ref = %secret_ref,
-                            "failed cleaning up anthropic setup-token secret after duplicate auth profile replace failure"
-                        );
-                    }
-                    internal_err_with_error(
-                        "replacing duplicate anthropic setup-token auth profile failed",
-                        replace_err,
-                    )
-                })?
-                .ok_or_else(|| {
-                    if let Err(cleanup_err) = state.secret_store.delete(&secret_ref) {
-                        warn!(
-                            error = ?cleanup_err,
-                            secret_ref = %secret_ref,
-                            "failed cleaning up anthropic setup-token secret after duplicate auth profile vanished"
-                        );
-                    }
-                    api_error(StatusCode::NOT_FOUND, "auth profile not found")
-                })?;
-            if let Some(previous_secret_ref) = previous_secret_ref {
-                if previous_secret_ref != secret_ref {
-                    if let Err(cleanup_err) = state.secret_store.delete(&previous_secret_ref) {
-                        warn!(
-                            error = ?cleanup_err,
-                            secret_ref = %previous_secret_ref,
-                            auth_profile_id = %replaced.auth_profile_id,
-                            "failed cleaning up superseded anthropic auth profile secret_ref"
-                        );
-                    }
-                }
-            }
-            (StatusCode::OK, replaced)
-        }
-        Err(err) => {
-            if let Err(cleanup_err) = state.secret_store.delete(&secret_ref) {
-                warn!(
-                    error = ?cleanup_err,
-                    secret_ref = %secret_ref,
-                    "failed cleaning up anthropic setup-token secret after create failure"
-                );
-            }
-            return Err(internal_err_with_error(
-                "creating anthropic setup-token profile failed",
-                err,
-            ));
-        }
-    };
-
-    info!(
-        auth_profile_id = %profile.auth_profile_id,
-        provider = %profile.provider,
-        auth_mode = %profile.auth_mode,
-        status = %status.as_u16(),
-        "anthropic setup-token ingested"
-    );
-    Ok((
-        status,
-        Json(AnthropicSetupTokenIngestResponse {
-            profile: to_auth_profile_response(profile),
-        }),
+    Err(api_error(
+        StatusCode::GONE,
+        "Claude setup-token auth has been removed. Create an Anthropic API key profile instead.",
     ))
 }
 
 async fn anthropic_setup_token_validate(
     headers: HeaderMap,
     State(state): State<AppState>,
-    Json(request): Json<AnthropicSetupTokenValidateRequest>,
-) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    Json(_request): Json<AnthropicSetupTokenValidateRequest>,
+) -> std::result::Result<(), (StatusCode, Json<ApiError>)> {
     let auth = require_bearer_auth_with_error(&headers, &state)?;
     require_roles_with_error(&auth, &[ROLE_OPERATOR_ADMIN, ROLE_AUTOMATION_RUNNER])?;
-    let setup_token = normalize_anthropic_setup_token_value(&request.setup_token);
-    if setup_token.is_empty() {
-        return Err(api_error(
-            StatusCode::BAD_REQUEST,
-            "setup_token cannot be empty",
-        ));
-    }
-    let api_base_url =
-        normalize_anthropic_api_base_url(request.api_base_url.as_deref()).map_err(|_| {
-            api_error(
-                StatusCode::BAD_REQUEST,
-                "api_base_url must be an allowlisted https Anthropic endpoint",
-            )
-        })?;
-    let valid = validate_anthropic_setup_token(&api_base_url, &setup_token)
-        .await
-        .map_err(|err| {
-            warn!(error = %err, "anthropic setup token validation upstream failure");
-            api_error(StatusCode::BAD_GATEWAY, "setup token validation failed")
-        })?;
-    Ok(Json(AnthropicSetupTokenValidateResponse { valid }))
+    Err(api_error(
+        StatusCode::GONE,
+        "Claude setup-token auth has been removed. Create an Anthropic API key profile instead.",
+    ))
 }
 
 fn random_urlsafe_token(min_len: usize) -> String {
@@ -14660,53 +14469,6 @@ async fn exchange_openai_oauth_code(
         anyhow::bail!("oauth token exchange response missing access_token");
     }
     Ok(payload)
-}
-
-fn normalize_anthropic_api_base_url(raw: Option<&str>) -> AnyResult<String> {
-    let candidate = raw
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or(ANTHROPIC_DEFAULT_API_BASE);
-    let mut parsed = Url::parse(candidate).context("api_base_url must be a valid URL")?;
-    let host = parsed
-        .host_str()
-        .map(|value| value.to_ascii_lowercase())
-        .filter(|value| !value.is_empty())
-        .context("api_base_url must include host")?;
-    let allow_test_loopback_http = (cfg!(test)
-        || bool_env(ANTHROPIC_ALLOW_TEST_LOOPBACK_HTTP_ENV, false))
-        && parsed.scheme() == "http"
-        && matches!(host.as_str(), "localhost" | "127.0.0.1" | "::1");
-    if parsed.scheme() != "https" && !allow_test_loopback_http {
-        anyhow::bail!("api_base_url must use https");
-    }
-    let mut allowed_hosts: HashSet<String> = HashSet::from([String::from("api.anthropic.com")]);
-    if let Ok(configured_allowlist) = std::env::var(ANTHROPIC_API_BASE_ALLOWLIST_ENV) {
-        allowed_hosts.extend(parse_csv_set_lower(&configured_allowlist));
-    }
-    if !allowed_hosts.contains(&host) && !allow_test_loopback_http {
-        anyhow::bail!("api_base_url host is not allowlisted");
-    }
-    if let Some(port) = parsed.port() {
-        if !allow_test_loopback_http && port != 443 {
-            anyhow::bail!("api_base_url port must be 443 when specified");
-        }
-    }
-    parsed.set_path("");
-    parsed.set_query(None);
-    parsed.set_fragment(None);
-    Ok(parsed.to_string().trim_end_matches('/').to_string())
-}
-
-fn validate_anthropic_setup_token_shape(setup_token: &str) -> bool {
-    is_anthropic_setup_token_value(setup_token)
-}
-
-async fn validate_anthropic_setup_token(_api_base_url: &str, setup_token: &str) -> AnyResult<bool> {
-    // Align with OpenClaw's setup-token flow: accept Claude CLI setup-tokens by shape
-    // and let real inference be the final auth check. Anthropic's auxiliary usage/catalog
-    // endpoints are not reliable validity probes for these tokens.
-    Ok(validate_anthropic_setup_token_shape(setup_token))
 }
 
 fn extract_account_id_from_jwt(access_token: &str) -> Option<String> {
@@ -19560,7 +19322,6 @@ const ASSISTANT_DESK_SESSION_SCAN_LIMIT: u32 = 500;
 const ASSISTANT_DESK_APPROVAL_SCAN_LIMIT: u32 = 200;
 const ASSISTANT_DESK_DONE_WINDOW_MS: i64 = 24 * 60 * 60 * 1_000;
 const ASSISTANT_DESK_TRANSCRIPT_EVENT_LIMIT: u32 = 100;
-const ASSISTANT_DESK_TRANSCRIPT_SCAN_LIMIT: u32 = 1_000;
 
 #[derive(Debug, Clone, Serialize)]
 struct AssistantDeskResponse {
@@ -19642,11 +19403,6 @@ struct AssistantDeskTranscriptResponse {
     artifacts: Vec<AssistantDeskTranscriptArtifactRef>,
 }
 
-#[derive(Debug, Deserialize)]
-struct AssistantDeskTranscriptQuery {
-    cursor: Option<String>,
-}
-
 #[derive(Debug, Clone, Serialize)]
 struct AssistantDeskTranscriptEvent {
     id: String,
@@ -19691,7 +19447,6 @@ async fn get_assistant_desk_transcript(
     headers: HeaderMap,
     State(state): State<AppState>,
     Path(work_item_id): Path<String>,
-    Query(query): Query<AssistantDeskTranscriptQuery>,
 ) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
     let auth = require_bearer_auth_with_error(&headers, &state)?;
     require_roles_with_audit(
@@ -19707,11 +19462,8 @@ async fn get_assistant_desk_transcript(
         "assistant_desk.transcript",
     )?;
 
-    let Some(response) =
-        build_assistant_desk_transcript_response(&state, &work_item_id, query.cursor.as_deref())
-            .map_err(|err| {
-                internal_err_with_error("building assistant desk transcript failed", err)
-            })?
+    let Some(response) = build_assistant_desk_transcript_response(&state, &work_item_id)
+        .map_err(|err| internal_err_with_error("building assistant desk transcript failed", err))?
     else {
         return Err(api_error_with_code(
             StatusCode::NOT_FOUND,
@@ -19809,6 +19561,9 @@ fn assistant_desk_item_from_latest_run(
     session: &SessionRecord,
     now_ms: i64,
 ) -> AnyResult<Option<AssistantDeskWorkItem>> {
+    if assistant_desk_run_is_expired_provider_breaker(run, now_ms) {
+        return Ok(None);
+    }
     let bucket = assistant_desk_bucket_for_run(run, now_ms);
     if bucket == "ignored" {
         return Ok(None);
@@ -19971,6 +19726,33 @@ fn assistant_desk_bucket_for_status(status: &str, run: &RunRecord, now_ms: i64) 
     }
 }
 
+fn assistant_desk_run_is_expired_provider_breaker(run: &RunRecord, now_ms: i64) -> bool {
+    if run.status != "failed" && run.status != "cancelled" {
+        return false;
+    }
+    let Some(error_text) = run.error_text.as_deref() else {
+        return false;
+    };
+    assistant_desk_provider_breaker_cooldown_until(error_text)
+        .is_some_and(|cooldown_until| cooldown_until <= now_ms)
+}
+
+fn assistant_desk_provider_breaker_cooldown_until(error_text: &str) -> Option<i64> {
+    if !error_text.contains(REASON_BREAKER_PROVIDER_OPEN) {
+        return None;
+    }
+    let after_until = error_text.split_once(" until ")?.1;
+    let digits = after_until
+        .chars()
+        .skip_while(|ch| !ch.is_ascii_digit())
+        .take_while(|ch| ch.is_ascii_digit())
+        .collect::<String>();
+    if digits.is_empty() {
+        return None;
+    }
+    digits.parse::<i64>().ok()
+}
+
 fn assistant_desk_owner_label(agent_id: &str) -> String {
     if agent_id == "default" {
         "ExecAss".to_string()
@@ -20013,7 +19795,6 @@ fn assistant_desk_current_action(status: &str, approval: Option<&ApprovalRecord>
 fn build_assistant_desk_transcript_response(
     state: &AppState,
     work_item_id: &str,
-    cursor: Option<&str>,
 ) -> AnyResult<Option<AssistantDeskTranscriptResponse>> {
     let Some(run_id) = work_item_id.strip_prefix("run:") else {
         return Ok(None);
@@ -20028,24 +19809,6 @@ fn build_assistant_desk_transcript_response(
     let item =
         assistant_desk_item_from_run(state, &run, &session, approval.as_ref(), current_time_ms())?;
     let transcript_id = item.transcript_id.clone();
-    let session_runs = state
-        .storage
-        .list_runs_for_session(&session.session_id, ASSISTANT_DESK_TRANSCRIPT_SCAN_LIMIT)?;
-    let current_run_index = session_runs
-        .iter()
-        .position(|candidate| candidate.run_id == run.run_id);
-    let previous_run = current_run_index
-        .and_then(|index| index.checked_sub(1))
-        .and_then(|index| session_runs.get(index));
-    let next_run = current_run_index.and_then(|index| session_runs.get(index + 1));
-    let lower_bound_ms = previous_run
-        .map(|previous| previous.ended_at.unwrap_or(previous.created_at))
-        .unwrap_or(i64::MIN);
-    let upper_bound_ms = next_run
-        .map(|next| next.created_at)
-        .or_else(|| run.ended_at.map(|ended_at| ended_at.saturating_add(1)))
-        .unwrap_or(i64::MAX);
-    let cursor_ms = cursor.and_then(|value| value.trim().parse::<i64>().ok());
     let mut events = Vec::new();
 
     events.push(AssistantDeskTranscriptEvent {
@@ -20076,11 +19839,8 @@ fn build_assistant_desk_transcript_response(
 
     for message in state
         .storage
-        .list_messages(&session.session_id, ASSISTANT_DESK_TRANSCRIPT_SCAN_LIMIT)?
+        .list_messages(&session.session_id, ASSISTANT_DESK_TRANSCRIPT_EVENT_LIMIT)?
     {
-        if message.created_at < lower_bound_ms || message.created_at >= upper_bound_ms {
-            continue;
-        }
         events.push(AssistantDeskTranscriptEvent {
             id: format!("message:{}", message.message_id),
             at: utc_from_ms(message.created_at).to_rfc3339(),
@@ -20107,26 +19867,13 @@ fn build_assistant_desk_transcript_response(
             .cmp(&right.at_ms)
             .then_with(|| left.id.cmp(&right.id))
     });
-    if let Some(cursor_ms) = cursor_ms {
-        events.retain(|event| event.at_ms < cursor_ms);
-    }
-    let event_limit = ASSISTANT_DESK_TRANSCRIPT_EVENT_LIMIT as usize;
-    let complete = events.len() <= event_limit;
-    if !complete {
-        let keep_from = events.len() - event_limit;
-        events = events.split_off(keep_from);
-    }
-    let next_cursor = if complete {
-        None
-    } else {
-        events.first().map(|event| event.at_ms.to_string())
-    };
+    events.truncate(ASSISTANT_DESK_TRANSCRIPT_EVENT_LIMIT as usize);
 
     Ok(Some(AssistantDeskTranscriptResponse {
         work_item_id: work_item_id.to_string(),
         transcript_id,
-        complete,
-        next_cursor,
+        complete: true,
+        next_cursor: None,
         events,
         artifacts: Vec::new(),
     }))
@@ -20166,8 +19913,10 @@ fn assistant_desk_sanitize_text(input: &str) -> String {
         })
         .collect::<Vec<_>>()
         .join(" ");
-    if let Some((idx, _)) = sanitized.char_indices().nth(300) {
-        format!("{}...", &sanitized[..idx])
+    let mut chars = sanitized.chars();
+    let preview: String = chars.by_ref().take(300).collect();
+    if chars.next().is_some() {
+        format!("{preview}...")
     } else {
         sanitized
     }
@@ -20377,6 +20126,30 @@ fn assistant_tool_capabilities_payload(
                 connector: None,
             },
             AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CLAUDE_CODE_SESSIONS.to_string(),
+                risk_level: "low".to_string(),
+                requires_approval: false,
+                connector: None,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CLAUDE_CODE_READ.to_string(),
+                risk_level: "low".to_string(),
+                requires_approval: false,
+                connector: None,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CLAUDE_CODE_EXEC.to_string(),
+                risk_level: "high".to_string(),
+                requires_approval: true,
+                connector: None,
+            },
+            AssistantToolCapabilityItem {
+                tool_name: ASSISTANT_TOOL_CLAUDE_CODE_WINDOW.to_string(),
+                risk_level: "high".to_string(),
+                requires_approval: true,
+                connector: None,
+            },
+            AssistantToolCapabilityItem {
                 tool_name: ASSISTANT_TOOL_CODEX_APP_STATUS.to_string(),
                 risk_level: "low".to_string(),
                 requires_approval: false,
@@ -20427,6 +20200,10 @@ fn assistant_tools_mcp_tools() -> &'static Vec<serde_json::Value> {
             ASSISTANT_TOOL_CODEX_CLI_READ,
             ASSISTANT_TOOL_CODEX_CLI_EXEC,
             ASSISTANT_TOOL_CODEX_CLI_WINDOW,
+            ASSISTANT_TOOL_CLAUDE_CODE_SESSIONS,
+            ASSISTANT_TOOL_CLAUDE_CODE_READ,
+            ASSISTANT_TOOL_CLAUDE_CODE_EXEC,
+            ASSISTANT_TOOL_CLAUDE_CODE_WINDOW,
             ASSISTANT_TOOL_CODEX_APP_STATUS,
             ASSISTANT_TOOL_CODEX_APP_THREADS,
             ASSISTANT_TOOL_CODEX_APP_READ,
@@ -20567,145 +20344,91 @@ fn assistant_codex_bridge_id(
     Ok(value.to_string())
 }
 
-fn assistant_codex_bridge_execution_arguments(arguments: &serde_json::Value) -> serde_json::Value {
-    let mut value = arguments.clone();
-    if let Some(object) = value.as_object_mut() {
-        object.remove("operator_approved");
-        object.remove("approval_id");
-    }
-    value
-}
-
-fn assistant_codex_bridge_approval_payload(
-    context: &AssistantToolExecutionContext,
-    tool_name: &str,
-    run_id: &str,
+fn assistant_codex_bridge_approval_id(
     arguments: &serde_json::Value,
-) -> serde_json::Value {
-    serde_json::json!({
-        "tool_name": tool_name,
-        "root_session_id": &context.root_session_id,
-        "root_run_id": run_id,
-        "caller_agent_id": &context.caller_agent_id,
-        "boss_key": &context.boss_key,
-        "arguments": assistant_codex_bridge_execution_arguments(arguments)
-    })
-}
-
-fn assistant_codex_bridge_blocked_for_approval(
-    approval: &ApprovalRecord,
-    message: &str,
-) -> (String, Option<String>, String, Option<serde_json::Value>) {
-    (
-        "blocked".to_string(),
-        Some("APPROVAL_REQUIRED".to_string()),
-        message.to_string(),
-        Some(serde_json::json!({
-            "approval_id": approval.approval_id,
-            "approval_status": approval.status,
-            "root_run_id": approval.run_id
-        })),
-    )
-}
-
-fn assistant_codex_bridge_require_stored_approval(
-    state: &AppState,
-    context: &AssistantToolExecutionContext,
-    tool_name: &str,
-    arguments: &serde_json::Value,
-) -> std::result::Result<
-    std::result::Result<
-        serde_json::Value,
-        (String, Option<String>, String, Option<serde_json::Value>),
-    >,
-    (StatusCode, Json<ApiError>),
-> {
-    let anchor_run_id = resolve_assistant_anchor_run_id(state, context)?;
-    let execution_arguments = assistant_codex_bridge_execution_arguments(arguments);
-    let request_payload =
-        assistant_codex_bridge_approval_payload(context, tool_name, &anchor_run_id, arguments);
-    let request_json = serde_json::to_string(&request_payload).map_err(|err| {
-        internal_err_with_error(
-            "serializing Codex bridge approval payload failed",
-            err.into(),
-        )
-    })?;
-
-    let approval = if let Some(approval_id) = arguments
+) -> std::result::Result<String, (String, Option<String>, String, Option<serde_json::Value>)> {
+    let approval_id = arguments
         .get("approval_id")
         .and_then(|value| value.as_str())
         .map(str::trim)
         .filter(|value| !value.is_empty())
-    {
-        let approval_id = assistant_codex_bridge_id(
-            Some(&serde_json::Value::String(approval_id.to_string())),
-            "approval_id",
-        )?;
-        let approval = state
-            .storage
-            .get_approval(&approval_id)
-            .map_err(|err| internal_err_with_error("loading Codex bridge approval failed", err))?
-            .ok_or_else(|| {
-                api_error_with_code(
-                    StatusCode::BAD_REQUEST,
-                    "INVALID_APPROVAL",
-                    "Codex bridge approval was not found",
-                )
-            })?;
-        if approval.run_id != anchor_run_id || approval.kind != tool_name {
-            return Ok(Err((
-                "error".to_string(),
-                Some("INVALID_APPROVAL".to_string()),
-                "approval does not match this Codex bridge request".to_string(),
-                Some(serde_json::json!({ "approval_id": approval.approval_id })),
-            )));
-        }
-        let stored_payload: serde_json::Value = serde_json::from_str(&approval.request_json)
-            .map_err(|err| {
-                internal_err_with_error("parsing Codex bridge approval payload failed", err.into())
-            })?;
-        if stored_payload != request_payload {
-            return Ok(Err((
-                "error".to_string(),
-                Some("INVALID_APPROVAL".to_string()),
-                "approval payload does not match this Codex bridge request".to_string(),
-                Some(serde_json::json!({ "approval_id": approval.approval_id })),
-            )));
-        }
-        approval
-    } else if let Some(existing) = state
-        .storage
-        .find_latest_approval_for_request(&anchor_run_id, tool_name, &request_json)
-        .map_err(|err| internal_err_with_error("finding Codex bridge approval failed", err))?
-    {
-        existing
-    } else {
-        state
-            .storage
-            .create_approval(NewApproval {
-                run_id: anchor_run_id.clone(),
-                tool_call_id: None,
-                kind: tool_name.to_string(),
-                request_summary: format!("Approve {tool_name} through Codex bridge"),
-                request_json,
-            })
-            .map_err(|err| internal_err_with_error("creating Codex bridge approval failed", err))?
-            .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "run not found for approval"))?
-    };
+        .map(ToString::to_string)
+        .ok_or_else(|| {
+            (
+                "blocked".to_string(),
+                Some("APPROVAL_REQUIRED".to_string()),
+                "approval_id from an approved CarsinOS approval is required before starting bridge execution".to_string(),
+                None,
+            )
+        })?;
+    Ok(approval_id)
+}
 
-    match approval.status.as_str() {
-        "approved" => Ok(Ok(execution_arguments)),
-        "denied" => Ok(Err((
-            "error".to_string(),
-            Some("APPROVAL_DENIED".to_string()),
-            "Codex bridge execution approval was denied".to_string(),
-            Some(serde_json::json!({ "approval_id": approval.approval_id })),
-        ))),
-        _ => Ok(Err(assistant_codex_bridge_blocked_for_approval(
-            &approval,
-            "Codex bridge execution requires a stored CarsinOS approval",
-        ))),
+fn assistant_codex_bridge_approval_arguments(arguments: &serde_json::Value) -> serde_json::Value {
+    let mut normalized = arguments.clone();
+    if let Some(object) = normalized.as_object_mut() {
+        object.remove("approval_id");
+        object.remove("operator_approved");
     }
+    normalized
+}
+
+fn assistant_codex_bridge_blocked(
+    message: impl Into<String>,
+) -> (String, Option<String>, String, Option<serde_json::Value>) {
+    (
+        "blocked".to_string(),
+        Some("APPROVAL_REQUIRED".to_string()),
+        message.into(),
+        None,
+    )
+}
+
+fn assistant_codex_bridge_requires_approval(
+    state: &AppState,
+    context: &AssistantToolExecutionContext,
+    tool_name: &str,
+    arguments: &serde_json::Value,
+) -> std::result::Result<(), (String, Option<String>, String, Option<serde_json::Value>)> {
+    let approval_id = assistant_codex_bridge_approval_id(arguments)?;
+    let Some(root_run_id) = context.root_run_id.as_deref() else {
+        return Err(assistant_codex_bridge_blocked(
+            "bridge execution requires a root run before approval can be validated",
+        ));
+    };
+    let approval = state
+        .storage
+        .get_approval(&approval_id)
+        .map_err(|err| {
+            assistant_codex_bridge_blocked(format!(
+                "approval lookup failed before bridge execution: {err}"
+            ))
+        })?
+        .ok_or_else(|| assistant_codex_bridge_blocked("approval_id was not found"))?;
+    if approval.status != "approved" {
+        return Err(assistant_codex_bridge_blocked(
+            "approval_id has not been approved for bridge execution",
+        ));
+    }
+    if approval.run_id != root_run_id {
+        return Err(assistant_codex_bridge_blocked(
+            "approval_id belongs to a different run",
+        ));
+    }
+    if approval.kind != tool_name {
+        return Err(assistant_codex_bridge_blocked(
+            "approval_id was issued for a different bridge tool",
+        ));
+    }
+    let expected_request = serde_json::from_str::<serde_json::Value>(&approval.request_json)
+        .unwrap_or_else(|_| serde_json::json!({}));
+    let actual_request = assistant_codex_bridge_approval_arguments(arguments);
+    if expected_request != actual_request {
+        return Err(assistant_codex_bridge_blocked(
+            "approval_id request payload does not match the requested bridge action",
+        ));
+    }
+    Ok(())
 }
 
 fn assistant_codex_bridge_url(
@@ -21892,6 +21615,8 @@ fn require_assistant_tool_roles(
         | ASSISTANT_TOOL_CODEX_BRIDGE_STATUS
         | ASSISTANT_TOOL_CODEX_CLI_SESSIONS
         | ASSISTANT_TOOL_CODEX_CLI_READ
+        | ASSISTANT_TOOL_CLAUDE_CODE_SESSIONS
+        | ASSISTANT_TOOL_CLAUDE_CODE_READ
         | ASSISTANT_TOOL_CODEX_APP_STATUS
         | ASSISTANT_TOOL_CODEX_APP_THREADS
         | ASSISTANT_TOOL_CODEX_APP_READ => &[
@@ -21901,6 +21626,8 @@ fn require_assistant_tool_roles(
         ],
         ASSISTANT_TOOL_CODEX_CLI_EXEC
         | ASSISTANT_TOOL_CODEX_CLI_WINDOW
+        | ASSISTANT_TOOL_CLAUDE_CODE_EXEC
+        | ASSISTANT_TOOL_CLAUDE_CODE_WINDOW
         | ASSISTANT_TOOL_CODEX_APP_RUN => &[ROLE_OPERATOR_ADMIN, ROLE_AUTOMATION_RUNNER],
         _ => {
             return Err(api_error_with_code(
@@ -23193,12 +22920,11 @@ async fn execute_assistant_tool(
             ))
         }
         ASSISTANT_TOOL_CODEX_CLI_EXEC => {
-            let arguments = match assistant_codex_bridge_require_stored_approval(
-                state, context, tool_name, &arguments,
-            )? {
-                Ok(arguments) => arguments,
-                Err(blocked) => return Ok(blocked),
-            };
+            if let Err(blocked) =
+                assistant_codex_bridge_requires_approval(state, context, tool_name, &arguments)
+            {
+                return Ok(blocked);
+            }
             let data =
                 assistant_codex_bridge_post(state, "/codex-cli/exec", &arguments, 300_000).await?;
             Ok((
@@ -23209,18 +22935,80 @@ async fn execute_assistant_tool(
             ))
         }
         ASSISTANT_TOOL_CODEX_CLI_WINDOW => {
-            let arguments = match assistant_codex_bridge_require_stored_approval(
-                state, context, tool_name, &arguments,
-            )? {
-                Ok(arguments) => arguments,
-                Err(blocked) => return Ok(blocked),
-            };
+            if let Err(blocked) =
+                assistant_codex_bridge_requires_approval(state, context, tool_name, &arguments)
+            {
+                return Ok(blocked);
+            }
             let data =
                 assistant_codex_bridge_post(state, "/codex-cli/window", &arguments, 60_000).await?;
             Ok((
                 "ok".to_string(),
                 None,
                 "Codex CLI window started".to_string(),
+                Some(data),
+            ))
+        }
+        ASSISTANT_TOOL_CLAUDE_CODE_SESSIONS => {
+            let data =
+                assistant_codex_bridge_get(state, "/claude-code/sessions", &[], 20_000).await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Claude Code sessions listed".to_string(),
+                Some(data),
+            ))
+        }
+        ASSISTANT_TOOL_CLAUDE_CODE_READ => {
+            let session_id = assistant_codex_bridge_id(arguments.get("session_id"), "session_id")?;
+            let max_bytes = arguments
+                .get("max_bytes")
+                .and_then(|value| value.as_u64())
+                .unwrap_or(65_536)
+                .clamp(1_024, 512_000);
+            let path = format!("/claude-code/sessions/{session_id}");
+            let data = assistant_codex_bridge_get(
+                state,
+                &path,
+                &[("maxBytes", max_bytes.to_string())],
+                20_000,
+            )
+            .await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Claude Code session read".to_string(),
+                Some(data),
+            ))
+        }
+        ASSISTANT_TOOL_CLAUDE_CODE_EXEC => {
+            if let Err(blocked) =
+                assistant_codex_bridge_requires_approval(state, context, tool_name, &arguments)
+            {
+                return Ok(blocked);
+            }
+            let data = assistant_codex_bridge_post(state, "/claude-code/exec", &arguments, 600_000)
+                .await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Claude Code exec started".to_string(),
+                Some(data),
+            ))
+        }
+        ASSISTANT_TOOL_CLAUDE_CODE_WINDOW => {
+            if let Err(blocked) =
+                assistant_codex_bridge_requires_approval(state, context, tool_name, &arguments)
+            {
+                return Ok(blocked);
+            }
+            let data =
+                assistant_codex_bridge_post(state, "/claude-code/window", &arguments, 60_000)
+                    .await?;
+            Ok((
+                "ok".to_string(),
+                None,
+                "Claude Code window started".to_string(),
                 Some(data),
             ))
         }
@@ -23275,12 +23063,11 @@ async fn execute_assistant_tool(
             ))
         }
         ASSISTANT_TOOL_CODEX_APP_RUN => {
-            let arguments = match assistant_codex_bridge_require_stored_approval(
-                state, context, tool_name, &arguments,
-            )? {
-                Ok(arguments) => arguments,
-                Err(blocked) => return Ok(blocked),
-            };
+            if let Err(blocked) =
+                assistant_codex_bridge_requires_approval(state, context, tool_name, &arguments)
+            {
+                return Ok(blocked);
+            }
             let data =
                 assistant_codex_bridge_post(state, "/codex-app/run", &arguments, 600_000).await?;
             Ok((
@@ -25389,6 +25176,29 @@ fn reset_circuit_breaker_state_on_success(
             last_error_code: None,
         })?;
     Ok(())
+}
+
+fn provider_circuit_breaker_target(
+    provider: &str,
+    auth_profile: Option<&AuthProfileRecord>,
+) -> String {
+    auth_profile
+        .map(|profile| format!("{provider}:auth:{}", profile.auth_profile_id))
+        .unwrap_or_else(|| provider.to_string())
+}
+
+fn provider_circuit_breaker_label(
+    provider: &str,
+    auth_profile: Option<&AuthProfileRecord>,
+) -> String {
+    auth_profile
+        .map(|profile| {
+            format!(
+                "provider '{provider}' auth profile '{}'",
+                profile.display_name
+            )
+        })
+        .unwrap_or_else(|| format!("provider '{provider}'"))
 }
 
 fn record_circuit_breaker_failure(
@@ -27913,35 +27723,6 @@ async fn execute_run(
         ));
     }
     enforce_run_wall_time_budget(started, autonomy_guardrails.max_run_ms)?;
-    if let Some(active_breaker) = get_active_circuit_breaker_state(
-        state,
-        CIRCUIT_BREAKER_SCOPE_PROVIDER,
-        &run.model_provider,
-    )? {
-        emit_event(
-            state,
-            "run.guardrail",
-            serde_json::json!({
-                "run_id": &run.run_id,
-                "session_id": &run.session_id,
-                "reason_code": REASON_BREAKER_PROVIDER_OPEN,
-                "scope": CIRCUIT_BREAKER_SCOPE_PROVIDER,
-                "target_id": &run.model_provider,
-                "cooldown_until": active_breaker.cooldown_until,
-                "consecutive_failures": active_breaker.consecutive_failures,
-                "last_error_code": active_breaker.last_error_code
-            }),
-        );
-        return Err(budget_error(
-            REASON_BREAKER_PROVIDER_OPEN,
-            format!(
-                "provider '{}' circuit breaker open until {}",
-                run.model_provider,
-                active_breaker.cooldown_until.unwrap_or(0)
-            ),
-        ));
-    }
-
     let auth_candidates = resolve_run_auth_profiles(
         state,
         &run.model_provider,
@@ -27992,6 +27773,41 @@ async fn execute_run(
             },
             None => None,
         };
+        let breaker_target =
+            provider_circuit_breaker_target(&run.model_provider, auth_record.as_ref());
+        let breaker_label =
+            provider_circuit_breaker_label(&run.model_provider, auth_record.as_ref());
+        if let Some(active_breaker) = get_active_circuit_breaker_state(
+            state,
+            CIRCUIT_BREAKER_SCOPE_PROVIDER,
+            &breaker_target,
+        )? {
+            emit_event(
+                state,
+                "run.guardrail",
+                serde_json::json!({
+                    "run_id": &run.run_id,
+                    "session_id": &run.session_id,
+                    "reason_code": REASON_BREAKER_PROVIDER_OPEN,
+                    "scope": CIRCUIT_BREAKER_SCOPE_PROVIDER,
+                    "target_id": &breaker_target,
+                    "provider": &run.model_provider,
+                    "auth_profile_id": auth_record.as_ref().map(|profile| profile.auth_profile_id.as_str()),
+                    "cooldown_until": active_breaker.cooldown_until,
+                    "consecutive_failures": active_breaker.consecutive_failures,
+                    "last_error_code": active_breaker.last_error_code
+                }),
+            );
+            last_error = Some(anyhow::anyhow!(
+                "{REASON_BREAKER_PROVIDER_OPEN}: {breaker_label} breaker open until {} after {} consecutive failures",
+                active_breaker.cooldown_until.unwrap_or(0),
+                active_breaker.consecutive_failures
+            ));
+            if attempt_index + 1 >= attempts_total {
+                break;
+            }
+            continue;
+        }
         let selected_health_score = auth_record
             .as_ref()
             .map(auth_profile_health_score)
@@ -28077,7 +27893,7 @@ async fn execute_run(
                 reset_circuit_breaker_state_on_success(
                     state,
                     CIRCUIT_BREAKER_SCOPE_PROVIDER,
-                    &run.model_provider,
+                    &breaker_target,
                 )?;
                 selected_auth_profile = auth_record.clone();
                 completion = Some(response);
@@ -28116,7 +27932,7 @@ async fn execute_run(
                 let breaker_state = record_circuit_breaker_failure(
                     state,
                     CIRCUIT_BREAKER_SCOPE_PROVIDER,
-                    &run.model_provider,
+                    &breaker_target,
                     Some(error_code.as_str()),
                     breaker_failure_limit,
                 )?;
@@ -28129,19 +27945,23 @@ async fn execute_run(
                             "session_id": &run.session_id,
                             "reason_code": REASON_BREAKER_PROVIDER_OPEN,
                             "scope": CIRCUIT_BREAKER_SCOPE_PROVIDER,
-                            "target_id": &run.model_provider,
+                            "target_id": &breaker_target,
+                            "provider": &run.model_provider,
+                            "auth_profile_id": auth_record.as_ref().map(|profile| profile.auth_profile_id.as_str()),
                             "cooldown_until": breaker_state.cooldown_until,
                             "consecutive_failures": breaker_state.consecutive_failures,
                             "last_error_code": breaker_state.last_error_code
                         }),
                     );
                     last_error = Some(anyhow::anyhow!(
-                        "{REASON_BREAKER_PROVIDER_OPEN}: provider '{}' breaker opened until {} after {} consecutive failures",
-                        run.model_provider,
+                        "{REASON_BREAKER_PROVIDER_OPEN}: {breaker_label} breaker opened until {} after {} consecutive failures",
                         breaker_state.cooldown_until.unwrap_or(0),
                         breaker_state.consecutive_failures
                     ));
-                    break;
+                    if attempt_index + 1 >= attempts_total {
+                        break;
+                    }
+                    continue;
                 }
                 if !can_retry || attempt_index + 1 >= attempts_total {
                     break;
@@ -38295,7 +38115,7 @@ fn provider_supports_optional_auth(provider: &str) -> bool {
 fn provider_auth_mode_allowed(provider: &str, auth_mode: &str) -> bool {
     match provider {
         "openai" => matches!(auth_mode, AUTH_MODE_API_KEY | AUTH_MODE_OPENAI_OAUTH),
-        "anthropic" => matches!(auth_mode, AUTH_MODE_API_KEY | AUTH_MODE_AGENT_SDK),
+        "anthropic" => matches!(auth_mode, AUTH_MODE_API_KEY),
         "openrouter" | "ollama" | "vllm" | "lmstudio" => matches!(auth_mode, AUTH_MODE_API_KEY),
         "mock" | "unconfigured" => true,
         _ => false,
@@ -39300,6 +39120,46 @@ mod tests {
             }
         }
         result
+    }
+
+    #[test]
+    fn anthropic_provider_allows_only_direct_api_key_profiles() {
+        assert!(provider_auth_mode_allowed("anthropic", AUTH_MODE_API_KEY));
+        assert!(!provider_auth_mode_allowed(
+            "anthropic",
+            AUTH_MODE_AGENT_SDK
+        ));
+        assert!(!anthropic_profile_is_direct_api_key(&ProviderAuthProfile {
+            auth_profile_id: Some("legacy-setup".to_string()),
+            auth_mode: AUTH_MODE_API_KEY.to_string(),
+            risk_level: "low".to_string(),
+            api_base_url: Some(ANTHROPIC_DEFAULT_API_BASE.to_string()),
+            credentials_json: serde_json::json!({
+                "api_key": fake_anthropic_setup_token(),
+                "token_kind": "setup_token"
+            })
+            .to_string(),
+        }));
+        assert!(!anthropic_profile_is_direct_api_key(&ProviderAuthProfile {
+            auth_profile_id: Some("legacy-bearer".to_string()),
+            auth_mode: AUTH_MODE_API_KEY.to_string(),
+            risk_level: "low".to_string(),
+            api_base_url: Some(ANTHROPIC_DEFAULT_API_BASE.to_string()),
+            credentials_json: serde_json::json!({
+                "access_token": "legacy-oauth-token"
+            })
+            .to_string(),
+        }));
+        assert!(anthropic_profile_is_direct_api_key(&ProviderAuthProfile {
+            auth_profile_id: Some("direct".to_string()),
+            auth_mode: AUTH_MODE_API_KEY.to_string(),
+            risk_level: "low".to_string(),
+            api_base_url: Some(ANTHROPIC_DEFAULT_API_BASE.to_string()),
+            credentials_json: serde_json::json!({
+                "api_key": "sk-ant-api03-direct-key"
+            })
+            .to_string(),
+        }));
     }
 
     struct TestContext {
@@ -40923,18 +40783,6 @@ mod tests {
                 expected_openai_bearer: Some(access_token.to_string()),
                 expected_anthropic_api_key: None,
                 expected_anthropic_bearer: None,
-            }
-        }
-
-        fn anthropic(setup_token: &str) -> Self {
-            Self {
-                token_status: StatusCode::OK,
-                access_token: "unused".to_string(),
-                refresh_token: None,
-                expires_in: 3600,
-                expected_openai_bearer: None,
-                expected_anthropic_api_key: None,
-                expected_anthropic_bearer: Some(setup_token.to_string()),
             }
         }
     }
@@ -46948,12 +46796,10 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     }
 
     #[tokio::test]
-    async fn anthropic_setup_token_ingest_creates_profile_and_supports_run_flow() {
+    async fn anthropic_setup_token_endpoints_are_gone() {
         let ctx = test_context();
         let setup_token = fake_anthropic_setup_token();
-        let stub = spawn_auth_flow_stub(AuthFlowStubConfig::anthropic(&setup_token)).await;
-
-        let ingest_response = ctx
+        let ingest = ctx
             .app
             .clone()
             .oneshot(auth_request(
@@ -46963,222 +46809,33 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                     r#"{{
                         "display_name":"anthropic-setup",
                         "setup_token":"{}",
-                        "api_base_url":"{}"
+                        "api_base_url":"https://api.anthropic.com"
                     }}"#,
-                    setup_token, stub.base_url
+                    setup_token
                 )),
             ))
             .await
-            .expect("ingest setup token");
-        assert_eq!(ingest_response.status(), StatusCode::CREATED);
-        let ingest_json = parse_json(ingest_response).await;
-        let profile_id = ingest_json["profile"]["auth_profile_id"]
-            .as_str()
-            .expect("profile id")
-            .to_string();
+            .expect("setup-token ingest response");
+        assert_eq!(ingest.status(), StatusCode::GONE);
 
-        let record = ctx
-            .storage
-            .get_auth_profile(&profile_id)
-            .expect("load profile")
-            .expect("profile exists");
-        let credentials: serde_json::Value =
-            serde_json::from_str(&record.credentials_json).expect("credentials json");
-        assert!(credentials
-            .get("secret_ref")
-            .and_then(|value| value.as_str())
-            .is_some());
-        assert!(credentials.get("api_key").is_none());
-
-        let create_session_response = ctx
+        let validate = ctx
             .app
             .clone()
             .oneshot(auth_request(
                 "POST",
-                "/api/v1/sessions",
-                Body::from(r#"{"title":"anthropic-setup-run"}"#),
-            ))
-            .await
-            .expect("create session");
-        let create_session_json = parse_json(create_session_response).await;
-        let session_id = create_session_json["session"]["session_id"]
-            .as_str()
-            .expect("session id")
-            .to_string();
-
-        let _ = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "POST",
-                &format!("/api/v1/sessions/{session_id}/messages"),
-                Body::from(r#"{"role":"user","content_text":"hello anthropic setup token"}"#),
-            ))
-            .await
-            .expect("create message");
-
-        let run_response = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "POST",
-                &format!("/api/v1/sessions/{session_id}/runs"),
-                Body::from(format!(
-                    r#"{{"model_provider":"anthropic","model_id":"claude-test","auth_profile_id":"{profile_id}"}}"#
-                )),
-            ))
-            .await
-            .expect("run response");
-        assert_eq!(run_response.status(), StatusCode::CREATED);
-        let run_json = parse_json(run_response).await;
-        assert_eq!(run_json["run"]["status"], "succeeded");
-    }
-
-    #[tokio::test]
-    async fn anthropic_setup_token_ingest_normalizes_wrapped_whitespace_before_storage_and_run() {
-        let ctx = test_context();
-        let normalized_setup_token = fake_anthropic_setup_token();
-        let wrapped_setup_token = format!(
-            "{} {}",
-            &normalized_setup_token[..40],
-            &normalized_setup_token[40..]
-        );
-        let stub =
-            spawn_auth_flow_stub(AuthFlowStubConfig::anthropic(&normalized_setup_token)).await;
-
-        let ingest_response = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "POST",
-                "/api/v1/auth/anthropic/setup-token/ingest",
+                "/api/v1/auth/anthropic/setup-token/validate",
                 Body::from(format!(
                     r#"{{
-                        "display_name":"anthropic-setup-whitespace",
                         "setup_token":"{}",
-                        "api_base_url":"{}"
+                        "api_base_url":"https://api.anthropic.com"
                     }}"#,
-                    wrapped_setup_token, stub.base_url
+                    setup_token
                 )),
             ))
             .await
-            .expect("ingest wrapped setup token");
-        assert_eq!(ingest_response.status(), StatusCode::CREATED);
-        let ingest_json = parse_json(ingest_response).await;
-        let profile_id = ingest_json["profile"]["auth_profile_id"]
-            .as_str()
-            .expect("profile id")
-            .to_string();
-
-        let record = ctx
-            .storage
-            .get_auth_profile(&profile_id)
-            .expect("load profile")
-            .expect("profile exists");
-        let credentials: serde_json::Value =
-            serde_json::from_str(&record.credentials_json).expect("credentials json");
-        let secret_ref = credentials["secret_ref"].as_str().expect("secret ref");
-        let stored_secret = ctx
-            .secret_store
-            .get_json(secret_ref)
-            .expect("load normalized secret")
-            .expect("secret exists");
-        assert_eq!(stored_secret["api_key"], normalized_setup_token);
-
-        let create_session_response = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "POST",
-                "/api/v1/sessions",
-                Body::from(r#"{"title":"anthropic-setup-run-whitespace"}"#),
-            ))
-            .await
-            .expect("create session");
-        let create_session_json = parse_json(create_session_response).await;
-        let session_id = create_session_json["session"]["session_id"]
-            .as_str()
-            .expect("session id")
-            .to_string();
-
-        let _ = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "POST",
-                &format!("/api/v1/sessions/{session_id}/messages"),
-                Body::from(
-                    r#"{"role":"user","content_text":"hello anthropic wrapped setup token"}"#,
-                ),
-            ))
-            .await
-            .expect("create message");
-
-        let run_response = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "POST",
-                &format!("/api/v1/sessions/{session_id}/runs"),
-                Body::from(format!(
-                    r#"{{"model_provider":"anthropic","model_id":"claude-test","auth_profile_id":"{profile_id}"}}"#
-                )),
-            ))
-            .await
-            .expect("run response");
-        assert_eq!(run_response.status(), StatusCode::CREATED);
-        let run_json = parse_json(run_response).await;
-        assert_eq!(run_json["run"]["status"], "succeeded");
+            .expect("setup-token validate response");
+        assert_eq!(validate.status(), StatusCode::GONE);
     }
-
-    #[tokio::test]
-    async fn anthropic_setup_token_ingest_replaces_duplicate_display_name() {
-        let ctx = test_context();
-        let setup_token = fake_anthropic_setup_token();
-        let stub = spawn_auth_flow_stub(AuthFlowStubConfig::anthropic(&setup_token)).await;
-
-        let first = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "POST",
-                "/api/v1/auth/anthropic/setup-token/ingest",
-                Body::from(format!(
-                    r#"{{
-                        "display_name":"claude-primary",
-                        "setup_token":"{}",
-                        "api_base_url":"{}"
-                    }}"#,
-                    setup_token, stub.base_url
-                )),
-            ))
-            .await
-            .expect("create first anthropic setup-token profile");
-        assert_eq!(first.status(), StatusCode::CREATED);
-
-        let duplicate = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "POST",
-                "/api/v1/auth/anthropic/setup-token/ingest",
-                Body::from(format!(
-                    r#"{{
-                        "display_name":"claude-primary",
-                        "setup_token":"{}",
-                        "api_base_url":"{}"
-                    }}"#,
-                    setup_token, stub.base_url
-                )),
-            ))
-            .await
-            .expect("duplicate anthropic setup-token profile");
-        assert_eq!(duplicate.status(), StatusCode::OK);
-        let duplicate_json = parse_json(duplicate).await;
-        assert_eq!(duplicate_json["profile"]["display_name"], "claude-primary");
-        assert_eq!(duplicate_json["profile"]["auth_mode"], "api_key");
-    }
-
     #[tokio::test]
     async fn channel_config_endpoints_round_trip() {
         let ctx = test_context();
@@ -48184,6 +47841,20 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .await
             .expect("create auth profile");
         assert_eq!(create_profile.status(), StatusCode::CREATED);
+        let create_profile_json = parse_json(create_profile).await;
+        let auth_profile_id = create_profile_json["profile"]["auth_profile_id"]
+            .as_str()
+            .expect("auth profile id")
+            .to_string();
+        let breaker_target = provider_circuit_breaker_target(
+            "openai",
+            Some(
+                &ctx.storage
+                    .get_auth_profile(&auth_profile_id)
+                    .expect("load auth profile")
+                    .expect("auth profile exists"),
+            ),
+        );
 
         let first_session =
             create_session_with_user_message(&ctx, "provider-breaker-first", "first run").await;
@@ -48203,7 +47874,7 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
 
         let provider_breaker = ctx
             .storage
-            .get_circuit_breaker_state(CIRCUIT_BREAKER_SCOPE_PROVIDER, "openai")
+            .get_circuit_breaker_state(CIRCUIT_BREAKER_SCOPE_PROVIDER, &breaker_target)
             .expect("load provider breaker")
             .expect("provider breaker exists");
         assert_eq!(provider_breaker.state, CIRCUIT_BREAKER_STATE_OPEN);
@@ -48268,12 +47939,23 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .await
             .expect("create auth profile");
         assert_eq!(create_profile.status(), StatusCode::CREATED);
+        let create_profile_json = parse_json(create_profile).await;
+        let auth_profile_id = create_profile_json["profile"]["auth_profile_id"]
+            .as_str()
+            .expect("auth profile id")
+            .to_string();
+        let auth_profile = ctx
+            .storage
+            .get_auth_profile(&auth_profile_id)
+            .expect("load auth profile")
+            .expect("auth profile exists");
+        let breaker_target = provider_circuit_breaker_target("openai", Some(&auth_profile));
 
         let now = current_time_ms();
         ctx.storage
             .upsert_circuit_breaker_state(CircuitBreakerStateUpsert {
                 scope: CIRCUIT_BREAKER_SCOPE_PROVIDER.to_string(),
-                target_id: "openai".to_string(),
+                target_id: breaker_target.clone(),
                 state: CIRCUIT_BREAKER_STATE_OPEN.to_string(),
                 consecutive_failures: 4,
                 opened_at: Some(now.saturating_sub(10_000)),
@@ -48301,11 +47983,164 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
 
         let breaker = ctx
             .storage
-            .get_circuit_breaker_state(CIRCUIT_BREAKER_SCOPE_PROVIDER, "openai")
+            .get_circuit_breaker_state(CIRCUIT_BREAKER_SCOPE_PROVIDER, &breaker_target)
             .expect("load provider breaker after success")
             .expect("provider breaker exists");
         assert_eq!(breaker.state, CIRCUIT_BREAKER_STATE_CLOSED);
         assert_eq!(breaker.consecutive_failures, 0);
+    }
+
+    #[tokio::test]
+    async fn provider_circuit_breaker_is_auth_profile_scoped_and_allows_fallback() {
+        let ctx = test_context();
+        update_runtime_autonomy_guardrails(
+            &ctx,
+            r#"{
+                "autonomy_guardrails": {
+                    "max_consecutive_failures_before_breaker": 1,
+                    "max_provider_attempts": 2
+                }
+            }"#,
+        )
+        .await;
+
+        let failing_server = MockServer::start_async().await;
+        let failing_completion = failing_server
+            .mock_async(|when, then| {
+                when.method(POST).path("/v1/chat/completions");
+                then.status(429)
+                    .header("content-type", "application/json")
+                    .body(r#"{"error":{"message":"first profile is rate limited"}}"#);
+            })
+            .await;
+        let working_server = MockServer::start_async().await;
+        let working_completion = working_server
+            .mock_async(|when, then| {
+                when.method(POST).path("/v1/chat/completions");
+                then.status(200)
+                    .header("content-type", "application/json")
+                    .body(r#"{"choices":[{"message":{"content":"fallback profile ok"}}]}"#);
+            })
+            .await;
+
+        let create_failing = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(format!(
+                    r#"{{
+                        "provider":"openai",
+                        "display_name":"failing-route",
+                        "auth_mode":"api_key",
+                        "risk_level":"low",
+                        "enabled":true,
+                        "kill_switch_scope":"none",
+                        "api_base_url":"{}",
+                        "credentials_json":{{"api_key":"bad-key"}}
+                    }}"#,
+                    failing_server.url("")
+                )),
+            ))
+            .await
+            .expect("create failing auth profile");
+        assert_eq!(create_failing.status(), StatusCode::CREATED);
+        let failing_json = parse_json(create_failing).await;
+        let failing_profile_id = failing_json["profile"]["auth_profile_id"]
+            .as_str()
+            .expect("failing profile id")
+            .to_string();
+
+        let create_working = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/profiles",
+                Body::from(format!(
+                    r#"{{
+                        "provider":"openai",
+                        "display_name":"working-route",
+                        "auth_mode":"api_key",
+                        "risk_level":"low",
+                        "enabled":true,
+                        "kill_switch_scope":"none",
+                        "api_base_url":"{}",
+                        "credentials_json":{{"api_key":"good-key"}}
+                    }}"#,
+                    working_server.url("")
+                )),
+            ))
+            .await
+            .expect("create working auth profile");
+        assert_eq!(create_working.status(), StatusCode::CREATED);
+        let working_json = parse_json(create_working).await;
+        let working_profile_id = working_json["profile"]["auth_profile_id"]
+            .as_str()
+            .expect("working profile id")
+            .to_string();
+
+        let set_order = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/auth/agents/default/providers/openai/profile-order",
+                Body::from(format!(
+                    r#"{{"profile_ids":["{failing_profile_id}","{working_profile_id}"]}}"#
+                )),
+            ))
+            .await
+            .expect("set profile order");
+        assert_eq!(set_order.status(), StatusCode::OK);
+
+        let now = current_time_ms();
+        ctx.storage
+            .upsert_circuit_breaker_state(CircuitBreakerStateUpsert {
+                scope: CIRCUIT_BREAKER_SCOPE_PROVIDER.to_string(),
+                target_id: "openai".to_string(),
+                state: CIRCUIT_BREAKER_STATE_OPEN.to_string(),
+                consecutive_failures: 9,
+                opened_at: Some(now),
+                cooldown_until: Some(now.saturating_add(60_000)),
+                last_error_code: Some("RATE_LIMITED".to_string()),
+            })
+            .expect("seed legacy provider breaker");
+
+        let session_id =
+            create_session_with_user_message(&ctx, "provider-breaker-fallback", "fallback run")
+                .await;
+        let run_response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                &format!("/api/v1/sessions/{session_id}/runs"),
+                Body::from(r#"{"model_provider":"openai","model_id":"gpt-test"}"#),
+            ))
+            .await
+            .expect("provider run with fallback profile");
+        assert_eq!(run_response.status(), StatusCode::CREATED);
+        let run_json = parse_json(run_response).await;
+        assert_eq!(run_json["run"]["status"], "succeeded");
+
+        let failing_profile = ctx
+            .storage
+            .get_auth_profile(&failing_profile_id)
+            .expect("load failing profile")
+            .expect("failing profile exists");
+        let failing_breaker_target =
+            provider_circuit_breaker_target("openai", Some(&failing_profile));
+        let failing_breaker = ctx
+            .storage
+            .get_circuit_breaker_state(CIRCUIT_BREAKER_SCOPE_PROVIDER, &failing_breaker_target)
+            .expect("load failing profile breaker")
+            .expect("failing profile breaker exists");
+        assert_eq!(failing_breaker.state, CIRCUIT_BREAKER_STATE_OPEN);
+
+        assert_eq!(failing_completion.hits_async().await, 1);
+        assert_eq!(working_completion.hits_async().await, 1);
     }
 
     #[tokio::test]
@@ -51526,7 +51361,6 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         }));
 
         let allowed_kinds = [
-            "run",
             "execass",
             "carsinos_worker",
             "codex_cli",
@@ -51579,6 +51413,88 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                 .iter()
                 .any(|run_id| first_ids.contains(&format!("run:{run_id}"))),
             "at least one done run should be visible"
+        );
+    }
+
+    #[tokio::test]
+    async fn assistant_desk_hides_expired_provider_breaker_failures() {
+        let ctx = test_context();
+        let expired_session = ctx
+            .storage
+            .create_session(NewSession {
+                session_key: None,
+                agent_id: "default".to_string(),
+                title: Some("Expired provider breaker".to_string()),
+            })
+            .expect("create expired breaker session");
+        let expired_run = ctx
+            .storage
+            .create_run(NewRun {
+                session_id: expired_session.session_id.clone(),
+                model_provider: "anthropic".to_string(),
+                model_id: "claude-sonnet-4-5".to_string(),
+            })
+            .expect("create expired breaker run")
+            .expect("expired breaker run exists");
+        ctx.storage
+            .mark_run_started(&expired_run.run_id)
+            .expect("mark expired breaker run started");
+        let expired_until = current_time_ms().saturating_sub(60_000);
+        ctx.storage
+            .mark_run_failed(
+                &expired_run.run_id,
+                &format!(
+                    "{REASON_BREAKER_PROVIDER_OPEN}: provider 'anthropic' breaker opened until {expired_until} after 3 consecutive failures"
+                ),
+            )
+            .expect("mark expired breaker run failed");
+
+        let active_session = ctx
+            .storage
+            .create_session(NewSession {
+                session_key: None,
+                agent_id: "default".to_string(),
+                title: Some("Active provider breaker".to_string()),
+            })
+            .expect("create active breaker session");
+        let active_run = ctx
+            .storage
+            .create_run(NewRun {
+                session_id: active_session.session_id.clone(),
+                model_provider: "anthropic".to_string(),
+                model_id: "claude-sonnet-4-5".to_string(),
+            })
+            .expect("create active breaker run")
+            .expect("active breaker run exists");
+        ctx.storage
+            .mark_run_started(&active_run.run_id)
+            .expect("mark active breaker run started");
+        let active_until = current_time_ms().saturating_add(60_000);
+        ctx.storage
+            .mark_run_failed(
+                &active_run.run_id,
+                &format!(
+                    "{REASON_BREAKER_PROVIDER_OPEN}: provider 'anthropic' breaker opened until {active_until} after 3 consecutive failures"
+                ),
+            )
+            .expect("mark active breaker run failed");
+
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request("GET", "/api/v1/assistant-desk", Body::empty()))
+            .await
+            .expect("assistant desk response");
+        assert_eq!(response.status(), StatusCode::OK);
+        let json = parse_json(response).await;
+        let serialized = serde_json::to_string(&json).expect("serialize desk response");
+        assert!(
+            !serialized.contains(&expired_run.run_id),
+            "expired provider breaker failures should not stay pinned on the Desk"
+        );
+        assert!(
+            serialized.contains(&active_run.run_id),
+            "active provider breaker failures should remain visible"
         );
     }
 
@@ -51677,116 +51593,6 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             transcript_json["events"][0]["id"],
             second_json["events"][0]["id"]
         );
-    }
-
-    #[tokio::test]
-    async fn assistant_desk_transcript_is_scoped_to_selected_run() {
-        let ctx = test_context();
-        let session = ctx
-            .storage
-            .create_session(NewSession {
-                session_key: None,
-                agent_id: "default".to_string(),
-                title: Some("Scoped transcript".to_string()),
-            })
-            .expect("create scoped transcript session");
-
-        ctx.storage
-            .create_message(NewMessage {
-                session_id: session.session_id.clone(),
-                source_channel: "assistant-chat".to_string(),
-                source_peer_id: None,
-                source_message_id: None,
-                role: "user".to_string(),
-                content_text: "first scoped prompt".to_string(),
-                content_format: "markdown".to_string(),
-            })
-            .expect("create first scoped user message");
-        let first_run = ctx
-            .storage
-            .create_run(NewRun {
-                session_id: session.session_id.clone(),
-                model_provider: "mock".to_string(),
-                model_id: "mock-echo-v1".to_string(),
-            })
-            .expect("create first scoped run")
-            .expect("first scoped run exists");
-        ctx.storage
-            .mark_run_started(&first_run.run_id)
-            .expect("mark first scoped run started");
-        ctx.storage
-            .create_message(NewMessage {
-                session_id: session.session_id.clone(),
-                source_channel: "assistant-chat".to_string(),
-                source_peer_id: None,
-                source_message_id: None,
-                role: "assistant".to_string(),
-                content_text: "first scoped answer".to_string(),
-                content_format: "markdown".to_string(),
-            })
-            .expect("create first scoped assistant message");
-        std::thread::sleep(std::time::Duration::from_millis(2));
-        ctx.storage
-            .mark_run_succeeded(&first_run.run_id)
-            .expect("mark first scoped run succeeded");
-        std::thread::sleep(std::time::Duration::from_millis(2));
-
-        ctx.storage
-            .create_message(NewMessage {
-                session_id: session.session_id.clone(),
-                source_channel: "assistant-chat".to_string(),
-                source_peer_id: None,
-                source_message_id: None,
-                role: "user".to_string(),
-                content_text: "second scoped prompt".to_string(),
-                content_format: "markdown".to_string(),
-            })
-            .expect("create second scoped user message");
-        let second_run = ctx
-            .storage
-            .create_run(NewRun {
-                session_id: session.session_id.clone(),
-                model_provider: "mock".to_string(),
-                model_id: "mock-echo-v1".to_string(),
-            })
-            .expect("create second scoped run")
-            .expect("second scoped run exists");
-        ctx.storage
-            .mark_run_started(&second_run.run_id)
-            .expect("mark second scoped run started");
-        ctx.storage
-            .create_message(NewMessage {
-                session_id: session.session_id.clone(),
-                source_channel: "assistant-chat".to_string(),
-                source_peer_id: None,
-                source_message_id: None,
-                role: "assistant".to_string(),
-                content_text: "second scoped answer".to_string(),
-                content_format: "markdown".to_string(),
-            })
-            .expect("create second scoped assistant message");
-
-        let transcript_response = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "GET",
-                &format!(
-                    "/api/v1/assistant-desk/run:{}/transcript",
-                    second_run.run_id
-                ),
-                Body::empty(),
-            ))
-            .await
-            .expect("assistant desk scoped transcript response");
-        assert_eq!(transcript_response.status(), StatusCode::OK);
-        let transcript_json = parse_json(transcript_response).await;
-        let serialized =
-            serde_json::to_string(&transcript_json).expect("serialize scoped transcript");
-        assert!(serialized.contains("second scoped prompt"));
-        assert!(serialized.contains("second scoped answer"));
-        assert!(!serialized.contains("first scoped prompt"));
-        assert!(!serialized.contains("first scoped answer"));
     }
 
     #[tokio::test]
@@ -55147,7 +54953,7 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     }
 
     #[tokio::test]
-    async fn provider_models_anthropic_agent_sdk_uses_curated_catalog_without_token() {
+    async fn provider_models_rejects_anthropic_agent_sdk_profiles() {
         let ctx = test_context();
         let create_profile_response = ctx
             .app
@@ -55168,45 +54974,14 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                 ),
             ))
             .await
-            .expect("create anthropic agent sdk profile");
-        assert_eq!(create_profile_response.status(), StatusCode::CREATED);
-        let create_profile_json = parse_json(create_profile_response).await;
-        let auth_profile_id = create_profile_json["profile"]["auth_profile_id"]
-            .as_str()
-            .expect("auth profile id")
-            .to_string();
-
-        let response = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "GET",
-                &format!(
-                    "/api/v1/providers/models?provider=anthropic&auth_profile_id={auth_profile_id}&refresh=true"
-                ),
-                Body::empty(),
-            ))
-            .await
-            .expect("provider models anthropic agent sdk response");
-        assert_eq!(response.status(), StatusCode::OK);
-        let body = parse_json(response).await;
-        let items = body["items"]
-            .as_array()
-            .expect("anthropic agent sdk model items");
-        assert!(items
-            .iter()
-            .any(|item| item["model_id"] == "claude-opus-4-5"));
-        assert!(items
-            .iter()
-            .any(|item| item["model_id"] == "claude-haiku-3-5"));
+            .expect("create anthropic agent sdk profile response");
+        assert_eq!(create_profile_response.status(), StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]
-    async fn provider_models_anthropic_setup_token_uses_curated_catalog() {
+    async fn provider_models_anthropic_setup_token_ingest_is_gone() {
         let ctx = test_context();
         let setup_token = fake_anthropic_setup_token();
-        let stub = spawn_auth_flow_stub(AuthFlowStubConfig::anthropic(&setup_token)).await;
-
         let ingest_response = ctx
             .app
             .clone()
@@ -55217,45 +54992,15 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                     r#"{{
                         "display_name":"anthropic-setup-catalog",
                         "setup_token":"{}",
-                        "api_base_url":"{}"
+                        "api_base_url":"https://api.anthropic.com"
                     }}"#,
-                    setup_token, stub.base_url
+                    setup_token
                 )),
             ))
             .await
-            .expect("ingest setup token for catalog");
-        assert_eq!(ingest_response.status(), StatusCode::CREATED);
-        let ingest_json = parse_json(ingest_response).await;
-        let auth_profile_id = ingest_json["profile"]["auth_profile_id"]
-            .as_str()
-            .expect("setup token auth profile id")
-            .to_string();
-
-        let response = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "GET",
-                &format!(
-                    "/api/v1/providers/models?provider=anthropic&auth_profile_id={auth_profile_id}&refresh=true"
-                ),
-                Body::empty(),
-            ))
-            .await
-            .expect("provider models anthropic setup-token response");
-        assert_eq!(response.status(), StatusCode::OK);
-        let body = parse_json(response).await;
-        let items = body["items"]
-            .as_array()
-            .expect("anthropic setup-token model items");
-        assert!(items
-            .iter()
-            .any(|item| item["model_id"] == "claude-sonnet-4-5"));
-        assert!(items
-            .iter()
-            .any(|item| item["model_id"] == "claude-opus-4-6"));
+            .expect("setup-token ingest response");
+        assert_eq!(ingest_response.status(), StatusCode::GONE);
     }
-
     #[tokio::test]
     async fn tool_capabilities_endpoint_includes_core_and_plugin_tools() {
         let ctx = test_context_with_plugins(vec![
@@ -57577,6 +57322,8 @@ sys.stdout.write(json.dumps(response))
             ASSISTANT_TOOL_CODEX_BRIDGE_STATUS,
             ASSISTANT_TOOL_CODEX_CLI_SESSIONS,
             ASSISTANT_TOOL_CODEX_CLI_READ,
+            ASSISTANT_TOOL_CLAUDE_CODE_SESSIONS,
+            ASSISTANT_TOOL_CLAUDE_CODE_READ,
             ASSISTANT_TOOL_CODEX_APP_STATUS,
             ASSISTANT_TOOL_CODEX_APP_THREADS,
             ASSISTANT_TOOL_CODEX_APP_READ,
@@ -57590,6 +57337,8 @@ sys.stdout.write(json.dumps(response))
         let execution_tools = [
             ASSISTANT_TOOL_CODEX_CLI_EXEC,
             ASSISTANT_TOOL_CODEX_CLI_WINDOW,
+            ASSISTANT_TOOL_CLAUDE_CODE_EXEC,
+            ASSISTANT_TOOL_CLAUDE_CODE_WINDOW,
             ASSISTANT_TOOL_CODEX_APP_RUN,
         ];
         for tool_name in execution_tools {
@@ -57610,42 +57359,116 @@ sys.stdout.write(json.dumps(response))
         }
     }
 
-    #[tokio::test]
-    async fn assistant_codex_bridge_execution_requires_stored_approval() {
+    #[test]
+    fn assistant_codex_bridge_execution_requires_explicit_operator_approval() {
+        let blocked = assistant_codex_bridge_approval_id(&serde_json::json!({}))
+            .expect_err("unapproved execution should be blocked");
+        assert_eq!(blocked.0, "blocked");
+        assert_eq!(blocked.1.as_deref(), Some("APPROVAL_REQUIRED"));
+        assert!(blocked.2.contains("approval"));
+
+        let forged = assistant_codex_bridge_approval_id(&serde_json::json!({
+            "operator_approved": true
+        }))
+        .expect_err("caller-controlled approval flag must not approve execution");
+        assert_eq!(forged.1.as_deref(), Some("APPROVAL_REQUIRED"));
+    }
+
+    #[test]
+    fn assistant_codex_bridge_execution_requires_matching_stored_approval() {
         let ctx = test_context();
-        let session_id =
-            create_session_with_user_message(&ctx, "codex-approval", "run codex bridge").await;
+        let session = ctx
+            .storage
+            .create_session(NewSession {
+                session_key: None,
+                agent_id: "default".to_string(),
+                title: Some("Bridge approval test".to_string()),
+            })
+            .expect("create session");
         let run = ctx
             .storage
             .create_run(NewRun {
-                session_id: session_id.clone(),
-                model_provider: "mock".to_string(),
-                model_id: "mock-echo-v1".to_string(),
+                session_id: session.session_id.clone(),
+                model_provider: "openai".to_string(),
+                model_id: "gpt-5".to_string(),
             })
-            .expect("create root run")
-            .expect("root run exists");
+            .expect("create run")
+            .expect("run exists");
+        let requested_args = serde_json::json!({
+            "prompt": "say bridge-ok",
+            "cwd": "Z:\\carsinos-codex-work"
+        });
+        let approval = ctx
+            .storage
+            .create_approval(NewApproval {
+                run_id: run.run_id.clone(),
+                tool_call_id: None,
+                kind: ASSISTANT_TOOL_CODEX_CLI_EXEC.to_string(),
+                request_summary: "Start Codex CLI exec".to_string(),
+                request_json: requested_args.to_string(),
+            })
+            .expect("create approval")
+            .expect("approval exists");
+        let execution_context = AssistantToolExecutionContext {
+            request_id: "req-bridge-approval".to_string(),
+            root_session_id: session.session_id.clone(),
+            root_run_id: Some(run.run_id.clone()),
+            caller_agent_id: "default".to_string(),
+            memory_scope: None,
+            boss_key: "default".to_string(),
+        };
+        let approved_args = serde_json::json!({
+            "prompt": "say bridge-ok",
+            "cwd": "Z:\\carsinos-codex-work",
+            "approval_id": approval.approval_id,
+            "operator_approved": true
+        });
 
-        let (blocked_status, blocked_json) = assistant_tool_call(
-            &ctx,
-            serde_json::json!({
-                "contract_version": ASSISTANT_TOOL_CONTRACT_VERSION,
-                "request_id": "req_codex_bridge_self_attest",
-                "root_session_id": session_id,
-                "root_run_id": run.run_id,
-                "tool_name": ASSISTANT_TOOL_CODEX_CLI_EXEC,
-                "arguments": {
-                    "operator_approved": true,
-                    "prompt": "echo hi",
-                    "cwd": "Z:\\carsinos-codex-work\\carsinos"
-                }
-            }),
+        let pending = assistant_codex_bridge_requires_approval(
+            &ctx.state,
+            &execution_context,
+            ASSISTANT_TOOL_CODEX_CLI_EXEC,
+            &approved_args,
         )
-        .await;
+        .expect_err("requested approval must not execute yet");
+        assert_eq!(pending.1.as_deref(), Some("APPROVAL_REQUIRED"));
 
-        assert_eq!(blocked_status, StatusCode::OK);
-        assert_eq!(blocked_json["status"], "blocked");
-        assert_eq!(blocked_json["reason_code"], "APPROVAL_REQUIRED");
-        assert!(blocked_json["data"]["approval_id"].as_str().is_some());
+        match ctx
+            .storage
+            .resolve_approval(
+                approved_args["approval_id"].as_str().expect("approval_id"),
+                "approve",
+                Some("operator".to_string()),
+                Some("local-operator".to_string()),
+            )
+            .expect("resolve approval")
+        {
+            ApprovalResolveResult::Resolved(_) => {}
+            other => panic!("approval should resolve freshly, got {other:?}"),
+        }
+
+        assistant_codex_bridge_requires_approval(
+            &ctx.state,
+            &execution_context,
+            ASSISTANT_TOOL_CODEX_CLI_EXEC,
+            &approved_args,
+        )
+        .expect("matching stored approval should allow bridge execution");
+
+        let forged_args = serde_json::json!({
+            "prompt": "say something else",
+            "cwd": "Z:\\carsinos-codex-work",
+            "approval_id": approved_args["approval_id"]
+        });
+        let forged = assistant_codex_bridge_requires_approval(
+            &ctx.state,
+            &execution_context,
+            ASSISTANT_TOOL_CODEX_CLI_EXEC,
+            &forged_args,
+        )
+        .expect_err("approved id must not authorize a different bridge payload");
+        assert_eq!(forged.1.as_deref(), Some("APPROVAL_REQUIRED"));
+        assert!(forged.2.contains("does not match"));
     }
 
     #[test]

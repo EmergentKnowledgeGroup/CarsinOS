@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getAssistantDesk, getAssistantDeskTranscript } from "../../lib/api";
 import type {
   AssistantDeskResponse,
@@ -113,22 +113,24 @@ export function useAssistantDeskController(options: UseAssistantDeskControllerOp
 
   const openTranscript = useCallback(
     async (workItemId: string, cursor?: string | null) => {
-      const requestSeq = ++transcriptRequestSeqRef.current;
+      const requestSeq = transcriptRequestSeqRef.current + 1;
+      transcriptRequestSeqRef.current = requestSeq;
       setSelectedWorkItemId(workItemId);
-      setTranscript(null);
       setTranscriptLoading(true);
       setTranscriptError(null);
       try {
         const response = await getAssistantDeskTranscript(settings, workItemId, cursor);
-        if (requestSeq === transcriptRequestSeqRef.current) {
-          setTranscript(response);
+        if (transcriptRequestSeqRef.current !== requestSeq) {
+          return;
         }
+        setTranscript(response);
       } catch (err) {
-        if (requestSeq === transcriptRequestSeqRef.current) {
-          setTranscriptError(errorMessage(err));
+        if (transcriptRequestSeqRef.current !== requestSeq) {
+          return;
         }
+        setTranscriptError(errorMessage(err));
       } finally {
-        if (requestSeq === transcriptRequestSeqRef.current) {
+        if (transcriptRequestSeqRef.current === requestSeq) {
           setTranscriptLoading(false);
         }
       }
