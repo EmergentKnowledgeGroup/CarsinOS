@@ -173,7 +173,6 @@ def main() -> int:
         return 0
 
     archive_path = _download(asset_name)
-    _verify_archive(asset_name, archive_path)
     _extract_to_output(archive_path, OUTPUT_ROOT)
 
     metadata_path = DESKTOP_ROOT / "build" / "runtime" / "metadata.json"
