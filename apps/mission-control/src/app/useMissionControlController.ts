@@ -6,10 +6,12 @@ import {
   useState,
 } from "react";
 import {
+  createJob,
   getAgentProviderProfileOrder,
   getChannelRuntimeStatus,
   getMissionControlUsage,
   getJobsStatus,
+  getJobHistory,
   getGatewayStatus,
   getMissionControlCalendarWeek,
   getMissionControlFocus,
@@ -31,9 +33,12 @@ import { resolveOperatorTimezone, resolveTzOffsetMinutes } from "../lib/operator
 import type { NotifyFn } from "./useAppController";
 import type {
   Agent,
+  ApprovalResponse,
   AuthProfileResponse,
   CircuitBreakerStateResponse,
   ChannelRuntimeAdapterStatusResponse,
+  CreateJobRequest,
+  JobResponse,
   JobStatusResponse,
   MissionControlCalendarJob,
   MissionControlCalendarWeekResponse,
@@ -48,6 +53,31 @@ import type {
   SkillResponse,
   StatusResponse,
 } from "../types";
+
+const MEMORY_WRITEBACK_APPROVAL_KIND = "memory.writeback";
+
+function jobResponseToCalendarJob(item: JobResponse): MissionControlCalendarJob {
+  return {
+    job_id: item.job_id,
+    name: item.name,
+    agent_id: item.agent_id,
+    enabled: item.enabled,
+    schedule_kind: item.schedule_kind,
+    interval_seconds: item.interval_seconds,
+    cron_expr: item.cron_expr,
+    next_run_at: item.next_run_at,
+    last_run_at: item.last_run_at,
+    last_error: item.last_error,
+    lane:
+      item.enabled &&
+      item.schedule_kind === "interval" &&
+      (item.interval_seconds ?? 0) <= 300 &&
+      (item.interval_seconds ?? 0) > 0
+        ? "always_running"
+        : "scheduled",
+    primary_action: item.enabled ? "pause" : "resume",
+  };
+}
 
 interface UseMissionControlControllerOptions {
   settings: RuntimeConnectionSettings;
@@ -281,6 +311,7 @@ export function useMissionControlController(options: UseMissionControlController
   );
   const [jobsById, setJobsById] = useState<Map<string, MissionControlCalendarJob>>(new Map());
   const [approvalsById, setApprovalsById] = useState<Set<string>>(new Set());
+  const [memoryReviewApprovalsCount, setMemoryReviewApprovalsCount] = useState(0);
   const [gatewayStatus, setGatewayStatus] = useState<StatusResponse | null>(null);
   const [jobsStatus, setJobsStatus] = useState<JobStatusResponse | null>(null);
   const [authProfiles, setAuthProfiles] = useState<AuthProfileResponse[]>([]);
@@ -298,6 +329,8 @@ export function useMissionControlController(options: UseMissionControlController
 
   const missionControlRefreshTimer = useRef<number | null>(null);
   const providerOrderRequestIdRef = useRef(0);
+  const memoryReviewApprovalIdsRef = useRef<Set<string>>(new Set());
+  const memoryReviewNoticePrimedRef = useRef(false);
 
   const providerOptions = useMemo(() => {
     return [...new Set(authProfiles.map((profile) => profile.provider))].sort((a, b) =>
@@ -410,30 +443,43 @@ export function useMissionControlController(options: UseMissionControlController
         new Map(
           jobs.items.map((item) => [
             item.job_id,
-            {
-              job_id: item.job_id,
-              name: item.name,
-              agent_id: item.agent_id,
-              enabled: item.enabled,
-              schedule_kind: item.schedule_kind,
-              interval_seconds: item.interval_seconds,
-              cron_expr: item.cron_expr,
-              next_run_at: item.next_run_at,
-              last_run_at: item.last_run_at,
-              last_error: item.last_error,
-              lane:
-                item.enabled &&
-                item.schedule_kind === "interval" &&
-                (item.interval_seconds ?? 0) <= 300 &&
-                (item.interval_seconds ?? 0) > 0
-                  ? "always_running"
-                  : "scheduled",
-              primary_action: item.enabled ? "pause" : "resume",
-            } satisfies MissionControlCalendarJob,
+            jobResponseToCalendarJob(item),
           ])
         )
       );
-      setApprovalsById(new Set(approvals.items.map((item) => item.approval_id)));
+      const approvalIds = new Set(approvals.items.map((item) => item.approval_id));
+      const memoryReviewApprovalIds = new Set(
+        approvals.items
+          .filter((item: ApprovalResponse) => item.kind === MEMORY_WRITEBACK_APPROVAL_KIND)
+          .map((item) => item.approval_id)
+      );
+      const previousMemoryReviewApprovalIds = memoryReviewApprovalIdsRef.current;
+      const newMemoryReviewApprovals = [...memoryReviewApprovalIds].filter(
+        (approvalId) => !previousMemoryReviewApprovalIds.has(approvalId)
+      );
+      setApprovalsById(approvalIds);
+      setMemoryReviewApprovalsCount(memoryReviewApprovalIds.size);
+      if (!memoryReviewNoticePrimedRef.current) {
+        memoryReviewNoticePrimedRef.current = true;
+        if (memoryReviewApprovalIds.size > 0) {
+          setNotice({
+            tone: "critical",
+            message:
+              memoryReviewApprovalIds.size === 1
+                ? "ExecAss has a memory learning proposal waiting in Focus."
+                : `ExecAss has ${memoryReviewApprovalIds.size} memory learning proposals waiting in Focus.`,
+          });
+        }
+      } else if (newMemoryReviewApprovals.length > 0) {
+        setNotice({
+          tone: "critical",
+          message:
+            newMemoryReviewApprovals.length === 1
+              ? "ExecAss proposed a memory update. Review it in Focus."
+              : `ExecAss proposed ${newMemoryReviewApprovals.length} memory updates. Review them in Focus.`,
+        });
+      }
+      memoryReviewApprovalIdsRef.current = memoryReviewApprovalIds;
       setChannelStatuses(channelRuntime.items);
       setGatewayStatus(status);
       setJobsStatus(jobsStatusResponse);
@@ -446,7 +492,7 @@ export function useMissionControlController(options: UseMissionControlController
       setUsageTodayRaw(usageTodayResponse);
       setUsageWeekRaw(usageWeekResponse);
     },
-    [settings]
+    [setNotice, settings]
   );
 
   const queueMissionControlRefresh = useCallback(
@@ -547,6 +593,14 @@ export function useMissionControlController(options: UseMissionControlController
     [queueMissionControlRefresh, setNotice, settings]
   );
 
+  const loadCalendarJobHistory = useCallback(
+    async (jobId: string) => {
+      const response = await getJobHistory(settings, jobId, 10);
+      return response.items;
+    },
+    [settings]
+  );
+
   const toggleCalendarJob = useCallback(
     async (jobId: string, enabled: boolean) => {
       try {
@@ -575,6 +629,32 @@ export function useMissionControlController(options: UseMissionControlController
           tone: "error",
           message: `Job state update failed: ${String(error)}`,
         });
+      }
+    },
+    [queueMissionControlRefresh, setNotice, settings]
+  );
+
+  const createExecAssHeartbeatJob = useCallback(
+    async (request: CreateJobRequest) => {
+      try {
+        const response = await createJob(settings, request);
+        const calendarJob = jobResponseToCalendarJob(response.job);
+        setJobsById((previous) => {
+          const next = new Map(previous);
+          next.set(calendarJob.job_id, calendarJob);
+          return next;
+        });
+        setNotice({
+          tone: "info",
+          message: `Scheduled ${response.job.name}.`,
+        });
+        queueMissionControlRefresh(settings);
+      } catch (error) {
+        setNotice({
+          tone: "error",
+          message: `Heartbeat setup failed: ${String(error)}`,
+        });
+        throw error;
       }
     },
     [queueMissionControlRefresh, setNotice, settings]
@@ -816,6 +896,7 @@ export function useMissionControlController(options: UseMissionControlController
     incidentFocusItems,
     channelStatuses,
     approvalsById,
+    memoryReviewApprovalsCount,
     gatewayStatus,
     jobsStatus,
     authProfiles,
@@ -847,7 +928,9 @@ export function useMissionControlController(options: UseMissionControlController
     queueMissionControlRefresh,
     reloadProviderProfileOrder,
     runCalendarJobNow,
+    loadCalendarJobHistory,
     toggleCalendarJob,
+    createExecAssHeartbeatJob,
     resolveFocusApproval,
     reconnectFocusChannel,
     moveProviderProfile,

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+﻿import { useRef, useState } from "react";
 import clsx from "clsx";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type {
@@ -38,9 +38,14 @@ function formatContextDisplay(value: unknown): string {
 function extractApprovalContext(payload: Record<string, unknown>): Array<[string, string]> {
   const entries: Array<[string, string]> = [];
   const fields: Array<[string, string]> = [
+    ["approval_kind", "Approval"],
+    ["proposal_id", "Proposal"],
+    ["audit_ref", "Audit"],
+    ["run_id", "Run"],
     ["tool_name", "Tool"],
     ["tool_input", "Arguments"],
     ["request_summary", "Summary"],
+    ["request", "Request"],
     ["requesting_agent", "Agent"],
     ["session_id", "Session"],
     ["agent_id", "Agent ID"],

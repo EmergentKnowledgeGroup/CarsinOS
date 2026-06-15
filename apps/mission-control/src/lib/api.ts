@@ -1,5 +1,9 @@
 import { getGatewayToken } from "./runtime";
-import { API_REQUEST_TIMEOUT_MS, DEFAULT_GATEWAY_URL } from "../constants";
+import {
+  API_REQUEST_TIMEOUT_MS,
+  API_RUN_REQUEST_TIMEOUT_MS,
+  DEFAULT_GATEWAY_URL,
+} from "../constants";
 import type {
   AckAgentMailMessageResponse,
   AgentMemoryAtomDetailPayload,
@@ -19,12 +23,14 @@ import type {
   AgentMailFileLeaseResponse,
   AgentMailThreadDetailResponse,
   AgentProviderProfileOrderResponse,
-  AnthropicSetupTokenIngestResponse,
-  AnthropicSetupTokenValidateResponse,
+  AssistantDeskResponse,
+  AssistantDeskTranscriptResponse,
   AuthProfileResponse,
   BoardDetail,
   BoardDetailResponse,
   CreateBootstrapPresetResponse,
+  CreateJobRequest,
+  CreateJobResponse,
   CreateWebSocketTicketResponse,
   CreateGoalResponse,
   CreateAgentResponse,
@@ -65,6 +71,7 @@ import type {
   ListMessagesResponse,
   ListAuthProfilesResponse,
   ListApprovalsResponse,
+  ListJobHistoryResponse,
   ListJobsResponse,
   ListPluginRuntimeStatusResponse,
   ListPluginsResponse,
@@ -223,6 +230,16 @@ interface ApiRequestOptions {
   timeoutMs?: number;
 }
 
+const RUNTIME_CONFIG_CACHE_TTL_MS = 500;
+
+let runtimeConfigCache:
+  | {
+      key: string;
+      expiresAt: number;
+      promise: Promise<GetRuntimeConfigResponse>;
+    }
+  | null = null;
+
 async function fetchWithTimeout(
   url: string,
   init: RequestInit,
@@ -265,7 +282,24 @@ async function fetchWithTimeout(
 
 async function buildHttpError(path: string, response: Response): Promise<GatewayApiError> {
   const responseBody = await response.text();
-  const message = `${response.status} ${response.statusText}`.trim() || String(response.status);
+  let detail = "";
+  if (responseBody.trim().startsWith("{")) {
+    try {
+      const parsed = JSON.parse(responseBody) as { error?: unknown; message?: unknown };
+      const parsedDetail =
+        typeof parsed.error === "string"
+          ? parsed.error
+          : typeof parsed.message === "string"
+            ? parsed.message
+            : "";
+      detail = parsedDetail.trim();
+    } catch {
+      detail = "";
+    }
+  }
+  const statusMessage =
+    `${response.status} ${response.statusText}`.trim() || String(response.status);
+  const message = detail ? `${statusMessage}: ${detail}` : statusMessage;
   return createGatewayApiError(message, {
     kind: "http",
     path,
@@ -315,6 +349,27 @@ async function requestJson<T>(
   }
 
   return (await response.json()) as T;
+}
+
+function runtimeConfigCacheKey(settings: RuntimeConnectionSettings): string {
+  return normalizeGatewayUrl(settings.gateway_url);
+}
+
+function clearRuntimeConfigCache(settings?: RuntimeConnectionSettings) {
+  if (!settings) {
+    runtimeConfigCache = null;
+    return;
+  }
+  let key: string;
+  try {
+    key = runtimeConfigCacheKey(settings);
+  } catch {
+    runtimeConfigCache = null;
+    return;
+  }
+  if (runtimeConfigCache?.key === key) {
+    runtimeConfigCache = null;
+  }
 }
 
 async function requestBlob(
@@ -1414,6 +1469,7 @@ export async function createSessionRun(
     {
       method: "POST",
       body: payload,
+      timeoutMs: API_RUN_REQUEST_TIMEOUT_MS,
     }
   );
 }
@@ -1434,6 +1490,26 @@ export async function getMissionControlFocus(
   return requestJson<MissionControlFocusResponse>(
     settings,
     `/api/v1/mission-control/focus?limit=${encodeURIComponent(String(limit))}`
+  );
+}
+
+export async function getAssistantDesk(
+  settings: RuntimeConnectionSettings
+): Promise<AssistantDeskResponse> {
+  return requestJson<AssistantDeskResponse>(settings, "/api/v1/assistant-desk");
+}
+
+export async function getAssistantDeskTranscript(
+  settings: RuntimeConnectionSettings,
+  workItemId: string,
+  cursor?: string | null
+): Promise<AssistantDeskTranscriptResponse> {
+  return requestJson<AssistantDeskTranscriptResponse>(
+    settings,
+    appendQuery(
+      `/api/v1/assistant-desk/${encodeURIComponent(workItemId)}/transcript`,
+      [["cursor", cursor]]
+    )
   );
 }
 
@@ -1499,6 +1575,16 @@ export async function listJobs(
   );
 }
 
+export async function createJob(
+  settings: RuntimeConnectionSettings,
+  payload: CreateJobRequest
+): Promise<CreateJobResponse> {
+  return requestJson<CreateJobResponse>(settings, "/api/v1/jobs/add", {
+    method: "POST",
+    body: payload,
+  });
+}
+
 export async function getJobsStatus(
   settings: RuntimeConnectionSettings
 ): Promise<JobStatusResponse> {
@@ -1516,6 +1602,17 @@ export async function runJobNow(
       method: "POST",
       body: {},
     }
+  );
+}
+
+export async function getJobHistory(
+  settings: RuntimeConnectionSettings,
+  jobId: string,
+  limit = 10
+): Promise<ListJobHistoryResponse> {
+  return requestJson<ListJobHistoryResponse>(
+    settings,
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/history?limit=${encodeURIComponent(String(limit))}`
   );
 }
 
@@ -1719,43 +1816,6 @@ export async function finishOpenAiOauth(
   );
 }
 
-export async function ingestAnthropicSetupToken(
-  settings: RuntimeConnectionSettings,
-  payload: {
-    display_name: string;
-    setup_token: string;
-    api_base_url?: string;
-    enabled?: boolean;
-    kill_switch_scope?: string;
-  }
-): Promise<AnthropicSetupTokenIngestResponse> {
-  return requestJson<AnthropicSetupTokenIngestResponse>(
-    settings,
-    "/api/v1/auth/anthropic/setup-token/ingest",
-    {
-      method: "POST",
-      body: payload,
-    }
-  );
-}
-
-export async function validateAnthropicSetupToken(
-  settings: RuntimeConnectionSettings,
-  payload: {
-    setup_token: string;
-    api_base_url?: string;
-  }
-): Promise<AnthropicSetupTokenValidateResponse> {
-  return requestJson<AnthropicSetupTokenValidateResponse>(
-    settings,
-    "/api/v1/auth/anthropic/setup-token/validate",
-    {
-      method: "POST",
-      body: payload,
-    }
-  );
-}
-
 export async function listSkills(
   settings: RuntimeConnectionSettings,
   includeDisabled = true
@@ -1883,7 +1943,26 @@ export async function updateChannelConfig(
 export async function getRuntimeConfig(
   settings: RuntimeConnectionSettings
 ): Promise<GetRuntimeConfigResponse> {
-  return requestJson<GetRuntimeConfigResponse>(settings, "/api/v1/config/runtime");
+  const key = runtimeConfigCacheKey(settings);
+  const now = Date.now();
+  if (runtimeConfigCache?.key === key && runtimeConfigCache.expiresAt > now) {
+    return runtimeConfigCache.promise;
+  }
+
+  const promise = requestJson<GetRuntimeConfigResponse>(settings, "/api/v1/config/runtime").catch(
+    (error) => {
+      if (runtimeConfigCache?.promise === promise) {
+        runtimeConfigCache = null;
+      }
+      throw error;
+    }
+  );
+  runtimeConfigCache = {
+    key,
+    expiresAt: now + RUNTIME_CONFIG_CACHE_TTL_MS,
+    promise,
+  };
+  return promise;
 }
 
 export async function updateRuntimeConfig(
@@ -1920,10 +1999,13 @@ export async function updateRuntimeConfig(
     };
   }
 ): Promise<UpdateRuntimeConfigResponse> {
-  return requestJson<UpdateRuntimeConfigResponse>(settings, "/api/v1/config/runtime", {
+  clearRuntimeConfigCache(settings);
+  const response = await requestJson<UpdateRuntimeConfigResponse>(settings, "/api/v1/config/runtime", {
     method: "POST",
     body: payload,
   });
+  clearRuntimeConfigCache(settings);
+  return response;
 }
 
 export async function upsertRuntimeSecret(

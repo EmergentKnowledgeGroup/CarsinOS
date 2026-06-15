@@ -52,6 +52,7 @@ interface AppContentProps {
   onStartGuidedTour: () => void;
   onRefreshBaseline: () => Promise<void>;
   settings: RuntimeConnectionSettings;
+  tokenConfigured: boolean;
   boards: BoardSummary[];
   agents: Agent[];
   boardsController: ReturnType<typeof useBoardsController>;
@@ -507,8 +508,12 @@ export function AppContent(props: AppContentProps) {
           calendarAlwaysRunning={props.missionControl.calendarAlwaysRunning}
           calendarNextUp={props.missionControl.calendarNextUp}
           calendarJobs={props.missionControl.calendarJobs}
+          agents={props.agents}
+          execAssAgentId={props.missionControl.selectedProviderControlAgentId}
           onRunCalendarJobNow={props.missionControl.runCalendarJobNow}
           onToggleCalendarJob={props.missionControl.toggleCalendarJob}
+          onLoadCalendarJobHistory={props.missionControl.loadCalendarJobHistory}
+          onCreateExecAssHeartbeatJob={props.missionControl.createExecAssHeartbeatJob}
           strategyReady={strategyReady}
           taskByJobId={props.strategyController.taskByJobId}
           describeStrategyTask={props.strategyController.describeTaskContext}
@@ -714,6 +719,8 @@ export function AppContent(props: AppContentProps) {
         {renderQuickGuide("assistant")}
         <AssistantChatPage
           active={active === "assistant"}
+          settings={props.settings}
+          tokenConfigured={props.tokenConfigured}
           agents={props.agents}
           boards={props.boards}
           onTabChange={props.onTabChange}

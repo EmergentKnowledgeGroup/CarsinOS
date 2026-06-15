@@ -21,9 +21,11 @@ import { Surface } from "../../ui/Surface";
 import { usePagination } from "../../ui/usePagination";
 import {
   createAgent,
+  GatewayApiError,
   getRuntimeConfig,
   listProviderCapabilities,
   listProviderModels,
+  removeAgent,
   updateRuntimeConfig,
   updateAgent,
 } from "../../lib/api";
@@ -220,6 +222,24 @@ function laneMemoryModeLabel(mode: string): string {
   }
 }
 
+function friendlyRemoveAgentError(error: unknown): string {
+  const raw =
+    error instanceof GatewayApiError
+      ? `${error.responseBody ?? ""} ${error.message}`.trim()
+      : String(error);
+  const normalized = raw.toLowerCase();
+  if (normalized.includes("scheduled job") || normalized.includes("active job")) {
+    return "This agent still owns scheduled jobs. Move or delete those jobs first so CarsinOS does not leave automation pointing at nowhere.";
+  }
+  if (normalized.includes("session") || normalized.includes("chat history")) {
+    return "CarsinOS tried to archive this agent and keep its old chats, but the gateway still reported a history conflict. Refresh Team and try once more.";
+  }
+  if (normalized.includes("not found")) {
+    return "That agent is already gone from Team. Refreshing should clear the stale card.";
+  }
+  return `Removing the agent failed. ${raw}`;
+}
+
 function toPresetFormState(
   preset: BootstrapPresetResponse | null,
   form: AgentFormState
@@ -338,6 +358,7 @@ export function TeamPage({
   const [routingSaving, setRoutingSaving] = useState(false);
   const [routingError, setRoutingError] = useState<string | null>(null);
   const [routingNotice, setRoutingNotice] = useState<RoutingNoticeState | null>(null);
+  const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null);
   const importFileRef = useRef<HTMLInputElement | null>(null);
 
   const strategyEnabled = strategyController.enabled;
@@ -357,7 +378,7 @@ export function TeamPage({
         setRoutingError(null);
         setRoutingNotice(null);
         setRoutingLoading(false);
-        return;
+        return null;
       }
 
       setRoutingLoading(true);
@@ -367,10 +388,12 @@ export function TeamPage({
         setRoutingConfig(nextRouting);
         setRoutingDraft(cloneRoutingConfig(nextRouting));
         setRoutingError(null);
+        return nextRouting;
       } catch (loadError: unknown) {
         setRoutingConfig(null);
         setRoutingDraft(null);
         setRoutingError(`People and routing could not load. (${String(loadError)})`);
+        return null;
       } finally {
         setRoutingLoading(false);
       }
@@ -478,6 +501,10 @@ export function TeamPage({
         const normalizedAssistantAgentId = assistantAgentId.trim();
         if (!normalizedAssistantAgentId) {
           return;
+        }
+        next.enabled = true;
+        if (!next.local_operator_human_identity_id?.trim()) {
+          next.local_operator_human_identity_id = humanIdentityId;
         }
         next.assistant_assignments.push({
           human_identity_id: humanIdentityId,
@@ -713,7 +740,9 @@ export function TeamPage({
     }
 
     const nextRouting: RuntimeRoutingConfigResponse = {
-      enabled: routingDraft.enabled,
+      enabled:
+        routingDraft.enabled ||
+        normalizedAssignments.some((assignment) => assignment.enabled),
       use_channel_defaults_as_fallback: false,
       local_operator_human_identity_id: localOperatorHumanIdentityId,
       dm_unmapped_policy:
@@ -1075,6 +1104,64 @@ export function TeamPage({
       setSaving(false);
     }
   }, [closeModal, form, managerSelectionInvalid, modalMode, refreshAll, settings]);
+
+  const handleRemoveAgent = useCallback(
+    async (agent: Agent) => {
+      if (deletingAgentId !== null) {
+        return;
+      }
+      if (!settings.gateway_url.trim()) {
+        setRoutingNotice({
+          tone: "error",
+          message: "Connect to the gateway before removing an agent.",
+        });
+        return;
+      }
+      const confirmed = window.confirm(
+        `Remove ${agent.name} from Team?\n\nOld chat history is kept automatically in the archive. Active scheduled jobs still need to be moved or deleted first.`
+      );
+      if (!confirmed) {
+        return;
+      }
+
+      setDeletingAgentId(agent.agent_id);
+      setRoutingNotice(null);
+      try {
+        const latestRouting = await loadRoutingConfig(settings);
+        if (latestRouting) {
+          const nextRouting = cloneRoutingConfig(latestRouting);
+          nextRouting.assistant_assignments = nextRouting.assistant_assignments.filter(
+            (assignment) => assignment.assistant_agent_id !== agent.agent_id
+          );
+          nextRouting.lane_memory_policies = nextRouting.lane_memory_policies.filter(
+            (policy) => policy.assistant_agent_id !== agent.agent_id
+          );
+          const response = await updateRuntimeConfig(settings, {
+            routing: nextRouting,
+          });
+          const savedRouting = cloneRoutingConfig(response.config.routing);
+          setRoutingConfig(savedRouting);
+          setRoutingDraft(cloneRoutingConfig(savedRouting));
+        }
+
+        await removeAgent(settings, agent.agent_id);
+        setRoutingNotice({
+          tone: "info",
+          message: `${agent.name} was removed from Team. Old chats stay archived automatically.`,
+        });
+        await refreshAll();
+        await loadRoutingConfig(settings);
+      } catch (removeError: unknown) {
+        setRoutingNotice({
+          tone: "error",
+          message: friendlyRemoveAgentError(removeError),
+        });
+      } finally {
+        setDeletingAgentId(null);
+      }
+    },
+    [deletingAgentId, loadRoutingConfig, refreshAll, settings]
+  );
 
   const exportPreset = useCallback(
     async (presetKey: string) => {
@@ -1455,22 +1542,6 @@ export function TeamPage({
                     </div>
 
                     <div className="mc-team-routing-controls">
-                      <label className="mc-team-routing-toggle">
-                        <input
-                          type="checkbox"
-                          checked={routingDraft.enabled}
-                          onChange={(event) =>
-                            patchRoutingDraft((next) => {
-                              next.enabled = event.target.checked;
-                            })
-                          }
-                        />
-                        <span>Use people-based routing</span>
-                        <small>
-                          When this is on, carsinOS resolves a real person first, then their
-                          assigned assistant.
-                        </small>
-                      </label>
                       <label className="mc-modal-field">
                         <span>Local app operator</span>
                         <select
@@ -1894,6 +1965,20 @@ export function TeamPage({
                     onClick={() => setRoleCardAgentId(agent.agent_id)}
                   >
                     Role Card
+                  </button>
+                  <button
+                    type="button"
+                    className={clsx(
+                      "mc-btn",
+                      "mc-btn-sm",
+                      "mc-btn-danger",
+                      deletingAgentId === agent.agent_id && "mc-btn-loading"
+                    )}
+                    onClick={() => void handleRemoveAgent(agent)}
+                    disabled={deletingAgentId !== null}
+                  >
+                    <Trash2 size={14} />
+                    Remove
                   </button>
                 </div>
               </div>

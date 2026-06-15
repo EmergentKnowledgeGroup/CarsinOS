@@ -2539,6 +2539,95 @@ pub struct RuntimeExtensionsConfig {
     pub plugin_bundle_root: Option<String>,
     #[serde(default)]
     pub assistant_tools: RuntimeAssistantToolsConfig,
+    #[serde(default)]
+    pub browser: RuntimeBrowserConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimeBrowserConfig {
+    #[serde(default)]
+    pub pinchtab: RuntimePinchTabConfig,
+}
+
+impl Default for RuntimeBrowserConfig {
+    fn default() -> Self {
+        Self {
+            pinchtab: RuntimePinchTabConfig::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuntimePinchTabConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_runtime_pinchtab_base_url")]
+    pub base_url: String,
+    #[serde(default)]
+    pub token_secret_ref: Option<String>,
+    #[serde(default)]
+    pub allowed_domains: Vec<String>,
+    #[serde(default = "default_runtime_pinchtab_timeout_ms")]
+    pub timeout_ms: u64,
+    #[serde(default = "default_runtime_pinchtab_use_agent_sessions")]
+    pub use_agent_sessions: bool,
+    #[serde(default)]
+    pub default_profile: Option<String>,
+    #[serde(default)]
+    pub risk_gates: RuntimePinchTabRiskGatesConfig,
+}
+
+fn default_runtime_pinchtab_base_url() -> String {
+    "http://127.0.0.1:9867".to_string()
+}
+
+fn default_runtime_pinchtab_timeout_ms() -> u64 {
+    30_000
+}
+
+fn default_runtime_pinchtab_use_agent_sessions() -> bool {
+    true
+}
+
+impl Default for RuntimePinchTabConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            base_url: default_runtime_pinchtab_base_url(),
+            token_secret_ref: None,
+            allowed_domains: vec![
+                "localhost".to_string(),
+                "127.0.0.1".to_string(),
+                "::1".to_string(),
+            ],
+            timeout_ms: default_runtime_pinchtab_timeout_ms(),
+            use_agent_sessions: default_runtime_pinchtab_use_agent_sessions(),
+            default_profile: None,
+            risk_gates: RuntimePinchTabRiskGatesConfig::default(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RuntimePinchTabRiskGatesConfig {
+    #[serde(default)]
+    pub allow_eval: bool,
+    #[serde(default)]
+    pub allow_downloads: bool,
+    #[serde(default)]
+    pub allow_uploads: bool,
+    #[serde(default)]
+    pub allow_clipboard: bool,
+    #[serde(default)]
+    pub allow_cookies: bool,
+    #[serde(default)]
+    pub allow_network_intercept: bool,
+    #[serde(default)]
+    pub allow_attach: bool,
+    #[serde(default)]
+    pub allow_screencast: bool,
+    #[serde(default)]
+    pub allow_state: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

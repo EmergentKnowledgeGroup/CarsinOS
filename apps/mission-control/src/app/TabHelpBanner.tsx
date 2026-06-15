@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BookOpen, Compass, Lightbulb, X } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronRight, Compass, Lightbulb, X } from "lucide-react";
 import type { MissionControlTab } from "./useAppController";
 
 export type HelpTab = Exclude<MissionControlTab, "help">;
@@ -169,6 +169,7 @@ const HELP_COPY: Record<HelpTab, HelpCopy> = {
 
 export function TabHelpBanner(props: TabHelpBannerProps) {
   const [examplesOpen, setExamplesOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const copy = HELP_COPY[props.tab];
 
   return (
@@ -178,7 +179,6 @@ export function TabHelpBanner(props: TabHelpBannerProps) {
           <p className="mc-tab-help-kicker">
             <Lightbulb size={14} /> Quick Guide
           </p>
-          <h3>{copy.title}</h3>
           <p>{copy.summary}</p>
         </div>
         <button
@@ -198,7 +198,17 @@ export function TabHelpBanner(props: TabHelpBannerProps) {
           aria-pressed={examplesOpen}
           onClick={() => setExamplesOpen((v) => !v)}
         >
+          {examplesOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           {examplesOpen ? "Hide examples" : "Show examples"}
+        </button>
+        <button
+          type="button"
+          className={`mc-tab-help-btn${detailsOpen ? " is-active" : ""}`}
+          aria-expanded={detailsOpen}
+          onClick={() => setDetailsOpen((v) => !v)}
+        >
+          {detailsOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          What is this?
         </button>
         <button type="button" className="mc-tab-help-btn mc-tab-help-btn-tour" onClick={props.onStartTour}>
           <Compass size={14} /> Tour
@@ -213,6 +223,9 @@ export function TabHelpBanner(props: TabHelpBannerProps) {
             <li key={`${props.tab}-${index}`}>{example}</li>
           ))}
         </ul>
+      ) : null}
+      {detailsOpen ? (
+        <p className="mc-tab-help-details">{copy.title}</p>
       ) : null}
     </section>
   );

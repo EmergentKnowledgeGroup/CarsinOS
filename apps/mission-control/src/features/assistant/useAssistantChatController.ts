@@ -53,11 +53,18 @@ function normalizeMessages(items: MessageResponse[]): MessageResponse[] {
   return [...items].sort((left, right) => left.created_at - right.created_at);
 }
 
+function mergeMessage(items: MessageResponse[], next: MessageResponse): MessageResponse[] {
+  return normalizeMessages([
+    ...items.filter((item) => item.message_id !== next.message_id),
+    next,
+  ]);
+}
+
 function assignedAgentIdsForHuman(
   routing: RuntimeRoutingConfigResponse | null,
   humanIdentityId: string
 ): string[] {
-  if (!routing?.enabled || !humanIdentityId) {
+  if (!routing || !humanIdentityId) {
     return [];
   }
   const human = routing.human_identities.find(
@@ -108,6 +115,9 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
   const [draft, setDraft] = useState("");
   const [targetBoardId, setTargetBoardId] = useState(options.boards[0]?.board_id ?? "");
   const [busy, setBusy] = useState(false);
+  const [sendStatus, setSendStatus] = useState<string | null>(null);
+  const [optimisticUserMessage, setOptimisticUserMessage] =
+    useState<MessageResponse | null>(null);
   const [lastRunId, setLastRunId] = useState<string | null>(null);
   const [lastRunStatus, setLastRunStatus] = useState<string | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
@@ -125,21 +135,48 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
   const [sessionMode, setSessionMode] = useState<AssistantSessionMode>("canonical_lane");
   const suppressSessionResetRef = useRef(false);
   const runtimeRoutingRef = useRef<RuntimeRoutingConfigResponse | null>(null);
+  const runtimeRoutingGatewayRef = useRef("");
+  const runtimeRoutingErrorGatewayRef = useRef("");
+  const routingRequestSeqRef = useRef(0);
 
-  const applyRuntimeRouting = useCallback((routing: RuntimeRoutingConfigResponse) => {
+  const applyRuntimeRouting = useCallback((routing: RuntimeRoutingConfigResponse, gatewayUrl: string) => {
     runtimeRoutingRef.current = routing;
+    runtimeRoutingGatewayRef.current = gatewayUrl;
+    runtimeRoutingErrorGatewayRef.current = "";
     setRuntimeRouting(routing);
     setRuntimeRoutingLoaded(true);
     setRuntimeRoutingError(null);
   }, []);
   const refreshRoutingState = useCallback(async () => {
+    const requestSeq = routingRequestSeqRef.current + 1;
+    routingRequestSeqRef.current = requestSeq;
+    const gatewayUrl = settings.gateway_url.trim();
+    if (runtimeRoutingGatewayRef.current && runtimeRoutingGatewayRef.current !== gatewayUrl) {
+      runtimeRoutingRef.current = null;
+      runtimeRoutingGatewayRef.current = gatewayUrl;
+      setRuntimeRouting(null);
+      setRuntimeRoutingLoaded(false);
+    }
     try {
       const response = await getRuntimeConfig(settings);
-      applyRuntimeRouting(response.config.routing);
+      if (routingRequestSeqRef.current !== requestSeq) {
+        return runtimeRoutingRef.current;
+      }
+      applyRuntimeRouting(response.config.routing, gatewayUrl);
       return response.config.routing;
     } catch (error: unknown) {
+      if (routingRequestSeqRef.current !== requestSeq) {
+        return runtimeRoutingRef.current;
+      }
+      runtimeRoutingErrorGatewayRef.current = gatewayUrl;
       setRuntimeRoutingLoaded(true);
       setRuntimeRoutingError(String(error));
+      if (runtimeRoutingGatewayRef.current !== gatewayUrl) {
+        runtimeRoutingRef.current = null;
+        runtimeRoutingGatewayRef.current = gatewayUrl;
+        setRuntimeRouting(null);
+        return null;
+      }
       return runtimeRoutingRef.current;
     }
   }, [applyRuntimeRouting, settings]);
@@ -153,6 +190,13 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
   const lastAssistantMessage = useMemo(
     () => [...messages].reverse().find((item) => item.role === "assistant") ?? null,
     [messages]
+  );
+  const displayMessages = useMemo(
+    () =>
+      optimisticUserMessage
+        ? mergeMessage(messages, optimisticUserMessage)
+        : messages,
+    [messages, optimisticUserMessage]
   );
   const providerOptions = useMemo(
     () => buildProviderOptions(providerCapabilities, providerCapabilitiesError, modelProvider),
@@ -187,7 +231,7 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
     if (!runtimeRoutingLoaded) {
       return [];
     }
-    if (!runtimeRouting?.enabled || !localOperatorHumanIdentityId || locallyAssignedAgentIds.length === 0) {
+    if (!localOperatorHumanIdentityId || locallyAssignedAgentIds.length === 0) {
       return [];
     }
     const allowedAgentIds = new Set(locallyAssignedAgentIds);
@@ -196,7 +240,6 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
     agents,
     localOperatorHumanIdentityId,
     locallyAssignedAgentIds,
-    runtimeRouting,
     runtimeRoutingLoaded,
   ]);
   const assistantAvailabilityMessage = useMemo(() => {
@@ -208,9 +251,6 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
     }
     if (runtimeRoutingError) {
       return "Team routing could not load cleanly. Assistant is staying locked until it can confirm your route.";
-    }
-    if (!runtimeRouting?.enabled) {
-      return "Turn on People and Routing in Team before using Assistant.";
     }
     if (!localOperatorHumanIdentityId) {
       return "Pick the local app operator in Team before using Assistant.";
@@ -250,14 +290,14 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
       }
       return;
     }
-    if (runtimeRoutingLoaded && runtimeRouting?.enabled) {
+    if (runtimeRoutingLoaded) {
       setSelectedAgentId("");
       return;
     }
     if (!selectedAgentId || !agents.some((agent) => agent.agent_id === selectedAgentId)) {
       setSelectedAgentId(agents[0]?.agent_id ?? "");
     }
-  }, [agents, availableAgents, runtimeRouting, runtimeRoutingLoaded, selectedAgentId, sessionMode]);
+  }, [agents, availableAgents, runtimeRoutingLoaded, selectedAgentId, sessionMode]);
 
   useEffect(() => {
     if (options.boards.length === 0) {
@@ -284,6 +324,8 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
     setPinnedSessionAgentId(null);
     setSessionId(null);
     setMessages([]);
+    setOptimisticUserMessage(null);
+    setSendStatus(null);
     setLastRunId(null);
     setLastRunStatus(null);
     setLastError(null);
@@ -328,9 +370,9 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
 
   const refreshModelCatalog = useCallback(async () => {
     const provider = modelProvider.trim().toLowerCase();
-    if (!provider) {
+    if (!provider || provider === "unconfigured") {
       setCatalogModels([]);
-      setCatalogError("Choose a provider first.");
+      setCatalogError(provider ? null : "Choose a provider first.");
       return;
     }
 
@@ -360,7 +402,8 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
   }, [activeAgentId, authProfileId, modelProvider, settings]);
 
   useEffect(() => {
-    if (!modelProvider.trim()) {
+    const provider = modelProvider.trim().toLowerCase();
+    if (!provider || provider === "unconfigured") {
       setCatalogModels([]);
       setCatalogError(null);
       return;
@@ -385,16 +428,27 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
     [settings]
   );
 
-  const resolveLocalOperatorRouting = useCallback(async () => {
-    const routing = (await refreshRoutingState()) ?? runtimeRoutingRef.current;
-    if (!routing) {
+  const resolveLocalOperatorRouting = useCallback(async (options?: { preferCached?: boolean }) => {
+    const gatewayUrl = settings.gateway_url.trim();
+    if (
+      runtimeRoutingErrorGatewayRef.current === gatewayUrl &&
+      runtimeRoutingGatewayRef.current === gatewayUrl &&
+      !runtimeRoutingRef.current
+    ) {
       throw new Error(
         "Team routing could not load cleanly. Retry once the local operator route is available."
       );
     }
-    if (!routing.enabled) {
+    let routing =
+      options?.preferCached === true && runtimeRoutingGatewayRef.current === gatewayUrl
+        ? runtimeRoutingRef.current
+        : null;
+    if (!routing) {
+      routing = await refreshRoutingState();
+    }
+    if (!routing || runtimeRoutingGatewayRef.current !== gatewayUrl) {
       throw new Error(
-        "People-based lane routing is off. Turn it on in Team so Assistant uses the shared lane model."
+        "Team routing could not load cleanly. Retry once the local operator route is available."
       );
     }
     const localOperatorId = routing.local_operator_human_identity_id?.trim() ?? "";
@@ -414,23 +468,27 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
       localOperatorId,
       localOperatorAgentIds: assignedAgentIdsForHuman(routing, localOperatorId),
     };
-  }, [refreshRoutingState]);
+  }, [refreshRoutingState, settings.gateway_url]);
 
   const ensureCanonicalLaneSession = useCallback(async () => {
-    if (!selectedAgentId.trim()) {
+    const selectedAssistantId =
+      selectedAgentId.trim() || availableAgents[0]?.agent_id.trim() || "";
+    if (!selectedAssistantId) {
       throw new Error("Select an agent first.");
     }
     if (!settings.gateway_url.trim()) {
       throw new Error("Connect Mission Control to the gateway first.");
     }
-    const { localOperatorAgentIds, localOperatorId } = await resolveLocalOperatorRouting();
-    if (!localOperatorAgentIds.includes(selectedAgentId.trim())) {
+    const { localOperatorAgentIds, localOperatorId } = await resolveLocalOperatorRouting({
+      preferCached: true,
+    });
+    if (!localOperatorAgentIds.includes(selectedAssistantId)) {
       throw new Error(
         "That assistant is not routed to the local operator. Pick the assigned assistant in Team first."
       );
     }
     const response = await createSession(settings, {
-      agent_id: selectedAgentId,
+      agent_id: selectedAssistantId,
       human_identity_id: localOperatorId,
     });
     const id = response.session.session_id;
@@ -443,6 +501,7 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
     return id;
   }, [
     messages.length,
+    availableAgents,
     refreshMessages,
     resolveLocalOperatorRouting,
     selectedAgentId,
@@ -461,8 +520,10 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
         setSessionMode("canonical_lane");
         setPinnedSessionAgentId(null);
         setSessionId(null);
-        setMessages([]);
-        setLastRunId(null);
+      setMessages([]);
+      setOptimisticUserMessage(null);
+      setSendStatus(null);
+      setLastRunId(null);
         setLastRunStatus(null);
         throw new Error(
           "That pinned transcript is not routed to the local operator anymore. Return to your lane or reassign it in Team first."
@@ -546,6 +607,8 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
     setPinnedSessionAgentId(null);
     setSessionId(null);
     setMessages([]);
+    setOptimisticUserMessage(null);
+    setSendStatus(null);
     setLastRunId(null);
     setLastRunStatus(null);
     setLastError(null);
@@ -586,8 +649,9 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
       setNotice({ tone: "error", message: "Gateway token is missing." });
       return;
     }
-    const resolvedModelProvider = selectedAgent?.model_provider?.trim() ?? "";
-    const resolvedModelId = selectedAgent?.model_id?.trim() ?? "";
+    const selectedRunAgent = selectedAgent ?? availableAgents[0] ?? null;
+    const resolvedModelProvider = selectedRunAgent?.model_provider?.trim() ?? "";
+    const resolvedModelId = selectedRunAgent?.model_id?.trim() ?? "";
     if (!resolvedModelProvider || !resolvedModelId) {
       setNotice({
         tone: "error",
@@ -598,16 +662,37 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
 
     setBusy(true);
     setLastError(null);
+    setSendStatus("Sending message to the lane...");
+    const pendingMessage: MessageResponse = {
+      message_id: `local-pending-${Date.now()}`,
+      session_id: sessionId ?? "pending",
+      source_channel: "assistant-chat",
+      source_peer_id: null,
+      source_message_id: null,
+      role: "user",
+      content_text: body,
+      content_format: "markdown",
+      created_at: Date.now(),
+    };
+    setOptimisticUserMessage(pendingMessage);
+    setDraft("");
     setLastRunStatus(null);
     setLastRunId(null);
+    let messagePersisted = false;
     try {
       const id = await ensureSession();
-      await createSessionMessage(settings, id, {
+      setOptimisticUserMessage({ ...pendingMessage, session_id: id });
+      const createdMessage = await createSessionMessage(settings, id, {
         role: "user",
         content_text: body,
         content_format: "markdown",
         source_channel: "assistant-chat",
       });
+      messagePersisted = true;
+      setMessages((current) => mergeMessage(current, createdMessage.message));
+      setOptimisticUserMessage(null);
+      setSendStatus("Waiting for the model response...");
+      setLastRunStatus("running");
       const run = await createSessionRun(
         settings,
         id,
@@ -620,25 +705,32 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
       );
       setLastRunId(run.run.run_id);
       setLastRunStatus(run.run.status);
+      setSendStatus("Refreshing the transcript...");
       await refreshMessages(id);
-      setDraft("");
       if (run.run.status !== "succeeded") {
         setLastError(run.run.error_text ?? `Run ended with status ${run.run.status}`);
       }
     } catch (error: unknown) {
       const text = String(error);
       setLastError(text);
+      if (!messagePersisted) {
+        setDraft((current) => (current.trim() ? current : body));
+      }
       setNotice({ tone: "error", message: `Assistant run failed: ${text}` });
     } finally {
+      setOptimisticUserMessage(null);
+      setSendStatus(null);
       setBusy(false);
     }
   }, [
     draft,
     ensureSession,
+    availableAgents,
     refreshMessages,
     selectedAgent,
     setNotice,
     settings,
+    sessionId,
     sessionMode,
     tokenConfigured,
   ]);
@@ -710,7 +802,7 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
     refreshModelCatalog,
     sessionId,
     sessionMode,
-    messages,
+    messages: displayMessages,
     draft,
     setDraft,
     corePrompt,
@@ -728,6 +820,7 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
     setTargetBoardId,
     lastAssistantMessage,
     busy,
+    sendStatus,
     lastRunId,
     lastRunStatus,
     lastError,

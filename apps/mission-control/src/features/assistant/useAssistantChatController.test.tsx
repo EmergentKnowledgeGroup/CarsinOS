@@ -122,7 +122,8 @@ function makeRuntimeConfigResponse(
       routing: {
         enabled,
         use_channel_defaults_as_fallback: false,
-        local_operator_human_identity_id: enabled ? "local-operator" : null,
+        local_operator_human_identity_id:
+          assignedAgentIds.length > 0 ? "local-operator" : null,
         dm_unmapped_policy: "approval_required",
         shared_unmapped_policy: "block",
         human_identities: [
@@ -204,6 +205,16 @@ function makeRunResponse(sessionId: string): CreateRunResponse {
       created_at: 1,
     },
   };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((innerResolve, innerReject) => {
+    resolve = innerResolve;
+    reject = innerReject;
+  });
+  return { promise, resolve, reject };
 }
 
 function makeMessageResponse(): CreateMessageResponse {
@@ -361,6 +372,34 @@ describe("useAssistantChatController", () => {
     );
   });
 
+  it("does not request a model catalog for the unconfigured provider sentinel", async () => {
+    const setNotice = vi.fn();
+    const unconfiguredAgent = {
+      ...makeAgent("claude"),
+      model_provider: "unconfigured",
+      model_id: "",
+    };
+
+    await act(async () => {
+      root.render(
+        <Harness
+          onReady={(controller) => {
+            latest = controller;
+          }}
+          settings={settings}
+          agents={[unconfiguredAgent]}
+          setNotice={setNotice}
+        />
+      );
+    });
+    await flush();
+    await flush();
+
+    expect(latest?.modelProvider).toBe("unconfigured");
+    expect(listProviderModels).not.toHaveBeenCalled();
+    expect(latest?.catalogError).toBeNull();
+  });
+
   it("creates Assistant sessions through the canonical human lane without injecting a system message", async () => {
     const setNotice = vi.fn();
     await act(async () => {
@@ -403,9 +442,16 @@ describe("useAssistantChatController", () => {
     );
   });
 
-  it("refuses to silently fall back to a private session when lane routing is disabled", async () => {
+  it("shows the pending user message while the model run is still blocking", async () => {
     const setNotice = vi.fn();
-    vi.mocked(getRuntimeConfig).mockResolvedValue(makeRuntimeConfigResponse(false));
+    const runDeferred = deferred<CreateRunResponse>();
+    vi.mocked(createSessionRun).mockReturnValueOnce(runDeferred.promise);
+    vi.mocked(createSessionMessage).mockResolvedValueOnce({
+      message: {
+        ...makeMessageResponse().message,
+        content_text: "show progress please",
+      },
+    });
 
     await act(async () => {
       root.render(
@@ -422,16 +468,60 @@ describe("useAssistantChatController", () => {
     await flush();
 
     await act(async () => {
+      latest?.setDraft("show progress please");
+    });
+
+    let sendPromise: Promise<void> | undefined;
+    await act(async () => {
+      sendPromise = latest?.send();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(latest?.busy).toBe(true);
+    expect(latest?.sendStatus).toContain("Waiting for");
+    expect(latest?.messages.some((message) => message.content_text === "show progress please"))
+      .toBe(true);
+
+    await act(async () => {
+      runDeferred.resolve(makeRunResponse("sess-1"));
+      await sendPromise;
+    });
+  });
+
+  it("uses the explicit local assistant route even when the legacy routing toggle is disabled", async () => {
+    const setNotice = vi.fn();
+    vi.mocked(getRuntimeConfig).mockResolvedValue(makeRuntimeConfigResponse(false));
+
+    await act(async () => {
+      root.render(
+        <Harness
+          onReady={(controller) => {
+            latest = controller;
+          }}
+          settings={settings}
+          agents={[makeAgent("claude")]}
+          setNotice={setNotice}
+        />
+      );
+    });
+    await flush();
+    await flush();
+
+    await act(async () => {
       latest?.setDraft("Hello from Assistant");
     });
     await act(async () => {
       await latest?.send();
     });
 
-    expect(createSession).not.toHaveBeenCalled();
-    expect(setNotice).toHaveBeenCalledWith(
+
+    expect(createSession).toHaveBeenCalledWith(settings, {
+      agent_id: "claude",
+      human_identity_id: "local-operator",
+    });
+    expect(setNotice).not.toHaveBeenCalledWith(
       expect.objectContaining({
-        tone: "error",
         message: expect.stringContaining("People-based lane routing is off"),
       })
     );
@@ -507,6 +597,116 @@ describe("useAssistantChatController", () => {
     expect(latest?.sessionId).toBe("sess-2");
   });
 
+  it("does not reuse cached routing after the gateway URL changes and the new gateway fails", async () => {
+    const setNotice = vi.fn();
+    const firstSettings = settings;
+    const secondSettings: RuntimeConnectionSettings = {
+      gateway_url: "http://127.0.0.1:18890",
+    };
+    vi.mocked(getRuntimeConfig)
+      .mockResolvedValueOnce(makeRuntimeConfigResponse(true, ["lyra"]))
+      .mockRejectedValueOnce(new Error("new gateway offline"));
+    vi.mocked(getSession).mockResolvedValue(makeSessionResponse("sess-2", "lyra"));
+
+    await act(async () => {
+      root.render(
+        <Harness
+          onReady={(controller) => {
+            latest = controller;
+          }}
+          settings={firstSettings}
+          agents={[makeAgent("lyra")]}
+          setNotice={setNotice}
+        />
+      );
+    });
+    await flush();
+
+    await act(async () => {
+      root.render(
+        <Harness
+          onReady={(controller) => {
+            latest = controller;
+          }}
+          settings={secondSettings}
+          agents={[makeAgent("lyra")]}
+          setNotice={setNotice}
+        />
+      );
+    });
+    await flush();
+
+    await act(async () => {
+      await latest?.openSession("sess-2");
+    });
+
+    expect(getSession).not.toHaveBeenCalled();
+    expect(setNotice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tone: "error",
+        message: expect.stringContaining("Team routing could not load cleanly"),
+      })
+    );
+  });
+
+  it("does not let an older routing refresh overwrite a newer gateway failure", async () => {
+    const setNotice = vi.fn();
+    const firstSettings = settings;
+    const secondSettings: RuntimeConnectionSettings = {
+      gateway_url: "http://127.0.0.1:18890",
+    };
+    const firstRouting = deferred<GetRuntimeConfigResponse>();
+    vi.mocked(getRuntimeConfig)
+      .mockImplementationOnce(() => firstRouting.promise)
+      .mockRejectedValueOnce(new Error("new gateway offline"));
+    vi.mocked(getSession).mockResolvedValue(makeSessionResponse("sess-2", "lyra"));
+
+    await act(async () => {
+      root.render(
+        <Harness
+          onReady={(controller) => {
+            latest = controller;
+          }}
+          settings={firstSettings}
+          agents={[makeAgent("lyra")]}
+          setNotice={setNotice}
+        />
+      );
+    });
+    await flush();
+
+    await act(async () => {
+      root.render(
+        <Harness
+          onReady={(controller) => {
+            latest = controller;
+          }}
+          settings={secondSettings}
+          agents={[makeAgent("lyra")]}
+          setNotice={setNotice}
+        />
+      );
+    });
+    await flush();
+
+    await act(async () => {
+      firstRouting.resolve(makeRuntimeConfigResponse(true, ["lyra"]));
+    });
+    await flush();
+
+    await act(async () => {
+      await latest?.openSession("sess-2");
+    });
+
+    expect(getSession).not.toHaveBeenCalled();
+    expect(setNotice).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tone: "error",
+        message: expect.stringContaining("Team routing could not load cleanly"),
+      })
+    );
+  });
+
   it("re-resolves the canonical lane on later sends instead of sticking to a stale session id", async () => {
     const setNotice = vi.fn();
     vi.mocked(createSession)
@@ -529,6 +729,7 @@ describe("useAssistantChatController", () => {
       );
     });
     await flush();
+    vi.mocked(getRuntimeConfig).mockClear();
 
     await act(async () => {
       latest?.setDraft("first");
@@ -548,6 +749,45 @@ describe("useAssistantChatController", () => {
     expect(createSession).toHaveBeenCalledTimes(2);
     expect(createSessionRun).toHaveBeenLastCalledWith(settings, "sess-2", {});
     expect(latest?.sessionId).toBe("sess-2");
+    expect(getRuntimeConfig).not.toHaveBeenCalled();
+  });
+
+  it("does not restore a persisted message into the draft when run creation fails", async () => {
+    const setNotice = vi.fn();
+    vi.mocked(createSessionMessage).mockResolvedValueOnce({
+      message: {
+        ...makeMessageResponse().message,
+        message_id: "msg-persisted",
+        content_text: "already persisted",
+      },
+    });
+    vi.mocked(createSessionRun).mockRejectedValueOnce(new Error("provider down"));
+
+    await act(async () => {
+      root.render(
+        <Harness
+          onReady={(controller) => {
+            latest = controller;
+          }}
+          settings={settings}
+          agents={[makeAgent("claude")]}
+          setNotice={setNotice}
+        />
+      );
+    });
+    await flush();
+
+    await act(async () => {
+      latest?.setDraft("already persisted");
+    });
+    await act(async () => {
+      await latest?.send();
+    });
+
+    expect(createSessionMessage).toHaveBeenCalledTimes(1);
+    expect(createSessionRun).toHaveBeenCalledTimes(1);
+    expect(latest?.draft).toBe("");
+    expect(latest?.messages.some((message) => message.message_id === "msg-persisted")).toBe(true);
   });
 
   it("keeps sending on an explicitly opened pinned transcript until returning to the canonical lane", async () => {

@@ -239,10 +239,19 @@ async fn websocket_stream_includes_run_and_approval_events() -> Result<()> {
 
     let mut events = ObservedEvents::default();
     let deadline = Duration::from_secs(5);
+    let mut seen_events = Vec::new();
     while !events.is_complete() {
         let frame = timeout(deadline, next_ws_event(&mut ws))
             .await
-            .context("timed out waiting for websocket event")??;
+            .with_context(|| {
+                format!(
+                    "timed out waiting for websocket event; observed={:?}; seen={:?}",
+                    events, seen_events
+                )
+            })??;
+        if let Some(event) = frame["event"].as_str() {
+            seen_events.push(event.to_string());
+        }
         events.observe(&frame);
     }
 
@@ -1322,54 +1331,35 @@ async fn daily_budget_kill_switch_is_enforced_process_level() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn anthropic_setup_token_ingest_accepts_loopback_stub_when_runtime_flag_enabled() -> Result<()>
-{
+async fn anthropic_setup_token_endpoints_return_gone() -> Result<()> {
     let state_dir = TempDir::new().context("failed to create temp state directory")?;
-    let server = MockServer::start_async().await;
     let setup_token = format!("sk-ant-oat01-{}", "a".repeat(80));
-    let api_base_url = server.url("");
-
-    {
-        let gateway =
-            GatewayProcess::spawn(state_dir.path(), "e2e-token-anthropic-setup-default", None)
-                .await
-                .context("failed to start anthropic setup-token process without override")?;
-
-        let rejected = gateway
-            .request(Method::POST, "/api/v1/auth/anthropic/setup-token/ingest")
-            .json(&json!({
-                "display_name":"anthropic-loopback-default",
-                "setup_token": setup_token,
-                "api_base_url": api_base_url
-            }))
-            .send()
-            .await
-            .context("anthropic setup token ingest without override failed")?;
-        assert_eq!(rejected.status(), StatusCode::BAD_REQUEST);
-    }
-
-    let gateway = GatewayProcess::spawn_with_env(
-        state_dir.path(),
-        "e2e-token-anthropic-setup-override",
-        None,
-        &[("CARSINOS_ANTHROPIC_ALLOW_TEST_LOOPBACK_HTTP", "true")],
-    )
-    .await
-    .context("failed to start anthropic setup-token process with override")?;
+    let gateway = GatewayProcess::spawn(state_dir.path(), "e2e-token-anthropic-setup-gone", None)
+        .await
+        .context("failed to start anthropic setup-token removal process")?;
 
     let ingest = gateway
         .request(Method::POST, "/api/v1/auth/anthropic/setup-token/ingest")
         .json(&json!({
-            "display_name":"anthropic-loopback-override",
+            "display_name":"anthropic-setup-removed",
             "setup_token": setup_token,
-            "api_base_url": api_base_url
+            "api_base_url": "https://api.anthropic.com"
         }))
         .send()
         .await
-        .context("anthropic setup token ingest with override failed")?;
-    assert_eq!(ingest.status(), StatusCode::CREATED);
-    let ingest_json = json_body(ingest).await?;
-    assert!(ingest_json["profile"]["auth_profile_id"].as_str().is_some());
+        .context("anthropic setup token ingest removal request failed")?;
+    assert_eq!(ingest.status(), StatusCode::GONE);
+
+    let validate = gateway
+        .request(Method::POST, "/api/v1/auth/anthropic/setup-token/validate")
+        .json(&json!({
+            "setup_token": setup_token,
+            "api_base_url": "https://api.anthropic.com"
+        }))
+        .send()
+        .await
+        .context("anthropic setup token validate removal request failed")?;
+    assert_eq!(validate.status(), StatusCode::GONE);
 
     Ok(())
 }
@@ -2246,7 +2236,7 @@ async fn numquam_stub_writeback_resolve(
     }))
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct ObservedEvents {
     run_created: bool,
     run_status_running: bool,

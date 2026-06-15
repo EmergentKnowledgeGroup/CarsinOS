@@ -1,6 +1,9 @@
-import { useMemo, useRef, useState } from "react";
-import { Play, Pause, Zap, Clock, CalendarDays } from "lucide-react";
+import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Bell, Brain, ClipboardCheck, Play, Pause, Plus, Zap, Clock, CalendarDays } from "lucide-react";
 import type {
+  Agent,
+  CreateJobRequest,
+  JobRunResponse,
   MissionControlCalendarJob,
   MissionControlCalendarWeekResponse,
   RunbookSummaryItemResponse,
@@ -14,14 +17,26 @@ import { formatRelative } from "../../utils/datetime";
 import { RunbookLinkPanel } from "../runbook/RunbookLinkPanel";
 import { StrategyTaskContextPanel } from "../strategy/StrategyTaskContextPanel";
 import type { StrategyTaskContextSnapshot } from "../strategy/useStrategyController";
+import {
+  buildExecAssHeartbeatJobRequest,
+  EXECASS_HEARTBEAT_PRESETS,
+  hasExecAssHeartbeatJob,
+  resolveExecAssHeartbeatAgent,
+  type ExecAssHeartbeatPresetKind,
+} from "./execAssHeartbeatPresets";
+import { summarizeExecAssWakeupAudit } from "./execAssWakeupAudit";
 
 interface CalendarPageProps {
   calendarWeek: MissionControlCalendarWeekResponse | null;
   calendarAlwaysRunning: MissionControlCalendarJob[];
   calendarNextUp: MissionControlCalendarJob[];
   calendarJobs: MissionControlCalendarJob[];
+  agents: Agent[];
+  execAssAgentId: string | null;
   onRunCalendarJobNow: (jobId: string) => Promise<void>;
   onToggleCalendarJob: (jobId: string, enabled: boolean) => Promise<void>;
+  onLoadCalendarJobHistory: (jobId: string) => Promise<JobRunResponse[]>;
+  onCreateExecAssHeartbeatJob: (request: CreateJobRequest) => Promise<void>;
   strategyReady: boolean;
   taskByJobId: Map<string, TaskResponse>;
   describeStrategyTask: (taskId: string) => StrategyTaskContextSnapshot | null;
@@ -39,6 +54,243 @@ const TABS = [
 
 const SCHEDULE_PAGE_SIZE = 6;
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/* ── ExecAss Heartbeat Setup ─────────────────────────────────────────────── */
+
+function ExecAssHeartbeatPanel({
+  agents,
+  execAssAgentId,
+  jobs,
+  onCreateJob,
+}: {
+  agents: Agent[];
+  execAssAgentId: string | null;
+  jobs: MissionControlCalendarJob[];
+  onCreateJob: (request: CreateJobRequest) => Promise<void>;
+}) {
+  const [checkInMinutes, setCheckInMinutes] = useState(60);
+  const [dailyLearningHours, setDailyLearningHours] = useState(24);
+  const [jobWatchMinutes, setJobWatchMinutes] = useState(15);
+  const [busyKind, setBusyKind] = useState<ExecAssHeartbeatPresetKind | null>(null);
+  const agent = useMemo(
+    () => resolveExecAssHeartbeatAgent(agents, execAssAgentId),
+    [agents, execAssAgentId]
+  );
+
+  const createPreset = async (
+    kind: ExecAssHeartbeatPresetKind,
+    intervalMinutes: number
+  ) => {
+    if (!agent || busyKind) {
+      return;
+    }
+    setBusyKind(kind);
+    try {
+      await onCreateJob(
+        buildExecAssHeartbeatJobRequest({
+          kind,
+          agent,
+          intervalMinutes,
+          existingJobCount: jobs.length,
+        })
+      );
+    } finally {
+      setBusyKind(null);
+    }
+  };
+
+  const renderPreset = (
+    kind: ExecAssHeartbeatPresetKind,
+    icon: ReactNode,
+    intervalValue: number,
+    setIntervalValue: (value: number) => void,
+    intervalUnit: "minutes" | "hours"
+  ) => {
+    const preset = EXECASS_HEARTBEAT_PRESETS.find((item) => item.key === kind);
+    if (!preset) {
+      return null;
+    }
+    const alreadyScheduled = hasExecAssHeartbeatJob(jobs, kind);
+    const busy = busyKind === kind;
+    const minutes = intervalUnit === "hours" ? intervalValue * 60 : intervalValue;
+
+    return (
+      <div className="mc-cal-heartbeat-card" key={kind}>
+        <div className="mc-cal-heartbeat-icon">{icon}</div>
+        <div className="mc-cal-heartbeat-copy">
+          <strong>{preset.label}</strong>
+          <span>{preset.description}</span>
+          <label>
+            Every
+            <input
+              type="number"
+              min={intervalUnit === "hours" ? 1 : 5}
+              max={intervalUnit === "hours" ? 168 : 1440}
+              value={intervalValue}
+              onChange={(event) =>
+                setIntervalValue(Number.parseInt(event.target.value, 10) || 1)
+              }
+            />
+            {intervalUnit}
+          </label>
+        </div>
+        <button
+          type="button"
+          className="mc-primary-btn mc-cal-heartbeat-action"
+          disabled={!agent || alreadyScheduled || busyKind !== null}
+          onClick={() => void createPreset(kind, minutes)}
+          title={
+            alreadyScheduled
+              ? "This ExecAss heartbeat is already scheduled"
+              : `Create ${preset.label} heartbeat`
+          }
+        >
+          <Plus size={14} />
+          {alreadyScheduled ? "Scheduled" : busy ? "Creating" : "Create"}
+        </button>
+      </div>
+    );
+  };
+
+  return (
+    <section className="mc-cal-heartbeat-panel" aria-label="ExecAss heartbeat setup">
+      <div className="mc-cal-heartbeat-header">
+        <div>
+          <p className="mc-cal-heartbeat-eyebrow">ExecAss wakeups</p>
+          <h2>Heartbeat setup</h2>
+        </div>
+        <span className="mc-cal-heartbeat-agent">
+          {agent
+            ? `${agent.name} / ${agent.model_provider}:${agent.model_id}`
+            : "No assistant agent available"}
+        </span>
+      </div>
+      <div className="mc-cal-heartbeat-grid">
+        {renderPreset("check_in", <Bell size={16} />, checkInMinutes, setCheckInMinutes, "minutes")}
+        {renderPreset(
+          "daily_learning",
+          <Brain size={16} />,
+          dailyLearningHours,
+          setDailyLearningHours,
+          "hours"
+        )}
+        {renderPreset(
+          "job_watch",
+          <ClipboardCheck size={16} />,
+          jobWatchMinutes,
+          setJobWatchMinutes,
+          "minutes"
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ExecAssWakeupAuditPanel({
+  jobId,
+  onLoadJobHistory,
+}: {
+  jobId: string;
+  onLoadJobHistory: (jobId: string) => Promise<JobRunResponse[]>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [summary, setSummary] = useState<ReturnType<typeof summarizeExecAssWakeupAudit>>(null);
+
+  const loadAudit = () => {
+    if (expanded && !busy) {
+      setExpanded(false);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    void onLoadJobHistory(jobId)
+      .then((runs) => {
+        setSummary(summarizeExecAssWakeupAudit(runs));
+        setExpanded(true);
+      })
+      .catch((auditError: unknown) => {
+        setError(String(auditError));
+        setExpanded(true);
+      })
+      .finally(() => {
+        setBusy(false);
+      });
+  };
+
+  return (
+    <div className="mc-cal-audit">
+      <div className="mc-cal-audit-head">
+        <span>Wakeup audit</span>
+        <button
+          type="button"
+          className="mc-topbar-icon-btn"
+          disabled={busy}
+          onClick={loadAudit}
+          title={expanded ? "Hide wakeup audit" : "Load wakeup audit"}
+        >
+          {busy ? <span className="mc-btn-busy">Loading</span> : <ClipboardCheck size={13} />}
+        </button>
+      </div>
+      {expanded ? (
+        <div className="mc-cal-audit-body">
+          {error ? <p className="mc-cal-audit-error">{error}</p> : null}
+          {!error && !summary && !busy ? (
+            <p className="mc-cal-audit-muted">No wakeup audit runs yet.</p>
+          ) : null}
+          {summary ? (
+            <>
+              <div className="mc-cal-audit-chip-row">
+                <Chip
+                  label={summary.status}
+                  tone={summary.attentionCount > 0 ? "high" : "up"}
+                />
+                <Chip
+                  label={summary.llmInvoked ? "LLM used" : "No LLM"}
+                  tone={summary.llmInvoked ? "high" : "up"}
+                />
+                <Chip label={`${summary.checkedCount} checked`} tone="medium" />
+                <Chip label={`${summary.attentionCount} found`} tone={summary.attentionCount > 0 ? "high" : "up"} />
+              </div>
+              {summary.attentionItems.length > 0 ? (
+                <ul className="mc-cal-audit-list">
+                  {summary.attentionItems.slice(0, 4).map((item) => (
+                    <li key={`${item.category}:${item.kind}:${item.summary}`}>
+                      <strong>{item.category}</strong>
+                      <span>{item.summary}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mc-cal-audit-muted">No attention items found.</p>
+              )}
+              <div className="mc-cal-audit-checked">
+                {summary.checked.map((item) => (
+                  <span
+                    key={item.category}
+                    className={
+                      item.status === "attention"
+                        ? "mc-cal-audit-category mc-cal-audit-category-hot"
+                        : "mc-cal-audit-category"
+                    }
+                    title={item.summary}
+                  >
+                    {item.category}
+                  </span>
+                ))}
+              </div>
+              <details className="mc-cal-audit-raw">
+                <summary>Raw packet</summary>
+                <pre>{summary.rawOutput}</pre>
+              </details>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 /** Convert ms interval to human-readable duration */
 function formatInterval(seconds: number | null): string {
@@ -153,7 +405,7 @@ function WeekGrid({
                 className="mc-cal-always-chip"
                 onClick={() => void onRunNow(job.job_id)}
                 title={`Run ${job.name} now`}
-                style={{ "--job-color": jobColor(job.name) } as React.CSSProperties}
+                style={{ "--job-color": jobColor(job.name) } as CSSProperties}
               >
                 <span className="mc-cal-job-dot" />
                 {job.name}
@@ -201,7 +453,7 @@ function WeekGrid({
                     className="mc-cal-job-block"
                     onClick={() => void onRunNow(job.job_id)}
                     title={`${job.name} — ${job.agent_id}\nClick to run now`}
-                    style={{ "--job-color": jobColor(job.name) } as React.CSSProperties}
+                    style={{ "--job-color": jobColor(job.name) } as CSSProperties}
                 >
                   <span className="mc-cal-job-dot" />
                   <span className="mc-cal-job-name">{job.name}</span>
@@ -234,7 +486,7 @@ function WeekGrid({
               <div key={job.job_id} className="mc-cal-next-item">
                 <span
                   className="mc-cal-job-dot"
-                  style={{ "--job-color": jobColor(job.name) } as React.CSSProperties}
+                  style={{ "--job-color": jobColor(job.name) } as CSSProperties}
                 />
                 <span className="mc-cal-next-name">{job.name}</span>
                 <span className="mc-cal-next-time">
@@ -267,6 +519,7 @@ function ScheduleTable({
   jobs,
   onRunNow,
   onToggle,
+  onLoadJobHistory,
   strategyReady,
   taskByJobId,
   describeStrategyTask,
@@ -278,6 +531,7 @@ function ScheduleTable({
   jobs: MissionControlCalendarJob[];
   onRunNow: (jobId: string) => Promise<void>;
   onToggle: (jobId: string, enabled: boolean) => Promise<void>;
+  onLoadJobHistory: (jobId: string) => Promise<JobRunResponse[]>;
   strategyReady: boolean;
   taskByJobId: Map<string, TaskResponse>;
   describeStrategyTask: (taskId: string) => StrategyTaskContextSnapshot | null;
@@ -363,6 +617,10 @@ function ScheduleTable({
                         }
                       />
                     ) : null}
+                    <ExecAssWakeupAuditPanel
+                      jobId={job.job_id}
+                      onLoadJobHistory={onLoadJobHistory}
+                    />
                   </td>
                 <td className="mc-mono">
                   {job.schedule_kind}
@@ -439,6 +697,7 @@ function ActiveJobsList({
   nextUp,
   onRunNow,
   onToggle,
+  onLoadJobHistory,
   strategyReady,
   taskByJobId,
   describeStrategyTask,
@@ -451,6 +710,7 @@ function ActiveJobsList({
   nextUp: MissionControlCalendarJob[];
   onRunNow: (jobId: string) => Promise<void>;
   onToggle: (jobId: string, enabled: boolean) => Promise<void>;
+  onLoadJobHistory: (jobId: string) => Promise<JobRunResponse[]>;
   strategyReady: boolean;
   taskByJobId: Map<string, TaskResponse>;
   describeStrategyTask: (taskId: string) => StrategyTaskContextSnapshot | null;
@@ -502,7 +762,7 @@ function ActiveJobsList({
                   <div key={job.job_id} className="mc-cal-active-item">
                     <span
                       className="mc-cal-job-dot"
-                      style={{ "--job-color": jobColor(job.name) } as React.CSSProperties}
+                      style={{ "--job-color": jobColor(job.name) } as CSSProperties}
                     />
                     <div className="mc-cal-active-info">
                       <strong>{job.name}</strong>
@@ -535,6 +795,10 @@ function ActiveJobsList({
                           }
                         />
                       ) : null}
+                      <ExecAssWakeupAuditPanel
+                        jobId={job.job_id}
+                        onLoadJobHistory={onLoadJobHistory}
+                      />
                     </div>
                     <span className="mc-mono mc-cal-active-interval">
                       {formatInterval(job.interval_seconds)}
@@ -603,7 +867,7 @@ function ActiveJobsList({
                   <div key={job.job_id} className="mc-cal-active-item">
                     <span
                       className="mc-cal-job-dot"
-                      style={{ "--job-color": jobColor(job.name) } as React.CSSProperties}
+                      style={{ "--job-color": jobColor(job.name) } as CSSProperties}
                     />
                     <div className="mc-cal-active-info">
                       <strong>{job.name}</strong>
@@ -636,6 +900,10 @@ function ActiveJobsList({
                           }
                         />
                       ) : null}
+                      <ExecAssWakeupAuditPanel
+                        jobId={job.job_id}
+                        onLoadJobHistory={onLoadJobHistory}
+                      />
                     </div>
                     <span className="mc-mono mc-cal-active-interval">
                       {formatRelative(job.next_run_at)}
@@ -689,6 +957,13 @@ export function CalendarPage(props: CalendarPageProps) {
 
   return (
     <div className="mc-calendar-page">
+      <ExecAssHeartbeatPanel
+        agents={props.agents}
+        execAssAgentId={props.execAssAgentId}
+        jobs={props.calendarJobs}
+        onCreateJob={props.onCreateExecAssHeartbeatJob}
+      />
+
       <Tabs tabs={tabsWithCounts} activeTab={activeTab} onTabChange={setActiveTab} />
 
       {activeTab === "week" ? (
@@ -708,6 +983,7 @@ export function CalendarPage(props: CalendarPageProps) {
           jobs={props.calendarJobs}
           onRunNow={props.onRunCalendarJobNow}
           onToggle={props.onToggleCalendarJob}
+          onLoadJobHistory={props.onLoadCalendarJobHistory}
           strategyReady={props.strategyReady}
           taskByJobId={props.taskByJobId}
           describeStrategyTask={props.describeStrategyTask}
@@ -724,6 +1000,7 @@ export function CalendarPage(props: CalendarPageProps) {
           nextUp={props.calendarNextUp}
           onRunNow={props.onRunCalendarJobNow}
           onToggle={props.onToggleCalendarJob}
+          onLoadJobHistory={props.onLoadCalendarJobHistory}
           strategyReady={props.strategyReady}
           taskByJobId={props.taskByJobId}
           describeStrategyTask={props.describeStrategyTask}
