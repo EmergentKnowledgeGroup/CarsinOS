@@ -143,16 +143,16 @@ use carsinos_providers::{
     CompletionUsageMetrics, ProviderAuthProfile, ProviderRegistry,
 };
 use carsinos_storage::{
-    AgentMailThreadListFilter, AgentMemoryBindingRecord, AgentMemoryBindingUpdatePatch,
-    AgentRecord, AgentUpdatePatch, AppPaths, ApprovalRecord, ApprovalResolveResult,
-    AssistantWorkerPatch, AssistantWorkerRecord, AuthProfileRecord, BoardCardAssetRecord,
-    BoardCardRecord, BoardCardUpdatePatch, BoardColumnRecord, BoardRecord,
-    BootstrapPresetListFilter, BootstrapPresetRecord, BootstrapPresetUpdatePatch,
-    CircuitBreakerStateRecord, CircuitBreakerStateUpsert, ConnectorAssignmentRecord,
-    ConnectorAuthBindingRecord, ConnectorConversionRecord, ConnectorInteractionRecord,
-    ConnectorListFilter, ConnectorPublishedToolRecord, ConnectorSourceRecord,
-    ConnectorVersionRecord, DailyAuthProfileUsageIncrement, GoalListFilter, GoalRecord,
-    GoalUpdatePatch, JobRecord, JobRunRecord, JobUpdatePatch, MessageRecord, NewAgent,
+    AgentMailMessageRecord, AgentMailThreadListFilter, AgentMailThreadRecord,
+    AgentMemoryBindingRecord, AgentMemoryBindingUpdatePatch, AgentRecord, AgentUpdatePatch,
+    AppPaths, ApprovalRecord, ApprovalResolveResult, AssistantWorkerPatch, AssistantWorkerRecord,
+    AuthProfileRecord, BoardCardAssetRecord, BoardCardRecord, BoardCardUpdatePatch,
+    BoardColumnRecord, BoardRecord, BootstrapPresetListFilter, BootstrapPresetRecord,
+    BootstrapPresetUpdatePatch, CircuitBreakerStateRecord, CircuitBreakerStateUpsert,
+    ConnectorAssignmentRecord, ConnectorAuthBindingRecord, ConnectorConversionRecord,
+    ConnectorInteractionRecord, ConnectorListFilter, ConnectorPublishedToolRecord,
+    ConnectorSourceRecord, ConnectorVersionRecord, DailyAuthProfileUsageIncrement, GoalListFilter,
+    GoalRecord, GoalUpdatePatch, JobRecord, JobRunRecord, JobUpdatePatch, MessageRecord, NewAgent,
     NewAgentMailAttachment, NewAgentMailFileLease, NewAgentMailMessage, NewAgentMailThread,
     NewAgentMemoryBinding, NewApproval, NewAssistantToolCallAudit, NewAssistantWorker,
     NewAuthProfile, NewBoardCard, NewBoardCardAsset, NewBootstrapPreset, NewConnectorAssignment,
@@ -2171,12 +2171,18 @@ const APP_KV_TELEGRAM_PAIRING_STATE: &str = "runtime.channels.telegram.pairing.v
 const APP_KV_RUNTIME_CONFIG: &str = "config.runtime.v1";
 const APP_KV_RUNTIME_CONFIG_LAST_GOOD: &str = "config.runtime.last_good.v1";
 const APP_KV_SKILLS_STATE: &str = "config.skills.state";
+const APP_KV_AGENT_MAIL_AUTO_PREFIX: &str = "runtime.agent_mail.auto_execution.v1";
+const APP_KV_CHANNEL_STICKY_ROUTE_PREFIX: &str = "runtime.channel_route.sticky.v1";
 const TRUST_CONTRACT_LOCK_SCHEMA_VERSION: &str = "runtime.trust.lock.v1";
 const TRUST_CONTRACT_LOCK_REL_PATH: &str = "deployment/trust_contract.lock.json";
 const DEFAULT_MEMORY_MD_REL_PATH: &str = "memory/memory.md";
 const SCHEDULE_META_KEY: &str = "_carsinos_schedule";
 const SCHEDULE_META_CRON_EXPR: &str = "cron_expr";
 const INTERNAL_CHANNEL_INGEST_HEADER: &str = "x-carsinos-internal-ingest-token";
+const AGENT_MAIL_AUTO_MAX_RECIPIENTS: usize = 4;
+const AGENT_MAIL_AUTO_MAX_THREAD_MESSAGES: usize = 12;
+const AGENT_MAIL_AUTO_MAX_CONTEXT_CHARS: usize = 12_000;
+const CHANNEL_STICKY_ROUTE_TTL_MS: i64 = 30 * 60 * 1000;
 const RUNTIME_CONFIG_SCHEMA_VERSION: &str = "runtime.config.v1";
 const DISCORD_OPERATION_MODE_SHIM: &str = "shim";
 const DISCORD_OPERATION_MODE_TRANSPORT: &str = "transport";
@@ -15738,6 +15744,416 @@ fn get_or_create_channel_session(
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct AgentMailAutoExecutionStatus {
+    status: String,
+    message_id: String,
+    thread_id: String,
+    recipient_agent_id: String,
+    run_id: Option<String>,
+    session_id: Option<String>,
+    reply_message_id: Option<String>,
+    error: Option<String>,
+    updated_at: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AgentMailAutoExecutionOutcome {
+    status: String,
+    message_id: String,
+    thread_id: String,
+    recipient_agent_id: String,
+    run_id: Option<String>,
+    session_id: Option<String>,
+    reply_message_id: Option<String>,
+}
+
+fn agent_mail_auto_execution_key(message_id: &str, recipient_agent_id: &str) -> String {
+    format!(
+        "{}:{}:{}",
+        APP_KV_AGENT_MAIL_AUTO_PREFIX,
+        message_id.trim(),
+        recipient_agent_id.trim()
+    )
+}
+
+fn persist_agent_mail_auto_status(
+    state: &AppState,
+    status: &AgentMailAutoExecutionStatus,
+) -> AnyResult<()> {
+    let key = agent_mail_auto_execution_key(&status.message_id, &status.recipient_agent_id);
+    state
+        .storage
+        .set_app_kv_json(&key, serde_json::to_string(status)?)
+        .map(|_| ())
+}
+
+fn load_agent_mail_auto_status(
+    state: &AppState,
+    message_id: &str,
+    recipient_agent_id: &str,
+) -> AnyResult<Option<AgentMailAutoExecutionStatus>> {
+    let key = agent_mail_auto_execution_key(message_id, recipient_agent_id);
+    let Some((json, _updated_at)) = state.storage.get_app_kv_json(&key)? else {
+        return Ok(None);
+    };
+    Ok(serde_json::from_str(&json).ok())
+}
+
+fn agent_mail_message_is_auto_execution(message: &AgentMailMessageRecord) -> bool {
+    message
+        .metadata_json
+        .as_deref()
+        .and_then(|json| serde_json::from_str::<serde_json::Value>(json).ok())
+        .and_then(|value| value.get("auto_execution").and_then(|item| item.as_bool()))
+        .unwrap_or(false)
+}
+
+fn bounded_agent_mail_context(messages: &[AgentMailMessageRecord]) -> String {
+    let mut lines = Vec::new();
+    let mut remaining = AGENT_MAIL_AUTO_MAX_CONTEXT_CHARS;
+    for message in messages
+        .iter()
+        .rev()
+        .take(AGENT_MAIL_AUTO_MAX_THREAD_MESSAGES)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+    {
+        if remaining == 0 {
+            break;
+        }
+        let mut body = message.body_text.trim().to_string();
+        if body.len() > remaining {
+            body.truncate(remaining);
+        }
+        remaining = remaining.saturating_sub(body.len());
+        lines.push(format!(
+            "[{} / {}]\n{}",
+            message.sender_principal, message.sender_kind, body
+        ));
+    }
+    lines.join("\n\n")
+}
+
+fn build_agent_mail_auto_prompt(
+    thread: &AgentMailThreadRecord,
+    triggering_message: &AgentMailMessageRecord,
+    recipient_agent_id: &str,
+    messages: &[AgentMailMessageRecord],
+) -> String {
+    format!(
+        "You were directly addressed through CarsinOS Agent Mail.\n\nThread: {}\nTriggering message id: {}\nSender: {} ({})\nRecipient: {}\n\nRecent thread context:\n{}\n\nReply as the addressed teammate. Keep the reply focused on the sender's request.",
+        thread.subject,
+        triggering_message.message_id,
+        triggering_message.sender_principal,
+        triggering_message.sender_kind,
+        recipient_agent_id,
+        bounded_agent_mail_context(messages)
+    )
+}
+
+fn agent_mail_reply_recipients(
+    state: &AppState,
+    triggering_message: &AgentMailMessageRecord,
+    recipient_agent_id: &str,
+) -> AnyResult<Vec<String>> {
+    let mut recipients = Vec::new();
+    let sender = triggering_message.sender_principal.trim();
+    if !sender.is_empty() && sender != recipient_agent_id {
+        recipients.push(sender.to_string());
+    }
+    if recipient_agent_id != "execass"
+        && sender != "execass"
+        && state.storage.get_agent("execass")?.is_some()
+    {
+        recipients.push("execass".to_string());
+    }
+    recipients.sort();
+    recipients.dedup();
+    Ok(recipients)
+}
+
+fn schedule_agent_mail_auto_execution_for_message(state: &AppState, message_id: &str) {
+    let Ok(Some(message)) = state.storage.get_agent_mail_message(message_id) else {
+        return;
+    };
+    if agent_mail_message_is_auto_execution(&message) {
+        return;
+    }
+    let Ok(recipients) = state.storage.list_agent_mail_message_recipients(message_id) else {
+        return;
+    };
+    for recipient in recipients
+        .into_iter()
+        .map(|item| item.recipient_principal)
+        .filter(|principal| principal != &message.sender_principal)
+        .take(AGENT_MAIL_AUTO_MAX_RECIPIENTS)
+    {
+        let state_clone = state.clone();
+        let message_id = message_id.to_string();
+        tokio::spawn(async move {
+            if let Err(err) =
+                execute_agent_mail_auto_execution(&state_clone, &message_id, &recipient).await
+            {
+                warn!(
+                    message_id = %message_id,
+                    recipient_agent_id = %recipient,
+                    error = %err,
+                    "agent mail auto-execution failed"
+                );
+            }
+        });
+    }
+}
+
+async fn execute_agent_mail_auto_execution(
+    state: &AppState,
+    message_id: &str,
+    recipient_agent_id: &str,
+) -> AnyResult<AgentMailAutoExecutionOutcome> {
+    let recipient_agent_id = recipient_agent_id.trim().to_ascii_lowercase();
+    let message = state
+        .storage
+        .get_agent_mail_message(message_id)?
+        .with_context(|| format!("agent-mail message not found: {message_id}"))?;
+    if message.sender_principal == recipient_agent_id {
+        return Ok(AgentMailAutoExecutionOutcome {
+            status: "skipped_self".to_string(),
+            message_id: message.message_id,
+            thread_id: message.thread_id,
+            recipient_agent_id,
+            run_id: None,
+            session_id: None,
+            reply_message_id: None,
+        });
+    }
+    if agent_mail_message_is_auto_execution(&message) {
+        return Ok(AgentMailAutoExecutionOutcome {
+            status: "skipped_generated_reply".to_string(),
+            message_id: message.message_id,
+            thread_id: message.thread_id,
+            recipient_agent_id,
+            run_id: None,
+            session_id: None,
+            reply_message_id: None,
+        });
+    }
+    if let Some(existing) =
+        load_agent_mail_auto_status(state, &message.message_id, &recipient_agent_id)?
+    {
+        return Ok(AgentMailAutoExecutionOutcome {
+            status: format!("skipped_existing_{}", existing.status),
+            message_id: existing.message_id,
+            thread_id: existing.thread_id,
+            recipient_agent_id: existing.recipient_agent_id,
+            run_id: existing.run_id,
+            session_id: existing.session_id,
+            reply_message_id: existing.reply_message_id,
+        });
+    }
+
+    let Some(agent) = state.storage.get_agent(&recipient_agent_id)? else {
+        return Ok(AgentMailAutoExecutionOutcome {
+            status: "non_agent_recipient".to_string(),
+            message_id: message.message_id,
+            thread_id: message.thread_id,
+            recipient_agent_id,
+            run_id: None,
+            session_id: None,
+            reply_message_id: None,
+        });
+    };
+    if !provider_supported(&agent.model_provider) {
+        let status = AgentMailAutoExecutionStatus {
+            status: "recipient_not_runnable".to_string(),
+            message_id: message.message_id.clone(),
+            thread_id: message.thread_id.clone(),
+            recipient_agent_id: recipient_agent_id.clone(),
+            run_id: None,
+            session_id: None,
+            reply_message_id: None,
+            error: Some("unsupported model_provider".to_string()),
+            updated_at: Utc::now().timestamp_millis(),
+        };
+        persist_agent_mail_auto_status(state, &status)?;
+        emit_event(
+            state,
+            "agent_mail.auto_execution",
+            serde_json::json!({
+                "message_id": status.message_id,
+                "thread_id": status.thread_id,
+                "recipient_agent_id": status.recipient_agent_id,
+                "status": status.status,
+                "error": status.error
+            }),
+        );
+        return Ok(AgentMailAutoExecutionOutcome {
+            status: status.status,
+            message_id: status.message_id,
+            thread_id: status.thread_id,
+            recipient_agent_id: status.recipient_agent_id,
+            run_id: None,
+            session_id: None,
+            reply_message_id: None,
+        });
+    }
+
+    let mut status = AgentMailAutoExecutionStatus {
+        status: "started".to_string(),
+        message_id: message.message_id.clone(),
+        thread_id: message.thread_id.clone(),
+        recipient_agent_id: recipient_agent_id.clone(),
+        run_id: None,
+        session_id: None,
+        reply_message_id: None,
+        error: None,
+        updated_at: Utc::now().timestamp_millis(),
+    };
+    persist_agent_mail_auto_status(state, &status)?;
+
+    let thread = state
+        .storage
+        .get_agent_mail_thread(&message.thread_id)?
+        .with_context(|| format!("agent-mail thread not found: {}", message.thread_id))?;
+    let thread_messages = state.storage.list_agent_mail_messages(
+        &message.thread_id,
+        AGENT_MAIL_AUTO_MAX_THREAD_MESSAGES as u32,
+    )?;
+    let session_key = format!(
+        "agent-mail:thread:{}:recipient:{}",
+        message.thread_id, recipient_agent_id
+    );
+    let session = get_or_create_channel_session(
+        state,
+        &session_key,
+        format!("Agent Mail: {}", thread.subject),
+        Some(&recipient_agent_id),
+    )?;
+    let prompt =
+        build_agent_mail_auto_prompt(&thread, &message, &recipient_agent_id, &thread_messages);
+    let _ = state
+        .storage
+        .create_message(NewMessage {
+            session_id: session.session_id.clone(),
+            source_channel: "agent_mail".to_string(),
+            source_peer_id: Some(message.sender_principal.clone()),
+            source_message_id: Some(message.message_id.clone()),
+            role: "user".to_string(),
+            content_text: prompt,
+            content_format: "markdown".to_string(),
+        })?
+        .with_context(|| {
+            format!(
+                "mail auto-execution session missing: {}",
+                session.session_id
+            )
+        })?;
+
+    let run = execute_channel_run(
+        state,
+        &session,
+        agent.model_provider.clone(),
+        agent.model_id.clone(),
+        None,
+    )
+    .await?;
+    status.run_id = Some(run.run_id.clone());
+    status.session_id = Some(session.session_id.clone());
+
+    if run.status != "succeeded" {
+        status.status = "run_failed".to_string();
+        status.error = run.error_text.clone();
+        status.updated_at = Utc::now().timestamp_millis();
+        persist_agent_mail_auto_status(state, &status)?;
+        emit_event(
+            state,
+            "agent_mail.auto_execution",
+            serde_json::json!({
+                "message_id": status.message_id,
+                "thread_id": status.thread_id,
+                "recipient_agent_id": status.recipient_agent_id,
+                "run_id": status.run_id,
+                "session_id": status.session_id,
+                "status": status.status,
+                "error": status.error
+            }),
+        );
+        return Ok(AgentMailAutoExecutionOutcome {
+            status: status.status,
+            message_id: status.message_id,
+            thread_id: status.thread_id,
+            recipient_agent_id: status.recipient_agent_id,
+            run_id: status.run_id,
+            session_id: status.session_id,
+            reply_message_id: None,
+        });
+    }
+
+    let Some(reply_text) = latest_assistant_reply_text(state, &session.session_id)? else {
+        status.status = "no_assistant_reply".to_string();
+        status.updated_at = Utc::now().timestamp_millis();
+        persist_agent_mail_auto_status(state, &status)?;
+        return Ok(AgentMailAutoExecutionOutcome {
+            status: status.status,
+            message_id: status.message_id,
+            thread_id: status.thread_id,
+            recipient_agent_id: status.recipient_agent_id,
+            run_id: status.run_id,
+            session_id: status.session_id,
+            reply_message_id: None,
+        });
+    };
+    let reply_recipients = agent_mail_reply_recipients(state, &message, &recipient_agent_id)?;
+    let reply_metadata = serde_json::json!({
+        "auto_execution": true,
+        "triggering_message_id": message.message_id,
+        "run_id": run.run_id,
+        "session_id": session.session_id,
+        "recipient_agent_id": recipient_agent_id
+    });
+    let reply = state
+        .storage
+        .create_agent_mail_message(NewAgentMailMessage {
+            thread_id: message.thread_id.clone(),
+            sender_principal: recipient_agent_id.clone(),
+            sender_kind: "agent".to_string(),
+            body_text: reply_text,
+            metadata_json: Some(reply_metadata.to_string()),
+            recipients: reply_recipients,
+        })?
+        .with_context(|| format!("reply thread not found: {}", message.thread_id))?;
+    let _ = state
+        .storage
+        .acknowledge_agent_mail_message(&message.message_id, &recipient_agent_id);
+    status.status = "succeeded".to_string();
+    status.reply_message_id = Some(reply.message_id.clone());
+    status.updated_at = Utc::now().timestamp_millis();
+    persist_agent_mail_auto_status(state, &status)?;
+    emit_event(
+        state,
+        "agent_mail.auto_execution",
+        serde_json::json!({
+            "message_id": status.message_id,
+            "thread_id": status.thread_id,
+            "recipient_agent_id": status.recipient_agent_id,
+            "run_id": status.run_id,
+            "session_id": status.session_id,
+            "reply_message_id": status.reply_message_id,
+            "status": status.status
+        }),
+    );
+    Ok(AgentMailAutoExecutionOutcome {
+        status: status.status,
+        message_id: status.message_id,
+        thread_id: status.thread_id,
+        recipient_agent_id: status.recipient_agent_id,
+        run_id: status.run_id,
+        session_id: status.session_id,
+        reply_message_id: status.reply_message_id,
+    })
+}
+
 fn infer_unique_agent_id_for_model(
     state: &AppState,
     model_provider: &str,
@@ -15837,6 +16253,21 @@ struct ResolvedChannelLaneRoute {
     human_identity_id: String,
     session_key: String,
     session_title: String,
+}
+
+#[derive(Debug, Clone)]
+struct ExplicitChannelAgentRoute {
+    agent: AgentRecord,
+    session_key: String,
+    session_title: String,
+    message_text: String,
+    source: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct StickyChannelAgentRouteRecord {
+    agent_id: String,
+    expires_at_ms: i64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -15953,6 +16384,233 @@ fn resolve_channel_lane_route(
         session_key,
         session_title: format!("{} / {}", human.display_name, assignment.assistant_agent_id),
     }))
+}
+
+fn parse_explicit_agent_route_token(text: &str) -> Option<(String, String)> {
+    let trimmed = text.trim_start();
+    let first = trimmed.split_whitespace().next()?;
+    let raw = first.strip_prefix('@')?;
+    let candidate = raw
+        .trim_end_matches(|ch: char| matches!(ch, ':' | ',' | '.' | ';'))
+        .to_ascii_lowercase();
+    if candidate.is_empty()
+        || candidate.len() > 64
+        || !candidate
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-'))
+    {
+        return None;
+    }
+    let stripped = trimmed[first.len()..].trim_start().to_string();
+    Some((candidate, stripped))
+}
+
+fn linked_channel_human_identity_id(
+    routing: &RuntimeRoutingConfig,
+    provider: &str,
+    platform_user_id: &str,
+) -> Option<String> {
+    if !routing.enabled {
+        return None;
+    }
+    let normalized_provider = provider.trim().to_ascii_lowercase();
+    let normalized_platform_user_id = platform_user_id.trim();
+    routing
+        .platform_identity_links
+        .iter()
+        .find(|item| {
+            item.enabled
+                && item.provider == normalized_provider
+                && item.platform_user_id == normalized_platform_user_id
+        })
+        .and_then(|link| {
+            routing
+                .human_identities
+                .iter()
+                .find(|human| human.enabled && human.human_identity_id == link.human_identity_id)
+                .map(|human| human.human_identity_id.clone())
+        })
+}
+
+fn channel_route_identity_segment(
+    routing: &RuntimeRoutingConfig,
+    provider: &str,
+    platform_user_id: &str,
+) -> String {
+    linked_channel_human_identity_id(routing, provider, platform_user_id)
+        .map(|human| format!("human:{human}"))
+        .unwrap_or_else(|| format!("user:{platform_user_id}"))
+}
+
+fn channel_explicit_route_session_key(
+    routing: &RuntimeRoutingConfig,
+    provider: &str,
+    platform_user_id: &str,
+    conversation_id: &str,
+    agent_id: &str,
+) -> String {
+    format!(
+        "channel-route:{provider}:{}:conversation:{conversation_id}:agent:{agent_id}:main",
+        channel_route_identity_segment(routing, provider, platform_user_id)
+    )
+}
+
+fn channel_sticky_route_key(
+    routing: &RuntimeRoutingConfig,
+    provider: &str,
+    platform_user_id: &str,
+    conversation_id: &str,
+) -> String {
+    format!(
+        "{}:{provider}:{}:conversation:{conversation_id}",
+        APP_KV_CHANNEL_STICKY_ROUTE_PREFIX,
+        channel_route_identity_segment(routing, provider, platform_user_id)
+    )
+}
+
+fn persist_sticky_channel_agent_route(
+    state: &AppState,
+    routing: &RuntimeRoutingConfig,
+    provider: &str,
+    platform_user_id: &str,
+    conversation_id: &str,
+    agent_id: &str,
+) -> AnyResult<()> {
+    let key = channel_sticky_route_key(routing, provider, platform_user_id, conversation_id);
+    let record = StickyChannelAgentRouteRecord {
+        agent_id: agent_id.to_string(),
+        expires_at_ms: Utc::now().timestamp_millis() + CHANNEL_STICKY_ROUTE_TTL_MS,
+    };
+    state
+        .storage
+        .set_app_kv_json(&key, serde_json::to_string(&record)?)?;
+    Ok(())
+}
+
+fn load_sticky_channel_agent_route(
+    state: &AppState,
+    routing: &RuntimeRoutingConfig,
+    provider: &str,
+    platform_user_id: &str,
+    conversation_id: &str,
+) -> AnyResult<Option<AgentRecord>> {
+    let key = channel_sticky_route_key(routing, provider, platform_user_id, conversation_id);
+    let Some((json, _updated_at)) = state.storage.get_app_kv_json(&key)? else {
+        return Ok(None);
+    };
+    let Ok(record) = serde_json::from_str::<StickyChannelAgentRouteRecord>(&json) else {
+        return Ok(None);
+    };
+    if record.expires_at_ms <= Utc::now().timestamp_millis() {
+        return Ok(None);
+    }
+    Ok(state.storage.get_agent(&record.agent_id)?)
+}
+
+fn resolve_explicit_or_sticky_channel_agent_route(
+    state: &AppState,
+    routing: &RuntimeRoutingConfig,
+    provider: &str,
+    platform_user_id: &str,
+    conversation_id: &str,
+    text: &str,
+) -> AnyResult<(Option<ExplicitChannelAgentRoute>, String, Option<String>)> {
+    let normalized_provider = provider.trim().to_ascii_lowercase();
+    if let Some((candidate, stripped_text)) = parse_explicit_agent_route_token(text) {
+        if let Some(agent) = state.storage.get_agent(&candidate)? {
+            persist_sticky_channel_agent_route(
+                state,
+                routing,
+                &normalized_provider,
+                platform_user_id,
+                conversation_id,
+                &agent.agent_id,
+            )?;
+            let session_key = channel_explicit_route_session_key(
+                routing,
+                &normalized_provider,
+                platform_user_id,
+                conversation_id,
+                &agent.agent_id,
+            );
+            return Ok((
+                Some(ExplicitChannelAgentRoute {
+                    session_title: format!("{normalized_provider} / {}", agent.agent_id),
+                    session_key,
+                    message_text: if stripped_text.is_empty() {
+                        text.trim().to_string()
+                    } else {
+                        stripped_text
+                    },
+                    source: "explicit".to_string(),
+                    agent,
+                }),
+                candidate,
+                None,
+            ));
+        }
+        return Ok((None, text.to_string(), Some(candidate)));
+    }
+
+    if let Some(agent) = load_sticky_channel_agent_route(
+        state,
+        routing,
+        &normalized_provider,
+        platform_user_id,
+        conversation_id,
+    )? {
+        let session_key = channel_explicit_route_session_key(
+            routing,
+            &normalized_provider,
+            platform_user_id,
+            conversation_id,
+            &agent.agent_id,
+        );
+        return Ok((
+            Some(ExplicitChannelAgentRoute {
+                session_title: format!("{normalized_provider} / {}", agent.agent_id),
+                session_key,
+                message_text: text.to_string(),
+                source: "sticky".to_string(),
+                agent,
+            }),
+            text.to_string(),
+            None,
+        ));
+    }
+
+    Ok((None, text.to_string(), None))
+}
+
+fn resolve_channel_run_model(
+    state: &AppState,
+    desired_agent_id: Option<&str>,
+    requested_model_provider: Option<String>,
+    requested_model_id: Option<String>,
+    default_model_provider: &str,
+    default_model_id: &str,
+) -> AnyResult<(String, String)> {
+    let requested_model_provider = requested_model_provider
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    let requested_model_id = requested_model_id
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    if let (Some(provider), Some(model_id)) = (requested_model_provider, requested_model_id) {
+        return Ok((provider, model_id));
+    }
+    if let Some(agent_id) = desired_agent_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        if let Some(agent) = state.storage.get_agent(agent_id)? {
+            return Ok((agent.model_provider, agent.model_id));
+        }
+    }
+    Ok((
+        default_model_provider.trim().to_string(),
+        default_model_id.trim().to_string(),
+    ))
 }
 
 fn unmapped_channel_routing_policy(
@@ -17198,14 +17856,53 @@ async fn ingest_telegram_channel_message(
         }
         telegram_channel::RouteDecision::Accept => {
             let session_started = Instant::now();
-            let lane_route = resolve_channel_lane_route(
-                &state,
-                &runtime_config.routing,
-                "telegram",
-                &request.user_id.to_string(),
-            )
-            .map_err(|err| internal_err_with_error("resolving telegram lane route failed", err))?;
-            let (session_key, session_title, desired_agent_id) = if let Some(route) = lane_route {
+            let conversation_id = request.chat_id.to_string();
+            let platform_user_id = request.user_id.to_string();
+            let (explicit_route, fallback_text, unresolved_route_token) =
+                resolve_explicit_or_sticky_channel_agent_route(
+                    &state,
+                    &runtime_config.routing,
+                    "telegram",
+                    &platform_user_id,
+                    &conversation_id,
+                    &request.text,
+                )
+                .map_err(|err| {
+                    internal_err_with_error("resolving telegram explicit route failed", err)
+                })?;
+            let mut route_source = "default".to_string();
+            let mut channel_message_text = fallback_text;
+            let lane_route = if explicit_route.is_some() {
+                None
+            } else {
+                resolve_channel_lane_route(
+                    &state,
+                    &runtime_config.routing,
+                    "telegram",
+                    &platform_user_id,
+                )
+                .map_err(|err| {
+                    internal_err_with_error("resolving telegram lane route failed", err)
+                })?
+            };
+            let (session_key, session_title, desired_agent_id) = if let Some(route) = explicit_route
+            {
+                route_source = route.source.clone();
+                channel_message_text = route.message_text.clone();
+                info!(
+                    provider = "telegram",
+                    assistant_agent_id = %route.agent.agent_id,
+                    session_key = %route.session_key,
+                    route_source = %route.source,
+                    "channel ingest resolved explicit agent route"
+                );
+                (
+                    route.session_key,
+                    route.session_title,
+                    Some(route.agent.agent_id),
+                )
+            } else if let Some(route) = lane_route {
+                route_source = "lane".to_string();
                 info!(
                     provider = "telegram",
                     human_identity_id = %route.human_identity_id,
@@ -17328,7 +18025,7 @@ async fn ingest_telegram_channel_message(
             let safe_text = prepare_external_channel_message(
                 "telegram",
                 &format!("telegram-user:{}", request.user_id),
-                &request.text,
+                &channel_message_text,
             );
             let created_message = state
                 .storage
@@ -17368,16 +18065,17 @@ async fn ingest_telegram_channel_message(
             let mut outbound_chunk_count: Option<usize> = None;
             if run_immediately {
                 let run_started = Instant::now();
-                let model_provider = request
-                    .model_provider
-                    .unwrap_or_else(|| config.telegram.default_model_provider.clone())
-                    .trim()
-                    .to_string();
-                let model_id = request
-                    .model_id
-                    .unwrap_or_else(|| config.telegram.default_model_id.clone())
-                    .trim()
-                    .to_string();
+                let (model_provider, model_id) = resolve_channel_run_model(
+                    &state,
+                    desired_agent_id.as_deref(),
+                    request.model_provider,
+                    request.model_id,
+                    &config.telegram.default_model_provider,
+                    &config.telegram.default_model_id,
+                )
+                .map_err(|err| {
+                    internal_err_with_error("resolving telegram run model failed", err)
+                })?;
                 if model_provider.is_empty() || model_id.is_empty() {
                     return Err(api_error(
                         StatusCode::BAD_REQUEST,
@@ -17559,7 +18257,9 @@ async fn ingest_telegram_channel_message(
                     "outbound_reply_status": outbound_reply_status,
                     "outbound_delivery_mode": outbound_delivery_mode,
                     "outbound_chunk_count": outbound_chunk_count,
-                    "outbound_reply_error": outbound_reply_error
+                    "outbound_reply_error": outbound_reply_error,
+                    "route_source": route_source,
+                    "unresolved_route_token": unresolved_route_token
                 })),
             );
 
@@ -17674,14 +18374,56 @@ async fn ingest_discord_channel_message(
         }
         discord_channel::RouteDecision::Accept => {
             let session_started = Instant::now();
-            let lane_route = resolve_channel_lane_route(
-                &state,
-                &runtime_config.routing,
-                "discord",
-                &request.author_id,
-            )
-            .map_err(|err| internal_err_with_error("resolving discord lane route failed", err))?;
-            let (session_key, session_title, desired_agent_id) = if let Some(route) = lane_route {
+            let conversation_id = request
+                .thread_id
+                .as_deref()
+                .unwrap_or(request.channel_id.as_str())
+                .to_string();
+            let (explicit_route, fallback_text, unresolved_route_token) =
+                resolve_explicit_or_sticky_channel_agent_route(
+                    &state,
+                    &runtime_config.routing,
+                    "discord",
+                    &request.author_id,
+                    &conversation_id,
+                    &request.text,
+                )
+                .map_err(|err| {
+                    internal_err_with_error("resolving discord explicit route failed", err)
+                })?;
+            let mut route_source = "default".to_string();
+            let mut channel_message_text = fallback_text;
+            let lane_route = if explicit_route.is_some() {
+                None
+            } else {
+                resolve_channel_lane_route(
+                    &state,
+                    &runtime_config.routing,
+                    "discord",
+                    &request.author_id,
+                )
+                .map_err(|err| {
+                    internal_err_with_error("resolving discord lane route failed", err)
+                })?
+            };
+            let (session_key, session_title, desired_agent_id) = if let Some(route) = explicit_route
+            {
+                route_source = route.source.clone();
+                channel_message_text = route.message_text.clone();
+                info!(
+                    provider = "discord",
+                    assistant_agent_id = %route.agent.agent_id,
+                    session_key = %route.session_key,
+                    route_source = %route.source,
+                    "channel ingest resolved explicit agent route"
+                );
+                (
+                    route.session_key,
+                    route.session_title,
+                    Some(route.agent.agent_id),
+                )
+            } else if let Some(route) = lane_route {
+                route_source = "lane".to_string();
                 info!(
                     provider = "discord",
                     human_identity_id = %route.human_identity_id,
@@ -17816,7 +18558,7 @@ async fn ingest_discord_channel_message(
             let safe_text = prepare_external_channel_message(
                 "discord",
                 &format!("discord-user:{}", request.author_id),
-                &request.text,
+                &channel_message_text,
             );
             let created_message = state
                 .storage
@@ -17856,16 +18598,17 @@ async fn ingest_discord_channel_message(
             let mut outbound_chunk_count: Option<usize> = None;
             if run_immediately {
                 let run_started = Instant::now();
-                let model_provider = request
-                    .model_provider
-                    .unwrap_or_else(|| config.discord.default_model_provider.clone())
-                    .trim()
-                    .to_string();
-                let model_id = request
-                    .model_id
-                    .unwrap_or_else(|| config.discord.default_model_id.clone())
-                    .trim()
-                    .to_string();
+                let (model_provider, model_id) = resolve_channel_run_model(
+                    &state,
+                    desired_agent_id.as_deref(),
+                    request.model_provider,
+                    request.model_id,
+                    &config.discord.default_model_provider,
+                    &config.discord.default_model_id,
+                )
+                .map_err(|err| {
+                    internal_err_with_error("resolving discord run model failed", err)
+                })?;
                 if model_provider.is_empty() || model_id.is_empty() {
                     return Err(api_error(
                         StatusCode::BAD_REQUEST,
@@ -18075,7 +18818,9 @@ async fn ingest_discord_channel_message(
                     "outbound_reply_status": outbound_reply_status,
                     "outbound_delivery_mode": outbound_delivery_mode,
                     "outbound_chunk_count": outbound_chunk_count,
-                    "outbound_reply_error": outbound_reply_error
+                    "outbound_reply_error": outbound_reply_error,
+                    "route_source": route_source,
+                    "unresolved_route_token": unresolved_route_token
                 })),
             );
 
@@ -21758,6 +22503,7 @@ async fn execute_agent_mail_mcp_tool(
                     "recipient_count": message_response.recipients.len()
                 })),
             );
+            schedule_agent_mail_auto_execution_for_message(state, &message_response.message_id);
             Ok(serde_json::json!({
                 "message": message_response
             }))
@@ -23880,6 +24626,7 @@ async fn execute_assistant_tool(
                     internal_err_with_error("sending assistant mail message failed", err)
                 })?
                 .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "agent-mail thread not found"))?;
+            schedule_agent_mail_auto_execution_for_message(state, &message.message_id);
             Ok((
                 "ok".to_string(),
                 None,
@@ -24817,6 +25564,7 @@ async fn send_agent_mail_message(
             "recipient_count": message_response.recipients.len()
         })),
     );
+    schedule_agent_mail_auto_execution_for_message(&state, &message_response.message_id);
     Ok((
         StatusCode::CREATED,
         Json(SendAgentMailMessageResponse {
@@ -43083,6 +43831,26 @@ mod tests {
             .expect("create test agent")
     }
 
+    fn create_mock_test_agent(ctx: &TestContext, agent_id: &str, name: &str) -> AgentRecord {
+        let agent = create_test_agent(ctx, agent_id, name, None);
+        ctx.storage
+            .update_agent(
+                &agent.agent_id,
+                AgentUpdatePatch {
+                    name: None,
+                    workspace_root: None,
+                    model_provider: Some("mock".to_string()),
+                    model_id: Some("mock-echo-v1".to_string()),
+                    tool_profile: None,
+                    reports_to_agent_id: None,
+                    role_label: None,
+                    memory_binding: None,
+                },
+            )
+            .expect("update test agent to mock")
+            .expect("mock test agent exists")
+    }
+
     fn create_test_agent_memory_binding(
         base_url: &str,
         auth_mode: &str,
@@ -51654,6 +52422,230 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     }
 
     #[tokio::test]
+    async fn agent_mail_direct_agent_recipient_auto_executes_and_replies_once() {
+        let ctx = test_context();
+        let agent = create_mock_test_agent(&ctx, "mail_reviewer", "Mail Reviewer");
+        let thread = ctx
+            .storage
+            .create_agent_mail_thread(NewAgentMailThread {
+                kind: "direct".to_string(),
+                subject: "Need a review".to_string(),
+                created_by_principal: "dex".to_string(),
+                participants: vec![(agent.agent_id.clone(), "member".to_string())],
+            })
+            .expect("create mail thread");
+        let message = ctx
+            .storage
+            .create_agent_mail_message(NewAgentMailMessage {
+                thread_id: thread.thread_id.clone(),
+                sender_principal: "dex".to_string(),
+                sender_kind: "agent".to_string(),
+                body_text: "What do you think of this route?".to_string(),
+                metadata_json: None,
+                recipients: vec![agent.agent_id.clone()],
+            })
+            .expect("create mail message")
+            .expect("message exists");
+
+        let outcome =
+            execute_agent_mail_auto_execution(&ctx.state, &message.message_id, &agent.agent_id)
+                .await
+                .expect("auto-execute recipient");
+        assert_eq!(outcome.status, "succeeded");
+        assert!(outcome.run_id.is_some());
+        let reply_id = outcome.reply_message_id.as_ref().expect("reply id");
+        let reply = ctx
+            .storage
+            .get_agent_mail_message(reply_id)
+            .expect("load reply")
+            .expect("reply exists");
+        assert_eq!(reply.sender_principal, agent.agent_id);
+        assert!(reply
+            .metadata_json
+            .as_deref()
+            .unwrap_or_default()
+            .contains("\"auto_execution\":true"));
+        let recipient = ctx
+            .storage
+            .list_agent_mail_message_recipients(&message.message_id)
+            .expect("list recipients")
+            .into_iter()
+            .find(|item| item.recipient_principal == agent.agent_id)
+            .expect("recipient row");
+        assert!(recipient.acked_at.is_some());
+
+        let duplicate =
+            execute_agent_mail_auto_execution(&ctx.state, &message.message_id, &agent.agent_id)
+                .await
+                .expect("duplicate auto-execute is idempotent");
+        assert!(duplicate.status.starts_with("skipped_existing_"));
+        let messages = ctx
+            .storage
+            .list_agent_mail_messages(&thread.thread_id, 20)
+            .expect("list thread messages");
+        assert_eq!(
+            messages
+                .iter()
+                .filter(|item| item.sender_principal == agent.agent_id)
+                .count(),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn agent_mail_auto_execution_records_not_runnable_for_unsupported_agent_provider() {
+        let ctx = test_context();
+        let agent = create_test_agent(&ctx, "api_only_mail", "API Only Mail", None);
+        ctx.storage
+            .update_agent(
+                &agent.agent_id,
+                AgentUpdatePatch {
+                    name: None,
+                    workspace_root: None,
+                    model_provider: Some("external-api-only".to_string()),
+                    model_id: Some("opinion-endpoint-v1".to_string()),
+                    tool_profile: None,
+                    reports_to_agent_id: None,
+                    role_label: None,
+                    memory_binding: None,
+                },
+            )
+            .expect("update test agent")
+            .expect("agent exists");
+        let thread = ctx
+            .storage
+            .create_agent_mail_thread(NewAgentMailThread {
+                kind: "direct".to_string(),
+                subject: "API teammate check".to_string(),
+                created_by_principal: "dex".to_string(),
+                participants: vec![(agent.agent_id.clone(), "member".to_string())],
+            })
+            .expect("create mail thread");
+        let message = ctx
+            .storage
+            .create_agent_mail_message(NewAgentMailMessage {
+                thread_id: thread.thread_id,
+                sender_principal: "dex".to_string(),
+                sender_kind: "agent".to_string(),
+                body_text: "Can the API-only teammate answer?".to_string(),
+                metadata_json: None,
+                recipients: vec![agent.agent_id.clone()],
+            })
+            .expect("create mail message")
+            .expect("message exists");
+
+        let outcome =
+            execute_agent_mail_auto_execution(&ctx.state, &message.message_id, &agent.agent_id)
+                .await
+                .expect("auto-execute unsupported recipient");
+        assert_eq!(outcome.status, "recipient_not_runnable");
+        assert!(outcome.run_id.is_none());
+        let stored = load_agent_mail_auto_status(&ctx.state, &message.message_id, &agent.agent_id)
+            .expect("load auto status")
+            .expect("status exists");
+        assert_eq!(stored.status, "recipient_not_runnable");
+        assert_eq!(stored.error.as_deref(), Some("unsupported model_provider"));
+    }
+
+    #[tokio::test]
+    async fn telegram_channel_inbound_explicit_agent_route_creates_sticky_followup() {
+        let ctx = test_context();
+        let agent = create_mock_test_agent(&ctx, "route_telegram", "Route Telegram");
+        let _ = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/config/channels",
+                Body::from(
+                    r#"{
+                        "telegram":{
+                            "require_mention_in_groups":false,
+                            "allowlisted_user_ids":[7070],
+                            "dm_policy":"allowlist",
+                            "auto_run_enabled":false,
+                            "default_model_provider":"mock",
+                            "default_model_id":"mock-echo-v1"
+                        }
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("update telegram config");
+
+        let first = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/telegram/inbound",
+                Body::from(
+                    r#"{
+                        "chat_id":9090,
+                        "user_id":7070,
+                        "text":"@route_telegram first direct turn",
+                        "is_group_chat":false,
+                        "mentions_bot":false,
+                        "reply_to_bot":false,
+                        "run_immediately":false
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("telegram explicit inbound");
+        assert_eq!(first.status(), StatusCode::OK);
+        let first_json = parse_json(first).await;
+        let first_session_id = first_json["session_id"]
+            .as_str()
+            .expect("first session")
+            .to_string();
+        let first_session = ctx
+            .storage
+            .get_session(&first_session_id)
+            .expect("get first session")
+            .expect("first session exists");
+        assert_eq!(first_session.agent_id, agent.agent_id);
+        assert!(first_session.session_key.starts_with(
+            "channel-route:telegram:user:7070:conversation:9090:agent:route_telegram"
+        ));
+
+        let second = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/telegram/inbound",
+                Body::from(
+                    r#"{
+                        "chat_id":9090,
+                        "user_id":7070,
+                        "text":"follow up without at token",
+                        "is_group_chat":false,
+                        "mentions_bot":false,
+                        "reply_to_bot":false,
+                        "run_immediately":false
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("telegram sticky inbound");
+        assert_eq!(second.status(), StatusCode::OK);
+        let second_json = parse_json(second).await;
+        assert_eq!(second_json["session_id"], first_session_id);
+        let messages = ctx
+            .storage
+            .list_messages(&first_session_id, 10)
+            .expect("list sticky messages");
+        assert!(messages
+            .iter()
+            .any(|message| message.content_text.contains("first direct turn")
+                && !message.content_text.contains("@route_telegram")));
+        assert!(messages
+            .iter()
+            .any(|message| message.content_text.contains("follow up without at token")));
+    }
+
+    #[tokio::test]
     async fn telegram_channel_inbound_backfills_missing_default_agent_from_unique_model_match() {
         let ctx = test_context();
         let agent = create_test_agent(&ctx, "telegram_auto", "Telegram Auto", None);
@@ -52146,6 +53138,95 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .expect("get session")
             .expect("session exists");
         assert_eq!(session.agent_id, agent.agent_id);
+    }
+
+    #[tokio::test]
+    async fn discord_channel_inbound_explicit_agent_route_selects_agent_and_strips_token() {
+        let ctx = test_context();
+        let agent = create_mock_test_agent(&ctx, "route_discord", "Route Discord");
+        let inbound = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/discord/inbound",
+                Body::from(
+                    r#"{
+                        "channel_id":"dm-explicit-discord",
+                        "author_id":"u-explicit-discord",
+                        "text":"@route_discord please review this",
+                        "mentions_bot":false,
+                        "is_dm":true,
+                        "run_immediately":false
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("discord explicit inbound");
+        assert_eq!(inbound.status(), StatusCode::OK);
+        let inbound_json = parse_json(inbound).await;
+        assert_eq!(inbound_json["decision"], "accepted");
+        let session_id = inbound_json["session_id"].as_str().expect("session id");
+        let session = ctx
+            .storage
+            .get_session(session_id)
+            .expect("get session")
+            .expect("session exists");
+        assert_eq!(session.agent_id, agent.agent_id);
+        assert!(session
+            .session_key
+            .starts_with("channel-route:discord:user:u-explicit-discord:conversation:dm-explicit-discord:agent:route_discord"));
+        let messages = ctx
+            .storage
+            .list_messages(session_id, 10)
+            .expect("list messages");
+        let user_message = messages
+            .iter()
+            .find(|message| message.role == "user")
+            .expect("user message");
+        assert!(!user_message.content_text.contains("@route_discord"));
+        assert!(user_message.content_text.contains("please review this"));
+    }
+
+    #[tokio::test]
+    async fn discord_channel_inbound_unknown_agent_token_falls_back_to_default_route() {
+        let ctx = test_context();
+        let inbound = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "POST",
+                "/api/v1/channels/discord/inbound",
+                Body::from(
+                    r#"{
+                        "channel_id":"dm-unknown-discord",
+                        "author_id":"u-unknown-discord",
+                        "text":"@missing_agent still handle this",
+                        "mentions_bot":false,
+                        "is_dm":true,
+                        "run_immediately":false
+                    }"#,
+                ),
+            ))
+            .await
+            .expect("discord unknown route inbound");
+        assert_eq!(inbound.status(), StatusCode::OK);
+        let inbound_json = parse_json(inbound).await;
+        assert_eq!(inbound_json["decision"], "accepted");
+        let session_id = inbound_json["session_id"].as_str().expect("session id");
+        let session = ctx
+            .storage
+            .get_session(session_id)
+            .expect("get session")
+            .expect("session exists");
+        assert_eq!(session.session_key, "discord:dm:u-unknown-discord");
+        let messages = ctx
+            .storage
+            .list_messages(session_id, 10)
+            .expect("list messages");
+        assert!(messages
+            .iter()
+            .any(|message| message.content_text.contains("@missing_agent")));
     }
 
     #[tokio::test]
