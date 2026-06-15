@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone)]
 pub struct AppPaths {
@@ -147,6 +147,12 @@ fn seed_default_entities(db_path: &Path) -> Result<()> {
 fn open_sqlite_connection(db_path: &Path) -> Result<Connection> {
     let conn = Connection::open(db_path)
         .with_context(|| format!("failed to open sqlite db at {}", db_path.display()))?;
+    conn.busy_timeout(Duration::from_secs(5)).with_context(|| {
+        format!(
+            "failed setting sqlite busy timeout at {}",
+            db_path.display()
+        )
+    })?;
     conn.pragma_update(None, "foreign_keys", "ON")
         .with_context(|| {
             format!(
@@ -10726,6 +10732,13 @@ mod tests {
         assert_eq!(
             foreign_keys_enabled, 1,
             "sqlite foreign keys should be enabled"
+        );
+        let busy_timeout_ms = conn
+            .query_row("PRAGMA busy_timeout", [], |row| row.get::<_, i64>(0))
+            .expect("query busy_timeout pragma");
+        assert_eq!(
+            busy_timeout_ms, 5_000,
+            "sqlite busy timeout should wait for transient writer locks"
         );
     }
 

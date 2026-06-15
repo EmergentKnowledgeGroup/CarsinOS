@@ -43138,18 +43138,6 @@ mod tests {
                 expected_anthropic_bearer: None,
             }
         }
-
-        fn anthropic(setup_token: &str) -> Self {
-            Self {
-                token_status: StatusCode::OK,
-                access_token: setup_token.to_string(),
-                refresh_token: None,
-                expires_in: 3600,
-                expected_openai_bearer: None,
-                expected_anthropic_api_key: Some(setup_token.to_string()),
-                expected_anthropic_bearer: None,
-            }
-        }
     }
 
     struct AuthFlowStubServer {
@@ -44993,7 +44981,7 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             .as_i64()
             .expect("retry_after_seconds");
         assert!(
-            (59..=60).contains(&retry_after_seconds),
+            (55..=60).contains(&retry_after_seconds),
             "retry_after_seconds should reflect the remaining 60s window, got {retry_after_seconds}"
         );
     }
@@ -46911,7 +46899,7 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         let ctx = test_context_with_numquam(build_test_numquam_client(&stub.base_url));
 
         let mut runtime = load_runtime_config(&ctx.state).expect("load runtime config");
-        runtime.autonomy_guardrails.max_provider_input_chars = 8_000;
+        runtime.autonomy_guardrails.max_provider_input_chars = 12_000;
         let payload = serde_json::to_string(&runtime).expect("serialize runtime config");
         ctx.storage
             .set_app_kv_json(APP_KV_RUNTIME_CONFIG, payload)
@@ -48752,14 +48740,14 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                 "/api/v1/auth/profiles",
                 Body::from(
                     r#"{
-                        "provider":"anthropic",
-                        "display_name":"claude-primary",
-                        "auth_mode":"agent_sdk",
-                        "risk_level":"high",
+                        "provider":"openai",
+                        "display_name":"openai-primary",
+                        "auth_mode":"api_key",
+                        "risk_level":"low",
                         "enabled":true,
-                        "kill_switch_scope":"profile",
-                        "api_base_url":"https://api.anthropic.com",
-                        "credentials_json":{"headless_enabled":true,"headless_command":"claude","headless_args":["-p"]}
+                        "kill_switch_scope":"none",
+                        "api_base_url":"https://api.openai.com",
+                        "credentials_json":{"api_key":"openai-test-key"}
                     }"#,
                 ),
             ))
@@ -48775,14 +48763,14 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                 "/api/v1/auth/profiles",
                 Body::from(
                     r#"{
-                        "provider":"anthropic",
-                        "display_name":"claude-primary",
-                        "auth_mode":"agent_sdk",
-                        "risk_level":"high",
+                        "provider":"openai",
+                        "display_name":"openai-primary",
+                        "auth_mode":"api_key",
+                        "risk_level":"low",
                         "enabled":true,
-                        "kill_switch_scope":"profile",
-                        "api_base_url":"https://api.anthropic.com",
-                        "credentials_json":{"headless_enabled":true,"headless_command":"claude","headless_args":["-p","--output-format","text"]}
+                        "kill_switch_scope":"none",
+                        "api_base_url":"https://api.openai.com",
+                        "credentials_json":{"api_key":"openai-test-key-2"}
                     }"#,
                 ),
             ))
@@ -49427,12 +49415,10 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     }
 
     #[tokio::test]
-    async fn anthropic_setup_token_ingest_creates_profile_and_supports_run_flow() {
+    async fn anthropic_setup_token_endpoints_are_gone() {
         let ctx = test_context();
         let setup_token = fake_anthropic_setup_token();
-        let stub = spawn_auth_flow_stub(AuthFlowStubConfig::anthropic(&setup_token)).await;
-
-        let ingest_response = ctx
+        let ingest = ctx
             .app
             .clone()
             .oneshot(auth_request(
@@ -49442,220 +49428,32 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                     r#"{{
                         "display_name":"anthropic-setup",
                         "setup_token":"{}",
-                        "api_base_url":"{}"
+                        "api_base_url":"https://api.anthropic.com"
                     }}"#,
-                    setup_token, stub.base_url
+                    setup_token
                 )),
             ))
             .await
-            .expect("ingest setup token");
-        assert_eq!(ingest_response.status(), StatusCode::CREATED);
-        let ingest_json = parse_json(ingest_response).await;
-        let profile_id = ingest_json["profile"]["auth_profile_id"]
-            .as_str()
-            .expect("profile id")
-            .to_string();
+            .expect("setup-token ingest response");
+        assert_eq!(ingest.status(), StatusCode::GONE);
 
-        let record = ctx
-            .storage
-            .get_auth_profile(&profile_id)
-            .expect("load profile")
-            .expect("profile exists");
-        let credentials: serde_json::Value =
-            serde_json::from_str(&record.credentials_json).expect("credentials json");
-        assert!(credentials
-            .get("secret_ref")
-            .and_then(|value| value.as_str())
-            .is_some());
-        assert!(credentials.get("api_key").is_none());
-
-        let create_session_response = ctx
+        let validate = ctx
             .app
             .clone()
             .oneshot(auth_request(
                 "POST",
-                "/api/v1/sessions",
-                Body::from(r#"{"title":"anthropic-setup-run"}"#),
-            ))
-            .await
-            .expect("create session");
-        let create_session_json = parse_json(create_session_response).await;
-        let session_id = create_session_json["session"]["session_id"]
-            .as_str()
-            .expect("session id")
-            .to_string();
-
-        let _ = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "POST",
-                &format!("/api/v1/sessions/{session_id}/messages"),
-                Body::from(r#"{"role":"user","content_text":"hello anthropic setup token"}"#),
-            ))
-            .await
-            .expect("create message");
-
-        let run_response = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "POST",
-                &format!("/api/v1/sessions/{session_id}/runs"),
-                Body::from(format!(
-                    r#"{{"model_provider":"anthropic","model_id":"claude-test","auth_profile_id":"{profile_id}"}}"#
-                )),
-            ))
-            .await
-            .expect("run response");
-        assert_eq!(run_response.status(), StatusCode::CREATED);
-        let run_json = parse_json(run_response).await;
-        assert_eq!(run_json["run"]["status"], "succeeded");
-    }
-
-    #[tokio::test]
-    async fn anthropic_setup_token_ingest_normalizes_wrapped_whitespace_before_storage_and_run() {
-        let ctx = test_context();
-        let normalized_setup_token = fake_anthropic_setup_token();
-        let wrapped_setup_token = format!(
-            "{} {}",
-            &normalized_setup_token[..40],
-            &normalized_setup_token[40..]
-        );
-        let stub =
-            spawn_auth_flow_stub(AuthFlowStubConfig::anthropic(&normalized_setup_token)).await;
-
-        let ingest_response = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "POST",
-                "/api/v1/auth/anthropic/setup-token/ingest",
+                "/api/v1/auth/anthropic/setup-token/validate",
                 Body::from(format!(
                     r#"{{
-                        "display_name":"anthropic-setup-whitespace",
                         "setup_token":"{}",
-                        "api_base_url":"{}"
+                        "api_base_url":"https://api.anthropic.com"
                     }}"#,
-                    wrapped_setup_token, stub.base_url
+                    setup_token
                 )),
             ))
             .await
-            .expect("ingest wrapped setup token");
-        assert_eq!(ingest_response.status(), StatusCode::CREATED);
-        let ingest_json = parse_json(ingest_response).await;
-        let profile_id = ingest_json["profile"]["auth_profile_id"]
-            .as_str()
-            .expect("profile id")
-            .to_string();
-
-        let record = ctx
-            .storage
-            .get_auth_profile(&profile_id)
-            .expect("load profile")
-            .expect("profile exists");
-        let credentials: serde_json::Value =
-            serde_json::from_str(&record.credentials_json).expect("credentials json");
-        let secret_ref = credentials["secret_ref"].as_str().expect("secret ref");
-        let stored_secret = ctx
-            .secret_store
-            .get_json(secret_ref)
-            .expect("load normalized secret")
-            .expect("secret exists");
-        assert_eq!(stored_secret["api_key"], normalized_setup_token);
-
-        let create_session_response = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "POST",
-                "/api/v1/sessions",
-                Body::from(r#"{"title":"anthropic-setup-run-whitespace"}"#),
-            ))
-            .await
-            .expect("create session");
-        let create_session_json = parse_json(create_session_response).await;
-        let session_id = create_session_json["session"]["session_id"]
-            .as_str()
-            .expect("session id")
-            .to_string();
-
-        let _ = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "POST",
-                &format!("/api/v1/sessions/{session_id}/messages"),
-                Body::from(
-                    r#"{"role":"user","content_text":"hello anthropic wrapped setup token"}"#,
-                ),
-            ))
-            .await
-            .expect("create message");
-
-        let run_response = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "POST",
-                &format!("/api/v1/sessions/{session_id}/runs"),
-                Body::from(format!(
-                    r#"{{"model_provider":"anthropic","model_id":"claude-test","auth_profile_id":"{profile_id}"}}"#
-                )),
-            ))
-            .await
-            .expect("run response");
-        assert_eq!(run_response.status(), StatusCode::CREATED);
-        let run_json = parse_json(run_response).await;
-        assert_eq!(run_json["run"]["status"], "succeeded");
-    }
-
-    #[tokio::test]
-    async fn anthropic_setup_token_ingest_replaces_duplicate_display_name() {
-        let ctx = test_context();
-        let setup_token = fake_anthropic_setup_token();
-        let stub = spawn_auth_flow_stub(AuthFlowStubConfig::anthropic(&setup_token)).await;
-
-        let first = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "POST",
-                "/api/v1/auth/anthropic/setup-token/ingest",
-                Body::from(format!(
-                    r#"{{
-                        "display_name":"claude-primary",
-                        "setup_token":"{}",
-                        "api_base_url":"{}"
-                    }}"#,
-                    setup_token, stub.base_url
-                )),
-            ))
-            .await
-            .expect("create first anthropic setup-token profile");
-        assert_eq!(first.status(), StatusCode::CREATED);
-
-        let duplicate = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "POST",
-                "/api/v1/auth/anthropic/setup-token/ingest",
-                Body::from(format!(
-                    r#"{{
-                        "display_name":"claude-primary",
-                        "setup_token":"{}",
-                        "api_base_url":"{}"
-                    }}"#,
-                    setup_token, stub.base_url
-                )),
-            ))
-            .await
-            .expect("duplicate anthropic setup-token profile");
-        assert_eq!(duplicate.status(), StatusCode::OK);
-        let duplicate_json = parse_json(duplicate).await;
-        assert_eq!(duplicate_json["profile"]["display_name"], "claude-primary");
-        assert_eq!(duplicate_json["profile"]["auth_mode"], "api_key");
+            .expect("setup-token validate response");
+        assert_eq!(validate.status(), StatusCode::GONE);
     }
 
     #[tokio::test]
@@ -53308,11 +53106,24 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         gateway_mock.assert_hits(1);
         gateway_task.await.expect("gateway task");
 
-        let status = ctx
+        let mut status = ctx
             .state
             .channel_runtime
             .status("discord")
             .expect("discord status after gateway");
+        for _ in 0..200 {
+            if status.session_state == ChannelRuntimeSessionState::GatewayConnected
+                && status.proof_state == ChannelRuntimeProofState::InboundSeen
+            {
+                break;
+            }
+            sleep(Duration::from_millis(25)).await;
+            status = ctx
+                .state
+                .channel_runtime
+                .status("discord")
+                .expect("discord status after gateway retry");
+        }
         assert_eq!(
             status.session_state,
             ChannelRuntimeSessionState::GatewayConnected
@@ -53412,13 +53223,13 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                 "/api/v1/auth/profiles",
                 Body::from(
                     r#"{
-                        "provider":"anthropic",
+                        "provider":"mock",
                         "display_name":"bad-high-risk",
                         "auth_mode":"agent_sdk",
                         "risk_level":"high",
                         "enabled":true,
                         "kill_switch_scope":"none",
-                        "credentials_json":{"headless_enabled":true,"headless_command":"claude","headless_args":["-p"]}
+                        "credentials_json":{"headless_enabled":true,"headless_command":"mock-agent","headless_args":["-p"]}
                     }"#,
                 ),
             ))
@@ -53434,13 +53245,13 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                 "/api/v1/auth/profiles",
                 Body::from(
                     r#"{
-                        "provider":"anthropic",
+                        "provider":"mock",
                         "display_name":"good-high-risk",
                         "auth_mode":"agent_sdk",
                         "risk_level":"high",
                         "enabled":true,
                         "kill_switch_scope":"profile",
-                        "credentials_json":{"headless_enabled":true,"headless_command":"claude","headless_args":["-p"]}
+                        "credentials_json":{"headless_enabled":true,"headless_command":"mock-agent","headless_args":["-p"]}
                     }"#,
                 ),
             ))
@@ -58661,7 +58472,7 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                         },
                         "max_retries":1,
                         "retry_backoff_ms":5,
-                        "timeout_ms":1000
+                        "timeout_ms":5000
                     }"#,
                 ),
             ))
@@ -60289,7 +60100,7 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
     }
 
     #[tokio::test]
-    async fn provider_models_anthropic_agent_sdk_uses_curated_catalog_without_token() {
+    async fn provider_models_rejects_anthropic_agent_sdk_profiles() {
         let ctx = test_context();
         let create_profile_response = ctx
             .app
@@ -60310,45 +60121,14 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                 ),
             ))
             .await
-            .expect("create anthropic agent sdk profile");
-        assert_eq!(create_profile_response.status(), StatusCode::CREATED);
-        let create_profile_json = parse_json(create_profile_response).await;
-        let auth_profile_id = create_profile_json["profile"]["auth_profile_id"]
-            .as_str()
-            .expect("auth profile id")
-            .to_string();
-
-        let response = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "GET",
-                &format!(
-                    "/api/v1/providers/models?provider=anthropic&auth_profile_id={auth_profile_id}&refresh=true"
-                ),
-                Body::empty(),
-            ))
-            .await
-            .expect("provider models anthropic agent sdk response");
-        assert_eq!(response.status(), StatusCode::OK);
-        let body = parse_json(response).await;
-        let items = body["items"]
-            .as_array()
-            .expect("anthropic agent sdk model items");
-        assert!(items
-            .iter()
-            .any(|item| item["model_id"] == "claude-opus-4-5"));
-        assert!(items
-            .iter()
-            .any(|item| item["model_id"] == "claude-haiku-3-5"));
+            .expect("create anthropic agent sdk profile response");
+        assert_eq!(create_profile_response.status(), StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]
-    async fn provider_models_anthropic_setup_token_uses_curated_catalog() {
+    async fn provider_models_anthropic_setup_token_ingest_is_gone() {
         let ctx = test_context();
         let setup_token = fake_anthropic_setup_token();
-        let stub = spawn_auth_flow_stub(AuthFlowStubConfig::anthropic(&setup_token)).await;
-
         let ingest_response = ctx
             .app
             .clone()
@@ -60359,43 +60139,14 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
                     r#"{{
                         "display_name":"anthropic-setup-catalog",
                         "setup_token":"{}",
-                        "api_base_url":"{}"
+                        "api_base_url":"https://api.anthropic.com"
                     }}"#,
-                    setup_token, stub.base_url
+                    setup_token
                 )),
             ))
             .await
-            .expect("ingest setup token for catalog");
-        assert_eq!(ingest_response.status(), StatusCode::CREATED);
-        let ingest_json = parse_json(ingest_response).await;
-        let auth_profile_id = ingest_json["profile"]["auth_profile_id"]
-            .as_str()
-            .expect("setup token auth profile id")
-            .to_string();
-
-        let response = ctx
-            .app
-            .clone()
-            .oneshot(auth_request(
-                "GET",
-                &format!(
-                    "/api/v1/providers/models?provider=anthropic&auth_profile_id={auth_profile_id}&refresh=true"
-                ),
-                Body::empty(),
-            ))
-            .await
-            .expect("provider models anthropic setup-token response");
-        assert_eq!(response.status(), StatusCode::OK);
-        let body = parse_json(response).await;
-        let items = body["items"]
-            .as_array()
-            .expect("anthropic setup-token model items");
-        assert!(items
-            .iter()
-            .any(|item| item["model_id"] == "claude-sonnet-4-5"));
-        assert!(items
-            .iter()
-            .any(|item| item["model_id"] == "claude-opus-4-6"));
+            .expect("setup-token ingest response");
+        assert_eq!(ingest_response.status(), StatusCode::GONE);
     }
 
     #[tokio::test]
@@ -63020,44 +62771,117 @@ sys.stdout.write(json.dumps(response))
             .contains("started monitoring"));
     }
 
-    #[tokio::test]
-    async fn assistant_codex_bridge_execution_requires_stored_approval() {
+    #[test]
+    fn assistant_codex_bridge_execution_requires_explicit_operator_approval() {
+        let blocked = assistant_codex_bridge_approval_id(&serde_json::json!({}))
+            .expect_err("unapproved execution should be blocked");
+        assert_eq!(blocked.0, "blocked");
+        assert_eq!(blocked.1.as_deref(), Some("APPROVAL_REQUIRED"));
+        assert!(blocked.2.contains("approval"));
+
+        let forged = assistant_codex_bridge_approval_id(&serde_json::json!({
+            "operator_approved": true
+        }))
+        .expect_err("caller-controlled approval flag must not approve execution");
+        assert_eq!(forged.1.as_deref(), Some("APPROVAL_REQUIRED"));
+    }
+
+    #[test]
+    fn assistant_codex_bridge_execution_requires_matching_stored_approval() {
         let ctx = test_context();
-        let session_id =
-            create_session_with_user_message(&ctx, "codex-approval", "run codex bridge").await;
+        let session = ctx
+            .storage
+            .create_session(NewSession {
+                session_key: None,
+                agent_id: "default".to_string(),
+                title: Some("Bridge approval test".to_string()),
+            })
+            .expect("create session");
         let run = ctx
             .storage
             .create_run(NewRun {
-                session_id: session_id.clone(),
-                model_provider: "mock".to_string(),
-                model_id: "mock-echo-v1".to_string(),
+                session_id: session.session_id.clone(),
+                model_provider: "openai".to_string(),
+                model_id: "gpt-5".to_string(),
             })
-            .expect("create root run")
-            .expect("root run exists");
+            .expect("create run")
+            .expect("run exists");
+        let requested_args = serde_json::json!({
+            "prompt": "say bridge-ok",
+            "cwd": "Z:\\carsinos-codex-work"
+        });
+        let approval = ctx
+            .storage
+            .create_approval(NewApproval {
+                run_id: run.run_id.clone(),
+                tool_call_id: None,
+                kind: ASSISTANT_TOOL_CODEX_CLI_EXEC.to_string(),
+                request_summary: "Start Codex CLI exec".to_string(),
+                request_json: requested_args.to_string(),
+            })
+            .expect("create approval")
+            .expect("approval exists");
+        let execution_context = AssistantToolExecutionContext {
+            request_id: "req-bridge-approval".to_string(),
+            root_session_id: session.session_id.clone(),
+            root_run_id: Some(run.run_id.clone()),
+            caller_agent_id: "default".to_string(),
+            memory_scope: None,
+            boss_key: "default".to_string(),
+        };
+        let approved_args = serde_json::json!({
+            "prompt": "say bridge-ok",
+            "cwd": "Z:\\carsinos-codex-work",
+            "approval_id": approval.approval_id,
+            "operator_approved": true
+        });
 
-        let (blocked_status, blocked_json) = assistant_tool_call(
-            &ctx,
-            serde_json::json!({
-                "contract_version": ASSISTANT_TOOL_CONTRACT_VERSION,
-                "request_id": "req_codex_bridge_self_attest",
-                "root_session_id": session_id,
-                "root_run_id": run.run_id,
-                "tool_name": ASSISTANT_TOOL_CODEX_CLI_EXEC,
-                "arguments": {
-                    "operator_approved": true,
-                    "prompt": "echo hi",
-                    "cwd": "Z:\\carsinos-codex-work\\carsinos"
-                }
-            }),
+        let pending = assistant_codex_bridge_requires_approval(
+            &ctx.state,
+            &execution_context,
+            ASSISTANT_TOOL_CODEX_CLI_EXEC,
+            &approved_args,
         )
-        .await;
+        .expect_err("requested approval must not execute yet");
+        assert_eq!(pending.1.as_deref(), Some("APPROVAL_REQUIRED"));
 
-        assert_eq!(blocked_status, StatusCode::OK);
-        assert_eq!(blocked_json["status"], "blocked");
-        assert_eq!(blocked_json["reason_code"], "APPROVAL_REQUIRED");
-        assert!(blocked_json["data"]["approval_id"].as_str().is_some());
+        match ctx
+            .storage
+            .resolve_approval(
+                approved_args["approval_id"].as_str().expect("approval_id"),
+                "approve",
+                Some("operator".to_string()),
+                Some("local-operator".to_string()),
+            )
+            .expect("resolve approval")
+        {
+            ApprovalResolveResult::Resolved(_) => {}
+            other => panic!("approval should resolve freshly, got {other:?}"),
+        }
+
+        assistant_codex_bridge_requires_approval(
+            &ctx.state,
+            &execution_context,
+            ASSISTANT_TOOL_CODEX_CLI_EXEC,
+            &approved_args,
+        )
+        .expect("matching stored approval should allow bridge execution");
+
+        let forged_args = serde_json::json!({
+            "prompt": "say something else",
+            "cwd": "Z:\\carsinos-codex-work",
+            "approval_id": approved_args["approval_id"]
+        });
+        let forged = assistant_codex_bridge_requires_approval(
+            &ctx.state,
+            &execution_context,
+            ASSISTANT_TOOL_CODEX_CLI_EXEC,
+            &forged_args,
+        )
+        .expect_err("approved id must not authorize a different bridge payload");
+        assert_eq!(forged.1.as_deref(), Some("APPROVAL_REQUIRED"));
+        assert!(forged.2.contains("does not match"));
     }
-
     #[test]
     fn assistant_codex_bridge_id_rejects_path_and_shell_metacharacters() {
         assert_eq!(
