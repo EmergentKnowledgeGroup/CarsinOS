@@ -43,7 +43,7 @@ Owner track: `AGENT_MAIL_AUTOROUTE WORK`
 - [x] `VAL-1.4` Run `cargo test -p carsinos-storage agent_mail --locked -- --nocapture`.
 - [x] `VAL-1.5` Run broader workspace/protocol tests if runtime config or protocol contracts change. No protocol/runtime config structs changed in this slice; constants are recorded as the safe v1 implementation knob surface.
 - [x] `VAL-1.6` Update checkpoints post-green.
-- [ ] `VAL-1.7` Stage only directly related files, commit, push, and open a draft PR to `main` for CodeRabbit review.
+- [x] `VAL-1.7` Stage only directly related files, commit, push, and open a draft PR to `main` for CodeRabbit review.
 
 ## Recorded Follow-Up
 
