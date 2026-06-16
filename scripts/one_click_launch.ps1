@@ -49,13 +49,68 @@ if ($Help) {
 }
 
 $ScriptDir = Split-Path -Parent $PSCommandPath
-$RepoRoot = (Resolve-Path (Join-Path $ScriptDir "..")).Path
+$RepoRoot = (Resolve-Path (Join-Path $ScriptDir "..")).ProviderPath
 
 function Resolve-LauncherPath([string]$Path) {
   if ([IO.Path]::IsPathRooted($Path)) {
     return [IO.Path]::GetFullPath($Path)
   }
   return [IO.Path]::GetFullPath((Join-Path $RepoRoot $Path))
+}
+
+function ConvertTo-CmdQuoted([string]$Value) {
+  return '"' + ($Value -replace '"', '""') + '"'
+}
+
+function ConvertTo-ProcessQuoted([string]$Value) {
+  return '"' + ($Value -replace '"', '\"') + '"'
+}
+
+function ConvertTo-CmdWorkingDirectory([string]$Path) {
+  # Prefer mapped drive-letter paths for UNC working directories when available.
+  # cmd.exe handles drive-letter working directories more reliably than UNC paths,
+  # and this helper falls back to the original resolved path if no mapping exists.
+  $resolvedPath = Resolve-Path -LiteralPath $Path -ErrorAction SilentlyContinue
+  if ($resolvedPath) {
+    $resolved = $resolvedPath.ProviderPath
+  } else {
+    $resolved = [IO.Path]::GetFullPath($Path)
+  }
+  if (-not $resolved.StartsWith("\\", [StringComparison]::Ordinal)) {
+    return $resolved
+  }
+
+  $networkDrives = @(Get-CimInstance Win32_LogicalDisk -Filter "DriveType=4" -ErrorAction SilentlyContinue)
+  foreach ($drive in $networkDrives) {
+    $provider = ([string]$drive.ProviderName).TrimEnd("\").Replace("`0", "")
+    if (-not $provider) { continue }
+    if ($resolved.Equals($provider, [StringComparison]::OrdinalIgnoreCase)) {
+      return "$($drive.DeviceID)\"
+    }
+    $prefix = "$provider\"
+    if ($resolved.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) {
+      return Join-Path "$($drive.DeviceID)\" $resolved.Substring($prefix.Length)
+    }
+  }
+
+  return $resolved
+}
+
+function ConvertTo-MissionControlCmdPath([string]$Path) {
+  $resolved = Resolve-LauncherPath $Path
+  $repoPrefix = $RepoRoot.TrimEnd("\") + "\"
+  if ($resolved.StartsWith($repoPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+    $relative = $resolved.Substring($repoPrefix.Length).Replace("/", "\")
+    # cmd.exe runs with delayed expansion enabled and starts in apps/mission-control,
+    # so !CD!\..\..\ rebuilds repo-relative paths from that working directory.
+    return "!CD!\..\..\$relative"
+  }
+  return ConvertTo-CmdWorkingDirectory $resolved
+}
+
+function Invoke-CmdInDirectory([string]$WorkingDirectory, [string]$Command) {
+  $quotedDirectory = ConvertTo-CmdQuoted (ConvertTo-CmdWorkingDirectory $WorkingDirectory)
+  & cmd.exe /d /s /c "pushd $quotedDirectory && $Command"
 }
 
 function Select-LaunchMode {
@@ -264,8 +319,11 @@ function Reclaim-PreviousRuntime {
   Stop-PidFileProcess $CodexBridgePidFile "previous Codex bridge"
   Reclaim-RepoPort $GatewayPort "gateway"
   if (-not $NoCodexBridge) { Reclaim-RepoPort $CodexBridgePort "Codex bridge" }
-  Reclaim-RepoPort $UiPort "Mission Control UI"
-  if ($UiPort -ne 1420) { Reclaim-RepoPort 1420 "Mission Control UI" }
+  if ($Mode -eq "web") {
+    Reclaim-RepoPort $UiPort "Mission Control UI"
+  } else {
+    Reclaim-RepoPort 1420 "Mission Control UI"
+  }
 }
 
 function Find-FreePort([int]$Preferred) {
@@ -307,10 +365,11 @@ function Ensure-MissionControlDeps {
   try {
     $env:npm_config_cache = Join-Path $StateDir "npm-cache"
     New-Item -ItemType Directory -Force -Path $env:npm_config_cache | Out-Null
+    $quotedBootstrapLog = ConvertTo-CmdQuoted $BootstrapLog
     if (Test-Path -LiteralPath (Join-Path $MissionControlDir "package-lock.json")) {
-      & cmd.exe /d /c "npm ci > ""$BootstrapLog"" 2>&1"
+      Invoke-CmdInDirectory $MissionControlDir "npm ci > $quotedBootstrapLog 2>&1"
     } else {
-      & cmd.exe /d /c "npm install > ""$BootstrapLog"" 2>&1"
+      Invoke-CmdInDirectory $MissionControlDir "npm install > $quotedBootstrapLog 2>&1"
     }
     if ($LASTEXITCODE -ne 0) {
       throw "npm bootstrap failed. Last log lines:`n$(Get-Content -LiteralPath $BootstrapLog -Tail 80 -ErrorAction SilentlyContinue | Out-String)"
@@ -329,14 +388,19 @@ function Remove-LauncherScripts {
 function Start-ChildPowerShell([string]$Name, [string]$Content, [hashtable]$Environment = @{}) {
   $safeName = $Name -replace '[^A-Za-z0-9_.-]', '-'
   $path = Join-Path $ScriptOutDir "$safeName-$([Guid]::NewGuid().ToString('N')).ps1"
+  $stdoutPath = Join-Path $LogDir "$safeName-wrapper.out.log"
+  $stderrPath = Join-Path $LogDir "$safeName-wrapper.err.log"
   [IO.File]::WriteAllText($path, $Content, [Text.UTF8Encoding]::new($false))
+  Set-Content -LiteralPath $stdoutPath -Value "" -Encoding UTF8
+  Set-Content -LiteralPath $stderrPath -Value "" -Encoding UTF8
   $previousEnvironment = @{}
   try {
     foreach ($key in $Environment.Keys) {
       $previousEnvironment[$key] = [Environment]::GetEnvironmentVariable($key, "Process")
       [Environment]::SetEnvironmentVariable($key, [string]$Environment[$key], "Process")
     }
-    Start-Process -FilePath powershell.exe -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $path) -PassThru -WindowStyle Hidden
+    $arguments = "-NoProfile -ExecutionPolicy Bypass -File $(ConvertTo-ProcessQuoted $path)"
+    Start-Process -FilePath powershell.exe -ArgumentList $arguments -PassThru -WindowStyle Hidden -WorkingDirectory $StateDir -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
   } finally {
     foreach ($key in $Environment.Keys) {
       [Environment]::SetEnvironmentVariable($key, $previousEnvironment[$key], "Process")
@@ -379,7 +443,7 @@ function Wait-CodexBridge {
     } catch {
     }
     if ($Script:CodexBridgeProcess -and $Script:CodexBridgeProcess.HasExited) {
-      throw "Codex bridge exited before becoming reachable. Last bridge log lines:`n$(Get-Content -LiteralPath $CodexBridgeLog -Tail 80 -ErrorAction SilentlyContinue | Out-String)"
+      throw "Codex bridge exited before becoming reachable. Last bridge log lines:`n$(Get-Content -LiteralPath $CodexBridgeLog -Tail 80 -ErrorAction SilentlyContinue | Out-String)`nLast wrapper stderr:`n$(Get-Content -LiteralPath (Join-Path $LogDir 'codex-bridge-oneclick-wrapper.err.log') -Tail 80 -ErrorAction SilentlyContinue | Out-String)"
     }
     Start-Sleep -Seconds 1
   }
@@ -400,8 +464,15 @@ if (-not `$env:CARSINOS_NUMQUAM_MANAGED_REPO_ROOT) { `$env:CARSINOS_NUMQUAM_MANA
 if (-not `$env:CARSINOS_NUMQUAM_MANAGED_LANES_ROOT) { `$env:CARSINOS_NUMQUAM_MANAGED_LANES_ROOT = Join-Path `$env:CARSINOS_STATE_DIR "mno-lanes" }
 `$env:TMP = `$env:TEMP
 New-Item -ItemType Directory -Force -Path `$env:CARGO_TARGET_DIR, `$env:TEMP | Out-Null
-& cmd.exe /d /c "cargo run -p carsinos-gateway > ""`$env:CARSINOS_ONECLICK_GATEWAY_LOG"" 2>&1"
-exit `$LASTEXITCODE
+`$previousErrorActionPreference = `$ErrorActionPreference
+`$ErrorActionPreference = "Continue"
+try {
+  & cargo.exe run -p carsinos-gateway > `$env:CARSINOS_ONECLICK_GATEWAY_LOG 2>&1
+  `$exitCode = `$LASTEXITCODE
+} finally {
+  `$ErrorActionPreference = `$previousErrorActionPreference
+}
+exit `$exitCode
 "@
   $Script:GatewayProcess = Start-ChildPowerShell "gateway-oneclick" $gatewayScript @{
     CARSINOS_GATEWAY_BIND = $bind
@@ -427,7 +498,7 @@ function Wait-Gateway {
     } catch {
     }
     if ($Script:GatewayProcess -and $Script:GatewayProcess.HasExited) {
-      throw "Gateway exited before becoming healthy. Last gateway log lines:`n$(Get-Content -LiteralPath $GatewayLog -Tail 80 -ErrorAction SilentlyContinue | Out-String)"
+      throw "Gateway exited before becoming healthy. Last gateway log lines:`n$(Get-Content -LiteralPath $GatewayLog -Tail 80 -ErrorAction SilentlyContinue | Out-String)`nLast wrapper stderr:`n$(Get-Content -LiteralPath (Join-Path $LogDir 'gateway-oneclick-wrapper.err.log') -Tail 80 -ErrorAction SilentlyContinue | Out-String)"
     }
     Start-Sleep -Seconds 1
   }
@@ -438,24 +509,36 @@ function Start-MissionControl {
   $tmpDir = Join-Path $StateDir "tmp"
   if ($Mode -eq "tauri") {
     Write-Host "Starting Mission Control (tauri dev)..."
-    $run = "npm run tauri:dev"
+    $run = "npm.cmd run tauri:dev"
   } else {
     Write-Host "Starting Mission Control (web)..."
-    $run = "npm run dev -- --host 127.0.0.1 --port $UiPortSelected"
+    $run = "node.exe node_modules\vite\bin\vite.js --host 127.0.0.1 --port $UiPortSelected"
   }
+  $missionControlShellDir = ConvertTo-CmdWorkingDirectory $MissionControlDir
+  $missionControlNpmCache = ConvertTo-MissionControlCmdPath (Join-Path $StateDir "npm-cache")
+  $missionControlUiLog = ConvertTo-MissionControlCmdPath $UiLog
+  $missionControlLaunchCommand = "pushd $(ConvertTo-CmdQuoted $missionControlShellDir) && set `"npm_config_cache=$missionControlNpmCache`" && $run > $(ConvertTo-CmdQuoted $missionControlUiLog) 2>&1"
   $uiScript = @"
 `$ErrorActionPreference = "Stop"
-Set-Location -LiteralPath $(ConvertTo-PsLiteral $MissionControlDir)
+Set-Location -LiteralPath $(ConvertTo-PsLiteral $missionControlShellDir)
 `$env:CHOKIDAR_USEPOLLING = "true"
 `$env:WATCHPACK_POLLING = "true"
 `$env:VITE_CARSINOS_PREFER_ENV_TOKEN = "true"
 `$env:TMP = `$env:TEMP
-New-Item -ItemType Directory -Force -Path `$env:npm_config_cache, `$env:CARGO_TARGET_DIR, `$env:TEMP | Out-Null
-& cmd.exe /d /c "$run > ""`$env:CARSINOS_ONECLICK_UI_LOG"" 2>&1"
-exit `$LASTEXITCODE
+`$dirs = @(`$env:CARGO_TARGET_DIR, `$env:TEMP)
+if (`$env:npm_config_cache) { `$dirs += `$env:npm_config_cache }
+New-Item -ItemType Directory -Force -Path `$dirs | Out-Null
+`$previousErrorActionPreference = `$ErrorActionPreference
+`$ErrorActionPreference = "Continue"
+try {
+  & cmd.exe /v:on /d /s /c $(ConvertTo-PsLiteral $missionControlLaunchCommand)
+  `$exitCode = `$LASTEXITCODE
+} finally {
+  `$ErrorActionPreference = `$previousErrorActionPreference
+}
+exit `$exitCode
 "@
   $Script:UiProcess = Start-ChildPowerShell "mission-control-oneclick" $uiScript @{
-    npm_config_cache = (Join-Path $StateDir "npm-cache")
     CARGO_TARGET_DIR = $CargoTargetDir
     VITE_CARSINOS_GATEWAY_URL = $GatewayUrl
     VITE_CARSINOS_GATEWAY_TOKEN = $Token
@@ -482,7 +565,7 @@ function Wait-WebUi {
     } catch {
     }
     if ($Script:UiProcess -and $Script:UiProcess.HasExited) {
-      throw "Mission Control exited before becoming reachable. Last UI log lines:`n$(Get-Content -LiteralPath $UiLog -Tail 80 -ErrorAction SilentlyContinue | Out-String)"
+      throw "Mission Control exited before becoming reachable. Last UI log lines:`n$(Get-Content -LiteralPath $UiLog -Tail 80 -ErrorAction SilentlyContinue | Out-String)`nLast wrapper stderr:`n$(Get-Content -LiteralPath (Join-Path $LogDir 'mission-control-oneclick-wrapper.err.log') -Tail 80 -ErrorAction SilentlyContinue | Out-String)"
     }
     Start-Sleep -Seconds 1
   }

@@ -508,8 +508,12 @@ export function AppContent(props: AppContentProps) {
           calendarAlwaysRunning={props.missionControl.calendarAlwaysRunning}
           calendarNextUp={props.missionControl.calendarNextUp}
           calendarJobs={props.missionControl.calendarJobs}
+          agents={props.agents}
+          execAssAgentId={props.missionControl.selectedProviderControlAgentId}
           onRunCalendarJobNow={props.missionControl.runCalendarJobNow}
           onToggleCalendarJob={props.missionControl.toggleCalendarJob}
+          onLoadCalendarJobHistory={props.missionControl.loadCalendarJobHistory}
+          onCreateExecAssHeartbeatJob={props.missionControl.createExecAssHeartbeatJob}
           strategyReady={strategyReady}
           taskByJobId={props.strategyController.taskByJobId}
           describeStrategyTask={props.strategyController.describeTaskContext}

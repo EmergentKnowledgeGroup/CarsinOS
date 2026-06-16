@@ -1059,20 +1059,47 @@ export interface JobResponse {
   updated_at: number;
 }
 
+export interface CreateJobRequest {
+  agent_id?: string;
+  name: string;
+  enabled?: boolean;
+  schedule_kind: string;
+  interval_seconds?: number | null;
+  run_at_ms?: number | null;
+  cron_expr?: string | null;
+  payload_json?: Record<string, unknown>;
+  max_retries?: number;
+  retry_backoff_ms?: number;
+  timeout_ms?: number;
+}
+
+export interface CreateJobResponse {
+  job: JobResponse;
+}
+
 export interface ListJobsResponse {
   items: JobResponse[];
 }
 
+export interface JobRunResponse {
+  job_run_id: string;
+  job_id: string;
+  trigger_kind: string;
+  status: string;
+  attempt: number;
+  started_at: number | null;
+  ended_at: number | null;
+  error_text: string | null;
+  output_json: string | null;
+  created_at: number;
+}
+
 export interface RunJobNowResponse {
-  job_run: {
-    job_run_id: string;
-    status: string;
-    attempt: number;
-    started_at: number | null;
-    ended_at: number | null;
-    error_text: string | null;
-    output_json: string | null;
-  };
+  job_run: JobRunResponse;
+}
+
+export interface ListJobHistoryResponse {
+  items: JobRunResponse[];
 }
 
 export interface UpdateJobResponse {

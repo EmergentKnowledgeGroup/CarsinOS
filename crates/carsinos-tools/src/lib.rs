@@ -2,15 +2,22 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::{BTreeMap, HashSet};
 use std::fs::OpenOptions;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::{Duration, Instant};
 use thiserror::Error;
 
-pub const DEFAULT_MAX_OUTPUT_CHARS: usize = 200_000;
+pub const DEFAULT_MAX_OUTPUT_CHARS: usize = 20_000;
 pub const DEFAULT_MAX_READ_BYTES: usize = 128 * 1024;
-const DEFAULT_TOOL_NETWORK_ALLOWLIST: &[&str] = &["api.duckduckgo.com", "localhost", "127.0.0.1"];
+const DEFAULT_TOOL_NETWORK_ALLOWLIST: &[&str] = &[
+    "api.duckduckgo.com",
+    "duckduckgo.com",
+    "html.duckduckgo.com",
+    "lite.duckduckgo.com",
+    "localhost",
+    "127.0.0.1",
+];
 const DEFAULT_TOOL_ALLOWED_BINARIES: &[&str] = &[
     "cat", "echo", "git", "head", "ls", "pwd", "printf", "rg", "sed", "sleep", "tail", "wc",
 ];
@@ -410,7 +417,7 @@ impl LocalToolRunner {
     }
 
     fn web_search(&self, args: WebSearchRequest) -> Result<ToolResult, ToolError> {
-        let query = args.query.trim();
+        let query = trim_matching_quotes(args.query.trim());
         if query.is_empty() {
             return Err(ToolError::InvalidRequest(
                 "web_search query cannot be empty".to_string(),
@@ -422,6 +429,7 @@ impl LocalToolRunner {
         self.ensure_network_allowed(&base_url)?;
         let client = reqwest::blocking::Client::builder()
             .timeout(Duration::from_secs(15))
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(|err| {
                 ToolError::Failed(format!("failed to build web_search client: {err}"))
@@ -443,10 +451,18 @@ impl LocalToolRunner {
             )));
         }
 
-        let payload: serde_json::Value = response
-            .json()
+        let (payload_text, payload_truncated) =
+            read_response_text_limited(response, self.max_read_bytes, "web_search")?;
+        if payload_truncated {
+            return Err(ToolError::Failed(format!(
+                "web_search response exceeded {} bytes",
+                self.max_read_bytes
+            )));
+        }
+        let payload: serde_json::Value = serde_json::from_str(&payload_text)
             .map_err(|err| ToolError::Failed(format!("web_search JSON parse failed: {err}")))?;
         let mut results = Vec::new();
+        let mut response_truncated = false;
         let abstract_text = payload
             .get("AbstractText")
             .and_then(|value| value.as_str())
@@ -470,6 +486,31 @@ impl LocalToolRunner {
         {
             collect_duckduckgo_topics(topics, count, &mut results);
         }
+        if results.is_empty() {
+            let html_base_url = std::env::var("CARSINOS_WEB_SEARCH_HTML_BASE_URL")
+                .unwrap_or_else(|_| "https://duckduckgo.com/html/".to_string());
+            self.ensure_network_allowed(&html_base_url)?;
+            let html_response = client
+                .get(&html_base_url)
+                .query(&[("q", query)])
+                .send()
+                .map_err(|err| {
+                    ToolError::Failed(format!("web_search HTML fallback request failed: {err}"))
+                })?;
+            if !html_response.status().is_success() {
+                return Err(ToolError::Failed(format!(
+                    "web_search HTML fallback HTTP {}",
+                    html_response.status().as_u16()
+                )));
+            }
+            let (html, html_truncated) = read_response_text_limited(
+                html_response,
+                self.max_read_bytes,
+                "web_search HTML fallback",
+            )?;
+            response_truncated |= html_truncated;
+            results.extend(collect_duckduckgo_html_results(&html, count));
+        }
 
         Ok(ToolResult {
             tool: ToolName::WebSearch,
@@ -478,7 +519,7 @@ impl LocalToolRunner {
                 "count": count,
                 "results": results
             }),
-            truncated: false,
+            truncated: response_truncated,
         })
     }
 
@@ -498,6 +539,7 @@ impl LocalToolRunner {
 
         let client = reqwest::blocking::Client::builder()
             .timeout(Duration::from_secs(20))
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(|err| ToolError::Failed(format!("failed to build web_fetch client: {err}")))?;
         let response = client
@@ -510,9 +552,8 @@ impl LocalToolRunner {
             .get(reqwest::header::CONTENT_TYPE)
             .and_then(|value| value.to_str().ok())
             .map(|value| value.to_string());
-        let body = response
-            .text()
-            .map_err(|err| ToolError::Failed(format!("web_fetch response read failed: {err}")))?;
+        let (body, read_truncated) =
+            read_response_text_limited(response, self.max_read_bytes, "web_fetch")?;
         let (body, truncated) = truncate_text(&body, self.max_output_chars);
 
         if !status.is_success() {
@@ -531,7 +572,7 @@ impl LocalToolRunner {
                 "content_type": content_type,
                 "body": body
             }),
-            truncated,
+            truncated: read_truncated || truncated,
         })
     }
 
@@ -659,6 +700,19 @@ fn parse_csv_env(name: &str) -> Vec<String> {
                 .collect::<Vec<_>>()
         })
         .unwrap_or_default()
+}
+
+fn trim_matching_quotes(value: &str) -> &str {
+    let trimmed = value.trim();
+    if trimmed.len() >= 2 {
+        let bytes = trimmed.as_bytes();
+        let first = bytes[0];
+        let last = bytes[bytes.len() - 1];
+        if (first == b'"' && last == b'"') || (first == b'\'' && last == b'\'') {
+            return trimmed[1..trimmed.len() - 1].trim();
+        }
+    }
+    trimmed
 }
 
 fn canonicalize_if_exists_or_absolute(path: &Path) -> Option<PathBuf> {
@@ -866,12 +920,184 @@ fn collect_duckduckgo_topics(
     }
 }
 
+fn collect_duckduckgo_html_results(html: &str, limit: usize) -> Vec<serde_json::Value> {
+    let mut results = Vec::new();
+    let mut cursor = 0;
+    while results.len() < limit {
+        let Some(class_pos) = html[cursor..].find("result__a") else {
+            break;
+        };
+        let class_pos = cursor + class_pos;
+        let Some(anchor_start) = html[..class_pos].rfind("<a") else {
+            cursor = class_pos + "result__a".len();
+            continue;
+        };
+        let Some(anchor_open_end_rel) = html[anchor_start..].find('>') else {
+            break;
+        };
+        let anchor_open_end = anchor_start + anchor_open_end_rel;
+        let Some(anchor_close_rel) = html[anchor_open_end + 1..].find("</a>") else {
+            break;
+        };
+        let anchor_close = anchor_open_end + 1 + anchor_close_rel;
+        let tag = &html[anchor_start..=anchor_open_end];
+        let title_html = &html[anchor_open_end + 1..anchor_close];
+        let title = decode_html_entities(&strip_html_tags(title_html));
+        let url = extract_html_attr(tag, "href")
+            .map(|href| normalize_duckduckgo_href(&decode_html_entities(&href)))
+            .unwrap_or_default();
+        let next_anchor = html[anchor_close..]
+            .find("result__a")
+            .map(|offset| anchor_close + offset)
+            .unwrap_or(html.len());
+        let snippet = html[anchor_close..next_anchor]
+            .find("result__snippet")
+            .and_then(|snippet_class_rel| {
+                let snippet_class = anchor_close + snippet_class_rel;
+                let open_end = html[snippet_class..]
+                    .find('>')
+                    .map(|offset| snippet_class + offset)?;
+                let close = html[open_end + 1..]
+                    .find("</")
+                    .map(|offset| open_end + 1 + offset)?;
+                Some(decode_html_entities(&strip_html_tags(
+                    &html[open_end + 1..close],
+                )))
+            })
+            .unwrap_or_default();
+        if !title.is_empty() && !url.is_empty() {
+            results.push(json!({
+                "title": title,
+                "url": url,
+                "snippet": snippet
+            }));
+        }
+        cursor = anchor_close + "</a>".len();
+    }
+    results
+}
+
+fn extract_html_attr(tag: &str, attr: &str) -> Option<String> {
+    for quote in ['"', '\''] {
+        let needle = format!("{attr}={quote}");
+        if let Some(start) = tag.find(&needle) {
+            let value_start = start + needle.len();
+            let value_end = tag[value_start..].find(quote)? + value_start;
+            return Some(tag[value_start..value_end].to_string());
+        }
+    }
+    None
+}
+
+fn normalize_duckduckgo_href(href: &str) -> String {
+    let value = href.trim();
+    if let Some(uddg_start) = value.find("uddg=") {
+        let encoded_start = uddg_start + "uddg=".len();
+        let encoded_end = value[encoded_start..]
+            .find('&')
+            .map(|offset| encoded_start + offset)
+            .unwrap_or(value.len());
+        return percent_decode(&value[encoded_start..encoded_end]);
+    }
+    if let Some(protocol_relative) = value.strip_prefix("//") {
+        return format!("https://{protocol_relative}");
+    }
+    value.to_string()
+}
+
+fn strip_html_tags(input: &str) -> String {
+    let mut output = String::new();
+    let mut in_tag = false;
+    for ch in input.chars() {
+        match ch {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => output.push(ch),
+            _ => {}
+        }
+    }
+    output.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn decode_html_entities(input: &str) -> String {
+    let mut output = input
+        .replace("&amp;", "&")
+        .replace("&quot;", "\"")
+        .replace("&#x27;", "'")
+        .replace("&#39;", "'")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">");
+    while let Some(start) = output.find("&#") {
+        let Some(end_rel) = output[start..].find(';') else {
+            break;
+        };
+        let end = start + end_rel;
+        let token = &output[start + 2..end];
+        let parsed = if let Some(hex) = token.strip_prefix(['x', 'X']) {
+            u32::from_str_radix(hex, 16).ok()
+        } else {
+            token.parse::<u32>().ok()
+        };
+        let Some(ch) = parsed.and_then(char::from_u32) else {
+            break;
+        };
+        output.replace_range(start..=end, &ch.to_string());
+    }
+    output
+}
+
+fn percent_decode(input: &str) -> String {
+    let bytes = input.as_bytes();
+    let mut output = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' && index + 2 < bytes.len() {
+            if let (Some(high), Some(low)) =
+                (hex_value(bytes[index + 1]), hex_value(bytes[index + 2]))
+            {
+                output.push((high << 4) | low);
+                index += 3;
+                continue;
+            }
+        }
+        output.push(bytes[index]);
+        index += 1;
+    }
+    String::from_utf8_lossy(&output).to_string()
+}
+
+fn hex_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
 fn truncate_text(input: &str, max_chars: usize) -> (String, bool) {
     if input.chars().count() <= max_chars {
         return (input.to_string(), false);
     }
     let truncated = input.chars().take(max_chars).collect::<String>();
     (truncated, true)
+}
+
+fn read_response_text_limited(
+    response: reqwest::blocking::Response,
+    max_bytes: usize,
+    label: &str,
+) -> Result<(String, bool), ToolError> {
+    let mut bytes = Vec::new();
+    let mut limited = response.take(max_bytes as u64 + 1);
+    limited
+        .read_to_end(&mut bytes)
+        .map_err(|err| ToolError::Failed(format!("{label} response read failed: {err}")))?;
+    let truncated = bytes.len() > max_bytes;
+    if truncated {
+        bytes.truncate(max_bytes);
+    }
+    Ok((String::from_utf8_lossy(&bytes).to_string(), truncated))
 }
 
 fn wait_with_timeout_and_kill(
@@ -898,6 +1124,32 @@ mod tests {
     use super::*;
     use httpmock::Method::GET;
     use httpmock::MockServer;
+    use std::sync::Mutex;
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    struct EnvVarGuard {
+        key: &'static str,
+        previous: Option<String>,
+    }
+
+    impl EnvVarGuard {
+        fn set(key: &'static str, value: String) -> Self {
+            let previous = std::env::var(key).ok();
+            std::env::set_var(key, value);
+            Self { key, previous }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            if let Some(previous) = &self.previous {
+                std::env::set_var(self.key, previous);
+            } else {
+                std::env::remove_var(self.key);
+            }
+        }
+    }
 
     #[test]
     fn exec_runs_basic_command() {
@@ -1023,7 +1275,36 @@ mod tests {
     }
 
     #[test]
+    fn web_fetch_truncates_large_response_to_runner_limit() {
+        let server = MockServer::start();
+        let body = "x".repeat(128);
+        let mock = server.mock(|when, then| {
+            when.method(GET).path("/large");
+            then.status(200)
+                .header("content-type", "text/plain")
+                .body(body);
+        });
+
+        let runner = LocalToolRunner {
+            max_output_chars: 32,
+            ..LocalToolRunner::default()
+        };
+        let result = runner
+            .run(ToolRequest::WebFetch(WebFetchRequest {
+                url: format!("{}/large", server.base_url()),
+            }))
+            .expect("web_fetch should succeed with truncated body");
+
+        mock.assert();
+        assert_eq!(result.tool, ToolName::WebFetch);
+        assert_eq!(result.truncated, true);
+        assert_eq!(result.output["status_code"], 200);
+        assert_eq!(result.output["body"].as_str().unwrap().chars().count(), 32);
+    }
+
+    #[test]
     fn web_search_parses_results_from_mock_api() {
+        let _env_guard = ENV_LOCK.lock().expect("env lock");
         let server = MockServer::start();
         let mock = server.mock(|when, then| {
             when.method(GET).path("/");
@@ -1039,7 +1320,7 @@ mod tests {
             }));
         });
 
-        std::env::set_var("CARSINOS_WEB_SEARCH_BASE_URL", server.base_url());
+        let _base_url_guard = EnvVarGuard::set("CARSINOS_WEB_SEARCH_BASE_URL", server.base_url());
         let runner = LocalToolRunner::default();
         let result = runner
             .run(ToolRequest::WebSearch(WebSearchRequest {
@@ -1047,12 +1328,98 @@ mod tests {
                 count: Some(5),
             }))
             .expect("web_search should succeed");
-        std::env::remove_var("CARSINOS_WEB_SEARCH_BASE_URL");
 
         mock.assert();
         assert_eq!(result.tool, ToolName::WebSearch);
         let results = result.output["results"].as_array().expect("results array");
         assert!(!results.is_empty());
+    }
+
+    #[test]
+    fn web_search_trims_common_outer_query_quotes() {
+        let _env_guard = ENV_LOCK.lock().expect("env lock");
+        let server = MockServer::start();
+        let mock = server.mock(|when, then| {
+            when.method(GET)
+                .path("/")
+                .query_param("q", "quoted query")
+                .query_param("format", "json");
+            then.status(200).json_body(json!({
+                "AbstractText": "Quoted query result",
+                "AbstractURL": "https://example.com/quoted",
+                "RelatedTopics": []
+            }));
+        });
+
+        let _base_url_guard = EnvVarGuard::set("CARSINOS_WEB_SEARCH_BASE_URL", server.base_url());
+        let runner = LocalToolRunner::default();
+        let result = runner
+            .run(ToolRequest::WebSearch(WebSearchRequest {
+                query: "\"quoted query\"".to_string(),
+                count: Some(5),
+            }))
+            .expect("web_search should trim matching quote wrapper");
+
+        mock.assert();
+        assert_eq!(result.output["query"], "quoted query");
+        let results = result.output["results"].as_array().expect("results array");
+        assert_eq!(results.len(), 1);
+    }
+
+    #[test]
+    fn web_search_falls_back_to_html_results_when_instant_answer_is_empty() {
+        let _env_guard = ENV_LOCK.lock().expect("env lock");
+        let server = MockServer::start();
+        let instant = server.mock(|when, then| {
+            when.method(GET).path("/");
+            then.status(200).json_body(json!({
+                "AbstractText": "",
+                "AbstractURL": "",
+                "RelatedTopics": []
+            }));
+        });
+        let html = server.mock(|when, then| {
+            when.method(GET)
+                .path("/html/")
+                .query_param("q", "LM Studio loaded models endpoint");
+            then.status(200).body(
+                r#"
+                <html>
+                  <body>
+                    <a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Flmstudio.ai%2Fdocs%2Fapi%2Fendpoints%2Frest">LM Studio REST API Reference</a>
+                    <a class="result__snippet">Use /v1/models to list loaded models.</a>
+                  </body>
+                </html>
+                "#,
+            );
+        });
+
+        let _base_url_guard = EnvVarGuard::set("CARSINOS_WEB_SEARCH_BASE_URL", server.base_url());
+        let _html_base_url_guard = EnvVarGuard::set(
+            "CARSINOS_WEB_SEARCH_HTML_BASE_URL",
+            format!("{}/html/", server.base_url()),
+        );
+        let runner = LocalToolRunner::default();
+        let result = runner
+            .run(ToolRequest::WebSearch(WebSearchRequest {
+                query: "LM Studio loaded models endpoint".to_string(),
+                count: Some(5),
+            }))
+            .expect("web_search should fall back to HTML results");
+
+        instant.assert();
+        html.assert();
+        let results = result.output["results"].as_array().expect("results array");
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0]["title"], "LM Studio REST API Reference");
+        assert_eq!(
+            results[0]["url"],
+            "https://lmstudio.ai/docs/api/endpoints/rest"
+        );
+        assert!(results[0]["snippet"]
+            .as_str()
+            .unwrap_or_default()
+            .contains("/v1/models"));
     }
 
     #[test]
@@ -1149,6 +1516,7 @@ mod tests {
 
     #[test]
     fn web_search_is_denied_when_network_policy_is_deny_all() {
+        let _env_guard = ENV_LOCK.lock().expect("env lock");
         let temp = tempfile::tempdir().expect("tempdir");
         let runner = LocalToolRunner::with_sandbox_policy(ToolSandboxPolicy {
             allowed_roots: vec![temp.path().canonicalize().expect("canonical root")],

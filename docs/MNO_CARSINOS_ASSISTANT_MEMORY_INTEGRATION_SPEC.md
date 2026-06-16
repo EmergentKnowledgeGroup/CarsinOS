@@ -390,7 +390,7 @@ Stop-ship / immediate rollback conditions:
 
 This spec should stay aligned with:
 
-- `/Volumes/ultariumv3/modelNumquamOblita/docs/CARSINOS_INTEGRATION_REQUIREMENTS.md`
-- `/Volumes/ultariumv3/modelNumquamOblita/docs/CARSINOS_APPDEX_RESPONSE_FROM_MNOCODEX_2026-03-25.md`
+- `modelNumquamOblita/docs/CARSINOS_INTEGRATION_REQUIREMENTS.md` in the paired MNO checkout
+- `modelNumquamOblita/docs/CARSINOS_APPDEX_RESPONSE_FROM_MNOCODEX_2026-03-25.md` in the paired MNO checkout
 
 If this file and those external MNO-side contract docs disagree about integration boundaries, transport ownership, or runtime topology, the conflict must be resolved before implementation.

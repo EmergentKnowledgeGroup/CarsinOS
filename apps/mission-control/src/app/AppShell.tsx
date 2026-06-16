@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+﻿import { useState, useEffect, useCallback, useRef } from "react";
 import clsx from "clsx";
 import type { ReactNode } from "react";
 import { MISSION_CONTROL_TABS } from "./tabs";
@@ -73,6 +73,7 @@ interface AppShellProps {
   onIncidentModeChange: (value: boolean) => void;
   openBreakerCount: number;
   approvalsCount: number;
+  memoryReviewApprovalsCount?: number;
   jobsDue: number;
   schedulerRunning: boolean;
   gatewayDraft: string;
@@ -486,6 +487,13 @@ export function AppShell(props: AppShellProps) {
             </button>
             <Chip label={`Breakers: ${props.openBreakerCount}`} tone={props.openBreakerCount > 0 ? "error" : "up"} onClick={() => props.onTabChange("focus")} />
             <Chip label={`Approvals: ${props.approvalsCount}`} tone={props.approvalsCount > 0 ? "checking" : "up"} onClick={() => props.onTabChange("focus")} />
+            {(props.memoryReviewApprovalsCount ?? 0) > 0 ? (
+              <Chip
+                label={`Memory review: ${props.memoryReviewApprovalsCount}`}
+                tone="warning"
+                onClick={() => props.onTabChange("focus")}
+              />
+            ) : null}
             <Chip label={`Jobs: ${props.jobsDue}`} tone="" onClick={() => props.onTabChange("calendar")} />
             <Chip label={props.schedulerRunning ? "Sched: ON" : "Sched: OFF"} tone={props.schedulerRunning ? "up" : "warning"} onClick={() => props.onTabChange("calendar")} />
           </div>

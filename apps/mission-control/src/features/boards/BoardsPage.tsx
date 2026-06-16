@@ -1,12 +1,11 @@
 import {
   useEffect,
   useMemo,
-  useRef,
   useState,
+  type CSSProperties,
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import type {
   Agent,
   BoardCard,
@@ -213,15 +212,9 @@ export function BoardsPage({
     (newCardOwnerKind !== "human" || newCardOwnerHumanId.trim().length > 0) &&
     (newCardOwnerKind !== "agent" || newCardOwnerAgentId.trim().length > 0);
 
-  const boardScrollerRef = useRef<HTMLDivElement | null>(null);
-  // eslint-disable-next-line react-hooks/incompatible-library
-  const columnVirtualizer = useVirtualizer({
-    count: columns.length,
-    horizontal: true,
-    getScrollElement: () => boardScrollerRef.current,
-    estimateSize: () => 320,
-    overscan: 2,
-  });
+  const boardCanvasStyle = {
+    "--board-column-count": Math.max(columns.length, 1),
+  } as CSSProperties;
 
   const cardEditorOpen = selectedCard !== null;
   const linkedTask = selectedCard
@@ -287,20 +280,12 @@ export function BoardsPage({
       </div>
 
       {loading ? <div className="mc-board-loading">Loading board\u2026</div> : null}
-      <div className="mc-board-scroll" ref={boardScrollerRef}>
-        <div
-          className="mc-board-canvas"
-          style={{ width: `${columnVirtualizer.getTotalSize()}px` }}
-        >
-          {columnVirtualizer.getVirtualItems().map((virtualColumn: { index: number; start: number }) => {
-            const column = columns[virtualColumn.index];
+      <div className="mc-board-scroll">
+        <div className="mc-board-canvas" style={boardCanvasStyle}>
+          {columns.map((column) => {
             const cards = filteredCardsByColumn.get(column.column_id) ?? [];
             return (
-              <div
-                key={column.column_id}
-                className="mc-board-column-wrap"
-                style={{ transform: `translateX(${virtualColumn.start}px)` }}
-              >
+              <div key={column.column_id} className="mc-board-column-wrap">
                 <BoardLane
                   column={column}
                   cards={cards}

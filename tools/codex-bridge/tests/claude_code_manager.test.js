@@ -78,3 +78,16 @@ test("marks Claude Code exec sessions failed when spawn emits error", async () =
   assert.equal(read.status, "failed");
   assert.match(read.error, /ENOENT|not found|spawn/i);
 });
+
+test("interactive window launcher uses autoclosing PowerShell", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "relay", "claude_code_manager.js"),
+    "utf8"
+  );
+
+  assert.doesNotMatch(source, /'-NoExit'/);
+  assert.match(
+    source,
+    /Start-Process -FilePath 'powershell\.exe' -ArgumentList @\('-NoProfile','-ExecutionPolicy','Bypass','-File'/
+  );
+});

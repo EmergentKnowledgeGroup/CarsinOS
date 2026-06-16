@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  createJob,
   createAuthProfile,
   createWebSocketTicket,
   createBootstrapPreset,
@@ -10,6 +11,7 @@ import {
   getAssistantDeskTranscript,
   getAgentMemoryGraphNeighbors,
   getAgentMemoryStatus,
+  getJobHistory,
   getRunbookDetail,
   getStrategySummary,
   getGatewayHealth,
@@ -260,6 +262,100 @@ describe("request URL resolution", () => {
         headers: expect.objectContaining({
           Authorization: "Bearer token-123",
         }),
+      })
+    );
+  });
+
+  it("fetches job history with an encoded job id and bounded limit", async () => {
+    const responseBody = {
+      items: [
+        {
+          job_run_id: "run-1",
+          job_id: "job/with slash",
+          trigger_kind: "manual",
+          status: "succeeded",
+          attempt: 1,
+          started_at: 123,
+          ended_at: 456,
+          error_text: null,
+          output_json: "{}",
+          created_at: 120,
+        },
+      ],
+    };
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      new Response(JSON.stringify(responseBody), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      getJobHistory({ gateway_url: "http://127.0.0.1:19789" }, "job/with slash", 5005)
+    ).resolves.toEqual(responseBody);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:19789/api/v1/jobs/job%2Fwith%20slash/history?limit=1000",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer token-123",
+        }),
+      })
+    );
+  });
+
+  it("creates jobs with the expected endpoint, body, and authorization", async () => {
+    const responseBody = {
+      job: {
+        job_id: "job-1",
+        agent_id: "default",
+        name: "ExecAss Check in",
+        enabled: true,
+        schedule_kind: "interval",
+        interval_seconds: 3600,
+        run_at_ms: null,
+        cron_expr: null,
+        payload_json: "{}",
+        max_retries: 1,
+        retry_backoff_ms: 1000,
+        timeout_ms: 60000,
+        last_run_at: null,
+        last_error: null,
+        created_at: 123,
+        updated_at: 123,
+      },
+    };
+    const fetchMock = vi.fn().mockImplementation(async () =>
+      new Response(JSON.stringify(responseBody), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const payload = {
+      agent_id: "default",
+      name: "ExecAss Check in",
+      enabled: true,
+      schedule_kind: "interval",
+      interval_seconds: 3600,
+      payload_json: { preset: "execass.check_in" },
+    };
+    await expect(createJob({ gateway_url: "http://127.0.0.1:19789" }, payload)).resolves.toEqual(
+      responseBody
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:19789/api/v1/jobs/add",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          Authorization: "Bearer token-123",
+          "Content-Type": "application/json",
+        }),
+        body: JSON.stringify(payload),
       })
     );
   });

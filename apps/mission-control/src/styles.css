@@ -3165,22 +3165,26 @@ button.danger:hover {
 }
 
 .mc-board-scroll {
-  overflow-x: auto;
-  overflow-y: hidden;
+  flex: 1 1 auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  min-width: 0;
   min-height: 0;
   padding: 0.7rem;
 }
 
 .mc-board-canvas {
-  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--board-column-count, 1), minmax(0, 1fr));
+  gap: 0.7rem;
+  min-width: 0;
   min-height: 100%;
   height: 100%;
 }
 
 .mc-board-column-wrap {
-  position: absolute;
-  width: 308px;
-  height: calc(100vh - var(--toolbar-height, 255px));
+  min-width: 0;
+  height: 100%;
   min-height: 420px;
 }
 
@@ -3218,6 +3222,8 @@ button.danger:hover {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 /* ─── KANBAN CARDS ────────────────────────────────────────────────────────── */
@@ -4159,6 +4165,116 @@ button.danger:hover {
 .mc-calendar-page {
   display: flex;
   flex-direction: column;
+  gap: var(--space-4);
+}
+
+.mc-cal-heartbeat-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.mc-cal-heartbeat-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.mc-cal-heartbeat-eyebrow {
+  margin: 0 0 var(--space-1);
+  color: var(--ink-muted);
+  font-size: var(--type-micro);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.mc-cal-heartbeat-header h2 {
+  margin: 0;
+  color: var(--ink-primary);
+  font-size: var(--type-heading);
+  letter-spacing: 0;
+}
+
+.mc-cal-heartbeat-agent {
+  max-width: 42ch;
+  color: var(--ink-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--type-micro);
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.mc-cal-heartbeat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.mc-cal-heartbeat-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 116px;
+  padding: var(--space-3);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.mc-cal-heartbeat-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  color: var(--accent);
+  background: var(--accent-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.mc-cal-heartbeat-copy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.mc-cal-heartbeat-copy strong {
+  color: var(--ink-primary);
+  font-size: var(--type-body);
+}
+
+.mc-cal-heartbeat-copy span {
+  color: var(--ink-secondary);
+  font-size: var(--type-caption);
+  line-height: 1.35;
+}
+
+.mc-cal-heartbeat-copy label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-secondary);
+  font-size: var(--type-caption);
+}
+
+.mc-cal-heartbeat-copy input {
+  width: 72px;
+  height: 34px;
+  padding: 0 var(--space-2);
+}
+
+.mc-cal-heartbeat-action {
+  min-width: 96px;
+  height: 36px;
+  justify-content: center;
 }
 
 /* Week Grid */
@@ -4440,6 +4556,109 @@ button.danger:hover {
 .mc-cal-actions {
   display: flex;
   gap: var(--space-1);
+}
+
+.mc-cal-audit {
+  margin-top: var(--space-3);
+  display: grid;
+  gap: var(--space-2);
+  max-width: min(100%, 34rem);
+}
+
+.mc-cal-audit-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 2.25rem;
+  color: var(--ink-secondary);
+  font-size: var(--type-micro);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mc-cal-audit-body {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  background: var(--surface);
+}
+
+.mc-cal-audit-chip-row,
+.mc-cal-audit-checked {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.mc-cal-audit-list {
+  display: grid;
+  gap: var(--space-1);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.mc-cal-audit-list li {
+  display: grid;
+  gap: 0.125rem;
+  min-width: 0;
+  font-size: var(--type-micro);
+}
+
+.mc-cal-audit-list strong {
+  color: var(--ink-primary);
+}
+
+.mc-cal-audit-list span,
+.mc-cal-audit-muted,
+.mc-cal-audit-error {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--type-micro);
+}
+
+.mc-cal-audit-error {
+  color: var(--danger);
+}
+
+.mc-cal-audit-category {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--line);
+  color: var(--ink-secondary);
+  font-size: var(--type-micro);
+}
+
+.mc-cal-audit-category-hot {
+  border-color: color-mix(in srgb, var(--warn) 55%, var(--line));
+  color: var(--ink-primary);
+}
+
+.mc-cal-audit-raw {
+  color: var(--ink-secondary);
+  font-size: var(--type-micro);
+}
+
+.mc-cal-audit-raw summary {
+  cursor: pointer;
+}
+
+.mc-cal-audit-raw pre {
+  max-height: 14rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  padding: var(--space-2);
+  border-radius: var(--radius-xs);
+  background: var(--bg);
+  color: var(--ink-secondary);
 }
 
 .mc-table-sub {
@@ -6578,6 +6797,28 @@ button.danger:hover {
     text-align: left;
   }
 
+  .mc-cal-heartbeat-header {
+    flex-direction: column;
+  }
+
+  .mc-cal-heartbeat-agent {
+    max-width: none;
+    text-align: left;
+  }
+
+  .mc-cal-heartbeat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mc-cal-heartbeat-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .mc-cal-heartbeat-action {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
   .mc-cal-active-item {
     align-items: flex-start;
     flex-direction: column;
@@ -8475,6 +8716,26 @@ button.danger:hover {
     padding: 0.6rem;
   }
 
+  .mc-topbar {
+    gap: 0.5rem;
+    padding: 0 0.75rem;
+  }
+
+  .mc-topbar-title {
+    font-size: 1rem;
+  }
+
+  .mc-topbar-right {
+    gap: 0.35rem;
+    margin-left: auto;
+    min-width: 0;
+  }
+
+  .mc-topbar-right > button:not(.mc-live-feed-toggle),
+  .mc-topbar-right > .mc-theme-dropdown-wrap {
+    display: none;
+  }
+
   .mc-nav-rail {
     width: 52px;
   }
@@ -8496,8 +8757,40 @@ button.danger:hover {
     flex-wrap: wrap;
   }
 
+  .mc-board-toolbar {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .mc-board-toolbar-left {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .mc-board-toolbar-left label,
+  .mc-board-filter-bar label {
+    min-width: 0;
+  }
+
+  .mc-board-toolbar-left select,
+  .mc-board-filter-bar select {
+    max-width: 100%;
+  }
+
+  .mc-board-stats {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 0.45rem 0.75rem;
+  }
+
+  .mc-board-canvas {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
   .mc-board-column-wrap {
-    width: 286px;
+    min-height: 360px;
   }
 
   .mc-pinned-health {

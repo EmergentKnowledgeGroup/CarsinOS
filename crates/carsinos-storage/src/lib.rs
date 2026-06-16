@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone)]
 pub struct AppPaths {
@@ -124,6 +124,18 @@ fn seed_default_entities(db_path: &Path) -> Result<()> {
             ],
         )
         .with_context(|| format!("failed to seed {agent_id} agent"))?;
+        tx.execute(
+            r#"
+        UPDATE agents
+           SET workspace_root = ?1,
+               updated_at = ?2
+         WHERE agent_id = ?3
+           AND archived_at IS NULL
+           AND workspace_root != ?1
+        "#,
+            params![workspace_root, now, agent_id],
+        )
+        .with_context(|| format!("failed to refresh {agent_id} agent workspace"))?;
     }
 
     seed_default_boards(&tx, now)?;
@@ -135,6 +147,12 @@ fn seed_default_entities(db_path: &Path) -> Result<()> {
 fn open_sqlite_connection(db_path: &Path) -> Result<Connection> {
     let conn = Connection::open(db_path)
         .with_context(|| format!("failed to open sqlite db at {}", db_path.display()))?;
+    conn.busy_timeout(Duration::from_secs(5)).with_context(|| {
+        format!(
+            "failed setting sqlite busy timeout at {}",
+            db_path.display()
+        )
+    })?;
     conn.pragma_update(None, "foreign_keys", "ON")
         .with_context(|| {
             format!(
@@ -5123,6 +5141,52 @@ impl Storage {
         Ok(record)
     }
 
+    pub fn previous_run_for_session(
+        &self,
+        session_id: &str,
+        before_created_at: i64,
+    ) -> Result<Option<RunRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            SELECT
+              run_id,
+              session_id,
+              status,
+              model_provider,
+              model_id,
+              started_at,
+              ended_at,
+              error_text,
+              usage_json,
+              created_at
+            FROM runs
+            WHERE session_id = ?1
+              AND (
+                created_at < ?2
+                OR (
+                  created_at = ?2
+                  AND rowid < COALESCE(
+                    (
+                      SELECT MAX(rowid)
+                      FROM runs
+                      WHERE session_id = ?1
+                        AND created_at = ?2
+                    ),
+                    rowid
+                  )
+                )
+              )
+            ORDER BY created_at DESC, rowid DESC
+            LIMIT 1
+            "#,
+        )?;
+        let record = stmt
+            .query_row(params![session_id, before_created_at], map_run_row)
+            .optional()?;
+        Ok(record)
+    }
+
     pub fn create_assistant_worker(
         &self,
         new_worker: NewAssistantWorker,
@@ -9662,6 +9726,47 @@ mod tests {
     }
 
     #[test]
+    fn previous_run_for_session_uses_rowid_tiebreaker_for_timestamp_collisions() {
+        let (_temp_dir, storage) = test_storage();
+        let session = storage
+            .create_session(NewSession {
+                session_key: None,
+                agent_id: "default".to_string(),
+                title: Some("timestamp collision".to_string()),
+            })
+            .expect("create session");
+        let first = storage
+            .create_run(NewRun {
+                session_id: session.session_id.clone(),
+                model_provider: "mock".to_string(),
+                model_id: "mock".to_string(),
+            })
+            .expect("create first run")
+            .expect("first run exists");
+        let second = storage
+            .create_run(NewRun {
+                session_id: session.session_id.clone(),
+                model_provider: "mock".to_string(),
+                model_id: "mock".to_string(),
+            })
+            .expect("create second run")
+            .expect("second run exists");
+        let created_at = 42_000;
+        let conn = storage.connect().expect("connect");
+        conn.execute(
+            "UPDATE runs SET created_at = ?1 WHERE run_id IN (?2, ?3)",
+            params![created_at, first.run_id, second.run_id],
+        )
+        .expect("force timestamp collision");
+
+        let previous = storage
+            .previous_run_for_session(&session.session_id, created_at)
+            .expect("previous lookup")
+            .expect("previous run");
+        assert_eq!(previous.run_id, first.run_id);
+    }
+
+    #[test]
     fn missing_session_returns_none_for_message_and_run_create() {
         let (_temp_dir, storage) = test_storage();
         let message = storage
@@ -10632,6 +10737,45 @@ mod tests {
     }
 
     #[test]
+    fn init_refreshes_default_agent_workspace_to_launch_directory() {
+        let temp_dir = TempDir::new().expect("tempdir");
+        let paths = AppPaths::from_root(temp_dir.path().to_path_buf());
+        init(&paths).expect("initial init");
+        let storage = Storage::from_paths(&paths);
+        let launch_workspace = std::env::current_dir()
+            .expect("current dir")
+            .display()
+            .to_string();
+
+        storage
+            .update_agent(
+                "default",
+                AgentUpdatePatch {
+                    name: Some("G4".to_string()),
+                    workspace_root: Some("/Users/example/old/carsinos".to_string()),
+                    model_provider: Some("lmstudio".to_string()),
+                    model_id: Some("local-model".to_string()),
+                    tool_profile: None,
+                    reports_to_agent_id: None,
+                    role_label: None,
+                    memory_binding: None,
+                },
+            )
+            .expect("seed stale default agent");
+
+        init(&paths).expect("re-init should refresh default workspace");
+        let default_agent = storage
+            .get_agent("default")
+            .expect("load default agent")
+            .expect("default agent exists");
+
+        assert_eq!(default_agent.workspace_root, launch_workspace);
+        assert_eq!(default_agent.name, "G4");
+        assert_eq!(default_agent.model_provider, "lmstudio");
+        assert_eq!(default_agent.model_id, "local-model");
+    }
+
+    #[test]
     fn storage_connections_enable_foreign_keys() {
         let (_temp_dir, storage) = test_storage();
         let conn = storage
@@ -10643,6 +10787,13 @@ mod tests {
         assert_eq!(
             foreign_keys_enabled, 1,
             "sqlite foreign keys should be enabled"
+        );
+        let busy_timeout_ms = conn
+            .query_row("PRAGMA busy_timeout", [], |row| row.get::<_, i64>(0))
+            .expect("query busy_timeout pragma");
+        assert_eq!(
+            busy_timeout_ms, 5_000,
+            "sqlite busy timeout should wait for transient writer locks"
         );
     }
 

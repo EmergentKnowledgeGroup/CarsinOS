@@ -370,9 +370,9 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
 
   const refreshModelCatalog = useCallback(async () => {
     const provider = modelProvider.trim().toLowerCase();
-    if (!provider) {
+    if (!provider || provider === "unconfigured") {
       setCatalogModels([]);
-      setCatalogError("Choose a provider first.");
+      setCatalogError(provider ? null : "Choose a provider first.");
       return;
     }
 
@@ -402,7 +402,8 @@ export function useAssistantChatController(options: UseAssistantChatControllerOp
   }, [activeAgentId, authProfileId, modelProvider, settings]);
 
   useEffect(() => {
-    if (!modelProvider.trim()) {
+    const provider = modelProvider.trim().toLowerCase();
+    if (!provider || provider === "unconfigured") {
       setCatalogModels([]);
       setCatalogError(null);
       return;

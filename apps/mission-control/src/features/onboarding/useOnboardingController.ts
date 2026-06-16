@@ -79,6 +79,9 @@ const ONBOARDING_STEPS = [
   "done",
 ] as const;
 const LOCAL_OPERATOR_HUMAN_ID = "local-operator";
+const DEFAULT_EXECASS_AGENT_ID = "execass";
+const DEFAULT_EXECASS_AGENT_NAME = "ExecAss";
+const DEFAULT_EXECASS_ROLE_LABEL = "Executive Assistant";
 
 function providerRequiresProfile(path: OnboardingProviderPath): boolean {
   return path === "anthropic" || path === "openai";
@@ -184,8 +187,12 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   );
 
   const [selectedAgentId, setSelectedAgentId] = useState<string>(agents[0]?.agent_id ?? "");
-  const [agentIdDraft, setAgentIdDraft] = useState(agents[0]?.agent_id ?? "");
-  const [agentNameDraft, setAgentNameDraft] = useState(agents[0]?.name ?? "");
+  const [agentIdDraft, setAgentIdDraft] = useState(
+    agents[0]?.agent_id ?? DEFAULT_EXECASS_AGENT_ID
+  );
+  const [agentNameDraft, setAgentNameDraft] = useState(
+    agents[0]?.name ?? DEFAULT_EXECASS_AGENT_NAME
+  );
   const [workspaceRootDraft, setWorkspaceRootDraft] = useState(
     agents[0]?.workspace_root?.trim() || "."
   );
@@ -196,7 +203,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     agents[0]?.reports_to_agent_id?.trim() || ""
   );
   const [roleLabelDraft, setRoleLabelDraft] = useState(
-    agents[0]?.role_label?.trim() || ""
+    agents[0]?.role_label?.trim() || DEFAULT_EXECASS_ROLE_LABEL
   );
   const [selectedPresetKey, setSelectedPresetKey] = useState("");
   const [agentReady, setAgentReady] = useState(agents.length > 0);
@@ -911,12 +918,12 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
   const createNewAgentDraft = useCallback(() => {
     clearError();
     setSelectedAgentId("");
-    setAgentIdDraft("");
-    setAgentNameDraft("");
+    setAgentIdDraft(DEFAULT_EXECASS_AGENT_ID);
+    setAgentNameDraft(DEFAULT_EXECASS_AGENT_NAME);
     setWorkspaceRootDraft(".");
     setToolProfileDraft("default");
     setReportsToAgentIdDraft("");
-    setRoleLabelDraft("");
+    setRoleLabelDraft(DEFAULT_EXECASS_ROLE_LABEL);
     setSelectedPresetKey("");
     setAgentReady(false);
     setProviderReady(false);

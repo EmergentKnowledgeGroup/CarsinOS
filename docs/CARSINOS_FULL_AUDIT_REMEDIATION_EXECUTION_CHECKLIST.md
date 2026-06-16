@@ -16,6 +16,7 @@ The implementation goal is to close the known security, QA, and operator-readine
 - B0-B6 are complete.
 - B7 remains a repository workflow step: open PR, request review, address review, re-run gates, merge.
 - All stop-ship implementation blockers from the audit are closed in `docs/CARSINOS_FULL_AUDIT_REMEDIATION_BLOCKERBOARD.md`.
+- Historical unchecked Batch 1 rows below are preserved as original execution notes; the completed validation evidence is the Final Validation Matrix plus the blockerboard closure state.
 - Z-drive scratch/caches were used for heavy artifacts:
   - `Z:\carsinos-codex-work\carsinos\cargo-target`
   - `Z:\carsinos-codex-work\carsinos\cargo-home`

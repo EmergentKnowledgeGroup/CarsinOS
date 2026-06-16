@@ -126,6 +126,10 @@ def test_integration_http_contract_idempotency_and_resolve_noop() -> None:
         assert context_payload["operation"] == "context.build"
         assert context_payload["request_id_source"] == "client"
         assert isinstance(context_payload["data"]["context_text"], str)
+        assert context_payload["data"]["agent_context_format"] == "mno_memory_context.v1"
+        assert context_payload["data"]["agent_context"].startswith("<MNO_MEMORY_CONTEXT>")
+        assert "retrieved memory candidates" in context_payload["data"]["agent_context"]
+        assert "User prefers tea before bed" in context_payload["data"]["agent_context"]
         assert isinstance(context_payload["data"]["evidence"], list)
 
         missing_auth_status, missing_auth = _http_json(
@@ -232,6 +236,49 @@ def test_integration_http_contract_idempotency_and_resolve_noop() -> None:
         assert resolve_again["ok"] is True
         assert resolve_again["data"]["already_resolved"] is True
         assert resolve_again["data"]["status"] == "approved"
+    finally:
+        stop_runtime_server(server, thread, runtime=runtime)
+
+
+def test_integration_context_build_accepts_external_session_id_without_local_history() -> None:
+    store = AtomStore()
+    store.add_candidate(_candidate("cand_ext", "External CarsinOS lane prefers concise status notes.", "conv_ext"))
+    continuity = ContinuityStore()
+    continuity.set_snapshot(ContinuityBuilder().build(store.list_atoms()))
+    runtime = RuntimeSession(retriever=MemoryRetriever(store), verifier=ClaimVerifier(), continuity_store=continuity)
+    server, thread = start_runtime_server(runtime, host="127.0.0.1", port=0)
+    host, port = server.server_address
+    base = f"http://{host}:{port}"
+    operator_headers = {"Authorization": "Bearer local-integration-operator-token"}
+
+    try:
+        context_request = {
+            "schema_version": "integration.v1",
+            "request_id": "req_EXTERNALSESSION01",
+            "session_id": "carsinos-session-external-001",
+            "run_id": "carsinos-run-external-001",
+            "data": {
+                "message": "What does the external lane prefer for status notes?",
+                "retrieval": {"top_k": 5},
+                "risk_signal": "low",
+            },
+        }
+        context_status, context_payload = _http_json(
+            method="POST",
+            url=f"{base}/api/integration/v1/context/build",
+            payload=context_request,
+            headers=operator_headers,
+        )
+
+        assert context_status == 200
+        assert context_payload["ok"] is True
+        assert context_payload["operation"] == "context.build"
+        assert isinstance(context_payload["data"]["context_text"], str)
+        assert context_payload["data"]["agent_context_format"] == "mno_memory_context.v1"
+        assert context_payload["data"]["agent_context"].startswith("<MNO_MEMORY_CONTEXT>")
+        assert "retrieved memory candidates" in context_payload["data"]["agent_context"]
+        assert "External CarsinOS lane prefers concise status notes" in context_payload["data"]["agent_context"]
+        assert isinstance(context_payload["data"]["evidence"], list)
     finally:
         stop_runtime_server(server, thread, runtime=runtime)
 

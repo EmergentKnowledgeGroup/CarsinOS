@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppContent } from "./app/AppContent";
 import { AppShell } from "./app/AppShell";
 import { GuidedTourOverlay, type GuidedTourStep } from "./app/GuidedTourOverlay";
@@ -962,6 +962,7 @@ export default function App() {
         missionControl.openBreakers.length + missionControl.openPluginBreakers.length
       }
       approvalsCount={missionControl.approvalsById.size}
+      memoryReviewApprovalsCount={missionControl.memoryReviewApprovalsCount}
       jobsDue={missionControl.jobsStatus?.jobs_due ?? 0}
       schedulerRunning={missionControl.jobsStatus?.scheduler_running ?? false}
       gatewayDraft={gatewayDraft}

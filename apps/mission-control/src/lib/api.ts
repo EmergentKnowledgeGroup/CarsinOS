@@ -29,6 +29,8 @@ import type {
   BoardDetail,
   BoardDetailResponse,
   CreateBootstrapPresetResponse,
+  CreateJobRequest,
+  CreateJobResponse,
   CreateWebSocketTicketResponse,
   CreateGoalResponse,
   CreateAgentResponse,
@@ -69,6 +71,7 @@ import type {
   ListMessagesResponse,
   ListAuthProfilesResponse,
   ListApprovalsResponse,
+  ListJobHistoryResponse,
   ListJobsResponse,
   ListPluginRuntimeStatusResponse,
   ListPluginsResponse,
@@ -1572,6 +1575,16 @@ export async function listJobs(
   );
 }
 
+export async function createJob(
+  settings: RuntimeConnectionSettings,
+  payload: CreateJobRequest
+): Promise<CreateJobResponse> {
+  return requestJson<CreateJobResponse>(settings, "/api/v1/jobs/add", {
+    method: "POST",
+    body: payload,
+  });
+}
+
 export async function getJobsStatus(
   settings: RuntimeConnectionSettings
 ): Promise<JobStatusResponse> {
@@ -1589,6 +1602,19 @@ export async function runJobNow(
       method: "POST",
       body: {},
     }
+  );
+}
+
+export async function getJobHistory(
+  settings: RuntimeConnectionSettings,
+  jobId: string,
+  limit = 10
+): Promise<ListJobHistoryResponse> {
+  const normalizedLimit = Number.isFinite(limit) ? Math.trunc(limit) : 10;
+  const boundedLimit = Math.min(Math.max(normalizedLimit, 1), 1000);
+  return requestJson<ListJobHistoryResponse>(
+    settings,
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/history?limit=${encodeURIComponent(String(boundedLimit))}`
   );
 }
 

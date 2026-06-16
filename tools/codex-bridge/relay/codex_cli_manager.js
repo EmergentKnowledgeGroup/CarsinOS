@@ -47,6 +47,14 @@ function isPidRunning(pid) {
   }
 }
 
+function psSingleQuoted(value) {
+  return `'${String(value).replace(/'/g, "''")}'`;
+}
+
+function psQuotedArgument(value) {
+  return psSingleQuoted(`"${value}"`);
+}
+
 class CodexCliManager {
   constructor(options = {}) {
     this.root = path.resolve(options.root || path.join(__dirname, "..", "runtime"));
@@ -230,8 +238,8 @@ class CodexCliManager {
     ].join("\r\n");
     fs.writeFileSync(launcherPath, script, "utf8");
     const startScript = [
-      `$p = Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoExit','-ExecutionPolicy','Bypass','-File','${launcherPath.replace(/'/g, "''")}') -WorkingDirectory '${escapedCwd}' -PassThru`,
-      `$p.Id | Set-Content -LiteralPath '${pidPath.replace(/'/g, "''")}'`,
+      `$p = Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',${psQuotedArgument(launcherPath)}) -WorkingDirectory ${psSingleQuoted(cwd)} -PassThru`,
+      `$p.Id | Set-Content -LiteralPath ${psSingleQuoted(pidPath)}`,
     ].join("; ");
     const start = spawnSync("powershell.exe", [
       "-NoProfile",

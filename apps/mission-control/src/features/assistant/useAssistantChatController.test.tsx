@@ -372,6 +372,34 @@ describe("useAssistantChatController", () => {
     );
   });
 
+  it("does not request a model catalog for the unconfigured provider sentinel", async () => {
+    const setNotice = vi.fn();
+    const unconfiguredAgent = {
+      ...makeAgent("claude"),
+      model_provider: "unconfigured",
+      model_id: "",
+    };
+
+    await act(async () => {
+      root.render(
+        <Harness
+          onReady={(controller) => {
+            latest = controller;
+          }}
+          settings={settings}
+          agents={[unconfiguredAgent]}
+          setNotice={setNotice}
+        />
+      );
+    });
+    await flush();
+    await flush();
+
+    expect(latest?.modelProvider).toBe("unconfigured");
+    expect(listProviderModels).not.toHaveBeenCalled();
+    expect(latest?.catalogError).toBeNull();
+  });
+
   it("creates Assistant sessions through the canonical human lane without injecting a system message", async () => {
     const setNotice = vi.fn();
     await act(async () => {
