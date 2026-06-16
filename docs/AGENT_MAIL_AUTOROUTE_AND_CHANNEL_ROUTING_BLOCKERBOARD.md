@@ -11,4 +11,3 @@ Source spec: `docs/AGENT_MAIL_AUTOROUTE_AND_CHANNEL_ROUTING_SPEC.md`
 | BLK-CHR-002 | P1 | Closed | Channel runtime | Sticky routes could silently rewrite permanent human assistant assignment. | Spec requires TTL-bound runtime state and no mutation to `routing.assistant_assignments`. |
 | BLK-SKILL-001 | P1 | Closed | Codex workflow | The local Codex skill depends on a running CarsinOS gateway and operator token. | Local skill created under `${CODEX_SKILLS_DIR}\carsinos-agent-mail`; env vars and timeout behavior documented; skill validation passed. |
 | BLK-API-001 | P1 | Closed | Provider/runtime | API-backed teammates are only executable if represented as run-capable agents. | Gateway test proves unsupported providers return deterministic `recipient_not_runnable` status without creating a fake run/reply. |
-n/reply. |
