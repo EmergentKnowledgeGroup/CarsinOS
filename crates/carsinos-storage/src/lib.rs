@@ -5162,7 +5162,21 @@ impl Storage {
               created_at
             FROM runs
             WHERE session_id = ?1
-              AND created_at < ?2
+              AND (
+                created_at < ?2
+                OR (
+                  created_at = ?2
+                  AND rowid < COALESCE(
+                    (
+                      SELECT MAX(rowid)
+                      FROM runs
+                      WHERE session_id = ?1
+                        AND created_at = ?2
+                    ),
+                    rowid
+                  )
+                )
+              )
             ORDER BY created_at DESC, rowid DESC
             LIMIT 1
             "#,
@@ -9709,6 +9723,47 @@ mod tests {
             .latest_user_message_text(&session.session_id)
             .expect("latest user message lookup");
         assert_eq!(latest_user.as_deref(), Some("hello"));
+    }
+
+    #[test]
+    fn previous_run_for_session_uses_rowid_tiebreaker_for_timestamp_collisions() {
+        let (_temp_dir, storage) = test_storage();
+        let session = storage
+            .create_session(NewSession {
+                session_key: None,
+                agent_id: "default".to_string(),
+                title: Some("timestamp collision".to_string()),
+            })
+            .expect("create session");
+        let first = storage
+            .create_run(NewRun {
+                session_id: session.session_id.clone(),
+                model_provider: "mock".to_string(),
+                model_id: "mock".to_string(),
+            })
+            .expect("create first run")
+            .expect("first run exists");
+        let second = storage
+            .create_run(NewRun {
+                session_id: session.session_id.clone(),
+                model_provider: "mock".to_string(),
+                model_id: "mock".to_string(),
+            })
+            .expect("create second run")
+            .expect("second run exists");
+        let created_at = 42_000;
+        let conn = storage.connect().expect("connect");
+        conn.execute(
+            "UPDATE runs SET created_at = ?1 WHERE run_id IN (?2, ?3)",
+            params![created_at, first.run_id, second.run_id],
+        )
+        .expect("force timestamp collision");
+
+        let previous = storage
+            .previous_run_for_session(&session.session_id, created_at)
+            .expect("previous lookup")
+            .expect("previous run");
+        assert_eq!(previous.run_id, first.run_id);
     }
 
     #[test]

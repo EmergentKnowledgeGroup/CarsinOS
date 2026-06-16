@@ -1610,9 +1610,11 @@ export async function getJobHistory(
   jobId: string,
   limit = 10
 ): Promise<ListJobHistoryResponse> {
+  const normalizedLimit = Number.isFinite(limit) ? Math.trunc(limit) : 10;
+  const boundedLimit = Math.min(Math.max(normalizedLimit, 1), 1000);
   return requestJson<ListJobHistoryResponse>(
     settings,
-    `/api/v1/jobs/${encodeURIComponent(jobId)}/history?limit=${encodeURIComponent(String(limit))}`
+    `/api/v1/jobs/${encodeURIComponent(jobId)}/history?limit=${encodeURIComponent(String(boundedLimit))}`
   );
 }
 

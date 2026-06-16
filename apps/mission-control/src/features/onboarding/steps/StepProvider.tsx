@@ -227,10 +227,12 @@ export function StepProvider(props: StepProviderProps) {
             </p>
           )}
 
-          <p className="mc-onboarding-note">
-            Hi! Before we begin, my default name is ExecAss, short for Executive
-            Assistant. Is that okay, or would you like to give me a different name?
-          </p>
+          {!props.selectedAgentId ? (
+            <p className="mc-onboarding-note">
+              Hi! Before we begin, my default name is ExecAss, short for Executive
+              Assistant. Is that okay, or would you like to give me a different name?
+            </p>
+          ) : null}
 
           {props.strategyEnabled ? (
             <div className="mc-onboarding-inline-actions">

@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
@@ -277,6 +277,7 @@ def test_integration_context_build_accepts_external_session_id_without_local_his
         assert context_payload["data"]["agent_context_format"] == "mno_memory_context.v1"
         assert context_payload["data"]["agent_context"].startswith("<MNO_MEMORY_CONTEXT>")
         assert "retrieved memory candidates" in context_payload["data"]["agent_context"]
+        assert "External CarsinOS lane prefers concise status notes" in context_payload["data"]["agent_context"]
         assert isinstance(context_payload["data"]["evidence"], list)
     finally:
         stop_runtime_server(server, thread, runtime=runtime)

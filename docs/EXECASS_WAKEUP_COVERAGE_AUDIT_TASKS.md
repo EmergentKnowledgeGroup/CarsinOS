@@ -135,7 +135,7 @@ Files:
 - [x] Record the exact manual/live flow results in the checkpoint.
 
 Task 7 proof note:
-- Isolated runtime proof report: `Z:\carsinos-codex-work\carsinos\reports\execass-wakeup-task7\task7-proof-20260603-031715.json`.
+- Isolated runtime proof report: `reports/execass-wakeup-task7/task7-proof-20260603-031715.json` in the local validation artifact bundle.
 - Quiet run `d2627097-5cdc-460d-9c85-6c10c92b555a` stayed `status: quiet`, `llm_invoked: false`, and checked all ten coverage categories.
 - Agent-mail service seed `8a33c742-5233-41de-b73c-bb72e00cd0e9` woke job `ceaf8c5c-cc59-469f-8ff3-40708304451d`.
 - Attention run `50e9dc43-c33f-438b-a8ef-a452c008a4ff` escalated with category `agent_mail`, `llm_invoked: true`, and downstream `session_run.run_status: succeeded`.

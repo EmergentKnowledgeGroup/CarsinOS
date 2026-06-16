@@ -644,6 +644,17 @@ export function useMissionControlController(options: UseMissionControlController
           next.set(calendarJob.job_id, calendarJob);
           return next;
         });
+        setCalendarWeek((previous) => {
+          if (!previous) {
+            return previous;
+          }
+          const jobs = new Map(previous.jobs.map((item) => [item.job_id, item]));
+          jobs.set(calendarJob.job_id, calendarJob);
+          return {
+            ...previous,
+            jobs: [...jobs.values()],
+          };
+        });
         setNotice({
           tone: "info",
           message: `Scheduled ${response.job.name}.`,

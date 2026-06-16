@@ -109,7 +109,7 @@ impl PinchTabClient {
         context: &BrowserAgentContext,
     ) -> Result<Value, PinchTabBrowserError> {
         ensure_url_allowed(&args.url, &self.config.allowed_domains)?;
-        let path = match normalized_tab_id(args.tab_id.as_deref()) {
+        let path = match normalized_tab_id(args.tab_id.as_deref())? {
             Some(tab_id) => format!("/tabs/{tab_id}/navigate"),
             None => "/navigate".to_string(),
         };
@@ -132,7 +132,7 @@ impl PinchTabClient {
         args: BrowserReadArgs,
         context: &BrowserAgentContext,
     ) -> Result<Value, PinchTabBrowserError> {
-        let path = match normalized_tab_id(args.tab_id.as_deref()) {
+        let path = match normalized_tab_id(args.tab_id.as_deref())? {
             Some(tab_id) => format!("/tabs/{tab_id}/text"),
             None => "/text".to_string(),
         };
@@ -145,7 +145,7 @@ impl PinchTabClient {
         args: BrowserReadArgs,
         context: &BrowserAgentContext,
     ) -> Result<Value, PinchTabBrowserError> {
-        let mut path = match normalized_tab_id(args.tab_id.as_deref()) {
+        let mut path = match normalized_tab_id(args.tab_id.as_deref())? {
             Some(tab_id) => format!("/tabs/{tab_id}/snapshot"),
             None => "/snapshot".to_string(),
         };
@@ -172,7 +172,7 @@ impl PinchTabClient {
         args: BrowserReadArgs,
         context: &BrowserAgentContext,
     ) -> Result<Value, PinchTabBrowserError> {
-        let path = match normalized_tab_id(args.tab_id.as_deref()) {
+        let path = match normalized_tab_id(args.tab_id.as_deref())? {
             Some(tab_id) => format!("/tabs/{tab_id}/capture"),
             None => "/capture".to_string(),
         };
@@ -236,7 +236,9 @@ impl PinchTabClient {
         if let Some(body) = body {
             request = request.json(&body);
         }
-        decode_pinchtab_response(request.send().await).await
+        decode_pinchtab_response(request.send().await)
+            .await
+            .map(sanitize_browser_output)
     }
 
     async fn create_session(
@@ -408,7 +410,18 @@ pub fn sanitize_browser_output(value: Value) -> Value {
                     let lowered = key.to_ascii_lowercase();
                     if matches!(
                         lowered.as_str(),
-                        "authorization" | "cookie" | "set-cookie" | "sessiontoken" | "token"
+                        "authorization"
+                            | "cookie"
+                            | "cookies"
+                            | "set-cookie"
+                            | "proxy-authorization"
+                            | "sessiontoken"
+                            | "token"
+                            | "access_token"
+                            | "refresh_token"
+                            | "id_token"
+                            | "api_key"
+                            | "x-api-key"
                     ) {
                         (key, Value::String("[redacted]".to_string()))
                     } else {
@@ -427,11 +440,24 @@ pub fn sanitize_browser_output(value: Value) -> Value {
     }
 }
 
-fn normalized_tab_id(value: Option<&str>) -> Option<String> {
-    value
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToString::to_string)
+fn normalized_tab_id(value: Option<&str>) -> Result<Option<String>, PinchTabBrowserError> {
+    let Some(value) = value.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok(None);
+    };
+    if value == "."
+        || value == ".."
+        || value.contains('/')
+        || value.contains('\\')
+        || value.contains('?')
+        || value.contains('#')
+        || value.contains("..")
+    {
+        return Err(PinchTabBrowserError::new(
+            "BROWSER_INVALID_INPUT",
+            "PinchTab tab_id must be a safe path segment",
+        ));
+    }
+    Ok(Some(value.to_string()))
 }
 
 fn normalized_optional_arg(value: Option<&str>) -> Option<String> {
@@ -443,10 +469,11 @@ fn normalized_optional_arg(value: Option<&str>) -> Option<String> {
 
 fn truncate_for_message(text: &str) -> String {
     const MAX: usize = 500;
-    if text.len() <= MAX {
+    if text.chars().count() <= MAX {
         return text.to_string();
     }
-    format!("{}...[truncated]", &text[..MAX])
+    let prefix = text.chars().take(MAX).collect::<String>();
+    format!("{prefix}...[truncated]")
 }
 
 #[cfg(test)]
@@ -503,13 +530,40 @@ mod tests {
         let value = serde_json::json!({
             "Authorization": "Bearer abc",
             "nested": {"sessionToken": "secret", "ok": true},
-            "headers": [{"cookie": "a=b"}]
+            "headers": [{"cookie": "a=b", "x-api-key": "secret", "proxy-authorization": "secret"}]
         });
         let redacted = sanitize_browser_output(value);
         assert_eq!(redacted["Authorization"], "[redacted]");
         assert_eq!(redacted["nested"]["sessionToken"], "[redacted]");
         assert_eq!(redacted["headers"][0]["cookie"], "[redacted]");
+        assert_eq!(redacted["headers"][0]["x-api-key"], "[redacted]");
+        assert_eq!(redacted["headers"][0]["proxy-authorization"], "[redacted]");
         assert_eq!(redacted["nested"]["ok"], true);
+    }
+
+    #[test]
+    fn tab_id_rejects_unsafe_path_segments() {
+        for value in ["../secret", "a/b", "a\\b", "tab?x=1", "tab#frag"] {
+            let err = normalized_tab_id(Some(value)).expect_err("unsafe tab id");
+            assert_eq!(err.code, "BROWSER_INVALID_INPUT");
+        }
+        assert_eq!(
+            normalized_tab_id(Some(" tab-1 "))
+                .expect("safe tab id")
+                .as_deref(),
+            Some("tab-1")
+        );
+    }
+
+    #[test]
+    fn truncate_for_message_handles_multibyte_boundaries() {
+        let text = "é".repeat(600);
+        let truncated = truncate_for_message(&text);
+        assert!(truncated.ends_with("...[truncated]"));
+        assert_eq!(
+            truncated.trim_end_matches("...[truncated]").chars().count(),
+            500
+        );
     }
 
     #[tokio::test]

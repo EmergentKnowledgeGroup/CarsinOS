@@ -4,20 +4,11 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StepProvider } from "./StepProvider";
-import type { Agent } from "../../../types";
 
 const noop = () => {};
 const asyncTrue = async () => true;
 const asyncVoid = async () => {};
 
-const execAssAgent: Agent = {
-  agent_id: "execass",
-  name: "ExecAss",
-  model_provider: "lmstudio",
-  model_id: "local-model",
-  workspace_root: ".",
-  tool_profile: "default",
-};
 
 describe("StepProvider", () => {
   let container: HTMLDivElement;
@@ -34,7 +25,7 @@ describe("StepProvider", () => {
     vi.unstubAllGlobals();
   });
 
-  it("shows the ExecAss default-name prompt before agent setup", async () => {
+  it("shows the ExecAss default-name prompt while creating a new agent", async () => {
     const root = createRoot(container);
 
     await act(async () => {
@@ -42,8 +33,8 @@ describe("StepProvider", () => {
         <StepProvider
           busy={false}
           mode="quickstart"
-          agents={[execAssAgent]}
-          selectedAgentId="execass"
+          agents={[]}
+          selectedAgentId=""
           agentIdDraft="execass"
           agentNameDraft="ExecAss"
           workspaceRootDraft="."

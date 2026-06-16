@@ -2565,7 +2565,7 @@ pub struct RuntimePinchTabConfig {
     pub base_url: String,
     #[serde(default)]
     pub token_secret_ref: Option<String>,
-    #[serde(default)]
+    #[serde(default = "default_runtime_pinchtab_allowed_domains")]
     pub allowed_domains: Vec<String>,
     #[serde(default = "default_runtime_pinchtab_timeout_ms")]
     pub timeout_ms: u64,
@@ -2589,17 +2589,21 @@ fn default_runtime_pinchtab_use_agent_sessions() -> bool {
     true
 }
 
+fn default_runtime_pinchtab_allowed_domains() -> Vec<String> {
+    vec![
+        "localhost".to_string(),
+        "127.0.0.1".to_string(),
+        "::1".to_string(),
+    ]
+}
+
 impl Default for RuntimePinchTabConfig {
     fn default() -> Self {
         Self {
             enabled: false,
             base_url: default_runtime_pinchtab_base_url(),
             token_secret_ref: None,
-            allowed_domains: vec![
-                "localhost".to_string(),
-                "127.0.0.1".to_string(),
-                "::1".to_string(),
-            ],
+            allowed_domains: default_runtime_pinchtab_allowed_domains(),
             timeout_ms: default_runtime_pinchtab_timeout_ms(),
             use_agent_sessions: default_runtime_pinchtab_use_agent_sessions(),
             default_profile: None,

@@ -67,6 +67,9 @@ function ConvertTo-ProcessQuoted([string]$Value) {
 }
 
 function ConvertTo-CmdWorkingDirectory([string]$Path) {
+  # Prefer mapped drive-letter paths for UNC working directories when available.
+  # cmd.exe handles drive-letter working directories more reliably than UNC paths,
+  # and this helper falls back to the original resolved path if no mapping exists.
   $resolvedPath = Resolve-Path -LiteralPath $Path -ErrorAction SilentlyContinue
   if ($resolvedPath) {
     $resolved = $resolvedPath.ProviderPath
@@ -98,6 +101,8 @@ function ConvertTo-MissionControlCmdPath([string]$Path) {
   $repoPrefix = $RepoRoot.TrimEnd("\") + "\"
   if ($resolved.StartsWith($repoPrefix, [StringComparison]::OrdinalIgnoreCase)) {
     $relative = $resolved.Substring($repoPrefix.Length).Replace("/", "\")
+    # cmd.exe runs with delayed expansion enabled and starts in apps/mission-control,
+    # so !CD!\..\..\ rebuilds repo-relative paths from that working directory.
     return "!CD!\..\..\$relative"
   }
   return ConvertTo-CmdWorkingDirectory $resolved

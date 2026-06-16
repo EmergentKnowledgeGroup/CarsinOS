@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::{BTreeMap, HashSet};
 use std::fs::OpenOptions;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::{Duration, Instant};
@@ -429,6 +429,7 @@ impl LocalToolRunner {
         self.ensure_network_allowed(&base_url)?;
         let client = reqwest::blocking::Client::builder()
             .timeout(Duration::from_secs(15))
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(|err| {
                 ToolError::Failed(format!("failed to build web_search client: {err}"))
@@ -450,10 +451,18 @@ impl LocalToolRunner {
             )));
         }
 
-        let payload: serde_json::Value = response
-            .json()
+        let (payload_text, payload_truncated) =
+            read_response_text_limited(response, self.max_read_bytes, "web_search")?;
+        if payload_truncated {
+            return Err(ToolError::Failed(format!(
+                "web_search response exceeded {} bytes",
+                self.max_read_bytes
+            )));
+        }
+        let payload: serde_json::Value = serde_json::from_str(&payload_text)
             .map_err(|err| ToolError::Failed(format!("web_search JSON parse failed: {err}")))?;
         let mut results = Vec::new();
+        let mut response_truncated = false;
         let abstract_text = payload
             .get("AbstractText")
             .and_then(|value| value.as_str())
@@ -494,9 +503,12 @@ impl LocalToolRunner {
                     html_response.status().as_u16()
                 )));
             }
-            let html = html_response.text().map_err(|err| {
-                ToolError::Failed(format!("web_search HTML fallback read failed: {err}"))
-            })?;
+            let (html, html_truncated) = read_response_text_limited(
+                html_response,
+                self.max_read_bytes,
+                "web_search HTML fallback",
+            )?;
+            response_truncated |= html_truncated;
             results.extend(collect_duckduckgo_html_results(&html, count));
         }
 
@@ -507,7 +519,7 @@ impl LocalToolRunner {
                 "count": count,
                 "results": results
             }),
-            truncated: false,
+            truncated: response_truncated,
         })
     }
 
@@ -527,6 +539,7 @@ impl LocalToolRunner {
 
         let client = reqwest::blocking::Client::builder()
             .timeout(Duration::from_secs(20))
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(|err| ToolError::Failed(format!("failed to build web_fetch client: {err}")))?;
         let response = client
@@ -539,9 +552,8 @@ impl LocalToolRunner {
             .get(reqwest::header::CONTENT_TYPE)
             .and_then(|value| value.to_str().ok())
             .map(|value| value.to_string());
-        let body = response
-            .text()
-            .map_err(|err| ToolError::Failed(format!("web_fetch response read failed: {err}")))?;
+        let (body, read_truncated) =
+            read_response_text_limited(response, self.max_read_bytes, "web_fetch")?;
         let (body, truncated) = truncate_text(&body, self.max_output_chars);
 
         if !status.is_success() {
@@ -560,7 +572,7 @@ impl LocalToolRunner {
                 "content_type": content_type,
                 "body": body
             }),
-            truncated,
+            truncated: read_truncated || truncated,
         })
     }
 
@@ -1071,6 +1083,23 @@ fn truncate_text(input: &str, max_chars: usize) -> (String, bool) {
     (truncated, true)
 }
 
+fn read_response_text_limited(
+    response: reqwest::blocking::Response,
+    max_bytes: usize,
+    label: &str,
+) -> Result<(String, bool), ToolError> {
+    let mut bytes = Vec::new();
+    let mut limited = response.take(max_bytes as u64 + 1);
+    limited
+        .read_to_end(&mut bytes)
+        .map_err(|err| ToolError::Failed(format!("{label} response read failed: {err}")))?;
+    let truncated = bytes.len() > max_bytes;
+    if truncated {
+        bytes.truncate(max_bytes);
+    }
+    Ok((String::from_utf8_lossy(&bytes).to_string(), truncated))
+}
+
 fn wait_with_timeout_and_kill(
     child: &mut std::process::Child,
     timeout_ms: u64,
@@ -1098,6 +1127,29 @@ mod tests {
     use std::sync::Mutex;
 
     static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    struct EnvVarGuard {
+        key: &'static str,
+        previous: Option<String>,
+    }
+
+    impl EnvVarGuard {
+        fn set(key: &'static str, value: String) -> Self {
+            let previous = std::env::var(key).ok();
+            std::env::set_var(key, value);
+            Self { key, previous }
+        }
+    }
+
+    impl Drop for EnvVarGuard {
+        fn drop(&mut self) {
+            if let Some(previous) = &self.previous {
+                std::env::set_var(self.key, previous);
+            } else {
+                std::env::remove_var(self.key);
+            }
+        }
+    }
 
     #[test]
     fn exec_runs_basic_command() {
@@ -1268,7 +1320,7 @@ mod tests {
             }));
         });
 
-        std::env::set_var("CARSINOS_WEB_SEARCH_BASE_URL", server.base_url());
+        let _base_url_guard = EnvVarGuard::set("CARSINOS_WEB_SEARCH_BASE_URL", server.base_url());
         let runner = LocalToolRunner::default();
         let result = runner
             .run(ToolRequest::WebSearch(WebSearchRequest {
@@ -1276,7 +1328,6 @@ mod tests {
                 count: Some(5),
             }))
             .expect("web_search should succeed");
-        std::env::remove_var("CARSINOS_WEB_SEARCH_BASE_URL");
 
         mock.assert();
         assert_eq!(result.tool, ToolName::WebSearch);
@@ -1300,7 +1351,7 @@ mod tests {
             }));
         });
 
-        std::env::set_var("CARSINOS_WEB_SEARCH_BASE_URL", server.base_url());
+        let _base_url_guard = EnvVarGuard::set("CARSINOS_WEB_SEARCH_BASE_URL", server.base_url());
         let runner = LocalToolRunner::default();
         let result = runner
             .run(ToolRequest::WebSearch(WebSearchRequest {
@@ -1308,7 +1359,6 @@ mod tests {
                 count: Some(5),
             }))
             .expect("web_search should trim matching quote wrapper");
-        std::env::remove_var("CARSINOS_WEB_SEARCH_BASE_URL");
 
         mock.assert();
         assert_eq!(result.output["query"], "quoted query");
@@ -1344,8 +1394,8 @@ mod tests {
             );
         });
 
-        std::env::set_var("CARSINOS_WEB_SEARCH_BASE_URL", server.base_url());
-        std::env::set_var(
+        let _base_url_guard = EnvVarGuard::set("CARSINOS_WEB_SEARCH_BASE_URL", server.base_url());
+        let _html_base_url_guard = EnvVarGuard::set(
             "CARSINOS_WEB_SEARCH_HTML_BASE_URL",
             format!("{}/html/", server.base_url()),
         );
@@ -1356,8 +1406,6 @@ mod tests {
                 count: Some(5),
             }))
             .expect("web_search should fall back to HTML results");
-        std::env::remove_var("CARSINOS_WEB_SEARCH_BASE_URL");
-        std::env::remove_var("CARSINOS_WEB_SEARCH_HTML_BASE_URL");
 
         instant.assert();
         html.assert();

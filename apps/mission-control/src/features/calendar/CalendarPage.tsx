@@ -81,7 +81,7 @@ function ExecAssHeartbeatPanel({
     kind: ExecAssHeartbeatPresetKind,
     intervalMinutes: number
   ) => {
-    if (!agent || busyKind) {
+    if (!agent || busyKind !== null) {
       return;
     }
     setBusyKind(kind);

@@ -63,7 +63,7 @@ Add a small runtime config section, defaulting safe:
 ```json
 {
   "agent_mail_auto_execution": {
-    "enabled": true,
+    "enabled": false,
     "max_recipients_per_message": 4,
     "max_thread_messages": 12,
     "max_context_chars": 12000,
@@ -72,7 +72,7 @@ Add a small runtime config section, defaulting safe:
   },
   "explicit_channel_routing": {
     "enabled": true,
-    "sticky_enabled": true,
+    "sticky_enabled": false,
     "sticky_ttl_ms": 1800000
   }
 }
@@ -258,7 +258,7 @@ Likely skill/docs files:
 
 - `docs/AGENT_MAIL_AUTOROUTE_AND_CHANNEL_ROUTING_EXECUTION_CHECKLIST.md`
 - `docs/AGENT_MAIL_AUTOROUTE_AND_CHANNEL_ROUTING_BLOCKERBOARD.md`
-- local Codex skill under `C:\Users\UltariumV3\.codex\skills` or a repo-documented template if runtime skill installation is deferred
+- local Codex skill under `${CODEX_SKILLS_DIR}` or a repo-documented template if runtime skill installation is deferred
 
 ## Test Requirements
 
@@ -312,3 +312,4 @@ Broaden to workspace tests if shared protocol/storage contracts change materiall
 - Auto-execution bypasses run lane locks, rate limits, auth roles, or provider/tool guardrails.
 - Failed API/LLM teammate replies are presented as successful teammate opinions.
 - Explicit `@agent` selects the right session but still runs the wrong model/provider defaults.
+r defaults.

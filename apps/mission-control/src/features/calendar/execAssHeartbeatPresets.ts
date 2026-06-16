@@ -75,12 +75,11 @@ export function hasExecAssHeartbeatJob(
 ): boolean {
   const preset = `execass.${kind}`;
   const presetSummary = EXECASS_HEARTBEAT_PRESETS.find((item) => item.key === kind);
-  const expectedName = presetSummary ? `ExecAss ${presetSummary.label}` : "";
   return jobs.some((job) => {
     if (!job.enabled) {
       return false;
     }
-    if (expectedName && job.name === expectedName) {
+    if (presetSummary && job.name === `ExecAss ${presetSummary.label}`) {
       return true;
     }
     if (!job.payload_json) {
