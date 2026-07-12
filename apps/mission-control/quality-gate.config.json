@@ -63,7 +63,8 @@
         {
           "id": "mc-e2e-core",
           "cwd": "apps/mission-control",
-          "command": ["npm", "run", "test:e2e:core"]
+          "command": ["npm", "run", "test:e2e:core"],
+          "timeout_sec": 600
         },
         {
           "id": "mc-build-web",
