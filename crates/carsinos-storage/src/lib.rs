@@ -93,9 +93,9 @@ fn seed_default_entities(db_path: &Path) -> Result<()> {
         .map(|path| path.display().to_string())
         .unwrap_or_else(|_| ".".to_string());
 
-    for (agent_id, name) in [("default", "Default Agent")] {
-        tx.execute(
-            r#"
+    let (agent_id, name) = ("default", "Default Agent");
+    tx.execute(
+        r#"
         INSERT OR IGNORE INTO agents
           (
             agent_id,
@@ -112,20 +112,20 @@ fn seed_default_entities(db_path: &Path) -> Result<()> {
         VALUES
           (?1, ?2, ?3, ?4, ?5, ?6, NULL, NULL, ?7, ?8)
         "#,
-            params![
-                agent_id,
-                name,
-                workspace_root,
-                "unconfigured",
-                "unconfigured",
-                "default",
-                now,
-                now
-            ],
-        )
-        .with_context(|| format!("failed to seed {agent_id} agent"))?;
-        tx.execute(
-            r#"
+        params![
+            agent_id,
+            name,
+            workspace_root,
+            "unconfigured",
+            "unconfigured",
+            "default",
+            now,
+            now
+        ],
+    )
+    .with_context(|| format!("failed to seed {agent_id} agent"))?;
+    tx.execute(
+        r#"
         UPDATE agents
            SET workspace_root = ?1,
                updated_at = ?2
@@ -133,10 +133,9 @@ fn seed_default_entities(db_path: &Path) -> Result<()> {
            AND archived_at IS NULL
            AND workspace_root != ?1
         "#,
-            params![workspace_root, now, agent_id],
-        )
-        .with_context(|| format!("failed to refresh {agent_id} agent workspace"))?;
-    }
+        params![workspace_root, now, agent_id],
+    )
+    .with_context(|| format!("failed to refresh {agent_id} agent workspace"))?;
 
     seed_default_boards(&tx, now)?;
     tx.commit()

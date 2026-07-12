@@ -13567,7 +13567,7 @@ fn ensure_default_memory_md_source(state: &AppState) -> AnyResult<()> {
         "default memory.md source configured"
     );
 
-    let sync_items = sync_memory_sources_internal(state, &[source.clone()]);
+    let sync_items = sync_memory_sources_internal(state, std::slice::from_ref(&source));
     let failed = sync_items
         .iter()
         .filter(|item| item.status == "failed")
@@ -16391,7 +16391,7 @@ fn parse_explicit_agent_route_token(text: &str) -> Option<(String, String)> {
     let first = trimmed.split_whitespace().next()?;
     let raw = first.strip_prefix('@')?;
     let candidate = raw
-        .trim_end_matches(|ch: char| matches!(ch, ':' | ',' | '.' | ';'))
+        .trim_end_matches([':', ',', '.', ';'])
         .to_ascii_lowercase();
     if candidate.is_empty()
         || candidate.len() > 64
@@ -16504,7 +16504,7 @@ fn load_sticky_channel_agent_route(
     if record.expires_at_ms <= Utc::now().timestamp_millis() {
         return Ok(None);
     }
-    Ok(state.storage.get_agent(&record.agent_id)?)
+    state.storage.get_agent(&record.agent_id)
 }
 
 fn resolve_explicit_or_sticky_channel_agent_route(
@@ -20949,7 +20949,7 @@ fn assistant_desk_item_from_run(
     now_ms: i64,
 ) -> AnyResult<AssistantDeskWorkItem> {
     let status = assistant_desk_status_for_run(run, approval);
-    let bucket = assistant_desk_bucket_for_status(&status, run, now_ms);
+    let bucket = assistant_desk_bucket_for_status(status, run, now_ms);
     let sort_ms = approval
         .map(|approval| approval.requested_at)
         .or(run.ended_at)
@@ -21014,7 +21014,7 @@ fn assistant_desk_item_from_run(
         title,
         owner_label: agent_name,
         task_label: assistant_desk_task_label(run, approval),
-        current_action: assistant_desk_current_action(&status, approval),
+        current_action: assistant_desk_current_action(status, approval),
         last_event_at: utc_from_ms(sort_ms).to_rfc3339(),
         last_event_at_ms: sort_ms,
         source_refs,
@@ -21076,7 +21076,7 @@ fn assistant_desk_status_for_run(
 }
 
 fn assistant_desk_bucket_for_run(run: &RunRecord, now_ms: i64) -> &'static str {
-    assistant_desk_bucket_for_status(&assistant_desk_status_for_run(run, None), run, now_ms)
+    assistant_desk_bucket_for_status(assistant_desk_status_for_run(run, None), run, now_ms)
 }
 
 fn assistant_desk_bucket_for_status(status: &str, run: &RunRecord, now_ms: i64) -> &'static str {
@@ -45911,7 +45911,13 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             second_approval_json["rate_limit_scope"],
             "approval.principal"
         );
-        assert_eq!(second_approval_json["retry_after_seconds"], 60);
+        let retry_after_seconds = second_approval_json["retry_after_seconds"]
+            .as_i64()
+            .expect("retry_after_seconds");
+        assert!(
+            (55..=60).contains(&retry_after_seconds),
+            "retry_after_seconds should reflect the remaining 60s window, got {retry_after_seconds}"
+        );
     }
 
     #[tokio::test]
@@ -45951,7 +45957,13 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         let second_json = parse_json(second).await;
         assert_eq!(second_json["error_code"], "RATE_LIMITED");
         assert_eq!(second_json["rate_limit_scope"], "auth");
-        assert_eq!(second_json["retry_after_seconds"], 60);
+        let retry_after_seconds = second_json["retry_after_seconds"]
+            .as_i64()
+            .expect("retry_after_seconds");
+        assert!(
+            (55..=60).contains(&retry_after_seconds),
+            "retry_after_seconds should reflect the remaining 60s window, got {retry_after_seconds}"
+        );
     }
 
     #[tokio::test]

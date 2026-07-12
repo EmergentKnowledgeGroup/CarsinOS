@@ -2543,18 +2543,10 @@ pub struct RuntimeExtensionsConfig {
     pub browser: RuntimeBrowserConfig,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RuntimeBrowserConfig {
     #[serde(default)]
     pub pinchtab: RuntimePinchTabConfig,
-}
-
-impl Default for RuntimeBrowserConfig {
-    fn default() -> Self {
-        Self {
-            pinchtab: RuntimePinchTabConfig::default(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

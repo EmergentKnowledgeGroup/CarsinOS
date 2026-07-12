@@ -13,10 +13,10 @@ import { AgentPicker } from "../../ui/AgentPicker";
 import { Avatar } from "../../ui/Avatar";
 import { Modal } from "../../ui/Modal";
 import { Pagination } from "../../ui/Pagination";
+import { ScrollRegion } from "../../ui/ScrollRegion";
 import { usePagination } from "../../ui/usePagination";
 
 const ROOMS_PAGE_SIZE = 8;
-const ROOM_MESSAGES_PAGE_SIZE = 10;
 
 const REACTION_EMOJI = [
   { code: ":+1:", display: "\uD83D\uDC4D" },
@@ -86,7 +86,6 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
   const [releaseLeaseBusy, setReleaseLeaseBusy] = useState(false);
   const [busyActions, setBusyActions] = useState<Set<string>>(new Set());
   const [roomsPage, setRoomsPage] = useState(1);
-  const [roomMsgsPage, setRoomMsgsPage] = useState(1);
   const emojiRef = useRef<HTMLDivElement>(null);
   const busyActionRef = useRef<Set<string>>(new Set());
 
@@ -103,9 +102,7 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
   }, [emojiPickerOpen]);
 
   const roomsPagination = usePagination(props.roomThreads, ROOMS_PAGE_SIZE);
-  const roomMsgsPagination = usePagination(props.roomMessages, ROOM_MESSAGES_PAGE_SIZE);
   const visibleRooms = roomsPagination.getPage(roomsPage);
-  const visibleRoomMsgs = roomMsgsPagination.getPage(roomMsgsPage);
   const hasActiveFilters =
     props.mailboxFilter !== "all" ||
     props.mailPrincipalOverride.trim().length > 0 ||
@@ -204,7 +201,6 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
                 props.selectedRoomThreadId === thread.thread_id && "active"
               )}
               onClick={() => {
-                setRoomMsgsPage(1);
                 props.onSelectRoomThread(thread.thread_id);
               }}
             >
@@ -244,9 +240,8 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
             Room Settings
           </button>
         </header>
-        <div className="mc-mail-message-stream">
-          <Pagination currentPage={roomMsgsPage} totalPages={roomMsgsPagination.totalPages} onPageChange={setRoomMsgsPage} />
-          {visibleRoomMsgs.map((message) => (
+        <ScrollRegion aria-label="Room message history" className="mc-mail-message-stream">
+          {props.roomMessages.map((message) => (
             <article key={message.message_id} className="mc-mail-message">
               <div className="mc-mail-message-head">
                 <div>
@@ -297,10 +292,10 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
               ) : null}
             </article>
           ))}
-          {visibleRoomMsgs.length === 0 ? (
+          {props.roomMessages.length === 0 ? (
             <div className="mc-empty-drawer">No messages in this room yet.</div>
           ) : null}
-        </div>
+        </ScrollRegion>
         {/* ── Inline compose (3 controls at rest) ── */}
         <div className="mc-mail-compose mc-mail-compose-inline">
           <textarea
@@ -477,7 +472,7 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
           </div>
         </section>
         <section className="mc-modal-section">
-          <h3>Active Leases</h3>
+          <h3>Active file locks</h3>
           <ul className="mc-mail-lease-list">
             {props.leases.map((lease) => (
               <li key={lease.lease_id}>
@@ -494,7 +489,7 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
                 </button>
               </li>
             ))}
-            {props.leases.length === 0 ? <li>No active leases.</li> : null}
+            {props.leases.length === 0 ? <li>No active file locks.</li> : null}
           </ul>
         </section>
       </Modal>
@@ -503,7 +498,7 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
       <Modal
         open={releaseLeaseId !== null}
         onClose={() => setReleaseLeaseId(null)}
-        title="Release Lease?"
+        title="Release file lock?"
         subtitle="This will release the advisory file lock immediately."
         footer={
           <>
@@ -522,7 +517,7 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
         }
       >
         <p>
-          Are you sure you want to release the lease on{" "}
+          Are you sure you want to release the file lock on{" "}
           <strong>{props.leases.find((l) => l.lease_id === releaseLeaseId)?.glob_pattern ?? "this file"}</strong>?
           Other agents may begin writing to these paths.
         </p>

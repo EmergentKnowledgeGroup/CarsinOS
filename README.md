@@ -1,12 +1,14 @@
-# carsinOS
+# CarsinOS
 
-Ground-up Rust AI gateway inspired by OpenClaw.
+Local-first AI operations for running assistants, approvals, schedules, channels, memory, and tools from one auditable control plane.
 
-## Current scope (Milestone 0)
+> **Pre-release:** CarsinOS is under active hardening. Use it locally, review the security boundary, and do not expose the gateway publicly without the documented protections.
+
+## What it includes
 
 - Rust workspace with gateway, GUI, CLI, channels, storage, providers, tools
 - Token-authenticated API + WebSocket event stream
-- OAuth/auth profile controls (OpenAI PKCE + Anthropic setup-token ingest + profile ordering)
+- Auth profile controls (OpenAI PKCE, direct Anthropic API keys, and profile ordering)
 - Memory notes CRUD + local embeddings retrieval + bounded prompt injection
 - SQLite initialization/migrations + structured logging + benchmark suite
 
@@ -73,6 +75,8 @@ The bundle is created under `target/dist/carsinOS.app` by default. Launcher bina
 
 ## Security automation
 
+Please report suspected vulnerabilities privately as described in [`SECURITY.md`](SECURITY.md). CarsinOS is licensed under the [`MIT License`](LICENSE).
+
 Per-PR hard gate run:
 
 ```bash
@@ -103,8 +107,8 @@ Security artifacts are written under `runtime/security/reports/`.
 ## Git/PR review flow
 
 - Follow `docs/GIT_PR_WORKFLOW.md`.
-- PR workflows are manual-only. Local validation is the authoritative pre-merge gate.
-- Optional/manual workflows still exist for ad hoc runs:
+- Pull requests to `main` run the security and Mission Control web quality gates automatically.
+- Manual workflow dispatch remains available for ad hoc and desktop-release runs:
   - `.github/workflows/pr-gate.yml`
   - `.github/workflows/nightly-security.yml`
 
