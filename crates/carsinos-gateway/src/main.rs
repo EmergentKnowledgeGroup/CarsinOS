@@ -13260,7 +13260,7 @@ async fn update_note(
     let title = request
         .title
         .map(|value| value.trim().to_string())
-        .and_then(|value| if value.is_empty() { None } else { Some(value) });
+        .filter(|value| !value.is_empty());
     let body = request.body.map(|value| value.trim().to_string());
     if body.as_ref().is_some_and(|value| value.is_empty()) {
         return Err(api_error(
@@ -20093,13 +20093,15 @@ fn scan_bootstrap_preset_payload(
                 scan_bootstrap_preset_payload(item)?;
             }
         }
-        serde_json::Value::String(text) => {
-            if text.starts_with("Bearer ") || text.starts_with("sk-") || text.starts_with("sess-") {
-                return Err(api_error(
-                    StatusCode::BAD_REQUEST,
-                    "bootstrap preset import contains secret-shaped values",
-                ));
-            }
+        serde_json::Value::String(text)
+            if text.starts_with("Bearer ")
+                || text.starts_with("sk-")
+                || text.starts_with("sess-") =>
+        {
+            return Err(api_error(
+                StatusCode::BAD_REQUEST,
+                "bootstrap preset import contains secret-shaped values",
+            ));
         }
         _ => {}
     }
@@ -20173,7 +20175,7 @@ async fn strategy_summary(
         .filter(|task| task.status == "blocked")
         .filter_map(|task| task_projection(task, &agents_by_id, &projects_by_id, &goals_by_id))
         .collect::<Vec<_>>();
-    blocked_tasks_all.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
+    blocked_tasks_all.sort_by_key(|item| std::cmp::Reverse(item.updated_at));
 
     let mut stale_tasks_all = tasks
         .iter()
@@ -20181,7 +20183,7 @@ async fn strategy_summary(
         .filter(|task| now_ms.saturating_sub(task.updated_at) > 72 * 60 * 60_000)
         .filter_map(|task| task_projection(task, &agents_by_id, &projects_by_id, &goals_by_id))
         .collect::<Vec<_>>();
-    stale_tasks_all.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
+    stale_tasks_all.sort_by_key(|item| std::cmp::Reverse(item.updated_at));
 
     let mut runtime_by_task_id = HashMap::new();
     let mut run_to_task = HashMap::new();
@@ -20392,7 +20394,7 @@ async fn strategy_summary(
             requested_at: approval.requested_at,
         });
     }
-    critical_approval_backlog.sort_by(|left, right| right.requested_at.cmp(&left.requested_at));
+    critical_approval_backlog.sort_by_key(|item| std::cmp::Reverse(item.requested_at));
 
     Ok(Json(StrategySummaryResponse {
         generated_at_ms: now_ms,
