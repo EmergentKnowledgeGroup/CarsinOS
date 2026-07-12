@@ -1902,7 +1902,7 @@ impl GuiApp {
                     for card_item in cards {
                         egui::Frame::group(ui.style())
                             .fill(Color32::from_rgb(26, 31, 46))
-                            .stroke(egui::Stroke::new(1.0, Color32::from_rgb(112, 188, 255)))
+                            .stroke(egui::Stroke::new(1.0_f32, Color32::from_rgb(112, 188, 255)))
                             .show(ui, |ui| {
                                 ui.label(RichText::new(&card_item.title).strong());
                                 if let Some(description) = card_item.description.as_ref() {
@@ -2030,7 +2030,7 @@ impl GuiApp {
                 for rule in &automation_rules {
                     egui::Frame::group(ui.style())
                         .fill(Color32::from_rgb(19, 25, 40))
-                        .stroke(egui::Stroke::new(1.0, Color32::from_rgb(112, 188, 255)))
+                        .stroke(egui::Stroke::new(1.0_f32, Color32::from_rgb(112, 188, 255)))
                         .show(ui, |ui| {
                             ui.label(RichText::new(&rule.name).strong());
                             ui.small(format!("job_id: {}", rule.job_id));
@@ -2086,7 +2086,7 @@ impl GuiApp {
                     for card_item in cards {
                         egui::Frame::group(ui.style())
                             .fill(Color32::from_rgb(28, 24, 42))
-                            .stroke(egui::Stroke::new(1.0, Color32::from_rgb(255, 214, 109)))
+                            .stroke(egui::Stroke::new(1.0_f32, Color32::from_rgb(255, 214, 109)))
                             .show(ui, |ui| {
                                 ui.label(RichText::new(&card_item.title).strong());
                                 ui.small(format!(
@@ -2458,7 +2458,7 @@ impl GuiApp {
                             egui::Frame::group(ui.style())
                                 .fill(Color32::from_rgb(21, 24, 34))
                                 .stroke(egui::Stroke::new(
-                                    1.0,
+                                    1.0_f32,
                                     if policy.enabled {
                                         Color32::from_rgb(118, 255, 168)
                                     } else {
@@ -2906,7 +2906,7 @@ impl GuiApp {
                             let role_color = role_color(&message.role);
                             egui::Frame::group(ui.style())
                                 .fill(Color32::from_rgb(20, 26, 34))
-                                .stroke(egui::Stroke::new(1.0, role_color))
+                                .stroke(egui::Stroke::new(1.0_f32, role_color))
                                 .show(ui, |ui| {
                                     ui.horizontal_wrapped(|ui| {
                                         ui.colored_label(
@@ -2988,7 +2988,7 @@ impl GuiApp {
                     for approval in &self.approvals {
                         egui::Frame::group(ui.style())
                             .fill(Color32::from_rgb(31, 24, 28))
-                            .stroke(egui::Stroke::new(1.0, Color32::from_rgb(255, 188, 104)))
+                            .stroke(egui::Stroke::new(1.0_f32, Color32::from_rgb(255, 188, 104)))
                             .show(ui, |ui| {
                                 ui.label(
                                     RichText::new(format!(
@@ -3036,7 +3036,7 @@ impl GuiApp {
                             egui::Frame::group(ui.style())
                                 .fill(Color32::from_rgb(21, 24, 34))
                                 .stroke(egui::Stroke::new(
-                                    1.0,
+                                    1.0_f32,
                                     if profile.enabled {
                                         Color32::from_rgb(118, 255, 168)
                                     } else {
@@ -3269,7 +3269,7 @@ fn apply_frontend_design_theme(ctx: &egui::Context) {
     visuals.widgets.active.bg_fill = Color32::from_rgb(52, 63, 86);
     visuals.widgets.open.bg_fill = Color32::from_rgb(46, 56, 74);
     visuals.selection.bg_fill = Color32::from_rgb(255, 214, 109);
-    visuals.selection.stroke = egui::Stroke::new(1.0, Color32::from_rgb(18, 22, 32));
+    visuals.selection.stroke = egui::Stroke::new(1.0_f32, Color32::from_rgb(18, 22, 32));
     style.visuals = visuals;
     style.spacing.item_spacing = egui::vec2(10.0, 10.0);
     style.spacing.button_padding = egui::vec2(12.0, 8.0);
@@ -3280,7 +3280,7 @@ fn apply_frontend_design_theme(ctx: &egui::Context) {
 fn card(ui: &mut egui::Ui, title: &str, add_contents: impl FnOnce(&mut egui::Ui)) {
     egui::Frame::group(ui.style())
         .fill(Color32::from_rgb(18, 22, 32))
-        .stroke(egui::Stroke::new(1.0, Color32::from_rgb(255, 214, 109)))
+        .stroke(egui::Stroke::new(1.0_f32, Color32::from_rgb(255, 214, 109)))
         .show(ui, |ui| {
             ui.label(
                 RichText::new(title)

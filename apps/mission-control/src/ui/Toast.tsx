@@ -32,9 +32,19 @@ function ToastEntry({ toast, onDismiss }: { toast: ToastItem; onDismiss: (id: st
   }, [toast.id, duration, onDismiss]);
 
   return (
-    <div className={clsx("mc-toast", `mc-toast-${toast.tone}`)}>
+    <div
+      className={clsx("mc-toast", `mc-toast-${toast.tone}`)}
+      role={toast.tone === "info" ? "status" : "alert"}
+      aria-live={toast.tone === "info" ? "polite" : "assertive"}
+      aria-atomic="true"
+    >
       <span className="mc-toast-message">{toast.message}</span>
-      <button type="button" className="mc-toast-dismiss" onClick={() => onDismiss(toast.id)}>
+      <button
+        type="button"
+        className="mc-toast-dismiss"
+        onClick={() => onDismiss(toast.id)}
+        aria-label="Dismiss notification"
+      >
         <X size={14} />
       </button>
       {duration > 0 ? (
@@ -53,7 +63,7 @@ export function ToastStack({ toasts, onDismiss }: ToastStackProps) {
   if (visible.length === 0) return null;
 
   return (
-    <div className="mc-toast-stack" role="status" aria-live="polite">
+    <div className="mc-toast-stack" aria-label="Notifications">
       {visible.map((toast) => (
         <ToastEntry key={toast.id} toast={toast} onDismiss={onDismiss} />
       ))}

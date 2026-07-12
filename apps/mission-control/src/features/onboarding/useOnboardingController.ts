@@ -1424,6 +1424,7 @@ export function useOnboardingController(options: UseOnboardingControllerOptions)
     anthropicDisplayName,
     anthropicSetupToken,
     clearError,
+    cleanupDraftProviderProfile,
     loadBaseline,
     localApiBaseUrl,
     localApiKey,

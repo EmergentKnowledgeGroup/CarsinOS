@@ -146,12 +146,12 @@ const HELP_COPY: Record<HelpTab, HelpCopy> = {
     ],
   },
   memory: {
-    title: "Agent memory inspector (advanced)",
+    title: "See what your agent remembers (advanced)",
     summary:
-      "See what your agent remembers. Each agent has its own separate memory. This is a specialist debugging tool.",
+      "See what your agent remembers. Each agent has its own separate memory. This is a specialist tool for checking or fixing memory.",
     examples: [
       "Pick an agent from the dropdown to see its stored memory cards.",
-      "Browse the knowledge graph to see how facts are connected.",
+      "Browse connected facts to see how pieces of memory relate.",
       "Select a recent interaction and click 'Why' to understand the agent's reasoning.",
     ],
   },

@@ -152,12 +152,17 @@ function FactList({
   return (
     <>
       <dl className="mc-memory-fact-list">
-        {facts.map(([key, value]) => (
-          <div key={key} className="mc-memory-fact-row">
-            <dt>{key.replaceAll("_", " ")}</dt>
-            <dd>{expanded ? value : value.length > 120 ? `${value.slice(0, 120)}\u2026` : value}</dd>
-          </div>
-        ))}
+        {facts.map(([key, value]) => {
+          const label = key
+            .replaceAll("_", " ")
+            .replace(/^principal\b/, "acting as");
+          return (
+            <div key={key} className="mc-memory-fact-row">
+              <dt>{label}</dt>
+              <dd>{expanded ? value : value.length > 120 ? `${value.slice(0, 120)}\u2026` : value}</dd>
+            </div>
+          );
+        })}
       </dl>
       {(hasMore || facts.some(([, v]) => v.length > 120)) ? (
         <button type="button" className="ghost mc-memory-show-more" onClick={() => setExpanded(!expanded)}>
@@ -185,13 +190,13 @@ const MEMORY_MODE_OPTIONS = [
   { value: "inherit_runtime", label: "Use runtime default" },
   { value: "disabled", label: "Memory off" },
   { value: "local_only", label: "Local only" },
-  { value: "mno_only", label: "MNO only" },
-  { value: "mno_with_local_sources", label: "MNO + local" },
+  { value: "mno_only", label: "Memory only" },
+  { value: "mno_with_local_sources", label: "Memory + local" },
 ] as const;
 
 const RUNTIME_MEMORY_MODE_OPTIONS = [
-  { value: "mno_primary", label: "MNO first" },
-  { value: "local_augment", label: "MNO + runtime local support" },
+  { value: "mno_primary", label: "Memory first" },
+  { value: "local_augment", label: "Memory + runtime local support" },
   { value: "local_fallback_only", label: "Local fallback only" },
 ] as const;
 
@@ -202,9 +207,9 @@ function memoryModeLabel(mode: string): string {
     case "local_only":
       return "Local only";
     case "mno_only":
-      return "MNO only";
+      return "Memory only";
     case "mno_with_local_sources":
-      return "MNO + local";
+      return "Memory + local";
     case "inherit_runtime":
     default:
       return "Uses runtime default";
@@ -229,12 +234,12 @@ function toneForMemoryMode(mode: string): "up" | "warning" | "checking" | "" {
 function runtimeMemoryModeLabel(mode: string): string {
   switch (mode) {
     case "mno_primary":
-      return "MNO first";
+      return "Memory first";
     case "local_fallback_only":
       return "Local fallback only";
     case "local_augment":
     default:
-      return "MNO + runtime local support";
+      return "Memory + runtime local support";
   }
 }
 
@@ -259,7 +264,7 @@ function toneForLaneRuntimeStatus(
 function laneRuntimeStatusLabel(status: string | null | undefined): string {
   switch (status) {
     case "available":
-      return "MNO ready";
+      return "Memory ready";
     case "degraded":
       return "Needs attention";
     case "not_started":
@@ -269,7 +274,7 @@ function laneRuntimeStatusLabel(status: string | null | undefined): string {
     case "memory_off":
       return "Memory off";
     case "unconfigured":
-      return "MNO unconfigured";
+      return "Memory unconfigured";
     default:
       return "Status unknown";
   }
@@ -472,7 +477,7 @@ export function MemoryPage({ controller, onOpenAssistant }: MemoryPageProps) {
   ).length;
   const summaryDetail =
     managedLaneCount > 0
-      ? `${availableLaneCount}/${managedLaneCount} MNO-backed lane${
+      ? `${availableLaneCount}/${managedLaneCount} memory-backed lane${
           managedLaneCount === 1 ? "" : "s"
         } ready.`
       : `${bindingStatus} memory binding`;
@@ -487,8 +492,8 @@ export function MemoryPage({ controller, onOpenAssistant }: MemoryPageProps) {
   const runtimeDefaultsModeLabel = runtimeMemoryModeLabel(runtimeModeValue);
   const runtimeDefaultsHelperText =
     runtimeModeValue === "local_fallback_only"
-      ? "Use this only when MNO is unavailable for this deployment. These files become the fallback source for local-memory sync."
-      : "MNO stays the long-term memory truth. These files are support material you can sync into local memory for every lane.";
+      ? "Use this only when the shared memory service is unavailable for this deployment. These files become the fallback source for local-memory sync."
+      : "Shared memory stays the long-term memory truth. These files are support material you can sync into local memory for every lane.";
   const canSyncRuntimeFiles = !runtimeDefaultsDirty && runtimeDefaultSources.length > 0;
   const sidebarLaneLabel =
     controller.laneStatuses.length > 0
@@ -696,7 +701,7 @@ export function MemoryPage({ controller, onOpenAssistant }: MemoryPageProps) {
             </div>
             <p className="mc-memory-lane-note">
               Lane local files are synced into the local-memory store. Save first, then sync, and
-              carsinOS will use that refreshed local context alongside MNO when the lane mode
+              carsinOS will use that refreshed local context alongside shared memory when the lane mode
               allows it.
             </p>
             {controller.routingLoading ? (
@@ -764,7 +769,7 @@ export function MemoryPage({ controller, onOpenAssistant }: MemoryPageProps) {
                   const runtimeDetail =
                     laneStatus?.detail ??
                     (controller.laneStatusLoading
-                      ? "Checking whether this lane is using MNO, local memory, or is still waiting for first use."
+                      ? "Checking whether this lane is using shared memory, local memory, or is still waiting for first use."
                       : "Lane runtime status has not loaded yet.");
                   return (
                     <article
@@ -872,7 +877,7 @@ export function MemoryPage({ controller, onOpenAssistant }: MemoryPageProps) {
                         />
                       </label>
                       <p className="mc-memory-lane-note">
-                        MNO stays the long-term memory truth here. Local files act as support
+                        Shared memory stays the long-term memory truth here. Local files act as support
                         material when the mode includes local memory. Leave this blank to inherit
                         the runtime defaults above.
                       </p>

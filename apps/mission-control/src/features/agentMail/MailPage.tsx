@@ -12,12 +12,12 @@ import { formatBytes } from "../../utils/files";
 import { AgentPicker } from "../../ui/AgentPicker";
 import { Avatar } from "../../ui/Avatar";
 import { Pagination } from "../../ui/Pagination";
+import { ScrollRegion } from "../../ui/ScrollRegion";
 import { Tabs } from "../../ui/Tabs";
 import { Modal } from "../../ui/Modal";
 import { usePagination } from "../../ui/usePagination";
 
 const THREADS_PAGE_SIZE = 8;
-const MESSAGES_PAGE_SIZE = 10;
 const LEASES_PAGE_SIZE = 6;
 
 const TTL_PRESETS = [
@@ -95,7 +95,6 @@ export function MailPage(props: MailPageProps) {
   const [createLeaseOpen, setCreateLeaseOpen] = useState(false);
   const [useCustomPrincipal, setUseCustomPrincipal] = useState(false);
   const [threadsPage, setThreadsPage] = useState(1);
-  const [messagesPage, setMessagesPage] = useState(1);
   const [leasesPage, setLeasesPage] = useState(1);
   const [sending, setSending] = useState(false);
   const [createThreadBusy, setCreateThreadBusy] = useState(false);
@@ -119,11 +118,9 @@ export function MailPage(props: MailPageProps) {
   };
 
   const threadsPagination = usePagination(props.mailThreads, THREADS_PAGE_SIZE);
-  const messagesPagination = usePagination(props.mailMessages, MESSAGES_PAGE_SIZE);
   const leasesPagination = usePagination(props.leases, LEASES_PAGE_SIZE);
 
   const visibleThreads = threadsPagination.getPage(threadsPage);
-  const visibleMessages = messagesPagination.getPage(messagesPage);
   const visibleLeases = leasesPagination.getPage(leasesPage);
 
   const runBusyAction = (key: string, fn: () => Promise<unknown>) => {
@@ -231,7 +228,7 @@ export function MailPage(props: MailPageProps) {
       <Tabs
         tabs={[
           { id: "messages", label: "Messages", count: props.mailThreads.length },
-          { id: "leases", label: "Leases", count: props.leases.length },
+          { id: "leases", label: "File locks", count: props.leases.length },
         ]}
         activeTab={subTab}
         onTabChange={(id) => setSubTab(id as "messages" | "leases")}
@@ -265,7 +262,7 @@ export function MailPage(props: MailPageProps) {
                 </select>
               </label>
               <label>
-                Principal
+                Acting as
                 <select
                   value={principalSelectValue}
                   onChange={(event) => {
@@ -297,7 +294,7 @@ export function MailPage(props: MailPageProps) {
                       setThreadsPage(1);
                       props.onMailPrincipalOverrideChange(event.target.value);
                     }}
-                    placeholder="custom principal id"
+                    placeholder="custom acting-as id"
                   />
                 ) : null}
               </label>
@@ -323,7 +320,6 @@ export function MailPage(props: MailPageProps) {
                     props.selectedMailThreadId === thread.thread_id && "active"
                   )}
                   onClick={() => {
-                    setMessagesPage(1);
                     props.onSelectMailThread(thread.thread_id);
                   }}
                 >
@@ -374,9 +370,8 @@ export function MailPage(props: MailPageProps) {
                 </button>
               </div>
             </header>
-            <div className="mc-mail-message-stream">
-              <Pagination currentPage={messagesPage} totalPages={messagesPagination.totalPages} onPageChange={setMessagesPage} />
-              {visibleMessages.map((message) => {
+            <ScrollRegion aria-label="Direct message history" className="mc-mail-message-stream">
+              {props.mailMessages.map((message) => {
                 const ackKey = `ack:${message.message_id}`;
                 return (
                 <article key={message.message_id} className="mc-mail-message">
@@ -446,10 +441,10 @@ export function MailPage(props: MailPageProps) {
                 </article>
                 );
               })}
-              {visibleMessages.length === 0 ? (
+              {props.mailMessages.length === 0 ? (
                 <div className="mc-empty-drawer">No messages in this thread yet.</div>
               ) : null}
-            </div>
+            </ScrollRegion>
             {/* ── Inline compose (3 controls at rest) ── */}
             <div className="mc-mail-compose mc-mail-compose-inline">
               <textarea
@@ -514,15 +509,15 @@ export function MailPage(props: MailPageProps) {
           </article>
         </div>
       ) : (
-        /* ── Leases tab ── */
+        /* ── File locks tab ── */
         <div className="mc-lease-page">
           <article className="mc-surface">
             <header className="mc-surface-header">
-              <h2>Advisory File Leases</h2>
-              <p>{props.leases.length} active lease(s)</p>
+              <h2>Advisory file locks</h2>
+              <p>{props.leases.length} active file lock(s)</p>
             </header>
             <button type="button" onClick={() => setCreateLeaseOpen(true)}>
-              + New Lease
+              + New file lock
             </button>
             <ul className="mc-mail-lease-list">
               {visibleLeases.map((lease) => (
@@ -543,7 +538,7 @@ export function MailPage(props: MailPageProps) {
                   </button>
                 </li>
               ))}
-              {visibleLeases.length === 0 ? <li>No active leases.</li> : null}
+              {visibleLeases.length === 0 ? <li>No active file locks.</li> : null}
             </ul>
             <Pagination currentPage={leasesPage} totalPages={leasesPagination.totalPages} onPageChange={setLeasesPage} />
           </article>
@@ -588,7 +583,7 @@ export function MailPage(props: MailPageProps) {
       <Modal
         open={releaseLeaseId !== null}
         onClose={() => setReleaseLeaseId(null)}
-        title="Release Lease?"
+        title="Release file lock?"
         subtitle="This will release the advisory file lock immediately."
         footer={
           <>
@@ -607,17 +602,17 @@ export function MailPage(props: MailPageProps) {
         }
       >
         <p>
-          Are you sure you want to release the lease on{" "}
+          Are you sure you want to release the file lock on{" "}
           <strong>{props.leases.find((l) => l.lease_id === releaseLeaseId)?.glob_pattern ?? "this file"}</strong>?
           Other agents may begin writing to these paths.
         </p>
       </Modal>
 
-      {/* ── New Lease modal ── */}
+      {/* ── New file lock modal ── */}
       <Modal
         open={createLeaseOpen}
         onClose={() => setCreateLeaseOpen(false)}
-        title="Reserve File Lease"
+        title="Reserve file lock"
         subtitle="Create an advisory file lock for agent coordination."
         footer={
           <>
@@ -629,13 +624,13 @@ export function MailPage(props: MailPageProps) {
               disabled={createLeaseBusy}
               onClick={() => void handleCreateLease()}
             >
-              {createLeaseBusy ? "Reserving..." : "Reserve Lease"}
+              {createLeaseBusy ? "Reserving..." : "Reserve file lock"}
             </button>
           </>
         }
       >
         <label className="mc-modal-field">
-          Holder Principal
+          Acting as
           <select
             value={props.leaseHolderPrincipal}
             onChange={(event) => props.onLeaseHolderPrincipalChange(event.target.value)}
@@ -669,7 +664,7 @@ export function MailPage(props: MailPageProps) {
           ) : null}
         </label>
         <label className="mc-modal-field">
-          TTL
+          Lock duration
           <div className="mc-ttl-presets">
             {TTL_PRESETS.map((preset) => (
               <button

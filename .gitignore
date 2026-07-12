@@ -1,6 +1,10 @@
 /target
 /.cargo/.shared-cargo-targets/
 /.shared-cargo-targets/
+/.cargo-home/
+/.npm-cache/
+/.tmp/
+/playwright-browsers/
 .state/
 .state*/
 runtime/security/reports/
@@ -9,6 +13,12 @@ runtime/checkpoints/context_checkpoint_*.json
 runtime/checkpoints/context_checkpoint_*.md
 CHECKPOINT.md
 runtime/
+!vendors/mno/engine/runtime/
+!vendors/mno/engine/runtime/**/*.py
+!vendors/mno/engine/runtime/ui/
+!vendors/mno/engine/runtime/ui/**
+vendors/mno/engine/runtime/**/__pycache__/
+vendors/mno/engine/runtime/**/*.pyc
 *.db
 *.db-shm
 *.db-wal
@@ -18,6 +28,7 @@ runtime/
 .claude/
 missioncontrolSS/
 cavemanfriendlyauditfindings.md
+docs/claude_audit.md
 
 # Internal planning artifacts kept local by default.
 docs/CARSINOS_ASSISTANT_DESK_BLOCKERBOARD.md

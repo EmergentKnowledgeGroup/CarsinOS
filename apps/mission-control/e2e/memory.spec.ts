@@ -23,6 +23,7 @@ test.describe("mission-control memory lane integration", () => {
     await clickAdvancedNav(page, "memory");
     await expect(page.getByTestId("memory-page")).toBeVisible();
     await page.getByRole("button", { name: "Library", exact: true }).click();
+    await page.getByTestId("memory-agent-select").selectOption("agent-root");
     await expect(
       page.getByText("This agent doesn't have memory set up yet.")
     ).toBeVisible();

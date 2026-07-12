@@ -13260,7 +13260,7 @@ async fn update_note(
     let title = request
         .title
         .map(|value| value.trim().to_string())
-        .and_then(|value| if value.is_empty() { None } else { Some(value) });
+        .filter(|value| !value.is_empty());
     let body = request.body.map(|value| value.trim().to_string());
     if body.as_ref().is_some_and(|value| value.is_empty()) {
         return Err(api_error(
@@ -13567,7 +13567,7 @@ fn ensure_default_memory_md_source(state: &AppState) -> AnyResult<()> {
         "default memory.md source configured"
     );
 
-    let sync_items = sync_memory_sources_internal(state, &[source.clone()]);
+    let sync_items = sync_memory_sources_internal(state, std::slice::from_ref(&source));
     let failed = sync_items
         .iter()
         .filter(|item| item.status == "failed")
@@ -16391,7 +16391,7 @@ fn parse_explicit_agent_route_token(text: &str) -> Option<(String, String)> {
     let first = trimmed.split_whitespace().next()?;
     let raw = first.strip_prefix('@')?;
     let candidate = raw
-        .trim_end_matches(|ch: char| matches!(ch, ':' | ',' | '.' | ';'))
+        .trim_end_matches([':', ',', '.', ';'])
         .to_ascii_lowercase();
     if candidate.is_empty()
         || candidate.len() > 64
@@ -16504,7 +16504,7 @@ fn load_sticky_channel_agent_route(
     if record.expires_at_ms <= Utc::now().timestamp_millis() {
         return Ok(None);
     }
-    Ok(state.storage.get_agent(&record.agent_id)?)
+    state.storage.get_agent(&record.agent_id)
 }
 
 fn resolve_explicit_or_sticky_channel_agent_route(
@@ -20093,13 +20093,15 @@ fn scan_bootstrap_preset_payload(
                 scan_bootstrap_preset_payload(item)?;
             }
         }
-        serde_json::Value::String(text) => {
-            if text.starts_with("Bearer ") || text.starts_with("sk-") || text.starts_with("sess-") {
-                return Err(api_error(
-                    StatusCode::BAD_REQUEST,
-                    "bootstrap preset import contains secret-shaped values",
-                ));
-            }
+        serde_json::Value::String(text)
+            if text.starts_with("Bearer ")
+                || text.starts_with("sk-")
+                || text.starts_with("sess-") =>
+        {
+            return Err(api_error(
+                StatusCode::BAD_REQUEST,
+                "bootstrap preset import contains secret-shaped values",
+            ));
         }
         _ => {}
     }
@@ -20173,7 +20175,7 @@ async fn strategy_summary(
         .filter(|task| task.status == "blocked")
         .filter_map(|task| task_projection(task, &agents_by_id, &projects_by_id, &goals_by_id))
         .collect::<Vec<_>>();
-    blocked_tasks_all.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
+    blocked_tasks_all.sort_by_key(|item| std::cmp::Reverse(item.updated_at));
 
     let mut stale_tasks_all = tasks
         .iter()
@@ -20181,7 +20183,7 @@ async fn strategy_summary(
         .filter(|task| now_ms.saturating_sub(task.updated_at) > 72 * 60 * 60_000)
         .filter_map(|task| task_projection(task, &agents_by_id, &projects_by_id, &goals_by_id))
         .collect::<Vec<_>>();
-    stale_tasks_all.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
+    stale_tasks_all.sort_by_key(|item| std::cmp::Reverse(item.updated_at));
 
     let mut runtime_by_task_id = HashMap::new();
     let mut run_to_task = HashMap::new();
@@ -20392,7 +20394,7 @@ async fn strategy_summary(
             requested_at: approval.requested_at,
         });
     }
-    critical_approval_backlog.sort_by(|left, right| right.requested_at.cmp(&left.requested_at));
+    critical_approval_backlog.sort_by_key(|item| std::cmp::Reverse(item.requested_at));
 
     Ok(Json(StrategySummaryResponse {
         generated_at_ms: now_ms,
@@ -20949,7 +20951,7 @@ fn assistant_desk_item_from_run(
     now_ms: i64,
 ) -> AnyResult<AssistantDeskWorkItem> {
     let status = assistant_desk_status_for_run(run, approval);
-    let bucket = assistant_desk_bucket_for_status(&status, run, now_ms);
+    let bucket = assistant_desk_bucket_for_status(status, run, now_ms);
     let sort_ms = approval
         .map(|approval| approval.requested_at)
         .or(run.ended_at)
@@ -21014,7 +21016,7 @@ fn assistant_desk_item_from_run(
         title,
         owner_label: agent_name,
         task_label: assistant_desk_task_label(run, approval),
-        current_action: assistant_desk_current_action(&status, approval),
+        current_action: assistant_desk_current_action(status, approval),
         last_event_at: utc_from_ms(sort_ms).to_rfc3339(),
         last_event_at_ms: sort_ms,
         source_refs,
@@ -21076,7 +21078,7 @@ fn assistant_desk_status_for_run(
 }
 
 fn assistant_desk_bucket_for_run(run: &RunRecord, now_ms: i64) -> &'static str {
-    assistant_desk_bucket_for_status(&assistant_desk_status_for_run(run, None), run, now_ms)
+    assistant_desk_bucket_for_status(assistant_desk_status_for_run(run, None), run, now_ms)
 }
 
 fn assistant_desk_bucket_for_status(status: &str, run: &RunRecord, now_ms: i64) -> &'static str {
@@ -45911,7 +45913,13 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
             second_approval_json["rate_limit_scope"],
             "approval.principal"
         );
-        assert_eq!(second_approval_json["retry_after_seconds"], 60);
+        let retry_after_seconds = second_approval_json["retry_after_seconds"]
+            .as_i64()
+            .expect("retry_after_seconds");
+        assert!(
+            (55..=60).contains(&retry_after_seconds),
+            "retry_after_seconds should reflect the remaining 60s window, got {retry_after_seconds}"
+        );
     }
 
     #[tokio::test]
@@ -45951,7 +45959,13 @@ tool.channel_reaction discord:c1/m42|:thumbsup:
         let second_json = parse_json(second).await;
         assert_eq!(second_json["error_code"], "RATE_LIMITED");
         assert_eq!(second_json["rate_limit_scope"], "auth");
-        assert_eq!(second_json["retry_after_seconds"], 60);
+        let retry_after_seconds = second_json["retry_after_seconds"]
+            .as_i64()
+            .expect("retry_after_seconds");
+        assert!(
+            (55..=60).contains(&retry_after_seconds),
+            "retry_after_seconds should reflect the remaining 60s window, got {retry_after_seconds}"
+        );
     }
 
     #[tokio::test]

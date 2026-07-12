@@ -12,6 +12,7 @@ import type {
 import { Chip } from "../../ui/Chip";
 import { Tabs } from "../../ui/Tabs";
 import { Pagination } from "../../ui/Pagination";
+import { Modal } from "../../ui/Modal";
 import { usePagination } from "../../ui/usePagination";
 import { formatRelative } from "../../utils/datetime";
 import { RunbookLinkPanel } from "../runbook/RunbookLinkPanel";
@@ -322,11 +323,147 @@ function jobColor(name: string): string {
 
 /* ── Week Grid ──────────────────────────────────────────────────────────── */
 
+function CalendarJobDetailsModal({
+  job,
+  task,
+  taskContext,
+  runbookSummary,
+  onClose,
+  onRunNow,
+  onOpenStrategyTask,
+  onOpenJobRunbook,
+}: {
+  job: MissionControlCalendarJob;
+  task: TaskResponse | null;
+  taskContext: StrategyTaskContextSnapshot | null;
+  runbookSummary: RunbookSummaryItemResponse | null;
+  onClose: () => void;
+  onRunNow: (jobId: string) => Promise<void>;
+  onOpenStrategyTask?: (taskId: string) => boolean;
+  onOpenJobRunbook?: (jobId: string) => boolean;
+}) {
+  const [running, setRunning] = useState(false);
+  const runningRef = useRef(false);
+  const [runError, setRunError] = useState<string | null>(null);
+
+  const runJob = async () => {
+    if (runningRef.current) {
+      return;
+    }
+    runningRef.current = true;
+    setRunning(true);
+    setRunError(null);
+    try {
+      await onRunNow(job.job_id);
+      onClose();
+    } catch (error: unknown) {
+      runningRef.current = false;
+      setRunning(false);
+      setRunError(String(error));
+    }
+  };
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={job.name}
+      subtitle="Review the scheduled job. Nothing runs until you choose Run now."
+      footer={
+        <>
+          <button type="button" className="ghost" onClick={onClose} disabled={running}>
+            Close
+          </button>
+          <button
+            type="button"
+            className="mc-primary-btn"
+            onClick={() => void runJob()}
+            disabled={running}
+            aria-label="Run job now"
+          >
+            <Play size={14} />
+            {running ? "Running…" : "Run now"}
+          </button>
+        </>
+      }
+    >
+      <div className="mc-cal-job-details">
+        <dl>
+          <div>
+            <dt>Agent</dt>
+            <dd>{job.agent_id}</dd>
+          </div>
+          <div>
+            <dt>Schedule</dt>
+            <dd>
+              {job.schedule_kind}
+              {job.interval_seconds !== null ? ` / ${formatInterval(job.interval_seconds)}` : ""}
+              {job.cron_expr ? ` / ${job.cron_expr}` : ""}
+            </dd>
+          </div>
+          <div>
+            <dt>Next run</dt>
+            <dd>{formatRelative(job.next_run_at)}</dd>
+          </div>
+          <div>
+            <dt>Status</dt>
+            <dd>{job.enabled ? "Enabled" : "Paused"}</dd>
+          </div>
+          <div>
+            <dt>Lane</dt>
+            <dd>{job.lane}</dd>
+          </div>
+          <div>
+            <dt>Primary action</dt>
+            <dd>{job.primary_action}</dd>
+          </div>
+        </dl>
+        {job.last_error ? <p role="status">Last error: {job.last_error}</p> : null}
+        {runError ? <p role="alert">Run failed: {runError}</p> : null}
+        {task ? (
+          <StrategyTaskContextPanel
+            task={task}
+            context={taskContext}
+            onOpen={
+              onOpenStrategyTask
+                ? () => {
+                    if (onOpenStrategyTask(task.task_id)) {
+                      onClose();
+                    }
+                  }
+                : undefined
+            }
+            openLabel="Open task"
+            emptyMessage={null}
+          />
+        ) : null}
+        {runbookSummary ? (
+          <RunbookLinkPanel
+            summary={runbookSummary}
+            onOpen={
+              onOpenJobRunbook
+                ? () => {
+                    if (onOpenJobRunbook(job.job_id)) {
+                      onClose();
+                    }
+                  }
+                : undefined
+            }
+            emptyMessage={null}
+          />
+        ) : null}
+      </div>
+    </Modal>
+  );
+}
+
 function WeekGrid({
   calendarWeek,
   onRunNow,
   strategyReady,
   taskByJobId,
+  describeStrategyTask,
+  onOpenStrategyTask,
   runbookEnabled,
   runbookByJobId,
   onOpenJobRunbook,
@@ -335,10 +472,13 @@ function WeekGrid({
   onRunNow: (jobId: string) => Promise<void>;
   strategyReady: boolean;
   taskByJobId: Map<string, TaskResponse>;
+  describeStrategyTask: (taskId: string) => StrategyTaskContextSnapshot | null;
+  onOpenStrategyTask: (taskId: string) => boolean;
   runbookEnabled: boolean;
   runbookByJobId: Map<string, RunbookSummaryItemResponse>;
   onOpenJobRunbook: (jobId: string) => boolean;
 }) {
+  const [selectedJob, setSelectedJob] = useState<MissionControlCalendarJob | null>(null);
   const { daySlots, alwaysRunning, nextUp } = useMemo(() => {
     if (!calendarWeek)
       return { daySlots: [] as MissionControlCalendarJob[][], alwaysRunning: [] as MissionControlCalendarJob[], nextUp: [] as MissionControlCalendarJob[] };
@@ -403,8 +543,8 @@ function WeekGrid({
                 key={job.job_id}
                 type="button"
                 className="mc-cal-always-chip"
-                onClick={() => void onRunNow(job.job_id)}
-                title={`Run ${job.name} now`}
+                onClick={() => setSelectedJob(job)}
+                title={`View ${job.name} details`}
                 style={{ "--job-color": jobColor(job.name) } as CSSProperties}
               >
                 <span className="mc-cal-job-dot" />
@@ -451,8 +591,8 @@ function WeekGrid({
                   key={job.job_id}
                     type="button"
                     className="mc-cal-job-block"
-                    onClick={() => void onRunNow(job.job_id)}
-                    title={`${job.name} — ${job.agent_id}\nClick to run now`}
+                    onClick={() => setSelectedJob(job)}
+                    title={`${job.name} — ${job.agent_id}\nView details`}
                     style={{ "--job-color": jobColor(job.name) } as CSSProperties}
                 >
                   <span className="mc-cal-job-dot" />
@@ -508,6 +648,25 @@ function WeekGrid({
             ))}
           </div>
         </div>
+      ) : null}
+
+      {selectedJob ? (
+        <CalendarJobDetailsModal
+          job={selectedJob}
+          task={strategyReady ? taskByJobId.get(selectedJob.job_id) ?? null : null}
+          taskContext={
+            strategyReady && taskByJobId.has(selectedJob.job_id)
+              ? describeStrategyTask(taskByJobId.get(selectedJob.job_id)!.task_id)
+              : null
+          }
+          runbookSummary={
+            runbookEnabled ? runbookByJobId.get(selectedJob.job_id) ?? null : null
+          }
+          onClose={() => setSelectedJob(null)}
+          onRunNow={onRunNow}
+          onOpenStrategyTask={onOpenStrategyTask}
+          onOpenJobRunbook={onOpenJobRunbook}
+        />
       ) : null}
     </div>
   );
@@ -972,6 +1131,8 @@ export function CalendarPage(props: CalendarPageProps) {
           onRunNow={props.onRunCalendarJobNow}
           strategyReady={props.strategyReady}
           taskByJobId={props.taskByJobId}
+          describeStrategyTask={props.describeStrategyTask}
+          onOpenStrategyTask={props.onOpenStrategyTask}
           runbookEnabled={props.runbookEnabled}
           runbookByJobId={props.runbookByJobId}
           onOpenJobRunbook={props.onOpenJobRunbook}

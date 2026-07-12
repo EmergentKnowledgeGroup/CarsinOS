@@ -1,5 +1,4 @@
 import {
-  useEffect,
   useMemo,
   useState,
   type CSSProperties,
@@ -105,11 +104,11 @@ export function BoardsPage({
   const [newCardOwnerKind, setNewCardOwnerKind] = useState("unassigned");
   const [newCardOwnerAgentId, setNewCardOwnerAgentId] = useState("");
   const [newCardOwnerHumanId, setNewCardOwnerHumanId] = useState("");
-  const [moveTargetColumnId, setMoveTargetColumnId] = useState("");
-
-  useEffect(() => {
-    setMoveTargetColumnId(selectedCard?.column_id ?? "");
-  }, [selectedCard?.card_id, selectedCard?.column_id]);
+  const [moveTarget, setMoveTarget] = useState({ cardId: "", columnId: "" });
+  const moveTargetColumnId =
+    moveTarget.cardId === selectedCard?.card_id
+      ? moveTarget.columnId
+      : selectedCard?.column_id ?? "";
 
   const knownTags = useMemo(() => {
     const tags = new Set<string>();
@@ -461,7 +460,12 @@ export function BoardsPage({
                   <select
                     disabled={editorBusy}
                     value={moveTargetColumnId}
-                    onChange={(event) => setMoveTargetColumnId(event.target.value)}
+                    onChange={(event) =>
+                      setMoveTarget({
+                        cardId: selectedCard?.card_id ?? "",
+                        columnId: event.target.value,
+                      })
+                    }
                   >
                     {columns.map((column) => (
                       <option key={column.column_id} value={column.column_id}>
