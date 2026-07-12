@@ -4197,7 +4197,7 @@ button.danger:hover {
 .mc-cal-heartbeat-header h2 {
   margin: 0;
   color: var(--ink-primary);
-  font-size: var(--type-heading);
+  font-size: var(--type-title);
   letter-spacing: 0;
 }
 
@@ -4655,6 +4655,7 @@ button.danger:hover {
   overflow: auto;
   white-space: pre-wrap;
   overflow-wrap: break-word;
+  word-break: break-word;
   padding: var(--space-2);
   border-radius: var(--radius-xs);
   background: var(--bg);
