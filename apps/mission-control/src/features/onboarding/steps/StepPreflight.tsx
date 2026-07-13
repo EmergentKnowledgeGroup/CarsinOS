@@ -26,7 +26,7 @@ export function StepPreflight(props: StepPreflightProps) {
           <button type="button" className="ghost" onClick={props.onBack}>
             Back
           </button>
-          <button type="button" disabled={props.preflight.running} onClick={() => void props.onNext()}>
+          <button type="button" className="primary" disabled={props.preflight.running} onClick={() => void props.onNext()}>
             Continue
           </button>
         </>

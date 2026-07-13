@@ -30,7 +30,7 @@ export function StepConnect(props: StepConnectProps) {
           <button type="button" className="ghost" onClick={props.onBack}>
             Back
           </button>
-          <button type="button" disabled={props.busy} onClick={() => void props.onNext()}>
+          <button type="button" className="primary" disabled={props.busy} onClick={() => void props.onNext()}>
             {props.busy ? "Connecting..." : "Save connection + Continue"}
           </button>
         </>

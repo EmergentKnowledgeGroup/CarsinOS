@@ -452,7 +452,7 @@ export function AssistantChatPage(props: AssistantChatPageProps) {
                 }
               }}
             />
-            <button type="button" onClick={() => void c.send()} disabled={c.busy || !c.draft.trim()}>
+            <button type="button" className="primary" onClick={() => void c.send()} disabled={c.busy || !c.draft.trim()}>
               {c.busy ? "Running..." : "Send"}
             </button>
             <kbd className="mc-shortcut-hint">{"\u2318\u21A9"}</kbd>

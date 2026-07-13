@@ -17,6 +17,7 @@ import { ScrollRegion } from "../../ui/ScrollRegion";
 import { usePagination } from "../../ui/usePagination";
 
 const ROOMS_PAGE_SIZE = 8;
+const CUSTOM_PRINCIPAL_VALUE = "__custom__";
 
 const REACTION_EMOJI = [
   { code: ":+1:", display: "\uD83D\uDC4D" },
@@ -81,6 +82,9 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
   const [releaseLeaseId, setReleaseLeaseId] = useState<string | null>(null);
   const [chatOptionsOpen, setChatOptionsOpen] = useState(false);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const [mobileListOpen, setMobileListOpen] = useState(true);
+  const [useCustomPrincipal, setUseCustomPrincipal] = useState(false);
+  const [reserveWorkspaceOpen, setReserveWorkspaceOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [createRoomBusy, setCreateRoomBusy] = useState(false);
   const [releaseLeaseBusy, setReleaseLeaseBusy] = useState(false);
@@ -107,6 +111,11 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
     props.mailboxFilter !== "all" ||
     props.mailPrincipalOverride.trim().length > 0 ||
     props.mailSearch.trim().length > 0;
+  const principalIsKnown = props.mailPrincipalOverride === "" ||
+    props.agents.some((agent) => agent.agent_id === props.mailPrincipalOverride);
+  const principalSelectValue = useCustomPrincipal || !principalIsKnown
+    ? CUSTOM_PRINCIPAL_VALUE
+    : props.mailPrincipalOverride;
 
   const runBusyAction = (key: string, fn: () => Promise<unknown>) => {
     if (busyActionRef.current.has(key)) {
@@ -175,6 +184,7 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
   };
 
   const clearFilters = () => {
+    setUseCustomPrincipal(false);
     setRoomsPage(1);
     props.onMailboxFilterChange("all");
     props.onMailPrincipalOverrideChange("");
@@ -182,7 +192,7 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
   };
 
   return (
-    <section className="mc-mail-grid mc-mail-grid-2col">
+    <section className={clsx("mc-mail-grid mc-mail-grid-2col", mobileListOpen ? "mc-mobile-list-open" : "mc-mobile-detail-open")}>
       {/* ── Room sidebar ── */}
       <article className="mc-surface mc-mail-sidebar">
         <header className="mc-surface-header">
@@ -191,6 +201,50 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
             + New Room
           </button>
         </header>
+        <div className="mc-mail-filters mc-chatroom-filters">
+          <label>
+            Mailbox
+            <select value={props.mailboxFilter} onChange={(event) => {
+              const next = event.target.value;
+              if (next === "all" || next === "inbox" || next === "outbox") {
+                setRoomsPage(1);
+                props.onMailboxFilterChange(next);
+              }
+            }}>
+              <option value="inbox">Inbox</option><option value="outbox">Outbox</option><option value="all">All</option>
+            </select>
+          </label>
+          <label>
+            Acting as
+            <select value={principalSelectValue} onChange={(event) => {
+              const next = event.target.value;
+              if (next === CUSTOM_PRINCIPAL_VALUE) {
+                setUseCustomPrincipal(true);
+                if (principalIsKnown) props.onMailPrincipalOverrideChange("");
+              } else {
+                setUseCustomPrincipal(false);
+                setRoomsPage(1);
+                props.onMailPrincipalOverrideChange(next);
+              }
+            }}>
+              <option value="">Default identity</option>
+              {props.agents.map((agent) => <option key={agent.agent_id} value={agent.agent_id}>{agent.name || agent.agent_id}</option>)}
+              <option value={CUSTOM_PRINCIPAL_VALUE}>Use another ID…</option>
+            </select>
+            {useCustomPrincipal || !principalIsKnown ? <input value={props.mailPrincipalOverride} onChange={(event) => {
+              setRoomsPage(1);
+              props.onMailPrincipalOverrideChange(event.target.value);
+            }} placeholder="Identity ID" /> : null}
+          </label>
+          <label>
+            Search rooms
+            <input value={props.mailSearch} onChange={(event) => {
+              setRoomsPage(1);
+              props.onMailSearchChange(event.target.value);
+            }} placeholder="Name or message" />
+          </label>
+          {hasActiveFilters ? <button type="button" className="ghost" onClick={clearFilters}>Clear room filters</button> : null}
+        </div>
         <div className="mc-mail-thread-list">
           {visibleRooms.map((thread) => (
             <button
@@ -201,6 +255,7 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
                 props.selectedRoomThreadId === thread.thread_id && "active"
               )}
               onClick={() => {
+                setMobileListOpen(false);
                 props.onSelectRoomThread(thread.thread_id);
               }}
             >
@@ -231,6 +286,9 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
       {/* ── Conversation + compose ── */}
       <article className="mc-surface mc-mail-thread-view">
         <header className="mc-surface-header">
+          <button type="button" className="mc-mobile-back-button ghost" onClick={() => setMobileListOpen(true)}>
+            Back to rooms
+          </button>
           <h2>{props.roomThreadDetail?.thread.subject ?? "Select a room"}</h2>
           <button
             type="button"
@@ -345,6 +403,7 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
             </button>
             <button
               type="button"
+              className="primary"
               onClick={() => void handleSendRoomMessage()}
               disabled={!props.selectedRoomThreadId || sending}
             >
@@ -403,7 +462,7 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
             <button type="button" className="ghost" onClick={() => setCreateRoomOpen(false)}>
               Cancel
             </button>
-            <button type="button" disabled={createRoomBusy} onClick={() => void handleCreateRoom()}>
+            <button type="button" className="primary" disabled={createRoomBusy} onClick={() => void handleCreateRoom()}>
               {createRoomBusy ? "Creating..." : "Create Room"}
             </button>
           </>
@@ -462,12 +521,10 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
             <button
               type="button"
               disabled={!hasSelectedRoom || isBusyAction("mod:reserve-workspace")}
-              onClick={() =>
-                runBusyAction("mod:reserve-workspace", () => props.onReserveSelectedRoomWorkspace())
-              }
+              onClick={() => setReserveWorkspaceOpen(true)}
               title="Claim an exclusive file-lock workspace for this room"
             >
-              {isBusyAction("mod:reserve-workspace") ? "Working\u2026" : "Reserve Workspace"}
+              Reserve Workspace
             </button>
           </div>
         </section>
@@ -492,6 +549,28 @@ export function ChatroomsPage(props: ChatroomsPageProps) {
             {props.leases.length === 0 ? <li>No active file locks.</li> : null}
           </ul>
         </section>
+      </Modal>
+
+      <Modal
+        open={reserveWorkspaceOpen}
+        onClose={() => setReserveWorkspaceOpen(false)}
+        title="Reserve this room's workspace?"
+        subtitle="This coordinates agent edits; it does not change filesystem permissions."
+        footer={
+          <>
+            <button type="button" className="ghost" onClick={() => setReserveWorkspaceOpen(false)}>Cancel</button>
+            <button type="button" className="primary" disabled={isBusyAction("mod:reserve-workspace")} onClick={() => {
+              setReserveWorkspaceOpen(false);
+              runBusyAction("mod:reserve-workspace", () => props.onReserveSelectedRoomWorkspace());
+            }}>Reserve for 15 minutes</button>
+          </>
+        }
+      >
+        <p>CarsinOS will create an <strong>exclusive advisory file lock</strong> for this room.</p>
+        <dl className="mc-plain-facts">
+          <div><dt>Files covered</dt><dd><code>chatrooms/{props.selectedRoomThreadId ?? "room"}/**</code></dd></div>
+          <div><dt>Lock duration</dt><dd>15 minutes</dd></div>
+        </dl>
       </Modal>
 
       {/* ── Release lease confirmation ── */}

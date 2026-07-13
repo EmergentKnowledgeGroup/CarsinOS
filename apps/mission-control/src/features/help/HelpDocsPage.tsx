@@ -305,16 +305,15 @@ function MailDocs({ onOpenTab }: { onOpenTab: (t: MissionControlTab) => void }) 
   return (
     <>
       <p>
-        Mail is for private, 1-on-1 conversations between you and a single agent. It works like email threads — you send a message, the agent can read it, and you can attach files.
+        Mail is for direct message threads. A thread can include more than one recipient, so a small handoff can stay together.
       </p>
       <OpenTabButton tab="mail" label="Mail" onOpenTab={onOpenTab} />
 
       <h4>How it works</h4>
       <ol>
         <li>Click <strong>New Thread</strong>.</li>
-        <li>Pick a <strong>mailbox</strong> (usually "operator") and a <strong>principal</strong> (the agent you're writing to).</li>
-        <li>Type a subject and your message.</li>
-        <li>Hit <strong>Send</strong>.</li>
+        <li>Enter a subject and choose one or more <strong>Participants</strong>.</li>
+        <li>Open the thread, write your message, and click <strong>Send</strong>.</li>
       </ol>
 
       <h4>Key features</h4>
@@ -322,7 +321,7 @@ function MailDocs({ onOpenTab }: { onOpenTab: (t: MissionControlTab) => void }) 
         <li><strong>Attachments</strong> — Upload files in the compose area. The agent can download and read them.</li>
         <li><strong>Acknowledge</strong> — Mark a message as "read" so you know what you've reviewed.</li>
         <li><strong>Summarize</strong> — Click "Summarize" on a thread to generate a quick summary note.</li>
-        <li><strong>Leases</strong> — The Leases tab shows file locks. If an agent has a file checked out exclusively, other agents can't modify it until the lease expires or is released.</li>
+        <li><strong>File locks</strong> — The File locks tab shows shared and exclusive advisory locks. Release one when the work is done.</li>
       </ul>
 
       <Tip>
@@ -331,7 +330,7 @@ function MailDocs({ onOpenTab }: { onOpenTab: (t: MissionControlTab) => void }) 
 
       <h4>Filtering</h4>
       <p>
-        Use the filter bar above the thread list to search by mailbox, principal, or keyword. Filters narrow the visible thread list.
+        Use <strong>Mailbox</strong>, <strong>Acting as</strong>, and <strong>Search</strong> above the thread list. Clear the filters to see every direct thread again.
       </p>
     </>
   );
@@ -359,13 +358,13 @@ function RoomsDocs({ onOpenTab }: { onOpenTab: (t: MissionControlTab) => void })
         <li><strong>React with emoji</strong> — Click the reaction button on any message to add one of 12 emoji reactions.</li>
         <li><strong>Attach files</strong> — Toggle the attachment option in the compose area to upload files.</li>
         <li><strong>Acknowledge messages</strong> — Mark messages as read. "Acknowledge All" clears unread state for the whole room.</li>
-        <li><strong>Room Settings</strong> — Click the settings icon to manage participants, view active leases, or perform moderation actions.</li>
+        <li><strong>Room Settings</strong> — Review participants, acknowledge unread messages, reserve a 15-minute advisory workspace lock, or release active file locks.</li>
       </ul>
 
       <h4>Rooms vs. Mail</h4>
       <ul>
-        <li><strong>Mail</strong> — Private 1-on-1 threads. Only you and one agent.</li>
-        <li><strong>Rooms</strong> — Group conversations. Multiple participants see everything.</li>
+        <li><strong>Mail</strong> — Direct threads that can include multiple recipients.</li>
+        <li><strong>Rooms</strong> — Group conversations with shared context and room settings.</li>
       </ul>
 
       <Tip>
@@ -810,7 +809,7 @@ export function HelpDocsPage(props: HelpDocsPageProps) {
   const tocGroups = [
     { label: null, entries: TOC.filter((e) => e.tier === "intro") },
     { label: "Core", entries: TOC.filter((e) => e.tier === "core") },
-    { label: "Advanced", entries: TOC.filter((e) => e.tier === "advanced") },
+    { label: "Tools", entries: TOC.filter((e) => e.tier === "advanced") },
     { label: null, entries: TOC.filter((e) => e.tier === "outro") },
   ];
 
@@ -835,6 +834,7 @@ export function HelpDocsPage(props: HelpDocsPageProps) {
                   key={tocEntry.id}
                   type="button"
                   className={`mc-docs-toc-item ${pageIndex === idx ? "active" : ""}`}
+                  aria-current={pageIndex === idx ? "page" : undefined}
                   onClick={() => goTo(idx)}
                 >
                   <span className="mc-docs-toc-icon">{SECTION_ICON[tocEntry.id]}</span>

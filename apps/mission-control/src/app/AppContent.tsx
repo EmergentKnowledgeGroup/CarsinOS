@@ -431,12 +431,13 @@ export function AppContent(props: AppContentProps) {
             }, 0);
           }}
           style={{
-            bottom: 8,
+            top: 8,
             fontSize: 10,
+            minHeight: 28,
             opacity: 0.2,
             padding: "2px 6px",
             position: "fixed",
-            right: 8,
+            left: "50%",
             zIndex: 9999,
           }}
         >

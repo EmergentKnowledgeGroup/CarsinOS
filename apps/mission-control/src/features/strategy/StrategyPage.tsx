@@ -1196,7 +1196,7 @@ export function StrategyPage({
                 </button>
               ) : null}
               {taskDirty ? <Chip label="Unsaved draft" tone="warning" /> : null}
-              <button type="button" onClick={() => void saveTask()}>
+              <button type="button" className="primary" onClick={() => void saveTask()}>
                 {controller.mutating ? "Saving..." : taskMode === "create" ? "Create Task" : "Save Task"}
               </button>
             </div>
@@ -1654,7 +1654,7 @@ export function StrategyPage({
             >
               Cancel
             </button>
-            <button type="button" onClick={() => void saveGoal()}>
+            <button type="button" className="primary" onClick={() => void saveGoal()}>
               Save Goal
             </button>
           </>
@@ -1767,7 +1767,7 @@ export function StrategyPage({
             >
               Cancel
             </button>
-            <button type="button" onClick={() => void saveProject()}>
+            <button type="button" className="primary" onClick={() => void saveProject()}>
               Save Project
             </button>
           </>

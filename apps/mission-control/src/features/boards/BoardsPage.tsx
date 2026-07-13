@@ -250,7 +250,7 @@ export function BoardsPage({
               ))}
             </select>
           </label>
-          <button type="button" onClick={handleOpenCreateModal}>+ New Card</button>
+          <button type="button" className="primary" onClick={handleOpenCreateModal}>+ New Card</button>
         </div>
         <div className="mc-board-stats">
           <span>Cards: {totalCards}</span>
@@ -325,7 +325,7 @@ export function BoardsPage({
             <button type="button" disabled={editorBusy} onClick={() => void onRunCard()}>
               {editorBusyAction === "run" ? "Running..." : "Run Card"}
             </button>
-            <button type="button" disabled={editorBusy} onClick={() => void onSaveCardDraft()}>
+            <button type="button" className="primary" disabled={editorBusy} onClick={() => void onSaveCardDraft()}>
               {editorBusyAction === "save" ? "Saving..." : "Save Card"}
             </button>
           </>
@@ -593,7 +593,7 @@ export function BoardsPage({
             <button type="button" className="ghost" onClick={() => setCreateModalOpen(false)}>
               Cancel
             </button>
-            <button type="button" disabled={!canCreateCard} onClick={() => void handleSubmitCreate()}>
+            <button type="button" className="primary" disabled={!canCreateCard} onClick={() => void handleSubmitCreate()}>
               Create Card
             </button>
           </>

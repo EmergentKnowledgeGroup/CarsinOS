@@ -94,6 +94,7 @@ export function FocusPage(props: FocusPageProps) {
   const [focusPage, setFocusPage] = useState(1);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [busyItems, setBusyItems] = useState<Set<string>>(new Set());
+  const [actionErrors, setActionErrors] = useState<Map<string, string>>(new Map());
   const busyItemsRef = useRef<Set<string>>(new Set());
   const focusPagination = usePagination(props.focusItems, FOCUS_PAGE_SIZE);
   const visibleFocusItems = focusPagination.getPage(focusPage);
@@ -106,10 +107,19 @@ export function FocusPage(props: FocusPageProps) {
     if (busyItemsRef.current.has(itemId)) {
       return;
     }
+    setActionErrors((current) => {
+      if (!current.has(itemId)) return current;
+      const next = new Map(current);
+      next.delete(itemId);
+      return next;
+    });
     busyItemsRef.current.add(itemId);
     setBusyItems(new Set(busyItemsRef.current));
     void fn()
-      .catch(() => undefined)
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        setActionErrors((current) => new Map(current).set(itemId, message));
+      })
       .finally(() => {
         busyItemsRef.current.delete(itemId);
         setBusyItems(new Set(busyItemsRef.current));
@@ -151,6 +161,7 @@ export function FocusPage(props: FocusPageProps) {
               const payloadTaskId = String(item.action_payload.task_id ?? "").trim();
               const provider = String(item.action_payload.provider ?? "").trim();
               const isBusy = busyItems.has(item.item_id);
+              const actionError = actionErrors.get(item.item_id);
               const isExpanded = expandedItems.has(item.item_id);
               const contextEntries = extractApprovalContext(item.action_payload);
               const hasContext = contextEntries.length > 0;
@@ -297,6 +308,11 @@ export function FocusPage(props: FocusPageProps) {
                       </button>
                     ) : null}
                   </InlineActions>
+                  {actionError ? (
+                    <p className="mc-focus-action-error" role="alert">
+                      Action failed: {actionError}
+                    </p>
+                  ) : null}
                 </article>
               );
             })}
@@ -326,6 +342,7 @@ export function FocusPage(props: FocusPageProps) {
             {props.channelStatuses.map((item) => {
               const reconnectKey = `status-channel:${item.provider}`;
               const reconnectBusy = busyItems.has(reconnectKey);
+              const reconnectError = actionErrors.get(reconnectKey);
               return (
               <article key={item.provider} className="mc-channel-card">
                 <div className="mc-channel-card-header">
@@ -346,6 +363,11 @@ export function FocusPage(props: FocusPageProps) {
                 >
                   {reconnectBusy ? "Working..." : "Reconnect"}
                 </button>
+                {reconnectError ? (
+                  <p className="mc-focus-action-error" role="alert">
+                    Action failed: {reconnectError}
+                  </p>
+                ) : null}
               </article>
               );
             })}

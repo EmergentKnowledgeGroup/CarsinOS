@@ -214,7 +214,8 @@ export function CockpitPage(props: CockpitPageProps) {
     );
     const expectedRows = Math.max(4, Math.ceil(visibleWidgets.length / 5) * 4);
     if (bottomEdge > expectedRows + 2) {
-      onAutoFitCockpitLayout();
+      const frame = window.requestAnimationFrame(onAutoFitCockpitLayout);
+      return () => window.cancelAnimationFrame(frame);
     }
   }, [editMode, onAutoFitCockpitLayout, visibleWidgets]);
 

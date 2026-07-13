@@ -14,7 +14,7 @@ export function StepMode(props: StepModeProps) {
       title="Choose Setup Mode"
       subtitle="Quickstart keeps decisions minimal. Manual exposes advanced fields."
       actions={
-        <button type="button" onClick={() => void props.onNext()}>
+        <button type="button" className="primary" onClick={() => void props.onNext()}>
           Continue
         </button>
       }
