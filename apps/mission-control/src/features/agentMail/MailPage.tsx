@@ -92,6 +92,7 @@ export function MailPage(props: MailPageProps) {
   const [createThreadOpen, setCreateThreadOpen] = useState(false);
   const [releaseLeaseId, setReleaseLeaseId] = useState<string | null>(null);
   const [composeOptionsOpen, setComposeOptionsOpen] = useState(false);
+  const [mobileListOpen, setMobileListOpen] = useState(true);
   const [createLeaseOpen, setCreateLeaseOpen] = useState(false);
   const [useCustomPrincipal, setUseCustomPrincipal] = useState(false);
   const [threadsPage, setThreadsPage] = useState(1);
@@ -235,7 +236,7 @@ export function MailPage(props: MailPageProps) {
       />
 
       {subTab === "messages" ? (
-        <div className="mc-mail-grid mc-mail-grid-2col">
+        <div className={clsx("mc-mail-grid mc-mail-grid-2col", mobileListOpen ? "mc-mobile-list-open" : "mc-mobile-detail-open")}>
           {/* ── Thread sidebar ── */}
           <article className="mc-surface mc-mail-sidebar">
             <header className="mc-surface-header">
@@ -320,6 +321,7 @@ export function MailPage(props: MailPageProps) {
                     props.selectedMailThreadId === thread.thread_id && "active"
                   )}
                   onClick={() => {
+                    setMobileListOpen(false);
                     props.onSelectMailThread(thread.thread_id);
                   }}
                 >
@@ -356,6 +358,9 @@ export function MailPage(props: MailPageProps) {
           {/* ── Conversation + inline compose ── */}
           <article className="mc-surface mc-mail-thread-view">
             <header className="mc-surface-header">
+              <button type="button" className="mc-mobile-back-button ghost" onClick={() => setMobileListOpen(true)}>
+                Back to threads
+              </button>
               <h2>{props.mailThreadDetail?.thread.subject ?? "Select a thread"}</h2>
               <div className="mc-inline-actions">
                 <span className="mc-msg-count">{props.mailMessages.length} message(s)</span>
@@ -475,6 +480,7 @@ export function MailPage(props: MailPageProps) {
                 </button>
                 <button
                   type="button"
+                  className="primary"
                   onClick={() => void handleSend()}
                   disabled={!props.selectedMailThreadId || sending}
                 >
@@ -556,7 +562,7 @@ export function MailPage(props: MailPageProps) {
             <button type="button" className="ghost" onClick={() => setCreateThreadOpen(false)}>
               Cancel
             </button>
-            <button type="button" disabled={createThreadBusy} onClick={() => void handleCreateThread()}>
+            <button type="button" className="primary" disabled={createThreadBusy} onClick={() => void handleCreateThread()}>
               {createThreadBusy ? "Creating..." : "Create Thread"}
             </button>
           </>

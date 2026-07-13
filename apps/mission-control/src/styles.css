@@ -1203,10 +1203,11 @@ textarea {
 
 button {
   border-radius: var(--radius-sm);
-  border: 1px solid transparent;
+  border: 1px solid var(--line-strong);
   padding: 0.52rem 0.8rem;
-  background: var(--accent);
-  color: var(--accent-ink);
+  min-height: 2.75rem;
+  background: var(--surface);
+  color: var(--ink-primary);
   font-weight: 600;
   cursor: pointer;
   transition: transform var(--duration-fast) var(--ease-out),
@@ -1218,7 +1219,8 @@ button {
 
 button:hover {
   transform: translateY(-1px);
-  background: var(--accent-hover);
+  background: var(--surface-hover);
+  border-color: var(--ink-muted);
   box-shadow: var(--shadow-sm);
 }
 
@@ -1253,6 +1255,57 @@ button.secondary {
   background: var(--surface);
   border-color: var(--line-strong);
   color: var(--ink-primary);
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--accent-ink);
+}
+
+button.primary:hover {
+  background: var(--accent-hover);
+  border-color: transparent;
+  color: var(--accent-ink);
+}
+
+.mc-button-icon {
+  display: inline-flex;
+  margin-right: 0.4rem;
+  vertical-align: -0.125rem;
+}
+
+.mc-empty-state-rich {
+  display: grid;
+  justify-items: start;
+  gap: 0.5rem;
+  max-width: 34rem;
+  padding-block: 1rem;
+}
+
+.mc-empty-state-rich p {
+  margin: 0;
+  color: var(--ink-secondary);
+}
+
+.mc-empty-state-icon {
+  display: inline-flex;
+  color: var(--accent);
+}
+
+.mc-onboarding-disclosure {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.65rem;
+}
+
+.mc-onboarding-disclosure > summary {
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+  color: var(--ink-secondary);
+  font-weight: 650;
+  cursor: pointer;
 }
 
 button.secondary:hover {
@@ -2969,6 +3022,12 @@ button.danger:hover {
   font-family: var(--font-body);
 }
 
+.mc-focus-action-error {
+  margin: 0.4rem 0 0;
+  color: var(--danger);
+  font-size: var(--type-caption);
+}
+
 .mc-focus-details-toggle:hover {
   color: var(--accent-hover);
 }
@@ -3519,6 +3578,16 @@ button.danger:hover {
 .mc-mail-thread-view,
 .mc-mail-compose-panel {
   min-height: 0;
+}
+
+.mc-mail-thread-view {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.mc-mobile-back-button {
+  display: none;
 }
 
 .mc-mail-filters {
@@ -8722,6 +8791,24 @@ button.danger:hover {
 }
 
 @media (max-width: 760px) {
+  .mc-mail-grid.mc-mobile-list-open .mc-mail-thread-view {
+    display: none;
+  }
+
+  .mc-mail-grid.mc-mobile-detail-open .mc-mail-sidebar {
+    display: none;
+  }
+
+  .mc-mobile-back-button {
+    display: inline-flex;
+    align-self: flex-start;
+  }
+
+  .mc-mail-thread-view .mc-surface-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
   .mc-shell {
     padding: 0.6rem;
   }
@@ -9546,6 +9633,24 @@ button.danger:hover {
 @media (max-width: 760px) {
   .mc-tab-help-banner {
     margin-bottom: var(--space-2);
+  }
+
+  .mc-tab-help-head,
+  .mc-tab-help-main {
+    align-items: flex-start;
+  }
+
+  .mc-tab-help-main {
+    flex-direction: column;
+  }
+
+  .mc-tab-help-kicker {
+    white-space: nowrap;
+  }
+
+  .mc-tab-help-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .mc-docs-page {

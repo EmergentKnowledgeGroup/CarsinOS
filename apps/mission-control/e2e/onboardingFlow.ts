@@ -110,8 +110,12 @@ export async function completeQuickstartLocalOnboarding(
 
   await expect(setupWizard.getByText("Step 4 of 6")).toBeVisible();
   await setupWizard.getByRole("button", { name: "Start new agent" }).click();
+  const advancedAgentSettings = setupWizard.getByText("Advanced agent settings", { exact: true });
+  if (await advancedAgentSettings.isVisible()) {
+    await advancedAgentSettings.click();
+  }
   await setupWizard.getByLabel("Agent ID").fill(options?.agentId ?? "assistant-main");
-  await setupWizard.getByLabel("Agent name").fill(options?.agentName ?? "Assistant");
+  await setupWizard.getByLabel("Assistant name").fill(options?.agentName ?? "Assistant");
   await setupWizard.getByRole("radio", { name: "Local connector" }).check();
   await setupWizard
     .getByRole("combobox", { name: "Assistant model" })

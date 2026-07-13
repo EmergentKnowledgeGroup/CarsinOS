@@ -285,8 +285,9 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
     await expect(setupWizard.getByText("Step 4 of 6")).toBeVisible();
 
     await setupWizard.getByRole("button", { name: "Start new agent" }).click();
+    await setupWizard.getByText("Advanced agent settings").click();
     await setupWizard.getByLabel("Agent ID").fill("assistant-continue");
-    await setupWizard.getByLabel("Agent name").fill("Assistant Continue");
+    await setupWizard.getByLabel("Assistant name").fill("Assistant Continue");
     await setupWizard.getByRole("radio", { name: "Local connector" }).check();
     await setupWizard
       .getByRole("combobox", { name: "Assistant model" })
@@ -328,8 +329,9 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
     await expect(setupWizard.getByText("Step 4 of 6")).toBeVisible();
 
     await setupWizard.getByRole("button", { name: "Start new agent" }).click();
+    await setupWizard.getByText("Advanced agent settings").click();
     await setupWizard.getByLabel("Agent ID").fill("assistant-claude");
-    await setupWizard.getByLabel("Agent name").fill("Claude Assistant");
+    await setupWizard.getByLabel("Assistant name").fill("Claude Assistant");
     await setupWizard.getByRole("radio", { name: "Anthropic (Claude)" }).check();
     await setupWizard.getByLabel("Profile name").fill("claude-primary");
     await setupWizard.getByRole("textbox", { name: "Anthropic API key" }).fill(CLAUDE_API_KEY);

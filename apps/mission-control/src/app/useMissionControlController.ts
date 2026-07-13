@@ -588,6 +588,7 @@ export function useMissionControlController(options: UseMissionControlController
           tone: "error",
           message: `Run-now failed: ${String(error)}`,
         });
+        throw error;
       }
     },
     [queueMissionControlRefresh, setNotice, settings]
@@ -692,6 +693,7 @@ export function useMissionControlController(options: UseMissionControlController
           tone: "error",
           message: `Approval ${decision} failed: ${String(error)}`,
         });
+        throw error;
       }
     },
     [queueMissionControlRefresh, setNotice, settings]
@@ -711,6 +713,7 @@ export function useMissionControlController(options: UseMissionControlController
           tone: "error",
           message: `Channel reconnect failed: ${String(error)}`,
         });
+        throw error;
       }
     },
     [queueMissionControlRefresh, setNotice, settings]

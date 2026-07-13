@@ -26,6 +26,8 @@ vendors/mno/engine/runtime/**/*.pyc
 
 # Local operator/private artifacts.
 .claude/
+.playwright-browsers/
+.playwright-cli/
 missioncontrolSS/
 cavemanfriendlyauditfindings.md
 docs/claude_audit.md

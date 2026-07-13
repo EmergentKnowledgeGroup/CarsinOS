@@ -66,8 +66,9 @@ async function completeLocalOnboarding(page: Page): Promise<void> {
   await setupWizard.getByRole("button", { name: "Save connection + Continue" }).click();
 
   await setupWizard.getByRole("button", { name: "Start new agent" }).click();
+  await setupWizard.getByText("Advanced agent settings").click();
   await setupWizard.getByLabel("Agent ID").fill("assistant-main");
-  await setupWizard.getByLabel("Agent name").fill("Assistant");
+  await setupWizard.getByLabel("Assistant name").fill("Assistant");
   await setupWizard.getByRole("radio", { name: "Local connector" }).check();
   await setupWizard
     .getByRole("combobox", { name: "Assistant model" })

@@ -46,7 +46,7 @@ test.describe("mission-control memory lane integration", () => {
     await heartbeatDriftCard.click();
 
     await page.getByRole("button", { name: "Reasoning", exact: true }).click();
-    await expect(page.getByText("turn-default-001")).toBeVisible();
+    await expect(page.getByText("Turn 1", { exact: true })).toBeVisible();
     const citationPill = page.getByRole("button", { name: "runtime card excerpt", exact: true });
     await expect(citationPill).toBeVisible();
     await citationPill.click();

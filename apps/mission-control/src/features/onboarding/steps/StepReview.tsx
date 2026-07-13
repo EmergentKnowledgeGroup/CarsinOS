@@ -25,7 +25,7 @@ export function StepReview(props: StepReviewProps) {
           <button type="button" className="ghost" onClick={props.onBack}>
             Back
           </button>
-          <button type="button" disabled={!props.canFinishReview} onClick={() => void props.onNext()}>
+          <button type="button" className="primary" disabled={!props.canFinishReview} onClick={() => void props.onNext()}>
             Finish setup
           </button>
         </>

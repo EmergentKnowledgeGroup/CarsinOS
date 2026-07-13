@@ -107,6 +107,7 @@ interface StepProviderProps {
 
 export function StepProvider(props: StepProviderProps) {
   const [showAnthropicApiKey, setShowAnthropicApiKey] = useState(false);
+  const isQuickstart = props.mode === "quickstart";
   const hasExistingProfiles = props.existingProviderProfiles.length > 0;
   const providerTransitionBusy =
     props.busy ||
@@ -133,6 +134,7 @@ export function StepProvider(props: StepProviderProps) {
           </button>
           <button
             type="button"
+            className="primary"
             disabled={providerTransitionBusy}
             onClick={() => {
               if (providerTransitionBusy) {
@@ -234,6 +236,18 @@ export function StepProvider(props: StepProviderProps) {
             </p>
           ) : null}
 
+          <label>
+            Assistant name
+            <input
+              value={props.agentNameDraft}
+              onChange={(event) => props.onAgentNameDraftChange(event.target.value)}
+              placeholder="ExecAss"
+            />
+          </label>
+
+          <details className="mc-onboarding-disclosure" open={!isQuickstart}>
+            <summary>{isQuickstart ? "Advanced agent settings" : "Agent settings"}</summary>
+
           {props.strategyEnabled ? (
             <div className="mc-onboarding-inline-actions">
               <label style={{ flex: 1 }}>
@@ -268,14 +282,6 @@ export function StepProvider(props: StepProviderProps) {
                 value={props.agentIdDraft}
                 onChange={(event) => props.onAgentIdDraftChange(event.target.value)}
                 placeholder="assistant-1"
-              />
-            </label>
-            <label>
-              Agent name
-              <input
-                value={props.agentNameDraft}
-                onChange={(event) => props.onAgentNameDraftChange(event.target.value)}
-                placeholder="Assistant"
               />
             </label>
             <label>
@@ -319,6 +325,7 @@ export function StepProvider(props: StepProviderProps) {
               </select>
             </label>
           </div>
+          </details>
         </div>
 
         <div className="mc-onboarding-choice-grid">

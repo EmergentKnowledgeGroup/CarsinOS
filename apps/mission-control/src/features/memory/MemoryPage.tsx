@@ -60,6 +60,20 @@ function stringifyValue(value: unknown): string | null {
   return null;
 }
 
+function isIdentifierKey(key: string): boolean {
+  return /(^|_)(id|ids|atom|binding|card|run|session|turn)($|_)/i.test(key);
+}
+
+function friendlyIdentifier(value: string): string {
+  if (value === ".") {
+    return "This CarsinOS folder";
+  }
+  if (value.length <= 12) {
+    return value;
+  }
+  return `ID …${value.slice(-6)}`;
+}
+
 function previewFacts(
   value: Record<string, unknown> | null | undefined,
   preferredKeys: string[],
@@ -79,11 +93,11 @@ function previewFacts(
 }
 
 function cardLabel(card: AgentMemoryCardSummary): string {
-  return card.summary?.trim() || card.kind || card.atom_id;
+  return card.summary?.trim() || card.kind || friendlyIdentifier(card.atom_id);
 }
 
 function relationLabel(link: AgentMemoryGraphLink): string {
-  return `${link.kind}: ${link.source} -> ${link.target}`;
+  return `${link.kind}: ${friendlyIdentifier(link.source)} → ${friendlyIdentifier(link.target)}`;
 }
 
 function citationToken(citation: AgentMemoryWhyCitation): string | null {
@@ -156,10 +170,13 @@ function FactList({
           const label = key
             .replaceAll("_", " ")
             .replace(/^principal\b/, "acting as");
+          const visibleValue = isIdentifierKey(key) ? friendlyIdentifier(value) : value;
           return (
             <div key={key} className="mc-memory-fact-row">
               <dt>{label}</dt>
-              <dd>{expanded ? value : value.length > 120 ? `${value.slice(0, 120)}\u2026` : value}</dd>
+              <dd title={visibleValue === value ? undefined : value}>
+                {expanded ? visibleValue : visibleValue.length > 120 ? `${visibleValue.slice(0, 120)}\u2026` : visibleValue}
+              </dd>
             </div>
           );
         })}
@@ -1390,7 +1407,7 @@ export function MemoryPage({ controller, onOpenAssistant }: MemoryPageProps) {
                           onClick={() => controller.setSelectedTurnId(turnId)}
                           title={turnTimestamp ? `Turn ${turnId} \u00B7 ${turnTimestamp}` : turnId}
                         >
-                          <span className="mc-turn-pill-id">{turnId.slice(0, 8)}</span>
+                          <span className="mc-turn-pill-id">Turn {index + 1}</span>
                           {turnTimestamp ? <span className="mc-turn-pill-ts">{turnTimestamp}</span> : null}
                         </button>
                       );

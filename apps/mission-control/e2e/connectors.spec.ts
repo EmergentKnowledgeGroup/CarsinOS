@@ -131,7 +131,7 @@ test.describe("mission-control connectors registry", () => {
     await page.getByTestId("connectors-health-refresh").click();
     await expect(page.getByText("auth required")).toHaveCount(0);
 
-    const resumeButtons = page.getByRole("button", { name: "Resume" });
+    const resumeButtons = page.locator("button:visible", { hasText: /^Resume$/ });
     if ((await resumeButtons.count()) > 0) {
       await resumeButtons.first().click();
       await expect(page.getByText("resumed")).toBeVisible();

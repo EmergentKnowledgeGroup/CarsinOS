@@ -647,20 +647,32 @@ export default function App() {
   useEffect(() => {
     if (activeTab === "runbook" && !runbookHubEnabled) {
       setActiveTab("boards");
+      setNotice({
+        tone: "info",
+        message: "Runbook was turned off, so you were moved back to Boards.",
+      });
     }
-  }, [activeTab, runbookHubEnabled, setActiveTab]);
+  }, [activeTab, runbookHubEnabled, setActiveTab, setNotice]);
 
   useEffect(() => {
     if (activeTab === "memory" && !memoryHubEnabled) {
       setActiveTab("boards");
+      setNotice({
+        tone: "info",
+        message: "Memory was turned off, so you were moved back to Boards.",
+      });
     }
-  }, [activeTab, memoryHubEnabled, setActiveTab]);
+  }, [activeTab, memoryHubEnabled, setActiveTab, setNotice]);
 
   useEffect(() => {
     if (activeTab === "connectors" && !connectorsHubEnabled) {
       setActiveTab("boards");
+      setNotice({
+        tone: "info",
+        message: "Connectors was turned off, so you were moved back to Boards.",
+      });
     }
-  }, [activeTab, connectorsHubEnabled, setActiveTab]);
+  }, [activeTab, connectorsHubEnabled, setActiveTab, setNotice]);
 
   useEffect(() => {
     if (!initialBootstrapSettled) {
