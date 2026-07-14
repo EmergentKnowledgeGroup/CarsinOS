@@ -310,7 +310,7 @@ Execution checklist derived from `PLAN.md`. IDs are stable and must be used by `
 - [x] `AC4` Add a manifest-verified backup, verify, and rollback-safe restore workflow that excludes credentials and ephemeral files.
 - [x] `AC5` Reconcile public README, security, install, release-note, checklist, and blockerboard truth.
 - [x] `AC6` Run full local frontend, Rust, security, packaging, backup, and visual QA gates.
-- [ ] `AC7` Open the release PR, pass independent GitHub/CodeRabbit review, merge to `main`, and enable repository security controls.
-- [ ] `AC8` Tag and publish `v0.1.0-beta` with checksum-verified Windows artifacts, verify release assets, and synchronize local `main`.
+- [x] `AC7` Open the release PR, pass independent GitHub/CodeRabbit review, merge to `main`, and enable repository security controls.
+- [x] `AC8` Tag and publish `v0.1.0-beta` with checksum-verified Windows artifacts, verify release assets, and synchronize local `main`.
 
 The provider/channel/scheduler soak is explicitly excluded from this beta goal by owner direction.
