@@ -66,7 +66,10 @@ PY
 is_threat_model_approved() {
   [[ -f "${THREAT_MODEL_DOC}" ]] || return 1
   grep -q '^\- Approval status: `approved`' "${THREAT_MODEL_DOC}" || return 1
-  grep -q '^\- Decision: `approved`' "${THREAT_MODEL_DOC}" || return 1
+  # Residual-risk acceptance is still an approval when the document also has
+  # an approved status plus named approver/risk owner. Do not collapse that
+  # explicit classification into a false "approval pending" result.
+  grep -Eq '^- Decision: `approved(-with-residual-risk)?`$' "${THREAT_MODEL_DOC}" || return 1
   grep -q '^\- Threat model approver (`R4`): `TBD`' "${THREAT_MODEL_DOC}" && return 1
   grep -q '^\- Risk acceptance owner (`R4`): `TBD`' "${THREAT_MODEL_DOC}" && return 1
   return 0
