@@ -9,6 +9,7 @@ let browserGatewayToken: string | null = null;
 export interface DesktopBootstrap {
   gateway_url: string;
   managed_gateway: boolean;
+  startup_error: string | null;
 }
 
 function normalizeGatewayUrlOrEmpty(value: string): string {
@@ -116,6 +117,10 @@ export async function getDesktopBootstrap(): Promise<DesktopBootstrap | null> {
   return {
     gateway_url: gatewayUrl,
     managed_gateway: Boolean(bootstrap.managed_gateway),
+    startup_error:
+      typeof bootstrap.startup_error === "string" && bootstrap.startup_error.trim()
+        ? bootstrap.startup_error.trim()
+        : null,
   };
 }
 

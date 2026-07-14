@@ -2,8 +2,8 @@
 
 | ID | State | Evidence required before public release |
 |---|---|---|
-| PUB-001 | CLOSED | The GitHub repository is already public; publication now means creating and verifying the beta Release, not changing repository visibility. |
-| PUB-002 | CLOSED | MIT license exists and matches workspace metadata. |
+| PUB-001 | CLOSED | The GitHub repository is already public; see the dated [verification record](PUBLIC_RELEASE_CHECKLIST.md#verification-record-2026-07-14-utc). |
+| PUB-002 | CLOSED | MIT license exists and matches workspace metadata; see the dated [verification record](PUBLIC_RELEASE_CHECKLIST.md#verification-record-2026-07-14-utc). |
 | PUB-003 | READY | `SECURITY.md` exists; private reporting channel/settings still require live verification before release messaging claims them. |
 | PRB-01 | READY | RC docs cover unsigned checksum-verified MSI, UAC, loopback sidecar, state survival, non-secret recovery, no updater, and no remote hosting. |
 | PRB-02 | OPEN | Final MSI, commit/build provenance, `release-manifest.json`, and `SHA256SUMS.txt` recorded. |

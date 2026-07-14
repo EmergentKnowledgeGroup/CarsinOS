@@ -36,3 +36,15 @@ row only with dated command output, an artifact, or live external verification.
 
 **RC documentation complete; public-release evidence incomplete. Do not label
 v0.1.0-beta publicly released until every unchecked row is closed.**
+
+## Verification record (2026-07-14 UTC)
+
+- `gh api repos/EmergentKnowledgeGroup/CarsinOS --jq .visibility` returned
+  `public`; private vulnerability reporting, secret scanning, and push
+  protection were then enabled and re-read through the GitHub API.
+- `LICENSE` is tracked at release commit `9da3b71`, declares MIT, and matches
+  the root Cargo workspace `license = "MIT"` metadata.
+- Local pre-PR evidence is retained in the `WINDOWS_PUBLIC_BETA_RELEASE WORK`
+  checkpoint: full frontend/visual/security gates, both lockfile audits, state
+  recovery roundtrip, MSI hash, and Windows lifecycle passed. GitHub Release
+  rows remain open until tag artifacts are published and downloaded again.

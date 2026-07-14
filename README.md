@@ -9,10 +9,14 @@ Local-first AI operations for running assistants, approvals, schedules, channels
 The Windows x64 MSI bundles Mission Control and a gateway that listens on
 `127.0.0.1`. It needs normal MSI administrator/UAC approval and may show an
 unsigned-publisher/reputation warning. Verify the SHA-256 from the same RC
-before opening it:
+before opening it. Copy the expected digest from the matching
+`SHA256SUMS.txt`, then require an exact comparison:
 
 ```powershell
-Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\Path\To\CarsinOS-Mission-Control-v0.1.0-beta-windows-x64.msi'
+$Installer = 'C:\Path\To\CarsinOS-Mission-Control-v0.1.0-beta-windows-x64.msi'
+$Expected = '<SHA-256 from the matching SHA256SUMS.txt>'
+$Actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $Installer).Hash
+if ($Actual -ne $Expected.ToUpperInvariant()) { throw 'MSI checksum mismatch.' }
 ```
 
 The beta has no auto-updater and no remote/public-hosting support. Its durable
@@ -133,6 +137,7 @@ Security artifacts are written under `runtime/security/reports/`.
 - The repository contains workflow definitions for ad hoc and desktop-release runs:
   - `.github/workflows/pr-gate.yml`
   - `.github/workflows/nightly-security.yml`
+  - `.github/workflows/windows-beta-release.yml`
 
 ## Secret lifecycle scheduling (jobs)
 

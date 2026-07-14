@@ -518,6 +518,7 @@ export default function App() {
     gatewayDraft,
     tokenDraft,
     setSettings,
+    setGatewayDraft,
     setTokenDraft,
     setTokenConfigured,
     setTokenConfiguredChecked,

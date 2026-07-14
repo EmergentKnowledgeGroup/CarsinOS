@@ -1,8 +1,11 @@
 import { useCallback, useEffect, type Dispatch, type SetStateAction } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { getGatewayHealth, listAgents, listBoards } from "../lib/api";
 import {
   clearGatewayToken,
+  getDesktopBootstrap,
   isGatewayTokenConfigured,
+  isTauriRuntime,
   persistConnectionSettings,
   setGatewayToken,
 } from "../lib/runtime";
@@ -19,6 +22,7 @@ interface UseRuntimeConnectionControllerOptions {
   gatewayDraft: string;
   tokenDraft: string;
   setSettings: Dispatch<SetStateAction<RuntimeConnectionSettings>>;
+  setGatewayDraft: Dispatch<SetStateAction<string>>;
   setTokenDraft: Dispatch<SetStateAction<string>>;
   setTokenConfigured: Dispatch<SetStateAction<boolean>>;
   setTokenConfiguredChecked: Dispatch<SetStateAction<boolean>>;
@@ -53,6 +57,7 @@ export function useRuntimeConnectionController(options: UseRuntimeConnectionCont
     gatewayDraft,
     tokenDraft,
     setSettings,
+    setGatewayDraft,
     setTokenDraft,
     setTokenConfigured,
     setTokenConfiguredChecked,
@@ -167,6 +172,73 @@ export function useRuntimeConnectionController(options: UseRuntimeConnectionCont
       setTokenConfiguredChecked(true);
     });
   }, [setTokenConfigured, setTokenConfiguredChecked]);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) {
+      return;
+    }
+
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    void getDesktopBootstrap()
+      .then((bootstrap) => {
+        if (disposed || !bootstrap) {
+          return;
+        }
+        const nextSettings = { gateway_url: bootstrap.gateway_url };
+        setSettings(nextSettings);
+        setGatewayDraft(bootstrap.gateway_url);
+        if (bootstrap.startup_error) {
+          setHealthState("down");
+          setWsState("idle");
+          setNotice({ tone: "critical", message: bootstrap.startup_error });
+        }
+      })
+      .catch((error: unknown) => {
+        if (!disposed) {
+          setHealthState("down");
+          setWsState("idle");
+          setNotice({
+            tone: "critical",
+            message: `Desktop gateway bootstrap failed: ${formatBaselineErrorDetail(error)}`,
+          });
+        }
+      });
+
+    void listen<{ message?: string }>("gateway-terminated", (event) => {
+      if (disposed) {
+        return;
+      }
+      setHealthState("down");
+      setWsState("idle");
+      setNotice({
+        tone: "critical",
+        message:
+          event.payload?.message?.trim() ||
+          "The managed gateway stopped. Restart CarsinOS to reconnect.",
+      });
+    })
+      .then((disposeListener) => {
+        if (disposed) {
+          disposeListener();
+        } else {
+          unlisten = disposeListener;
+        }
+      })
+      .catch((error: unknown) => {
+        if (!disposed) {
+          setNotice({
+            tone: "critical",
+            message: `Desktop gateway monitoring failed: ${formatBaselineErrorDetail(error)}`,
+          });
+        }
+      });
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [setGatewayDraft, setHealthState, setNotice, setSettings, setWsState]);
 
   const saveConnectionFromInputs = useCallback(
     async (gatewayUrl: string, tokenInput?: string) => {

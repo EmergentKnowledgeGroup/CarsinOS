@@ -20,12 +20,12 @@ function Resolve-RepoPath([string]$Path) {
   return [IO.Path]::GetFullPath((Join-Path $RepoRoot $Path))
 }
 
-function Require-Command([string]$Name) {
+function Assert-CommandAvailable([string]$Name) {
   if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) { throw "Missing required command: $Name" }
 }
 
-Require-Command cargo
-Require-Command npm
+Assert-CommandAvailable cargo
+Assert-CommandAvailable npm
 if (-not $Version.StartsWith("v0.1.0-beta")) { throw "This release script is scoped to the v0.1.0-beta line." }
 
 if (-not $AllowDirty) {
