@@ -2,7 +2,27 @@
 
 Local-first AI operations for running assistants, approvals, schedules, channels, memory, and tools from one auditable control plane.
 
-> **Pre-release:** CarsinOS is under active hardening. Use it locally, review the security boundary, and do not expose the gateway publicly without the documented protections.
+> **v0.1.0-beta RC:** Windows x64 only, checksum-verifiable but unsigned, and local-only. It is not yet a published GitHub Release; do not expose the bundled loopback gateway publicly.
+
+## Windows beta release candidate
+
+The Windows x64 MSI bundles Mission Control and a gateway that listens on
+`127.0.0.1`. It needs normal MSI administrator/UAC approval and may show an
+unsigned-publisher/reputation warning. Verify the SHA-256 from the same RC
+before opening it:
+
+```powershell
+Get-FileHash -Algorithm SHA256 -LiteralPath 'C:\Path\To\CarsinOS-Mission-Control-v0.1.0-beta-windows-x64.msi'
+```
+
+The beta has no auto-updater and no remote/public-hosting support. Its durable
+state is outside the MSI install directory and survives uninstall. Backups are
+verified, portable copies of non-secret state only; credentials must be
+re-entered after a restore.
+
+- [Windows install, backup, and restore](docs/WINDOWS_BETA_INSTALL_BACKUP_RESTORE.md)
+- [v0.1.0-beta release notes](docs/releases/v0.1.0-beta.md)
+- [Public release checklist](docs/PUBLIC_RELEASE_CHECKLIST.md)
 
 ## What it includes
 
@@ -107,8 +127,10 @@ Security artifacts are written under `runtime/security/reports/`.
 ## Git/PR review flow
 
 - Follow `docs/GIT_PR_WORKFLOW.md`.
-- Pull requests to `main` run the security and Mission Control web quality gates automatically.
-- Manual workflow dispatch remains available for ad hoc and desktop-release runs:
+- Do not treat local workflow files as proof of a live GitHub run, repository
+  setting, public release, or hosted asset. Verify those separately before
+  publication.
+- The repository contains workflow definitions for ad hoc and desktop-release runs:
   - `.github/workflows/pr-gate.yml`
   - `.github/workflows/nightly-security.yml`
 

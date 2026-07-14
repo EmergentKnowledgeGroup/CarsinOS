@@ -301,3 +301,16 @@ Execution checklist derived from `PLAN.md`. IDs are stable and must be used by `
 - [x] `AB4a` Extract app-shell state (`activeTab`, connection drafts, token/ws/notice, event stream) into `app/useAppController.ts`.
 - [x] `AB5` Move websocket wiring to `app/useGatewayEvents.ts` with stable callback handling and cleanup guarantees.
 - [x] `AB6` Add shared UI primitives in `src/ui/*`, run full regression gates, and execute PR chunk workflow.
+
+## Phase AC - Windows Public Beta Release (v0.1.0-beta)
+
+- [x] `AC1` Reconcile the nightly root audit exception and add an unignored audit for the nested Tauri lockfile.
+- [x] `AC2` Bundle the authenticated loopback gateway as a managed Mission Control sidecar with stable per-user state.
+- [x] `AC3` Add checksum-verified Windows MSI packaging and prove install, launch, clean shutdown, uninstall, and state preservation.
+- [x] `AC4` Add a manifest-verified backup, verify, and rollback-safe restore workflow that excludes credentials and ephemeral files.
+- [x] `AC5` Reconcile public README, security, install, release-note, checklist, and blockerboard truth.
+- [x] `AC6` Run full local frontend, Rust, security, packaging, backup, and visual QA gates.
+- [ ] `AC7` Open the release PR, pass independent GitHub/CodeRabbit review, merge to `main`, and enable repository security controls.
+- [ ] `AC8` Tag and publish `v0.1.0-beta` with checksum-verified Windows artifacts, verify release assets, and synchronize local `main`.
+
+The provider/channel/scheduler soak is explicitly excluded from this beta goal by owner direction.

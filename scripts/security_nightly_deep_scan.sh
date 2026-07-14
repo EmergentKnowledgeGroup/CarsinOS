@@ -47,7 +47,17 @@ run_step "secret-lifecycle-drill" "${SCRIPT_DIR}/security_secret_lifecycle_drill
 run_step "killswitch-drill" "${SCRIPT_DIR}/security_killswitch_drill.sh"
 
 if cargo audit -V >/dev/null 2>&1; then
-  run_step "cargo-audit-json" sh -c "cargo audit --json > '${REPORT_DIR}/cargo-audit-${TS}.json'"
+  # These two quick-xml advisories are reachable only through Wayland's build-time
+  # protocol scanner. SECURITY.md records the threat analysis and removal policy.
+  # Keep the nightly JSON scan aligned with the PR gate so a documented,
+  # non-runtime exception does not make every nightly appear compromised.
+  run_step "cargo-audit-json" sh -c "cargo audit \
+    --ignore RUSTSEC-2026-0194 \
+    --ignore RUSTSEC-2026-0195 \
+    --json > '${REPORT_DIR}/cargo-audit-${TS}.json'"
+  run_step "cargo-audit-mission-control-json" sh -c "cargo audit \
+    --file '${REPO_ROOT}/apps/mission-control/src-tauri/Cargo.lock' \
+    --json > '${REPORT_DIR}/cargo-audit-mission-control-${TS}.json'"
 fi
 
 cat > "${SUMMARY_FILE}" <<JSON

@@ -53,6 +53,10 @@ if has_cargo_audit; then
   run_step "cargo-audit" cargo audit \
     --ignore RUSTSEC-2026-0194 \
     --ignore RUSTSEC-2026-0195
+  # Mission Control is a nested Cargo workspace with its own lockfile. Keep it
+  # inside the release security boundary instead of auditing only the root CLI.
+  run_step "cargo-audit-mission-control" cargo audit \
+    --file "${REPO_ROOT}/apps/mission-control/src-tauri/Cargo.lock"
 else
   if [[ "${require_cargo_audit}" == "1" ]]; then
     log "FAIL  cargo-audit missing. Install with: cargo install cargo-audit"

@@ -31,7 +31,7 @@ jobs:
       - name: Ensure cargo-audit is installed (pinned)
         run: |
           set -euo pipefail
-          required_version="0.22.1"
+          required_version="0.22.2"
           current_version="$(cargo audit -V 2>/dev/null | awk '{print $2}' || true)"
           if [[ "${current_version}" != "${required_version}" ]]; then
             cargo install cargo-audit@${required_version} --locked --force

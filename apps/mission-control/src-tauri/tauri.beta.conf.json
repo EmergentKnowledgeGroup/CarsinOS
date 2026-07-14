@@ -1,0 +1,16 @@
+{
+  "bundle": {
+    "targets": ["msi"],
+    "externalBin": ["binaries/carsinos-gateway"],
+    "publisher": "Emergent Knowledge Group",
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "wix": {
+        "upgradeCode": "d536823d-fb6b-50b5-8f3a-ce8bb5ff75f5",
+        "language": "en-US"
+      }
+    }
+  }
+}

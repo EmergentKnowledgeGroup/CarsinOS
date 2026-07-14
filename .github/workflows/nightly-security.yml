@@ -28,8 +28,8 @@ jobs:
       - name: Cache cargo and target
         uses: Swatinem/rust-cache@v2
 
-      - name: Install cargo-audit
-        run: cargo install cargo-audit --locked
+      - name: Install cargo-audit (pinned)
+        run: cargo install cargo-audit@0.22.2 --locked
 
       - name: Run nightly deep scan
         run: scripts/security_nightly_deep_scan.sh
