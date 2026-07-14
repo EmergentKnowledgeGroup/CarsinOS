@@ -2,13 +2,17 @@
 
 Local-first AI operations for running assistants, approvals, schedules, channels, memory, and tools from one auditable control plane.
 
-> **v0.1.0-beta RC:** Windows x64 only, checksum-verifiable but unsigned, and local-only. It is not yet a published GitHub Release; do not expose the bundled loopback gateway publicly.
+> **v0.1.0-beta is live:** Windows x64 only, checksum-verifiable but unsigned,
+> and local-only. Do not expose the bundled loopback gateway publicly.
 
-## Windows beta release candidate
+## Windows public beta
 
 The Windows x64 MSI bundles Mission Control and a gateway that listens on
 `127.0.0.1`. It needs normal MSI administrator/UAC approval and may show an
-unsigned-publisher/reputation warning. Verify the SHA-256 from the same RC
+unsigned-publisher/reputation warning. Download the MSI and
+`SHA256SUMS.txt` from the same
+[v0.1.0-beta prerelease](https://github.com/EmergentKnowledgeGroup/CarsinOS/releases/tag/v0.1.0-beta).
+Verify the SHA-256
 before opening it. Copy the expected digest from the matching
 `SHA256SUMS.txt`, then require an exact comparison:
 
@@ -23,6 +27,11 @@ The beta has no auto-updater and no remote/public-hosting support. Its durable
 state is outside the MSI install directory and survives uninstall. Backups are
 verified, portable copies of non-secret state only; credentials must be
 re-entered after a restore.
+
+Published MSI SHA-256:
+`b125cb12ce6d082a1e96e6d66bc5acdc0c6b0b87ebcde14bd96648420ae4ae2e`.
+The supported beta experience is the Windows desktop layout; narrow/mobile
+Cockpit layouts are not a supported target in this release.
 
 - [Windows install, backup, and restore](docs/WINDOWS_BETA_INSTALL_BACKUP_RESTORE.md)
 - [v0.1.0-beta release notes](docs/releases/v0.1.0-beta.md)
