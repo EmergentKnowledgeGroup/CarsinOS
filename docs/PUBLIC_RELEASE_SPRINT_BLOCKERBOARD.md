@@ -1,15 +1,22 @@
-# CarsinOS Public Release Sprint Blockerboard
+# CarsinOS public v0.1.0-beta blockerboard
 
-| ID | Severity | State | Blocker | Release gate |
-|---|---|---|---|---|
-| PUB-001 | S0 | OPEN | GitHub repository remains private | Must be explicit final action after all proof is green |
-| PUB-002 | S0 | CLOSED | Root license missing | MIT license added, matching Cargo workspace metadata |
-| PUB-003 | S0 | CLOSED | No vulnerability reporting policy | Root `SECURITY.md` added |
-| UX-001 | S1 | OPEN | Calendar cards execute on exploratory click | Details-before-run plus regression proof required |
-| QA-001 | S1 | OPEN | No fresh desktop/mobile proof | Screenshot and interaction evidence required |
-| SEC-001 | S1 | IN_PROGRESS | Dependency advisories | Lockfile fixed to zero; full validation pending |
-| CI-001 | S1 | OPEN | Release workflows are manual-only | PR triggers and fresh artifacts required |
-| UX-002 | S2 | OPEN | Primary-by-default action hierarchy | Critical-view intent sweep now; global inversion separately gated |
-| UX-003 | S2 | OPEN | Jargon and chat pagination | Priority plain-language and scroll-region slice required |
+| ID | State | Evidence required before public release |
+|---|---|---|
+| PUB-001 | CLOSED | The GitHub repository is already public; see the dated [verification record](PUBLIC_RELEASE_CHECKLIST.md#verification-record-2026-07-14-utc). |
+| PUB-002 | CLOSED | MIT license exists and matches workspace metadata; see the dated [verification record](PUBLIC_RELEASE_CHECKLIST.md#verification-record-2026-07-14-utc). |
+| PUB-003 | READY | `SECURITY.md` exists; private reporting channel/settings still require live verification before release messaging claims them. |
+| PRB-01 | READY | RC docs cover unsigned checksum-verified MSI, UAC, loopback sidecar, state survival, non-secret recovery, no updater, and no remote hosting. |
+| PRB-02 | OPEN | Final MSI, commit/build provenance, `release-manifest.json`, and `SHA256SUMS.txt` recorded. |
+| PRB-03 | OPEN | Clean Windows install/launch/loopback/shutdown/uninstall/state-preservation evidence from the final MSI. |
+| PRB-04 | OPEN | Final backup/verify/restore evidence confirms portable state excludes secrets and credential re-entry works. |
+| PRB-05 | OPEN | Audit evidence retains the scoped root build-only Wayland/`quick-xml` exception, nested Tauri audit, and informational-debt classification. |
+| SEC-001 | OPEN | Dependency and security gate evidence attached to the RC; no blanket advisory waiver. |
+| CI-001 | OPEN | Current GitHub workflow runs and repository/release settings checked live. Local workflow files alone are insufficient. |
+| QA-001 | OPEN | Fresh Windows desktop proof for the final package retained. |
+| PRB-06 | OPEN | GitHub Release created, MSI plus hash/manifest uploaded, and downloaded asset hash re-verified. |
+| PRB-07 | OPEN | Explicit acceptance of unsigned distribution and no-auto-update/no-remote-support scope. |
+| SOAK-001 | EXCLUDED | Seven-day channel soak is outside this local desktop beta's acceptance gate; do not mark it complete here. |
 
-No release or public visibility change is allowed while an S0 or S1 row is open.
+**NO-GO:** public release is blocked while any
+OPEN release-critical row remains. This board does not assert a live GitHub
+release, workflow, setting, or public host.

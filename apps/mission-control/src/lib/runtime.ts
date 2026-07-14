@@ -6,6 +6,12 @@ const SETTINGS_KEY = STORAGE_KEYS.gatewaySettings;
 const TOKEN_KEY_FALLBACK = STORAGE_KEYS.gatewayTokenFallback;
 let browserGatewayToken: string | null = null;
 
+export interface DesktopBootstrap {
+  gateway_url: string;
+  managed_gateway: boolean;
+  startup_error: string | null;
+}
+
 function normalizeGatewayUrlOrEmpty(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) {
@@ -78,6 +84,9 @@ export function loadConnectionSettings(): RuntimeConnectionSettings {
     // One-click/dev launch should override stale persisted URLs (for example old busy ports).
     return { gateway_url: envGatewayUrl };
   }
+  if (isTauriRuntime() && !isE2EMode()) {
+    return { gateway_url: "http://127.0.0.1:18789/" };
+  }
   if (typeof window === "undefined") {
     return { gateway_url: "" };
   }
@@ -94,6 +103,25 @@ export function loadConnectionSettings(): RuntimeConnectionSettings {
   } catch {
     return { gateway_url: "" };
   }
+}
+
+export async function getDesktopBootstrap(): Promise<DesktopBootstrap | null> {
+  if (!isTauriRuntime()) {
+    return null;
+  }
+  const bootstrap = await invoke<DesktopBootstrap>("get_desktop_bootstrap");
+  const gatewayUrl = normalizeGatewayUrlOrEmpty(bootstrap.gateway_url);
+  if (!gatewayUrl) {
+    throw new Error("desktop gateway bootstrap returned an invalid URL");
+  }
+  return {
+    gateway_url: gatewayUrl,
+    managed_gateway: Boolean(bootstrap.managed_gateway),
+    startup_error:
+      typeof bootstrap.startup_error === "string" && bootstrap.startup_error.trim()
+        ? bootstrap.startup_error.trim()
+        : null,
+  };
 }
 
 export function persistConnectionSettings(settings: RuntimeConnectionSettings): void {

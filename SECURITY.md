@@ -4,7 +4,11 @@
 
 Please do not open a public issue for a suspected vulnerability.
 
-Use GitHub's private vulnerability reporting for this repository. Include the affected version or commit, reproduction steps, impact, and any suggested mitigation. Do not include real secrets, personal data, or third-party credentials.
+Use the private reporting channel supplied with the beta distribution. GitHub's
+private vulnerability-reporting availability must be verified live before it is
+advertised as the release channel. Include the affected version or commit,
+reproduction steps, impact, and any suggested mitigation. Do not include real
+secrets, personal data, or third-party credentials.
 
 We will acknowledge a complete report as quickly as practical, validate its impact, coordinate remediation, and publish an advisory when disclosure is safe. We do not promise a bounty unless one was explicitly offered before the report.
 
@@ -14,13 +18,24 @@ Until the first stable release, security fixes target the latest release and the
 
 ## Deployment boundary
 
-CarsinOS is local-first. Non-loopback gateway binding must remain explicitly enabled and protected by TLS termination, authentication, trusted proxy configuration, rate limits, and operator allowlists. Never publish runtime state directories, logs, databases, tokens, or generated security evidence containing sensitive inputs.
+CarsinOS `v0.1.0-beta` is local-first. Its packaged Windows gateway is
+loopback-only and has no remote/public-hosting support. Do not proxy, tunnel,
+or port-forward it. Never publish runtime state directories, logs, databases,
+tokens, credential-store exports, or generated security evidence containing
+sensitive inputs.
+
+The beta MSI is checksum-verifiable but unsigned. Normal MSI installation
+requires administrator/UAC approval and may show a Windows publisher/reputation
+warning. Verify the published SHA-256 for the exact RC asset before opening it.
+There is no auto-updater.
+
+Portable backup archives intentionally exclude secrets and OS credential-store
+material. Re-enter gateway, provider, and channel credentials after restoring.
 
 ## Audited dependency exceptions
 
-The release gate temporarily ignores `RUSTSEC-2026-0194` and
-`RUSTSEC-2026-0195` for `quick-xml`. The affected crate is reachable only
-through `wayland-scanner`, a build-time proc macro that reads version-pinned
-Wayland protocol XML from dependencies. CarsinOS does not feed it runtime or
-user-controlled XML. Remove these exceptions as soon as the Wayland dependency
-chain permits `quick-xml >= 0.41.0`.
+The root workspace may temporarily ignore the Wayland/`quick-xml` advisories
+only for the build-only dependency path. This is not a runtime waiver. The
+nested Mission Control Tauri lockfile is upgraded/audited separately, and
+informational audit debt must be classified in the release evidence rather than
+silently treated as a passing audit.

@@ -1,0 +1,171 @@
+name: CarsinOS Windows Beta Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Beta version to package (must start with v0.1.0-beta)"
+        required: true
+        default: v0.1.0-beta
+        type: string
+  push:
+    tags:
+      - "v0.1.0-beta*"
+
+concurrency:
+  group: windows-beta-release-${{ github.ref }}
+  cancel-in-progress: false
+
+# The tag path creates/updates a GitHub prerelease with checked artifacts.
+# No id-token permission is needed: beta packages are explicitly unsigned.
+permissions:
+  contents: write
+
+jobs:
+  windows-beta-release:
+    name: Windows beta package, lifecycle, and release
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      RELEASE_VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
+
+    steps:
+      - name: Checkout clean release source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate release version and release notes
+        shell: pwsh
+        run: |
+          $version = $env:RELEASE_VERSION
+          if ([string]::IsNullOrWhiteSpace($version) -or $version -notmatch '^v0\.1\.0-beta(?:[0-9A-Za-z.-]*)$') {
+            throw "Release version must match v0.1.0-beta*; received '$version'."
+          }
+          if ($env:GITHUB_EVENT_NAME -eq "push" -and -not (Test-Path -LiteralPath "docs/releases/v0.1.0-beta.md" -PathType Leaf)) {
+            throw "Required release notes are missing: docs/releases/v0.1.0-beta.md"
+          }
+
+      - name: Install Rust stable toolchain and Windows target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Set up Node.js with npm cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/mission-control/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: apps/mission-control
+        run: npm ci
+
+      - name: Frontend typecheck
+        working-directory: apps/mission-control
+        run: npm run typecheck
+
+      - name: Frontend production build
+        working-directory: apps/mission-control
+        run: npm run build
+
+      - name: Frontend unit tests
+        working-directory: apps/mission-control
+        run: npm run test:unit
+
+      - name: Verify portable state backup roundtrip
+        shell: pwsh
+        run: pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/test_carsinos_state.ps1
+
+      - name: Package Windows MSI beta
+        shell: pwsh
+        run: |
+          $outputDir = Join-Path $env:GITHUB_WORKSPACE "release-output\$env:RELEASE_VERSION\windows-x64"
+          & pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/package_windows_beta.ps1 `
+            -Version $env:RELEASE_VERSION `
+            -OutputDir $outputDir `
+            -SkipNpmCi
+          if ($LASTEXITCODE -ne 0) { throw "Windows beta packaging failed." }
+          "OUTPUT_DIR=$outputDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ARTIFACT_NAME=CarsinOS-Mission-Control-$env:RELEASE_VERSION-windows-x64.msi" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Generate Cargo metadata SBOM
+        shell: pwsh
+        run: |
+          $sbomPath = Join-Path $env:OUTPUT_DIR "sbom-cargo-metadata.json"
+          cargo metadata --locked --format-version 1 | Set-Content -LiteralPath $sbomPath -Encoding utf8
+          if (-not (Test-Path -LiteralPath $sbomPath -PathType Leaf)) { throw "SBOM generation failed." }
+          $sbomHash = (Get-FileHash -LiteralPath $sbomPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$sbomHash  sbom-cargo-metadata.json" | Add-Content -LiteralPath (Join-Path $env:OUTPUT_DIR "SHA256SUMS.txt") -Encoding ascii
+
+      - name: Verify package manifest and checksums
+        shell: pwsh
+        run: |
+          $artifactPath = Join-Path $env:OUTPUT_DIR $env:ARTIFACT_NAME
+          $manifestPath = Join-Path $env:OUTPUT_DIR "release-manifest.json"
+          $checksumsPath = Join-Path $env:OUTPUT_DIR "SHA256SUMS.txt"
+          foreach ($path in @($artifactPath, $manifestPath, $checksumsPath)) {
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Missing release output: $path" }
+          }
+          $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+          if ($manifest.version -ne $env:RELEASE_VERSION) { throw "Manifest version does not match release version." }
+          if (@($manifest.artifacts).Count -ne 1 -or @($manifest.artifacts)[0].file -ne $env:ARTIFACT_NAME) {
+            throw "Manifest artifact entry is not exact."
+          }
+          $line = Get-Content -LiteralPath $checksumsPath | Where-Object { $_ -match "\s$([regex]::Escape($env:ARTIFACT_NAME))$" } | Select-Object -First 1
+          if (-not $line) { throw "Checksum manifest does not contain the exact MSI filename." }
+          $expected = ($line -split "\s+")[0].ToLowerInvariant()
+          $actual = (Get-FileHash -LiteralPath $artifactPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($expected -ne $actual -or @($manifest.artifacts)[0].sha256.ToLowerInvariant() -ne $actual) {
+            throw "MSI SHA256 verification failed. expected=$expected actual=$actual"
+          }
+          foreach ($file in @($manifestPath, (Join-Path $env:OUTPUT_DIR "sbom-cargo-metadata.json"))) {
+            $name = Split-Path -Leaf $file
+            $checksumLine = Get-Content -LiteralPath $checksumsPath | Where-Object { $_ -match "\s$([regex]::Escape($name))$" } | Select-Object -First 1
+            if (-not $checksumLine) { throw "Checksum manifest does not contain $name." }
+            $fileExpected = ($checksumLine -split "\s+")[0].ToLowerInvariant()
+            $fileActual = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($fileExpected -ne $fileActual) { throw "SHA256 verification failed for $name." }
+          }
+
+      - name: Exercise MSI install, launch, state initialization, and uninstall
+        shell: pwsh
+        run: |
+          $msiPath = Join-Path $env:OUTPUT_DIR $env:ARTIFACT_NAME
+          & pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/test_windows_beta_lifecycle.ps1 -MsiPath $msiPath
+          if ($LASTEXITCODE -ne 0) { throw "Windows beta lifecycle verification failed." }
+
+      - name: Upload checksum-verified beta artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: CarsinOS-${{ env.RELEASE_VERSION }}-windows-x64
+          if-no-files-found: error
+          path: |
+            release-output/${{ env.RELEASE_VERSION }}/windows-x64/CarsinOS-Mission-Control-${{ env.RELEASE_VERSION }}-windows-x64.msi
+            release-output/${{ env.RELEASE_VERSION }}/windows-x64/release-manifest.json
+            release-output/${{ env.RELEASE_VERSION }}/windows-x64/SHA256SUMS.txt
+            release-output/${{ env.RELEASE_VERSION }}/windows-x64/sbom-cargo-metadata.json
+
+      - name: Create or update GitHub prerelease for tag
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v0.1.0-beta')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assets = @(
+            (Join-Path $env:OUTPUT_DIR $env:ARTIFACT_NAME),
+            (Join-Path $env:OUTPUT_DIR "release-manifest.json"),
+            (Join-Path $env:OUTPUT_DIR "SHA256SUMS.txt"),
+            (Join-Path $env:OUTPUT_DIR "sbom-cargo-metadata.json")
+          )
+          $null = gh release view $env:RELEASE_VERSION --repo "${{ github.repository }}" 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:RELEASE_VERSION @assets --repo "${{ github.repository }}" --clobber
+            if ($LASTEXITCODE -ne 0) { throw "Failed to upload assets to existing release." }
+            gh release edit $env:RELEASE_VERSION --repo "${{ github.repository }}" --title "CarsinOS $env:RELEASE_VERSION" --notes-file "docs/releases/v0.1.0-beta.md" --prerelease
+          } else {
+            gh release create $env:RELEASE_VERSION @assets --repo "${{ github.repository }}" --title "CarsinOS $env:RELEASE_VERSION" --notes-file "docs/releases/v0.1.0-beta.md" --prerelease
+          }
+          if ($LASTEXITCODE -ne 0) { throw "GitHub prerelease publication failed." }

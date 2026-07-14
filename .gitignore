@@ -28,6 +28,9 @@ vendors/mno/engine/runtime/**/*.pyc
 .claude/
 .playwright-browsers/
 .playwright-cli/
+apps/mission-control/src-tauri/binaries/
+release-output/
+.tools/
 missioncontrolSS/
 cavemanfriendlyauditfindings.md
 docs/claude_audit.md

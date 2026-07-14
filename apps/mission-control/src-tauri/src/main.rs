@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-  carsinos_mission_control_lib::run();
+    carsinos_mission_control_lib::run();
 }
