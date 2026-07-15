@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="420" viewBox="0 0 1440 420" role="img" aria-labelledby="title desc">
+  <title id="title">CarsinOS local control plane</title>
+  <desc id="desc">The operator controls Mission Control, which routes work through an approval gate to the local gateway, assistants, tools, channels, schedules, and memory. Every decision is recorded in an audit trail.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0b0e16"/><stop offset="1" stop-color="#111a21"/></linearGradient>
+    <linearGradient id="flow" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#2bc0d3"/><stop offset=".55" stop-color="#ffc43d"/><stop offset="1" stop-color="#ff6b1a"/></linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0l10 5-10 5z" fill="#667085"/></marker>
+  </defs>
+  <rect width="1440" height="420" rx="24" fill="url(#bg)"/>
+  <rect x="1" y="1" width="1438" height="418" rx="23" fill="none" stroke="#30384a"/>
+  <text x="70" y="65" fill="#f7f8fb" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="25" font-weight="800">One local control loop. Every action visible.</text>
+  <text x="70" y="96" fill="#8d97ab" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="15">The beta package keeps the gateway on loopback. Risky work stops at an explicit operator decision.</text>
+
+  <g font-family="Inter,Segoe UI,Arial,sans-serif">
+    <path d="M267 222H389M619 222H748M974 222H1098" stroke="#667085" stroke-width="2" marker-end="url(#arrow)"/>
+    <g transform="translate(70 161)">
+      <rect width="196" height="122" rx="18" fill="#151b28" stroke="#354056"/>
+      <circle cx="36" cy="38" r="13" fill="#2bc0d3" fill-opacity=".14" stroke="#2bc0d3"/>
+      <text x="60" y="44" fill="#f4f6f9" font-size="18" font-weight="800">OPERATOR</text>
+      <text x="24" y="79" fill="#929caf" font-size="14">Sets intent</text><text x="24" y="101" fill="#929caf" font-size="14">Approves risk</text>
+    </g>
+    <g transform="translate(390 145)">
+      <rect width="228" height="154" rx="20" fill="#171d2a" stroke="#3b465b"/>
+      <text x="25" y="42" fill="#f4f6f9" font-size="18" font-weight="800">MISSION CONTROL</text>
+      <text x="25" y="76" fill="#929caf" font-size="14">Boards · Focus · Runbooks</text>
+      <text x="25" y="100" fill="#929caf" font-size="14">Calendar · Team · Memory</text>
+      <rect x="25" y="118" width="111" height="22" rx="11" fill="#2bc0d3" fill-opacity=".09" stroke="#2bc0d3" stroke-opacity=".6"/>
+      <text x="40" y="134" fill="#b8f2f7" font-size="11" font-weight="700">DESKTOP UI</text>
+    </g>
+    <g transform="translate(749 132)">
+      <rect width="224" height="180" rx="22" fill="#211713" stroke="#ff6b1a" stroke-opacity=".76"/>
+      <path d="M112 28l17 7v14c0 12-7 22-17 27-10-5-17-15-17-27V35l17-7z" fill="#ff6b1a" fill-opacity=".14" stroke="#ff6b1a"/>
+      <text x="48" y="103" fill="#ffd7c1" font-size="18" font-weight="850">APPROVAL GATE</text>
+      <text x="44" y="130" fill="#b49382" font-size="13">High-risk work pauses here</text>
+      <rect x="50" y="147" width="124" height="22" rx="11" fill="#ff6b1a" fill-opacity=".1" stroke="#ff6b1a" stroke-opacity=".58"/>
+      <text x="70" y="162" fill="#ffd7c1" font-size="11" font-weight="700">ALLOW / DENY</text>
+    </g>
+    <g transform="translate(1099 145)">
+      <rect width="270" height="154" rx="20" fill="#141b24" stroke="#354056"/>
+      <text x="24" y="38" fill="#f4f6f9" font-size="18" font-weight="800">LOOPBACK GATEWAY</text>
+      <g fill="#929caf" font-size="13">
+        <text x="24" y="70">Assistants + providers</text><text x="24" y="94">Tools + channels</text><text x="24" y="118">Schedules + local memory</text>
+      </g>
+      <circle cx="242" cy="35" r="7" fill="#22c55e"/>
+    </g>
+    <path d="M113 338H1327" stroke="url(#flow)" stroke-width="2" stroke-dasharray="3 7"/>
+    <rect x="538" y="321" width="364" height="34" rx="17" fill="#101620" stroke="#394459"/>
+    <text x="594" y="343" fill="#b9c1cf" font-size="13" font-weight="750" letter-spacing="1.2">AUDIT TRAIL · RECEIPTS · RECOVERY</text>
+  </g>
+</svg>
