@@ -7,7 +7,7 @@
   <img alt="Platform: Windows x64" src="https://img.shields.io/badge/platform-Windows%20x64-2bc0d3?style=flat-square" />
   <img alt="Architecture: local first" src="https://img.shields.io/badge/architecture-local--first-22c55e?style=flat-square" />
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-ffc43d?style=flat-square" /></a>
-  <a href="https://github.com/EmergentKnowledgeGroup/CarsinOS/actions/workflows/pr-gate.yml"><img alt="Security PR Gate" src="https://github.com/EmergentKnowledgeGroup/CarsinOS/actions/workflows/pr-gate.yml/badge.svg?branch=main" /></a>
+  <a href="https://github.com/EmergentKnowledgeGroup/CarsinOS/branches"><img alt="Main branch: protected" src="https://img.shields.io/badge/main-protected-7c5cff?style=flat-square" /></a>
 </p>
 
 <p align="center">
@@ -40,7 +40,7 @@ No mystery daemon on somebody else's server. No silent tool execution. No
 guessing which assistant did what.
 
 <p align="center">
-  <img src="docs/assets/screenshots/mission-control-runbooks.png" alt="CarsinOS Mission Control showing active, waiting, completed, and blocked runbooks" width="100%" />
+  <a href="docs/assets/screenshots/mission-control-runbooks.png"><img src="docs/assets/screenshots/mission-control-runbooks.png" alt="CarsinOS Mission Control showing active, waiting, completed, and blocked runbooks" width="100%" /></a>
 </p>
 
 <p align="center"><sub>Mission Control's Runbooks view: active work, approval waits, completed runs, and blocked work in one place.</sub></p>
@@ -72,21 +72,21 @@ result.
 <table>
   <tr>
     <td width="50%">
-      <img src="docs/assets/screenshots/mission-control-approvals.png" alt="Focus queue with a high-risk action awaiting operator approval" />
+      <a href="docs/assets/screenshots/mission-control-approvals.png"><img src="docs/assets/screenshots/mission-control-approvals.png" alt="Focus queue with a high-risk action awaiting operator approval" /></a>
       <br /><strong>Human approval before high-risk action</strong>
     </td>
     <td width="50%">
-      <img src="docs/assets/screenshots/mission-control-calendar.png" alt="Calendar with assistant wakeups and a scheduled gateway check" />
+      <a href="docs/assets/screenshots/mission-control-calendar.png"><img src="docs/assets/screenshots/mission-control-calendar.png" alt="Calendar with assistant wakeups and a scheduled gateway check" /></a>
       <br /><strong>Schedules and assistant wakeups</strong>
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <img src="docs/assets/screenshots/mission-control-team.png" alt="Team view showing multiple assistants and their runtime assignments" />
+      <a href="docs/assets/screenshots/mission-control-team.png"><img src="docs/assets/screenshots/mission-control-team.png" alt="Team view showing multiple assistants and their runtime assignments" /></a>
       <br /><strong>Agents, roles, providers, and routing</strong>
     </td>
     <td width="50%">
-      <img src="docs/assets/screenshots/mission-control-boards.png" alt="Operations board connected to an active strategy task and completed runbook" />
+      <a href="docs/assets/screenshots/mission-control-boards.png"><img src="docs/assets/screenshots/mission-control-boards.png" alt="Operations board connected to an active strategy task and completed runbook" /></a>
       <br /><strong>Work that stays tied to execution</strong>
     </td>
   </tr>
