@@ -4,13 +4,16 @@
 
 Please do not open a public issue for a suspected vulnerability.
 
-Use the private reporting channel supplied with the beta distribution. GitHub's
-private vulnerability-reporting availability must be verified live before it is
-advertised as the release channel. Include the affected version or commit,
-reproduction steps, impact, and any suggested mitigation. Do not include real
-secrets, personal data, or third-party credentials.
+Use [GitHub private vulnerability
+reporting](https://github.com/EmergentKnowledgeGroup/CarsinOS/security/advisories/new).
+Include the affected version or commit, reproduction steps, impact, and any
+suggested mitigation. Do not include real secrets, personal data, or
+third-party credentials.
 
-We will acknowledge a complete report as quickly as practical, validate its impact, coordinate remediation, and publish an advisory when disclosure is safe. We do not promise a bounty unless one was explicitly offered before the report.
+We will acknowledge a complete report as quickly as practical, validate its
+impact, coordinate remediation, and publish an advisory when disclosure is
+safe. We do not promise a bounty unless one was explicitly offered before the
+report.
 
 ## Supported versions
 
