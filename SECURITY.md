@@ -4,8 +4,8 @@
 
 Please do not open a public issue for a suspected vulnerability.
 
-Use [GitHub private vulnerability
-reporting](https://github.com/EmergentKnowledgeGroup/CarsinOS/security/advisories/new).
+Use
+[GitHub private vulnerability reporting](https://github.com/EmergentKnowledgeGroup/CarsinOS/security/advisories/new).
 Include the affected version or commit, reproduction steps, impact, and any
 suggested mitigation. Do not include real secrets, personal data, or
 third-party credentials.
@@ -17,7 +17,9 @@ report.
 
 ## Supported versions
 
-Until the first stable release, security fixes target the latest release and the current `main` branch. Pre-release builds are provided without a long-term support guarantee.
+Until the first stable release, security fixes target the latest release and the
+current `main` branch. Pre-release builds are provided without a long-term
+support guarantee.
 
 ## Deployment boundary
 

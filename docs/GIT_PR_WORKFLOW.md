@@ -16,7 +16,8 @@ verify, and roll back.
 
 ## Local build storage
 
-1. Cargo build artifacts are shared through [`.cargo/config.toml`](../.cargo/config.toml).
+1. Cargo build artifacts are shared through
+   [`.cargo/config.toml`](../.cargo/config.toml).
 2. The shared cache lives in the repo-local ignored path
    `.cargo/.shared-cargo-targets/`.
 3. This prevents duplicated `target` directories across local runs and nested
@@ -35,7 +36,18 @@ verify, and roll back.
 Run the checks relevant to the change. The full maintainer baseline is:
 
 1. `cargo fmt`
-2. `cargo clippy -p carsinos-gateway -p carsinos-storage -p carsinos-protocol -p carsinos-gui -p carsinos-cli --all-targets -- -D warnings`
+2. Run strict Clippy checks:
+
+   ```bash
+   cargo clippy \
+     -p carsinos-gateway \
+     -p carsinos-storage \
+     -p carsinos-protocol \
+     -p carsinos-gui \
+     -p carsinos-cli \
+     --all-targets -- -D warnings
+   ```
+
 3. `cargo test`
 4. Security scripts when relevant:
    - `scripts/security_pr_gate.sh`
@@ -44,10 +56,12 @@ Run the checks relevant to the change. The full maintainer baseline is:
 
 ## PR flow
 
-1. Push the branch to `origin`.
+1. Push the branch to a writable remote: `origin` for maintainers, or the
+   contributor's fork remote for external contributors.
 2. Maintainers update `runtime/checkpoints/LATEST.md` and
    `runtime/checkpoints/LATEST.json` locally.
-3. Open a PR into `main`.
+3. Open a PR from that branch into this repository's `main`. External
+   contributors should select their fork branch as the PR head.
 4. Include a short summary and the verification commands that were run.
 5. Request CodeRabbit review with `@coderabbitai review`.
 6. Run required validation locally before and after review fixes. GitHub's PR

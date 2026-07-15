@@ -16,11 +16,18 @@ work, and well-scoped features are welcome.
 
 ## Development setup
 
-You need a Rust toolchain. Mission Control development also requires Node.js.
+You need a Rust toolchain. Mission Control development uses Node.js 22, matching
+the required GitHub quality gate.
+
+Fork the repository on GitHub, then clone your writable fork and keep the
+project repository as `upstream`:
 
 ```bash
-git clone https://github.com/EmergentKnowledgeGroup/CarsinOS.git
+git clone https://github.com/<your-user>/CarsinOS.git
 cd CarsinOS
+git remote add upstream https://github.com/EmergentKnowledgeGroup/CarsinOS.git
+git fetch upstream
+git switch -c your-focused-branch upstream/main
 cargo test --workspace --locked
 ```
 
@@ -37,13 +44,14 @@ npm run build
 
 ## Pull requests
 
-1. Branch from current `main`.
+1. Branch from current `upstream/main` (or current `main` if you are a maintainer).
 2. Keep one pull request focused on one concern.
 3. Add or update tests when behavior changes.
 4. Run the checks that cover your change.
 5. Explain what changed, why, any security or compatibility impact, and the
    exact validation commands you ran.
-6. Target `main` and respond to review feedback on the same branch.
+6. Push to your writable fork, open the PR from that fork branch into this
+   repository's `main`, and respond to review feedback on the same branch.
 
 Maintainers use additional local checkpoint files while executing work. Those
 files are intentionally ignored and are **not required from external

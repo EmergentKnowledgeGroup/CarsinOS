@@ -1,16 +1,21 @@
+# Pull request
+
 ## Summary
+
 - What changed:
 - Why:
 
 ## Scope
-- [ ] Small/reviewable chunk (target < 500 net LOC unless justified)
+
+- [ ] Small/reviewable chunk (target fewer than 500 net lines unless justified)
 - [ ] No unrelated refactors
 - [ ] Backward compatibility impact called out
 
 ## Validation
+
 - [ ] I listed the exact commands I ran and their results below
 - [ ] Relevant formatting, lint, type, test, build, or documentation checks pass
-- [ ] Relevant drill/benchmark scripts pass (if security/runtime behavior changed)
+- [ ] Relevant drill/benchmark scripts pass when security/runtime behavior changed
 
 Commands and results:
 
@@ -19,20 +24,26 @@ Commands and results:
 ```
 
 ## Security
+
 - [ ] No secret material logged or persisted in plaintext
-- [ ] Auth/authz implications reviewed
+- [ ] Authentication and authorization implications reviewed
 - [ ] Rate-limit/abuse behavior unchanged or explicitly updated
 - [ ] Audit coverage present for high-risk mutation paths
 
 ## Checkpoint SOP
-- [ ] Maintainer-authored PR only: local ignored checkpoint files were updated
+
+- [ ] Maintainer-authored PR: local ignored checkpoint files were updated
 - [ ] External contribution: checkpoint files are not required
 
 ## Visual evidence
 
 - [ ] Not applicable
-- [ ] UI changes were checked on desktop and narrow viewports
+- [ ] UI changes were checked on desktop and narrow viewports, with required
+      evidence attached below
 
 Screenshots or notes:
 
-<!-- Drag screenshots here when the change affects visible behavior. -->
+<!--
+Required for visible changes. The UI checkbox is incomplete without screenshots
+or concrete review notes.
+-->

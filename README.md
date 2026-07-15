@@ -1,3 +1,7 @@
+# CarsinOS
+
+<!-- markdownlint-disable MD013 MD033 -->
+
 <p align="center">
   <img src="docs/assets/brand/carsinos-hero.svg" alt="CarsinOS — local AI operations under your control" width="100%" />
 </p>
@@ -128,16 +132,23 @@ Mission Control from source.
 
 Start the gateway:
 
+Generate a unique token and keep it local. The prompt below avoids placing the
+token directly in the command or shell history:
+
 ```bash
 git clone https://github.com/EmergentKnowledgeGroup/CarsinOS.git
 cd CarsinOS
-CARSINOS_GATEWAY_TOKEN="change-me" cargo run -p carsinos-gateway
+read -rsp "Gateway token: " CARSINOS_GATEWAY_TOKEN && printf '\n'
+export CARSINOS_GATEWAY_TOKEN
+cargo run -p carsinos-gateway
 ```
 
 Check that it is healthy:
 
 ```bash
-curl -H "Authorization: Bearer change-me" http://127.0.0.1:18789/api/v1/health
+curl --fail --show-error \
+  -H "Authorization: Bearer ${CARSINOS_GATEWAY_TOKEN}" \
+  http://127.0.0.1:18789/api/v1/health
 ```
 
 Or use the one-click launcher for the gateway plus Mission Control:
