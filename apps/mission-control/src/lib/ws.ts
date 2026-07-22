@@ -1,5 +1,6 @@
 import { getGatewayToken } from "./runtime";
 import { createWebSocketTicket, websocketUrlFromGateway } from "./api";
+import type { ExecassWsFrame } from "../glass/execass/types";
 import type { RuntimeConnectionSettings, WsEventFrame } from "../types";
 import { WS_RECONNECT_INITIAL_MS, WS_RECONNECT_MAX_MS } from "../constants";
 
@@ -15,10 +16,49 @@ interface ConnectOptions {
   onEvent: (frame: WsEventFrame) => void;
   onState: (state: WsLifecycleState) => void;
   maxReconnectAttempts?: number;
+  /**
+   * Typed ExecAss frames (`type: "execass.v1.*"`) share the one authenticated
+   * socket; they are routed here instead of onEvent. Without a handler they
+   * are dropped like any other unrecognized frame.
+   */
+  onExecassFrame?: (frame: ExecassWsFrame) => void;
+  /** Called on every successful open with a sender for client frames. */
+  onOpen?: (send: (text: string) => void) => void;
 }
 
 export interface WsSubscription {
   close: () => void;
+}
+
+function parseExecassFrame(raw: string): ExecassWsFrame | null {
+  try {
+    const parsed = JSON.parse(raw) as { type?: unknown };
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      typeof parsed.type !== "string" ||
+      !parsed.type.startsWith("execass.v1.")
+    ) {
+      return null;
+    }
+    if (parsed.type === "execass.v1.event") {
+      const candidate = parsed as { event?: unknown };
+      if (typeof candidate.event !== "object" || candidate.event === null) {
+        return null;
+      }
+      return parsed as ExecassWsFrame;
+    }
+    if (parsed.type === "execass.v1.summary_refetch_required") {
+      const candidate = parsed as { consumer_cursor?: unknown };
+      if (typeof candidate.consumer_cursor !== "number") {
+        return null;
+      }
+      return parsed as ExecassWsFrame;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 export function connectGatewayEvents(options: ConnectOptions): WsSubscription {
@@ -93,6 +133,12 @@ export function connectGatewayEvents(options: ConnectOptions): WsSubscription {
       reconnectDelayMs = WS_RECONNECT_INITIAL_MS;
       reconnectAttempts = 0;
       options.onState("connected");
+      const activeSocket = socket;
+      options.onOpen?.((text: string) => {
+        if (!closed && activeSocket) {
+          activeSocket.send(text);
+        }
+      });
     };
 
     socket.onmessage = (message) => {
@@ -100,6 +146,11 @@ export function connectGatewayEvents(options: ConnectOptions): WsSubscription {
         return;
       }
       if (typeof message.data !== "string") {
+        return;
+      }
+      const execassFrame = parseExecassFrame(message.data);
+      if (execassFrame) {
+        options.onExecassFrame?.(execassFrame);
         return;
       }
       const parsed = parseWsEventFrame(message.data);
