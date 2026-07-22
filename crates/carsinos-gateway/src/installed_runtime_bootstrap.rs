@@ -5,16 +5,28 @@
 //! current-user credentials and canonical Mission Control state root itself;
 //! no token, owner secret, or state path is placed in the scheduled action.
 
-use anyhow::{bail, Context, Result};
-use carsinos_core::{GatewayConfig, TokenSource};
+#[cfg(windows)]
+use anyhow::Context;
+use anyhow::{bail, Result};
+use carsinos_core::GatewayConfig;
+#[cfg(windows)]
+use carsinos_core::TokenSource;
 use std::ffi::{OsStr, OsString};
+#[cfg(windows)]
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::path::{Path, PathBuf};
+#[cfg(any(windows, test))]
+use std::path::Path;
+#[cfg(windows)]
+use std::path::PathBuf;
 
 pub(crate) const INSTALLED_RUNTIME_HOST_FLAG: &str = "--mission-control-runtime-host";
+#[cfg(windows)]
 const KEYRING_SERVICE: &str = "carsinos.mission-control";
+#[cfg(windows)]
 const GATEWAY_TOKEN_USERNAME: &str = "gateway-token";
+#[cfg(windows)]
 const OWNER_SECRET_USERNAME: &str = "execass-local-owner-secret";
+#[cfg(any(windows, test))]
 const PRODUCT_STATE_RELATIVE_PATH: &str = "io.carsinos.missioncontrol\\state";
 
 pub(crate) struct InstalledRuntimeBootstrap {

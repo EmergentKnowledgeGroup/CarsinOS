@@ -1,5 +1,7 @@
+#[cfg(windows)]
 use carsinos_storage::execass::*;
 use carsinos_storage::{init_execass_fresh_root, AppPaths};
+#[cfg(windows)]
 use rusqlite::Connection;
 use std::process::Command;
 
@@ -15,6 +17,7 @@ fn run(action: &str, paths: &AppPaths) -> std::process::Output {
         .expect("run receipt-integrity verifier")
 }
 
+#[cfg(windows)]
 fn seed_typed_receipt(paths: &AppPaths) {
     Connection::open(&paths.db_path)
         .unwrap()

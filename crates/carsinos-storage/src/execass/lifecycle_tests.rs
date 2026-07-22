@@ -854,9 +854,10 @@ fn completion_fence_snapshot(fixture: &super::tests::Fixture) -> CompletionFence
 #[test]
 fn ea112_key_registry_tamper_blocks_completion_without_any_mutation() {
     super::receipt_tests::assert_ea112_case_registered("completion_after_pending_key_tamper");
-    let mut attacks = vec!["used_created_at", "pending_key_id"];
+    #[cfg(not(windows))]
+    let attacks = vec!["used_created_at", "pending_key_id"];
     #[cfg(windows)]
-    attacks.push("pending_key_material");
+    let attacks = vec!["used_created_at", "pending_key_id", "pending_key_material"];
 
     for attack in attacks {
         let fixture = fixture();
@@ -864,7 +865,7 @@ fn ea112_key_registry_tamper_blocks_completion_without_any_mutation() {
         base.initial_continuation = None;
         fixture.store.create_foundation(&base).unwrap();
         let (integrity, _active_key) = trust_empty_receipt_history(&fixture);
-        let pending_key = integrity
+        let _pending_key = integrity
             .rotate_key(&format!("lifecycle-pending-{attack}"))
             .unwrap();
 
@@ -873,7 +874,7 @@ fn ea112_key_registry_tamper_blocks_completion_without_any_mutation() {
             {
                 let key_path = integrity.anchor_directory().join("keys").join(format!(
                     "{}-{:020}.dpapi",
-                    pending_key.key_id, pending_key.key_generation
+                    _pending_key.key_id, _pending_key.key_generation
                 ));
                 std::fs::write(&key_path, b"invalid-dpapi-material").unwrap();
             }

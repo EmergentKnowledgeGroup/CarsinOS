@@ -2255,6 +2255,9 @@ fn separately_opened_processes_serialize_to_one_exact_receipt() {
     let executable = std::env::current_exe().expect("current test executable");
     let mut children = Vec::new();
     for worker in ["one", "two"] {
+        #[cfg(not(windows))]
+        let worker_root = receipt.fixture.paths.root.clone();
+        #[cfg(windows)]
         let mut worker_root = receipt.fixture.paths.root.clone();
         #[cfg(windows)]
         if worker == "two" {

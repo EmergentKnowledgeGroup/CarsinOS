@@ -215,6 +215,8 @@ mod recorder_sidecar;
 mod runbook;
 mod runtime_control_host;
 mod runtime_host_ownership;
+#[cfg(any(windows, test))]
+#[cfg_attr(all(test, not(windows)), allow(dead_code))]
 mod windows_task_scheduler;
 use runbook::{get_runbook_detail, list_runbooks};
 
