@@ -101,7 +101,7 @@ fn validate_runtime_base_path(base: &Path) -> Result<(), RuntimeControlError> {
     if !base.is_absolute() {
         return Err(RuntimeControlError::Transport);
     }
-    let metadata = std::fs::symlink_metadata(&base).map_err(|_| RuntimeControlError::Transport)?;
+    let metadata = std::fs::symlink_metadata(base).map_err(|_| RuntimeControlError::Transport)?;
     let effective_uid = unsafe { libc::geteuid() };
     if !metadata.file_type().is_dir()
         || metadata.uid() != effective_uid

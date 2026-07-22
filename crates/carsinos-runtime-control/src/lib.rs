@@ -1306,7 +1306,7 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn real_unix_roundtrip_uses_a_short_owner_only_socket_for_a_long_state_root() {
-        use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
+        use std::os::unix::fs::{FileTypeExt, MetadataExt};
 
         let long_state_root = PathBuf::from(format!("/{}", "long-state-root/".repeat(256)));
         let scope = scope();
@@ -1321,7 +1321,7 @@ mod tests {
         )
         .unwrap();
         let socket_path = server.endpoint.socket_path.clone();
-        assert!(socket_path.as_os_str().as_bytes().len() + 1 <= 104);
+        assert!(socket_path.as_os_str().as_bytes().len() < 104);
         let task = tokio::spawn(server.serve());
         let client = RuntimeControlClient::new(&long_state_root, scope, secret).unwrap();
         let mut status = None;
