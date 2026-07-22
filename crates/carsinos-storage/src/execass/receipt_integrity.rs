@@ -244,7 +244,10 @@ impl ReceiptIntegrityStore {
         Self::open_for_test_inner(paths)
     }
 
-    #[cfg(any(test, feature = "execass-test-confirmation-runtime"))]
+    #[cfg(any(
+        feature = "execass-test-confirmation-runtime",
+        all(test, not(any(windows, target_os = "macos")))
+    ))]
     fn open_for_test_inner(paths: &AppPaths) -> Result<Self> {
         let (anchor_dir, root_identity) = external_anchor_location(paths)?;
         fs::create_dir_all(&anchor_dir)
@@ -1245,12 +1248,18 @@ impl ReceiptIntegrityStore {
 /// Outside this crate's unit-test build, this is unavailable unless the
 /// explicit test-support feature is enabled. Production `open` never selects
 /// it on any platform.
-#[cfg(any(test, feature = "execass-test-confirmation-runtime"))]
+#[cfg(any(
+    feature = "execass-test-confirmation-runtime",
+    all(test, not(any(windows, target_os = "macos")))
+))]
 struct FeatureTestReceiptKeyProtector {
     key_dir: PathBuf,
 }
 
-#[cfg(any(test, feature = "execass-test-confirmation-runtime"))]
+#[cfg(any(
+    feature = "execass-test-confirmation-runtime",
+    all(test, not(any(windows, target_os = "macos")))
+))]
 impl FeatureTestReceiptKeyProtector {
     fn new(key_dir: PathBuf) -> Result<Self> {
         fs::create_dir_all(&key_dir)?;
@@ -1270,7 +1279,10 @@ impl FeatureTestReceiptKeyProtector {
     }
 }
 
-#[cfg(any(test, feature = "execass-test-confirmation-runtime"))]
+#[cfg(any(
+    feature = "execass-test-confirmation-runtime",
+    all(test, not(any(windows, target_os = "macos")))
+))]
 impl ReceiptKeyProtector for FeatureTestReceiptKeyProtector {
     fn create(&self, key: &ReceiptKeyRef) -> Result<Zeroizing<Vec<u8>>> {
         let path = self.path(key);

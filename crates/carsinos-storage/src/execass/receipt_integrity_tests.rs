@@ -91,7 +91,8 @@ struct Fixture {
 
 impl Fixture {
     fn new() -> Self {
-        let temp = tempfile::tempdir_in("Z:\\carsinos").expect("project-drive tempdir");
+        let temp =
+            tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).expect("project-workspace tempdir");
         let paths = AppPaths::from_root(temp.path().join("state"));
         init_execass_fresh_root(&paths).expect("initialize ExecAss root");
         let anchor_dir = temp.path().join("external-anchor");
@@ -1144,7 +1145,7 @@ fn production_custody_source_keeps_locked_platform_security_flags() {
 #[cfg(windows)]
 #[test]
 fn production_windows_dpapi_roundtrip_keeps_plaintext_out_of_blob() {
-    let temp = tempfile::tempdir_in("Z:\\carsinos").expect("project-drive tempdir");
+    let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).expect("project-workspace tempdir");
     let paths = AppPaths::from_root(temp.path().join("state"));
     init_execass_fresh_root(&paths).expect("initialize ExecAss root");
     let store = ReceiptIntegrityStore::open(&paths).expect("open production integrity store");

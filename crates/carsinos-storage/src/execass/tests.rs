@@ -530,7 +530,8 @@ fn attested_confirmation_allows_two_remote_providers_but_replay_is_provider_exac
 }
 
 pub(super) fn fixture() -> Fixture {
-    let temp = tempfile::tempdir_in("Z:\\carsinos").expect("create project-drive fixture");
+    let temp =
+        tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).expect("create project-workspace fixture");
     let paths = AppPaths::from_root(temp.path().join("state"));
     init_execass_fresh_root(&paths).expect("initialize exact ExecAss schema");
     let store = ExecAssStore::open(&paths).expect("open exact ExecAss store");
@@ -1128,12 +1129,12 @@ fn canonical_reopen_succeeds_and_legacy_or_version_only_roots_fail_closed() {
     let canonical = fixture();
     assert!(ExecAssStore::open(&canonical.paths).is_ok());
 
-    let legacy_temp = tempfile::tempdir_in("Z:\\carsinos").unwrap();
+    let legacy_temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
     let legacy_paths = AppPaths::from_root(legacy_temp.path().join("legacy"));
     init(&legacy_paths).unwrap();
     assert!(ExecAssStore::open(&legacy_paths).is_err());
 
-    let version_temp = tempfile::tempdir_in("Z:\\carsinos").unwrap();
+    let version_temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
     let version_paths = AppPaths::from_root(version_temp.path().join("version-only"));
     std::fs::create_dir_all(&version_paths.root).unwrap();
     let conn = Connection::open(&version_paths.db_path).unwrap();
