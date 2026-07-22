@@ -11,6 +11,7 @@ import { ChatroomsPage } from "../features/agentMail/ChatroomsPage";
 import { MailPage } from "../features/agentMail/MailPage";
 import { useAgentMailController } from "../features/agentMail/useAgentMailController";
 import { AssistantChatPage } from "../features/assistant/AssistantChatPage";
+import type { ExecassOfficeController } from "../features/execassOffice/useExecassOfficeController";
 import type { useAssistantChatController } from "../features/assistant/useAssistantChatController";
 import { BoardsPage } from "../features/boards/BoardsPage";
 import { useBoardsController } from "../features/boards/useBoardsController";
@@ -59,6 +60,7 @@ interface AppContentProps {
   missionControl: ReturnType<typeof useMissionControlController>;
   mailController: ReturnType<typeof useAgentMailController>;
   assistantController: ReturnType<typeof useAssistantChatController>;
+  officeController: ExecassOfficeController;
   cockpitController: ReturnType<typeof useCockpitController>;
   strategyController: ReturnType<typeof useStrategyController>;
   runbookController: ReturnType<typeof useRunbookController>;
@@ -726,6 +728,7 @@ export function AppContent(props: AppContentProps) {
           boards={props.boards}
           onTabChange={props.onTabChange}
           controller={props.assistantController}
+          officeController={props.officeController}
           runbookEnabled={runbookReady}
           runbookSummary={
             props.assistantController.lastRunId

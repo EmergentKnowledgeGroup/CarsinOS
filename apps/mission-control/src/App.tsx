@@ -29,6 +29,7 @@ import { useCockpitController } from "./features/cockpit/useCockpitController";
 import { SimpleIntegrationWizard } from "./features/connectors/SimpleIntegrationWizard";
 import type { SimpleIntegrationId } from "./features/connectors/simpleIntegrations";
 import { useConnectorsController } from "./features/connectors/useConnectorsController";
+import { useExecassOfficeController } from "./features/execassOffice/useExecassOfficeController";
 import { useMemoryController } from "./features/memory/useMemoryController";
 import { OnboardingWizard } from "./features/onboarding/OnboardingWizard";
 import { useOnboardingController } from "./features/onboarding/useOnboardingController";
@@ -640,6 +641,13 @@ export default function App() {
     setNotice,
   });
 
+  const officeController = useExecassOfficeController({
+    settings,
+    tokenConfigured,
+    active: activeTab === "assistant",
+    setNotice,
+  });
+
   const liveFeed = useLiveFeedController({
     retentionWindowMs: opsConfig.safety.recovery_retention_window_ms,
     recoveryMaxBytes: opsConfig.safety.recovery_log_max_bytes,
@@ -989,6 +997,10 @@ export default function App() {
 
   const handleGatewayEvent = useCallback(
     (frame: WsEventFrame) => {
+      if (frame.event_type === "gateway.status") {
+        // The ExecAss durable resume frame follows gateway.status by contract.
+        officeController.notifyGatewayStatus();
+      }
       const normalized = ingestLiveFeedFrame(frame);
       setEventStream((previous) => {
         const next: EventStreamItem = {
@@ -1033,6 +1045,7 @@ export default function App() {
       ingestLiveFeedFrame,
       incidentAutoEnabled,
       liveFeedEnabled,
+      officeController,
       queueAgentMailRefresh,
       queueMissionControlRefresh,
       setIncidentModeAutomatically,
@@ -1050,6 +1063,8 @@ export default function App() {
     maxReconnectAttempts: WS_MAX_RECONNECT_ATTEMPTS,
     onState: setWsState,
     onEvent: handleGatewayEvent,
+    onExecassFrame: officeController.handleExecassFrame,
+    onOpen: officeController.handleWsOpen,
   });
 
   const refreshAllReadModels = useCallback(() => {
@@ -1209,6 +1224,7 @@ export default function App() {
         missionControl={missionControl}
         mailController={mailController}
         assistantController={assistantController}
+        officeController={officeController}
         cockpitController={cockpitController}
         strategyController={strategyController}
         runbookController={runbookController}

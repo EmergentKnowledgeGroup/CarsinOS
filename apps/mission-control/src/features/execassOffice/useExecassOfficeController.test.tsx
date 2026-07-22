@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from "react";
+import { act, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -8,12 +8,15 @@ import {
   acknowledgeExecassSummary,
   engageExecassStopAll,
   execassIntake,
+  getExecassDelegation,
   getExecassStopAllStatus,
   getExecassSummary,
   resolveExecassDecision,
 } from "../../glass/execass/api";
 import {
+  fixtureAttentionItem,
   fixtureDecisionSummary,
+  fixtureDelegationSummary,
   fixtureIntakeConversationalResponse,
   fixtureResolveDecisionResponse,
   fixtureStopAllStatus,
@@ -41,6 +44,7 @@ vi.mock("../../glass/execass/api", async () => {
     acknowledgeExecassSummary: vi.fn(),
     execassIntake: vi.fn(),
     resolveExecassDecision: vi.fn(),
+    getExecassDelegation: vi.fn(),
     getExecassStopAllStatus: vi.fn(),
     engageExecassStopAll: vi.fn(),
     resumeExecassAll: vi.fn(),
@@ -70,11 +74,14 @@ let root: Root | null = null;
 let controller: ExecassOfficeController | null = null;
 
 function Harness(props: { active: boolean }) {
-  controller = useExecassOfficeController({
+  const current = useExecassOfficeController({
     settings,
     tokenConfigured: true,
     active: props.active,
     setNotice: () => {},
+  });
+  useEffect(() => {
+    controller = current;
   });
   return null;
 }
@@ -213,6 +220,86 @@ describe("useExecassOfficeController", () => {
     // ...and resumed with consumer_cursor 941, never 970 or 999
     const resume = JSON.parse(sent[sent.length - 1]!);
     expect(resume).toMatchObject({ type: "execass.v1.resume", cursor: 941 });
+  });
+
+  it("resolves an attention item via the authoritative pending decision", async () => {
+    vi.mocked(signExecassLocalDecision).mockResolvedValue(PROOF);
+    vi.mocked(resolveExecassDecision).mockResolvedValue(
+      fixtureResolveDecisionResponse(),
+    );
+    vi.mocked(getExecassDelegation).mockResolvedValue({
+      detail: {
+        delegation: fixtureDelegationSummary({
+          delegation_id: "dlg-mailchimp",
+          phase: "waiting_for_user",
+          pending_decision: fixtureDecisionSummary(),
+        }),
+        original_intent: "Close the old Mailchimp account",
+        plan_summary: "Close after verified export",
+        actions: [],
+        continuations: [],
+        effects: [],
+        completion_verifiers: [],
+        outcome_criteria: [],
+        authority_snapshot_ref: "auth-1",
+        immutable_intake_evidence_ref: "evid-1",
+        ingress_source: "local",
+        internal_record_refs: [],
+        source_correlation_id: "corr",
+        technical_resource_summary: "light",
+        receipt_chain_head: null,
+        recovery: null,
+      },
+    });
+    await mount();
+    await act(async () => {
+      await controller!.resolveAttention(
+        fixtureAttentionItem(),
+        "confirm_and_continue",
+      );
+    });
+    expect(getExecassDelegation).toHaveBeenCalledWith(
+      settings,
+      "dlg-mailchimp",
+    );
+    expect(resolveExecassDecision).toHaveBeenCalled();
+  });
+
+  it("refetches instead of resolving when the pending decision changed", async () => {
+    vi.mocked(getExecassDelegation).mockResolvedValue({
+      detail: {
+        delegation: fixtureDelegationSummary({
+          delegation_id: "dlg-mailchimp",
+          pending_decision: fixtureDecisionSummary({
+            decision_id: "dec-DIFFERENT",
+          }),
+        }),
+        original_intent: "x",
+        plan_summary: "x",
+        actions: [],
+        continuations: [],
+        effects: [],
+        completion_verifiers: [],
+        outcome_criteria: [],
+        authority_snapshot_ref: "a",
+        immutable_intake_evidence_ref: "e",
+        ingress_source: "local",
+        internal_record_refs: [],
+        source_correlation_id: "c",
+        technical_resource_summary: "t",
+        receipt_chain_head: null,
+        recovery: null,
+      },
+    });
+    await mount();
+    await act(async () => {
+      await controller!.resolveAttention(
+        fixtureAttentionItem(),
+        "confirm_and_continue",
+      );
+    });
+    expect(resolveExecassDecision).not.toHaveBeenCalled();
+    expect(vi.mocked(getExecassSummary).mock.calls.length).toBeGreaterThan(1);
   });
 
   it("collects tray notes from scheduled notifications", async () => {

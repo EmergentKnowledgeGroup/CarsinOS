@@ -4,11 +4,8 @@ import type { MissionControlTab } from "../../app/useAppController";
 import type { BoardSummary } from "../../app/useRuntimeConnectionController";
 import type { Agent, RunbookSummaryItemResponse } from "../../types";
 import type { RuntimeConnectionSettings } from "../../types";
-import {
-  AssistantDeskPanel,
-  AssistantDeskStatusStrip,
-} from "../assistantDesk/AssistantDeskPanel";
-import { useAssistantDeskController } from "../assistantDesk/useAssistantDeskController";
+import { ExecassOfficePanel } from "../execassOffice/ExecassOfficePanel";
+import type { ExecassOfficeController } from "../execassOffice/useExecassOfficeController";
 import { RunbookLinkPanel } from "../runbook/RunbookLinkPanel";
 import { AssistantMarkdown } from "./AssistantMarkdown";
 import type { useAssistantChatController } from "./useAssistantChatController";
@@ -21,6 +18,7 @@ interface AssistantChatPageProps {
   boards: BoardSummary[];
   onTabChange: (tab: MissionControlTab) => void;
   controller: ReturnType<typeof useAssistantChatController>;
+  officeController: ExecassOfficeController;
   runbookEnabled: boolean;
   runbookSummary: RunbookSummaryItemResponse | null;
   onOpenAssistantRunbook: (runId: string) => boolean;
@@ -47,18 +45,10 @@ export function AssistantChatPage(props: AssistantChatPageProps) {
   const assistantRunId = c.lastRunId;
   const [promptOpen, setPromptOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<"chat" | "prompt">("chat");
-  const [deskOpen, setDeskOpen] = useState(false);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
   const refreshRoutingState = c.refreshRoutingState;
   const messageCount = c.messages.length;
   const sendStatus = c.sendStatus;
-  const assistantDesk = useAssistantDeskController({
-    settings: props.settings,
-    tokenConfigured: props.tokenConfigured,
-    assistantDeskEnabled: props.active,
-    assistantDeskStatusStripEnabled: props.active,
-    deskOpen: props.active && deskOpen,
-  });
 
   useEffect(() => {
     if (!props.active) {
@@ -295,15 +285,7 @@ export function AssistantChatPage(props: AssistantChatPageProps) {
         </div>
       </article>
 
-      <AssistantDeskStatusStrip
-        controller={assistantDesk}
-        onOpenDesk={() => setDeskOpen(true)}
-      />
-      <AssistantDeskPanel
-        open={deskOpen}
-        controller={assistantDesk}
-        onClose={() => setDeskOpen(false)}
-      />
+      <ExecassOfficePanel controller={props.officeController} />
 
       <div className="mc-page-section-tabs" aria-label="Assistant sections">
         <button

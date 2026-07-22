@@ -245,17 +245,32 @@ export async function getGatewayToken(): Promise<string | null> {
  * and discard it.
  */
 function requireDesktopSigner(): void {
-  if (!isTauriRuntime()) {
+  if (!isTauriRuntime() && !isE2EMode()) {
     throw new Error(
       "ExecAss owner proofs are available only in the desktop app.",
     );
   }
 }
 
+/**
+ * Browser Playwright runs (?e2e=1) exercise the full intake/decision flow
+ * against the mock gateway, which validates proof PRESENCE and shape, not
+ * cryptography. This inert stub exists only on that path; the production
+ * browser build still refuses, and the desktop path always uses the
+ * native keyring signer.
+ */
+const E2E_STUB_PROOF = {
+  authenticated_client_id: "e2e-browser",
+  proof_hex: "00".repeat(32),
+};
+
 export async function signExecassLocalRunControl(
   binding: RunControlRequestBinding,
 ): Promise<LocalRunControlProof> {
   requireDesktopSigner();
+  if (!isTauriRuntime()) {
+    return { ...E2E_STUB_PROOF, request_correlation_id: binding.request_correlation_id };
+  }
   return invoke<LocalRunControlProof>("sign_execass_local_run_control", {
     binding,
   });
@@ -265,6 +280,17 @@ export async function signExecassLocalOwnerIntake(
   request: IntakeRequest,
 ): Promise<LocalOwnerIntakeProof> {
   requireDesktopSigner();
+  if (!isTauriRuntime()) {
+    return {
+      ...E2E_STUB_PROOF,
+      request_correlation_id: request.source_correlation_id,
+      request_id: request.request_id,
+      idempotency_key: request.idempotency_key,
+      attach_to_delegation_id: request.attach_to_delegation_id ?? null,
+      normalized_intent_digest: "sha256:e2e",
+      instruction_digest: "sha256:e2e",
+    };
+  }
   return invoke<LocalOwnerIntakeProof>("sign_execass_local_owner_intake", {
     request,
   });
@@ -274,6 +300,9 @@ export async function signExecassLocalOwnerMutation(
   binding: LocalOwnerMutationBinding,
 ): Promise<LocalOwnerMutationProof> {
   requireDesktopSigner();
+  if (!isTauriRuntime()) {
+    return { ...E2E_STUB_PROOF, request_correlation_id: binding.request_correlation_id };
+  }
   return invoke<LocalOwnerMutationProof>("sign_execass_local_owner_mutation", {
     binding,
   });
@@ -284,6 +313,9 @@ export async function signExecassLocalDecision(
   requestCorrelationId: string,
 ): Promise<LocalDecisionProof> {
   requireDesktopSigner();
+  if (!isTauriRuntime()) {
+    return { ...E2E_STUB_PROOF, request_correlation_id: requestCorrelationId };
+  }
   return invoke<LocalDecisionProof>("sign_execass_local_decision", {
     binding,
     requestCorrelationId,

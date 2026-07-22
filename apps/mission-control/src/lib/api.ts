@@ -23,8 +23,6 @@ import type {
   AgentMailFileLeaseResponse,
   AgentMailThreadDetailResponse,
   AgentProviderProfileOrderResponse,
-  AssistantDeskResponse,
-  AssistantDeskTranscriptResponse,
   AuthProfileResponse,
   BoardDetail,
   BoardDetailResponse,
@@ -1490,26 +1488,6 @@ export async function getMissionControlFocus(
   return requestJson<MissionControlFocusResponse>(
     settings,
     `/api/v1/mission-control/focus?limit=${encodeURIComponent(String(limit))}`
-  );
-}
-
-export async function getAssistantDesk(
-  settings: RuntimeConnectionSettings
-): Promise<AssistantDeskResponse> {
-  return requestJson<AssistantDeskResponse>(settings, "/api/v1/assistant-desk");
-}
-
-export async function getAssistantDeskTranscript(
-  settings: RuntimeConnectionSettings,
-  workItemId: string,
-  cursor?: string | null
-): Promise<AssistantDeskTranscriptResponse> {
-  return requestJson<AssistantDeskTranscriptResponse>(
-    settings,
-    appendQuery(
-      `/api/v1/assistant-desk/${encodeURIComponent(workItemId)}/transcript`,
-      [["cursor", cursor]]
-    )
   );
 }
 

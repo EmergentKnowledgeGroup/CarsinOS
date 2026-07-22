@@ -15,6 +15,7 @@ import {
   acknowledgeExecassSummary,
   engageExecassStopAll,
   execassIntake,
+  getExecassDelegation,
   getExecassStopAllStatus,
   getExecassSummary,
   listExecassDelegationReceipts,
@@ -41,6 +42,7 @@ import {
   type StreamState,
 } from "../../glass/execass/stream";
 import type {
+  AttentionItem,
   DecisionResult,
   DecisionSummary,
   ExecassWsFrame,
@@ -83,6 +85,11 @@ export interface ExecassOfficeController {
   refreshSummary: () => Promise<void>;
   resolveDecision: (
     decision: DecisionSummary,
+    result: DecisionResult,
+    revisionText?: string,
+  ) => Promise<void>;
+  resolveAttention: (
+    item: AttentionItem,
     result: DecisionResult,
     revisionText?: string,
   ) => Promise<void>;
@@ -341,6 +348,37 @@ export function useExecassOfficeController(
     [refreshSummary, resolvingDecisionIds, setNotice, settings],
   );
 
+  const resolveAttention = useCallback(
+    async (item: AttentionItem, result: DecisionResult, revisionText?: string) => {
+      if (item.subject.scope_kind !== "delegation" || !item.decision_id) {
+        setNotice({
+          tone: "info",
+          message: "This item is informational - nothing to resolve here.",
+        });
+        return;
+      }
+      try {
+        const response = await getExecassDelegation(
+          settings,
+          item.subject.delegation_id,
+        );
+        const decision = response.detail.delegation.pending_decision;
+        if (!decision || decision.decision_id !== item.decision_id) {
+          setNotice({
+            tone: "info",
+            message: "The work changed before this decision - refreshed it for you.",
+          });
+          await refreshSummary();
+          return;
+        }
+        await resolveDecision(decision, result, revisionText);
+      } catch (error: unknown) {
+        setNotice({ tone: "error", message: safeErrorMessage(error) });
+      }
+    },
+    [refreshSummary, resolveDecision, setNotice, settings],
+  );
+
   const delegate = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
@@ -466,6 +504,7 @@ export function useExecassOfficeController(
     conversationalReply,
     refreshSummary,
     resolveDecision,
+    resolveAttention,
     delegate,
     clearConversationalReply,
     freezeAll,
