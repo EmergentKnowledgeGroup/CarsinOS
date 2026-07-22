@@ -14,9 +14,9 @@ use carsinos_core::TokenSource;
 use std::ffi::{OsStr, OsString};
 #[cfg(windows)]
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-#[cfg(any(windows, test))]
+#[cfg(windows)]
 use std::path::Path;
-#[cfg(any(windows, test))]
+#[cfg(windows)]
 use std::path::PathBuf;
 
 pub(crate) const INSTALLED_RUNTIME_HOST_FLAG: &str = "--mission-control-runtime-host";
@@ -119,12 +119,20 @@ mod tests {
 
     #[test]
     fn canonical_product_state_path_is_fixed_and_relative() {
-        let relative = Path::new(PRODUCT_STATE_RELATIVE_PATH);
-        assert!(!relative.is_absolute());
-        assert_eq!(relative.components().count(), 2);
         assert_eq!(
-            Path::new(r"Z:\profile\AppData\Local").join(relative),
-            PathBuf::from(r"Z:\profile\AppData\Local\io.carsinos.missioncontrol\state")
+            PRODUCT_STATE_RELATIVE_PATH,
+            r"io.carsinos.missioncontrol\state"
         );
+        assert_eq!(PRODUCT_STATE_RELATIVE_PATH.split('\\').count(), 2);
+        #[cfg(windows)]
+        {
+            let relative = Path::new(PRODUCT_STATE_RELATIVE_PATH);
+            assert!(!relative.is_absolute());
+            assert_eq!(relative.components().count(), 2);
+            assert_eq!(
+                Path::new(r"Z:\profile\AppData\Local").join(relative),
+                PathBuf::from(r"Z:\profile\AppData\Local\io.carsinos.missioncontrol\state")
+            );
+        }
     }
 }

@@ -261,7 +261,7 @@ impl ExecAssStore {
             trusted_now + 100,
         )?;
         let outcome = self.assess_completion_atomically(
-            &self.open_receipt_integrity_store()?,
+            &self.open_receipt_integrity_store_for_test()?,
             &ReceiptRedactor::new(&["ea312-reference-secret"])?,
             &AssessCompletionCommand {
                 write: WriteContext {
@@ -522,7 +522,7 @@ impl ExecAssStore {
             .read_api_delegation_detail(delegation_id)?
             .context("reference criteria delegation disappeared")?
             .criteria;
-        let integrity = self.open_receipt_integrity_store()?;
+        let integrity = self.open_receipt_integrity_store_for_test()?;
         let redactor = ReceiptRedactor::new(&["ea312-reference-secret"])?;
         for (index, criterion) in criteria.iter().enumerate() {
             let current = self
@@ -597,7 +597,7 @@ impl ExecAssStore {
         causation_id: &str,
         trusted_now: i64,
     ) -> Result<AppendReceiptCommand> {
-        let integrity = self.open_receipt_integrity_store()?;
+        let integrity = self.open_receipt_integrity_store_for_test()?;
         let IntegrityStatus::Trusted {
             receipt_count,
             receipt_head_digest,

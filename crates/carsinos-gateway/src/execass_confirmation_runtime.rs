@@ -2382,7 +2382,8 @@ impl ExecAssConfirmationRuntime {
         let identity =
             carsinos_storage::execass::activate_test_confirmation_authority(&store, seed)?;
         let signer = FixedConfirmationAuthoritySigner::from_seed(&identity, Zeroizing::new(seed))?;
-        let (receipt_integrity, receipt_key, receipt_redactor) = open_receipt_runtime(&store)?;
+        let (receipt_integrity, receipt_key, receipt_redactor) =
+            open_receipt_runtime_for_test(&store)?;
         Ok(Self {
             store,
             identity,
@@ -3014,6 +3015,22 @@ fn open_receipt_runtime(
     let integrity = store
         .open_receipt_integrity_store()
         .context("failed opening fixed ExecAss receipt integrity store")?;
+    finish_open_receipt_runtime(integrity)
+}
+
+#[cfg(test)]
+fn open_receipt_runtime_for_test(
+    store: &ExecAssStore,
+) -> Result<(ReceiptIntegrityStore, ReceiptKeyRef, ReceiptRedactor)> {
+    let integrity = store
+        .open_receipt_integrity_store_for_test()
+        .context("failed opening test-only ExecAss receipt integrity store")?;
+    finish_open_receipt_runtime(integrity)
+}
+
+fn finish_open_receipt_runtime(
+    integrity: ReceiptIntegrityStore,
+) -> Result<(ReceiptIntegrityStore, ReceiptKeyRef, ReceiptRedactor)> {
     integrity
         .recover_integrity()
         .context("failed recovering ExecAss receipt integrity before confirmation startup")?;

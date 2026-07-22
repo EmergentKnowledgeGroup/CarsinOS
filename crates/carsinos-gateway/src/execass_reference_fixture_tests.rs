@@ -310,7 +310,7 @@ async fn execass_reference_fixture_coherent_lifecycle_executes_exact_dangerous_l
         ),
         "the sole physical recorder request must be the first-authorizing ExecuteOnce"
     );
-    let integrity = store.open_receipt_integrity_store().unwrap();
+    let integrity = store.open_receipt_integrity_store_for_test().unwrap();
     let redactor = carsinos_storage::execass::ReceiptRedactor::new(&[direct_secret]).unwrap();
     let executed_detail = store
         .read_api_delegation_detail(&exact_delegation_id)

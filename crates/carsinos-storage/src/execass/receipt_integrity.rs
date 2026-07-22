@@ -216,10 +216,42 @@ struct ReceiptCommitConfirmation<'a> {
 
 impl ReceiptIntegrityStore {
     pub fn open(paths: &AppPaths) -> Result<Self> {
+        #[cfg(all(test, not(any(windows, target_os = "macos"))))]
+        {
+            Self::open_for_test_inner(paths)
+        }
+        #[cfg(not(all(test, not(any(windows, target_os = "macos")))))]
+        {
+            let (anchor_dir, root_identity) = external_anchor_location(paths)?;
+            fs::create_dir_all(&anchor_dir)
+                .context("failed creating the external receipt-integrity directory")?;
+            let protector = production_protector(&anchor_dir, &root_identity)?;
+            Self::with_protector_and_failpoints(
+                paths,
+                anchor_dir,
+                root_identity,
+                protector,
+                Arc::new(NoFailpoints),
+            )
+        }
+    }
+
+    /// Test-only receipt custody for dependent crates that cannot inherit this
+    /// crate's `cfg(test)`. Production callers must use [`Self::open`].
+    #[cfg(feature = "execass-test-confirmation-runtime")]
+    #[doc(hidden)]
+    pub fn open_for_test(paths: &AppPaths) -> Result<Self> {
+        Self::open_for_test_inner(paths)
+    }
+
+    #[cfg(any(test, feature = "execass-test-confirmation-runtime"))]
+    fn open_for_test_inner(paths: &AppPaths) -> Result<Self> {
         let (anchor_dir, root_identity) = external_anchor_location(paths)?;
         fs::create_dir_all(&anchor_dir)
-            .context("failed creating the external receipt-integrity directory")?;
-        let protector = production_protector(&anchor_dir, &root_identity)?;
+            .context("failed creating the external test receipt-integrity directory")?;
+        let protector = Arc::new(FeatureTestReceiptKeyProtector::new(
+            anchor_dir.join("test-only-keys"),
+        )?);
         Self::with_protector_and_failpoints(
             paths,
             anchor_dir,
@@ -1206,6 +1238,67 @@ impl ReceiptIntegrityStore {
             }
         }
         Ok(false)
+    }
+}
+
+/// File-backed only so dependent-crate restart tests reopen the same key.
+/// Outside this crate's unit-test build, this is unavailable unless the
+/// explicit test-support feature is enabled. Production `open` never selects
+/// it on any platform.
+#[cfg(any(test, feature = "execass-test-confirmation-runtime"))]
+struct FeatureTestReceiptKeyProtector {
+    key_dir: PathBuf,
+}
+
+#[cfg(any(test, feature = "execass-test-confirmation-runtime"))]
+impl FeatureTestReceiptKeyProtector {
+    fn new(key_dir: PathBuf) -> Result<Self> {
+        fs::create_dir_all(&key_dir)?;
+        sync_directory(
+            key_dir
+                .parent()
+                .context("test receipt key directory has no parent")?,
+        )?;
+        Ok(Self { key_dir })
+    }
+
+    fn path(&self, key: &ReceiptKeyRef) -> PathBuf {
+        self.key_dir.join(format!(
+            "{}-{:020}.test-key",
+            key.key_id, key.key_generation
+        ))
+    }
+}
+
+#[cfg(any(test, feature = "execass-test-confirmation-runtime"))]
+impl ReceiptKeyProtector for FeatureTestReceiptKeyProtector {
+    fn create(&self, key: &ReceiptKeyRef) -> Result<Zeroizing<Vec<u8>>> {
+        let path = self.path(key);
+        if path.exists() {
+            bail!("test receipt key already exists");
+        }
+        let mut material = Zeroizing::new(vec![0_u8; KEY_BYTES]);
+        getrandom::fill(&mut material).context("generating test receipt key")?;
+        durable_write_atomic(&path, &material, "test-key", &NoFailpoints)?;
+        Ok(material)
+    }
+
+    fn load(&self, key: &ReceiptKeyRef) -> Result<Zeroizing<Vec<u8>>> {
+        let material =
+            Zeroizing::new(fs::read(self.path(key)).context("test receipt key is unavailable")?);
+        if material.len() != KEY_BYTES {
+            bail!("test receipt key has invalid length");
+        }
+        Ok(material)
+    }
+
+    fn delete(&self, key: &ReceiptKeyRef) -> Result<()> {
+        let path = self.path(key);
+        if path.exists() {
+            fs::remove_file(path)?;
+            sync_directory(&self.key_dir)?;
+        }
+        Ok(())
     }
 }
 

@@ -114,6 +114,16 @@ impl ExecAssStore {
             self.root_path.clone(),
         ))
     }
+
+    #[cfg(feature = "execass-test-confirmation-runtime")]
+    #[doc(hidden)]
+    pub fn open_receipt_integrity_store_for_test(
+        &self,
+    ) -> Result<super::receipt_integrity::ReceiptIntegrityStore> {
+        super::receipt_integrity::ReceiptIntegrityStore::open_for_test(&AppPaths::from_root(
+            self.root_path.clone(),
+        ))
+    }
 }
 
 fn root_identity_for_path(path: &Path) -> String {
