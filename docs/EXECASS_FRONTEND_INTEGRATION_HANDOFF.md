@@ -56,7 +56,7 @@ All routes use bearer authentication. The checked OpenAPI document is authoritat
 | `GET` | `/api/v1/execass/runtime-host` | `getExecassRuntimeHost` | Read desired/actual host state, generation, fencing, and recovery status. |
 | `PUT` | `/api/v1/execass/runtime-host` | `configureExecassRuntimeHost` | Configure the single runtime host through the native-owner authority path. |
 
-Every mutation requires an `Idempotency-Key` header matching the request body's `idempotency_key`. Intake, policy update, and runtime-host configuration additionally require `X-ExecAss-Owner-Proof`. Decision resolution carries its exact native decision proof and binding in the request body. The frontend must obtain native proofs through the desktop/native bridge; it must not generate, persist, or approximate signing material in browser storage.
+Every mutation requires an `Idempotency-Key` header matching the request body's `idempotency_key`. Intake, policy update, and runtime-host configuration additionally require `X-ExecAss-Owner-Proof`. Decision resolution carries its exact native decision proof and binding in the request body. Delegation stop/resume and global stop/resume request bodies must each carry the exact `RunControlRequestBinding` and `LocalRunControlProof` defined by their generated schemas. Obtain that proof through the registered Tauri command `sign_execass_local_run_control`; Mission Control must add the corresponding TypeScript wrapper in `apps/mission-control/src/lib/runtime.ts`. The frontend must obtain all native proofs through the desktop/native bridge; it must not generate, persist, or approximate signing material in React or browser storage.
 
 Use `x-request-id` for request correlation. Treat `409` revision/idempotency conflicts as a refetch-and-reconcile condition, not as permission denial. Follow the OpenAPI response table and `schema/api-error.json` for all other error handling.
 
@@ -79,7 +79,7 @@ Persist only the last durably handled `global_sequence` for the stable authentic
 - `type: "execass.v1.event"` with the `DurableEventEnvelope` from `schema/durable-event-envelope.json`.
 - `type: "execass.v1.summary_refetch_required"` when the cursor is stale, future, mismatched, gapped, or otherwise unsafe.
 
-On `summary_refetch_required`, discard speculative projection changes, refetch `/api/v1/execass/summary`, reconcile the displayed revision, and resume from the server-supported cursor. Deduplicate events by `duplicate_identity`; order them by `global_sequence`. In-memory websocket counters are not authoritative.
+On `summary_refetch_required`, discard speculative projection changes, refetch `/api/v1/execass/summary`, and reconcile the displayed revision. Then send a new `execass.v1.resume` using the response frame's exact `consumer_cursor`. Never substitute its `requested_cursor` or `head_global_sequence`, or the client can remain in a refetch loop. Deduplicate events by `duplicate_identity`; order them by `global_sequence`. In-memory websocket counters are not authoritative.
 
 The allowed event families are listed in `execass_contract.json`. Use events as invalidation/reconciliation signals. Do not manufacture a second frontend lifecycle reducer that can disagree with the summary/detail projections.
 
