@@ -33,6 +33,7 @@ import type {
 } from "./types";
 
 const T0 = 1_753_200_000_000; // fixed fixture epoch
+const FAR_FUTURE = 4_102_444_800_000; // 2100-01-01, keeps challenges unexpired vs real clocks
 
 export function fixtureDecisionSummary(
   overrides: Partial<DecisionSummary> = {},
@@ -62,7 +63,7 @@ export function fixtureDecisionSummary(
       declared_consequence:
         "Permanent. All 41,204 contacts exported and verified - closing deletes the account and its history.",
       nonce_or_token: "nonce-1",
-      expires_at_ms: T0 + 15 * 60_000,
+      expires_at_ms: FAR_FUTURE,
     },
     local_owner_proof_challenge: {
       decision_id: "dec-mailchimp",
@@ -74,7 +75,7 @@ export function fixtureDecisionSummary(
       presented_action_digest: "sha256:action-1",
       declared_consequence_digest: "sha256:consequence-1",
       challenge_digest: "sha256:challenge-1",
-      expires_at_ms: T0 + 15 * 60_000,
+      expires_at_ms: FAR_FUTURE,
     },
     resolved_at_ms: null,
     resolved_owner: null,
@@ -321,7 +322,7 @@ export function fixtureDecisionProofBinding(
     presented_action_digest: "sha256:action-1",
     declared_consequence_digest: "sha256:consequence-1",
     challenge_digest: "sha256:challenge-1",
-    expires_at_ms: T0 + 15 * 60_000,
+    expires_at_ms: FAR_FUTURE,
     response_selected_logical_action_id: "act-close-account",
     decision_result: "confirm_and_continue",
     idempotency_key: "idem-decision-1",
