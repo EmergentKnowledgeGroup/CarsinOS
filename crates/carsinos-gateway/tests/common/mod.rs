@@ -250,6 +250,26 @@ impl GatewayProcess {
         ))
     }
 
+    #[allow(dead_code)]
+    pub fn force_kill_and_wait(&mut self) -> Result<()> {
+        if self
+            .child
+            .try_wait()
+            .context("failed checking gateway before forced termination")?
+            .is_none()
+        {
+            // Child::kill is SIGKILL on Unix and TerminateProcess on Windows.
+            // This intentionally bypasses graceful shutdown for crash-recovery tests.
+            self.child
+                .kill()
+                .context("failed forcing gateway process termination")?;
+        }
+        self.child
+            .wait()
+            .context("failed reaping forcibly terminated gateway process")?;
+        Ok(())
+    }
+
     fn startup_stderr_tail(&self) -> String {
         const MAX_DIAGNOSTIC_BYTES: usize = 8 * 1024;
         let Ok(bytes) = std::fs::read(&self.stderr_path) else {

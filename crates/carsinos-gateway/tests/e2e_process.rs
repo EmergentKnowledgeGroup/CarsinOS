@@ -1002,7 +1002,7 @@ async fn tuple_bound_runtime_host_rejects_a_second_writer_and_advances_after_rel
     carsinos_storage::init_execass_fresh_root(&paths)
         .context("initialize canonical ExecAss runtime-host root")?;
     let native_owner_secret = "e2e-native-owner-secret-at-least-thirty-two-bytes";
-    let primary = GatewayProcess::spawn_with_execass_test_runtime(
+    let mut primary = GatewayProcess::spawn_with_execass_test_runtime(
         state_dir.path(),
         "e2e-token-scheduler-primary",
         None,
@@ -1134,6 +1134,9 @@ async fn tuple_bound_runtime_host_rejects_a_second_writer_and_advances_after_rel
     assert_eq!(run["status"], "succeeded");
     assert_eq!(run["trigger_kind"], "scheduler");
 
+    primary
+        .force_kill_and_wait()
+        .context("failed forcing predecessor crash")?;
     drop(primary);
     let successor = GatewayProcess::spawn_with_execass_test_runtime(
         state_dir.path(),
