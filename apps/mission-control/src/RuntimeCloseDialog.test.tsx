@@ -59,4 +59,32 @@ describe("RuntimeCloseDialog", () => {
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
+
+  it("returns focus to cancel when a replacement challenge arrives", async () => {
+    const renderDialog = (challenge: string) => (
+      <RuntimeCloseDialog
+        confirmation={{
+          consequence: "Active app-bound work will be paused before the window closes.",
+          binding: {
+            challenge,
+            original_request_id: "request-1",
+            original_nonce: "nonce-1",
+            original_issued_at_ms: 1_000,
+          },
+        }}
+        confirming={false}
+        onConfirm={vi.fn()}
+        onCancel={vi.fn()}
+      />
+    );
+
+    await act(async () => root.render(renderDialog("challenge-1")));
+    const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>("button"));
+    expect(document.activeElement).toBe(buttons[0]);
+
+    buttons[1].focus();
+    expect(document.activeElement).toBe(buttons[1]);
+    await act(async () => root.render(renderDialog("challenge-2")));
+    expect(document.activeElement).toBe(buttons[0]);
+  });
 });

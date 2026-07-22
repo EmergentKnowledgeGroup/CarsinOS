@@ -167,9 +167,14 @@ fn validate_install_immutability(path: &Path, file: &File) -> Result<()> {
         .parent()
         .context("the packaged effect-recorder artifact has no install directory")?;
     unsafe extern "C" {
+        fn getuid() -> u32;
         fn geteuid() -> u32;
     }
+    let real_uid = unsafe { getuid() };
     let effective_uid = unsafe { geteuid() };
+    if !unix_credentials_match(real_uid, effective_uid) {
+        bail!("the packaged effect-recorder cannot verify install immutability under mismatched Unix credentials");
+    }
     if !unix_artifact_snapshot_is_immutable(
         effective_uid,
         file_metadata.uid(),
@@ -213,6 +218,11 @@ fn unix_artifact_snapshot_is_immutable(effective_uid: u32, owner_uid: u32, mode:
 #[cfg(unix)]
 fn unix_directory_snapshot_is_immutable(effective_uid: u32, owner_uid: u32, mode: u32) -> bool {
     owner_uid != effective_uid && mode & 0o022 == 0
+}
+
+#[cfg(unix)]
+fn unix_credentials_match(real_uid: u32, effective_uid: u32) -> bool {
+    real_uid == effective_uid
 }
 
 #[cfg(all(unix, test))]
@@ -364,6 +374,9 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn unix_immutability_rejects_mutable_artifact_and_any_mutable_ancestor() {
+        assert!(unix_credentials_match(501, 501));
+        assert!(!unix_credentials_match(501, 0));
+
         assert!(unix_artifact_snapshot_is_immutable(501, 0, 0o100755));
         assert!(!unix_artifact_snapshot_is_immutable(501, 501, 0o100555));
         assert!(!unix_artifact_snapshot_is_immutable(501, 0, 0o100775));

@@ -72,7 +72,7 @@ export function RuntimeCloseDialog(props: {
 
   useEffect(() => {
     cancelButtonRef.current?.focus();
-  }, []);
+  }, [confirmation.binding.challenge]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
