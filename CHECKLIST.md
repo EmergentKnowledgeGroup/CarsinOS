@@ -2,6 +2,22 @@
 
 Execution checklist derived from `PLAN.md`. IDs are stable and must be used by `CHECKPOINT.md`.
 
+## Current Active Lane — ExecAss Backend and Runtime Product Correction
+
+The exact source-of-truth order for this lane is `docs/EXECASS_BACKEND_RUNTIME_PRODUCT_CORRECTION_CHECKLIST.md`, governed by its locked specification and blockerboard. Its stable IDs are incorporated into this root checklist by reference:
+
+- `EA-001..EA-005`
+- `EA-101..EA-113`
+- `EA-201..EA-217`
+- `EA-301..EA-314`
+- `EA-401..EA-408`
+- `EA-501..EA-505`
+- `EA-601..EA-611`
+
+- [ ] `AD1` Complete every incorporated `EA-*` item with evidence, close every release blocker, finish protected-main review/CI, and mark the persistent goal complete only when the locked three-document set is fully green.
+
+Historical phases below remain completed product history; they do not override the active locked ExecAss contract.
+
 ## Phase A - Foundation
 
 - [x] `A1` Initialize Rust workspace and core crates.

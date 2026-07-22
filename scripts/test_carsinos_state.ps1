@@ -3,6 +3,9 @@ param()
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = "Stop"
 
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+
 $ScriptDir = Split-Path -Parent $PSCommandPath
 $RepoRoot = (Resolve-Path (Join-Path $ScriptDir "..")).ProviderPath
 $Root = Join-Path $RepoRoot ("runtime\state-backup-test-" + [guid]::NewGuid().ToString("N"))
@@ -25,7 +28,7 @@ function Assert-VerifyFails([string]$Candidate, [string]$ExpectedError, [string]
   $exitCode = $LASTEXITCODE
   $ErrorActionPreference = $previousPreference
   Assert ($exitCode -ne 0) $Message
-  Assert ($output -match [regex]::Escape($ExpectedError)) "$Message (expected error: $ExpectedError)"
+  Assert ($output -match [regex]::Escape($ExpectedError)) "$Message (expected error: $ExpectedError; actual output: $output)"
 }
 
 try {
@@ -37,11 +40,11 @@ try {
   Set-Content -LiteralPath (Join-Path $Source "secrets\provider.key") -Value "must-not-leave"
   Set-Content -LiteralPath (Join-Path $Source "cargo-target\artifact.bin") -Value "generated"
 
-  & (Join-Path $ScriptDir "carsinos_state.ps1") -Action Backup -StateDir $Source -ArchivePath $Archive
+  & (Join-Path $ScriptDir "carsinos_state.ps1") -Action Backup -StateDir $Source -ArchivePath $Archive -BinaryCompatibilityVersion "state-test-v1"
   Assert ($LASTEXITCODE -eq 0) "backup command failed"
   & (Join-Path $ScriptDir "carsinos_state.ps1") -Action Verify -ArchivePath $Archive
   Assert ($LASTEXITCODE -eq 0) "verify command failed"
-  & (Join-Path $ScriptDir "carsinos_state.ps1") -Action Restore -StateDir $Restored -ArchivePath $Archive
+  & (Join-Path $ScriptDir "carsinos_state.ps1") -Action Restore -StateDir $Restored -ArchivePath $Archive -ExpectedBinaryCompatibilityVersion "state-test-v1"
   Assert ($LASTEXITCODE -eq 0) "restore command failed"
 
   Assert (Test-Path -LiteralPath (Join-Path $Restored "carsinos.db")) "database was not restored"
@@ -57,11 +60,11 @@ try {
   $proofBytes[0] = $proofBytes[0] -bxor 1
   [IO.File]::WriteAllBytes($proofPath, $proofBytes)
   [IO.Compression.ZipFile]::CreateFromDirectory($TamperStage, $ChecksumTamperedArchive)
-  Assert-VerifyFails $ChecksumTamperedArchive "Backup checksum mismatch" "same-size checksum tampering must be rejected"
+  Assert-VerifyFails $ChecksumTamperedArchive "archive_validation_rejected" "same-size checksum tampering must be rejected"
 
   Set-Content -LiteralPath (Join-Path $TamperStage "attachments\proof.txt") -Value "attachment-with-extra-bytes"
   [IO.Compression.ZipFile]::CreateFromDirectory($TamperStage, $SizeTamperedArchive)
-  Assert-VerifyFails $SizeTamperedArchive "Backup size mismatch" "size tampering must be rejected"
+  Assert-VerifyFails $SizeTamperedArchive "archive_validation_rejected" "size tampering must be rejected"
 
   $stream = [IO.File]::Open($TraversalArchive, [IO.FileMode]::CreateNew)
   $zip = New-Object IO.Compression.ZipArchive($stream, [IO.Compression.ZipArchiveMode]::Create)
@@ -73,7 +76,7 @@ try {
     $zip.Dispose()
     $stream.Dispose()
   }
-  Assert-VerifyFails $TraversalArchive "Unsafe archive entry" "archive path traversal must be rejected"
+  Assert-VerifyFails $TraversalArchive "archive_validation_rejected" "archive path traversal must be rejected"
   Assert (-not (Test-Path -LiteralPath (Join-Path $Root "escape.txt"))) "path traversal created a file outside extraction root"
 
   Write-Host "CarsinOS state backup/verify/restore test passed."

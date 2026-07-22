@@ -1,5 +1,6 @@
 [workspace]
 members = [
+  "crates/carsinos-effect-recorder",
   "crates/carsinos-channels-bluebubbles",
   "crates/carsinos-channels-discord",
   "crates/carsinos-channels-signal",
@@ -13,6 +14,7 @@ members = [
   "crates/carsinos-gui",
   "crates/carsinos-providers",
   "crates/carsinos-protocol",
+  "crates/carsinos-runtime-control",
   "crates/carsinos-storage",
   "crates/carsinos-tools",
 ]
@@ -29,14 +31,26 @@ anyhow = "1"
 async-trait = "0.1"
 axum = { version = "0.8", features = ["macros", "ws"] }
 chrono = { version = "0.4", features = ["clock", "serde"] }
+chrono-tz = "0.10"
 clap = { version = "4", features = ["derive"] }
 directories = "6"
+ed25519-dalek = { version = "3.0.0", default-features = false, features = ["zeroize"] }
+fs2 = "0.4"
+getrandom = "0.4"
+keyring = { version = "3.6.3", default-features = false, features = ["apple-native", "windows-native"] }
+hmac = "0.12"
+base64 = "0.22"
+regex = "1"
 rusqlite = { version = "0.37", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+schemars = { version = "1.2.1", features = ["chrono04", "uuid1"] }
+sha2 = "0.10"
 thiserror = "2"
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal", "time"] }
 tower-http = { version = "0.6", features = ["trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
 uuid = { version = "1", features = ["serde", "v4"] }
+zeroize = "1.9"
+unicode-normalization = "0.1"

@@ -1,0 +1,97 @@
+{
+  "$defs": {
+    "RuntimeHostActualState": {
+      "enum": [
+        "stopped",
+        "starting",
+        "running_app_bound",
+        "handoff",
+        "running_background",
+        "draining",
+        "faulted"
+      ],
+      "type": "string"
+    },
+    "RuntimeHostDesiredMode": {
+      "enum": [
+        "app_bound",
+        "background"
+      ],
+      "type": "string"
+    },
+    "RuntimeHostStatusResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "actual_state": {
+          "$ref": "#/$defs/RuntimeHostActualState"
+        },
+        "desired_mode": {
+          "$ref": "#/$defs/RuntimeHostDesiredMode"
+        },
+        "fencing_generation": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "health": {
+          "type": "string"
+        },
+        "ownership_mode": {
+          "type": "string"
+        },
+        "process_id": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "restart_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "started_at_ms": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "state_root_version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "desired_mode",
+        "actual_state",
+        "ownership_mode",
+        "fencing_generation",
+        "state_root_version",
+        "health"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "bounded_settings_revision": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "start_at_login": {
+      "type": "boolean"
+    },
+    "status": {
+      "$ref": "#/$defs/RuntimeHostStatusResponse"
+    }
+  },
+  "required": [
+    "status",
+    "start_at_login",
+    "bounded_settings_revision"
+  ],
+  "title": "RuntimeHostConfigResponse",
+  "type": "object"
+}

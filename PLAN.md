@@ -1,5 +1,17 @@
 ## carsinOS (Rust) Ground-Up Build Plan
 
+## Current Governing Product-Correction Plan — ExecAss Backend and Runtime
+
+The active implementation lane is the locked version 1.1 control set below:
+
+- Specification: `docs/EXECASS_BACKEND_RUNTIME_PRODUCT_CORRECTION_SPEC.md`
+- Execution checklist: `docs/EXECASS_BACKEND_RUNTIME_PRODUCT_CORRECTION_CHECKLIST.md`
+- Blockerboard: `docs/EXECASS_BACKEND_RUNTIME_PRODUCT_CORRECTION_BLOCKERBOARD.md`
+
+For this lane, that control set supersedes conflicting historical assumptions in the original ground-up plan, including macOS-first packaging, egui-only UI, the absence of a React production client, approval-as-a-separate-run behavior, financial plumbing, blanket category approval floors, deny-wins owner authority, and destructive-action hard locks. The current product is one user, one ExecAss, and one CarsinOS instance; ordinary exact authenticated owner instructions proceed, dangerous actions receive one concrete-consequence confirmation, Windows is the first runtime milestone, macOS parity is required before overall goal closure, and broad frontend redesign remains reserved for Claude after the backend/runtime contract is green.
+
+The locked specification is the decision-complete plan. Material changes use its three-document change-control rule rather than silently editing only this pointer.
+
 ### Summary
 Build a new, Rust-native “AI gateway + agent” inspired by OpenClaw, optimized for speed/stability and clean modularity, not feature parity. MVP is macOS-local, single-user, with a Rust GUI (egui), a Rust gateway daemon, Telegram + Discord channels, tool-calling (exec/fs/web), Brave Search integration, SQLite as source-of-truth, and “OAuth where supported + API keys fallback” for model providers. Exec/tool approvals must work in both GUI and chat channels.
 

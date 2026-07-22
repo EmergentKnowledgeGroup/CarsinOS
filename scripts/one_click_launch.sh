@@ -11,6 +11,7 @@ GATEWAY_PORT="${CARSINOS_LAUNCH_GATEWAY_PORT:-18789}"
 UI_PORT="${CARSINOS_LAUNCH_UI_PORT:-1420}"
 STATE_DIR="${CARSINOS_STATE_DIR:-${REPO_ROOT}/runtime/oneclick-state}"
 TOKEN="${CARSINOS_GATEWAY_TOKEN:-}"
+VALIDATE_ONLY=0
 MC_APP_DIR="${REPO_ROOT}/apps/mission-control"
 MC_ENV_FILE="${MC_APP_DIR}/.env.development.local"
 MC_ENV_BACKUP=""
@@ -37,6 +38,7 @@ Options:
   --ui-port <port>          Preferred UI port in web mode (default: 1420; falls forward if busy).
   --gateway-host <host>     Gateway host bind (default: 127.0.0.1).
   --token <value>           Use explicit gateway token.
+  --validate-only            Validate the development-state fence without starting processes.
   --help                    Show this help.
 EOF
 }
@@ -47,6 +49,46 @@ require_cmd() {
     echo "Missing required command: ${name}" >&2
     exit 1
   fi
+}
+
+state_root_fence_identity() {
+  python3 - "$1" <<'PY'
+from pathlib import Path
+import sys
+
+print(Path(sys.argv[1]).expanduser().resolve(strict=False))
+PY
+}
+
+production_state_root() {
+  case "$(uname -s)" in
+    Darwin) printf '%s\n' "${HOME}/Library/Application Support/io.carsinos.missioncontrol/state" ;;
+    Linux) printf '%s\n' "${XDG_DATA_HOME:-${HOME}/.local/share}/io.carsinos.missioncontrol/state" ;;
+    *)
+      echo "Unsupported platform for the Mission Control production state-root fence: $(uname -s)" >&2
+      return 1
+      ;;
+  esac
+}
+
+assert_development_state_root() {
+  local candidate candidate_identity production production_identity production_raw
+  candidate="$(state_root_fence_identity "${STATE_DIR}")"
+  if ! production_raw="$(production_state_root)"; then
+    return 1
+  fi
+  production="$(state_root_fence_identity "${production_raw}")"
+  candidate_identity="${candidate}"
+  production_identity="${production}"
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    candidate_identity="$(printf '%s' "${candidate}" | tr '[:upper:]' '[:lower:]')"
+    production_identity="$(printf '%s' "${production}" | tr '[:upper:]' '[:lower:]')"
+  fi
+  if [[ "${candidate_identity}" == "${production_identity}" ]]; then
+    echo "Legacy one-click launch is development-only and refuses the canonical Mission Control production state root: ${production}. Choose a separate development CARSINOS_STATE_DIR." >&2
+    return 1
+  fi
+  STATE_DIR="${candidate}"
 }
 
 is_port_in_use() {
@@ -342,6 +384,7 @@ start_gateway_process() {
     export CARSINOS_GATEWAY_BIND="${GATEWAY_HOST}:${GATEWAY_PORT_SELECTED}"
     export CARSINOS_GATEWAY_TOKEN="${TOKEN}"
     export CARSINOS_STATE_DIR="${STATE_DIR}"
+    export CARSINOS_LEGACY_LAUNCH_PROFILE="development"
     export CARSINOS_SECRET_STORE="${CARSINOS_SECRET_STORE:-file}"
     export CARSINOS_SECRET_FILE_DIR="${CARSINOS_SECRET_FILE_DIR:-${STATE_DIR}/secrets}"
     export CARSINOS_NUMQUAM_MANAGED_REPO_ROOT="${CARSINOS_NUMQUAM_MANAGED_REPO_ROOT:-${REPO_ROOT}}"
@@ -450,6 +493,10 @@ while [[ $# -gt 0 ]]; do
       TOKEN="${2:-}"
       shift 2
       ;;
+    --validate-only)
+      VALIDATE_ONLY=1
+      shift
+      ;;
     --help|-h)
       usage
       exit 0
@@ -462,10 +509,16 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+require_cmd python3
+assert_development_state_root
+if [[ "${VALIDATE_ONLY}" == "1" ]]; then
+  echo "EA406 development-state fence accepted: ${STATE_DIR}"
+  exit 0
+fi
+
 require_cmd cargo
 require_cmd npm
 require_cmd curl
-require_cmd python3
 require_cmd lsof
 require_cmd pgrep
 

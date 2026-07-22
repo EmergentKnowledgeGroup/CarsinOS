@@ -1,0 +1,284 @@
+{
+  "schema": "carsinos.execass.assistant-desk-cutover.v1",
+  "current_stage": "pre_ea311",
+  "purpose": "Frozen EA-308 source inventory and cutover guard for the legacy Assistant Desk summary authority.",
+  "planned_replacement": {
+    "endpoint": "/api/v1/execass/summary",
+    "model": "ExecAssExecutiveProjection",
+    "authority": "storage_projection_only",
+    "route_stage": "ea311",
+    "contract_path": "contracts/execass/v1/openapi.json",
+    "contract_operation": "getExecassSummary",
+    "projection_root": "crates/carsinos-storage/src/execass/",
+    "rule": "The ExecAss summary must read the authoritative storage projection. It must not call build_assistant_desk_response or independently aggregate legacy approvals, sessions, runs, or messages."
+  },
+  "transcript_replacement": {
+    "status": "OPEN",
+    "legacy_route": "/api/v1/assistant-desk/{work_item_id}/transcript",
+    "gate": "Retain until EA-311 provides and proves a receipts or audit-detail replacement with equivalent scope and redaction behavior.",
+    "reason": "The planned summary projection is not itself a transcript/detail contract."
+  },
+  "legacy_routes": [
+    {
+      "template": "/api/v1/assistant-desk",
+      "handler": "get_assistant_desk",
+      "kind": "legacy_summary",
+      "disposition": "RETAIN_UNTIL_EA311",
+      "gate": "Production client remains on the legacy summary until EA-311 client cutover is green.",
+      "evidence": {
+        "path": "crates/carsinos-gateway/src/main.rs",
+        "line_hint": 10843
+      }
+    },
+    {
+      "template": "/api/v1/assistant-desk/{work_item_id}/transcript",
+      "handler": "get_assistant_desk_transcript",
+      "kind": "legacy_transcript",
+      "disposition": "RETAIN_UNTIL_EA311",
+      "gate": "Transcript replacement is OPEN and must be proven before retirement.",
+      "evidence": {
+        "path": "crates/carsinos-gateway/src/main.rs",
+        "line_hint": 10845
+      }
+    }
+  ],
+  "legacy_backend": {
+    "path": "crates/carsinos-gateway/src/main.rs",
+    "constants": [
+      "ASSISTANT_DESK_NEEDS_YOU_LIMIT",
+      "ASSISTANT_DESK_WORKING_LIMIT",
+      "ASSISTANT_DESK_DONE_LIMIT",
+      "ASSISTANT_DESK_SESSION_SCAN_LIMIT",
+      "ASSISTANT_DESK_APPROVAL_SCAN_LIMIT",
+      "ASSISTANT_DESK_DONE_WINDOW_MS",
+      "ASSISTANT_DESK_TRANSCRIPT_EVENT_LIMIT"
+    ],
+    "dtos": [
+      "AssistantDeskResponse",
+      "AssistantDeskBuckets",
+      "AssistantDeskSummary",
+      "AssistantDeskWorkItem",
+      "AssistantDeskSourceRef",
+      "AssistantDeskDeepLink",
+      "AssistantDeskWorkItemDetails",
+      "AssistantDeskTranscriptResponse",
+      "AssistantDeskTranscriptEvent",
+      "AssistantDeskTranscriptArtifactRef"
+    ],
+    "summary_symbols": [
+      "get_assistant_desk",
+      "build_assistant_desk_response",
+      "assistant_desk_item_from_latest_run",
+      "assistant_desk_item_from_run",
+      "assistant_desk_sort_and_cap",
+      "assistant_desk_status_for_run",
+      "assistant_desk_bucket_for_run",
+      "assistant_desk_bucket_for_status",
+      "assistant_desk_run_is_expired_provider_breaker",
+      "assistant_desk_run_is_stale_proof_failure",
+      "assistant_desk_provider_breaker_cooldown_until",
+      "assistant_desk_owner_label",
+      "assistant_desk_task_label",
+      "assistant_desk_current_action"
+    ],
+    "transcript_symbols": [
+      "get_assistant_desk_transcript",
+      "build_assistant_desk_transcript_response",
+      "assistant_desk_latest_requested_approval_for_run",
+      "assistant_desk_sanitize_text",
+      "assistant_desk_word_looks_secret"
+    ],
+    "tests": [
+      "assistant_desk_requires_bearer_auth",
+      "assistant_desk_read_model_caps_buckets_and_stable_ids",
+      "assistant_desk_hides_expired_provider_breaker_failures",
+      "assistant_desk_ignores_stale_proof_failures_but_keeps_recent_real_failures",
+      "assistant_desk_transcript_fallback_is_stable_nonempty_and_redacted",
+      "assistant_desk_transcript_is_scoped_to_selected_run"
+    ],
+    "summary_disposition": "RETIRE_AFTER_CONSUMER_GREEN",
+    "transcript_disposition": "RETAIN_UNTIL_EA311",
+    "evidence": {
+      "constants_line_hint": 21863,
+      "dto_line_hint": 21872,
+      "summary_builder_line_hint": 22022,
+      "transcript_builder_line_hint": 22366,
+      "tests_line_hint": 59562
+    }
+  },
+  "direct_frontend_consumers": [
+    {
+      "id": "mission-control-assistant-desk-api",
+      "path": "apps/mission-control/src/lib/api.ts",
+      "role": "frontend_api",
+      "symbols": ["getAssistantDesk", "getAssistantDeskTranscript"],
+      "route_templates": ["/api/v1/assistant-desk", "/api/v1/assistant-desk/{work_item_id}/transcript"],
+      "summary_disposition": "CUTOVER_AT_EA311",
+      "transcript_disposition": "RETAIN_UNTIL_EA311",
+      "line_hint": 1496
+    },
+    {
+      "id": "mission-control-assistant-desk-types",
+      "path": "apps/mission-control/src/types.ts",
+      "role": "frontend_types",
+      "symbols": ["AssistantDeskResponse", "AssistantDeskTranscriptResponse"],
+      "summary_disposition": "CUTOVER_AT_EA311",
+      "transcript_disposition": "RETAIN_UNTIL_EA311",
+      "line_hint": 836
+    },
+    {
+      "id": "mission-control-assistant-desk-controller",
+      "path": "apps/mission-control/src/features/assistantDesk/useAssistantDeskController.ts",
+      "role": "frontend_controller",
+      "symbols": ["useAssistantDeskController", "getAssistantDesk", "getAssistantDeskTranscript"],
+      "summary_disposition": "CUTOVER_AT_EA311",
+      "transcript_disposition": "RETAIN_UNTIL_EA311",
+      "line_hint": 37
+    },
+    {
+      "id": "mission-control-assistant-desk-panel",
+      "path": "apps/mission-control/src/features/assistantDesk/AssistantDeskPanel.tsx",
+      "role": "frontend_component",
+      "symbols": ["AssistantDeskStatusStrip", "AssistantDeskPanel"],
+      "disposition": "CUTOVER_AT_EA311",
+      "line_hint": 80
+    },
+    {
+      "id": "mission-control-assistant-chat-callsite",
+      "path": "apps/mission-control/src/features/assistant/AssistantChatPage.tsx",
+      "role": "frontend_callsite",
+      "symbols": ["useAssistantDeskController", "AssistantDeskStatusStrip", "AssistantDeskPanel"],
+      "disposition": "CUTOVER_AT_EA311",
+      "line_hint": 55
+    },
+    {
+      "id": "mission-control-assistant-desk-styles",
+      "path": "apps/mission-control/src/styles.css",
+      "role": "frontend_css_support",
+      "symbols": ["mc-assistant-desk-strip", "mc-assistant-desk-panel"],
+      "disposition": "CUTOVER_AT_EA311",
+      "line_hint": 9808
+    },
+    {
+      "id": "mission-control-assistant-desk-api-test",
+      "path": "apps/mission-control/src/lib/api.test.ts",
+      "role": "frontend_unit_test",
+      "symbols": ["fetches the Assistant Desk read model with bearer auth", "encodes Assistant Desk transcript IDs and cursors"],
+      "summary_disposition": "CUTOVER_AT_EA311",
+      "transcript_disposition": "RETAIN_UNTIL_EA311",
+      "line_hint": 197
+    },
+    {
+      "id": "mission-control-assistant-desk-controller-test",
+      "path": "apps/mission-control/src/features/assistantDesk/useAssistantDeskController.test.tsx",
+      "role": "frontend_unit_test",
+      "symbols": ["useAssistantDeskController", "getAssistantDesk", "getAssistantDeskTranscript"],
+      "summary_disposition": "CUTOVER_AT_EA311",
+      "transcript_disposition": "RETAIN_UNTIL_EA311",
+      "line_hint": 101
+    },
+    {
+      "id": "mission-control-assistant-desk-panel-test",
+      "path": "apps/mission-control/src/features/assistantDesk/AssistantDeskPanel.test.tsx",
+      "role": "frontend_unit_test",
+      "symbols": ["AssistantDeskPanel", "AssistantDeskStatusStrip"],
+      "disposition": "CUTOVER_AT_EA311",
+      "line_hint": 125
+    },
+    {
+      "id": "mission-control-assistant-desk-e2e",
+      "path": "apps/mission-control/e2e/assistant-desk.spec.ts",
+      "role": "frontend_e2e_test",
+      "symbols": ["Assistant Desk @assistant-desk"],
+      "disposition": "CUTOVER_AT_EA311",
+      "line_hint": 38
+    },
+    {
+      "id": "mission-control-assistant-desk-e2e-mock",
+      "path": "apps/mission-control/e2e/mockGateway.mjs",
+      "role": "frontend_e2e_mock",
+      "symbols": ["assistantDeskWorkItem", "buildAssistantDeskPayload", "buildAssistantDeskTranscript"],
+      "route_templates": ["/api/v1/assistant-desk", "/api/v1/assistant-desk/{work_item_id}/transcript"],
+      "summary_disposition": "CUTOVER_AT_EA311",
+      "transcript_disposition": "RETAIN_UNTIL_EA311",
+      "line_hint": 2706
+    }
+  ],
+  "distinct_retain": [
+    {
+      "id": "mission-control-focus",
+      "paths": ["crates/carsinos-gateway/src/main.rs", "apps/mission-control/src/features/cockpit/cockpitDataSources.ts"],
+      "disposition": "DISTINCT_RETAIN",
+      "reason": "Actionable incident queue for approvals, failed jobs, channel health, and breakers; Cockpit renders it as Focus Queue."
+    },
+    {
+      "id": "mission-control-strategy-summary",
+      "paths": ["crates/carsinos-gateway/src/main.rs", "apps/mission-control/src/features/strategy/useStrategyController.ts"],
+      "disposition": "DISTINCT_RETAIN",
+      "reason": "Goals, projects, tasks, cost, stale/blocked work, and critical-approval management view."
+    },
+    {
+      "id": "mission-control-runbooks",
+      "paths": ["crates/carsinos-gateway/src/runbook.rs", "apps/mission-control/src/features/runbook/useRunbookController.ts"],
+      "disposition": "DISTINCT_RETAIN",
+      "reason": "Execution-map read model across supported workflow kinds."
+    },
+    {
+      "id": "historical-assistant-desk-docs",
+      "paths": [
+        "docs/CARSINOS_ASSISTANT_DESK_UX_BUILD_SPEC.md",
+        "docs/CARSINOS_ASSISTANT_DESK_EXECUTION_CHECKLIST.md",
+        "docs/CARSINOS_ASSISTANT_DESK_BLOCKERBOARD.md"
+      ],
+      "disposition": "DISTINCT_RETAIN",
+      "reason": "Historical V1 provenance, not runtime consumers."
+    }
+  ],
+  "typed_exclusions": [
+    {
+      "path": "docs/EXECASS_BACKEND_RUNTIME_PRODUCT_CORRECTION_SPEC.md",
+      "kind": "locked_governance_doc",
+      "reason": "Locked declaration of the replacement rule."
+    },
+    {
+      "path": "docs/EXECASS_BACKEND_RUNTIME_PRODUCT_CORRECTION_CHECKLIST.md",
+      "kind": "locked_governance_doc",
+      "reason": "Locked EA-308 requirement."
+    },
+    {
+      "path": "docs/EXECASS_BACKEND_RUNTIME_PRODUCT_CORRECTION_BLOCKERBOARD.md",
+      "kind": "locked_governance_doc",
+      "reason": "Locked architecture risk record."
+    },
+    {
+      "path": "contracts/execass/v1/execass_contract.json",
+      "kind": "execass_contract",
+      "reason": "Contract ownership declaration."
+    },
+    {
+      "path": "scripts/validate_execass_contract.py",
+      "kind": "execass_contract_validator",
+      "reason": "Validator for the ownership declaration."
+    },
+    {
+      "path": "docs/EXECASS_EA308_ASSISTANT_DESK_CUTOVER_MAP.json",
+      "kind": "cutover_map",
+      "reason": "This inventory artifact describes the tokens it guards."
+    },
+    {
+      "path": "scripts/tests/test_execass_assistant_desk_cutover_map.py",
+      "kind": "cutover_map_test",
+      "reason": "This guard describes the tokens it scans."
+    }
+  ],
+  "post_ea311_gate": {
+    "summary_route_must_be_removed": true,
+    "summary_callers_must_not_contain_exact_legacy_route": [
+      "apps/mission-control/src/lib/api.ts",
+      "apps/mission-control/src/lib/api.test.ts",
+      "apps/mission-control/e2e/mockGateway.mjs"
+    ],
+    "transcript_retention_allowed": true,
+    "completion_requirement": "The production client, unit tests, E2E mock, and E2E scenario are green against the ExecAss projection before legacy summary retirement."
+  }
+}

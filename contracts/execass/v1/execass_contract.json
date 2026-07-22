@@ -1,0 +1,160 @@
+{
+  "schema_metadata": {
+    "contract_id": "carsinos.execass.contract",
+    "contract_version": "v1",
+    "schema_version": "1.1.0",
+    "locked_spec_version": "1.1",
+    "api_prefix": "/api/v1/execass",
+    "additional_properties": false
+  },
+  "lifecycle": {
+    "phases": ["accepted", "planning", "in_motion", "waiting_for_user", "waiting_external", "recovering", "completed", "partially_completed", "failed"],
+    "terminal_phases": ["completed", "partially_completed", "failed"],
+    "branch_states": ["runnable", "executing", "waiting", "uncertain", "terminal"],
+    "precedence": [
+      {"rank": 1, "condition": "valid_completion_assessment", "selects": ["completed", "partially_completed", "failed"]},
+      {"rank": 2, "condition": "before_actionable_planning", "selects": ["accepted", "planning"]},
+      {"rank": 3, "condition": "authorized_ordinary_branch_runnable_or_executing", "selects": ["in_motion"]},
+      {"rank": 4, "condition": "bounded_recovery_runnable_or_executing", "selects": ["recovering"]},
+      {"rank": 5, "condition": "actionable_human_attention", "selects": ["waiting_for_user"]},
+      {"rank": 6, "condition": "external_party_system_or_time_dependency", "selects": ["waiting_external"]},
+      {"rank": 7, "condition": "no_autonomous_human_or_external_path", "selects": ["completion_assessor_required"]}
+    ]
+  },
+  "run_control": {
+    "states": ["running", "stop_requested", "stopped"],
+    "stopped_is_orthogonal": true,
+    "stop_requested_is_draining": true,
+    "stopped_preconditions": ["new_claims_blocked", "active_claims_fenced", "safe_boundary_work_ended_or_unresolved_external_effect_recorded"],
+    "resume_requires": ["fresh_plan_snapshot", "fresh_policy_snapshot"]
+  },
+  "attention": {
+    "variants": ["confirmation", "clarification", "reply", "recovery_choice", "runtime_paused"],
+    "required_fields": ["subject", "decision_kind", "reason", "recommendation", "alternatives_or_actions", "assurance_required", "deadline_reminder_state", "decision_revision", "authoritative_deep_link"],
+    "subject_kinds": ["delegation", "runtime_host"],
+    "decision_kind_mapping": {
+      "clarification": "clarification",
+      "dangerous_action_confirmation": "confirmation",
+      "owner_configured_checkpoint": "confirmation",
+      "recovery_choice": "recovery_choice",
+      "duplicate_risk_retry": "confirmation",
+      "stop": "confirmation",
+      "policy_change": "confirmation"
+    },
+    "projection": "needs_you",
+    "is_phase_synonym": false
+  },
+  "owner_authority": {
+    "topology": "one_authenticated_owner_one_execass_one_carsinos",
+    "exact_authenticated_instruction_authorizes": ["ordinary_exact_action", "operational_policy_amendment"],
+    "authority_evaluation_order": ["stop_revocation_superseding_amendment_exact_action_and_technical_validity", "current_exact_instruction_or_confirmed_amendment", "saved_exact_versioned_envelope", "operational_policy_for_derived_or_unattended_work", "nonhuman_content_is_evidence_only"],
+    "technical_validity_dimensions": ["capability_availability", "canonical_operand_resolution", "platform_runtime_preconditions", "transactional_fencing_validity", "idempotency_reconciliation_support", "technical_resource_availability"],
+    "operational_policy_dimensions": ["task_or_delegation", "workspace_or_path", "routine", "connector_or_tool_identity_and_version", "target", "audience", "technical_resource_quota", "time_or_expiry", "recovery", "parallelism", "clarification_sensitivity", "recurring_work_scope"],
+    "base_owner_intake": {
+      "human_local": ["interactive_local_owner_session", "authenticated_client_binding", "request_correlation"],
+      "human_remote": ["allowlisted_owner_channel_message", "provider_account_binding", "source_message", "request_correlation"],
+      "decision_nonce_required": false
+    },
+    "decision_resolution": {
+      "human_local": ["interactive_local_owner_session", "authenticated_client_binding", "current_decision_revision", "exact_presented_action_or_alternative", "unexpired_challenge_nonce"],
+      "human_remote": ["allowlisted_owner_channel_action", "provider_account_binding", "source_message", "current_decision_revision", "exact_presented_action_or_alternative", "unexpired_challenge_token"],
+      "nonhuman_may_resolve": false
+    },
+    "nonhuman_actor_types": ["runtime", "worker", "connector", "model"],
+    "unknown_or_composite_action": "mechanically_resolve_leaves_and_operands_then_continue_or_clarify"
+  },
+  "danger_confirmation": {
+    "known_danger_categories": ["whole_drive_volume_boot_recovery_or_core_os_tree_erasure_or_unusable", "whole_user_profile_or_home_erasure_or_unusable", "complete_carsinos_state_integrity_runtime_enforcement_stop_fencing_or_recovery_configuration_erasure_or_unusable", "whole_connected_external_account_closure_or_erasure", "last_verified_administrative_recovery_or_decryption_path_destruction"],
+    "mandatory_match_inputs": ["canonical_resolved_operands", "verified_system_metadata"],
+    "model_may_add_one_credible_danger_confirmation": true,
+    "model_may_veto": false,
+    "model_may_repeat_unchanged_action_confirmation": false,
+    "challenge": {
+      "fields": ["decision_revision", "exact_presented_action_or_alternative", "declared_consequence", "nonce_or_token", "expires_at"],
+      "expires": true,
+      "single_resolution": true
+    },
+    "accepted_grant": {
+      "fields": ["delegation", "normalized_intent", "confirmed_logical_action_identity", "canonical_action_envelope_or_selector", "payload_and_material_operands", "connector_or_tool_identity_and_version", "declared_consequence"],
+      "expires": false,
+      "has_use_counter": false,
+      "carries_across": ["unchanged_plan", "unchanged_policy", "technical_resource_revalidation", "host_generation_change", "restart", "bounded_retry", "routine_occurrence_with_expected_membership_changes_within_same_selector_envelope"],
+      "unrelated_decision_results_preserve_grant": true,
+      "invalidated_only_by": ["material_target_drift", "material_scope_drift", "material_payload_drift", "material_tool_drift", "material_consequence_drift", "explicit_action_specific_owner_amendment", "explicit_action_specific_owner_revocation", "explicit_action_specific_owner_cancellation"]
+    }
+  },
+  "decisions": {
+    "kinds": ["clarification", "dangerous_action_confirmation", "owner_configured_checkpoint", "recovery_choice", "duplicate_risk_retry", "stop", "policy_change"],
+    "results": ["confirm_and_continue", "revise", "decline", "stop"],
+    "ordinary_exact_action_requires_decision": false,
+    "operational_policy_amendment_route": "PUT /api/v1/execass/policy",
+    "policy_amendment_uses": "canonical_owner_intake_revision_transaction",
+    "policy_amendment_has_parallel_confirmation_authority": false,
+    "duplicate_risk_retry": {
+      "required_kind": "duplicate_risk_retry",
+      "required_result": "confirm_and_continue",
+      "creates": "new_logical_effect_id"
+    }
+  },
+  "technical_resources": {
+    "dimensions": ["tokens", "time_ms", "connector_calls", "resource_units"]
+  },
+  "recovery": {
+    "allowed_retry_safety_facts": ["attempt_count", "elapsed_time", "backoff", "technical_resource_quota", "circuit_breakers", "provider_error_class", "idempotency", "independent_absence_or_reconciliation_proof", "reversibility", "declared_safe_boundary"],
+    "outcome_unknown_resolution": "reconcile_or_wait_or_typed_duplicate_risk_retry",
+    "suppression_by_owner_intent_dimension": false
+  },
+  "ownership": [
+    {"concern": "assistant_desk_summary", "disposition": "replaced_by_execass_summary_projection_no_second_product_truth"},
+    {"concern": "approvals", "disposition": "replaced_by_decision_records_no_legacy_dual_read"},
+    {"concern": "jobs_and_scheduler", "disposition": "reused_as_durable_scheduler_execution_substrate_no_second_scheduler"},
+    {"concern": "sessions_and_runs", "disposition": "reused_as_authoritative_execution_records_linked_beneath_delegations"},
+    {"concern": "tasks_boards_agent_mail_teams_artifacts", "disposition": "reused_and_referenced_delegation_does_not_duplicate"},
+    {"concern": "security_audit_tool_call_audit_job_run_evidence", "disposition": "remain_authoritative_ledgers_receipts_link_and_attest_without_copying"},
+    {"concern": "gateway", "disposition": "evolves_to_single_carsinos_runtime_host_no_wrapper_or_sibling_host"},
+    {"concern": "websocket_transport", "disposition": "reused_with_durable_outbox_sequence_not_in_memory_event_identity"},
+    {"concern": "telegram_and_discord", "disposition": "shared_intake_and_decision_services_when_activated_and_tested"},
+    {"concern": "legacy_gui_and_one_click_launchers", "disposition": "attach_control_or_development_fenced_no_independent_production_mutation"}
+  ],
+  "events": {
+    "envelope_required_fields": ["event_name", "aggregate_id", "revision", "correlation_id", "causation_id", "occurred_at", "schema_version", "safe_payload", "global_sequence", "duplicate_identity"],
+    "families": [
+      {"id": "delegation_transitions", "event_name": "execass.v1.delegation.transitioned"},
+      {"id": "decisions", "event_name": "execass.v1.decision.recorded"},
+      {"id": "continuation_claims_results", "event_name": "execass.v1.continuation.claimed_or_result_recorded"},
+      {"id": "recovery", "event_name": "execass.v1.recovery.updated"},
+      {"id": "completion", "event_name": "execass.v1.completion.assessed"},
+      {"id": "summary_changes", "event_name": "execass.v1.summary.changed"},
+      {"id": "policy_changes", "event_name": "execass.v1.policy.changed"},
+      {"id": "runtime_host_state", "event_name": "execass.v1.runtime_host.changed"},
+      {"id": "receipt_integrity_failure", "event_name": "execass.v1.receipt.integrity_failed"},
+      {"id": "notification_scheduling", "event_name": "execass.v1.notification.scheduled"}
+    ]
+  },
+  "api_errors": {
+    "shape_required_fields": ["code", "safe_human_message", "retryable", "correlation_id", "safe_for_display", "exposes_sensitive_metadata"],
+    "forbidden_metadata_fields": ["secret", "credential", "token", "authorization", "raw_payload", "stack_trace", "internal_path"],
+    "catalog": [
+      {"code": "execass.v1.invalid_request", "safe_human_message": "The request is invalid.", "retryable": false, "correlation_id": "request_correlation_id", "safe_for_display": true, "exposes_sensitive_metadata": false},
+      {"code": "execass.v1.authentication_required", "safe_human_message": "Authentication is required.", "retryable": false, "correlation_id": "request_correlation_id", "safe_for_display": true, "exposes_sensitive_metadata": false},
+      {"code": "execass.v1.idempotency_conflict", "safe_human_message": "This request conflicts with an earlier request using the same key.", "retryable": false, "correlation_id": "request_correlation_id", "safe_for_display": true, "exposes_sensitive_metadata": false},
+      {"code": "execass.v1.authority_denied", "safe_human_message": "The action cannot be executed with the currently verified authority.", "retryable": false, "correlation_id": "request_correlation_id", "safe_for_display": true, "exposes_sensitive_metadata": false},
+      {"code": "execass.v1.decision_assurance_required", "safe_human_message": "A verified owner decision is required.", "retryable": false, "correlation_id": "request_correlation_id", "safe_for_display": true, "exposes_sensitive_metadata": false},
+      {"code": "execass.v1.decision_challenge_expired", "safe_human_message": "This decision challenge expired and must be presented again.", "retryable": false, "correlation_id": "request_correlation_id", "safe_for_display": true, "exposes_sensitive_metadata": false},
+      {"code": "execass.v1.decision_superseded", "safe_human_message": "This decision is no longer current.", "retryable": false, "correlation_id": "request_correlation_id", "safe_for_display": true, "exposes_sensitive_metadata": false},
+      {"code": "execass.v1.not_found", "safe_human_message": "The requested ExecAss record was not found.", "retryable": false, "correlation_id": "request_correlation_id", "safe_for_display": true, "exposes_sensitive_metadata": false},
+      {"code": "execass.v1.revision_conflict", "safe_human_message": "The work changed before this request could be applied.", "retryable": true, "correlation_id": "request_correlation_id", "safe_for_display": true, "exposes_sensitive_metadata": false},
+      {"code": "execass.v1.invalid_transition", "safe_human_message": "That lifecycle change is not valid from the current state.", "retryable": false, "correlation_id": "request_correlation_id", "safe_for_display": true, "exposes_sensitive_metadata": false},
+      {"code": "execass.v1.stop_all_engaged", "safe_human_message": "All ExecAss work is currently stopped.", "retryable": false, "correlation_id": "request_correlation_id", "safe_for_display": true, "exposes_sensitive_metadata": false},
+      {"code": "execass.v1.outcome_unknown_retry_prohibited", "safe_human_message": "The previous external outcome is unknown, so retry is blocked until it is reconciled.", "retryable": false, "correlation_id": "request_correlation_id", "safe_for_display": true, "exposes_sensitive_metadata": false},
+      {"code": "execass.v1.technical_resource_exhausted", "safe_human_message": "This action exceeds the available technical resources.", "retryable": false, "correlation_id": "request_correlation_id", "safe_for_display": true, "exposes_sensitive_metadata": false},
+      {"code": "execass.v1.receipt_integrity_quarantined", "safe_human_message": "Receipt integrity could not be verified, so trusted completion and export are blocked.", "retryable": false, "correlation_id": "request_correlation_id", "safe_for_display": true, "exposes_sensitive_metadata": false},
+      {"code": "execass.v1.runtime_host_conflict", "safe_human_message": "Another runtime host owns this CarsinOS state.", "retryable": true, "correlation_id": "request_correlation_id", "safe_for_display": true, "exposes_sensitive_metadata": false},
+      {"code": "execass.v1.schema_replace_requires_quiescence", "safe_human_message": "Schema replacement requires the runtime to be safely stopped.", "retryable": false, "correlation_id": "request_correlation_id", "safe_for_display": true, "exposes_sensitive_metadata": false},
+      {"code": "execass.v1.rate_limited", "safe_human_message": "Too many requests were made. Try again later.", "retryable": true, "correlation_id": "request_correlation_id", "safe_for_display": true, "exposes_sensitive_metadata": false},
+      {"code": "execass.v1.external_dependency", "safe_human_message": "An external dependency is not ready yet.", "retryable": true, "correlation_id": "request_correlation_id", "safe_for_display": true, "exposes_sensitive_metadata": false},
+      {"code": "execass.v1.schema_version_unsupported", "safe_human_message": "This contract version is not supported.", "retryable": false, "correlation_id": "request_correlation_id", "safe_for_display": true, "exposes_sensitive_metadata": false},
+      {"code": "execass.v1.internal_safe_failure", "safe_human_message": "The operation could not be completed safely.", "retryable": true, "correlation_id": "request_correlation_id", "safe_for_display": true, "exposes_sensitive_metadata": false}
+    ]
+  }
+}

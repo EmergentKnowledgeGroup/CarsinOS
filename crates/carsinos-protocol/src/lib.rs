@@ -2,6 +2,9 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize, Serializer};
 use std::path::Path;
 
+pub mod execass;
+pub mod execass_recorder;
+
 pub const JOB_MODE_HEARTBEAT_RUN: &str = "heartbeat.run";
 pub const HEARTBEAT_OUTPUT_OK: &str = "HEARTBEAT_OK";
 pub const HEARTBEAT_OUTPUT_ALERT_PREFIX: &str = "ALERT:";

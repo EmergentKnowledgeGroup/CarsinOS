@@ -1,0 +1,186 @@
+{
+  "$defs": {
+    "AutonomyProfile": {
+      "enum": [
+        "locked_down",
+        "balanced",
+        "full_send",
+        "custom"
+      ],
+      "type": "string"
+    },
+    "PolicyRule": {
+      "additionalProperties": false,
+      "properties": {
+        "audience_scope": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "clarification_sensitivity": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "connector_or_tool_identity_and_version_scope": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "expires_at_ms": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "parallelism_limit": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "recovery_limit": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "recurring_work_scope": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "routine_scope": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "rule_id": {
+          "type": "string"
+        },
+        "target_scope": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "task_or_delegation_scope": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "technical_resource_quotas": {
+          "items": {
+            "$ref": "#/$defs/TechnicalResourceQuota"
+          },
+          "type": "array"
+        },
+        "workspace_scope": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "rule_id",
+        "technical_resource_quotas"
+      ],
+      "type": "object"
+    },
+    "TechnicalResourceKind": {
+      "enum": [
+        "tokens",
+        "time_ms",
+        "connector_calls",
+        "resource_units"
+      ],
+      "type": "string"
+    },
+    "TechnicalResourceQuota": {
+      "additionalProperties": false,
+      "properties": {
+        "consumed": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/TechnicalResourceKind"
+        },
+        "limit": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "reserved": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "limit",
+        "reserved",
+        "consumed"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "configured": {
+      "type": "boolean"
+    },
+    "effective_operational_summary": {
+      "type": "string"
+    },
+    "policy_id": {
+      "type": "string"
+    },
+    "profile": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AutonomyProfile"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "`None` only for the immutable fresh-root bootstrap before the owner has\nconfigured an operational profile. The server must not invent one."
+    },
+    "revision": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "rules": {
+      "items": {
+        "$ref": "#/$defs/PolicyRule"
+      },
+      "type": "array"
+    },
+    "updated_at_ms": {
+      "format": "int64",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "policy_id",
+    "revision",
+    "rules",
+    "effective_operational_summary",
+    "configured",
+    "updated_at_ms"
+  ],
+  "title": "PolicyResponse",
+  "type": "object"
+}

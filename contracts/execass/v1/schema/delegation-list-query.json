@@ -1,0 +1,66 @@
+{
+  "$defs": {
+    "DelegationPhase": {
+      "enum": [
+        "accepted",
+        "planning",
+        "in_motion",
+        "waiting_for_user",
+        "waiting_external",
+        "recovering",
+        "completed",
+        "partially_completed",
+        "failed"
+      ],
+      "type": "string"
+    },
+    "RunControlState": {
+      "enum": [
+        "running",
+        "stop_requested",
+        "stopped"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "cursor": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "limit": {
+      "format": "uint32",
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "phase": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DelegationPhase"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "run_control": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RunControlState"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "title": "DelegationListQuery",
+  "type": "object"
+}

@@ -12,6 +12,7 @@ param(
   [switch]$NoCodexBridge,
   [switch]$NoOpen,
   [int]$SmokeSeconds = 0,
+  [switch]$ValidateOnly,
   [switch]$Help
 )
 
@@ -36,6 +37,7 @@ Options:
   -NoCodexBridge           Do not start the local Codex CLI/App bridge sidecar.
   -NoOpen                  Do not open the browser in web mode.
   -SmokeSeconds <seconds>  Stop automatically after launch stays healthy for the given seconds.
+  -ValidateOnly            Validate the development-state fence without starting processes.
   -Help                    Show this help.
 
 If neither -Web nor -Tauri is supplied, the launcher prompts for the same
@@ -56,6 +58,30 @@ function Resolve-LauncherPath([string]$Path) {
     return [IO.Path]::GetFullPath($Path)
   }
   return [IO.Path]::GetFullPath((Join-Path $RepoRoot $Path))
+}
+
+function Get-StateRootFenceIdentity([string]$Path) {
+  $fullPath = [IO.Path]::GetFullPath($Path).TrimEnd('\', '/')
+  $resolved = Resolve-Path -LiteralPath $fullPath -ErrorAction SilentlyContinue
+  if ($resolved) {
+    return $resolved.ProviderPath.TrimEnd('\', '/')
+  }
+  return $fullPath
+}
+
+function Get-ProductionStateRoot {
+  if (-not $env:LOCALAPPDATA) {
+    throw "Cannot determine the Mission Control production state root because LOCALAPPDATA is unset."
+  }
+  return (Join-Path $env:LOCALAPPDATA "io.carsinos.missioncontrol\\state")
+}
+
+function Assert-DevelopmentStateRoot([string]$Candidate) {
+  $candidateIdentity = Get-StateRootFenceIdentity $Candidate
+  $productionIdentity = Get-StateRootFenceIdentity (Get-ProductionStateRoot)
+  if ($candidateIdentity.Equals($productionIdentity, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Legacy one-click launch is development-only and refuses the canonical Mission Control production state root: $productionIdentity. Choose a separate development -StateDir."
+  }
 }
 
 function ConvertTo-CmdQuoted([string]$Value) {
@@ -133,7 +159,7 @@ function Select-LaunchMode {
   return "tauri"
 }
 
-$Mode = Select-LaunchMode
+$Mode = if ($ValidateOnly) { "validation" } else { Select-LaunchMode }
 
 if ($GatewayPort -le 0) {
   if ($env:CARSINOS_LAUNCH_GATEWAY_PORT) { $GatewayPort = [int]$env:CARSINOS_LAUNCH_GATEWAY_PORT }
@@ -158,6 +184,11 @@ if (-not $CargoTargetDir) {
 }
 $StateDir = Resolve-LauncherPath $StateDir
 $CargoTargetDir = Resolve-LauncherPath $CargoTargetDir
+Assert-DevelopmentStateRoot $StateDir
+if ($ValidateOnly) {
+  Write-Output "EA406 development-state fence accepted: $StateDir"
+  exit 0
+}
 if (-not $Token -and $env:CARSINOS_GATEWAY_TOKEN) {
   $Token = $env:CARSINOS_GATEWAY_TOKEN
 }
@@ -478,6 +509,7 @@ exit `$exitCode
     CARSINOS_GATEWAY_BIND = $bind
     CARSINOS_GATEWAY_TOKEN = $Token
     CARSINOS_STATE_DIR = $StateDir
+    CARSINOS_LEGACY_LAUNCH_PROFILE = "development"
     CARSINOS_CODEX_BRIDGE_BASE_URL = $CodexBridgeUrl
     CARGO_TARGET_DIR = $CargoTargetDir
     TEMP = $tmpDir

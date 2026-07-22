@@ -67,6 +67,16 @@ pub struct DiscordTransportInboundMention {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DiscordTransportMessageReference {
+    #[serde(
+        default,
+        deserialize_with = "deserialize_optional_discord_message_id",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub message_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DiscordTransportInboundMessage {
     pub id: String,
     pub channel_id: String,
@@ -77,6 +87,39 @@ pub struct DiscordTransportInboundMessage {
     pub author: DiscordTransportInboundAuthor,
     #[serde(default)]
     pub mentions: Vec<DiscordTransportInboundMention>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message_reference: Option<DiscordTransportMessageReference>,
+}
+
+impl DiscordTransportInboundMessage {
+    /// Returns only Discord's provider-supplied reply-message identifier.
+    ///
+    /// This is correlation evidence, not an authorization or ExecAss attachment decision.
+    pub fn reply_to_message_id(&self) -> Option<&str> {
+        self.message_reference
+            .as_ref()
+            .and_then(|reference| reference.message_id.as_deref())
+    }
+}
+
+fn deserialize_optional_discord_message_id<'de, D>(
+    deserializer: D,
+) -> std::result::Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<String>::deserialize(deserializer)?;
+    let value = value
+        .map(|message_id| message_id.trim().to_string())
+        .filter(|message_id| !message_id.is_empty());
+    if value.as_deref().is_some_and(|message_id| {
+        message_id.len() > 128 || message_id.chars().any(char::is_control)
+    }) {
+        return Err(serde::de::Error::custom(
+            "Discord reply message_id is invalid",
+        ));
+    }
+    Ok(value)
 }
 
 #[derive(Debug, Clone)]
@@ -584,6 +627,57 @@ mod tests {
     use super::*;
     use httpmock::Method::{GET, POST, PUT};
     use httpmock::MockServer;
+
+    #[test]
+    fn inbound_message_decodes_provider_reply_target_without_referenced_message_text() {
+        let message: DiscordTransportInboundMessage = serde_json::from_str(
+            r#"{"id":"m-2","channel_id":"channel-1","content":"follow up","author":{"id":"user-1"},"message_reference":{"message_id":"m-1","referenced_message":{"content":"untrusted nested text"}}}"#,
+        )
+        .expect("parse Discord reply message");
+
+        assert_eq!(message.reply_to_message_id(), Some("m-1"));
+        let serialized = serde_json::to_value(&message).expect("serialize Discord message");
+        assert_eq!(
+            serialized["message_reference"],
+            serde_json::json!({"message_id": "m-1"})
+        );
+    }
+
+    #[test]
+    fn inbound_message_without_reply_target_preserves_existing_serialization() {
+        let payload = r#"{"id":"m-2","channel_id":"channel-1","content":"follow up","author":{"id":"user-1"}}"#;
+        let message: DiscordTransportInboundMessage =
+            serde_json::from_str(payload).expect("parse Discord message without reply");
+
+        assert_eq!(message.reply_to_message_id(), None);
+        let serialized = serde_json::to_value(&message).expect("serialize Discord message");
+        assert!(serialized.get("message_reference").is_none());
+    }
+
+    #[test]
+    fn inbound_message_normalizes_empty_reply_target_and_rejects_malformed_id() {
+        let empty: DiscordTransportInboundMessage = serde_json::from_str(
+            r#"{"id":"m-2","channel_id":"channel-1","author":{"id":"user-1"},"message_reference":{"message_id":"  "}}"#,
+        )
+        .expect("empty provider reply target is normalized away");
+        assert_eq!(empty.reply_to_message_id(), None);
+
+        let error = serde_json::from_str::<DiscordTransportInboundMessage>(
+            r#"{"id":"m-2","channel_id":"channel-1","author":{"id":"user-1"},"message_reference":{"message_id":[]}}"#,
+        )
+        .expect_err("a non-string Discord message ID must be rejected");
+        assert!(!error.to_string().is_empty());
+
+        for invalid in [format!("m-{}", "x".repeat(129)), "m-\n1".to_string()] {
+            let payload = serde_json::json!({
+                "id": "m-2",
+                "channel_id": "channel-1",
+                "author": {"id": "user-1"},
+                "message_reference": {"message_id": invalid},
+            });
+            assert!(serde_json::from_value::<DiscordTransportInboundMessage>(payload).is_err());
+        }
+    }
 
     #[test]
     fn guild_message_without_mention_is_ignored() {

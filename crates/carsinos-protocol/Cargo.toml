@@ -5,7 +5,14 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 
+[features]
+execass-test-binding-digest = []
+
 [dependencies]
 chrono.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+schemars.workspace = true
+sha2.workspace = true
+regex.workspace = true
+thiserror.workspace = true

@@ -1,0 +1,1902 @@
+{
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "bearerFormat": "opaque",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "description": "Versioned ExecAss control-plane contract generated from carsinos-protocol DTO schemas.",
+    "title": "CarsinOS ExecAss API",
+    "version": "1.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/execass/decisions/{decision_id}/resolve": {
+      "post": {
+        "operationId": "resolveExecassDecision",
+        "parameters": [
+          {
+            "description": "Decision identifier.",
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required stable key for safe retry. It must match the request body's idempotency_key.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-idempotency-required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schema/resolve-decision-request.json"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/resolve-decision-response.json"
+                }
+              }
+            },
+            "description": "The resolved decision and delegation state."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Invalid ExecAss request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested authority is denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested ExecAss record was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The resource revision or idempotency key conflicts."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested state transition is not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The request is rate limited."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The operation could not be completed safely."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Resolve one current decision against its exact revision.",
+        "x-idempotency-required": true
+      }
+    },
+    "/api/v1/execass/delegations": {
+      "get": {
+        "operationId": "listExecassDelegations",
+        "parameters": [
+          {
+            "description": "Optional lifecycle phase filter.",
+            "in": "query",
+            "name": "phase",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Optional run-control filter.",
+            "in": "query",
+            "name": "run_control",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque pagination cursor.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum page size.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "uint32",
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/delegation-list-response.json"
+                }
+              }
+            },
+            "description": "The delegation page."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Invalid ExecAss request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested authority is denied."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The resource revision or idempotency key conflicts."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested state transition is not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The request is rate limited."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The operation could not be completed safely."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "List delegations using the versioned cursor contract."
+      }
+    },
+    "/api/v1/execass/delegations/{delegation_id}": {
+      "get": {
+        "operationId": "getExecassDelegation",
+        "parameters": [
+          {
+            "description": "Delegation identifier.",
+            "in": "path",
+            "name": "delegation_id",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/delegation-detail-response.json"
+                }
+              }
+            },
+            "description": "The delegation detail."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Invalid ExecAss request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested authority is denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested ExecAss record was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The resource revision or idempotency key conflicts."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested state transition is not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The request is rate limited."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The operation could not be completed safely."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Fetch one delegation and its immutable lineage details."
+      }
+    },
+    "/api/v1/execass/delegations/{delegation_id}/receipts": {
+      "get": {
+        "operationId": "listExecassDelegationReceipts",
+        "parameters": [
+          {
+            "description": "Delegation identifier.",
+            "in": "path",
+            "name": "delegation_id",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/delegation-receipts-response.json"
+                }
+              }
+            },
+            "description": "The receipt chain."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Invalid ExecAss request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested authority is denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested ExecAss record was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The resource revision or idempotency key conflicts."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested state transition is not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The request is rate limited."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The operation could not be completed safely."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "List the receipt chain for one delegation."
+      }
+    },
+    "/api/v1/execass/delegations/{delegation_id}/resume": {
+      "post": {
+        "operationId": "resumeExecassDelegation",
+        "parameters": [
+          {
+            "description": "Delegation identifier.",
+            "in": "path",
+            "name": "delegation_id",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required stable key for safe retry. It must match the request body's idempotency_key.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-idempotency-required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schema/delegation-run-control-request.json"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/delegation-run-control-response.json"
+                }
+              }
+            },
+            "description": "The resumed delegation state."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Invalid ExecAss request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested authority is denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested ExecAss record was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The resource revision or idempotency key conflicts."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested state transition is not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The request is rate limited."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The operation could not be completed safely."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Resume a delegation from fresh plan and policy snapshots.",
+        "x-idempotency-required": true
+      }
+    },
+    "/api/v1/execass/delegations/{delegation_id}/stop": {
+      "post": {
+        "operationId": "stopExecassDelegation",
+        "parameters": [
+          {
+            "description": "Delegation identifier.",
+            "in": "path",
+            "name": "delegation_id",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required stable key for safe retry. It must match the request body's idempotency_key.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-idempotency-required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schema/delegation-run-control-request.json"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/delegation-run-control-response.json"
+                }
+              }
+            },
+            "description": "The current delegation run-control state, including any safe-boundary drain still in progress."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Invalid ExecAss request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested authority is denied."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested ExecAss record was not found."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The resource revision or idempotency key conflicts."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested state transition is not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The request is rate limited."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The operation could not be completed safely."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Stop a delegation at its declared safe boundary.",
+        "x-idempotency-required": true
+      }
+    },
+    "/api/v1/execass/intake": {
+      "post": {
+        "operationId": "execassIntake",
+        "parameters": [
+          {
+            "description": "Base64url-encoded canonical native-owner proof bound to the exact mutation request.",
+            "in": "header",
+            "name": "X-ExecAss-Owner-Proof",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required stable key for safe retry. It must match the request body's idempotency_key.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-idempotency-required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schema/intake-request.json"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/intake-response.json"
+                }
+              }
+            },
+            "description": "The intake result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Invalid ExecAss request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested authority is denied."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The resource revision or idempotency key conflicts."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested state transition is not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The request is rate limited."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The operation could not be completed safely."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Submit an ExecAss intake request.",
+        "x-idempotency-required": true
+      }
+    },
+    "/api/v1/execass/policy": {
+      "get": {
+        "operationId": "getExecassPolicy",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/policy-response.json"
+                }
+              }
+            },
+            "description": "The current policy."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Invalid ExecAss request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested authority is denied."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The resource revision or idempotency key conflicts."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested state transition is not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The request is rate limited."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The operation could not be completed safely."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Fetch the effective operational policy."
+      },
+      "put": {
+        "operationId": "updateExecassPolicy",
+        "parameters": [
+          {
+            "description": "Base64url-encoded canonical native-owner proof bound to the exact mutation request.",
+            "in": "header",
+            "name": "X-ExecAss-Owner-Proof",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required stable key for safe retry. It must match the request body's idempotency_key.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-idempotency-required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schema/policy-update-request.json"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/policy-update-response.json"
+                }
+              }
+            },
+            "description": "The updated policy."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Invalid ExecAss request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested authority is denied."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The resource revision or idempotency key conflicts."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested state transition is not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The request is rate limited."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The operation could not be completed safely."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Apply an exact owner policy amendment through the canonical intake transaction.",
+        "x-idempotency-required": true
+      }
+    },
+    "/api/v1/execass/resume-all": {
+      "post": {
+        "operationId": "resumeExecassAll",
+        "parameters": [
+          {
+            "description": "Required stable key for safe retry. It must match the request body's idempotency_key.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-idempotency-required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schema/resume-all-request.json"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/resume-all-response.json"
+                }
+              }
+            },
+            "description": "The resumed global stop state."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Invalid ExecAss request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested authority is denied."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The resource revision or idempotency key conflicts."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested state transition is not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The request is rate limited."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The operation could not be completed safely."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Resume all work from verified owner ingress.",
+        "x-idempotency-required": true
+      }
+    },
+    "/api/v1/execass/runtime-host": {
+      "get": {
+        "operationId": "getExecassRuntimeHost",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/runtime-host-status-response.json"
+                }
+              }
+            },
+            "description": "The runtime-host state."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Invalid ExecAss request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested authority is denied."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The resource revision or idempotency key conflicts."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested state transition is not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The request is rate limited."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The operation could not be completed safely."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Fetch the current single-host runtime state."
+      },
+      "put": {
+        "operationId": "configureExecassRuntimeHost",
+        "parameters": [
+          {
+            "description": "Base64url-encoded canonical native-owner proof bound to the exact mutation request.",
+            "in": "header",
+            "name": "X-ExecAss-Owner-Proof",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required stable key for safe retry. It must match the request body's idempotency_key.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-idempotency-required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schema/runtime-host-config-request.json"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/runtime-host-config-response.json"
+                }
+              }
+            },
+            "description": "The updated runtime-host configuration."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Invalid ExecAss request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested authority is denied."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The resource revision or idempotency key conflicts."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested state transition is not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The request is rate limited."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The operation could not be completed safely."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Update runtime-host settings using a bounded revision.",
+        "x-idempotency-required": true
+      }
+    },
+    "/api/v1/execass/stop-all": {
+      "get": {
+        "operationId": "getExecassStopAllStatus",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/stop-all-status-response.json"
+                }
+              }
+            },
+            "description": "The global stop state."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Invalid ExecAss request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested authority is denied."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The resource revision or idempotency key conflicts."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested state transition is not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The request is rate limited."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The operation could not be completed safely."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Fetch the atomic global stop state."
+      },
+      "post": {
+        "operationId": "engageExecassStopAll",
+        "parameters": [
+          {
+            "description": "Required stable key for safe retry. It must match the request body's idempotency_key.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-idempotency-required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schema/stop-all-request.json"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/stop-all-status-response.json"
+                }
+              }
+            },
+            "description": "The engaged global stop state."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Invalid ExecAss request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested authority is denied."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The resource revision or idempotency key conflicts."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested state transition is not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The request is rate limited."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The operation could not be completed safely."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Atomically engage the global stop epoch.",
+        "x-idempotency-required": true
+      }
+    },
+    "/api/v1/execass/summary": {
+      "get": {
+        "operationId": "getExecassSummary",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/summary-response.json"
+                }
+              }
+            },
+            "description": "The current summary."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Invalid ExecAss request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested authority is denied."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The resource revision or idempotency key conflicts."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested state transition is not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The request is rate limited."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The operation could not be completed safely."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Fetch the current ExecAss summary projection."
+      }
+    },
+    "/api/v1/execass/summary/ack": {
+      "post": {
+        "operationId": "acknowledgeExecassSummary",
+        "parameters": [
+          {
+            "description": "Required stable key for safe retry. It must match the request body's idempotency_key.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-idempotency-required": true
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "./schema/summary-ack-request.json"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/summary-ack-response.json"
+                }
+              }
+            },
+            "description": "The acknowledgement result."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Invalid ExecAss request."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "Authentication is required."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested authority is denied."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The resource revision or idempotency key conflicts."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The requested state transition is not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The request is rate limited."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "./schema/api-error.json"
+                }
+              }
+            },
+            "description": "The operation could not be completed safely."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Acknowledge exactly the delivered summary set.",
+        "x-idempotency-required": true
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "x-execass-api-version": "v1"
+}

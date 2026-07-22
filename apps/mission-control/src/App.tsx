@@ -1,4 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { AppContent } from "./app/AppContent";
 import { AppShell } from "./app/AppShell";
 import { GuidedTourOverlay, type GuidedTourStep } from "./app/GuidedTourOverlay";
@@ -39,6 +40,12 @@ import { useToasts } from "./ui/useToasts";
 import type { Agent, RuntimeGlobalConfigResponse, WsEventFrame } from "./types";
 import { EVENT_STREAM_BUFFER_CAP, WS_MAX_RECONNECT_ATTEMPTS } from "./constants";
 import { getRuntimeConfig, updateRuntimeConfig } from "./lib/api";
+import {
+  cancelDesktopRuntimeCloseConfirmation,
+  confirmDesktopRuntimeClose,
+  isTauriRuntime,
+  type RuntimeCloseConfirmation,
+} from "./lib/runtime";
 import { filterVisibleEvents } from "./lib/eventStream";
 import {
   countRecentHighSeverityEvents,
@@ -52,6 +59,34 @@ import {
 } from "./lib/opsUxConfig";
 import { STORAGE_KEYS } from "./storageKeys";
 import "./styles.css";
+
+function RuntimeCloseDialog(props: {
+  confirmation: RuntimeCloseConfirmation;
+  confirming: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="runtime-close-title"
+      style={{ position: "fixed", inset: 0, zIndex: 10000, display: "grid", placeItems: "center", padding: "1rem", background: "rgba(0, 0, 0, 0.6)" }}
+    >
+      <section style={{ maxWidth: "32rem", padding: "1.25rem", borderRadius: "0.75rem", background: "var(--mc-surface, #171717)" }}>
+        <h2 id="runtime-close-title">Stop app-bound runtime?</h2>
+        <p>{props.confirmation.consequence}</p>
+        <p>The UI stays open if you cancel.</p>
+        <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end" }}>
+          <button type="button" className="ghost" disabled={props.confirming} onClick={props.onCancel}>Keep running</button>
+          <button type="button" className="danger" disabled={props.confirming} onClick={props.onConfirm}>
+            {props.confirming ? "Stopping..." : "Pause work and close"}
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
 
 interface GuidedTourStepDef extends GuidedTourStep {
   tab?: ReturnType<typeof useAppController>["activeTab"];
@@ -207,6 +242,9 @@ export default function App() {
   const [guidedTourOpen, setGuidedTourOpen] = useState(false);
   const [guidedTourStep, setGuidedTourStep] = useState(0);
   const [safeModeReason, setSafeModeReason] = useState<string | null>(null);
+  const [runtimeCloseConfirmation, setRuntimeCloseConfirmation] =
+    useState<RuntimeCloseConfirmation | null>(null);
+  const [runtimeCloseConfirming, setRuntimeCloseConfirming] = useState(false);
   const [runtimeGlobalConfig, setRuntimeGlobalConfig] =
     useState<RuntimeGlobalConfigResponse | null>(null);
   const [assistantSystemPromptSaved, setAssistantSystemPromptSaved] = useState(
@@ -243,6 +281,72 @@ export default function App() {
   const wsDegradedSinceRef = useRef<number | null>(null);
   const healthySinceRef = useRef<number>(0);
   const previousIncidentModeRef = useRef(false);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) {
+      return;
+    }
+    let disposed = false;
+    let unlistenConfirmation: (() => void) | undefined;
+    let unlistenError: (() => void) | undefined;
+    let unlistenRecovery: (() => void) | undefined;
+    void Promise.all([
+      listen<RuntimeCloseConfirmation>("runtime-close-confirmation-required", (event) => {
+        if (!disposed) {
+          setRuntimeCloseConfirming(false);
+          setRuntimeCloseConfirmation(event.payload);
+        }
+      }),
+      listen<{ message?: string }>("runtime-close-error", (event) => {
+        if (!disposed) {
+          setRuntimeCloseConfirming(false);
+          setNotice({ tone: "critical", message: event.payload?.message || "CarsinOS kept the app open because runtime close could not be verified." });
+        }
+      }),
+      listen<{ message?: string }>("runtime-close-recovery-required", (event) => {
+        if (!disposed) {
+          setRuntimeCloseConfirming(false);
+          setRuntimeCloseConfirmation(null);
+          setNotice({ tone: "critical", message: event.payload?.message || "Runtime shutdown needs recovery attention before closing." });
+        }
+      }),
+    ]).then(([confirmation, error, recovery]) => {
+      if (disposed) {
+        confirmation();
+        error();
+        recovery();
+      } else {
+        unlistenConfirmation = confirmation;
+        unlistenError = error;
+        unlistenRecovery = recovery;
+      }
+    });
+    return () => {
+      disposed = true;
+      unlistenConfirmation?.();
+      unlistenError?.();
+      unlistenRecovery?.();
+    };
+  }, [setNotice]);
+
+  const confirmRuntimeClose = useCallback(() => {
+    if (!runtimeCloseConfirmation || runtimeCloseConfirming) {
+      return;
+    }
+    setRuntimeCloseConfirming(true);
+    void confirmDesktopRuntimeClose(runtimeCloseConfirmation.binding).catch((error: unknown) => {
+      setRuntimeCloseConfirming(false);
+      setNotice({ tone: "critical", message: `CarsinOS could not confirm runtime close: ${String(error)}` });
+    });
+  }, [runtimeCloseConfirmation, runtimeCloseConfirming, setNotice]);
+
+  const cancelRuntimeClose = useCallback(() => {
+    setRuntimeCloseConfirmation(null);
+    setRuntimeCloseConfirming(false);
+    void cancelDesktopRuntimeCloseConfirmation().catch((error: unknown) => {
+      setNotice({ tone: "error", message: `CarsinOS could not cancel runtime close: ${String(error)}` });
+    });
+  }, [setNotice]);
 
   const opsConfig = opsUxRuntime.config;
   const startupBaselineKey = useMemo(() => {
@@ -1111,6 +1215,14 @@ export default function App() {
       }}
       onClose={closeGuidedTour}
     />
+    {runtimeCloseConfirmation ? (
+      <RuntimeCloseDialog
+        confirmation={runtimeCloseConfirmation}
+        confirming={runtimeCloseConfirming}
+        onConfirm={confirmRuntimeClose}
+        onCancel={cancelRuntimeClose}
+      />
+    ) : null}
     <ToastStack toasts={toasts} onDismiss={dismissToast} />
     </>
   );

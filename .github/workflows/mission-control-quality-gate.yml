@@ -92,6 +92,12 @@ jobs:
           set -euo pipefail
           python3 scripts/mission_control_quality_gate.py --profile release --fail-on-blocked
 
+      - name: Build signed macOS receipt-custody package
+        env:
+          CARSINOS_APPLE_TEAM_ID: ${{ secrets.CARSINOS_APPLE_TEAM_ID }}
+          CARSINOS_APPLE_SIGNING_IDENTITY: ${{ secrets.CARSINOS_APPLE_SIGNING_IDENTITY }}
+        run: scripts/package_macos_app.sh runtime/quality-gate/artifacts/macos-package --release
+
       - name: Upload desktop gate artifacts
         uses: actions/upload-artifact@v4
         if: always()

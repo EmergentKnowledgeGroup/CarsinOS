@@ -1,0 +1,57 @@
+{
+  "$defs": {
+    "OwnerMutationOperation": {
+      "enum": [
+        "policy_update",
+        "runtime_host_config_update"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "canonical_body_digest": {
+      "type": "string"
+    },
+    "created_at_ms": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "expected_revision": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "idempotency_key": {
+      "type": "string"
+    },
+    "method": {
+      "type": "string"
+    },
+    "operation": {
+      "$ref": "#/$defs/OwnerMutationOperation"
+    },
+    "path": {
+      "type": "string"
+    },
+    "request_correlation_id": {
+      "type": "string"
+    },
+    "safe_snapshot_digest": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "operation",
+    "method",
+    "path",
+    "request_correlation_id",
+    "idempotency_key",
+    "expected_revision",
+    "canonical_body_digest",
+    "safe_snapshot_digest",
+    "created_at_ms"
+  ],
+  "title": "LocalOwnerMutationBinding",
+  "type": "object"
+}

@@ -5,11 +5,43 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 
+[features]
+execass-test-confirmation-runtime = ["carsinos-core/execass-test-authority"]
+
 [dependencies]
 anyhow.workspace = true
-rusqlite.workspace = true
+base64.workspace = true
+chrono.workspace = true
+chrono-tz.workspace = true
+carsinos-core = { path = "../carsinos-core" }
+carsinos-protocol = { path = "../carsinos-protocol" }
+ed25519-dalek.workspace = true
+fs2.workspace = true
+hmac.workspace = true
+getrandom.workspace = true
+keyring.workspace = true
+regex.workspace = true
+rusqlite = { workspace = true, features = ["functions"] }
+serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 uuid.workspace = true
+zeroize.workspace = true
+unicode-normalization.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_Security_Cryptography",
+  "Win32_Security_Authorization",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Threading",
+] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = { version = "3.7", features = ["OSX_10_15"] }
+libc = "0.2"
 
 [dev-dependencies]
+carsinos-core = { path = "../carsinos-core", features = ["execass-test-authority"] }
 tempfile = "3"
