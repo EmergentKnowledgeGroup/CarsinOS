@@ -2229,7 +2229,7 @@ fn production_protector(
     }))
 }
 
-#[cfg(not(any(windows, target_os = "macos")))]
+#[cfg(all(not(any(windows, target_os = "macos")), not(test)))]
 fn production_protector(
     _anchor_dir: &Path,
     _root_identity: &str,
