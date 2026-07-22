@@ -121,7 +121,7 @@ fn seed_typed_receipt(paths: &AppPaths) {
 
 #[test]
 fn inspect_db_accepts_only_the_exact_execass_root() {
-    let temp = tempfile::tempdir_in("Z:\\carsinos").expect("project-drive tempdir");
+    let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).expect("project-workspace tempdir");
     let paths = AppPaths::from_root(temp.path().join("state"));
     init_execass_fresh_root(&paths).expect("initialize ExecAss root");
     let accepted = run("inspect-db", &paths);
@@ -141,7 +141,7 @@ fn inspect_db_accepts_only_the_exact_execass_root() {
 #[cfg(windows)]
 #[test]
 fn windows_verifier_accepts_typed_dpapi_history_and_rejects_cross_root_without_path_echo() {
-    let temp = tempfile::tempdir_in("Z:\\carsinos").expect("project-drive tempdir");
+    let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).expect("project-workspace tempdir");
     let paths = AppPaths::from_root(temp.path().join("state"));
     init_execass_fresh_root(&paths).expect("initialize ExecAss root");
     seed_typed_receipt(&paths);
