@@ -577,6 +577,7 @@ fn hex_nibble(byte: u8) -> Result<u8> {
     }
 }
 
+#[cfg(any(windows, test))]
 fn windows_sid_digest_from_bytes(sid: &[u8]) -> String {
     let mut digest = Sha256::new();
     digest.update(b"carsinos.execass.windows-token-sid.v1");
