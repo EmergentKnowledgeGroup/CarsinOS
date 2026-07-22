@@ -1,4 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
+import type {
+  IntakeRequest,
+  LocalDecisionProof,
+  LocalDecisionProofBinding,
+  LocalOwnerIntakeProof,
+  LocalOwnerMutationBinding,
+  LocalOwnerMutationProof,
+  LocalRunControlProof,
+  RunControlRequestBinding,
+} from "../glass/execass/types";
 import type { RuntimeConnectionSettings } from "../types";
 import { STORAGE_KEYS } from "../storageKeys";
 
@@ -223,6 +233,61 @@ export async function getGatewayToken(): Promise<string | null> {
     }
   }
   return envToken;
+}
+
+/**
+ * ExecAss native proof signers.
+ *
+ * Proofs are produced only by the registered Tauri commands backed by the
+ * OS-keyring owner secret. The browser build must never generate, persist,
+ * or approximate signing material - hence the hard desktop guard. Callers
+ * request a proof for one exact server-derived binding, submit it once,
+ * and discard it.
+ */
+function requireDesktopSigner(): void {
+  if (!isTauriRuntime()) {
+    throw new Error(
+      "ExecAss owner proofs are available only in the desktop app.",
+    );
+  }
+}
+
+export async function signExecassLocalRunControl(
+  binding: RunControlRequestBinding,
+): Promise<LocalRunControlProof> {
+  requireDesktopSigner();
+  return invoke<LocalRunControlProof>("sign_execass_local_run_control", {
+    binding,
+  });
+}
+
+export async function signExecassLocalOwnerIntake(
+  request: IntakeRequest,
+): Promise<LocalOwnerIntakeProof> {
+  requireDesktopSigner();
+  return invoke<LocalOwnerIntakeProof>("sign_execass_local_owner_intake", {
+    request,
+  });
+}
+
+export async function signExecassLocalOwnerMutation(
+  binding: LocalOwnerMutationBinding,
+): Promise<LocalOwnerMutationProof> {
+  requireDesktopSigner();
+  return invoke<LocalOwnerMutationProof>("sign_execass_local_owner_mutation", {
+    binding,
+  });
+}
+
+export async function signExecassLocalDecision(
+  binding: LocalDecisionProofBinding,
+  requestCorrelationId: string,
+): Promise<LocalDecisionProof> {
+  requireDesktopSigner();
+  return invoke<LocalDecisionProof>("sign_execass_local_decision", {
+    binding,
+    requestCorrelationId,
+  });
 }
 
 export async function isGatewayTokenConfigured(): Promise<boolean> {
