@@ -132,6 +132,9 @@ pub use confirmation_attestation::{
 #[cfg(any(test, feature = "execass-test-confirmation-runtime"))]
 #[doc(hidden)]
 pub use confirmation_custody::activate_test_confirmation_authority;
+#[cfg(feature = "execass-test-confirmation-runtime")]
+#[doc(hidden)]
+pub use confirmation_custody::activate_test_confirmation_authority_for_os_user;
 pub use confirmation_custody::ConfirmationAuthorityIdentity;
 pub use jobs::{
     is_execass_continuation_job_payload, ContinuationJobBindingRecord,

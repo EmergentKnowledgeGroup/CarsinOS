@@ -331,7 +331,13 @@ async fn execass_durable_outbox_replays_over_authenticated_websocket() -> Result
     carsinos_storage::init_execass_fresh_root(&paths)
         .context("initialize canonical ExecAss websocket root")?;
     insert_execass_outbox_event(&paths.db_path, "ws-event-1", 1)?;
-    let gateway = GatewayProcess::spawn(state_dir.path(), "e2e-token-execass-ws", None).await?;
+    let gateway = GatewayProcess::spawn_with_execass_test_runtime(
+        state_dir.path(),
+        "e2e-token-execass-ws",
+        None,
+        &[],
+    )
+    .await?;
 
     let mut first = gateway.connect_ws().await?;
     let _ = wait_for_ws_event(&mut first, "gateway.status", Duration::from_secs(2)).await?;
@@ -389,6 +395,27 @@ async fn execass_durable_outbox_replays_over_authenticated_websocket() -> Result
     assert_eq!(future_frame["type"], "execass.v1.summary_refetch_required");
     assert_eq!(future_frame["reason"], "future_cursor");
     assert_eq!(wait_for_execass_cursor(&paths.db_path, 2).await?, 2);
+    Ok(())
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn execass_process_test_runtime_requires_explicit_opt_in() -> Result<()> {
+    let state_dir = TempDir::new_in(env!("CARGO_MANIFEST_DIR"))
+        .context("create ExecAss negative process-test state directory")?;
+    let paths = carsinos_storage::AppPaths::from_root(state_dir.path().to_path_buf());
+    carsinos_storage::init_execass_fresh_root(&paths)
+        .context("initialize canonical ExecAss negative process-test root")?;
+
+    let error = GatewayProcess::spawn(state_dir.path(), "e2e-token-no-test-runtime", None)
+        .await
+        .expect_err("feature-built gateway activated test custody without explicit process opt-in");
+    assert!(
+        error
+            .to_string()
+            .contains("gateway exited before becoming ready"),
+        "unexpected fail-closed process result: {error:#}"
+    );
     Ok(())
 }
 
@@ -971,7 +998,7 @@ async fn tuple_bound_runtime_host_rejects_a_second_writer_and_advances_after_rel
     carsinos_storage::init_execass_fresh_root(&paths)
         .context("initialize canonical ExecAss runtime-host root")?;
     let native_owner_secret = "e2e-native-owner-secret-at-least-thirty-two-bytes";
-    let primary = GatewayProcess::spawn_with_env(
+    let primary = GatewayProcess::spawn_with_execass_test_runtime(
         state_dir.path(),
         "e2e-token-scheduler-primary",
         None,
@@ -1025,11 +1052,17 @@ async fn tuple_bound_runtime_host_rejects_a_second_writer_and_advances_after_rel
     assert_eq!(attached.runtime_host_generation, primary_generation);
 
     let lexical_alias = state_dir.path().join(".");
-    let secondary_error =
-        match GatewayProcess::spawn(&lexical_alias, "e2e-token-scheduler-secondary", None).await {
-            Ok(_) => anyhow::bail!("a second process for the same ownership tuple became ready"),
-            Err(error) => error,
-        };
+    let secondary_error = match GatewayProcess::spawn_with_execass_test_runtime(
+        &lexical_alias,
+        "e2e-token-scheduler-secondary",
+        None,
+        &[],
+    )
+    .await
+    {
+        Ok(_) => anyhow::bail!("a second process for the same ownership tuple became ready"),
+        Err(error) => error,
+    };
     assert!(
         secondary_error
             .to_string()
@@ -1098,9 +1131,14 @@ async fn tuple_bound_runtime_host_rejects_a_second_writer_and_advances_after_rel
     assert_eq!(run["trigger_kind"], "scheduler");
 
     drop(primary);
-    let successor = GatewayProcess::spawn(state_dir.path(), "e2e-token-scheduler-successor", None)
-        .await
-        .context("failed to start successor after the primary released ownership")?;
+    let successor = GatewayProcess::spawn_with_execass_test_runtime(
+        state_dir.path(),
+        "e2e-token-scheduler-successor",
+        None,
+        &[],
+    )
+    .await
+    .context("failed to start successor after the primary released ownership")?;
     let successor_runtime = successor
         .request(Method::GET, "/api/v1/execass/runtime-host")
         .send()

@@ -2377,10 +2377,30 @@ impl ExecAssConfirmationRuntime {
         )
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "execass-test-process-runtime"))]
     pub(super) fn open_for_test(store: ExecAssStore, seed: [u8; 32]) -> Result<Self> {
         let identity =
             carsinos_storage::execass::activate_test_confirmation_authority(&store, seed)?;
+        Self::open_with_test_identity(store, seed, identity)
+    }
+
+    #[cfg(feature = "execass-test-process-runtime")]
+    pub(super) fn open_for_process_test(store: ExecAssStore, seed: [u8; 32]) -> Result<Self> {
+        let os_user_identity_digest = carsinos_runtime_control::current_os_user_identity_digest()?;
+        let identity = carsinos_storage::execass::activate_test_confirmation_authority_for_os_user(
+            &store,
+            seed,
+            os_user_identity_digest,
+        )?;
+        Self::open_with_test_identity(store, seed, identity)
+    }
+
+    #[cfg(any(test, feature = "execass-test-process-runtime"))]
+    fn open_with_test_identity(
+        store: ExecAssStore,
+        seed: [u8; 32],
+        identity: ConfirmationAuthorityIdentity,
+    ) -> Result<Self> {
         let signer = FixedConfirmationAuthoritySigner::from_seed(&identity, Zeroizing::new(seed))?;
         let (receipt_integrity, receipt_key, receipt_redactor) =
             open_receipt_runtime_for_test(&store)?;
@@ -3018,7 +3038,7 @@ fn open_receipt_runtime(
     finish_open_receipt_runtime(integrity)
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "execass-test-process-runtime"))]
 fn open_receipt_runtime_for_test(
     store: &ExecAssStore,
 ) -> Result<(ReceiptIntegrityStore, ReceiptKeyRef, ReceiptRedactor)> {
@@ -6324,13 +6344,21 @@ mod tests {
     }
 
     #[test]
-    fn production_build_has_no_test_authority_feature_by_default() {
+    fn production_build_does_not_enable_test_authority_by_default() {
         let manifest = include_str!("../Cargo.toml");
-        let production_dependencies = manifest
+        assert!(manifest.contains("default = []"));
+        assert!(manifest.contains(
+            "execass-test-process-runtime = [\"carsinos-storage/execass-test-confirmation-runtime\"]"
+        ));
+        let production_manifest = manifest
             .split("[dev-dependencies]")
             .next()
             .expect("gateway manifest has a production dependency section");
-        assert!(!production_dependencies.contains("execass-test-confirmation-runtime"));
+        assert!(
+            production_manifest.contains("carsinos-storage = { path = \"../carsinos-storage\" }")
+        );
+        assert!(!production_manifest
+            .contains("carsinos-storage = { path = \"../carsinos-storage\", features"));
         let source = include_str!("execass_confirmation_runtime.rs");
         let prohibited_secret = ["CARSINOS", "EXECASS", "CONFIRMATION", "SIGNING", "KEY"].join("_");
         let prohibited_env_read = ["std::env::", "var"].concat();

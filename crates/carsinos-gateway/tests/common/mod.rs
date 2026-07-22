@@ -45,6 +45,7 @@ impl GatewayProcess {
             .env("CARSINOS_GATEWAY_BIND", &bind)
             .env("CARSINOS_GATEWAY_TOKEN", token)
             .env("CARSINOS_STATE_DIR", state_dir)
+            .env_remove("CARSINOS_EXECASS_TEST_PROCESS_RUNTIME")
             .stdout(Stdio::null())
             .stderr(Stdio::null());
 
@@ -71,6 +72,19 @@ impl GatewayProcess {
         };
         process.wait_until_ready().await?;
         Ok(process)
+    }
+
+    #[allow(dead_code)]
+    pub async fn spawn_with_execass_test_runtime(
+        state_dir: &Path,
+        token: &str,
+        operator_allowlist: Option<&str>,
+        extra_env: &[(&str, &str)],
+    ) -> Result<Self> {
+        let mut process_env = Vec::with_capacity(extra_env.len() + 1);
+        process_env.push(("CARSINOS_EXECASS_TEST_PROCESS_RUNTIME", "1"));
+        process_env.extend_from_slice(extra_env);
+        Self::spawn_with_env(state_dir, token, operator_allowlist, &process_env).await
     }
 
     pub fn request(&self, method: Method, path: impl AsRef<str>) -> RequestBuilder {

@@ -42,7 +42,7 @@ cd "${REPO_ROOT}"
 
 run_step "security-pr-gate" env REQUIRE_CARGO_AUDIT="${require_cargo_audit}" "${SCRIPT_DIR}/security_pr_gate.sh"
 run_step "benchmarks" cargo test -p carsinos-gateway --test benchmark_process -- --nocapture
-run_step "gateway-e2e" cargo test -p carsinos-gateway --test e2e_process
+run_step "gateway-e2e" cargo test -p carsinos-gateway --features execass-test-process-runtime --test e2e_process
 run_step "secret-lifecycle-drill" "${SCRIPT_DIR}/security_secret_lifecycle_drill.sh"
 run_step "killswitch-drill" "${SCRIPT_DIR}/security_killswitch_drill.sh"
 

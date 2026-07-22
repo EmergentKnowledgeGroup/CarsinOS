@@ -235,13 +235,36 @@ pub fn activate_test_confirmation_authority(
     store: &ExecAssStore,
     seed: [u8; 32],
 ) -> Result<ConfirmationAuthorityIdentity> {
+    activate_test_confirmation_authority_for_identity(
+        store,
+        seed,
+        hex_encode(&Sha256::digest(b"carsinos.execass.test-current-user.v1")),
+    )
+}
+
+/// Process-test-only activation bound to the real test runner OS identity.
+/// This symbol is absent unless the explicit test-runtime feature is enabled.
+#[cfg(feature = "execass-test-confirmation-runtime")]
+#[doc(hidden)]
+pub fn activate_test_confirmation_authority_for_os_user(
+    store: &ExecAssStore,
+    seed: [u8; 32],
+    os_user_identity_digest: String,
+) -> Result<ConfirmationAuthorityIdentity> {
+    activate_test_confirmation_authority_for_identity(store, seed, os_user_identity_digest)
+}
+
+#[cfg(any(test, feature = "execass-test-confirmation-runtime"))]
+fn activate_test_confirmation_authority_for_identity(
+    store: &ExecAssStore,
+    seed: [u8; 32],
+    os_user_identity_digest: String,
+) -> Result<ConfirmationAuthorityIdentity> {
     let credential = CustodyCredential {
         canonical_root_identity: store.root_identity.clone(),
         installation_identity: "746573742d696e7374616c6c6174696f".to_string(),
         seed,
     };
-    let os_user_identity_digest =
-        hex_encode(&Sha256::digest(b"carsinos.execass.test-current-user.v1"));
     let identity = identity_for(store, &credential, &os_user_identity_digest)?;
     let mut conn = store.connection()?;
     let tx = immediate_transaction(&mut conn)?;

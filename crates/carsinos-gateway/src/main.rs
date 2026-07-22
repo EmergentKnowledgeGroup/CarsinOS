@@ -1,3 +1,6 @@
+#[cfg(all(feature = "execass-test-process-runtime", not(debug_assertions)))]
+compile_error!("execass-test-process-runtime cannot be compiled into a release gateway");
+
 use anyhow::{Context, Result as AnyResult};
 use axum::body::Body;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
@@ -3666,6 +3669,18 @@ fn parse_execass_verified_danger_adapters(
     Ok((registrations, live_adapters))
 }
 
+fn open_execass_confirmation_runtime(
+    store: carsinos_storage::execass::ExecAssStore,
+) -> AnyResult<execass_confirmation_runtime::ExecAssConfirmationRuntime> {
+    #[cfg(feature = "execass-test-process-runtime")]
+    if std::env::var("CARSINOS_EXECASS_TEST_PROCESS_RUNTIME").as_deref() == Ok("1") {
+        return execass_confirmation_runtime::ExecAssConfirmationRuntime::open_for_process_test(
+            store, [113; 32],
+        );
+    }
+    execass_confirmation_runtime::ExecAssConfirmationRuntime::open(store)
+}
+
 /// Optional server-owned model source.  Absence means the adapter is disabled
 /// and produces the explicit no-additional result; a configured adapter that
 /// cannot run is a mechanical pause, never an invented veto or a fake pass.
@@ -3915,7 +3930,7 @@ async fn main() -> AnyResult<()> {
     let execass_store = carsinos_storage::execass::ExecAssStore::open_if_canonical_root(&paths)?;
     let mut execass_confirmation_runtime = execass_store
         .clone()
-        .map(execass_confirmation_runtime::ExecAssConfirmationRuntime::open)
+        .map(open_execass_confirmation_runtime)
         .transpose()
         .context("failed activating the fixed ExecAss confirmation authority")?;
     let (canonical_root_identity, installation_identity, os_user_identity_digest) =
