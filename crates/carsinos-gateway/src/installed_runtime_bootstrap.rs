@@ -16,7 +16,7 @@ use std::ffi::{OsStr, OsString};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 #[cfg(any(windows, test))]
 use std::path::Path;
-#[cfg(windows)]
+#[cfg(any(windows, test))]
 use std::path::PathBuf;
 
 pub(crate) const INSTALLED_RUNTIME_HOST_FLAG: &str = "--mission-control-runtime-host";
