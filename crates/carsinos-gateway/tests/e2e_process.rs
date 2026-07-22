@@ -407,9 +407,13 @@ async fn execass_process_test_runtime_requires_explicit_opt_in() -> Result<()> {
     carsinos_storage::init_execass_fresh_root(&paths)
         .context("initialize canonical ExecAss negative process-test root")?;
 
-    let error = GatewayProcess::spawn(state_dir.path(), "e2e-token-no-test-runtime", None)
-        .await
-        .expect_err("feature-built gateway activated test custody without explicit process opt-in");
+    let error =
+        match GatewayProcess::spawn(state_dir.path(), "e2e-token-no-test-runtime", None).await {
+            Ok(_) => anyhow::bail!(
+                "feature-built gateway activated test custody without explicit process opt-in"
+            ),
+            Err(error) => error,
+        };
     assert!(
         error
             .to_string()
