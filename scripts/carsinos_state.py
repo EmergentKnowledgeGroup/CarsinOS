@@ -431,8 +431,12 @@ def tombstones(root: Path) -> list[dict[str, str]]:
 
 
 def make_manifest(root: Path, binary_compatibility_version: str) -> dict[str, Any]:
+    walked_files = walk_files(root)
+    receipts = receipt_metadata(root)
+    retry_tombstones = tombstones(root)
+    sqlite_databases = sqlite_metadata(root)
     records = [{"path": relative.as_posix(), "size_bytes": path.stat().st_size, "sha256": sha256(path)}
-               for relative, path in walk_files(root)]
+               for relative, path in walked_files]
     records.sort(key=lambda item: item["path"])
     return {
         "schema": ARCHIVE_SCHEMA,
@@ -440,13 +444,13 @@ def make_manifest(root: Path, binary_compatibility_version: str) -> dict[str, An
         "product": "CarsinOS",
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "source_state_root": str(root),
-        "source_state_root_generation": next((item["state_root_generation"] for item in receipt_metadata(root)), None),
+        "source_state_root_generation": next((item["state_root_generation"] for item in receipts), None),
         "binary_compatibility_version": binary_compatibility_version,
         "excluded_top_level": sorted(EXCLUDED_TOP_LEVEL),
         "secret_references": [{"path": "secrets", "disposition": "excluded_mandatory_reauthentication"}],
-        "retry_tombstones": {"present": bool(tombstones(root)), "files": tombstones(root)},
-        "receipt_metadata": receipt_metadata(root),
-        "sqlite_databases": sqlite_metadata(root),
+        "retry_tombstones": {"present": bool(retry_tombstones), "files": retry_tombstones},
+        "receipt_metadata": receipts,
+        "sqlite_databases": sqlite_databases,
         "files": records,
     }
 

@@ -2,10 +2,24 @@
 
 use anyhow::{bail, Context, Result};
 use sha2::{Digest, Sha256};
+use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tokio::process::{Child, ChildStdin, Command};
+
+#[cfg(unix)]
+use std::ffi::CString;
+#[cfg(windows)]
+use std::fs::OpenOptions;
+#[cfg(unix)]
+use std::os::unix::ffi::OsStrExt;
+#[cfg(unix)]
+use std::os::unix::fs::MetadataExt;
+#[cfg(windows)]
+use std::os::windows::fs::OpenOptionsExt;
+#[cfg(windows)]
+use windows_sys::Win32::Storage::FileSystem::FILE_SHARE_READ;
 
 const PACKAGED_FILE_NAME: Option<&str> = option_env!("CARSINOS_PACKAGED_EFFECT_RECORDER_FILE_NAME");
 const PACKAGED_SHA256: Option<&str> = option_env!("CARSINOS_PACKAGED_EFFECT_RECORDER_SHA256");
@@ -16,8 +30,7 @@ const PACKAGED_SHA256: Option<&str> = option_env!("CARSINOS_PACKAGED_EFFECT_RECO
 pub(crate) struct RecorderSidecarSupervisor {
     child: Child,
     _parent_liveness: ChildStdin,
-    executable: PathBuf,
-    sha256: String,
+    verified_artifact: VerifiedPackagedArtifact,
 }
 
 impl std::fmt::Debug for RecorderSidecarSupervisor {
@@ -25,8 +38,8 @@ impl std::fmt::Debug for RecorderSidecarSupervisor {
         formatter
             .debug_struct("RecorderSidecarSupervisor")
             .field("process_id", &self.child.id())
-            .field("executable", &self.executable)
-            .field("sha256", &self.sha256)
+            .field("executable", &self.verified_artifact.executable)
+            .field("sha256", &self.verified_artifact.sha256)
             .finish_non_exhaustive()
     }
 }
@@ -36,23 +49,28 @@ impl RecorderSidecarSupervisor {
         let Some((file_name, expected_sha256)) = packaged_contract()? else {
             return Ok(None);
         };
-        let current_exe = std::env::current_exe()
-            .context("failed resolving the installed runtime-host executable")?;
-        let executable = resolve_install_relative(&current_exe, file_name)?;
-        let actual_sha256 = sha256_file(&executable)?;
-        if actual_sha256 != expected_sha256 {
-            bail!("the packaged effect-recorder artifact digest is invalid");
-        }
-        let canonical_root = state_root
-            .canonicalize()
-            .context("failed canonicalizing recorder state root")?;
-        let canonical_database = database
-            .canonicalize()
-            .context("failed canonicalizing recorder database")?;
+        let state_root = state_root.to_path_buf();
+        let database = database.to_path_buf();
+        let (verified_artifact, canonical_root, canonical_database) =
+            tokio::task::spawn_blocking(move || {
+                let current_exe = std::env::current_exe()
+                    .context("failed resolving the installed runtime-host executable")?;
+                let verified_artifact =
+                    prepare_packaged_artifact(&current_exe, file_name, expected_sha256)?;
+                let canonical_root = state_root
+                    .canonicalize()
+                    .context("failed canonicalizing recorder state root")?;
+                let canonical_database = database
+                    .canonicalize()
+                    .context("failed canonicalizing recorder database")?;
+                Ok::<_, anyhow::Error>((verified_artifact, canonical_root, canonical_database))
+            })
+            .await
+            .context("the packaged effect-recorder verification task failed")??;
         if canonical_database.parent() != Some(canonical_root.as_path()) {
             bail!("the recorder database is outside its canonical state root");
         }
-        let mut child = Command::new(&executable)
+        let mut child = Command::new(&verified_artifact.executable)
             .arg("--state-root")
             .arg(&canonical_root)
             .arg("--database")
@@ -71,8 +89,7 @@ impl RecorderSidecarSupervisor {
         Ok(Some(Self {
             child,
             _parent_liveness: parent_liveness,
-            executable,
-            sha256: actual_sha256,
+            verified_artifact,
         }))
     }
 
@@ -86,6 +103,123 @@ impl RecorderSidecarSupervisor {
         }
         Ok(())
     }
+}
+
+struct VerifiedPackagedArtifact {
+    executable: PathBuf,
+    sha256: String,
+    // On Windows this handle allows reads but denies write/delete sharing, so
+    // the path cannot be replaced between hashing and CreateProcess. On Unix,
+    // the handle pins the exact hashed inode while the permission proof below
+    // prevents the invoking user from changing the file or its directory.
+    _verified_handle: File,
+}
+
+fn prepare_packaged_artifact(
+    current_exe: &Path,
+    file_name: &str,
+    expected_sha256: &str,
+) -> Result<VerifiedPackagedArtifact> {
+    let executable = resolve_install_relative(current_exe, file_name)?;
+    let mut verified_handle = open_verified_artifact(&executable)?;
+    validate_install_immutability(&executable, &verified_handle)?;
+    let actual_sha256 = sha256_reader(&mut verified_handle, &executable)?;
+    if actual_sha256 != expected_sha256 {
+        bail!("the packaged effect-recorder artifact digest is invalid");
+    }
+    Ok(VerifiedPackagedArtifact {
+        executable,
+        sha256: actual_sha256,
+        _verified_handle: verified_handle,
+    })
+}
+
+#[cfg(windows)]
+fn open_verified_artifact(path: &Path) -> Result<File> {
+    OpenOptions::new()
+        .read(true)
+        .share_mode(FILE_SHARE_READ)
+        .open(path)
+        .with_context(|| format!("failed locking packaged artifact {}", path.display()))
+}
+
+#[cfg(not(windows))]
+fn open_verified_artifact(path: &Path) -> Result<File> {
+    File::open(path).with_context(|| format!("failed opening packaged artifact {}", path.display()))
+}
+
+#[cfg(windows)]
+fn validate_install_immutability(_path: &Path, _file: &File) -> Result<()> {
+    // open_verified_artifact keeps a non-write/non-delete-sharing handle alive
+    // through process startup and for the lifetime of the child.
+    Ok(())
+}
+
+#[cfg(unix)]
+fn validate_install_immutability(path: &Path, file: &File) -> Result<()> {
+    let file_metadata = file.metadata().with_context(|| {
+        format!(
+            "failed reading packaged artifact metadata {}",
+            path.display()
+        )
+    })?;
+    let install_dir = path
+        .parent()
+        .context("the packaged effect-recorder artifact has no install directory")?;
+    unsafe extern "C" {
+        fn geteuid() -> u32;
+    }
+    let effective_uid = unsafe { geteuid() };
+    if !unix_artifact_snapshot_is_immutable(
+        effective_uid,
+        file_metadata.uid(),
+        file_metadata.mode(),
+    ) || unix_access_allows_write(path)?
+    {
+        bail!("the packaged effect-recorder artifact or install directory is mutable by the runtime user");
+    }
+    for ancestor in install_dir.ancestors() {
+        let metadata = ancestor.metadata().with_context(|| {
+            format!(
+                "failed reading packaged artifact ancestor metadata {}",
+                ancestor.display()
+            )
+        })?;
+        if !unix_directory_snapshot_is_immutable(effective_uid, metadata.uid(), metadata.mode())
+            || unix_access_allows_write(ancestor)?
+        {
+            bail!("the packaged effect-recorder install ancestry is mutable by the runtime user");
+        }
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn unix_access_allows_write(path: &Path) -> Result<bool> {
+    unsafe extern "C" {
+        fn access(path: *const std::ffi::c_char, mode: std::ffi::c_int) -> std::ffi::c_int;
+    }
+    const WRITE_OK: std::ffi::c_int = 2;
+    let path = CString::new(path.as_os_str().as_bytes())
+        .context("the packaged effect-recorder install path contains an interior NUL")?;
+    Ok(unsafe { access(path.as_ptr(), WRITE_OK) } == 0)
+}
+
+#[cfg(unix)]
+fn unix_artifact_snapshot_is_immutable(effective_uid: u32, owner_uid: u32, mode: u32) -> bool {
+    owner_uid != effective_uid && mode & 0o022 == 0 && mode & 0o6000 == 0
+}
+
+#[cfg(unix)]
+fn unix_directory_snapshot_is_immutable(effective_uid: u32, owner_uid: u32, mode: u32) -> bool {
+    owner_uid != effective_uid && mode & 0o022 == 0
+}
+
+#[cfg(all(unix, test))]
+fn unix_ancestor_snapshots_are_immutable(effective_uid: u32, ancestors: &[(u32, u32)]) -> bool {
+    ancestors.iter().all(|(owner_uid, mode)| {
+        unix_directory_snapshot_is_immutable(effective_uid, *owner_uid, *mode)
+    })
 }
 
 impl Drop for RecorderSidecarSupervisor {
@@ -140,13 +274,18 @@ fn resolve_install_relative(current_exe: &Path, file_name: &str) -> Result<PathB
     Ok(canonical)
 }
 
+#[cfg(test)]
 fn sha256_file(path: &Path) -> Result<String> {
-    let mut file = std::fs::File::open(path)
+    let mut file = File::open(path)
         .with_context(|| format!("failed opening packaged artifact {}", path.display()))?;
+    sha256_reader(&mut file, path)
+}
+
+fn sha256_reader(reader: &mut File, path: &Path) -> Result<String> {
     let mut digest = Sha256::new();
     let mut buffer = [0u8; 64 * 1024];
     loop {
-        let read = file
+        let read = reader
             .read(&mut buffer)
             .with_context(|| format!("failed hashing packaged artifact {}", path.display()))?;
         if read == 0 {
@@ -193,5 +332,49 @@ mod tests {
             sha256_file(&recorder).unwrap(),
             "93384247058b5e037a16c08536d5a3b3c20453cda6571c7e016942f9f93b274f"
         );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn verified_artifact_handle_allows_launch_but_blocks_write_and_replacement() {
+        let directory = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR")).unwrap();
+        let host = directory.path().join("carsinos-gateway.exe");
+        let recorder = directory.path().join("carsinos-effect-recorder.exe");
+        std::fs::write(&host, b"host").unwrap();
+        let command_interpreter = std::env::var_os("ComSpec").unwrap();
+        std::fs::copy(command_interpreter, &recorder).unwrap();
+        let expected_sha256 = sha256_file(&recorder).unwrap();
+        let artifact =
+            prepare_packaged_artifact(&host, "carsinos-effect-recorder.exe", &expected_sha256)
+                .unwrap();
+
+        assert!(OpenOptions::new().write(true).open(&recorder).is_err());
+        assert!(std::fs::remove_file(&recorder).is_err());
+        assert!(std::fs::rename(&recorder, recorder.with_extension("swapped")).is_err());
+        assert!(std::process::Command::new(&artifact.executable)
+            .args(["/D", "/C", "exit 0"])
+            .status()
+            .unwrap()
+            .success());
+
+        drop(artifact);
+        assert!(OpenOptions::new().write(true).open(&recorder).is_ok());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn unix_immutability_rejects_mutable_artifact_and_any_mutable_ancestor() {
+        assert!(unix_artifact_snapshot_is_immutable(501, 0, 0o100755));
+        assert!(!unix_artifact_snapshot_is_immutable(501, 501, 0o100555));
+        assert!(!unix_artifact_snapshot_is_immutable(501, 0, 0o100775));
+        assert!(!unix_artifact_snapshot_is_immutable(501, 0, 0o104755));
+
+        let immutable_chain = [(0, 0o40755), (0, 0o40755), (0, 0o40755)];
+        assert!(unix_ancestor_snapshots_are_immutable(501, &immutable_chain));
+        let mutable_ancestor = [(0, 0o40755), (0, 0o40777), (0, 0o40755)];
+        assert!(!unix_ancestor_snapshots_are_immutable(
+            501,
+            &mutable_ancestor
+        ));
     }
 }

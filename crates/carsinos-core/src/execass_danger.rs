@@ -43,6 +43,16 @@ impl VerifiedDangerFact {
         }
     }
 
+    fn category_rank(&self) -> u8 {
+        match self {
+            Self::WholeDriveVolumeBootRecoveryOrCoreOsTree { .. } => 0,
+            Self::WholeUserProfileOrHome { .. } => 1,
+            Self::CompleteCarsinosProtectedSystem { .. } => 2,
+            Self::WholeConnectedExternalAccountOrTenant { .. } => 3,
+            Self::LastAdministrativeRecoveryOrDecryptionPath { .. } => 4,
+        }
+    }
+
     fn consequence(&self) -> String {
         match self {
             Self::WholeDriveVolumeBootRecoveryOrCoreOsTree { resolved_target } => format!(
@@ -473,7 +483,12 @@ pub fn match_known_danger(
     {
         return Err(DangerRoutingError::MetadataLeafMismatch);
     }
-    let Some(primary) = input.verified_metadata.facts.first() else {
+    let Some(primary) = input
+        .verified_metadata
+        .facts
+        .iter()
+        .min_by_key(|fact| fact.category_rank())
+    else {
         return Ok(DangerRoute {
             canonical_leaf_digest: input
                 .canonical_leaf
@@ -1188,6 +1203,29 @@ mod tests {
         };
         assert!(assessment.declared_consequence.contains("entire drive"));
         assert!(assessment.declared_consequence.contains("last verified"));
+
+        let reversed_metadata = issue_test_verified_danger_metadata(
+            &leaf,
+            &[
+                (
+                    TestVerifiedDangerFact::LastAdministrativeRecoveryOrDecryptionPath,
+                    "recovery volume R:".to_string(),
+                ),
+                (
+                    TestVerifiedDangerFact::WholeDriveVolumeBootRecoveryOrCoreOsTree,
+                    "recovery volume R:".to_string(),
+                ),
+            ],
+        );
+        let reversed = match_known_danger(KnownDangerMatchInput {
+            canonical_leaf: &leaf,
+            verified_metadata: &reversed_metadata,
+        })
+        .unwrap();
+        assert_eq!(
+            route, reversed,
+            "fact order must not alter the danger route"
+        );
     }
 
     #[test]

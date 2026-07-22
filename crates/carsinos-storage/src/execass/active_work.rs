@@ -73,28 +73,15 @@ impl ExecAssStore {
 }
 
 pub(super) fn load_active_work_status(conn: &Connection) -> Result<ExecAssActiveWorkStatus> {
-    load_active_work_snapshot(conn).map(|(status, _)| status)
+    let counts = load_active_work_counts(conn)?;
+    active_work_status(counts)
 }
 
 pub(super) fn load_active_work_snapshot(
     conn: &Connection,
 ) -> Result<(ExecAssActiveWorkStatus, String)> {
-    let (delegations, continuations, effects): (i64, i64, i64) = conn
-        .query_row(ACTIVE_WORK_COUNTS_SQL, [], |row| {
-            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
-        })
-        .context("failed reading explicit active-work states")?;
-    let active_work_count = delegations
-        .checked_add(continuations)
-        .and_then(|count| count.checked_add(effects))
-        .context("active-work count overflow")?;
-    let status = ExecAssActiveWorkStatus {
-        active: active_work_count > 0,
-        active_work_count,
-        nonterminal_delegation_count: delegations,
-        nonterminal_continuation_count: continuations,
-        nonterminal_effect_count: effects,
-    };
+    let counts = load_active_work_counts(conn)?;
+    let status = active_work_status(counts)?;
     let mut digest = Sha256::new();
     digest.update(ACTIVE_WORK_BINDING_DOMAIN);
     let mut statement = conn
@@ -116,6 +103,29 @@ pub(super) fn load_active_work_snapshot(
         update_digest(&mut digest, &state);
     }
     Ok((status, format!("sha256:{}", encode_hex(&digest.finalize()))))
+}
+
+fn load_active_work_counts(conn: &Connection) -> Result<(i64, i64, i64)> {
+    conn.query_row(ACTIVE_WORK_COUNTS_SQL, [], |row| {
+        Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+    })
+    .context("failed reading explicit active-work states")
+}
+
+fn active_work_status(
+    (delegations, continuations, effects): (i64, i64, i64),
+) -> Result<ExecAssActiveWorkStatus> {
+    let active_work_count = delegations
+        .checked_add(continuations)
+        .and_then(|count| count.checked_add(effects))
+        .context("active-work count overflow")?;
+    Ok(ExecAssActiveWorkStatus {
+        active: active_work_count > 0,
+        active_work_count,
+        nonterminal_delegation_count: delegations,
+        nonterminal_continuation_count: continuations,
+        nonterminal_effect_count: effects,
+    })
 }
 
 fn update_digest(digest: &mut Sha256, value: &str) {

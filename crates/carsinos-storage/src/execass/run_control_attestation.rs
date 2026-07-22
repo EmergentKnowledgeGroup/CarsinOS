@@ -150,17 +150,7 @@ pub(crate) fn verify_run_control_attestation(
     {
         return Err(RunControlAttestationVerificationError::PinnedIdentityMismatch);
     }
-    if trusted_now <= 0
-        || payload.issued_at_ms - payload.observed_at_ms
-            > RUN_CONTROL_ATTESTATION_MAX_FUTURE_SKEW_MS
-        || trusted_now.saturating_sub(payload.observed_at_ms) > RUN_CONTROL_ATTESTATION_MAX_AGE_MS
-    {
-        return Err(RunControlAttestationVerificationError::Stale);
-    }
-    let latest_accepted = trusted_now.saturating_add(RUN_CONTROL_ATTESTATION_MAX_FUTURE_SKEW_MS);
-    if payload.observed_at_ms > latest_accepted || payload.issued_at_ms > latest_accepted {
-        return Err(RunControlAttestationVerificationError::IssuedInFuture);
-    }
+    validate_attestation_timestamps(payload.observed_at_ms, payload.issued_at_ms, trusted_now)?;
     let signature_bytes = decode_hex_array::<64>(&attestation.signature_hex)
         .map_err(|_| RunControlAttestationVerificationError::MalformedSignature)?;
     let signature = Signature::from_bytes(&signature_bytes);
@@ -173,6 +163,27 @@ pub(crate) fn verify_run_control_attestation(
         key_id: attestation.key_id.clone(),
         attestation_digest: stable_attestation_digest(&signed_bytes, &signature_bytes),
     })
+}
+
+fn validate_attestation_timestamps(
+    observed_at_ms: i64,
+    issued_at_ms: i64,
+    trusted_now: i64,
+) -> Result<(), RunControlAttestationVerificationError> {
+    let issuance_delay_ms = issued_at_ms
+        .checked_sub(observed_at_ms)
+        .ok_or(RunControlAttestationVerificationError::Stale)?;
+    if trusted_now <= 0
+        || issuance_delay_ms > RUN_CONTROL_ATTESTATION_MAX_FUTURE_SKEW_MS
+        || trusted_now.saturating_sub(observed_at_ms) > RUN_CONTROL_ATTESTATION_MAX_AGE_MS
+    {
+        return Err(RunControlAttestationVerificationError::Stale);
+    }
+    let latest_accepted = trusted_now.saturating_add(RUN_CONTROL_ATTESTATION_MAX_FUTURE_SKEW_MS);
+    if observed_at_ms > latest_accepted || issued_at_ms > latest_accepted {
+        return Err(RunControlAttestationVerificationError::IssuedInFuture);
+    }
+    Ok(())
 }
 
 pub(crate) fn run_control_attestation_digest(
@@ -213,4 +224,67 @@ fn decode_hex_array<const N: usize>(
             .map_err(|_| RunControlAttestationVerificationError::MalformedSignature)?;
     }
     Ok(output)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn timestamp_bounds_accept_exact_edges_and_reject_one_millisecond_beyond() {
+        let now = 1_000_000;
+        assert_eq!(
+            validate_attestation_timestamps(
+                now - RUN_CONTROL_ATTESTATION_MAX_AGE_MS,
+                now - RUN_CONTROL_ATTESTATION_MAX_AGE_MS
+                    + RUN_CONTROL_ATTESTATION_MAX_FUTURE_SKEW_MS,
+                now,
+            ),
+            Ok(())
+        );
+        assert_eq!(
+            validate_attestation_timestamps(
+                now - RUN_CONTROL_ATTESTATION_MAX_AGE_MS - 1,
+                now - RUN_CONTROL_ATTESTATION_MAX_AGE_MS - 1,
+                now,
+            ),
+            Err(RunControlAttestationVerificationError::Stale)
+        );
+        assert_eq!(
+            validate_attestation_timestamps(
+                now,
+                now + RUN_CONTROL_ATTESTATION_MAX_FUTURE_SKEW_MS,
+                now,
+            ),
+            Ok(())
+        );
+        assert_eq!(
+            validate_attestation_timestamps(
+                now,
+                now + RUN_CONTROL_ATTESTATION_MAX_FUTURE_SKEW_MS + 1,
+                now,
+            ),
+            Err(RunControlAttestationVerificationError::Stale)
+        );
+    }
+
+    #[test]
+    fn timestamp_bounds_fail_closed_without_overflow_for_hostile_extremes() {
+        assert_eq!(
+            validate_attestation_timestamps(i64::MAX, i64::MIN, i64::MAX),
+            Err(RunControlAttestationVerificationError::Stale)
+        );
+        assert_eq!(
+            validate_attestation_timestamps(1, i64::MAX, i64::MAX),
+            Err(RunControlAttestationVerificationError::Stale)
+        );
+        assert_eq!(
+            validate_attestation_timestamps(i64::MAX, i64::MAX, i64::MAX),
+            Ok(())
+        );
+        assert_eq!(
+            validate_attestation_timestamps(i64::MAX, i64::MAX, 1),
+            Err(RunControlAttestationVerificationError::IssuedInFuture)
+        );
+    }
 }

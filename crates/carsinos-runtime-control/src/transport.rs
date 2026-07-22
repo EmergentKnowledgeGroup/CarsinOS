@@ -7,7 +7,7 @@ mod windows;
 pub(crate) use windows::{client_exchange, current_os_user_identity_digest, serve};
 
 #[cfg(unix)]
-pub(crate) use unix::{client_exchange, current_os_user_identity_digest, serve};
+pub(crate) use unix::{client_exchange, current_os_user_identity_digest, runtime_base_dir, serve};
 
 #[cfg(not(any(windows, unix)))]
 pub(crate) async fn client_exchange(

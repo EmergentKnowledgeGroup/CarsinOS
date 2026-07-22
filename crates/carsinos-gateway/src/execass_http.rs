@@ -25,6 +25,16 @@ fn correlation_id(headers: &HeaderMap) -> String {
         .to_owned()
 }
 
+fn summary_delivery_correlation_id(headers: &HeaderMap) -> String {
+    headers
+        .get("x-request-id")
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string())
+}
+
 fn error(
     headers: &HeaderMap,
     status: StatusCode,
@@ -200,7 +210,11 @@ pub(super) async fn get_summary(
         "execass:summary",
     )?;
     let now = current_time_ms();
-    let request_identity = format!("{}:{}", auth.principal_id, correlation_id(&headers));
+    let request_identity = format!(
+        "{}:{}",
+        auth.principal_id,
+        summary_delivery_correlation_id(&headers)
+    );
     let delivery_id = format!(
         "summary-delivery-{}",
         sha256_hex(request_identity.as_bytes())

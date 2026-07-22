@@ -10,7 +10,9 @@ mod transport;
 use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
+#[cfg(unix)]
+use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 #[cfg(unix)]
 use std::path::PathBuf;
@@ -102,13 +104,18 @@ impl RuntimeControlEndpoint {
         }
         #[cfg(unix)]
         {
-            Ok(Self {
-                socket_path: state_root
-                    .join("runtime")
-                    .join("control")
-                    .join("v1")
-                    .join(format!("{endpoint_id}.sock")),
-            })
+            let _ = state_root;
+            let socket_path = transport::runtime_base_dir()?
+                .join(format!("carsinos-{}.sock", &endpoint_id[..32]));
+            let encoded_length = socket_path.as_os_str().as_bytes().len() + 1;
+            #[cfg(target_os = "macos")]
+            const SUN_PATH_BYTES: usize = 104;
+            #[cfg(not(target_os = "macos"))]
+            const SUN_PATH_BYTES: usize = 108;
+            if encoded_length > SUN_PATH_BYTES {
+                return Err(RuntimeControlError::Transport);
+            }
+            Ok(Self { socket_path })
         }
         #[cfg(not(any(windows, unix)))]
         {
@@ -355,12 +362,14 @@ pub trait ReplayGuard: Send + Sync + 'static {
         request_id: &str,
         nonce: &str,
         issued_at_ms: i64,
+        trusted_now_ms: i64,
+        max_clock_skew: Duration,
     ) -> Result<(), RuntimeControlError>;
 }
 
 #[derive(Default)]
 pub struct InMemoryReplayGuard {
-    seen: Mutex<HashSet<(String, String)>>,
+    seen: Mutex<HashMap<(String, String), i64>>,
 }
 
 impl ReplayGuard for InMemoryReplayGuard {
@@ -368,12 +377,30 @@ impl ReplayGuard for InMemoryReplayGuard {
         &self,
         request_id: &str,
         nonce: &str,
-        _issued_at_ms: i64,
+        issued_at_ms: i64,
+        trusted_now_ms: i64,
+        max_clock_skew: Duration,
     ) -> Result<(), RuntimeControlError> {
-        let mut seen = self.seen.lock().map_err(|_| RuntimeControlError::Replay)?;
-        if !seen.insert((request_id.to_owned(), nonce.to_owned())) {
+        let max_clock_skew_ms =
+            i64::try_from(max_clock_skew.as_millis()).map_err(|_| RuntimeControlError::Replay)?;
+        if issued_at_ms <= 0
+            || trusted_now_ms <= 0
+            || issued_at_ms.abs_diff(trusted_now_ms) > max_clock_skew_ms as u64
+        {
             return Err(RuntimeControlError::Replay);
         }
+        // Prune against the trusted clock sample, not attacker-controlled
+        // request ordering. Both edges remain replay-protected while accepted.
+        let oldest_accepted_issued_at_ms = trusted_now_ms.saturating_sub(max_clock_skew_ms);
+        let mut seen = self.seen.lock().map_err(|_| RuntimeControlError::Replay)?;
+        seen.retain(|_, recorded_issued_at_ms| {
+            *recorded_issued_at_ms >= oldest_accepted_issued_at_ms
+        });
+        let replay_identity = (request_id.to_owned(), nonce.to_owned());
+        if seen.contains_key(&replay_identity) {
+            return Err(RuntimeControlError::Replay);
+        }
+        seen.insert(replay_identity, issued_at_ms);
         Ok(())
     }
 }
@@ -631,10 +658,14 @@ fn verify_request(
         &state.owner_secret,
         CLIENT_AUTH_DOMAIN,
     )?;
-    validate_timestamp(request.issued_at_ms, state.max_clock_skew)?;
-    state
-        .replay_guard
-        .check_and_record(&request.request_id, &request.nonce, request.issued_at_ms)
+    let trusted_now_ms = validate_timestamp(request.issued_at_ms, state.max_clock_skew)?;
+    state.replay_guard.check_and_record(
+        &request.request_id,
+        &request.nonce,
+        request.issued_at_ms,
+        trusted_now_ms,
+        state.max_clock_skew,
+    )
 }
 
 fn verify_reply(
@@ -656,7 +687,7 @@ fn verify_reply(
         owner_secret,
         SERVER_AUTH_DOMAIN,
     )?;
-    validate_timestamp(reply.issued_at_ms, max_clock_skew)
+    validate_timestamp(reply.issued_at_ms, max_clock_skew).map(|_| ())
 }
 
 fn validate_request_shape(request: &RuntimeControlRequestV1) -> Result<(), RuntimeControlError> {
@@ -707,14 +738,14 @@ fn validate_graceful_shutdown_request(
 fn validate_timestamp(
     issued_at_ms: i64,
     max_clock_skew: Duration,
-) -> Result<(), RuntimeControlError> {
+) -> Result<i64, RuntimeControlError> {
     let now = now_ms()?;
     let bound =
         i64::try_from(max_clock_skew.as_millis()).map_err(|_| RuntimeControlError::Timestamp)?;
     if issued_at_ms <= 0 || issued_at_ms.abs_diff(now) > bound as u64 {
         return Err(RuntimeControlError::Timestamp);
     }
-    Ok(())
+    Ok(now)
 }
 
 fn sign_request(
@@ -937,6 +968,7 @@ fn decode_nibble(value: u8) -> Result<u8, RuntimeControlError> {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Barrier;
 
     fn scope() -> RuntimeControlScopeV1 {
         RuntimeControlScopeV1 {
@@ -971,6 +1003,16 @@ mod tests {
             first,
             RuntimeControlEndpoint::for_scope(root, &other).unwrap()
         );
+        #[cfg(unix)]
+        {
+            use std::os::unix::ffi::OsStrExt;
+            assert!(first.socket_path.as_os_str().as_bytes().len() < 100);
+            let very_long_root = PathBuf::from("x".repeat(4_096));
+            assert_eq!(
+                first,
+                RuntimeControlEndpoint::for_scope(&very_long_root, &scope()).unwrap()
+            );
+        }
     }
 
     #[test]
@@ -1045,6 +1087,87 @@ mod tests {
         assert_eq!(
             verify_request(&request, &state),
             Err(RuntimeControlError::Timestamp)
+        );
+    }
+
+    #[test]
+    fn replay_guard_is_order_independent_across_the_full_accepted_timestamp_window() {
+        let guard = InMemoryReplayGuard::default();
+        let skew = Duration::from_millis(100);
+
+        // Exercise adversarial ordering: future edge first, then past edge.
+        guard
+            .check_and_record("future", "nonce", 1_200, 1_100, skew)
+            .unwrap();
+        guard
+            .check_and_record("past", "nonce", 1_000, 1_100, skew)
+            .unwrap();
+        assert_eq!(
+            guard.check_and_record("future", "nonce", 1_200, 1_100, skew),
+            Err(RuntimeControlError::Replay)
+        );
+        assert_eq!(
+            guard.check_and_record("past", "nonce", 1_000, 1_100, skew),
+            Err(RuntimeControlError::Replay)
+        );
+
+        guard
+            .check_and_record("newer", "nonce", 1_101, 1_101, skew)
+            .unwrap();
+        let seen = guard.seen.lock().unwrap();
+        assert!(!seen.contains_key(&("past".to_owned(), "nonce".to_owned())));
+        assert!(seen.contains_key(&("future".to_owned(), "nonce".to_owned())));
+        assert!(seen.contains_key(&("newer".to_owned(), "nonce".to_owned())));
+    }
+
+    #[test]
+    fn replay_guard_allows_only_one_concurrent_record_for_an_identity() {
+        const WORKERS: usize = 16;
+        let guard = Arc::new(InMemoryReplayGuard::default());
+        let barrier = Arc::new(Barrier::new(WORKERS));
+        let handles = (0..WORKERS)
+            .map(|_| {
+                let guard = Arc::clone(&guard);
+                let barrier = Arc::clone(&barrier);
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    guard.check_and_record(
+                        "concurrent-request",
+                        "concurrent-nonce",
+                        1_000,
+                        1_000,
+                        Duration::from_secs(1),
+                    )
+                })
+            })
+            .collect::<Vec<_>>();
+        let results = handles
+            .into_iter()
+            .map(|handle| handle.join().unwrap())
+            .collect::<Vec<_>>();
+
+        assert_eq!(results.iter().filter(|result| result.is_ok()).count(), 1);
+        assert_eq!(
+            results
+                .iter()
+                .filter(|result| **result == Err(RuntimeControlError::Replay))
+                .count(),
+            WORKERS - 1
+        );
+    }
+
+    #[test]
+    fn replay_guard_rejects_unrepresentable_retention_windows() {
+        let guard = InMemoryReplayGuard::default();
+        assert_eq!(
+            guard.check_and_record(
+                "request",
+                "nonce",
+                1_000,
+                1_000,
+                Duration::from_millis(i64::MAX as u64 + 1),
+            ),
+            Err(RuntimeControlError::Replay)
         );
     }
 
@@ -1169,6 +1292,51 @@ mod tests {
         let client = RuntimeControlClient::new(temp.path(), scope, secret).unwrap();
         let status = client.status().await.unwrap();
         assert_eq!(status.runtime_host_generation, 3);
+        let attached = client
+            .attach(AttachRequestV1 {
+                client_instance_id: "tauri-test".into(),
+            })
+            .await
+            .unwrap();
+        assert_eq!(attached.runtime_host_instance_id, "host-3");
+        assert_eq!(handler.attached.load(Ordering::SeqCst), 1);
+        task.abort();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn real_unix_roundtrip_uses_a_short_owner_only_socket_for_a_long_state_root() {
+        use std::os::unix::fs::{FileTypeExt, MetadataExt, PermissionsExt};
+
+        let long_state_root = PathBuf::from(format!("/{}", "long-state-root/".repeat(256)));
+        let scope = scope();
+        let secret = [9u8; 32];
+        let handler = Arc::new(TestHandler::default());
+        let server = RuntimeControlServer::new(
+            &long_state_root,
+            scope.clone(),
+            secret,
+            Arc::new(InMemoryReplayGuard::default()),
+            Arc::clone(&handler) as Arc<dyn RuntimeControlHandler>,
+        )
+        .unwrap();
+        let socket_path = server.endpoint.socket_path.clone();
+        assert!(socket_path.as_os_str().as_bytes().len() + 1 <= 104);
+        let task = tokio::spawn(server.serve());
+        let client = RuntimeControlClient::new(&long_state_root, scope, secret).unwrap();
+        let mut status = None;
+        for _ in 0..100 {
+            if let Ok(reply) = client.status().await {
+                status = Some(reply);
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert_eq!(status.unwrap().runtime_host_generation, 3);
+        let socket_metadata = std::fs::symlink_metadata(&socket_path).unwrap();
+        assert!(socket_metadata.file_type().is_socket());
+        assert_eq!(socket_metadata.uid(), unsafe { libc::geteuid() });
+        assert_eq!(socket_metadata.mode() & 0o077, 0);
         let attached = client
             .attach(AttachRequestV1 {
                 client_instance_id: "tauri-test".into(),

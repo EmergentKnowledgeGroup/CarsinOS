@@ -18,6 +18,7 @@ pub struct GatewayProcess {
     bind: String,
     token: String,
     client: Client,
+    stderr_path: PathBuf,
 }
 
 impl GatewayProcess {
@@ -39,6 +40,12 @@ impl GatewayProcess {
             pick_unused_port().ok_or_else(|| anyhow!("failed to pick an unused TCP port"))?;
         let bind = format!("127.0.0.1:{port}");
         let binary = gateway_binary_path()?;
+        let diagnostics_dir = state_dir.join("runtime").join("test-process-diagnostics");
+        std::fs::create_dir_all(&diagnostics_dir)
+            .context("failed to create gateway process diagnostics directory")?;
+        let stderr_path = diagnostics_dir.join(format!("gateway-{port}.stderr.log"));
+        let stderr = std::fs::File::create(&stderr_path)
+            .context("failed to create gateway process diagnostics log")?;
 
         let mut command = Command::new(binary);
         command
@@ -47,7 +54,7 @@ impl GatewayProcess {
             .env("CARSINOS_STATE_DIR", state_dir)
             .env_remove("CARSINOS_EXECASS_TEST_PROCESS_RUNTIME")
             .stdout(Stdio::null())
-            .stderr(Stdio::null());
+            .stderr(Stdio::from(stderr));
 
         if let Some(allowlist) = operator_allowlist {
             command.env("CARSINOS_OPERATOR_ALLOWLIST", allowlist);
@@ -69,6 +76,7 @@ impl GatewayProcess {
             bind,
             token: token.to_string(),
             client,
+            stderr_path,
         };
         process.wait_until_ready().await?;
         Ok(process)
@@ -218,7 +226,10 @@ impl GatewayProcess {
                 .try_wait()
                 .context("failed to check gateway process state")?
             {
-                return Err(anyhow!("gateway exited before becoming ready: {status}"));
+                return Err(anyhow!(
+                    "gateway exited before becoming ready: {status}; stderr tail: {}",
+                    self.startup_stderr_tail()
+                ));
             }
 
             match self
@@ -233,7 +244,22 @@ impl GatewayProcess {
             }
         }
 
-        Err(anyhow!("gateway did not become ready before timeout"))
+        Err(anyhow!(
+            "gateway did not become ready before timeout; stderr tail: {}",
+            self.startup_stderr_tail()
+        ))
+    }
+
+    fn startup_stderr_tail(&self) -> String {
+        const MAX_DIAGNOSTIC_BYTES: usize = 8 * 1024;
+        let Ok(bytes) = std::fs::read(&self.stderr_path) else {
+            return "<unavailable>".to_string();
+        };
+        let start = bytes.len().saturating_sub(MAX_DIAGNOSTIC_BYTES);
+        String::from_utf8_lossy(&bytes[start..])
+            .replace(&self.token, "[REDACTED]")
+            .trim()
+            .to_string()
     }
 }
 

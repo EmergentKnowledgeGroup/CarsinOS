@@ -60,27 +60,64 @@ import {
 import { STORAGE_KEYS } from "./storageKeys";
 import "./styles.css";
 
-function RuntimeCloseDialog(props: {
+export function RuntimeCloseDialog(props: {
   confirmation: RuntimeCloseConfirmation;
   confirming: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const { confirmation, confirming, onConfirm, onCancel } = props;
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    cancelButtonRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !confirming) {
+        event.preventDefault();
+        onCancel();
+        return;
+      }
+      if (event.key === "Tab") {
+        const focusable = Array.from(
+          dialogRef.current?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? [],
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [confirming, onCancel]);
+
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-labelledby="runtime-close-title"
+      aria-describedby="runtime-close-consequence runtime-close-cancel-note"
       style={{ position: "fixed", inset: 0, zIndex: 10000, display: "grid", placeItems: "center", padding: "1rem", background: "rgba(0, 0, 0, 0.6)" }}
     >
       <section style={{ maxWidth: "32rem", padding: "1.25rem", borderRadius: "0.75rem", background: "var(--mc-surface, #171717)" }}>
         <h2 id="runtime-close-title">Stop app-bound runtime?</h2>
-        <p>{props.confirmation.consequence}</p>
-        <p>The UI stays open if you cancel.</p>
+        <p id="runtime-close-consequence">{confirmation.consequence}</p>
+        <p id="runtime-close-cancel-note">The UI stays open if you cancel.</p>
         <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end" }}>
-          <button type="button" className="ghost" disabled={props.confirming} onClick={props.onCancel}>Keep running</button>
-          <button type="button" className="danger" disabled={props.confirming} onClick={props.onConfirm}>
-            {props.confirming ? "Stopping..." : "Pause work and close"}
+          <button ref={cancelButtonRef} type="button" className="ghost" disabled={confirming} onClick={onCancel}>Keep running</button>
+          <button type="button" className="danger" disabled={confirming} onClick={onConfirm}>
+            {confirming ? "Stopping..." : "Pause work and close"}
           </button>
         </div>
       </section>

@@ -3582,16 +3582,12 @@ fn required_execass_adapter_value(value: &str, field: &str) -> AnyResult<String>
 
 fn parse_execass_verified_danger_adapters(
     raw: Option<&str>,
-) -> AnyResult<(
-    Vec<execass_danger_bridge::ServerDangerAdapterRegistration>,
-    execass_danger_bridge::LiveDangerAdapterConfig,
-)> {
+) -> AnyResult<execass_danger_bridge::LiveDangerAdapterConfig> {
     let Some(raw) = raw.map(str::trim).filter(|raw| !raw.is_empty()) else {
-        return Ok((Vec::new(), Default::default()));
+        return Ok(Default::default());
     };
     let config: ExecAssVerifiedDangerAdapterConfig = serde_json::from_str(raw)
         .context("invalid CARSINOS_EXECASS_VERIFIED_DANGER_ADAPTERS_JSON")?;
-    let registrations = Vec::new();
     let mut live_adapters = execass_danger_bridge::LiveDangerAdapterConfig::default();
     let mut exact_registrations = BTreeSet::new();
 
@@ -3666,7 +3662,7 @@ fn parse_execass_verified_danger_adapters(
             });
     }
 
-    Ok((registrations, live_adapters))
+    Ok(live_adapters)
 }
 
 fn open_execass_confirmation_runtime(
@@ -3855,9 +3851,8 @@ mod execass_verified_danger_adapter_config_tests {
                 "candidate_paths": ["Z:\\\\owner-recovery"]
             }]
         }"#;
-        let (registrations, live_adapters) =
+        let live_adapters =
             parse_execass_verified_danger_adapters(Some(raw)).expect("verified adapter config");
-        assert!(registrations.is_empty());
         assert_eq!(live_adapters.external_accounts.len(), 1);
         assert_eq!(live_adapters.recovery_domains.len(), 1);
     }
@@ -4077,13 +4072,13 @@ async fn main() -> AnyResult<()> {
     let execass_confirmation_runtime = execass_confirmation_runtime.map(Arc::new);
     let verified_danger_adapters =
         std::env::var("CARSINOS_EXECASS_VERIFIED_DANGER_ADAPTERS_JSON").ok();
-    let (danger_adapter_registrations, live_danger_adapters) =
+    let live_danger_adapters =
         parse_execass_verified_danger_adapters(verified_danger_adapters.as_deref())?;
     let execass_danger_bridge = Arc::new(
         execass_danger_bridge::DangerActionBridge::from_server_paths_and_live_adapters(
             &paths,
             storage.clone(),
-            danger_adapter_registrations,
+            Vec::new(),
             live_danger_adapters,
         ),
     );
@@ -47926,6 +47921,19 @@ mod tests {
             .expect("count ExecAss test table")
     }
 
+    fn execass_test_summary_delivery_ids(ctx: &TestContext) -> Vec<String> {
+        let connection = rusqlite::Connection::open(execass_test_db_path(ctx))
+            .expect("open ExecAss test database");
+        let mut statement = connection
+            .prepare("SELECT delivery_id FROM execass_summary_deliveries ORDER BY rowid")
+            .expect("prepare summary delivery query");
+        statement
+            .query_map([], |row| row.get(0))
+            .expect("query summary deliveries")
+            .collect::<Result<Vec<_>, _>>()
+            .expect("read summary delivery ids")
+    }
+
     #[tokio::test]
     async fn execass_http_read_surface_and_exact_summary_ack_are_versioned() {
         let ctx = execass_global_control_test_context();
@@ -47982,6 +47990,26 @@ mod tests {
         assert!(displayed["cursor"]
             .as_str()
             .is_some_and(|value| !value.is_empty()));
+        let first_delivery_ids = execass_test_summary_delivery_ids(&ctx);
+        assert_eq!(first_delivery_ids.len(), 1);
+
+        let independent_summary = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/execass/summary",
+                Body::empty(),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(independent_summary.status(), StatusCode::OK);
+        let _independent_summary = parse_json(independent_summary).await;
+        let independent_delivery_ids = execass_test_summary_delivery_ids(&ctx);
+        assert_ne!(
+            independent_delivery_ids[0], independent_delivery_ids[1],
+            "independent summary reads without x-request-id must not reuse a delivery"
+        );
 
         let acknowledgement = serde_json::json!({
             "idempotency_key": "summary-ack-http-1",

@@ -210,11 +210,10 @@ fn start_gateway_sidecar(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
     Ok(())
 }
 
-#[cfg(not(debug_assertions))]
-fn attach_existing_runtime_host(
+fn runtime_control_client_for_state_dir(
     state_dir: &std::path::Path,
     owner_secret: &ExecAssOwnerSecret,
-) -> Result<bool, Box<dyn std::error::Error>> {
+) -> Result<carsinos_runtime_control::RuntimeControlClient, Box<dyn std::error::Error>> {
     let canonical_root = state_dir.canonicalize()?;
     let scope = carsinos_runtime_control::RuntimeControlScopeV1 {
         canonical_root_identity:
@@ -225,7 +224,17 @@ fn attach_existing_runtime_host(
         os_user_identity_digest: carsinos_runtime_control::current_os_user_identity_digest()?,
     };
     let key = carsinos_runtime_control::derive_owner_control_key(owner_secret.as_bytes())?;
-    let client = carsinos_runtime_control::RuntimeControlClient::new(state_dir, scope, key)?;
+    Ok(carsinos_runtime_control::RuntimeControlClient::new(
+        state_dir, scope, key,
+    )?)
+}
+
+#[cfg(not(debug_assertions))]
+fn attach_existing_runtime_host(
+    state_dir: &std::path::Path,
+    owner_secret: &ExecAssOwnerSecret,
+) -> Result<bool, Box<dyn std::error::Error>> {
+    let client = runtime_control_client_for_state_dir(state_dir, owner_secret)?;
     let attached = tauri::async_runtime::block_on(async {
         let status = client.status().await?;
         if status.runtime_host_generation <= 0 || status.runtime_host_instance_id.is_empty() {
@@ -283,21 +292,7 @@ fn runtime_control_client(
         .join("state");
     std::fs::create_dir_all(&state_dir)
         .map_err(|error| format!("failed preparing native runtime state directory: {error}"))?;
-    let canonical_root = state_dir
-        .canonicalize()
-        .map_err(|error| format!("failed resolving native runtime state directory: {error}"))?;
-    let scope = carsinos_runtime_control::RuntimeControlScopeV1 {
-        canonical_root_identity:
-            carsinos_protocol::execass_recorder::canonical_root_identity_from_canonical_path(
-                &canonical_root.to_string_lossy(),
-            ),
-        profile_identity: carsinos_runtime_control::DEFAULT_PROFILE_IDENTITY.to_string(),
-        os_user_identity_digest: carsinos_runtime_control::current_os_user_identity_digest()
-            .map_err(|error| format!("failed resolving desktop OS identity: {error}"))?,
-    };
-    let key = carsinos_runtime_control::derive_owner_control_key(owner_secret.as_bytes())
-        .map_err(|error| format!("failed deriving native runtime-control key: {error}"))?;
-    carsinos_runtime_control::RuntimeControlClient::new(&state_dir, scope, key)
+    runtime_control_client_for_state_dir(&state_dir, &owner_secret)
         .map_err(|error| format!("failed opening authenticated native runtime control: {error}"))
 }
 

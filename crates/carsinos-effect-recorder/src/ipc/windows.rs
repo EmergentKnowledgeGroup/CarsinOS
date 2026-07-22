@@ -71,7 +71,10 @@ pub(super) async fn serve(
         .context("creating owner-only recorder named pipe")?;
         first = false;
         server.connect().await?;
-        verify_pipe_peer(&server, &expected_peer_identity_digest)?;
+        if let Err(error) = verify_pipe_peer(&server, &expected_peer_identity_digest) {
+            tracing::warn!(error = %error, "recorder named-pipe peer identity rejected");
+            continue;
+        }
         let service = Arc::clone(&service);
         tokio::spawn(async move {
             if let Err(error) = handle_stream(server, service).await {

@@ -60,6 +60,26 @@ jobs:
           path: runtime/quality-gate/reports/
           if-no-files-found: warn
 
+  runtime-control-macos-pr-gate:
+    name: Runtime Control Gate (macOS PR)
+    runs-on: macos-latest
+    timeout-minutes: 30
+    if: ${{ github.event_name == 'pull_request' || github.event.inputs.profile == 'pr' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Verify macOS runtime control
+        run: |
+          set -euo pipefail
+          cargo clippy -p carsinos-runtime-control --all-targets --locked -- -D warnings
+          cargo test -p carsinos-runtime-control --locked -- --test-threads=1
+
   mission-control-desktop-release-gate:
     name: Mission Control Desktop Release Gate (macOS)
     runs-on: macos-latest
@@ -106,4 +126,5 @@ jobs:
           path: |
             runtime/quality-gate/reports/
             runtime/quality-gate/artifacts/tauri-smoke/
+            runtime/quality-gate/artifacts/macos-package/
           if-no-files-found: warn
