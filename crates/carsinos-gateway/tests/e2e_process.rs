@@ -40,7 +40,7 @@ async fn wait_for_execass_cursor(db_path: &std::path::Path, expected: i64) -> Re
         let cursor = rusqlite::Connection::open(db_path)
             .context("open ExecAss cursor database")?
             .query_row(
-                "SELECT COALESCE(MAX(last_global_sequence),0) FROM execass_outbox_cursors",
+                "SELECT COALESCE(MAX(last_global_sequence),0) FROM execass_outbox_cursors WHERE consumer_id LIKE 'execass-ws:%'",
                 [],
                 |row| row.get::<_, i64>(0),
             )
@@ -51,6 +51,37 @@ async fn wait_for_execass_cursor(db_path: &std::path::Path, expected: i64) -> Re
         if tokio::time::Instant::now() >= deadline {
             return Err(anyhow!(
                 "timed out waiting for ExecAss cursor {expected}; got {cursor}"
+            ));
+        }
+        sleep(Duration::from_millis(20)).await;
+    }
+}
+
+async fn wait_for_execass_cursor_at_head(db_path: &std::path::Path) -> Result<i64> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(3);
+    loop {
+        let conn =
+            rusqlite::Connection::open(db_path).context("open ExecAss cursor-at-head database")?;
+        let cursor = conn
+            .query_row(
+                "SELECT COALESCE(MAX(last_global_sequence),0) FROM execass_outbox_cursors WHERE consumer_id LIKE 'execass-ws:%'",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .context("read ExecAss websocket cursor")?;
+        let head = conn
+            .query_row(
+                "SELECT COALESCE(MAX(global_sequence),0) FROM execass_outbox_events",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .context("read ExecAss outbox head")?;
+        if cursor == head {
+            return Ok(cursor);
+        }
+        if tokio::time::Instant::now() >= deadline {
+            return Err(anyhow!(
+                "timed out waiting for ExecAss websocket cursor to reach head; cursor={cursor}, head={head}"
             ));
         }
         sleep(Duration::from_millis(20)).await;
@@ -331,7 +362,7 @@ async fn execass_durable_outbox_replays_over_authenticated_websocket() -> Result
     carsinos_storage::init_execass_fresh_root(&paths)
         .context("initialize canonical ExecAss websocket root")?;
     insert_execass_outbox_event(&paths.db_path, "ws-event-1", 1)?;
-    let gateway = GatewayProcess::spawn_with_execass_test_runtime(
+    let mut gateway = GatewayProcess::spawn_with_execass_test_runtime(
         state_dir.path(),
         "e2e-token-execass-ws",
         None,
@@ -364,8 +395,19 @@ async fn execass_durable_outbox_replays_over_authenticated_websocket() -> Result
     )?;
     assert_eq!(published, 1);
     first.close(None).await.context("close first websocket")?;
+    drop(first);
+    gateway
+        .force_kill_and_wait()
+        .context("stop first gateway before durable outbox replay")?;
 
     insert_execass_outbox_event(&paths.db_path, "ws-event-2", 2)?;
+    let gateway = GatewayProcess::spawn_with_execass_test_runtime(
+        state_dir.path(),
+        "e2e-token-execass-ws",
+        None,
+        &[],
+    )
+    .await?;
     let mut second = gateway.connect_ws().await?;
     let _ = wait_for_ws_event(&mut second, "gateway.status", Duration::from_secs(2)).await?;
     second
@@ -379,7 +421,8 @@ async fn execass_durable_outbox_replays_over_authenticated_websocket() -> Result
     let second_frame = next_ws_event(&mut second).await?;
     assert_eq!(second_frame["type"], "execass.v1.event");
     assert_eq!(second_frame["event"]["global_sequence"], 2);
-    assert_eq!(wait_for_execass_cursor(&paths.db_path, 2).await?, 2);
+    let resumed_cursor = wait_for_execass_cursor_at_head(&paths.db_path).await?;
+    assert!(resumed_cursor >= 2);
 
     let mut future = gateway.connect_ws().await?;
     let _ = wait_for_ws_event(&mut future, "gateway.status", Duration::from_secs(2)).await?;
@@ -394,7 +437,10 @@ async fn execass_durable_outbox_replays_over_authenticated_websocket() -> Result
     let future_frame = next_ws_event(&mut future).await?;
     assert_eq!(future_frame["type"], "execass.v1.summary_refetch_required");
     assert_eq!(future_frame["reason"], "future_cursor");
-    assert_eq!(wait_for_execass_cursor(&paths.db_path, 2).await?, 2);
+    assert_eq!(
+        wait_for_execass_cursor_at_head(&paths.db_path).await?,
+        resumed_cursor
+    );
     Ok(())
 }
 
