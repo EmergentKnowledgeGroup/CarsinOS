@@ -17,7 +17,9 @@ import {
   fixtureAttentionItem,
   fixtureDecisionSummary,
   fixtureDelegationSummary,
+  fixtureDelegationDetailResponse,
   fixtureIntakeConversationalResponse,
+  fixtureIntakeDelegationResponse,
   fixtureResolveDecisionResponse,
   fixtureStopAllStatus,
   fixtureSummaryResponse,
@@ -407,5 +409,98 @@ describe("useExecassOfficeController", () => {
     });
     expect(controller?.trayNotes).toHaveLength(1);
     expect(controller?.trayNotes[0]?.text).toContain("venue decision");
+  });
+});
+
+describe("desk conversation (converse)", () => {
+  it("passes the attached delegation through intake and returns the reply", async () => {
+    vi.mocked(signExecassLocalOwnerIntake).mockResolvedValue({
+      ...PROOF,
+      request_id: "req",
+      idempotency_key: "idem",
+      attach_to_delegation_id: "dlg-retreat",
+      normalized_intent_digest: "sha256:x",
+      instruction_digest: "sha256:y",
+    });
+    vi.mocked(execassIntake).mockResolvedValue(
+      fixtureIntakeConversationalResponse(),
+    );
+    await mount();
+    let outcome: Awaited<ReturnType<ExecassOfficeController["converse"]>>;
+    await act(async () => {
+      outcome = await controller!.converse("how is the retreat going?", "dlg-retreat");
+    });
+    expect(outcome!).toMatchObject({ kind: "conversational" });
+    if (outcome!.kind === "conversational") {
+      expect(outcome!.text).toContain("already paid");
+    }
+    const [, request] = vi.mocked(execassIntake).mock.calls[0]!;
+    expect(request.attach_to_delegation_id).toBe("dlg-retreat");
+    expect(controller?.conversationalReply).toBeNull();
+  });
+
+  it("returns the created delegation and refreshes the summary", async () => {
+    vi.mocked(signExecassLocalOwnerIntake).mockResolvedValue({
+      ...PROOF,
+      request_id: "req",
+      idempotency_key: "idem",
+      attach_to_delegation_id: null,
+      normalized_intent_digest: "sha256:x",
+      instruction_digest: "sha256:y",
+    });
+    vi.mocked(execassIntake).mockResolvedValue(
+      fixtureIntakeDelegationResponse(),
+    );
+    await mount();
+    const summaryCallsBefore = vi.mocked(getExecassSummary).mock.calls.length;
+    let outcome: Awaited<ReturnType<ExecassOfficeController["converse"]>>;
+    await act(async () => {
+      outcome = await controller!.converse("chase the invoices");
+    });
+    expect(outcome!.kind).toBe("delegation");
+    if (outcome!.kind === "delegation") {
+      expect(outcome!.delegation.delegation_id).toBe("dlg-invoices");
+    }
+    expect(vi.mocked(getExecassSummary).mock.calls.length).toBeGreaterThan(
+      summaryCallsBefore,
+    );
+  });
+
+  it("returns a safe error outcome instead of a global notice", async () => {
+    vi.mocked(signExecassLocalOwnerIntake).mockResolvedValue({
+      ...PROOF,
+      request_id: "req",
+      idempotency_key: "idem",
+      attach_to_delegation_id: null,
+      normalized_intent_digest: "sha256:x",
+      instruction_digest: "sha256:y",
+    });
+    vi.mocked(execassIntake).mockRejectedValue(new Error("boom"));
+    await mount();
+    const noticesBefore = notices.length;
+    let outcome: Awaited<ReturnType<ExecassOfficeController["converse"]>>;
+    await act(async () => {
+      outcome = await controller!.converse("hello?");
+    });
+    expect(outcome!.kind).toBe("error");
+    if (outcome!.kind === "error") {
+      expect(outcome!.message).toContain("could not complete");
+    }
+    expect(notices.length).toBe(noticesBefore);
+  });
+});
+
+describe("loadDelegationDetail", () => {
+  it("returns the authoritative detail for the over-the-shoulder pane", async () => {
+    vi.mocked(getExecassDelegation).mockResolvedValue(
+      fixtureDelegationDetailResponse(),
+    );
+    await mount();
+    let detail: Awaited<ReturnType<ExecassOfficeController["loadDelegationDetail"]>>;
+    await act(async () => {
+      detail = await controller!.loadDelegationDetail("dlg-retreat");
+    });
+    expect(detail!.plan_summary).toContain("venue");
+    expect(detail!.delegation.delegation_id).toBe("dlg-retreat");
   });
 });
