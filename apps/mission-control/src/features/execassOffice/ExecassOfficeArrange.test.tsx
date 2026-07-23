@@ -41,7 +41,7 @@ async function mount() {
     root = createRoot(container);
     root.render(
       <StrictMode>
-        <ExecassOfficePanel controller={makeController()} />
+        <ExecassOfficePanel controller={makeController()} onOpenRoom={() => {}} />
       </StrictMode>,
     );
   });

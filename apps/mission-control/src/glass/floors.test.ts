@@ -2,8 +2,10 @@ import { describe, expect, test } from "vitest";
 
 import {
   DEFAULT_FLOORS,
+  findRoom,
   floorForShortcut,
   resolveElevator,
+  roomForTab,
   type FloorDef,
 } from "./floors";
 
@@ -134,6 +136,63 @@ describe("resolveElevator", () => {
     const basement = resolved.find((floor) => floor.id === "basement");
     expect(window?.rooms.map((room) => room.id)).toEqual(["reef", "chatter"]);
     expect(basement?.rooms.map((room) => room.id)).toContain("setup");
+  });
+});
+
+describe("findRoom", () => {
+  test("resolves a stable room id to its room and owning floor", () => {
+    const found = findRoom(DEFAULT_FLOORS, "boards");
+    expect(found?.floor.id).toBe("trenches");
+    expect(found?.room.id).toBe("boards");
+    expect(found?.room.route).toBe("boards");
+  });
+
+  test("resolves rooms whose route is shared with another floor", () => {
+    const staff = findRoom(DEFAULT_FLOORS, "staff");
+    const models = findRoom(DEFAULT_FLOORS, "models");
+    expect(staff?.floor.id).toBe("trenches");
+    expect(staff?.room.route).toBe("team");
+    expect(models?.floor.id).toBe("basement");
+    expect(models?.room.route).toBe("team");
+  });
+
+  test("fails closed on unknown room ids", () => {
+    expect(findRoom(DEFAULT_FLOORS, "haunted-room")).toBeUndefined();
+  });
+});
+
+describe("roomForTab", () => {
+  test("resolves a tab to the first registry room that owns it, in floor order", () => {
+    expect(roomForTab(DEFAULT_FLOORS, "team")?.room.id).toBe("staff");
+    expect(roomForTab(DEFAULT_FLOORS, "boards")?.room.id).toBe("boards");
+    expect(roomForTab(DEFAULT_FLOORS, "window")?.room.id).toBe("reef");
+  });
+
+  test("keeps the current room when it already owns the tab", () => {
+    const resolved = roomForTab(DEFAULT_FLOORS, "team", "models");
+    expect(resolved?.room.id).toBe("models");
+    expect(resolved?.floor.id).toBe("basement");
+  });
+
+  test("keeps a same-floor sibling that shares the route", () => {
+    // Basement Setup and Connectors both live on the connectors surface.
+    expect(roomForTab(DEFAULT_FLOORS, "connectors", "setup")?.room.id).toBe(
+      "setup",
+    );
+    expect(roomForTab(DEFAULT_FLOORS, "connectors")?.room.id).toBe(
+      "connectors",
+    );
+  });
+
+  test("ignores a stale current room that does not own the tab", () => {
+    expect(roomForTab(DEFAULT_FLOORS, "team", "reef")?.room.id).toBe("staff");
+    expect(roomForTab(DEFAULT_FLOORS, "team", "haunted-room")?.room.id).toBe(
+      "staff",
+    );
+  });
+
+  test("returns undefined for a tab no registry room owns", () => {
+    expect(roomForTab(DEFAULT_FLOORS, "help")).toBeUndefined();
   });
 });
 

@@ -51,6 +51,8 @@ import { AppErrorBoundary } from "../ui/AppErrorBoundary";
 interface AppContentProps {
   activeTab: MissionControlTab;
   onTabChange: (tab: MissionControlTab) => void;
+  /** Navigate by stable room id (pinned room shortcuts, elevator deep links). */
+  onRoomSelect: (roomId: string) => void;
   onOpenHelpDocs: (section?: string) => void;
   helpDocsTarget: { section?: string; seq: number };
   onStartGuidedTour: () => void;
@@ -731,6 +733,7 @@ export function AppContent(props: AppContentProps) {
           agents={props.agents}
           boards={props.boards}
           onTabChange={props.onTabChange}
+          onOpenRoom={props.onRoomSelect}
           controller={props.assistantController}
           officeController={props.officeController}
           runbookEnabled={runbookReady}

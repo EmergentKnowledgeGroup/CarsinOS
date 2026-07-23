@@ -142,6 +142,44 @@ export function resolveElevator(
     .sort((a, b) => a.order - b.order);
 }
 
+export interface RoomLookup {
+  floor: FloorDef;
+  room: RoomDef;
+}
+
+/** Resolve a stable room id to its room and owning floor; unknown ids fail closed. */
+export function findRoom(
+  floors: readonly FloorDef[],
+  roomId: string,
+): RoomLookup | undefined {
+  for (const floor of floors) {
+    const room = floor.rooms.find((candidate) => candidate.id === roomId);
+    if (room) return { floor, room };
+  }
+  return undefined;
+}
+
+/**
+ * Resolve a product surface (tab) to the room that owns it. Stable room ids —
+ * not routes — own navigation identity: when the current room already owns the
+ * tab it stays selected, otherwise the first registry room in floor order wins.
+ */
+export function roomForTab(
+  floors: readonly FloorDef[],
+  tab: MissionControlTab,
+  currentRoomId?: string,
+): RoomLookup | undefined {
+  if (currentRoomId) {
+    const current = findRoom(floors, currentRoomId);
+    if (current && current.room.route === tab) return current;
+  }
+  for (const floor of floors) {
+    const room = floor.rooms.find((candidate) => candidate.route === tab);
+    if (room) return { floor, room };
+  }
+  return undefined;
+}
+
 export function floorForShortcut(
   resolvedFloors: readonly FloorDef[],
   key: string,

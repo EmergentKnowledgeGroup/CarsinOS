@@ -10835,6 +10835,20 @@ button.danger:hover {
 .mc-office-library button { padding: 5px 11px; border-radius: 99px; border: 1px solid var(--line, var(--mc-border, #2a2a2e)); background: none; color: inherit; font-size: 12px; cursor: pointer; }
 .mc-office-library button:hover { border-color: var(--accent, var(--mc-accent, #17766b)); color: var(--accent, var(--mc-accent, #17766b)); }
 
+/* ── Glass Office · pinned room shortcuts (doors downstairs) ────────── */
+.mc-room-shortcut { display: flex; flex-direction: column; gap: 8px; height: 100%; min-height: 0; }
+.mc-room-shortcut-floor { display: inline-flex; align-items: center; gap: 7px; margin: 0; font-size: 12px; color: var(--ink-soft, var(--mc-text-soft, #9aa1a5)); }
+.mc-room-shortcut-lamp { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--line, var(--mc-border, #2a2a2e)); font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; color: var(--gold, var(--mc-warning, #97782a)); }
+.mc-room-shortcut-open { align-self: flex-start; margin-top: auto; padding: 6px 13px; border-radius: 99px; border: 1px solid var(--line, var(--mc-border, #2a2a2e)); background: none; color: inherit; font-size: 12.5px; cursor: pointer; }
+.mc-room-shortcut-open:hover, .mc-room-shortcut-open:focus-visible { border-color: var(--claw, #e8541b); color: var(--claw, #e8541b); }
+
+/* ── Trenches · pin to office ──────────────────────────────────────── */
+.mc-pin-to-office { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mc-pin-to-office-button { padding: 5px 11px; border-radius: 99px; border: 1px solid var(--line, var(--mc-border, #2a2a2e)); background: none; color: var(--ink-soft, var(--mc-text-soft, #9aa1a5)); font-size: 12px; cursor: pointer; white-space: nowrap; }
+.mc-pin-to-office-button:hover, .mc-pin-to-office-button:focus-visible { border-color: var(--claw, #e8541b); color: var(--claw, #e8541b); }
+.mc-pin-to-office-note { font-size: 12px; color: var(--ok, var(--mc-success, #3f8f5f)); }
+.mc-pin-to-office-note.is-error { color: var(--warn, var(--mc-warning, #97782a)); }
+
 /* ── Glass Office · theme studio ────────────────────────────────────── */
 .mc-theme-studio { display: flex; flex-direction: column; gap: 14px; }
 .mc-theme-active { margin: 0; font-size: 12.5px; color: var(--mc-text-soft, #9aa1a5); }

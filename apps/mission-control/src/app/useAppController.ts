@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { DEFAULT_FLOORS, findRoom, roomForTab } from "../glass/floors";
 import { loadConnectionSettings } from "../lib/runtime";
 import type { WsLifecycleState } from "../lib/ws";
 import type { RuntimeConnectionSettings } from "../types";
@@ -37,7 +38,38 @@ export interface EventStreamItem {
 }
 
 export function useAppController() {
-  const [activeTab, setActiveTab] = useState<MissionControlTab>("boards");
+  const [activeTab, setActiveTabState] = useState<MissionControlTab>("boards");
+  /**
+   * The last room chosen by an explicit room selection. Stable room ids own
+   * navigation identity: a selection stays lit only while the active tab is
+   * still the surface that room owns; tab-only navigations elsewhere clear it
+   * so shared surfaces resolve honestly instead of remembering stale picks.
+   */
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+
+  const setActiveTab = useCallback((tab: MissionControlTab) => {
+    setActiveTabState(tab);
+    setSelectedRoomId((current) => {
+      if (!current) return current;
+      const found = findRoom(DEFAULT_FLOORS, current);
+      return found && found.room.route === tab ? current : null;
+    });
+  }, []);
+
+  /** Navigate by stable room id; unknown ids fail closed. */
+  const selectRoom = useCallback((roomId: string) => {
+    const found = findRoom(DEFAULT_FLOORS, roomId);
+    if (!found) return;
+    setSelectedRoomId(roomId);
+    setActiveTabState(found.room.route);
+  }, []);
+
+  const activeRoomId = useMemo(
+    () =>
+      roomForTab(DEFAULT_FLOORS, activeTab, selectedRoomId ?? undefined)?.room
+        .id ?? null,
+    [activeTab, selectedRoomId],
+  );
   const [settings, setSettings] = useState<RuntimeConnectionSettings>(
     loadConnectionSettings()
   );
@@ -53,6 +85,8 @@ export function useAppController() {
   return {
     activeTab,
     setActiveTab,
+    activeRoomId,
+    selectRoom,
     settings,
     setSettings,
     gatewayDraft,

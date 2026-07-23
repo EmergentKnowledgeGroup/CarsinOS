@@ -6,6 +6,8 @@ import type { MissionControlTab } from "./useAppController";
 interface UseKeyboardShortcutsOptions {
   availableTabs: MissionControlTab[];
   onTabChange: (tab: MissionControlTab) => void;
+  /** Preferred over onTabChange for elevator jumps so the chosen room stays lit. */
+  onRoomSelect?: (roomId: string) => void;
   onToggleIncidentMode: () => void;
   onToggleLiveFeed: () => void;
   onOpenCommandPalette: () => void;
@@ -27,6 +29,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions) {
   const {
     availableTabs,
     onTabChange,
+    onRoomSelect,
     onToggleIncidentMode,
     onToggleLiveFeed,
     onOpenCommandPalette,
@@ -77,23 +80,30 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions) {
         const defaultRoom =
           floor?.rooms.find((room) => room.id === floor.defaultRoom) ??
           floor?.rooms[0];
-        if (defaultRoom && availableTabs.includes(defaultRoom.route)) {
+        const jumpTo = (room: { id: string; route: MissionControlTab }) => {
           e.preventDefault();
-          onTabChange(defaultRoom.route);
+          if (onRoomSelect) {
+            onRoomSelect(room.id);
+          } else {
+            onTabChange(room.route);
+          }
+        };
+        if (defaultRoom && availableTabs.includes(defaultRoom.route)) {
+          jumpTo(defaultRoom);
           return;
         }
         const fallbackRoom = floor?.rooms.find((room) =>
           availableTabs.includes(room.route),
         );
         if (fallbackRoom) {
-          e.preventDefault();
-          onTabChange(fallbackRoom.route);
+          jumpTo(fallbackRoom);
         }
       }
     },
     [
       availableTabs,
       onTabChange,
+      onRoomSelect,
       onToggleIncidentMode,
       onToggleLiveFeed,
       onOpenCommandPalette,

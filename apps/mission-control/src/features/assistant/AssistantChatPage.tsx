@@ -17,6 +17,8 @@ interface AssistantChatPageProps {
   agents: Agent[];
   boards: BoardSummary[];
   onTabChange: (tab: MissionControlTab) => void;
+  /** Navigate to a floor room by stable id (pinned room shortcuts). */
+  onOpenRoom: (roomId: string) => void;
   controller: ReturnType<typeof useAssistantChatController>;
   officeController: ExecassOfficeController;
   runbookEnabled: boolean;
@@ -285,7 +287,10 @@ export function AssistantChatPage(props: AssistantChatPageProps) {
         </div>
       </article>
 
-      <ExecassOfficePanel controller={props.officeController} />
+      <ExecassOfficePanel
+        controller={props.officeController}
+        onOpenRoom={props.onOpenRoom}
+      />
 
       <div className="mc-page-section-tabs" aria-label="Assistant sections">
         <button

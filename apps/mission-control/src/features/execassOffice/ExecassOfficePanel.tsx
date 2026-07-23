@@ -15,6 +15,8 @@ import {
 
 import { useGlassSurfaceTheme } from "../../glass/useGlassSurfaceTheme";
 
+import { DEFAULT_FLOORS, findRoom } from "../../glass/floors";
+
 import {
   closeDesk,
   initialDeskState,
@@ -29,7 +31,7 @@ import type {
   ReceiptSummary,
 } from "../../glass/execass/types";
 import { AssistantDesk } from "./AssistantDesk";
-import { OFFICE_BLOCK_REGISTRY } from "./officeBlocks";
+import { OFFICE_BLOCK_REGISTRY, type OfficeBlockDef } from "./officeBlocks";
 import { useOfficeLayout } from "./useOfficeLayout";
 import type { ExecassOfficeController } from "./useExecassOfficeController";
 
@@ -253,10 +255,49 @@ function NextRow(props: { item: NextItem }) {
   );
 }
 
+/**
+ * A pinned room shortcut: a walk-downstairs door on the Office canvas.
+ * It names the room and its floor from the registry and deep-links by
+ * stable room id — it never mirrors the room's data.
+ */
+function RoomShortcutBody(props: {
+  def: OfficeBlockDef;
+  onOpenRoom: (roomId: string) => void;
+}) {
+  const found = props.def.roomId
+    ? findRoom(DEFAULT_FLOORS, props.def.roomId)
+    : undefined;
+  if (!found) {
+    return (
+      <p className="mc-execass-empty">
+        This shortcut points to a room that is no longer registered.
+      </p>
+    );
+  }
+  return (
+    <div className="mc-room-shortcut">
+      <h3>{found.room.label}</h3>
+      <p className="mc-room-shortcut-floor">
+        <span className="mc-room-shortcut-lamp">{found.floor.lamp}F</span>
+        <span>{found.floor.label}</span>
+      </p>
+      <button
+        type="button"
+        className="mc-room-shortcut-open"
+        onClick={() => props.onOpenRoom(found.room.id)}
+      >
+        Open {found.room.label}
+      </button>
+    </div>
+  );
+}
+
 export function ExecassOfficePanel(props: {
   controller: ExecassOfficeController;
+  /** Opens a floor room by stable id; used by pinned room-shortcut blocks. */
+  onOpenRoom: (roomId: string) => void;
 }) {
-  const { controller } = props;
+  const { controller, onOpenRoom } = props;
   const [askDraft, setAskDraft] = useState("");
   const [trayOpen, setTrayOpen] = useState(false);
   const [freezeArmed, setFreezeArmed] = useState(false);
@@ -445,7 +486,10 @@ export function ExecassOfficePanel(props: {
       {summary
         ? (() => {
             const blockBodies: Record<
-              import("./officeBlocks").OfficeBlockRendererKey,
+              Exclude<
+                import("./officeBlocks").OfficeBlockRendererKey,
+                "room-shortcut"
+              >,
               () => ReactNode
             > = {
               "needs-you": () => (
@@ -542,7 +586,15 @@ export function ExecassOfficePanel(props: {
                         (entry) => entry.id === placement.id,
                       );
                       if (!def) return null;
-                      const body = blockBodies[def.rendererKey];
+                      const body =
+                        def.rendererKey === "room-shortcut"
+                          ? () => (
+                              <RoomShortcutBody
+                                def={def}
+                                onOpenRoom={onOpenRoom}
+                              />
+                            )
+                          : blockBodies[def.rendererKey];
                       return (
                         <section
                           key={placement.id}

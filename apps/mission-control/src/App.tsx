@@ -248,6 +248,8 @@ export default function App() {
   const {
     activeTab,
     setActiveTab,
+    activeRoomId,
+    selectRoom,
     settings,
     setSettings,
     gatewayDraft,
@@ -1134,6 +1136,8 @@ export default function App() {
       activeTab={activeTab}
       availableTabs={availableTabs}
       onTabChange={setActiveTab}
+      activeRoomId={activeRoomId}
+      onRoomSelect={selectRoom}
       healthState={healthState}
       wsState={wsState}
       tokenConfigured={tokenConfigured}
@@ -1224,6 +1228,7 @@ export default function App() {
       <AppContent
         activeTab={activeTab}
         onTabChange={setActiveTab}
+        onRoomSelect={selectRoom}
         onOpenHelpDocs={openHelpDocs}
         helpDocsTarget={helpDocsTarget}
         onStartGuidedTour={openGuidedTour}

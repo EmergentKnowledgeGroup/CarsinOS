@@ -70,6 +70,9 @@ interface AppShellProps {
   activeTab: MissionControlTab;
   availableTabs: MissionControlTab[];
   onTabChange: (tab: MissionControlTab) => void;
+  /** Stable room id owning the elevator lamp; null when no room owns the tab. */
+  activeRoomId: string | null;
+  onRoomSelect: (roomId: string) => void;
   healthState: string;
   wsState: string;
   tokenConfigured: boolean;
@@ -310,6 +313,7 @@ export function AppShell(props: AppShellProps) {
   useKeyboardShortcuts({
     availableTabs: props.availableTabs,
     onTabChange: props.onTabChange,
+    onRoomSelect: props.onRoomSelect,
     onToggleIncidentMode: toggleIncidentMode,
     onToggleLiveFeed: props.liveFeedEnabled
       ? props.onToggleLiveFeed
@@ -395,7 +399,7 @@ export function AppShell(props: AppShellProps) {
           {elevatorFloors.map((floor) => {
             const FloorIcon = NAV_ICONS[floor.icon];
             const activeFloor = floor.rooms.some(
-              (room) => room.route === props.activeTab,
+              (room) => room.id === props.activeRoomId,
             );
             return (
               <section
@@ -420,10 +424,10 @@ export function AppShell(props: AppShellProps) {
                         type="button"
                         className={clsx(
                           "mc-nav-item",
-                          props.activeTab === room.route && "mc-nav-item-active",
+                          props.activeRoomId === room.id && "mc-nav-item-active",
                         )}
                         onClick={() => {
-                          props.onTabChange(room.route);
+                          props.onRoomSelect(room.id);
                         }}
                         title={`${floor.lamp}F · ${room.label}`}
                         data-tour-id={

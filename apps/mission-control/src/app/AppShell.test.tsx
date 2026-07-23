@@ -1,4 +1,4 @@
-﻿// @vitest-environment jsdom
+// @vitest-environment jsdom
 
 import { act } from "react";
 import { createRoot } from "react-dom/client";
@@ -51,6 +51,8 @@ describe("AppShell live feed toggle", () => {
           activeTab="boards"
           availableTabs={availableTabs}
           onTabChange={() => {}}
+          activeRoomId="boards"
+          onRoomSelect={() => {}}
           healthState="healthy"
           wsState="connected"
           tokenConfigured
@@ -127,6 +129,8 @@ describe("AppShell live feed toggle", () => {
           activeTab="boards"
           availableTabs={["boards"]}
           onTabChange={() => {}}
+          activeRoomId="boards"
+          onRoomSelect={() => {}}
           healthState="healthy"
           wsState="connected"
           tokenConfigured
@@ -197,6 +201,8 @@ describe("AppShell live feed toggle", () => {
           activeTab="boards"
           availableTabs={["boards"]}
           onTabChange={() => {}}
+          activeRoomId="boards"
+          onRoomSelect={() => {}}
           healthState="healthy"
           wsState="connected"
           tokenConfigured
@@ -256,6 +262,84 @@ describe("AppShell live feed toggle", () => {
     expect(container.querySelector("[data-testid='theme-active']")).toBeTruthy();
   });
 
+  it("lights exactly one elevator room by stable id when two rooms share a surface", async () => {
+    const root = createRoot(container);
+    const onRoomSelect = vi.fn();
+
+    await act(async () => {
+      root.render(
+        <AppShell
+          activeTab="team"
+          availableTabs={["boards", "team"]}
+          onTabChange={() => {}}
+          activeRoomId="models"
+          onRoomSelect={onRoomSelect}
+          healthState="healthy"
+          wsState="connected"
+          tokenConfigured
+          incidentMode={false}
+          onIncidentModeChange={() => {}}
+          openBreakerCount={0}
+          approvalsCount={0}
+          jobsDue={0}
+          schedulerRunning
+          gatewayDraft="http://127.0.0.1:18789"
+          onGatewayDraftChange={() => {}}
+          tokenDraft="token"
+          onTokenDraftChange={() => {}}
+          onSaveConnection={async () => {}}
+          onReconnect={async () => {}}
+          onClearToken={async () => {}}
+          onOpenSetupWizard={() => {}}
+          onOpenHelpDocs={() => {}}
+          onOpenGuidedTour={() => {}}
+          notifications={[]}
+          onDismissNotification={() => {}}
+          onClearAllNotifications={() => {}}
+          liveFeedEnabled
+          liveFeedOpen={false}
+          liveFeedUnreadCount={0}
+          onToggleLiveFeed={() => {}}
+          opsUxConfig={DEFAULT_OPSUX_RUNTIME_CONFIG}
+          opsUxConfigError={null}
+          onPatchOpsUxControls={() => {}}
+          usageChartsEnabled={false}
+          assistantSystemPrompt="You are the CarsinOS assistant."
+          assistantSystemPromptDirty={false}
+          assistantSystemPromptLoading={false}
+          assistantSystemPromptSaving={false}
+          assistantSystemPromptError={null}
+          onAssistantSystemPromptChange={() => {}}
+          onSaveAssistantSystemPrompt={async () => {}}
+          onResetAssistantSystemPrompt={() => {}}
+          onRestoreDefaultAssistantSystemPrompt={() => {}}
+          quickGuideAvailable={true}
+          quickGuideOpen={false}
+          onToggleQuickGuide={() => {}}
+        >
+          <div>content</div>
+        </AppShell>
+      );
+    });
+
+    const activeRooms = Array.from(
+      container.querySelectorAll(".mc-nav-item-active")
+    );
+    expect(activeRooms).toHaveLength(1);
+    expect(activeRooms[0]?.getAttribute("title")).toBe(
+      "BF · Models & Providers"
+    );
+
+    const staffButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.getAttribute("title") === "2F · Staff Directory"
+    );
+    expect(staffButton).toBeTruthy();
+    await act(async () => {
+      staffButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(onRoomSelect).toHaveBeenCalledWith("staff");
+  });
+
   it("shows a focused memory review chip when ExecAss has learning proposals", async () => {
     const root = createRoot(container);
     const onTabChange = vi.fn();
@@ -266,6 +350,8 @@ describe("AppShell live feed toggle", () => {
           activeTab="boards"
           availableTabs={["boards", "focus"]}
           onTabChange={onTabChange}
+          activeRoomId="boards"
+          onRoomSelect={() => {}}
           healthState="healthy"
           wsState="connected"
           tokenConfigured
