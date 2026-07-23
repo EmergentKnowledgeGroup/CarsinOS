@@ -9,7 +9,7 @@ PR #101, and P3 experiential PR #102.
 - Workspace: `Z:\carsinos-clean`
 - Branch: `codex/glass-office-p4-trenches`
 - Base/merged head: `ea8a144ee76e179067af182026053daff36ae2ab`
-- Checkpoint track: `GLASS_OFFICE_P3_EXPERIENTIAL WORK`
+- Checkpoint track: `GLASS_OFFICE_P4_TRENCHES WORK`
 - Repository state at handoff refresh: PR #102 merged into `main`; continuation
   branch created at the exact merge commit; pre-existing root `node_modules/`
   remains untracked and must not be staged
