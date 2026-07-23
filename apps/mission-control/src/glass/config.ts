@@ -14,6 +14,14 @@ import {
 
 export const GLASS_CONFIG_STORAGE_KEY = "mc-glass-config-v1";
 
+/** Fired on window after any Glass config save so live consumers re-read. */
+export const GLASS_CONFIG_EVENT = "mc-glass-config-changed";
+
+export function notifyGlassConfigChanged(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(GLASS_CONFIG_EVENT));
+}
+
 export interface GlassConfig {
   /** "auto" follows the system preference; otherwise a theme id. */
   themeId: string;

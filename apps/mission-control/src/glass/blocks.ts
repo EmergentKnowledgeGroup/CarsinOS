@@ -60,6 +60,69 @@ export function normalizeLayout(
   return result;
 }
 
+/** Move a block one slot forward (-1) or backward (+1); no-op at the edges. */
+export function moveBlock(
+  layout: readonly BlockPlacement[],
+  id: string,
+  delta: -1 | 1,
+): BlockPlacement[] {
+  const from = layout.findIndex((placement) => placement.id === id);
+  const to = from + delta;
+  if (from < 0 || to < 0 || to >= layout.length) {
+    return layout as BlockPlacement[];
+  }
+  const next = [...layout];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved as BlockPlacement);
+  return next;
+}
+
+export function setBlockSize(
+  layout: readonly BlockPlacement[],
+  id: string,
+  size: BlockSize,
+): BlockPlacement[] {
+  if (!layout.some((placement) => placement.id === id)) {
+    return layout as BlockPlacement[];
+  }
+  return layout.map((placement) =>
+    placement.id === id ? { ...placement, size } : placement,
+  );
+}
+
+export function setBlockVisible(
+  layout: readonly BlockPlacement[],
+  id: string,
+  visible: boolean,
+): BlockPlacement[] {
+  if (!layout.some((placement) => placement.id === id)) {
+    return layout as BlockPlacement[];
+  }
+  return layout.map((placement) =>
+    placement.id === id ? { ...placement, visible } : placement,
+  );
+}
+
+/**
+ * "Pin to Office": ensure a registered block has a visible placement.
+ * Adds a registry entry to the layout config — never copies data and never
+ * creates a second source of truth. Unknown ids fail closed.
+ */
+export function pinBlockToOffice(
+  layout: readonly BlockPlacement[],
+  registry: readonly BlockDef[],
+  id: string,
+): BlockPlacement[] {
+  const def = registry.find((entry) => entry.id === id);
+  if (!def) return layout as BlockPlacement[];
+  const existing = layout.find((placement) => placement.id === id);
+  if (existing) {
+    if (existing.visible) return layout as BlockPlacement[];
+    return setBlockVisible(layout, id, true);
+  }
+  return [...layout, { ...defaultPlacement(def), visible: true }];
+}
+
 export function cycleSize(size: BlockSize): BlockSize {
   const index = SIZES.indexOf(size);
   return SIZES[(index + 1) % SIZES.length] as BlockSize;

@@ -5,7 +5,15 @@
  * deliberate click away (receipt inspection), never ambient.
  */
 
-import { useCallback, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
+
+import { useGlassSurfaceTheme } from "../../glass/useGlassSurfaceTheme";
 
 import type {
   AttentionItem,
@@ -13,6 +21,8 @@ import type {
   NextItem,
   ReceiptSummary,
 } from "../../glass/execass/types";
+import { OFFICE_BLOCK_REGISTRY } from "./officeBlocks";
+import { useOfficeLayout } from "./useOfficeLayout";
 import type { ExecassOfficeController } from "./useExecassOfficeController";
 
 function formatClock(ms: number | null | undefined): string {
@@ -266,6 +276,9 @@ export function ExecassOfficePanel(props: {
   const [askDraft, setAskDraft] = useState("");
   const [trayOpen, setTrayOpen] = useState(false);
   const [freezeArmed, setFreezeArmed] = useState(false);
+  const layout = useOfficeLayout();
+  const surfaceRef = useRef<HTMLElement | null>(null);
+  useGlassSurfaceTheme(surfaceRef);
   const summary = controller.summary;
   const briefing = controller.briefing;
   const stopEngaged = controller.stopAll?.engaged === true;
@@ -283,6 +296,7 @@ export function ExecassOfficePanel(props: {
 
   return (
     <section
+      ref={surfaceRef}
       className="mc-execass-office"
       aria-label="ExecAss Office"
       data-testid="execass-office"
@@ -345,6 +359,16 @@ export function ExecassOfficePanel(props: {
           {controller.trayNotes.length > 0
             ? ` (${controller.trayNotes.length})`
             : ""}
+        </button>
+        <button
+          type="button"
+          className={`mc-execass-quiet${layout.arranging ? " is-on" : ""}`}
+          aria-label="Arrange office"
+          aria-pressed={layout.arranging}
+          onClick={() => layout.setArranging(!layout.arranging)}
+          title="Reorder, resize, hide, or add office blocks"
+        >
+          {layout.arranging ? "Done arranging" : "⌗ Arrange"}
         </button>
       </header>
 
@@ -412,77 +436,180 @@ export function ExecassOfficePanel(props: {
         </div>
       ) : null}
 
-      {summary ? (
-        <div className="mc-execass-buckets">
-          <section aria-label="Needs you">
-            <h3>
-              Needs you <em>{summary.needs_you.length}</em>
-            </h3>
-            {summary.needs_you.length === 0 ? (
-              <p className="mc-execass-empty">
-                Nothing needs you. Reassuringly quiet.
-              </p>
-            ) : (
-              summary.needs_you.map((item) => (
-                <AttentionCard
-                  key={item.attention_id}
-                  item={item}
-                  busy={
-                    item.decision_id !== null &&
-                    item.decision_id !== undefined &&
-                    controller.resolvingDecisionIds.includes(item.decision_id)
-                  }
-                  onResolve={(target, result, revisionText) =>
-                    void controller.resolveAttention(target, result, revisionText)
-                  }
-                />
-              ))
-            )}
-          </section>
-
-          <section aria-label="In motion">
-            <h3>
-              In motion <em>{summary.in_motion.length}</em>
-            </h3>
-            {summary.in_motion.length === 0 ? (
-              <p className="mc-execass-empty">The floor is idle.</p>
-            ) : (
-              summary.in_motion.map((delegation) => (
-                <MotionRow
-                  key={delegation.delegation_id}
-                  delegation={delegation}
-                />
-              ))
-            )}
-          </section>
-
-          <section aria-label="Done since you checked">
-            <h3>Done since you checked</h3>
-            {summary.done.length === 0 ? (
-              <p className="mc-execass-empty">Nothing new finished yet.</p>
-            ) : (
-              summary.done.map((delegation) => (
-                <DoneRow
-                  key={delegation.delegation_id}
-                  delegation={delegation}
-                  onLoadReceipts={controller.loadReceipts}
-                />
-              ))
-            )}
-          </section>
-
-          <section aria-label="Next">
-            <h3>Next</h3>
-            {summary.next.length === 0 ? (
-              <p className="mc-execass-empty">No commitments on the horizon.</p>
-            ) : (
-              summary.next.map((item) => (
-                <NextRow key={item.next_item_id} item={item} />
-              ))
-            )}
-          </section>
-        </div>
-      ) : null}
+      {summary
+        ? (() => {
+            const blockBodies: Record<string, () => ReactNode> = {
+              "needs-you": () => (
+                <>
+                  <h3>
+                    Needs you <em>{summary.needs_you.length}</em>
+                  </h3>
+                  {summary.needs_you.length === 0 ? (
+                    <p className="mc-execass-empty">
+                      Nothing needs you. Reassuringly quiet.
+                    </p>
+                  ) : (
+                    summary.needs_you.map((item) => (
+                      <AttentionCard
+                        key={item.attention_id}
+                        item={item}
+                        busy={
+                          item.decision_id !== null &&
+                          item.decision_id !== undefined &&
+                          controller.resolvingDecisionIds.includes(
+                            item.decision_id,
+                          )
+                        }
+                        onResolve={(target, result, revisionText) =>
+                          void controller.resolveAttention(
+                            target,
+                            result,
+                            revisionText,
+                          )
+                        }
+                      />
+                    ))
+                  )}
+                </>
+              ),
+              "in-motion": () => (
+                <>
+                  <h3>
+                    In motion <em>{summary.in_motion.length}</em>
+                  </h3>
+                  {summary.in_motion.length === 0 ? (
+                    <p className="mc-execass-empty">The floor is idle.</p>
+                  ) : (
+                    summary.in_motion.map((delegation) => (
+                      <MotionRow
+                        key={delegation.delegation_id}
+                        delegation={delegation}
+                      />
+                    ))
+                  )}
+                </>
+              ),
+              done: () => (
+                <>
+                  <h3>Done since you checked</h3>
+                  {summary.done.length === 0 ? (
+                    <p className="mc-execass-empty">Nothing new finished yet.</p>
+                  ) : (
+                    summary.done.map((delegation) => (
+                      <DoneRow
+                        key={delegation.delegation_id}
+                        delegation={delegation}
+                        onLoadReceipts={controller.loadReceipts}
+                      />
+                    ))
+                  )}
+                </>
+              ),
+              next: () => (
+                <>
+                  <h3>Next</h3>
+                  {summary.next.length === 0 ? (
+                    <p className="mc-execass-empty">
+                      No commitments on the horizon.
+                    </p>
+                  ) : (
+                    summary.next.map((item) => (
+                      <NextRow key={item.next_item_id} item={item} />
+                    ))
+                  )}
+                </>
+              ),
+            };
+            return (
+              <>
+                <div
+                  className={`mc-execass-buckets${layout.arranging ? " is-arranging" : ""}`}
+                >
+                  {layout.placements
+                    .filter((placement) => placement.visible)
+                    .map((placement) => {
+                      const def = OFFICE_BLOCK_REGISTRY.find(
+                        (entry) => entry.id === placement.id,
+                      );
+                      const body = blockBodies[placement.id];
+                      if (!def || !body) return null;
+                      return (
+                        <section
+                          key={placement.id}
+                          aria-label={def.title}
+                          className={`mc-office-block mc-block-${placement.size}`}
+                          data-testid={`office-block-${placement.id}`}
+                        >
+                          {layout.arranging ? (
+                            <div
+                              className="mc-arrange-controls"
+                              role="group"
+                              aria-label={`Arrange ${def.title}`}
+                            >
+                              <button
+                                type="button"
+                                aria-label={`Move ${def.title} earlier`}
+                                onClick={() => layout.move(placement.id, -1)}
+                              >
+                                ←
+                              </button>
+                              <button
+                                type="button"
+                                aria-label={`Move ${def.title} later`}
+                                onClick={() => layout.move(placement.id, 1)}
+                              >
+                                →
+                              </button>
+                              <button
+                                type="button"
+                                aria-label={`Resize ${def.title}`}
+                                title="Cycle size: small, medium, large"
+                                onClick={() => layout.resize(placement.id)}
+                              >
+                                {placement.size.toUpperCase()}
+                              </button>
+                              <button
+                                type="button"
+                                aria-label={`Hide ${def.title}`}
+                                onClick={() => layout.hide(placement.id)}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ) : null}
+                          {body()}
+                        </section>
+                      );
+                    })}
+                </div>
+                {layout.arranging ? (
+                  <div
+                    className="mc-office-library"
+                    data-testid="office-library"
+                  >
+                    <span className="mc-office-library-label">
+                      Block library
+                    </span>
+                    {layout.library.length === 0 ? (
+                      <em>Every block is already on the canvas.</em>
+                    ) : (
+                      layout.library.map((def) => (
+                        <button
+                          key={def.id}
+                          type="button"
+                          aria-label={`Pin ${def.title} to Office`}
+                          onClick={() => layout.pin(def.id)}
+                        >
+                          + {def.title}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                ) : null}
+              </>
+            );
+          })()
+        : null}
     </section>
   );
 }
