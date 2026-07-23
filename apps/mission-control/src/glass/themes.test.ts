@@ -148,4 +148,20 @@ describe("applyTheme", () => {
     applyTheme(root, porcelain());
     expect(root.style.getPropertyValue("--future-room-token")).toBe("");
   });
+
+  test("tracks unusual imported token keys without corrupting stale-key cleanup", () => {
+    const root = document.createElement("div");
+    const custom = createCustomTheme(porcelain(), {
+      id: "unusual-token",
+      name: "Unusual token",
+      tokens: { "future room token": "#123456" },
+    });
+    applyTheme(root, custom);
+    expect(JSON.parse(root.dataset.glassThemeTokens ?? "[]")).toContain(
+      "future room token",
+    );
+
+    applyTheme(root, porcelain());
+    expect(root.style.getPropertyValue("--future room token")).toBe("");
+  });
 });
