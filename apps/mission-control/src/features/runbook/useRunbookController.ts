@@ -18,6 +18,7 @@ import {
   buildRunbookSummaryIndex,
   getRunbookSummariesForEntity,
 } from "./runbookSummaryUtils";
+import { chooseRunbookSelection } from "./runbookSelection";
 
 type RunbookAvailability = "disabled" | "loading" | "ready" | "unsupported" | "error";
 
@@ -236,10 +237,11 @@ export function useRunbookController(options: UseRunbookControllerOptions) {
         setLastRefreshAtMs(Date.now());
         setAvailability("ready");
 
-        const preferredItem =
-          response.items.find((item) => item.runbook_id === selectedRunbookId) ??
-          response.items[0] ??
-          null;
+        const preferredItem = chooseRunbookSelection(
+          response.items,
+          globalResponse?.items ?? response.items,
+          selectedRunbookId,
+        );
         if (preferredItem) {
           setSelectedRunbookKind(preferredItem.runbook_kind);
           setSelectedAnchorId(preferredItem.anchor_id);
