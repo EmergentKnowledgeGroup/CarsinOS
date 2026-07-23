@@ -1,6 +1,7 @@
 use crate::{
     execass_connection_schema_is_exact, execass_schema_is_exact, open_sqlite_connection,
-    open_sqlite_connection_read_only, AppPaths, EXECASS_APPLICATION_ID,
+    open_sqlite_connection_read_only, upgrade_execass_canonical_root_if_needed, AppPaths,
+    EXECASS_APPLICATION_ID,
 };
 use anyhow::{bail, Context, Result};
 use rusqlite::{Connection, Transaction, TransactionBehavior};
@@ -48,6 +49,8 @@ impl ExecAssStore {
         if application_id != EXECASS_APPLICATION_ID {
             return Ok(None);
         }
+        drop(conn);
+        upgrade_execass_canonical_root_if_needed(paths)?;
         Self::open(paths).map(Some)
     }
 

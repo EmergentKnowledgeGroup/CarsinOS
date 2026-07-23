@@ -3632,6 +3632,86 @@ pub struct ListAgentMailFileLeasesQuery {
     pub include_released: Option<bool>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListOfficeChatterQuery {
+    pub limit_rooms: Option<u32>,
+    pub limit_messages: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FloorPresenceTargetResponse {
+    pub kind: String,
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FloorPresenceItemResponse {
+    pub agent_id: String,
+    pub display_name: String,
+    pub activity: String,
+    pub activity_label: String,
+    pub mood: String,
+    pub observed_at_ms: Option<i64>,
+    pub source: String,
+    pub target: Option<FloorPresenceTargetResponse>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FloorPresenceResponse {
+    pub generated_at_ms: i64,
+    pub refresh_after_ms: i64,
+    pub items: Vec<FloorPresenceItemResponse>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct OfficeChatterRoomResponse {
+    pub thread_id: String,
+    pub workstream_id: String,
+    pub label: String,
+    pub unread_count: Option<i64>,
+    pub last_activity_at_ms: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct OfficeChatterAuthorResponse {
+    pub kind: String,
+    pub display_name: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct OfficeChatterSourceResponse {
+    pub kind: String,
+    pub event_name: Option<String>,
+    pub workstream_id: String,
+    pub revision: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct OfficeChatterMessageResponse {
+    pub message_id: String,
+    pub thread_id: String,
+    pub author: OfficeChatterAuthorResponse,
+    pub text: String,
+    pub created_at_ms: i64,
+    pub source: OfficeChatterSourceResponse,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct OfficeChatterResponse {
+    pub rooms: Vec<OfficeChatterRoomResponse>,
+    pub messages: Vec<OfficeChatterMessageResponse>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CreateOfficeChatterMessageRequest {
+    pub body_text: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CreateOfficeChatterMessageResponse {
+    pub message: OfficeChatterMessageResponse,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct AgentMailThreadSummaryResponse {
     pub thread_id: String,

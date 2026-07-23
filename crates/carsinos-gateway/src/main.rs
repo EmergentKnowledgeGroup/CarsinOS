@@ -54,12 +54,14 @@ use carsinos_protocol::{
     CreateAuthProfileResponse, CreateBoardCardRequest, CreateBoardCardResponse,
     CreateBootstrapPresetRequest, CreateBootstrapPresetResponse, CreateGoalRequest,
     CreateGoalResponse, CreateJobRequest, CreateJobResponse, CreateMessageRequest,
-    CreateMessageResponse, CreateNoteRequest, CreateNoteResponse, CreateProjectRequest,
+    CreateMessageResponse, CreateNoteRequest, CreateNoteResponse,
+    CreateOfficeChatterMessageRequest, CreateOfficeChatterMessageResponse, CreateProjectRequest,
     CreateProjectResponse, CreateRunRequest, CreateRunResponse, CreateSessionRequest,
     CreateSessionResponse, CreateTaskRequest, CreateTaskResponse, CreateWebSocketTicketResponse,
     DeleteRuntimeSecretRequest, DeleteRuntimeSecretResponse, DescribeConnectorToolResponse,
     DiscordBlockedSenderResponse, DiscordChannelConfig, DiscordPairingPendingRequestResponse,
-    ExportBootstrapPresetResponse, FailureReasonCountResponse, GetAgentMemoryStatusResponse,
+    ExportBootstrapPresetResponse, FailureReasonCountResponse, FloorPresenceItemResponse,
+    FloorPresenceResponse, FloorPresenceTargetResponse, GetAgentMemoryStatusResponse,
     GetAgentProviderProfileOrderResponse, GetAgentResponse, GetBoardAutomationRuleResponse,
     GetBootstrapPresetResponse, GetChannelConfigResponse, GetChannelRuntimeStatusResponse,
     GetConnectorHealthResponse, GetConnectorResponse, GetDiscordPairingStatusResponse,
@@ -78,13 +80,13 @@ use carsinos_protocol::{
     ListConnectorCatalogResponse, ListConnectorInteractionsResponse, ListConnectorsQuery,
     ListConnectorsResponse, ListGoalsQuery, ListGoalsResponse, ListJobHistoryQuery,
     ListJobHistoryResponse, ListJobsQuery, ListJobsResponse, ListMessagesQuery,
-    ListMessagesResponse, ListNotesQuery, ListNotesResponse, ListPluginRuntimeStatusResponse,
-    ListPluginsQuery, ListPluginsResponse, ListProjectsQuery, ListProjectsResponse,
-    ListProviderCapabilitiesQuery, ListProviderCapabilitiesResponse, ListProviderModelsQuery,
-    ListProviderModelsResponse, ListRunbooksQuery, ListRunbooksResponse, ListSessionsQuery,
-    ListSessionsResponse, ListSkillsQuery, ListSkillsResponse, ListTasksQuery, ListTasksResponse,
-    ListToolCapabilitiesQuery, ListToolCapabilitiesResponse, MessageResponse, MetricsResponse,
-    MissionControlCalendarWeekJobResponse, MissionControlCalendarWeekQuery,
+    ListMessagesResponse, ListNotesQuery, ListNotesResponse, ListOfficeChatterQuery,
+    ListPluginRuntimeStatusResponse, ListPluginsQuery, ListPluginsResponse, ListProjectsQuery,
+    ListProjectsResponse, ListProviderCapabilitiesQuery, ListProviderCapabilitiesResponse,
+    ListProviderModelsQuery, ListProviderModelsResponse, ListRunbooksQuery, ListRunbooksResponse,
+    ListSessionsQuery, ListSessionsResponse, ListSkillsQuery, ListSkillsResponse, ListTasksQuery,
+    ListTasksResponse, ListToolCapabilitiesQuery, ListToolCapabilitiesResponse, MessageResponse,
+    MetricsResponse, MissionControlCalendarWeekJobResponse, MissionControlCalendarWeekQuery,
     MissionControlCalendarWeekResponse, MissionControlFocusItemResponse, MissionControlFocusQuery,
     MissionControlFocusResponse, MissionControlUsageBudgetThresholdResponse,
     MissionControlUsageByAgentResponse, MissionControlUsageByCardResponse,
@@ -92,36 +94,38 @@ use carsinos_protocol::{
     MissionControlUsageByProviderResponse, MissionControlUsageByTimeResponse,
     MissionControlUsageQuery, MissionControlUsageResponse, MoveBoardCardRequest,
     MoveBoardCardResponse, NoteResponse, NumquamIntegrationStatusResponse,
-    OpenAiOauthFinishRequest, OpenAiOauthFinishResponse, OpenAiOauthStartRequest,
-    OpenAiOauthStartResponse, PluginArtifactResponse, PluginCapabilityResponse,
-    PluginCompatibilityResponse, PluginLimitsResponse, PluginManifestResponse,
-    PluginPermissionsResponse, PluginRuntimeStatusResponse, ProviderCapabilityResponse,
-    ProviderModelResponse, PublishConnectorToolsRequest, PublishConnectorToolsResponse,
-    ReconnectChannelRuntimeRequest, ReconnectChannelRuntimeResponse,
-    RefreshRuntimeTrustContractLockRequest, RefreshRuntimeTrustContractLockResponse,
-    ReleaseAgentMailFileLeaseRequest, ReleaseAgentMailFileLeaseResponse, RemoveAgentResponse,
-    RemoveJobResponse, ResolveApprovalRequest, ResolveApprovalResponse,
-    ResolveChannelApprovalActionRequest, ResolveDiscordPairingRequest,
-    ResolveDiscordPairingResponse, ResolveTelegramPairingRequest, ResolveTelegramPairingResponse,
-    ResumeConnectorInteractionRequest, ResumeConnectorInteractionResponse,
-    RollbackConnectorVersionRequest, RollbackConnectorVersionResponse, RollbackPluginRequest,
-    RollbackPluginResponse, RollbackRuntimeConfigRequest, RollbackRuntimeConfigResponse,
-    RunBoardAutomationRuleResponse, RunBoardCardRequest, RunBoardCardResponse,
-    RunConnectorConversionRequest, RunConnectorConversionResponse, RunJobNowResponse,
-    RunMemoryWhyRequest, RunMemoryWhyResponse, RunResponse, RunbookActionResponse,
-    RunbookDataAvailabilityResponse, RunbookDeepLinkTargetResponse, RunbookDetailResponse,
-    RunbookEntityRefResponse, RunbookExecutionRefResponse, RunbookHistoryItemResponse,
-    RunbookSourceFactResponse, RunbookStatusCountsResponse, RunbookStepResponse,
-    RunbookSummaryItemResponse, RunbookWarningResponse, RuntimeAssistantAssignmentConfig,
-    RuntimeAutonomyGuardrailsConfig, RuntimeChannelsConfig, RuntimeConfigResponse,
-    RuntimeDiscordDeploymentConfig, RuntimeExtensionsConfig, RuntimeGlobalConfig,
-    RuntimeHumanIdentityConfig, RuntimeLaneMemoryPolicyConfig, RuntimeMemoryConfig,
-    RuntimeNumquamConfig, RuntimePlatformIdentityLinkConfig, RuntimeProviderPolicyConfig,
-    RuntimeRoutingConfig, RuntimeSecurityOpsConfig, RuntimeTelegramDeploymentConfig,
-    RuntimeTrustContractLockResponse, RuntimeTrustContractLockSummaryResponse, SanitizedPath,
-    SchedulerLockStateResponse, SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult,
-    SendAgentMailMessageRequest, SendAgentMailMessageResponse, SessionDetailResponse,
-    SessionSummary, SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse,
+    OfficeChatterAuthorResponse, OfficeChatterMessageResponse, OfficeChatterResponse,
+    OfficeChatterRoomResponse, OfficeChatterSourceResponse, OpenAiOauthFinishRequest,
+    OpenAiOauthFinishResponse, OpenAiOauthStartRequest, OpenAiOauthStartResponse,
+    PluginArtifactResponse, PluginCapabilityResponse, PluginCompatibilityResponse,
+    PluginLimitsResponse, PluginManifestResponse, PluginPermissionsResponse,
+    PluginRuntimeStatusResponse, ProviderCapabilityResponse, ProviderModelResponse,
+    PublishConnectorToolsRequest, PublishConnectorToolsResponse, ReconnectChannelRuntimeRequest,
+    ReconnectChannelRuntimeResponse, RefreshRuntimeTrustContractLockRequest,
+    RefreshRuntimeTrustContractLockResponse, ReleaseAgentMailFileLeaseRequest,
+    ReleaseAgentMailFileLeaseResponse, RemoveAgentResponse, RemoveJobResponse,
+    ResolveApprovalRequest, ResolveApprovalResponse, ResolveChannelApprovalActionRequest,
+    ResolveDiscordPairingRequest, ResolveDiscordPairingResponse, ResolveTelegramPairingRequest,
+    ResolveTelegramPairingResponse, ResumeConnectorInteractionRequest,
+    ResumeConnectorInteractionResponse, RollbackConnectorVersionRequest,
+    RollbackConnectorVersionResponse, RollbackPluginRequest, RollbackPluginResponse,
+    RollbackRuntimeConfigRequest, RollbackRuntimeConfigResponse, RunBoardAutomationRuleResponse,
+    RunBoardCardRequest, RunBoardCardResponse, RunConnectorConversionRequest,
+    RunConnectorConversionResponse, RunJobNowResponse, RunMemoryWhyRequest, RunMemoryWhyResponse,
+    RunResponse, RunbookActionResponse, RunbookDataAvailabilityResponse,
+    RunbookDeepLinkTargetResponse, RunbookDetailResponse, RunbookEntityRefResponse,
+    RunbookExecutionRefResponse, RunbookHistoryItemResponse, RunbookSourceFactResponse,
+    RunbookStatusCountsResponse, RunbookStepResponse, RunbookSummaryItemResponse,
+    RunbookWarningResponse, RuntimeAssistantAssignmentConfig, RuntimeAutonomyGuardrailsConfig,
+    RuntimeChannelsConfig, RuntimeConfigResponse, RuntimeDiscordDeploymentConfig,
+    RuntimeExtensionsConfig, RuntimeGlobalConfig, RuntimeHumanIdentityConfig,
+    RuntimeLaneMemoryPolicyConfig, RuntimeMemoryConfig, RuntimeNumquamConfig,
+    RuntimePlatformIdentityLinkConfig, RuntimeProviderPolicyConfig, RuntimeRoutingConfig,
+    RuntimeSecurityOpsConfig, RuntimeTelegramDeploymentConfig, RuntimeTrustContractLockResponse,
+    RuntimeTrustContractLockSummaryResponse, SanitizedPath, SchedulerLockStateResponse,
+    SearchMemoryRequest, SearchMemoryResponse, SearchMemoryResult, SendAgentMailMessageRequest,
+    SendAgentMailMessageResponse, SessionDetailResponse, SessionSummary,
+    SetAgentProviderProfileOrderRequest, SetAgentProviderProfileOrderResponse,
     SetBoardAutomationRuleStateRequest, SetBoardAutomationRuleStateResponse,
     SetConnectorAssignmentRequest, SetConnectorAssignmentResponse, SetConnectorStateRequest,
     SetConnectorStateResponse, SkillResponse, StatusResponse, StrategyApprovalBacklogItemResponse,
@@ -11501,6 +11505,15 @@ fn build_app(state: AppState) -> Router {
             post(release_agent_mail_file_lease),
         )
         .route("/api/v1/agent-mail/mcp", post(agent_mail_mcp))
+        .route(
+            "/api/v1/office/floor-presence",
+            get(get_office_floor_presence),
+        )
+        .route("/api/v1/office/chatter", get(get_office_chatter))
+        .route(
+            "/api/v1/office/chatter/rooms/{thread_id}/messages",
+            post(post_office_chatter_message),
+        )
         .route(
             "/api/v1/assistant-tools/capabilities",
             get(get_assistant_tool_capabilities),
@@ -27093,6 +27106,186 @@ async fn list_agent_mail_messages(
         items.push(load_agent_mail_message_response(&state, record)?);
     }
     Ok(Json(ListAgentMailMessagesResponse { items }))
+}
+
+fn to_office_chatter_message_response(
+    record: carsinos_storage::OfficeChatterMessageRecord,
+) -> OfficeChatterMessageResponse {
+    OfficeChatterMessageResponse {
+        message_id: record.message_id,
+        thread_id: record.thread_id,
+        author: OfficeChatterAuthorResponse {
+            kind: if record.source_kind == "owner_message" {
+                "owner"
+            } else {
+                "execass"
+            }
+            .to_string(),
+            display_name: if record.source_kind == "owner_message" {
+                "Owner"
+            } else {
+                "ExecAss"
+            }
+            .to_string(),
+        },
+        text: record.body_text,
+        created_at_ms: record.created_at,
+        source: OfficeChatterSourceResponse {
+            kind: record.source_kind,
+            event_name: record.event_name,
+            workstream_id: record.delegation_id,
+            revision: record.revision,
+        },
+    }
+}
+
+async fn get_office_floor_presence(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "office.floor_presence.list",
+        "office.floor_presence",
+    )?;
+    let items = state
+        .storage
+        .list_office_floor_presence()
+        .map_err(|err| internal_err_with_error("listing office floor presence failed", err))?
+        .into_iter()
+        .map(|item| FloorPresenceItemResponse {
+            agent_id: item.agent_id,
+            display_name: item.display_name,
+            activity_label: match item.state.as_str() {
+                "busy" => "Working",
+                "idle" => "Idle",
+                _ => "No recent observation",
+            }
+            .to_string(),
+            mood: match item.state.as_str() {
+                "busy" => "focused",
+                "idle" => "calm",
+                _ => "unknown",
+            }
+            .to_string(),
+            activity: item.state,
+            observed_at_ms: item.observed_at,
+            source: "local_storage".to_string(),
+            target: item.target_run_id.map(|id| FloorPresenceTargetResponse {
+                kind: "run".to_string(),
+                id,
+            }),
+        })
+        .collect();
+    Ok(Json(FloorPresenceResponse {
+        generated_at_ms: current_time_ms(),
+        refresh_after_ms: 5_000,
+        items,
+    }))
+}
+
+async fn get_office_chatter(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Query(query): Query<ListOfficeChatterQuery>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN, ROLE_OPERATOR_READONLY],
+        "office.chatter.list",
+        "office.chatter",
+    )?;
+    // Deliberately deterministic, request-driven producer seam: this avoids
+    // adding a scheduler authority path to the ExecAss contract.
+    let produced = state
+        .storage
+        .produce_office_chatter(32)
+        .map_err(|err| internal_err_with_error("producing office chatter failed", err))?;
+    for message in &produced {
+        emit_event(
+            &state,
+            "agent_mail.message.created",
+            serde_json::json!({
+                "thread_id": message.thread_id, "message_id": message.message_id,
+                "sender_principal": "execass", "recipient_count": 0
+            }),
+        );
+    }
+    let (rooms, messages) = state
+        .storage
+        .list_office_chatter(
+            query.limit_rooms.unwrap_or(100).clamp(1, 500),
+            query.limit_messages.unwrap_or(200).clamp(1, 1000),
+        )
+        .map_err(|err| internal_err_with_error("listing office chatter failed", err))?;
+    Ok(Json(OfficeChatterResponse {
+        rooms: rooms
+            .into_iter()
+            .map(|item| OfficeChatterRoomResponse {
+                thread_id: item.thread_id,
+                workstream_id: item.delegation_id,
+                label: item.safe_label,
+                unread_count: None,
+                last_activity_at_ms: Some(item.last_activity_at),
+            })
+            .collect(),
+        messages: messages
+            .into_iter()
+            .map(to_office_chatter_message_response)
+            .collect(),
+    }))
+}
+
+async fn post_office_chatter_message(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Path(thread_id): Path<String>,
+    Json(request): Json<CreateOfficeChatterMessageRequest>,
+) -> std::result::Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let auth = require_bearer_auth_with_error(&headers, &state)?;
+    require_roles_with_audit(
+        &headers,
+        &state,
+        &auth,
+        &[ROLE_OPERATOR_ADMIN],
+        "office.chatter.message.create",
+        &format!("office_chatter_thread:{}", thread_id.trim()),
+    )?;
+    require_endpoint_rate_limit_with_error(&state, &auth, "agent_mail")?;
+    let thread_id = thread_id.trim().to_string();
+    let body_text = request.body_text.trim().to_string();
+    if body_text.is_empty() || body_text.chars().count() > 1_000 {
+        return Err(api_error(
+            StatusCode::BAD_REQUEST,
+            "office chatter body must be between 1 and 1000 characters",
+        ));
+    }
+    let message = state
+        .storage
+        .create_office_chatter_owner_message(&thread_id, &auth.principal_id, &body_text)
+        .map_err(|err| internal_err_with_error("creating office chatter message failed", err))?
+        .ok_or_else(|| api_error(StatusCode::NOT_FOUND, "office chatter room not found"))?;
+    emit_event(
+        &state,
+        "agent_mail.message.created",
+        serde_json::json!({
+            "thread_id": message.thread_id, "message_id": message.message_id,
+            "sender_principal": auth.principal_id, "recipient_count": 0
+        }),
+    );
+    Ok((
+        StatusCode::CREATED,
+        Json(CreateOfficeChatterMessageResponse {
+            message: to_office_chatter_message_response(message),
+        }),
+    ))
 }
 
 async fn send_agent_mail_message(
