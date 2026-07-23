@@ -10813,13 +10813,15 @@ button.danger:hover {
 .mc-execass-buckets { grid-auto-flow: dense; }
 .mc-office-block { min-width: 0; }
 @media (min-width: 1180px) {
-  .mc-execass-buckets { grid-template-columns: repeat(6, minmax(0, 1fr)); grid-auto-rows: minmax(120px, auto); }
+  .mc-execass-buckets { grid-template-columns: repeat(6, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); grid-auto-rows: 0; height: clamp(480px, calc(100vh - 260px), 720px); overflow: hidden; }
+  .mc-office-block { overflow: auto; }
   .mc-block-s { grid-column: span 2; grid-row: span 1; }
   .mc-block-m { grid-column: span 2; grid-row: span 2; }
   .mc-block-l { grid-column: span 4; grid-row: span 2; }
 }
 @media (max-width: 700px) {
-  .mc-execass-buckets { grid-template-columns: 1fr; }
+  .mc-execass-buckets { grid-template-columns: 1fr; grid-template-rows: none; grid-auto-rows: auto; height: auto; overflow: visible; }
+  .mc-office-block { overflow: visible; }
 }
 .mc-execass-buckets.is-arranging { padding: 10px; border-radius: 10px; outline: 1px dashed var(--accent, var(--mc-accent, #17766b)); outline-offset: -1px; background: repeating-linear-gradient(0deg, transparent 0 39px, var(--line-soft, var(--mc-border-soft, #1f1f24)) 39px 40px); }
 .mc-execass-buckets.is-arranging .mc-office-block { border: 1px dashed var(--line, var(--mc-border, #2a2a2e)); border-radius: 10px; padding: 8px 10px; background: var(--surface, var(--mc-surface, #171717)); }

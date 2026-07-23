@@ -8,6 +8,7 @@ import { useCallback, useState } from "react";
 
 import {
   moveBlock,
+  layoutFitsCanvas,
   normalizeLayout,
   pinBlockToOffice,
   setBlockSize,
@@ -33,6 +34,7 @@ export interface OfficeLayoutController {
   resize: (id: string) => void;
   hide: (id: string) => void;
   pin: (id: string) => void;
+  error: string | null;
 }
 
 export function useOfficeLayout(): OfficeLayoutController {
@@ -40,13 +42,23 @@ export function useOfficeLayout(): OfficeLayoutController {
     normalizeLayout(loadGlassConfig().layout, OFFICE_BLOCK_REGISTRY),
   );
   const [arranging, setArranging] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const commit = useCallback(
     (op: (current: BlockPlacement[]) => BlockPlacement[]) => {
       setPlacements((current) => {
         const next = op(current);
         if (next === current) return current;
-        saveGlassConfig({ ...loadGlassConfig(), layout: next });
+        if (!layoutFitsCanvas(next)) {
+          setError("That change would exceed the six-column, four-row Office canvas.");
+          return current;
+        }
+        const result = saveGlassConfig({ ...loadGlassConfig(), layout: next });
+        if (!result.ok) {
+          setError("Office arrangement could not be saved. Nothing was changed.");
+          return current;
+        }
+        setError(null);
         notifyGlassConfigChanged();
         return next;
       });
@@ -104,5 +116,6 @@ export function useOfficeLayout(): OfficeLayoutController {
     resize,
     hide,
     pin,
+    error,
   };
 }

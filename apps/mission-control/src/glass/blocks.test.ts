@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import {
   cycleSize,
+  layoutFitsCanvas,
   moveBlock,
   normalizeLayout,
   pinBlockToOffice,
@@ -84,6 +85,21 @@ describe("spanFor", () => {
     expect(spanFor("s")).toEqual({ cols: 2, rows: 1 });
     expect(spanFor("m")).toEqual({ cols: 2, rows: 2 });
     expect(spanFor("l")).toEqual({ cols: 4, rows: 2 });
+  });
+});
+
+describe("layoutFitsCanvas", () => {
+  test("accepts the default office layout inside six columns and four rows", () => {
+    expect(layoutFitsCanvas(normalizeLayout(undefined, REGISTRY))).toBe(true);
+  });
+
+  test("rejects visible placements that would create implicit rows", () => {
+    const oversized: BlockPlacement[] = ["a", "b", "c", "d"].map((id) => ({
+      id,
+      size: "l",
+      visible: true,
+    }));
+    expect(layoutFitsCanvas(oversized)).toBe(false);
   });
 });
 

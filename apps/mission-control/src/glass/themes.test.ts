@@ -134,4 +134,18 @@ describe("applyTheme", () => {
     expect(root.style.getPropertyValue("--ground")).toBe(carbon.tokens.ground);
     expect(root.dataset.theme).toBe("dark");
   });
+
+  test("switching themes removes custom token keys the next theme does not define", () => {
+    const root = document.createElement("div");
+    const custom = createCustomTheme(porcelain(), {
+      id: "extra-token",
+      name: "Extra token",
+      tokens: { "future-room-token": "#123456" },
+    });
+    applyTheme(root, custom);
+    expect(root.style.getPropertyValue("--future-room-token")).toBe("#123456");
+
+    applyTheme(root, porcelain());
+    expect(root.style.getPropertyValue("--future-room-token")).toBe("");
+  });
 });

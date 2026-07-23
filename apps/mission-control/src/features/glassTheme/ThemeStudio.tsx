@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import {
+  GLASS_CONFIG_EVENT,
   loadGlassConfig,
   notifyGlassConfigChanged,
   saveGlassConfig,
@@ -77,11 +78,25 @@ export function ThemeStudio() {
   const [draftErrors, setDraftErrors] = useState<string[]>([]);
   const [transferText, setTransferText] = useState("");
   const [transferError, setTransferError] = useState<string | null>(null);
+  const [persistenceError, setPersistenceError] = useState<string | null>(null);
 
-  const persist = (next: GlassConfig) => {
+  useEffect(() => {
+    const refresh = () => setConfig(loadGlassConfig());
+    window.addEventListener(GLASS_CONFIG_EVENT, refresh);
+    return () => window.removeEventListener(GLASS_CONFIG_EVENT, refresh);
+  }, []);
+
+  const persist = (mutate: (fresh: GlassConfig) => GlassConfig) => {
+    const next = mutate(loadGlassConfig());
+    const result = saveGlassConfig(next);
+    if (!result.ok) {
+      setPersistenceError("Theme changes could not be saved. Nothing was changed.");
+      return false;
+    }
+    setPersistenceError(null);
     setConfig(next);
-    saveGlassConfig(next);
     notifyGlassConfigChanged();
+    return true;
   };
 
   const allThemes = [...BUILT_IN_THEMES, ...config.customThemes];
@@ -93,10 +108,12 @@ export function ThemeStudio() {
   };
 
   const duplicate = (theme: ThemeDef) => {
-    const copy = duplicateTheme(theme, allThemes);
-    persist(upsertCustomTheme(config, copy));
-    setDraft(copy);
-    setDraftErrors([]);
+    const fresh = loadGlassConfig();
+    const copy = duplicateTheme(theme, [...BUILT_IN_THEMES, ...fresh.customThemes]);
+    if (persist((current) => upsertCustomTheme(current, copy))) {
+      setDraft(copy);
+      setDraftErrors([]);
+    }
   };
 
   const saveDraft = () => {
@@ -106,14 +123,16 @@ export function ThemeStudio() {
       setDraftErrors(result.errors);
       return;
     }
-    const next = upsertCustomTheme(config, result.theme);
-    if (next === config) {
+    const fresh = loadGlassConfig();
+    const next = upsertCustomTheme(fresh, result.theme);
+    if (next === fresh) {
       setDraftErrors([`"${draft.id}" cannot replace a built-in theme`]);
       return;
     }
-    persist(next);
-    setDraft(null);
-    setDraftErrors([]);
+    if (persist(() => next)) {
+      setDraft(null);
+      setDraftErrors([]);
+    }
   };
 
   const runImport = () => {
@@ -122,9 +141,10 @@ export function ThemeStudio() {
       setTransferError(result.errors.join("; "));
       return;
     }
-    persist(upsertCustomTheme(config, result.theme));
-    setTransferError(null);
-    setTransferText("");
+    if (persist((fresh) => upsertCustomTheme(fresh, result.theme))) {
+      setTransferError(null);
+      setTransferText("");
+    }
   };
 
   return (
@@ -144,7 +164,7 @@ export function ThemeStudio() {
               type="button"
               aria-label="Use Follow system"
               disabled={config.themeId === "auto"}
-              onClick={() => persist({ ...config, themeId: "auto" })}
+              onClick={() => persist((fresh) => ({ ...fresh, themeId: "auto" }))}
             >
               Use
             </button>
@@ -167,7 +187,9 @@ export function ThemeStudio() {
                   type="button"
                   aria-label={`Use ${theme.name}`}
                   disabled={config.themeId === theme.id}
-                  onClick={() => persist({ ...config, themeId: theme.id })}
+                  onClick={() =>
+                    persist((fresh) => ({ ...fresh, themeId: theme.id }))
+                  }
                 >
                   Use
                 </button>
@@ -201,8 +223,14 @@ export function ThemeStudio() {
                       type="button"
                       aria-label={`Delete ${theme.name}`}
                       onClick={() => {
-                        persist(deleteCustomTheme(config, theme.id));
-                        if (draft?.id === theme.id) setDraft(null);
+                        if (
+                          persist((fresh) =>
+                            deleteCustomTheme(fresh, theme.id),
+                          ) &&
+                          draft?.id === theme.id
+                        ) {
+                          setDraft(null);
+                        }
                       }}
                     >
                       Delete
@@ -214,6 +242,12 @@ export function ThemeStudio() {
           );
         })}
       </ul>
+
+      {persistenceError ? (
+        <p className="mc-theme-errors" role="alert">
+          {persistenceError}
+        </p>
+      ) : null}
 
       {draft ? (
         <div className="mc-theme-editor" data-testid="theme-editor">

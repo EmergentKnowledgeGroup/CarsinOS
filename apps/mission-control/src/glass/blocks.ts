@@ -133,6 +133,45 @@ export interface BlockSpan {
   rows: number;
 }
 
+/** True when visible placements fit the fixed six-column/four-row desktop canvas. */
+export function layoutFitsCanvas(
+  layout: readonly BlockPlacement[],
+  columns = 6,
+  rows = 4,
+): boolean {
+  const occupied = Array.from({ length: rows }, () =>
+    Array.from({ length: columns }, () => false),
+  );
+  for (const placement of layout) {
+    if (!placement.visible) continue;
+    const span = spanFor(placement.size);
+    let placed = false;
+    for (let row = 0; row <= rows - span.rows && !placed; row += 1) {
+      for (let col = 0; col <= columns - span.cols; col += 1) {
+        let available = true;
+        for (let y = row; y < row + span.rows && available; y += 1) {
+          for (let x = col; x < col + span.cols; x += 1) {
+            if (occupied[y]?.[x]) {
+              available = false;
+              break;
+            }
+          }
+        }
+        if (!available) continue;
+        for (let y = row; y < row + span.rows; y += 1) {
+          for (let x = col; x < col + span.cols; x += 1) {
+            if (occupied[y]) occupied[y][x] = true;
+          }
+        }
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) return false;
+  }
+  return true;
+}
+
 /** Spans on the six-column, four-row office canvas. */
 export function spanFor(size: BlockSize): BlockSpan {
   switch (size) {

@@ -438,7 +438,10 @@ export function ExecassOfficePanel(props: {
 
       {summary
         ? (() => {
-            const blockBodies: Record<string, () => ReactNode> = {
+            const blockBodies: Record<
+              import("./officeBlocks").OfficeBlockRendererKey,
+              () => ReactNode
+            > = {
               "needs-you": () => (
                 <>
                   <h3>
@@ -531,8 +534,8 @@ export function ExecassOfficePanel(props: {
                       const def = OFFICE_BLOCK_REGISTRY.find(
                         (entry) => entry.id === placement.id,
                       );
-                      const body = blockBodies[placement.id];
-                      if (!def || !body) return null;
+                      if (!def) return null;
+                      const body = blockBodies[def.rendererKey];
                       return (
                         <section
                           key={placement.id}
@@ -605,6 +608,11 @@ export function ExecassOfficePanel(props: {
                       ))
                     )}
                   </div>
+                ) : null}
+                {layout.error ? (
+                  <p className="mc-theme-errors" role="alert">
+                    {layout.error}
+                  </p>
                 ) : null}
               </>
             );

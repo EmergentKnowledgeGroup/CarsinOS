@@ -143,4 +143,38 @@ describe("Office block canvas", () => {
       loadGlassConfig().layout?.find((p) => p.id === "done")?.visible,
     ).toBe(true);
   });
+
+  it("refuses a resize that would create rows beyond the fixed canvas", async () => {
+    await mount();
+    await click("Arrange office");
+    await click("Resize Next");
+    await click("Resize Next");
+    await click("Resize In motion");
+
+    expect(
+      loadGlassConfig().layout?.find((p) => p.id === "in-motion")?.size,
+    ).toBe("m");
+    expect(container.querySelector("[role='alert']")?.textContent).toContain(
+      "four-row Office canvas",
+    );
+  });
+
+  it("reports storage failure and leaves the visible arrangement unchanged", async () => {
+    await mount();
+    await click("Arrange office");
+    const original = Storage.prototype.setItem;
+    const failure = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(function (this: Storage, key, value) {
+        if (key === GLASS_CONFIG_STORAGE_KEY) throw new Error("disk full");
+        return original.call(this, key, value);
+      });
+
+    await click("Move In motion earlier");
+    expect(blockIds()[0]).toBe("needs-you");
+    expect(container.querySelector("[role='alert']")?.textContent).toContain(
+      "could not be saved",
+    );
+    failure.mockRestore();
+  });
 });

@@ -174,9 +174,17 @@ export function validateTheme(input: unknown): ThemeValidation {
 }
 
 export function applyTheme(root: HTMLElement, theme: ThemeDef): void {
+  const previousKeys = new Set(
+    (root.dataset.glassThemeTokens ?? "").split(" ").filter(Boolean),
+  );
+  const nextKeys = new Set(Object.keys(theme.tokens));
+  for (const key of previousKeys) {
+    if (!nextKeys.has(key)) root.style.removeProperty(`--${key}`);
+  }
   for (const [key, value] of Object.entries(theme.tokens)) {
     root.style.setProperty(`--${key}`, value);
   }
+  root.dataset.glassThemeTokens = [...nextKeys].join(" ");
   root.dataset.theme = theme.mode;
   root.dataset.themeId = theme.id;
 }

@@ -2,7 +2,7 @@
 
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   GLASS_CONFIG_STORAGE_KEY,
@@ -155,5 +155,39 @@ describe("ThemeStudio", () => {
     expect(loadGlassConfig().themeId).toBe("auto");
     const active = container.querySelector("[data-testid='theme-active']");
     expect(active?.textContent).toContain("Follow system");
+  });
+
+  it("preserves newer layout data when a theme action follows an external save", async () => {
+    await mount();
+    localStorage.setItem(
+      GLASS_CONFIG_STORAGE_KEY,
+      JSON.stringify({
+        ...loadGlassConfig(),
+        layout: [{ id: "next", size: "l", visible: true }],
+      }),
+    );
+
+    await click("Use Carbon (After Hours)");
+    expect(loadGlassConfig().layout).toEqual([
+      { id: "next", size: "l", visible: true },
+    ]);
+  });
+
+  it("reports persistence failures without claiming the theme changed", async () => {
+    await mount();
+    const original = Storage.prototype.setItem;
+    const failure = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(function (this: Storage, key, value) {
+        if (key === GLASS_CONFIG_STORAGE_KEY) throw new Error("disk full");
+        return original.call(this, key, value);
+      });
+
+    await click("Use Carbon (After Hours)");
+    expect(loadGlassConfig().themeId).toBe("auto");
+    expect(container.querySelector("[role='alert']")?.textContent).toContain(
+      "could not be saved",
+    );
+    failure.mockRestore();
   });
 });
