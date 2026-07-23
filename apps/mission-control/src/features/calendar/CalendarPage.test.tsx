@@ -173,6 +173,20 @@ describe("CalendarPage safety", () => {
     expect(tabLabels.some((label) => label.includes("Schedule"))).toBe(true);
     expect(tabLabels.some((label) => label.includes("Active Jobs"))).toBe(true);
 
+    const scheduleTab = Array.from(
+      container.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+    ).find((tab) => tab.textContent?.includes("Schedule"));
+    await act(async () => scheduleTab?.click());
+    expect(scheduleTab?.getAttribute("aria-selected")).toBe("true");
+    expect(container.querySelector(".mc-table")).not.toBeNull();
+
+    const activeTab = Array.from(
+      container.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+    ).find((tab) => tab.textContent?.includes("Active Jobs"));
+    await act(async () => activeTab?.click());
+    expect(activeTab?.getAttribute("aria-selected")).toBe("true");
+    expect(container.querySelector(".mc-cal-active")).not.toBeNull();
+
     // The pin affordance appears, and pressing it runs no job mutation.
     const pin = Array.from(container.querySelectorAll("button")).find(
       (button) =>

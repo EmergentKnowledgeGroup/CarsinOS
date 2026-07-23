@@ -67,9 +67,10 @@ export function useAppController() {
     resolvedFloors: readonly FloorDef[] = DEFAULT_FLOORS,
   ) => {
     const found = findRoom(resolvedFloors, roomId);
-    if (!found) return;
+    if (!found) return false;
     setSelectedRoomId(roomId);
     setActiveTabState(found.room.route);
+    return true;
   }, []);
 
   const activeRoomId = useMemo(

@@ -41,8 +41,15 @@ test("@core @p4-calendar calendar parity, pin-to-office, and the office shortcut
     page.locator('[aria-label="ExecAss heartbeat setup"]'),
   ).toBeVisible();
   await expect(page.getByRole("tab", { name: /Week View/ })).toBeVisible();
-  await expect(page.getByRole("tab", { name: /Schedule/ })).toBeVisible();
-  await expect(page.getByRole("tab", { name: /Active Jobs/ })).toBeVisible();
+  const scheduleTab = page.getByRole("tab", { name: /Schedule/ });
+  const activeJobsTab = page.getByRole("tab", { name: /Active Jobs/ });
+  await scheduleTab.click();
+  await expect(scheduleTab).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator(".mc-table")).toBeVisible();
+  await activeJobsTab.click();
+  await expect(activeJobsTab).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator(".mc-cal-active")).toBeVisible();
+  await page.getByRole("tab", { name: /Week View/ }).click();
 
   // Pin succeeds, and pinning again reports the truth instead of a change.
   const pin = page.getByRole("button", { name: "Pin Calendar to Office" });
@@ -82,6 +89,38 @@ test("@core @p4-calendar calendar parity, pin-to-office, and the office shortcut
   await completeQuickstartLocalOnboarding(page);
   await page.locator('[data-tour-id="nav-assistant"]').click();
   await expect(page.getByTestId("office-block-calendar")).toBeVisible();
+
+  // If the destination floor is later disabled, the persisted door stays
+  // visible but refuses honestly instead of becoming a silent dead button.
+  await page.evaluate(() => {
+    const key = "mc-glass-config-v1";
+    const config = JSON.parse(localStorage.getItem(key) ?? "{}");
+    config.floorOverrides = { ...config.floorOverrides, trenches: { hidden: true } };
+    localStorage.setItem(key, JSON.stringify(config));
+    window.dispatchEvent(new Event("mc-glass-config-changed"));
+  });
+  await expect(page.locator('button[title="2F · Calendar"]')).toHaveCount(0);
+  await page
+    .getByTestId("office-block-calendar")
+    .getByRole("button", { name: "Open Calendar" })
+    .click();
+  await expect(
+    page.getByTestId("office-block-calendar").getByRole("status"),
+  ).toHaveText("Unavailable — turn on in Config");
+  await page.screenshot({
+    path: "../../runtime/qa/p4-calendar-slice/disabled-calendar-shortcut-desktop.png",
+    fullPage: true,
+  });
+
+  // Restore the floor for the narrow-width Calendar proof.
+  await page.evaluate(() => {
+    const key = "mc-glass-config-v1";
+    const config = JSON.parse(localStorage.getItem(key) ?? "{}");
+    if (config.floorOverrides) delete config.floorOverrides.trenches;
+    localStorage.setItem(key, JSON.stringify(config));
+    window.dispatchEvent(new Event("mc-glass-config-changed"));
+  });
+  await expect(page.locator('button[title="2F · Calendar"]')).toHaveCount(1);
 
   // Narrow width: the Calendar room keeps a readable mark, the pin stays
   // reachable, and nothing overflows horizontally.
