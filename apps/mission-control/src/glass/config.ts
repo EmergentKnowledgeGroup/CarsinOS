@@ -14,6 +14,14 @@ import {
 
 export const GLASS_CONFIG_STORAGE_KEY = "mc-glass-config-v1";
 
+/** Fired on window after any Glass config save so live consumers re-read. */
+export const GLASS_CONFIG_EVENT = "mc-glass-config-changed";
+
+export function notifyGlassConfigChanged(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(GLASS_CONFIG_EVENT));
+}
+
 export interface GlassConfig {
   /** "auto" follows the system preference; otherwise a theme id. */
   themeId: string;
@@ -45,17 +53,32 @@ export function loadGlassConfig(storage: Storage = localStorage): GlassConfig {
     return { ...DEFAULT_GLASS_CONFIG };
   }
   const candidate = parsed as Partial<GlassConfig>;
+  const builtInIds = new Set(BUILT_IN_THEMES.map((theme) => theme.id));
+  const seenCustomIds = new Set<string>();
   const customThemes = Array.isArray(candidate.customThemes)
     ? candidate.customThemes
         .map((theme) => validateTheme(theme))
         .filter((result): result is { ok: true; theme: ThemeDef } => result.ok)
         .map((result) => result.theme)
+        .filter((theme) => {
+          if (builtInIds.has(theme.id) || seenCustomIds.has(theme.id)) {
+            return false;
+          }
+          seenCustomIds.add(theme.id);
+          return true;
+        })
     : [];
+  const requestedThemeId =
+    typeof candidate.themeId === "string" && candidate.themeId.length > 0
+      ? candidate.themeId
+      : "auto";
+  const knownThemeIds = new Set([
+    "auto",
+    ...BUILT_IN_THEMES.map((theme) => theme.id),
+    ...customThemes.map((theme) => theme.id),
+  ]);
   const config: GlassConfig = {
-    themeId:
-      typeof candidate.themeId === "string" && candidate.themeId.length > 0
-        ? candidate.themeId
-        : "auto",
+    themeId: knownThemeIds.has(requestedThemeId) ? requestedThemeId : "auto",
     customThemes,
   };
   if (Array.isArray(candidate.layout)) {

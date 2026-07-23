@@ -112,6 +112,34 @@ describe("loadGlassConfig", () => {
 
     expect(loadGlassConfig().customThemes).toEqual([]);
   });
+
+  test("drops built-in id collisions and duplicate custom ids deterministically", () => {
+    const collision = createCustomTheme(porcelain, {
+      id: "porcelain-light",
+      name: "Counterfeit porcelain",
+    });
+    const first = createCustomTheme(porcelain, {
+      id: "duplicate",
+      name: "First wins",
+    });
+    const second = createCustomTheme(porcelain, {
+      id: "duplicate",
+      name: "Second loses",
+    });
+    localStorage.setItem(
+      "mc-glass-config-v1",
+      JSON.stringify({
+        themeId: "missing-after-sanitization",
+        customThemes: [collision, first, second],
+      }),
+    );
+
+    const config = loadGlassConfig();
+    expect(config.themeId).toBe("auto");
+    expect(config.customThemes.map((theme) => [theme.id, theme.name])).toEqual([
+      ["duplicate", "First wins"],
+    ]);
+  });
 });
 
 describe("resolveActiveTheme", () => {

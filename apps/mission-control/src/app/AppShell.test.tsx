@@ -188,6 +188,74 @@ describe("AppShell live feed toggle", () => {
     expect(container.textContent).not.toContain("Appearance");
   });
 
+  it("offers the Glass theme studio inside settings", async () => {
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <AppShell
+          activeTab="boards"
+          availableTabs={["boards"]}
+          onTabChange={() => {}}
+          healthState="healthy"
+          wsState="connected"
+          tokenConfigured
+          incidentMode={false}
+          onIncidentModeChange={() => {}}
+          openBreakerCount={0}
+          approvalsCount={0}
+          jobsDue={0}
+          schedulerRunning
+          gatewayDraft="http://127.0.0.1:18789"
+          onGatewayDraftChange={() => {}}
+          tokenDraft="token"
+          onTokenDraftChange={() => {}}
+          onSaveConnection={async () => {}}
+          onReconnect={async () => {}}
+          onClearToken={async () => {}}
+          onOpenSetupWizard={() => {}}
+          onOpenHelpDocs={() => {}}
+          onOpenGuidedTour={() => {}}
+          notifications={[]}
+          onDismissNotification={() => {}}
+          onClearAllNotifications={() => {}}
+          liveFeedEnabled
+          liveFeedOpen={false}
+          liveFeedUnreadCount={0}
+          onToggleLiveFeed={() => {}}
+          opsUxConfig={DEFAULT_OPSUX_RUNTIME_CONFIG}
+          opsUxConfigError={null}
+          onPatchOpsUxControls={() => {}}
+          usageChartsEnabled={false}
+          assistantSystemPrompt="You are the CarsinOS assistant."
+          assistantSystemPromptDirty={false}
+          assistantSystemPromptLoading={false}
+          assistantSystemPromptSaving={false}
+          assistantSystemPromptError={null}
+          onAssistantSystemPromptChange={() => {}}
+          onSaveAssistantSystemPrompt={async () => {}}
+          onResetAssistantSystemPrompt={() => {}}
+          onRestoreDefaultAssistantSystemPrompt={() => {}}
+          quickGuideAvailable={true}
+          quickGuideOpen={true}
+          onToggleQuickGuide={() => {}}
+        >
+          <div>content</div>
+        </AppShell>
+      );
+    });
+
+    const settingsButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.getAttribute("title") === "Settings"
+    );
+    await act(async () => {
+      settingsButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain("Theme studio");
+    expect(container.querySelector("[data-testid='theme-active']")).toBeTruthy();
+  });
+
   it("shows a focused memory review chip when ExecAss has learning proposals", async () => {
     const root = createRoot(container);
     const onTabChange = vi.fn();

@@ -6,7 +6,8 @@ import { useKeyboardShortcuts } from "./useKeyboardShortcuts";
 import { useTheme } from "./useTheme";
 import type { MissionControlTab } from "./useAppController";
 import { DEFAULT_FLOORS, resolveElevator } from "../glass/floors";
-import { loadGlassConfig } from "../glass/config";
+import { GLASS_CONFIG_EVENT, loadGlassConfig } from "../glass/config";
+import { activeThemeName } from "../glass/themeEditor";
 import { Badge } from "../ui/Badge";
 import { Chip } from "../ui/Chip";
 import { CommandPalette } from "../ui/CommandPalette";
@@ -40,6 +41,7 @@ import {
 } from "lucide-react";
 import { NotificationCenter } from "../ui/NotificationCenter";
 import { ThemeDropdown } from "../ui/ThemeDropdown";
+import { ThemeStudio } from "../features/glassTheme/ThemeStudio";
 import type { NotificationItem } from "../ui/useToasts";
 import type {
   OpsUxFeatureControls,
@@ -182,6 +184,9 @@ export function AppShell(props: AppShellProps) {
   const [settingsAssistantOpen, setSettingsAssistantOpen] = useState(false);
   const [gwUrlHistory, setGwUrlHistory] = useState<string[]>(getGatewayUrlHistory);
   const [density, setDensity] = useState<"comfortable" | "compact">(getDensity);
+  const [glassThemeName, setGlassThemeName] = useState(() =>
+    activeThemeName(loadGlassConfig()),
+  );
   const liveFeedSettingsInputRef = useRef<HTMLInputElement | null>(null);
   const theme = useTheme();
   const onPatchOpsUxControls = props.onPatchOpsUxControls;
@@ -189,6 +194,12 @@ export function AppShell(props: AppShellProps) {
   useEffect(() => {
     applyDensity(density);
   }, [density]);
+
+  useEffect(() => {
+    const update = () => setGlassThemeName(activeThemeName(loadGlassConfig()));
+    window.addEventListener(GLASS_CONFIG_EVENT, update);
+    return () => window.removeEventListener(GLASS_CONFIG_EVENT, update);
+  }, []);
 
   useEffect(() => {
     if (props.assistantSystemPromptDirty || props.assistantSystemPromptError) {
@@ -906,6 +917,26 @@ export function AppShell(props: AppShellProps) {
                       ? "You have unsaved prompt changes."
                       : "Shared prompt saved. Use Insert Core Prompt in Assistant if you want the current chat to pick up the latest version immediately."}
                   </p>
+                </div>
+              </details>
+
+              {/* Glass theme studio */}
+              <details className="mc-settings-section mc-settings-disclosure">
+                <summary className="mc-settings-summary">
+                  <span>
+                    <strong>4. Theme studio</strong>
+                    <small>Pick, build, and share Glass Office themes.</small>
+                  </span>
+                  <span className="mc-settings-summary-status">
+                    <Chip label={glassThemeName} tone="connected" />
+                  </span>
+                </summary>
+                <div className="mc-settings-disclosure-body">
+                  <p className="mc-settings-help">
+                    Themes are token bags applied to the Office surface. Claw
+                    Orange and the safety colors stay fixed in every theme.
+                  </p>
+                  <ThemeStudio />
                 </div>
               </details>
             </div>
