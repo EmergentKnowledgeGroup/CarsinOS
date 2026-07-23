@@ -76,6 +76,42 @@ describe("loadGlassConfig", () => {
       window: { hidden: true, label: "Observatory", order: 2 },
     });
   });
+
+  test("drops malformed saved layout entries before a layout consumer can read them", () => {
+    localStorage.setItem(
+      "mc-glass-config-v1",
+      JSON.stringify({
+        layout: [
+          { id: "next", size: "l", visible: true },
+          null,
+          42,
+          { id: "bad-size", size: "xl", visible: true },
+          { id: "missing-visible", size: "s" },
+        ],
+      }),
+    );
+
+    expect(loadGlassConfig().layout).toEqual([
+      { id: "next", size: "l", visible: true },
+    ]);
+  });
+
+  test("rejects persisted custom themes that replace protected tokens", () => {
+    const tampered = JSON.parse(JSON.stringify(porcelain)) as {
+      id: string;
+      name: string;
+      tokens: Record<string, string>;
+    };
+    tampered.id = "tampered";
+    tampered.name = "Tampered";
+    tampered.tokens.claw = "#00FF00";
+    localStorage.setItem(
+      "mc-glass-config-v1",
+      JSON.stringify({ themeId: tampered.id, customThemes: [tampered] }),
+    );
+
+    expect(loadGlassConfig().customThemes).toEqual([]);
+  });
 });
 
 describe("resolveActiveTheme", () => {

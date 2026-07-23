@@ -15,7 +15,12 @@ export interface ThemeDef {
 }
 
 /** Tokens a custom theme may never override. Claw Orange is constitutional. */
-export const LOCKED_TOKENS: readonly string[] = ["claw", "claw-soft"];
+export const LOCKED_TOKENS: readonly string[] = [
+  "claw",
+  "claw-soft",
+  "ok",
+  "warn",
+];
 
 export const REQUIRED_TOKEN_KEYS: readonly string[] = [
   "ground",
@@ -151,6 +156,16 @@ export function validateTheme(input: unknown): ThemeValidation {
       const value = (tokens as Record<string, unknown>)[key];
       if (typeof value !== "string" || value.length === 0) {
         errors.push(`missing token: ${key}`);
+      }
+    }
+    if (candidate.mode === "light" || candidate.mode === "dark") {
+      const canonical = BUILT_IN_THEMES.find(
+        (theme) => theme.mode === candidate.mode,
+      );
+      for (const key of LOCKED_TOKENS) {
+        if (canonical && (tokens as Record<string, unknown>)[key] !== canonical.tokens[key]) {
+          errors.push(`protected token changed: ${key}`);
+        }
       }
     }
   }

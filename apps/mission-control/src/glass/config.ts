@@ -58,7 +58,22 @@ export function loadGlassConfig(storage: Storage = localStorage): GlassConfig {
         : "auto",
     customThemes,
   };
-  if (Array.isArray(candidate.layout)) config.layout = candidate.layout;
+  if (Array.isArray(candidate.layout)) {
+    config.layout = candidate.layout.flatMap((entry) => {
+      if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+        return [];
+      }
+      const placement = entry as unknown as Record<string, unknown>;
+      if (
+        typeof placement.id !== "string" ||
+        (placement.size !== "s" && placement.size !== "m" && placement.size !== "l") ||
+        typeof placement.visible !== "boolean"
+      ) {
+        return [];
+      }
+      return [{ id: placement.id, size: placement.size, visible: placement.visible }];
+    });
+  }
   if (
     typeof candidate.floorOverrides === "object" &&
     candidate.floorOverrides !== null

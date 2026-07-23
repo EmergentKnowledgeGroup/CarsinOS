@@ -60,8 +60,9 @@ use carsinos_protocol::{
     CreateSessionResponse, CreateTaskRequest, CreateTaskResponse, CreateWebSocketTicketResponse,
     DeleteRuntimeSecretRequest, DeleteRuntimeSecretResponse, DescribeConnectorToolResponse,
     DiscordBlockedSenderResponse, DiscordChannelConfig, DiscordPairingPendingRequestResponse,
-    ExportBootstrapPresetResponse, FailureReasonCountResponse, FloorPresenceItemResponse,
-    FloorPresenceResponse, FloorPresenceTargetResponse, GetAgentMemoryStatusResponse,
+    ExportBootstrapPresetResponse, FailureReasonCountResponse, FloorPresenceActivityResponse,
+    FloorPresenceItemResponse, FloorPresenceMoodResponse, FloorPresenceResponse,
+    FloorPresenceTargetKindResponse, FloorPresenceTargetResponse, GetAgentMemoryStatusResponse,
     GetAgentProviderProfileOrderResponse, GetAgentResponse, GetBoardAutomationRuleResponse,
     GetBootstrapPresetResponse, GetChannelConfigResponse, GetChannelRuntimeStatusResponse,
     GetConnectorHealthResponse, GetConnectorResponse, GetDiscordPairingStatusResponse,
@@ -4307,6 +4308,12 @@ async fn main() -> AnyResult<()> {
     tokio::spawn(async move {
         channel_ingest_listener_loop(channel_listener_state).await;
     });
+    if state.execass_store.is_some() {
+        let office_chatter_projection_state = state.clone();
+        tokio::spawn(async move {
+            office_chatter_projection_loop(office_chatter_projection_state).await;
+        });
+    }
     refresh_numquam_handshake_state(&state).await;
     let numquam_handshake_state = state.clone();
     tokio::spawn(async move {
@@ -27139,6 +27146,46 @@ fn to_office_chatter_message_response(
     }
 }
 
+const OFFICE_CHATTER_PROJECTION_BATCH_SIZE: u32 = 128;
+const OFFICE_CHATTER_PROJECTION_MAX_BATCHES_PER_TICK: usize = 8;
+const OFFICE_CHATTER_PROJECTION_INTERVAL: Duration = Duration::from_secs(1);
+
+fn project_office_chatter_once(state: &AppState) -> AnyResult<usize> {
+    let produced = state
+        .storage
+        .produce_office_chatter(OFFICE_CHATTER_PROJECTION_BATCH_SIZE)
+        .context("producing safe Office Chatter projection")?;
+    for message in &produced {
+        emit_event(
+            state,
+            "agent_mail.message.created",
+            serde_json::json!({
+                "thread_id": message.thread_id, "message_id": message.message_id,
+                "sender_principal": "execass", "recipient_count": 0
+            }),
+        );
+    }
+    Ok(produced.len())
+}
+
+async fn office_chatter_projection_loop(state: AppState) {
+    let mut interval = tokio::time::interval(OFFICE_CHATTER_PROJECTION_INTERVAL);
+    interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+    loop {
+        interval.tick().await;
+        for _ in 0..OFFICE_CHATTER_PROJECTION_MAX_BATCHES_PER_TICK {
+            match project_office_chatter_once(&state) {
+                Ok(produced) if produced < OFFICE_CHATTER_PROJECTION_BATCH_SIZE as usize => break,
+                Ok(_) => {}
+                Err(err) => {
+                    warn!(error = %err, "Office Chatter projection tick failed");
+                    break;
+                }
+            }
+        }
+    }
+}
+
 async fn get_office_floor_presence(
     headers: HeaderMap,
     State(state): State<AppState>,
@@ -27157,28 +27204,53 @@ async fn get_office_floor_presence(
         .list_office_floor_presence()
         .map_err(|err| internal_err_with_error("listing office floor presence failed", err))?
         .into_iter()
-        .map(|item| FloorPresenceItemResponse {
-            agent_id: item.agent_id,
-            display_name: item.display_name,
-            activity_label: match item.state.as_str() {
-                "busy" => "Working",
-                "idle" => "Idle",
-                _ => "No recent observation",
+        .map(|item| {
+            let (activity, activity_label, mood) = match item.state.as_str() {
+                "busy" => (
+                    FloorPresenceActivityResponse::Busy,
+                    "Working",
+                    FloorPresenceMoodResponse::Focused,
+                ),
+                "idle" => (
+                    FloorPresenceActivityResponse::Idle,
+                    "Idle",
+                    FloorPresenceMoodResponse::Calm,
+                ),
+                "recovering" => (
+                    FloorPresenceActivityResponse::Recovering,
+                    "Recovering",
+                    FloorPresenceMoodResponse::Recovering,
+                ),
+                "offline" => (
+                    FloorPresenceActivityResponse::Offline,
+                    "Offline",
+                    FloorPresenceMoodResponse::Offline,
+                ),
+                _ => (
+                    FloorPresenceActivityResponse::Unknown,
+                    "No recent observation",
+                    FloorPresenceMoodResponse::Unknown,
+                ),
+            };
+            let target = item.target_kind.zip(item.target_id).and_then(|(kind, id)| {
+                let kind = match kind.as_str() {
+                    "delegation" => FloorPresenceTargetKindResponse::Delegation,
+                    "session" => FloorPresenceTargetKindResponse::Session,
+                    "run" => FloorPresenceTargetKindResponse::Run,
+                    _ => return None,
+                };
+                Some(FloorPresenceTargetResponse { kind, id })
+            });
+            FloorPresenceItemResponse {
+                agent_id: item.agent_id,
+                display_name: item.display_name,
+                activity,
+                activity_label: activity_label.to_string(),
+                mood,
+                observed_at_ms: item.observed_at,
+                source: "local_storage".to_string(),
+                target,
             }
-            .to_string(),
-            mood: match item.state.as_str() {
-                "busy" => "focused",
-                "idle" => "calm",
-                _ => "unknown",
-            }
-            .to_string(),
-            activity: item.state,
-            observed_at_ms: item.observed_at,
-            source: "local_storage".to_string(),
-            target: item.target_run_id.map(|id| FloorPresenceTargetResponse {
-                kind: "run".to_string(),
-                id,
-            }),
         })
         .collect();
     Ok(Json(FloorPresenceResponse {
@@ -27202,22 +27274,6 @@ async fn get_office_chatter(
         "office.chatter.list",
         "office.chatter",
     )?;
-    // Deliberately deterministic, request-driven producer seam: this avoids
-    // adding a scheduler authority path to the ExecAss contract.
-    let produced = state
-        .storage
-        .produce_office_chatter(32)
-        .map_err(|err| internal_err_with_error("producing office chatter failed", err))?;
-    for message in &produced {
-        emit_event(
-            &state,
-            "agent_mail.message.created",
-            serde_json::json!({
-                "thread_id": message.thread_id, "message_id": message.message_id,
-                "sender_principal": "execass", "recipient_count": 0
-            }),
-        );
-    }
     let (rooms, messages) = state
         .storage
         .list_office_chatter(
@@ -45935,6 +45991,22 @@ mod tests {
         )
     }
 
+    fn office_test_context() -> TestContext {
+        let mut ctx = test_context();
+        let paths = AppPaths::from_root(ctx._temp_dir.path().join("glass-office"));
+        carsinos_storage::init_execass_fresh_root(&paths)
+            .expect("initialize exact Glass Office test root");
+        let storage = Storage::from_paths(&paths);
+        let store = carsinos_storage::execass::ExecAssStore::open(&paths)
+            .expect("open exact Glass Office test store");
+        ctx.storage = storage.clone();
+        ctx.state.storage = storage;
+        ctx.state.execass_store = Some(Arc::new(store));
+        ctx.state.db_path = Arc::new(paths.db_path.display().to_string());
+        ctx.app = build_app(ctx.state.clone());
+        ctx
+    }
+
     fn test_context_with_allowlist(allowlist: Vec<String>) -> TestContext {
         build_test_context(
             allowlist,
@@ -48125,6 +48197,112 @@ mod tests {
             .expect("query summary deliveries")
             .collect::<Result<Vec<_>, _>>()
             .expect("read summary delivery ids")
+    }
+
+    #[tokio::test]
+    async fn office_chatter_get_is_read_only_and_projection_worker_emits_after_source_change() {
+        let ctx = office_test_context();
+        let connection = rusqlite::Connection::open(ctx.state.db_path.as_str())
+            .expect("open Office Chatter test database");
+        let cursor_before = connection
+            .query_row(
+                "SELECT last_global_sequence FROM office_chatter_producer_cursor WHERE singleton=1",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("read Office Chatter cursor");
+        connection
+            .execute(
+                r#"
+                INSERT INTO execass_outbox_events(
+                  event_id,event_name,aggregate_id,aggregate_revision,correlation_id,causation_id,
+                  occurred_at,schema_version,safe_payload_json,duplicate_identity
+                ) VALUES(
+                  'office-get-read-only-event','execass.v1.delegation.transitioned',
+                  'execass-global-control-carrier',2,'office-get-read-only-correlation',
+                  'office-get-read-only-causation',20000,'v1',
+                  '{"summary":"SECRET source payload must remain unread"}',
+                  'office-get-read-only-event'
+                )
+                "#,
+                [],
+            )
+            .expect("seed Office Chatter source event");
+        let mut events = ctx.state.event_tx.subscribe();
+
+        let response = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/office/chatter?limit_rooms=10&limit_messages=10",
+                Body::empty(),
+            ))
+            .await
+            .expect("read Office Chatter");
+        assert_eq!(response.status(), StatusCode::OK);
+        let payload = parse_json(response).await;
+        assert_eq!(payload["rooms"], serde_json::json!([]));
+        assert_eq!(payload["messages"], serde_json::json!([]));
+        assert!(matches!(
+            events.try_recv(),
+            Err(tokio::sync::broadcast::error::TryRecvError::Empty)
+        ));
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT last_global_sequence FROM office_chatter_producer_cursor WHERE singleton=1",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .expect("read unchanged Office Chatter cursor"),
+            cursor_before,
+            "GET must not advance the producer cursor"
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM office_chatter_messages", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .expect("count messages after GET"),
+            0,
+            "GET must not create canonical Agent Mail messages"
+        );
+
+        assert_eq!(
+            project_office_chatter_once(&ctx.state).expect("project Office Chatter source change"),
+            1
+        );
+        let frame = events
+            .try_recv()
+            .expect("projector emits message-created event");
+        assert!(frame.contains("agent_mail.message.created"));
+        assert!(!frame.contains("SECRET"));
+
+        let projected = ctx
+            .app
+            .clone()
+            .oneshot(auth_request(
+                "GET",
+                "/api/v1/office/chatter?limit_rooms=10&limit_messages=10",
+                Body::empty(),
+            ))
+            .await
+            .expect("read projected Office Chatter");
+        assert_eq!(projected.status(), StatusCode::OK);
+        let projected_payload = parse_json(projected).await;
+        assert_eq!(
+            projected_payload["messages"]
+                .as_array()
+                .expect("messages array")
+                .len(),
+            1
+        );
+        assert_eq!(
+            projected_payload["messages"][0]["text"],
+            "Workstream status changed."
+        );
+        assert!(!projected_payload.to_string().contains("SECRET"));
     }
 
     #[tokio::test]

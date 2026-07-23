@@ -120,12 +120,24 @@ export function resolveElevator(
   return floors
     .map((floor) => {
       const override = overrides[floor.id];
-      return override ? { ...floor, ...override } : { ...floor };
+      const resolved = override ? { ...floor, ...override } : { ...floor };
+      const rooms = resolved.rooms.filter((room) =>
+        (room.capabilityRequirements ?? []).every((capability) =>
+          capabilities.has(capability),
+        ),
+      );
+      const defaultRoom = rooms.some((room) => room.id === resolved.defaultRoom)
+        ? resolved.defaultRoom
+        : rooms[0]?.id;
+      return { ...resolved, rooms, defaultRoom };
     })
     .filter((floor) => {
       if (floor.hidden) return false;
       const required = floor.requiresCapabilities ?? [];
-      return required.every((cap) => capabilities.has(cap));
+      return (
+        required.every((cap) => capabilities.has(cap)) &&
+        floor.rooms.length > 0
+      );
     })
     .sort((a, b) => a.order - b.order);
 }

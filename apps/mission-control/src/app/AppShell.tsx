@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useCallback, useRef } from "react";
 import clsx from "clsx";
+import { useMemo } from "react";
 import type { ReactNode } from "react";
 import { useKeyboardShortcuts } from "./useKeyboardShortcuts";
 import { useTheme } from "./useTheme";
@@ -157,26 +158,22 @@ function applyDensity(density: "comfortable" | "compact") {
 /* ── Component ─────────────────────────────────────────────────────── */
 
 export function AppShell(props: AppShellProps) {
-  const glassConfig = loadGlassConfig();
-  const claimedRoomRoutes = new Set<MissionControlTab>();
-  const elevatorFloors = resolveElevator(DEFAULT_FLOORS, {
-    capabilities: ["execass", "agent-mail"],
-    overrides: glassConfig.floorOverrides,
-  })
-    .map((floor) => ({
-      ...floor,
-      rooms: floor.rooms.filter((room) => {
-        if (
-          !props.availableTabs.includes(room.route) ||
-          claimedRoomRoutes.has(room.route)
-        ) {
-          return false;
-        }
-        claimedRoomRoutes.add(room.route);
-        return true;
-      }),
-    }))
-    .filter((floor) => floor.rooms.length > 0);
+  const glassConfig = useMemo(() => loadGlassConfig(), []);
+  const elevatorFloors = useMemo(
+    () =>
+      resolveElevator(DEFAULT_FLOORS, {
+        capabilities: ["execass", "agent-mail"],
+        overrides: glassConfig.floorOverrides,
+      })
+        .map((floor) => ({
+          ...floor,
+          rooms: floor.rooms.filter((room) =>
+            props.availableTabs.includes(room.route),
+          ),
+        }))
+        .filter((floor) => floor.rooms.length > 0),
+    [glassConfig.floorOverrides, props.availableTabs],
+  );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
   const [clearTokenConfirmOpen, setClearTokenConfirmOpen] = useState(false);
@@ -376,6 +373,7 @@ export function AppShell(props: AppShellProps) {
   const mainSwitchStatus = optionalFeaturesMasterOn
     ? { label: "On", tone: "connected" }
     : { label: "Off", tone: "" };
+  const claimedTourRoutes = new Set<MissionControlTab>();
 
   return (
     <div className="mc-shell-layout">
@@ -401,6 +399,10 @@ export function AppShell(props: AppShellProps) {
                 <div className="mc-elevator-rooms">
                   {floor.rooms.map((room) => {
                     const badgeCount = props.navBadges?.[room.route] ?? 0;
+                    const isPrimaryTourTarget = !claimedTourRoutes.has(
+                      room.route,
+                    );
+                    claimedTourRoutes.add(room.route);
                     return (
                       <button
                         key={`${floor.id}:${room.id}`}
@@ -413,7 +415,11 @@ export function AppShell(props: AppShellProps) {
                           props.onTabChange(room.route);
                         }}
                         title={`${floor.lamp}F · ${room.label}`}
-                        data-tour-id={`nav-${room.route}`}
+                        data-tour-id={
+                          isPrimaryTourTarget
+                            ? `nav-${room.route}`
+                            : `nav-${floor.id}-${room.id}`
+                        }
                       >
                         <span className="mc-nav-label">{room.label}</span>
                         <Badge

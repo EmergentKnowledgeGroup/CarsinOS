@@ -6,6 +6,8 @@ import type {
   OfficeChatterResponse,
 } from "./types";
 
+export const OFFICE_REQUEST_TIMEOUT_MS = 10_000;
+
 function gatewayUrl(settings: RuntimeConnectionSettings, path: string): string {
   const base = settings.gateway_url.trim().replace(/\/+$/, "");
   if (!base) {
@@ -23,15 +25,30 @@ async function requestOfficeJson<T>(
   if (!token) {
     throw new Error("Gateway token is not configured.");
   }
-  const response = await fetch(gatewayUrl(settings, path), {
-    ...init,
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${token}`,
-      ...(init?.body ? { "Content-Type": "application/json" } : {}),
-      ...init?.headers,
-    },
-  });
+  const controller = new AbortController();
+  const abortFromCaller = () => controller.abort();
+  if (init?.signal?.aborted) {
+    abortFromCaller();
+  } else {
+    init?.signal?.addEventListener("abort", abortFromCaller, { once: true });
+  }
+  const timeout = globalThis.setTimeout(abortFromCaller, OFFICE_REQUEST_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch(gatewayUrl(settings, path), {
+      ...init,
+      signal: controller.signal,
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+        ...(init?.body ? { "Content-Type": "application/json" } : {}),
+        ...init?.headers,
+      },
+    });
+  } finally {
+    globalThis.clearTimeout(timeout);
+    init?.signal?.removeEventListener("abort", abortFromCaller);
+  }
   const payload = (await response.json().catch(() => null)) as
     | { safe_human_message?: unknown }
     | T

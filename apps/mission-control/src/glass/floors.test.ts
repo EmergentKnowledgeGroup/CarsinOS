@@ -61,6 +61,16 @@ describe("DEFAULT_FLOORS registry", () => {
       ]),
     );
   });
+
+  test("keeps distinct room identities even when they share a product surface", () => {
+    const window = DEFAULT_FLOORS.find((floor) => floor.id === "window");
+    const basement = DEFAULT_FLOORS.find((floor) => floor.id === "basement");
+    expect(window?.rooms.map((room) => room.id)).toEqual(["reef", "chatter"]);
+    expect(basement?.defaultRoom).toBe("setup");
+    expect(basement?.rooms.find((room) => room.id === "setup")?.route).toBe(
+      "connectors",
+    );
+  });
 });
 
 describe("resolveElevator", () => {
@@ -107,6 +117,23 @@ describe("resolveElevator", () => {
       "The Pit",
     );
     expect(DEFAULT_FLOORS.map((f) => f.id)).toContain("window");
+  });
+
+  test("filters unavailable rooms and moves a hidden default to a reachable room", () => {
+    const resolved = resolveElevator(DEFAULT_FLOORS, {
+      capabilities: ["execass"],
+    });
+    const window = resolved.find((floor) => floor.id === "window");
+    expect(window?.rooms.map((room) => room.id)).toEqual(["reef"]);
+    expect(window?.defaultRoom).toBe("reef");
+  });
+
+  test("preserves every visible room instead of deduplicating equal routes", () => {
+    const resolved = resolveElevator(DEFAULT_FLOORS, { capabilities: CAPS_ALL });
+    const window = resolved.find((floor) => floor.id === "window");
+    const basement = resolved.find((floor) => floor.id === "basement");
+    expect(window?.rooms.map((room) => room.id)).toEqual(["reef", "chatter"]);
+    expect(basement?.rooms.map((room) => room.id)).toContain("setup");
   });
 });
 

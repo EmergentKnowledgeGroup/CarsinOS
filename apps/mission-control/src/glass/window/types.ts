@@ -1,8 +1,18 @@
-export type FloorPresenceActivity = "busy" | "idle" | "unknown";
-export type FloorPresenceMood = "focused" | "calm" | "unknown";
+export type FloorPresenceActivity =
+  | "busy"
+  | "idle"
+  | "recovering"
+  | "offline"
+  | "unknown";
+export type FloorPresenceMood =
+  | "focused"
+  | "calm"
+  | "recovering"
+  | "offline"
+  | "unknown";
 
 export interface FloorPresenceTarget {
-  kind: "run";
+  kind: "delegation" | "session" | "run";
   id: string;
 }
 

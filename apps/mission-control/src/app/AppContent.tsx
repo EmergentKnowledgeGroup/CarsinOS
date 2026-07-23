@@ -757,6 +757,7 @@ export function AppContent(props: AppContentProps) {
         onResetTabState={props.onResetTabState}
         onEnterSafeMode={props.onEnterSafeMode}
       >
+        {renderQuickGuide("window")}
         <GlassWindowPage controller={props.glassWindowController} />
       </TabBoundaryPane>
 

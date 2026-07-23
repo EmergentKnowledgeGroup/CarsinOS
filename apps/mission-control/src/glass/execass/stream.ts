@@ -177,4 +177,5 @@ export function invalidationTargets(
     case "execass.v1.notification.scheduled":
       return ["notifications"];
   }
+  return ["summary"];
 }

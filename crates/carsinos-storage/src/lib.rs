@@ -1718,7 +1718,8 @@ pub struct OfficeFloorPresenceRecord {
     pub display_name: String,
     pub state: String,
     pub observed_at: Option<i64>,
-    pub target_run_id: Option<String>,
+    pub target_kind: Option<String>,
+    pub target_id: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -4908,23 +4909,126 @@ impl Storage {
         let conn = self.connect()?;
         let mut stmt = conn.prepare(
             r#"
+            WITH linked_delegations AS (
+              SELECT agent_id, delegation_id, phase, updated_at,
+                     ROW_NUMBER() OVER (
+                       PARTITION BY agent_id
+                       ORDER BY
+                         CASE phase
+                           WHEN 'recovering' THEN 0
+                           WHEN 'in_motion' THEN 1
+                           WHEN 'planning' THEN 2
+                           WHEN 'accepted' THEN 3
+                           ELSE 4
+                         END,
+                         updated_at DESC,
+                         delegation_id DESC
+                     ) AS rank
+              FROM (
+                SELECT
+                  COALESCE(
+                    linked_session.agent_id,
+                    linked_run_session.agent_id,
+                    linked_job.agent_id,
+                    linked_job_run_job.agent_id,
+                    linked_task.owner_agent_id,
+                    linked_task_job.agent_id
+                  ) AS agent_id,
+                  delegation.delegation_id,
+                  delegation.phase,
+                  delegation.updated_at
+                FROM execass_authority_links authority_link
+                JOIN execass_delegations delegation
+                  ON delegation.delegation_id = authority_link.delegation_id
+                LEFT JOIN sessions linked_session
+                  ON linked_session.session_id = authority_link.session_id
+                LEFT JOIN runs linked_run
+                  ON linked_run.run_id = authority_link.run_id
+                LEFT JOIN sessions linked_run_session
+                  ON linked_run_session.session_id = linked_run.session_id
+                LEFT JOIN jobs linked_job
+                  ON linked_job.job_id = authority_link.job_id
+                LEFT JOIN job_runs linked_job_run
+                  ON linked_job_run.job_run_id = authority_link.job_run_id
+                LEFT JOIN jobs linked_job_run_job
+                  ON linked_job_run_job.job_id = linked_job_run.job_id
+                LEFT JOIN tasks linked_task
+                  ON linked_task.task_id = authority_link.task_id
+                LEFT JOIN jobs linked_task_job
+                  ON linked_task_job.job_id = linked_task.linked_job_id
+                WHERE delegation.phase NOT IN ('completed', 'partially_completed', 'failed')
+                  AND COALESCE(
+                    linked_session.agent_id,
+                    linked_run_session.agent_id,
+                    linked_job.agent_id,
+                    linked_job_run_job.agent_id,
+                    linked_task.owner_agent_id,
+                    linked_task_job.agent_id
+                  ) IS NOT NULL
+              )
+            ),
+            active_runs AS (
+              SELECT
+                session.agent_id,
+                run.run_id,
+                COALESCE(run.started_at, run.created_at) AS observed_at,
+                ROW_NUMBER() OVER (
+                  PARTITION BY session.agent_id
+                  ORDER BY COALESCE(run.started_at, run.created_at) DESC, run.run_id DESC
+                ) AS rank
+              FROM sessions session
+              JOIN runs run ON run.session_id = session.session_id
+              WHERE run.ended_at IS NULL
+                AND run.status IN ('queued', 'running', 'in_progress')
+            ),
+            latest_sessions AS (
+              SELECT
+                session.agent_id,
+                session.session_id,
+                session.updated_at,
+                ROW_NUMBER() OVER (
+                  PARTITION BY session.agent_id
+                  ORDER BY session.updated_at DESC, session.session_id DESC
+                ) AS rank
+              FROM sessions session
+              WHERE session.closed_at IS NULL
+            )
             SELECT a.agent_id, a.name,
               CASE
-                WHEN EXISTS (
-                  SELECT 1 FROM sessions s JOIN runs r ON r.session_id=s.session_id
-                  WHERE s.agent_id=a.agent_id AND r.ended_at IS NULL
-                    AND r.status IN ('queued','running','in_progress')
-                ) THEN 'busy'
-                WHEN EXISTS (SELECT 1 FROM sessions s WHERE s.agent_id=a.agent_id) THEN 'idle'
+                WHEN linked.phase = 'recovering' THEN 'recovering'
+                WHEN active_run.run_id IS NOT NULL THEN 'busy'
+                WHEN linked.phase IN ('accepted', 'planning', 'in_motion') THEN 'busy'
+                WHEN linked.delegation_id IS NOT NULL OR latest_session.session_id IS NOT NULL
+                  THEN 'idle'
                 ELSE 'unknown'
               END,
-              (SELECT MAX(COALESCE(r.started_at, r.created_at))
-                 FROM sessions s JOIN runs r ON r.session_id=s.session_id
-                WHERE s.agent_id=a.agent_id),
-              (SELECT r.run_id FROM sessions s JOIN runs r ON r.session_id=s.session_id
-                WHERE s.agent_id=a.agent_id
-                ORDER BY COALESCE(r.started_at, r.created_at) DESC, r.run_id DESC LIMIT 1)
-            FROM agents a WHERE a.archived_at IS NULL ORDER BY a.name ASC, a.agent_id ASC
+              CASE
+                WHEN linked.phase = 'recovering' THEN linked.updated_at
+                WHEN active_run.run_id IS NOT NULL THEN active_run.observed_at
+                WHEN linked.delegation_id IS NOT NULL THEN linked.updated_at
+                ELSE latest_session.updated_at
+              END,
+              CASE
+                WHEN linked.delegation_id IS NOT NULL THEN 'delegation'
+                WHEN active_run.run_id IS NOT NULL THEN 'run'
+                WHEN latest_session.session_id IS NOT NULL THEN 'session'
+                ELSE NULL
+              END,
+              CASE
+                WHEN linked.delegation_id IS NOT NULL THEN linked.delegation_id
+                WHEN active_run.run_id IS NOT NULL THEN active_run.run_id
+                WHEN latest_session.session_id IS NOT NULL THEN latest_session.session_id
+                ELSE NULL
+              END
+            FROM agents a
+            LEFT JOIN linked_delegations linked
+              ON linked.agent_id = a.agent_id AND linked.rank = 1
+            LEFT JOIN active_runs active_run
+              ON active_run.agent_id = a.agent_id AND active_run.rank = 1
+            LEFT JOIN latest_sessions latest_session
+              ON latest_session.agent_id = a.agent_id AND latest_session.rank = 1
+            WHERE a.archived_at IS NULL
+            ORDER BY a.name ASC, a.agent_id ASC
             "#,
         )?;
         let records = stmt
@@ -4934,7 +5038,8 @@ impl Storage {
                     display_name: row.get(1)?,
                     state: row.get(2)?,
                     observed_at: row.get(3)?,
-                    target_run_id: row.get(4)?,
+                    target_kind: row.get(4)?,
+                    target_id: row.get(5)?,
                 })
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -13974,7 +14079,7 @@ mod tests {
     }
 
     #[test]
-    fn office_floor_presence_never_infers_offline_from_silence() {
+    fn office_floor_presence_preserves_unknown_and_projects_authoritative_deep_links() {
         let (_temp_dir, paths) = execass_test_root();
         let storage = Storage::from_paths(&paths);
         storage
@@ -14009,17 +14114,20 @@ mod tests {
         let idle = storage
             .list_office_floor_presence()
             .expect("list idle presence");
+        let idle_agent = idle
+            .iter()
+            .find(|item| item.agent_id == "reef-agent")
+            .expect("idle agent exists");
+        assert_eq!(idle_agent.state, "idle");
+        assert_eq!(idle_agent.target_kind.as_deref(), Some("session"));
         assert_eq!(
-            idle.iter()
-                .find(|item| item.agent_id == "reef-agent")
-                .expect("idle agent exists")
-                .state,
-            "idle"
+            idle_agent.target_id.as_deref(),
+            Some(session.session_id.as_str())
         );
 
         let run = storage
             .create_run(NewRun {
-                session_id: session.session_id,
+                session_id: session.session_id.clone(),
                 model_provider: "mock".to_string(),
                 model_id: "mock-echo-v1".to_string(),
             })
@@ -14036,10 +14144,83 @@ mod tests {
             .find(|item| item.agent_id == "reef-agent")
             .expect("busy agent exists");
         assert_eq!(busy_agent.state, "busy");
-        assert_eq!(
-            busy_agent.target_run_id.as_deref(),
-            Some(run.run_id.as_str())
-        );
+        assert_eq!(busy_agent.target_kind.as_deref(), Some("run"));
+        assert_eq!(busy_agent.target_id.as_deref(), Some(run.run_id.as_str()));
+
+        let job = storage
+            .create_job(NewJob {
+                agent_id: "reef-agent".to_string(),
+                name: "Reef recovery job".to_string(),
+                enabled: true,
+                schedule_kind: "interval".to_string(),
+                interval_seconds: Some(60),
+                run_at_ms: None,
+                next_run_at: Some(20_000),
+                payload_json: r#"{"mode":"noop"}"#.to_string(),
+                max_retries: 1,
+                retry_backoff_ms: 500,
+                timeout_ms: 2_000,
+            })
+            .expect("create authoritative recovery job");
+        let conn = open_sqlite_connection(&paths.db_path).expect("open presence authority root");
+        conn.execute(
+            r#"
+            INSERT INTO execass_delegations(
+              delegation_id,normalized_original_intent,intake_evidence_json,ingress_source,
+              ingress_credential_identity,source_correlation_id,ingress_idempotency_key,
+              classifier_version,classifier_reasons_json,phase,run_control,state_revision,
+              policy_revision,effective_authority_json,authority_provenance_id,stop_epoch,
+              receipt_chain_count,created_at,updated_at
+            )
+            SELECT
+              'reef-recovery','safe recovery projection','{}','internal-runtime',
+              'execass-global-control','reef-recovery-correlation','reef-recovery-idempotency',
+              'v1','["durable_work"]','recovering','running',1,
+              policy_revision,'{}',authority_provenance_id,0,0,20000,20000
+            FROM execass_delegations WHERE delegation_id='execass-global-control-carrier'
+            "#,
+            [],
+        )
+        .expect("seed recovering delegation");
+        conn.execute(
+            r#"
+            INSERT INTO execass_outbox_events(
+              event_id,event_name,aggregate_id,aggregate_revision,correlation_id,causation_id,
+              occurred_at,schema_version,safe_payload_json,duplicate_identity
+            ) VALUES(
+              'reef-recovery-event','execass.v1.delegation.transitioned','reef-recovery',1,
+              'reef-recovery-correlation','reef-recovery-causation',20000,'v1','{}',
+              'reef-recovery-event'
+            )
+            "#,
+            [],
+        )
+        .expect("seed recovering delegation event");
+        conn.execute(
+            r#"
+            INSERT INTO execass_authority_links(
+              link_id,delegation_id,link_revision,delegation_state_revision,correlation_id,
+              causation_id,outbox_event_id,authority_kind,job_id,authoritative_revision,linked_at
+            ) VALUES(
+              'reef-recovery-job-link','reef-recovery',1,1,'reef-recovery-correlation',
+              'reef-recovery-causation','reef-recovery-event','job',?1,0,20000
+            )
+            "#,
+            params![job.job_id],
+        )
+        .expect("link recovering delegation to authoritative job");
+        drop(conn);
+
+        let recovering = storage
+            .list_office_floor_presence()
+            .expect("list recovering presence");
+        let recovering_agent = recovering
+            .iter()
+            .find(|item| item.agent_id == "reef-agent")
+            .expect("recovering agent exists");
+        assert_eq!(recovering_agent.state, "recovering");
+        assert_eq!(recovering_agent.target_kind.as_deref(), Some("delegation"));
+        assert_eq!(recovering_agent.target_id.as_deref(), Some("reef-recovery"));
     }
 
     #[test]

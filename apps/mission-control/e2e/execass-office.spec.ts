@@ -27,6 +27,7 @@ test("@core @execass-office the Office renders the projection and completes deci
   await completeQuickstartLocalOnboarding(page);
 
   const navItemsBefore = await page.locator('[data-tour-id^="nav-"]').count();
+  await expect(page.getByTitle("3F · Office chatter")).toBeVisible();
   await page.locator('[data-tour-id="nav-assistant"]').click();
 
   const office = page.getByTestId("execass-office");
@@ -42,8 +43,11 @@ test("@core @execass-office the Office renders the projection and completes deci
   await expect(cards.first()).toContainText("ExecAss recommends");
 
   // No internal machinery leaks into the cards.
-  for (const term of FORBIDDEN_CARD_TERMS) {
-    await expect(cards.first()).not.toContainText(term);
+  const cardCount = await cards.count();
+  for (let index = 0; index < cardCount; index += 1) {
+    for (const term of FORBIDDEN_CARD_TERMS) {
+      await expect(cards.nth(index)).not.toContainText(term);
+    }
   }
 
   // Ordinary work runs without prompts; external wait is not on the boss.

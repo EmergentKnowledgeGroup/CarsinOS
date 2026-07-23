@@ -64,6 +64,17 @@ describe("createCustomTheme", () => {
     });
     expect(custom.tokens.claw).toBe(porcelain().tokens.claw);
   });
+
+  test("refuses to override any protected semantic token", () => {
+    const custom = createCustomTheme(porcelain(), {
+      id: "safe-statuses",
+      name: "Safe statuses",
+      tokens: { "claw-soft": "#000", ok: "#000", warn: "#000" },
+    });
+    for (const token of LOCKED_TOKENS) {
+      expect(custom.tokens[token]).toBe(porcelain().tokens[token]);
+    }
+  });
 });
 
 describe("validateTheme", () => {
@@ -81,6 +92,18 @@ describe("validateTheme", () => {
     expect(parsed.ok).toBe(false);
     if (!parsed.ok) {
       expect(parsed.errors.join(" ")).toContain("ground");
+    }
+  });
+
+  test("rejects a persisted theme that changes protected tokens", () => {
+    const tampered = JSON.parse(JSON.stringify(porcelain())) as {
+      tokens: Record<string, string>;
+    };
+    tampered.tokens.warn = "#00FF00";
+    const parsed = validateTheme(tampered);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.errors).toContain("protected token changed: warn");
     }
   });
 

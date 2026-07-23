@@ -180,4 +180,11 @@ describe("invalidationTargets", () => {
       ),
     ).toContain("notifications");
   });
+
+  test("falls back to a summary refresh for an unmodeled forward-compatible event", () => {
+    const envelope = fixtureEventEnvelope({
+      event_name: "execass.v1.future.changed" as never,
+    });
+    expect(invalidationTargets(envelope)).toEqual(["summary"]);
+  });
 });

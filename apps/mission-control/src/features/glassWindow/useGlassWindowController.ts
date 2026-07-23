@@ -24,29 +24,36 @@ export function useGlassWindowController(props: {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const refreshPromise = useRef<Promise<boolean> | null>(null);
+  const requestGeneration = useRef(0);
 
   const refresh = useCallback((): Promise<boolean> => {
     if (!tokenConfigured || !settings.gateway_url.trim()) {
+      requestGeneration.current += 1;
+      refreshPromise.current = null;
       setPresence(null);
       setChatter(null);
       setError("Connect CarsinOS to observe the Window.");
+      setLoading(false);
       return Promise.resolve(false);
     }
     if (refreshPromise.current) {
       return refreshPromise.current;
     }
     setLoading(true);
+    const generation = requestGeneration.current;
     const pending = Promise.all([
       getFloorPresence(settings),
       getOfficeChatter(settings),
     ])
       .then(([nextPresence, nextChatter]) => {
+        if (generation !== requestGeneration.current) return false;
         setPresence(nextPresence);
         setChatter(nextChatter);
         setError(null);
         return true;
       })
       .catch((reason: unknown) => {
+        if (generation !== requestGeneration.current) return false;
         setError(
           reason instanceof Error
             ? reason.message
@@ -55,8 +62,12 @@ export function useGlassWindowController(props: {
         return false;
       })
       .finally(() => {
-        setLoading(false);
-        refreshPromise.current = null;
+        if (generation === requestGeneration.current) {
+          setLoading(false);
+        }
+        if (refreshPromise.current === pending) {
+          refreshPromise.current = null;
+        }
       });
     refreshPromise.current = pending;
     return pending;
@@ -86,9 +97,6 @@ export function useGlassWindowController(props: {
           threadId,
           trimmed,
         );
-        setChatter(await getOfficeChatter(settings));
-        setError(null);
-        return true;
       } catch (reason) {
         setError(
           reason instanceof Error
@@ -97,6 +105,13 @@ export function useGlassWindowController(props: {
         );
         return false;
       }
+      try {
+        setChatter(await getOfficeChatter(settings));
+        setError(null);
+      } catch {
+        setError("Note sent, but the chatter feed could not refresh.");
+      }
+      return true;
     },
     [settings],
   );
