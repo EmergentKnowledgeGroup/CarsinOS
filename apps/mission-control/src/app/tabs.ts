@@ -20,6 +20,7 @@ export const MISSION_CONTROL_TABS: MissionControlTabItem[] = [
   { tab: "mail", label: "Mail", icon: "mail", shortcut: "4", tier: "core" },
   { tab: "chatrooms", label: "Rooms", icon: "messages-square", shortcut: "5", tier: "core" },
   { tab: "assistant", label: "Assistant", icon: "bot", shortcut: "6", tier: "core" },
+  { tab: "window", label: "The Window", icon: "waves", shortcut: "3", tier: "core" },
   { tab: "team", label: "Team", icon: "users", shortcut: "7", tier: "core" },
   { tab: "events", label: "Events", icon: "activity", shortcut: "8", tier: "advanced" },
   { tab: "cockpit", label: "Cockpit", icon: "gauge", shortcut: "9", tier: "advanced" },

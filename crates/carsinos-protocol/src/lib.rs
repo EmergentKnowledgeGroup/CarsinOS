@@ -3632,6 +3632,114 @@ pub struct ListAgentMailFileLeasesQuery {
     pub include_released: Option<bool>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListOfficeChatterQuery {
+    pub limit_rooms: Option<u32>,
+    pub limit_messages: Option<u32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FloorPresenceActivityResponse {
+    Busy,
+    Idle,
+    Recovering,
+    Offline,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FloorPresenceMoodResponse {
+    Focused,
+    Calm,
+    Recovering,
+    Offline,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FloorPresenceTargetKindResponse {
+    Delegation,
+    Session,
+    Run,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FloorPresenceTargetResponse {
+    pub kind: FloorPresenceTargetKindResponse,
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FloorPresenceItemResponse {
+    pub agent_id: String,
+    pub display_name: String,
+    pub activity: FloorPresenceActivityResponse,
+    pub activity_label: String,
+    pub mood: FloorPresenceMoodResponse,
+    pub observed_at_ms: Option<i64>,
+    pub source: String,
+    pub target: Option<FloorPresenceTargetResponse>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FloorPresenceResponse {
+    pub generated_at_ms: i64,
+    pub refresh_after_ms: i64,
+    pub items: Vec<FloorPresenceItemResponse>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct OfficeChatterRoomResponse {
+    pub thread_id: String,
+    pub workstream_id: String,
+    pub label: String,
+    pub unread_count: Option<i64>,
+    pub last_activity_at_ms: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct OfficeChatterAuthorResponse {
+    pub kind: String,
+    pub display_name: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct OfficeChatterSourceResponse {
+    pub kind: String,
+    pub event_name: Option<String>,
+    pub workstream_id: String,
+    pub revision: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct OfficeChatterMessageResponse {
+    pub message_id: String,
+    pub thread_id: String,
+    pub author: OfficeChatterAuthorResponse,
+    pub text: String,
+    pub created_at_ms: i64,
+    pub source: OfficeChatterSourceResponse,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct OfficeChatterResponse {
+    pub rooms: Vec<OfficeChatterRoomResponse>,
+    pub messages: Vec<OfficeChatterMessageResponse>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CreateOfficeChatterMessageRequest {
+    pub body_text: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CreateOfficeChatterMessageResponse {
+    pub message: OfficeChatterMessageResponse,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct AgentMailThreadSummaryResponse {
     pub thread_id: String,
@@ -3798,7 +3906,11 @@ pub struct ReleaseAgentMailFileLeaseResponse {
 
 #[cfg(test)]
 mod tests {
-    use super::{ws_event_entity_from_type, WsEventFrame, WS_EVENT_SCHEMA_VERSION_V1};
+    use super::{
+        ws_event_entity_from_type, FloorPresenceActivityResponse, FloorPresenceItemResponse,
+        FloorPresenceMoodResponse, FloorPresenceTargetKindResponse, FloorPresenceTargetResponse,
+        WsEventFrame, WS_EVENT_SCHEMA_VERSION_V1,
+    };
 
     #[test]
     fn ws_event_frame_populates_legacy_and_v1_fields() {
@@ -3835,5 +3947,42 @@ mod tests {
             "agent_mail.message"
         );
         assert_eq!(ws_event_entity_from_type("gateway.status"), "gateway");
+    }
+
+    #[test]
+    fn floor_presence_contract_preserves_observed_states_and_deep_link_kinds() {
+        let recovering = serde_json::to_value(FloorPresenceItemResponse {
+            agent_id: "agent-1".to_string(),
+            display_name: "Agent One".to_string(),
+            activity: FloorPresenceActivityResponse::Recovering,
+            activity_label: "Recovering".to_string(),
+            mood: FloorPresenceMoodResponse::Recovering,
+            observed_at_ms: Some(20_000),
+            source: "local_storage".to_string(),
+            target: Some(FloorPresenceTargetResponse {
+                kind: FloorPresenceTargetKindResponse::Delegation,
+                id: "delegation-1".to_string(),
+            }),
+        })
+        .expect("serialize recovering presence");
+        assert_eq!(recovering["activity"], "recovering");
+        assert_eq!(recovering["mood"], "recovering");
+        assert_eq!(recovering["target"]["kind"], "delegation");
+
+        assert_eq!(
+            serde_json::to_value(FloorPresenceActivityResponse::Offline)
+                .expect("serialize observed offline state"),
+            "offline"
+        );
+        assert_eq!(
+            serde_json::to_value(FloorPresenceTargetKindResponse::Session)
+                .expect("serialize session deep link"),
+            "session"
+        );
+        assert_eq!(
+            serde_json::to_value(FloorPresenceTargetKindResponse::Run)
+                .expect("serialize run deep link"),
+            "run"
+        );
     }
 }

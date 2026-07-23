@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import http from "node:http";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { WebSocketServer } from "ws";
 
 function parsePort(argv) {
@@ -38,8 +38,8 @@ function readJson(req) {
 
 function setCors(headers) {
   headers["Access-Control-Allow-Origin"] = "*";
-  headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS";
-  headers["Access-Control-Allow-Headers"] = "Authorization,Content-Type";
+  headers["Access-Control-Allow-Methods"] = "GET,POST,PUT,OPTIONS";
+  headers["Access-Control-Allow-Headers"] = "Authorization,Content-Type,Idempotency-Key,X-ExecAss-Owner-Proof,x-request-id";
 }
 
 function sendJson(res, code, payload) {
@@ -934,7 +934,366 @@ const seedState = {
   connectorInteractions: cloneSeed(connectorInteractions),
 };
 
+
+// ============================================================
+// ExecAss v1.1 mock (contracts/execass/v1) - the sole product truth
+// ============================================================
+let execassState = null;
+let officeOwnerMessages = [];
+
+function resetExecassState() {
+  officeOwnerMessages = [];
+  execassState = {
+    summaryRevision: 412,
+    globalSequence: 1000,
+    outbox: [],
+    intakeCount: 0,
+    stopAll: {
+      engaged: false,
+      drain_state: "disengaged",
+      stop_epoch: 0,
+      current_policy_revision: 7,
+      unresolved_effect_disclosure_digest: "sha256:disclosure-0",
+      unresolved_external_effect_refs: [],
+    },
+    resolved: {},
+    extraDelegations: [],
+  };
+}
+
+resetExecassState();
+
+function execassProofChallenge(decisionId, revision) {
+  return {
+    decision_id: decisionId,
+    decision_revision: revision,
+    normalized_intent_digest: "sha256:intent-" + decisionId,
+    policy_revision: 7,
+    canonical_manifest_digest: "sha256:manifest-" + decisionId,
+    selected_logical_action_id: "act-" + decisionId,
+    presented_action_digest: "sha256:action-" + decisionId,
+    declared_consequence_digest: "sha256:consequence-" + decisionId,
+    challenge_digest: "sha256:challenge-" + decisionId,
+    expires_at_ms: Date.now() + 3_600_000,
+  };
+}
+
+function execassDecision(decisionId, delegationId, revision, kind, fields) {
+  return {
+    decision_id: decisionId,
+    delegation_id: delegationId,
+    revision,
+    status: "pending",
+    kind,
+    assurance_required: "verified_owner_resolution",
+    recommendation: fields.recommendation,
+    why_now: fields.why_now,
+    consequence: fields.consequence,
+    alternatives: ["confirm_and_continue", "revise", "decline", "stop"],
+    exact_manifest_digest: "sha256:manifest-" + decisionId,
+    technical_resources: [
+      { kind: "connector_calls", limit: 10, reserved: 1, consumed: 0 },
+    ],
+    requested_at_ms: Date.now() - 600_000,
+    authoritative_deep_link: "carsinos://delegations/" + delegationId,
+    accepted_confirmation_grant: null,
+    challenge: {
+      decision_revision: revision,
+      exact_presented_action_or_alternative: "confirm_and_continue",
+      declared_consequence: fields.consequence,
+      nonce_or_token: "nonce-" + decisionId,
+      expires_at_ms: Date.now() + 3_600_000,
+    },
+    local_owner_proof_challenge: execassProofChallenge(decisionId, revision),
+    resolved_at_ms: null,
+    resolved_owner: null,
+    result: null,
+  };
+}
+
+function execassDelegationSummary(id, phase, intent, outcome, extra = {}) {
+  return {
+    delegation_id: id,
+    phase,
+    run_control: execassState.stopAll.engaged ? "stopped" : "running",
+    state_revision: 4,
+    intent_summary: intent,
+    outcome_summary: outcome,
+    policy_revision: 7,
+    stop_epoch: execassState.stopAll.stop_epoch,
+    created_at_ms: Date.now() - 3 * 3_600_000,
+    updated_at_ms: Date.now() - 120_000,
+    authoritative_deep_link: "carsinos://delegations/" + id,
+    acknowledged_at_ms: null,
+    pending_decision: null,
+    pending_external_wait: null,
+    terminal_at_ms: null,
+    ...extra,
+  };
+}
+
+function execassPendingDecisions() {
+  const pending = {};
+  if (!execassState.resolved["dec-mailchimp"]) {
+    pending["dec-mailchimp"] = execassDecision(
+      "dec-mailchimp",
+      "dlg-mailchimp",
+      3,
+      "dangerous_action_confirmation",
+      {
+        recommendation: "Close it. We're fully off it.",
+        why_now: "Migration to the new sender finished and passed verification.",
+        consequence:
+          "Permanent. All contacts are exported and verified - closing deletes the account for good.",
+      },
+    );
+  }
+  if (!execassState.resolved["dec-venue"]) {
+    pending["dec-venue"] = execassDecision(
+      "dec-venue",
+      "dlg-retreat",
+      1,
+      "clarification",
+      {
+        recommendation: "Harbor House",
+        why_now: "Both venues fit the budget; the meeting spaces differ.",
+        consequence: "Books the venue and confirms with the team.",
+      },
+    );
+  }
+  return pending;
+}
+
+function buildExecassSummary() {
+  const pending = execassPendingDecisions();
+  const needsYou = [];
+  if (pending["dec-mailchimp"]) {
+    needsYou.push({
+      attention_id: "att-mailchimp",
+      kind: "confirmation",
+      subject: {
+        scope_kind: "delegation",
+        delegation_id: "dlg-mailchimp",
+        delegation_revision: 12,
+      },
+      reason: "Closing the old Mailchimp account is permanent.",
+      recommendation: "Close it. We're fully off it.",
+      alternatives_or_actions: [
+        "confirm_and_continue",
+        "revise",
+        "decline",
+        "stop",
+      ],
+      assurance_required: "verified_owner_resolution",
+      deadline_reminder_state: "none",
+      authoritative_deep_link: "carsinos://delegations/dlg-mailchimp",
+      deadline_at_ms: null,
+      decision_id: "dec-mailchimp",
+      decision_kind: "dangerous_action_confirmation",
+      decision_revision: 3,
+    });
+  }
+  if (pending["dec-venue"]) {
+    needsYou.push({
+      attention_id: "att-venue",
+      kind: "clarification",
+      subject: {
+        scope_kind: "delegation",
+        delegation_id: "dlg-retreat",
+        delegation_revision: 4,
+      },
+      reason: "Retreat in October - which venue?",
+      recommendation: "Harbor House",
+      alternatives_or_actions: ["Harbor House", "The Pines", "Surprise me"],
+      assurance_required: "verified_owner_resolution",
+      deadline_reminder_state: "none",
+      authoritative_deep_link: "carsinos://delegations/dlg-retreat",
+      deadline_at_ms: null,
+      decision_id: "dec-venue",
+      decision_kind: "clarification",
+      decision_revision: 1,
+    });
+  }
+  const inMotion = [
+    execassDelegationSummary(
+      "dlg-retreat",
+      "in_motion",
+      "Plan the October team retreat",
+      execassState.resolved["dec-venue"]
+        ? "Booking the venue and confirming with the team"
+        : "Drafting the agenda - section 3 of 5",
+    ),
+    execassDelegationSummary(
+      "dlg-hartline",
+      "waiting_external",
+      "Get the Hartline contract signed",
+      "Waiting on their signature - nothing for you to do",
+      { pending_external_wait: "Awaiting countersignature from Hartline" },
+    ),
+  ];
+  if (execassState.resolved["dec-mailchimp"] === "confirm_and_continue") {
+    inMotion.push(
+      execassDelegationSummary(
+        "dlg-mailchimp",
+        "in_motion",
+        "Close the old Mailchimp account",
+        "Confirmed - closing the account now",
+      ),
+    );
+  }
+  for (const extra of execassState.extraDelegations) {
+    inMotion.push(extra);
+  }
+  return {
+    needs_you: needsYou,
+    in_motion: inMotion,
+    done: [
+      execassDelegationSummary(
+        "dlg-q3-report",
+        "completed",
+        "Send the Q3 supplier report",
+        "Sent at 6:12 and opened by Hartline",
+        { terminal_at_ms: Date.now() - 3 * 3_600_000 },
+      ),
+      execassDelegationSummary(
+        "dlg-list-cleanup",
+        "partially_completed",
+        "Clean up the newsletter list",
+        "96% done - 12 bounced addresses still re-verifying",
+        { terminal_at_ms: Date.now() - 2 * 3_600_000 },
+      ),
+    ],
+    next: [
+      {
+        next_item_id: "next-quarterly-review",
+        kind: "routine",
+        summary: "Quarterly planning review",
+        authoritative_deep_link: "carsinos://jobs/quarterly-review",
+        delegation_id: null,
+        due_at_ms: null,
+        scheduled_for_ms: Date.now() + 72 * 3_600_000,
+      },
+      {
+        next_item_id: "next-nadia",
+        kind: "commitment",
+        summary: "Promised reply to Nadia",
+        authoritative_deep_link: "carsinos://mail/nadia",
+        delegation_id: null,
+        due_at_ms: Date.now() + 24 * 3_600_000,
+        scheduled_for_ms: null,
+      },
+    ],
+    receipts: [buildExecassReceipt("dlg-q3-report", 8841)],
+    displayed: {
+      cursor: "cursor-" + execassState.summaryRevision,
+      displayed_at_ms: Date.now(),
+      delivered: [],
+    },
+  };
+}
+
+function buildExecassReceipt(delegationId, sequence) {
+  return {
+    receipt_id: "rcpt-" + sequence,
+    scope: {
+      scope_kind: "delegation",
+      delegation_id: delegationId,
+      delegation_sequence: 9,
+    },
+    global_sequence: sequence,
+    receipt_kind: "completion",
+    subject_kind: "delegation",
+    subject_id: delegationId,
+    subject_revision: 9,
+    occurred_at_ms: Date.now() - 3 * 3_600_000,
+    committed_at_ms: Date.now() - 3 * 3_600_000 + 250,
+    evidence_refs: [
+      {
+        authority_kind: "run",
+        source_id: "run-411",
+        authoritative_revision: 2,
+        authority_link_id: "link-1",
+        observation_digest: "sha256:obs-1",
+        deep_link: "carsinos://runs/run-411",
+      },
+    ],
+    receipt_digest: "sha256:receipt-" + sequence,
+    key_id: "key-1",
+    key_generation: 1,
+    integrity_tag: "hmac:tag-1",
+    safe_summary: "Q3 supplier report sent and opened",
+    delegation_previous_receipt_digest: null,
+    global_previous_receipt_digest: null,
+    previous_key_integrity_tag: null,
+  };
+}
+
+function execassApiError(res, status, code, message, retryable) {
+  sendJson(res, status, {
+    code,
+    safe_human_message: message,
+    retryable,
+    correlation_id: "corr-" + Math.random().toString(16).slice(2, 10),
+    safe_for_display: true,
+    exposes_sensitive_metadata: false,
+  });
+}
+
+function broadcastExecassEvent(eventName, safePayload) {
+  execassState.globalSequence += 1;
+  const envelope = {
+    event_name: eventName,
+    aggregate_id: safePayload.delegation_id || "summary",
+    revision: execassState.summaryRevision,
+    correlation_id: "corr-evt-" + execassState.globalSequence,
+    causation_id: "cause-evt-" + execassState.globalSequence,
+    occurred_at_ms: Date.now(),
+    schema_version: "v1",
+    safe_payload: {
+      summary: safePayload.summary,
+      authoritative_deep_link: safePayload.authoritative_deep_link ?? null,
+      decision_id: safePayload.decision_id ?? null,
+      delegation_id: safePayload.delegation_id ?? null,
+      receipt_ref: safePayload.receipt_ref ?? null,
+    },
+    global_sequence: execassState.globalSequence,
+    duplicate_identity: "dup-" + execassState.globalSequence,
+  };
+  execassState.outbox.push(envelope);
+  const frame = JSON.stringify({ type: "execass.v1.event", event: envelope });
+  for (const client of wsClients) {
+    if (client.readyState === 1 && client.execassResumed) {
+      client.send(frame);
+    }
+  }
+}
+
+function handleExecassResume(socket, request) {
+  const cursor = Number(request.cursor ?? 0);
+  const head = execassState.globalSequence;
+  if (!Number.isFinite(cursor) || cursor < 0 || cursor > head) {
+    socket.send(
+      JSON.stringify({
+        type: "execass.v1.summary_refetch_required",
+        reason: cursor > head ? "future_cursor" : "invalid_cursor",
+        consumer_cursor: head,
+        requested_cursor: cursor,
+        head_global_sequence: head,
+      }),
+    );
+    socket.execassResumed = false;
+    return;
+  }
+  socket.execassResumed = true;
+  for (const envelope of execassState.outbox) {
+    if (envelope.global_sequence > cursor && socket.readyState === 1) {
+      socket.send(JSON.stringify({ type: "execass.v1.event", event: envelope }));
+    }
+  }
+}
+
 function resetMockState() {
+  resetExecassState();
   Object.assign(board, cloneSeed(seedState.board));
   replaceArray(columns, seedState.columns);
   replaceArray(cards, seedState.cards);
@@ -2703,157 +3062,6 @@ function broadcastWsEvent(overrides = {}) {
   return event;
 }
 
-function assistantDeskWorkItem(overrides) {
-  const now = Date.now();
-  return {
-    id: "run:desk-default",
-    kind: "run",
-    bucket: "working",
-    status: "working",
-    title: "Tracking assistant handoff",
-    owner_label: "ExecAss",
-    task_label: "Assistant work",
-    current_action: "Collecting updates for the operator.",
-    last_event_at: new Date(now - 20_000).toISOString(),
-    last_event_at_ms: now - 20_000,
-    source_refs: [{ source: "run", id: "desk-default", label: "Assistant work" }],
-    deep_links: [],
-    details: {
-      provider_label: "LM Studio",
-      model_label: "qwen3.5-9b-instruct",
-      workspace_label: "carsinos",
-      source_health: "fresh",
-      last_error: null,
-    },
-    transcript_id: "transcript:run:desk-default",
-    can_open_transcript: true,
-    transcript_unavailable_reason: null,
-    artifact_count: 0,
-    changed_file_count: 0,
-    ...overrides,
-  };
-}
-
-function buildAssistantDeskPayload() {
-  const now = Date.now();
-  const needsYou = [
-    assistantDeskWorkItem({
-      id: "run:approval-001",
-      kind: "approval",
-      bucket: "needs_you",
-      status: "needs_you",
-      title: "Review shell approval",
-      task_label: "Operator approval",
-      current_action: "Waiting for you to approve or deny a shell command.",
-      last_event_at: new Date(now - 8_000).toISOString(),
-      last_event_at_ms: now - 8_000,
-      source_refs: [
-        { source: "run", id: "run-pending-001", label: "Assistant work" },
-        { source: "approval", id: "approval-001", label: "Approval" },
-      ],
-      transcript_id: "transcript:run:approval-001",
-    }),
-  ];
-  const working = [
-    assistantDeskWorkItem({
-      id: "run:worker-001",
-      title: "Checking local model route",
-      current_action: "Confirming the selected assistant can answer through the local provider.",
-      last_event_at: new Date(now - 24_000).toISOString(),
-      last_event_at_ms: now - 24_000,
-      transcript_id: "transcript:run:worker-001",
-    }),
-    assistantDeskWorkItem({
-      id: "run:worker-002",
-      title: "Reading current workspace state",
-      current_action: "Looking at open tasks and recent messages.",
-      last_event_at: new Date(now - 55_000).toISOString(),
-      last_event_at_ms: now - 55_000,
-      transcript_id: "transcript:run:worker-002",
-      changed_file_count: 2,
-    }),
-    assistantDeskWorkItem({
-      id: "run:worker-003",
-      title: "Preparing a short status note",
-      current_action: "Summarizing what changed and what still needs attention.",
-      last_event_at: new Date(now - 92_000).toISOString(),
-      last_event_at_ms: now - 92_000,
-      transcript_id: "transcript:run:worker-003",
-      artifact_count: 1,
-    }),
-    assistantDeskWorkItem({
-      id: "run:worker-004",
-      title: "Watching channel health",
-      current_action: "Keeping an eye on connected message sources.",
-      last_event_at: new Date(now - 118_000).toISOString(),
-      last_event_at_ms: now - 118_000,
-      transcript_id: "transcript:run:worker-004",
-    }),
-  ];
-  const doneRecently = [
-    assistantDeskWorkItem({
-      id: "run:done-001",
-      bucket: "done_recently",
-      status: "done",
-      title: "Saved assistant notes",
-      current_action: "Finished and ready to review.",
-      last_event_at: new Date(now - 180_000).toISOString(),
-      last_event_at_ms: now - 180_000,
-      transcript_id: "transcript:run:done-001",
-      artifact_count: 1,
-    }),
-  ];
-  return {
-    generated_at: new Date(now).toISOString(),
-    stale: false,
-    buckets: {
-      needs_you: needsYou,
-      working,
-      done_recently: doneRecently,
-    },
-    summary: {
-      needs_you_count: needsYou.length,
-      working_count: working.length,
-      done_recently_count: doneRecently.length,
-      stale_count: 0,
-    },
-  };
-}
-
-function buildAssistantDeskTranscript(workItemId) {
-  const now = Date.now();
-  return {
-    work_item_id: workItemId,
-    transcript_id: `transcript:${workItemId}`,
-    title: workItemId.includes("approval") ? "Review shell approval" : "Assistant work",
-    complete: true,
-    next_cursor: null,
-    events: [
-      {
-        id: `${workItemId}:event:1`,
-        at: new Date(now - 90_000).toISOString(),
-        role: "system",
-        source: "assistant",
-        title: "Started",
-        text: "ExecAss started tracking this item.",
-        body_markdown: "ExecAss started tracking **this item** and attached it to the Desk.",
-        artifact_refs: [],
-      },
-      {
-        id: `${workItemId}:event:2`,
-        at: new Date(now - 45_000).toISOString(),
-        role: "assistant",
-        source: "assistant",
-        title: "Current note",
-        text: "The next action is ready for review.",
-        body_markdown: "- Current action is visible.\n- Transcript text renders as markdown.",
-        artifact_refs: [],
-      },
-    ],
-    artifacts: [],
-  };
-}
-
 async function routeRequest(req, res) {
   const requestUrl = new URL(req.url ?? "/", `http://${req.headers.host ?? "127.0.0.1"}`);
   if (verbose) {
@@ -2911,17 +3119,386 @@ async function routeRequest(req, res) {
     return;
   }
 
-  if (req.method === "GET" && requestUrl.pathname === "/api/v1/assistant-desk") {
-    sendJson(res, 200, buildAssistantDeskPayload());
+  if (
+    req.method === "GET" &&
+    requestUrl.pathname === "/api/v1/office/floor-presence"
+  ) {
+    sendJson(res, 200, {
+      generated_at_ms: Date.now(),
+      refresh_after_ms: 5_000,
+      items: [
+        {
+          agent_id: "agent-execass",
+          display_name: "ExecAss",
+          activity: "busy",
+          activity_label: "Working",
+          mood: "focused",
+          observed_at_ms: Date.now() - 2_000,
+          source: "local_storage",
+          target: { kind: "run", id: "run-office-e2e" },
+        },
+        {
+          agent_id: "agent-reef",
+          display_name: "Reef",
+          activity: "unknown",
+          activity_label: "No recent observation",
+          mood: "unknown",
+          observed_at_ms: null,
+          source: "local_storage",
+          target: null,
+        },
+      ],
+    });
     return;
   }
 
-  const assistantDeskTranscriptMatch = requestUrl.pathname.match(
-    /^\/api\/v1\/assistant-desk\/([^/]+)\/transcript$/
+  if (
+    req.method === "GET" &&
+    requestUrl.pathname === "/api/v1/office/chatter"
+  ) {
+    const seededMessage = {
+      message_id: "office-message-e2e-1",
+      thread_id: "office-thread-main",
+      author: { kind: "execass", display_name: "ExecAss" },
+      text: "The launch brief moved into active work.",
+      created_at_ms: Date.now() - 30_000,
+      source: {
+        kind: "execass_event",
+        event_name: "delegation.transition",
+        workstream_id: "main",
+        revision: 1,
+      },
+    };
+    const messages = [seededMessage, ...officeOwnerMessages];
+    sendJson(res, 200, {
+      rooms: [
+        {
+          thread_id: "office-thread-main",
+          workstream_id: "main",
+          label: "Main workstream",
+          unread_count: null,
+          last_activity_at_ms: Math.max(
+            ...messages.map((message) => message.created_at_ms),
+          ),
+        },
+      ],
+      messages,
+    });
+    return;
+  }
+
+  const officeChatterPostMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/office\/chatter\/rooms\/([^/]+)\/messages$/,
   );
-  if (req.method === "GET" && assistantDeskTranscriptMatch) {
-    const workItemId = decodeURIComponent(assistantDeskTranscriptMatch[1]);
-    sendJson(res, 200, buildAssistantDeskTranscript(workItemId));
+  if (req.method === "POST" && officeChatterPostMatch) {
+    const body = await readJson(req);
+    const bodyText = typeof body?.body_text === "string" ? body.body_text.trim() : "";
+    if (!bodyText || bodyText.length > 1_000) {
+      sendJson(res, 400, {
+        safe_human_message: "Keep the note between 1 and 1000 characters.",
+      });
+      return;
+    }
+    const message = {
+      message_id: `office-owner-${officeOwnerMessages.length + 1}`,
+      thread_id: decodeURIComponent(officeChatterPostMatch[1]),
+      author: { kind: "owner", display_name: "Owner" },
+      text: bodyText,
+      created_at_ms: Date.now(),
+      source: {
+        kind: "owner_message",
+        event_name: null,
+        workstream_id: "main",
+        revision: null,
+      },
+    };
+    officeOwnerMessages.push(message);
+    sendJson(res, 201, { message });
+    return;
+  }
+
+  if (req.method === "GET" && requestUrl.pathname === "/api/v1/execass/summary") {
+    sendJson(res, 200, buildExecassSummary());
+    return;
+  }
+
+  if (req.method === "POST" && requestUrl.pathname === "/api/v1/execass/summary/ack") {
+    const body = await readJson(req);
+    sendJson(res, 200, {
+      acknowledged: true,
+      displayed: body?.displayed ?? {
+        cursor: "cursor-" + execassState.summaryRevision,
+        displayed_at_ms: Date.now(),
+        delivered: [],
+      },
+      acknowledged_at_ms: Date.now(),
+    });
+    return;
+  }
+
+  if (req.method === "POST" && requestUrl.pathname === "/api/v1/execass/intake") {
+    const proofHeader = req.headers["x-execass-owner-proof"];
+    if (!proofHeader || String(proofHeader).trim().length === 0) {
+      execassApiError(
+        res,
+        403,
+        "execass.v1.authority_denied",
+        "Verified native-owner authority is required.",
+        false,
+      );
+      return;
+    }
+    const body = await readJson(req);
+    const text = String(body?.text ?? "");
+    if (
+      (req.headers["idempotency-key"] ?? "") !== (body?.idempotency_key ?? "!")
+    ) {
+      execassApiError(
+        res,
+        400,
+        "execass.v1.invalid_request",
+        "The request is invalid.",
+        false,
+      );
+      return;
+    }
+    if (text.trim().endsWith("?")) {
+      sendJson(res, 200, {
+        kind: "conversational",
+        response_text:
+          "Both June invoices are already paid - nothing to chase.",
+        request_audit_ref: "audit-" + (execassState.intakeCount += 1),
+      });
+      return;
+    }
+    execassState.intakeCount += 1;
+    const delegation = execassDelegationSummary(
+      "dlg-intake-" + execassState.intakeCount,
+      "accepted",
+      text.trim(),
+      "Accepted - planning next",
+    );
+    execassState.extraDelegations.push(delegation);
+    execassState.summaryRevision += 1;
+    broadcastExecassEvent("execass.v1.summary.changed", {
+      summary: "Summary changed",
+    });
+    sendJson(res, 200, { kind: "delegation", delegation, created: true });
+    return;
+  }
+
+  const execassDelegationMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/execass\/delegations\/([^/]+)$/
+  );
+  if (req.method === "GET" && execassDelegationMatch) {
+    const delegationId = decodeURIComponent(execassDelegationMatch[1]);
+    const pending = execassPendingDecisions();
+    const decision =
+      Object.values(pending).find((d) => d.delegation_id === delegationId) ??
+      null;
+    const summaryNow = buildExecassSummary();
+    const known = [...summaryNow.in_motion, ...summaryNow.done].find(
+      (d) => d.delegation_id === delegationId,
+    );
+    const delegation =
+      known ??
+      execassDelegationSummary(
+        delegationId,
+        decision ? "waiting_for_user" : "in_motion",
+        delegationId === "dlg-mailchimp"
+          ? "Close the old Mailchimp account"
+          : "Delegated work",
+        decision ? "Waiting on your word" : "In motion",
+      );
+    delegation.pending_decision = decision;
+    sendJson(res, 200, {
+      detail: {
+        delegation,
+        original_intent: delegation.intent_summary,
+        plan_summary: "Plan on record",
+        actions: [],
+        continuations: [],
+        effects: [],
+        completion_verifiers: [],
+        outcome_criteria: [],
+        authority_snapshot_ref: "auth-1",
+        immutable_intake_evidence_ref: "evid-1",
+        ingress_source: "local",
+        internal_record_refs: [],
+        source_correlation_id: "corr-detail",
+        technical_resource_summary: "well within quota",
+        receipt_chain_head: null,
+        recovery: null,
+      },
+    });
+    return;
+  }
+
+  const execassReceiptsMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/execass\/delegations\/([^/]+)\/receipts$/
+  );
+  if (req.method === "GET" && execassReceiptsMatch) {
+    const delegationId = decodeURIComponent(execassReceiptsMatch[1]);
+    sendJson(res, 200, {
+      delegation_id: delegationId,
+      receipts:
+        delegationId === "dlg-q3-report"
+          ? [buildExecassReceipt(delegationId, 8841)]
+          : [buildExecassReceipt(delegationId, 9001)],
+      receipt_chain_head: "sha256:receipt-head",
+    });
+    return;
+  }
+
+  const execassResolveMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/execass\/decisions\/([^/]+)\/resolve$/
+  );
+  if (req.method === "POST" && execassResolveMatch) {
+    const decisionId = decodeURIComponent(execassResolveMatch[1]);
+    const body = await readJson(req);
+    const pending = execassPendingDecisions();
+    const decision = pending[decisionId];
+    if (!decision) {
+      execassApiError(
+        res,
+        409,
+        "execass.v1.decision_superseded",
+        "This decision is no longer current.",
+        false,
+      );
+      return;
+    }
+    if (body?.decision_revision !== decision.revision) {
+      execassApiError(
+        res,
+        409,
+        "execass.v1.revision_conflict",
+        "The work changed before this request could be applied.",
+        true,
+      );
+      return;
+    }
+    if (!body?.local_proof?.proof_hex || !body?.local_proof_binding) {
+      execassApiError(
+        res,
+        403,
+        "execass.v1.decision_assurance_required",
+        "A verified owner decision is required.",
+        false,
+      );
+      return;
+    }
+    const optionalTextDigest = (value) =>
+      value === null || value === undefined
+        ? null
+        : createHash("sha256").update(String(value), "utf8").digest("hex");
+    if (
+      body.local_proof_binding.challenge_response_digest !==
+        optionalTextDigest(body.challenge_response) ||
+      body.local_proof_binding.revision_text_digest !==
+        optionalTextDigest(body.revision_text)
+    ) {
+      execassApiError(
+        res,
+        400,
+        "execass.v1.invalid_request",
+        "The verified decision details do not match this request.",
+        false,
+      );
+      return;
+    }
+    execassState.resolved[decisionId] = body.result;
+    execassState.summaryRevision += 1;
+    broadcastExecassEvent("execass.v1.decision.recorded", {
+      summary: "Decision recorded",
+      decision_id: decisionId,
+      delegation_id: decision.delegation_id,
+    });
+    broadcastExecassEvent("execass.v1.summary.changed", {
+      summary: "Summary changed",
+    });
+    const summaryNow = buildExecassSummary();
+    const delegation =
+      summaryNow.in_motion.find(
+        (d) => d.delegation_id === decision.delegation_id,
+      ) ??
+      execassDelegationSummary(
+        decision.delegation_id,
+        "in_motion",
+        decision.recommendation,
+        "Confirmed - continuing",
+      );
+    sendJson(res, 200, {
+      decision: {
+        ...decision,
+        status: "resolved",
+        result: body.result,
+        resolved_at_ms: Date.now(),
+        resolved_owner: {
+          ingress: "local_owner_session",
+          verified_evidence_ref: "evidence-e2e",
+        },
+      },
+      delegation,
+      continuation_id: "cont-" + decisionId,
+    });
+    return;
+  }
+
+  if (req.method === "GET" && requestUrl.pathname === "/api/v1/execass/stop-all") {
+    sendJson(res, 200, execassState.stopAll);
+    return;
+  }
+
+  if (req.method === "POST" && requestUrl.pathname === "/api/v1/execass/stop-all") {
+    const body = await readJson(req);
+    if (!body?.local_proof?.proof_hex || !body?.binding) {
+      execassApiError(
+        res,
+        403,
+        "execass.v1.authority_denied",
+        "The action cannot be executed with the currently verified authority.",
+        false,
+      );
+      return;
+    }
+    execassState.stopAll = {
+      ...execassState.stopAll,
+      engaged: true,
+      drain_state: "drained",
+      stop_epoch: execassState.stopAll.stop_epoch + 1,
+    };
+    broadcastExecassEvent("execass.v1.global_stop.changed", {
+      summary: "Global stop engaged",
+    });
+    sendJson(res, 200, execassState.stopAll);
+    return;
+  }
+
+  if (req.method === "POST" && requestUrl.pathname === "/api/v1/execass/resume-all") {
+    const body = await readJson(req);
+    if (!body?.local_proof?.proof_hex || !body?.binding?.resume) {
+      execassApiError(
+        res,
+        403,
+        "execass.v1.authority_denied",
+        "The action cannot be executed with the currently verified authority.",
+        false,
+      );
+      return;
+    }
+    execassState.stopAll = {
+      ...execassState.stopAll,
+      engaged: false,
+      drain_state: "disengaged",
+    };
+    broadcastExecassEvent("execass.v1.global_stop.changed", {
+      summary: "Global stop released",
+    });
+    sendJson(res, 200, {
+      resumed_at_ms: Date.now(),
+      stop_all: execassState.stopAll,
+    });
     return;
   }
 
@@ -4364,6 +4941,19 @@ async function routeRequest(req, res) {
   }
 
   if (
+    req.method === "GET"
+    && requestUrl.pathname === "/api/v1/channels/discord/pairing/status"
+  ) {
+    sendJson(res, 200, {
+      dm_policy: channelConfig.discord.dm_policy,
+      pending_requests: [],
+      blocked_senders: [],
+      updated_at: Date.now(),
+    });
+    return;
+  }
+
+  if (
     req.method === "POST"
     && requestUrl.pathname === "/api/v1/channels/telegram/pairing/approve"
   ) {
@@ -4766,12 +5356,33 @@ const wsServer = new WebSocketServer({ noServer: true });
 
 wsServer.on("connection", (socket) => {
   wsClients.add(socket);
+  socket.execassResumed = false;
+  // The real gateway announces itself first; the ExecAss resume follows it.
+  socket.send(
+    JSON.stringify(
+      buildWsEvent({
+        event_type: "gateway.status",
+        entity: "gateway",
+        payload: { domain: "system", severity: "info", summary: "connected" },
+      })
+    )
+  );
   socket.send(JSON.stringify(buildWsEvent()));
   const intervalId = setInterval(() => {
     if (socket.readyState === 1) {
       socket.send(JSON.stringify(buildWsEvent()));
     }
   }, 2_000);
+  socket.on("message", (data) => {
+    try {
+      const parsed = JSON.parse(String(data));
+      if (parsed && parsed.type === "execass.v1.resume") {
+        handleExecassResume(socket, parsed);
+      }
+    } catch {
+      // Ignore malformed client frames, like the real gateway.
+    }
+  });
   socket.on("close", () => {
     clearInterval(intervalId);
     wsClients.delete(socket);

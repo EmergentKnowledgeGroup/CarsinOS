@@ -11,6 +11,9 @@ import { ChatroomsPage } from "../features/agentMail/ChatroomsPage";
 import { MailPage } from "../features/agentMail/MailPage";
 import { useAgentMailController } from "../features/agentMail/useAgentMailController";
 import { AssistantChatPage } from "../features/assistant/AssistantChatPage";
+import type { ExecassOfficeController } from "../features/execassOffice/useExecassOfficeController";
+import { GlassWindowPage } from "../features/glassWindow/GlassWindowPage";
+import type { GlassWindowController } from "../features/glassWindow/useGlassWindowController";
 import type { useAssistantChatController } from "../features/assistant/useAssistantChatController";
 import { BoardsPage } from "../features/boards/BoardsPage";
 import { useBoardsController } from "../features/boards/useBoardsController";
@@ -59,6 +62,8 @@ interface AppContentProps {
   missionControl: ReturnType<typeof useMissionControlController>;
   mailController: ReturnType<typeof useAgentMailController>;
   assistantController: ReturnType<typeof useAssistantChatController>;
+  officeController: ExecassOfficeController;
+  glassWindowController: GlassWindowController;
   cockpitController: ReturnType<typeof useCockpitController>;
   strategyController: ReturnType<typeof useStrategyController>;
   runbookController: ReturnType<typeof useRunbookController>;
@@ -726,6 +731,7 @@ export function AppContent(props: AppContentProps) {
           boards={props.boards}
           onTabChange={props.onTabChange}
           controller={props.assistantController}
+          officeController={props.officeController}
           runbookEnabled={runbookReady}
           runbookSummary={
             props.assistantController.lastRunId
@@ -738,6 +744,21 @@ export function AppContent(props: AppContentProps) {
           }
           onOpenAssistantRunbook={(runId) => openRunbook("assistant_session_run", runId)}
         />
+      </TabBoundaryPane>
+
+      <TabBoundaryPane
+        tab="window"
+        active={active === "window"}
+        resetVersion={props.tabResetVersion.window ?? 0}
+        forceCrashToken={forceCrashToken}
+        title="The Window crashed."
+        subtitle="Reef and Office Chatter ran into an unexpected runtime error."
+        events={tabEvents}
+        onResetTabState={props.onResetTabState}
+        onEnterSafeMode={props.onEnterSafeMode}
+      >
+        {renderQuickGuide("window")}
+        <GlassWindowPage controller={props.glassWindowController} />
       </TabBoundaryPane>
 
       <TabBoundaryPane

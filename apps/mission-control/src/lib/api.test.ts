@@ -7,8 +7,6 @@ import {
   createSessionRun,
   fetchBoardCardAssetBlob,
   GatewayApiError,
-  getAssistantDesk,
-  getAssistantDeskTranscript,
   getAgentMemoryGraphNeighbors,
   getAgentMemoryStatus,
   getJobHistory,
@@ -191,78 +189,6 @@ describe("request URL resolution", () => {
         kind: "timeout",
         path: "/api/v1/health",
       } satisfies Partial<GatewayApiError>
-    );
-  });
-
-  it("fetches the Assistant Desk read model with bearer auth", async () => {
-    const responseBody = {
-      generated_at: "2026-05-17T00:00:00Z",
-      stale: false,
-      buckets: {
-        needs_you: [],
-        working: [],
-        done_recently: [],
-      },
-      summary: {
-        needs_you_count: 0,
-        working_count: 0,
-        done_recently_count: 0,
-        stale_count: 0,
-      },
-    };
-    const fetchMock = vi.fn().mockImplementation(async () =>
-      new Response(JSON.stringify(responseBody), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
-    );
-    vi.stubGlobal("fetch", fetchMock);
-
-    await expect(getAssistantDesk({ gateway_url: "http://127.0.0.1:19789" })).resolves.toEqual(
-      responseBody
-    );
-    expect(fetchMock).toHaveBeenCalledWith(
-      "http://127.0.0.1:19789/api/v1/assistant-desk",
-      expect.objectContaining({
-        method: "GET",
-        headers: expect.objectContaining({
-          Authorization: "Bearer token-123",
-        }),
-      })
-    );
-  });
-
-  it("encodes Assistant Desk transcript IDs and cursors", async () => {
-    const responseBody = {
-      transcript_id: "fallback:run:abc/def",
-      work_item_id: "run:abc/def",
-      events: [],
-      complete: true,
-      next_cursor: null,
-    };
-    const fetchMock = vi.fn().mockImplementation(async () =>
-      new Response(JSON.stringify(responseBody), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
-    );
-    vi.stubGlobal("fetch", fetchMock);
-
-    await expect(
-      getAssistantDeskTranscript(
-        { gateway_url: "http://127.0.0.1:19789" },
-        "run:abc/def",
-        "older cursor"
-      )
-    ).resolves.toEqual(responseBody);
-    expect(fetchMock).toHaveBeenCalledWith(
-      "http://127.0.0.1:19789/api/v1/assistant-desk/run%3Aabc%2Fdef/transcript?cursor=older+cursor",
-      expect.objectContaining({
-        method: "GET",
-        headers: expect.objectContaining({
-          Authorization: "Bearer token-123",
-        }),
-      })
     );
   });
 

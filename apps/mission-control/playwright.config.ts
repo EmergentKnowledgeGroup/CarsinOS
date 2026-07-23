@@ -5,6 +5,7 @@ const gatewayPort = 19_789;
 const localBaseUrl = `http://127.0.0.1:${appPort}`;
 const externalBaseUrl = process.env.MC_E2E_BASE_URL?.trim();
 const hasExternalBaseUrl = Boolean(externalBaseUrl);
+const browserChannel = process.env.MC_E2E_BROWSER_CHANNEL?.trim();
 
 export default defineConfig({
   testDir: "./e2e",
@@ -18,6 +19,7 @@ export default defineConfig({
   reporter: "list",
   use: {
     baseURL: externalBaseUrl || localBaseUrl,
+    ...(browserChannel ? { channel: browserChannel } : {}),
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure",

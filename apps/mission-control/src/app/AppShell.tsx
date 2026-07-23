@@ -1,10 +1,12 @@
 ﻿import { useState, useEffect, useCallback, useRef } from "react";
 import clsx from "clsx";
+import { useMemo } from "react";
 import type { ReactNode } from "react";
-import { MISSION_CONTROL_TABS } from "./tabs";
 import { useKeyboardShortcuts } from "./useKeyboardShortcuts";
 import { useTheme } from "./useTheme";
 import type { MissionControlTab } from "./useAppController";
+import { DEFAULT_FLOORS, resolveElevator } from "../glass/floors";
+import { loadGlassConfig } from "../glass/config";
 import { Badge } from "../ui/Badge";
 import { Chip } from "../ui/Chip";
 import { CommandPalette } from "../ui/CommandPalette";
@@ -27,6 +29,7 @@ import {
   Cable,
   Compass,
   Workflow,
+  Waves,
   X,
   Command,
   Minimize2,
@@ -34,8 +37,6 @@ import {
   PanelRightOpen,
   PanelRightClose,
   Lightbulb,
-  ChevronDown,
-  ChevronRight,
 } from "lucide-react";
 import { NotificationCenter } from "../ui/NotificationCenter";
 import { ThemeDropdown } from "../ui/ThemeDropdown";
@@ -57,6 +58,7 @@ const NAV_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
   gauge: Gauge,
   compass: Compass,
   workflow: Workflow,
+  waves: Waves,
   brain: Brain,
   cable: Cable,
   "book-open": BookOpen,
@@ -153,24 +155,29 @@ function applyDensity(density: "comfortable" | "compact") {
   localStorage.setItem(STORAGE_KEYS.density, density);
 }
 
-function shouldOpenAdvancedNavForHarness(): boolean {
-  if (typeof window === "undefined") return false;
-  return new URLSearchParams(window.location.search).get("e2e") === "1";
-}
-
 /* ── Component ─────────────────────────────────────────────────────── */
 
 export function AppShell(props: AppShellProps) {
-  const activeTabIsAdvanced = MISSION_CONTROL_TABS.some(
-    (item) => item.tab === props.activeTab && item.tier === "advanced"
+  const glassConfig = useMemo(() => loadGlassConfig(), []);
+  const elevatorFloors = useMemo(
+    () =>
+      resolveElevator(DEFAULT_FLOORS, {
+        capabilities: ["execass", "agent-mail"],
+        overrides: glassConfig.floorOverrides,
+      })
+        .map((floor) => ({
+          ...floor,
+          rooms: floor.rooms.filter((room) =>
+            props.availableTabs.includes(room.route),
+          ),
+        }))
+        .filter((floor) => floor.rooms.length > 0),
+    [glassConfig.floorOverrides, props.availableTabs],
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
   const [clearTokenConfirmOpen, setClearTokenConfirmOpen] = useState(false);
   const [settingsFocusTarget, setSettingsFocusTarget] = useState<"live-feed" | null>(null);
-  const [advancedNavOpen, setAdvancedNavOpen] = useState(
-    activeTabIsAdvanced || shouldOpenAdvancedNavForHarness()
-  );
   const [settingsFeatureOpen, setSettingsFeatureOpen] = useState(false);
   const [settingsAssistantOpen, setSettingsAssistantOpen] = useState(false);
   const [gwUrlHistory, setGwUrlHistory] = useState<string[]>(getGatewayUrlHistory);
@@ -200,7 +207,7 @@ export function AppShell(props: AppShellProps) {
   }, [incidentMode, onIncidentModeChange]);
   const toggleCommandPalette = useCallback(() => {
     setCmdPaletteOpen((open) => !open);
-  }, []);
+  }, [setCmdPaletteOpen]);
 
   const handleClearToken = () => {
     setClearTokenConfirmOpen(true);
@@ -233,7 +240,13 @@ export function AppShell(props: AppShellProps) {
       setSettingsOpen(false);
       setSettingsFocusTarget(null);
     }
-  }, [cmdPaletteOpen, settingsOpen]);
+  }, [
+    cmdPaletteOpen,
+    settingsOpen,
+    setCmdPaletteOpen,
+    setSettingsFocusTarget,
+    setSettingsOpen,
+  ]);
 
   const handleSaveAndConnect = () => {
     pushGatewayUrlHistory(props.gatewayDraft);
@@ -246,7 +259,7 @@ export function AppShell(props: AppShellProps) {
   const closeSettings = useCallback(() => {
     setSettingsOpen(false);
     setSettingsFocusTarget(null);
-  }, []);
+  }, [setSettingsFocusTarget, setSettingsOpen]);
 
   const handleOpenGuidedTourFromSettings = useCallback(() => {
     setSettingsOpen(false);
@@ -254,14 +267,13 @@ export function AppShell(props: AppShellProps) {
     window.requestAnimationFrame(() => {
       onOpenGuidedTour();
     });
-  }, [onOpenGuidedTour]);
+  }, [onOpenGuidedTour, setSettingsFocusTarget, setSettingsOpen]);
 
   const openSettingsToLiveFeed = useCallback(() => {
-    setAdvancedNavOpen(false);
     setSettingsFeatureOpen(true);
     setSettingsFocusTarget("live-feed");
     setSettingsOpen(true);
-  }, []);
+  }, [setSettingsFeatureOpen, setSettingsFocusTarget, setSettingsOpen]);
 
   const patchOpsControl = useCallback(
     (key: keyof OpsUxFeatureControls, value: boolean) => {
@@ -294,6 +306,7 @@ export function AppShell(props: AppShellProps) {
     onOpenCommandPalette: toggleCommandPalette,
     onCloseOverlay: closeOverlay,
     overlayOpen: settingsOpen || cmdPaletteOpen,
+    floorOverrides: glassConfig.floorOverrides,
   });
 
   // Connection status dot color
@@ -360,90 +373,73 @@ export function AppShell(props: AppShellProps) {
   const mainSwitchStatus = optionalFeaturesMasterOn
     ? { label: "On", tone: "connected" }
     : { label: "Off", tone: "" };
+  const claimedTourRoutes = new Set<MissionControlTab>();
 
   return (
     <div className="mc-shell-layout">
       {/* ── NAV RAIL ── */}
       <nav className="mc-nav-rail">
         <div className="mc-nav-brand">MC</div>
-        {(() => {
-          const visible = MISSION_CONTROL_TABS.filter((item) =>
-            props.availableTabs.includes(item.tab)
-          );
-          const coreTabs = visible.filter((item) => item.tier === "core");
-          const advancedTabs = visible.filter((item) => item.tier === "advanced");
-          const renderTab = (item: (typeof MISSION_CONTROL_TABS)[number]) => {
-            const Icon = NAV_ICONS[item.icon];
-            const badgeCount = props.navBadges?.[item.tab] ?? 0;
-            const badgeTone = item.tab === "focus" ? "danger" : "accent";
-            return (
-              <button
-                key={item.tab}
-                type="button"
-                className={clsx("mc-nav-item", props.activeTab === item.tab && "mc-nav-item-active")}
-                onClick={() => {
-                  props.onTabChange(item.tab);
-                  setAdvancedNavOpen(false);
-                }}
-                title={`${item.label} (${item.shortcut})`}
-                data-tour-id={`nav-${item.tab}`}
-              >
-                {Icon ? <Icon size={20} /> : null}
-                <span className="mc-nav-label">{item.label}</span>
-                <Badge count={badgeCount} tone={badgeTone} className="mc-nav-badge" />
-              </button>
+        <div className="mc-elevator" aria-label="Glass Office elevator">
+          {elevatorFloors.map((floor) => {
+            const FloorIcon = NAV_ICONS[floor.icon];
+            const activeFloor = floor.rooms.some(
+              (room) => room.route === props.activeTab,
             );
-          };
-          return (
-            <>
-              {coreTabs.map(renderTab)}
-              {advancedTabs.length > 0 ? (
-                <>
-                  <button
-                    type="button"
-                    className={clsx(
-                      "mc-nav-item",
-                      "mc-nav-advanced-toggle",
-                      activeTabIsAdvanced && "mc-nav-item-active",
-                      advancedNavOpen && "mc-nav-advanced-toggle-open"
-                    )}
-                    onClick={() => setAdvancedNavOpen((open) => !open)}
-                    title={
-                      advancedNavOpen
-                        ? "Hide advanced tools"
-                        : "Show advanced tools: events, cockpit, strategy, runbook, memory, connectors"
-                    }
-                    aria-expanded={advancedNavOpen}
-                    aria-controls="mc-nav-advanced-group"
-                    data-tour-id="nav-advanced"
-                  >
-                    {advancedNavOpen ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
-                    <span className="mc-nav-label">Tools</span>
-                    <span className="mc-nav-count" aria-label={`${advancedTabs.length} advanced pages`}>
-                      {advancedTabs.length}
-                    </span>
-                  </button>
-                  <div
-                    id="mc-nav-advanced-group"
-                    className={clsx(
-                      "mc-nav-advanced-group",
-                      advancedNavOpen && "mc-nav-advanced-group-open"
-                    )}
-                    hidden={!advancedNavOpen}
-                  >
-                    {advancedTabs.map(renderTab)}
-                  </div>
-                </>
-              ) : null}
-            </>
-          );
-        })()}
+            return (
+              <section
+                key={floor.id}
+                className={clsx("mc-elevator-floor", activeFloor && "is-active")}
+              >
+                <div className="mc-elevator-floor-label">
+                  <span className="mc-elevator-lamp">{floor.lamp}</span>
+                  {FloorIcon ? <FloorIcon size={15} /> : null}
+                  <strong>{floor.label}</strong>
+                </div>
+                <div className="mc-elevator-rooms">
+                  {floor.rooms.map((room) => {
+                    const badgeCount = props.navBadges?.[room.route] ?? 0;
+                    const isPrimaryTourTarget = !claimedTourRoutes.has(
+                      room.route,
+                    );
+                    claimedTourRoutes.add(room.route);
+                    return (
+                      <button
+                        key={`${floor.id}:${room.id}`}
+                        type="button"
+                        className={clsx(
+                          "mc-nav-item",
+                          props.activeTab === room.route && "mc-nav-item-active",
+                        )}
+                        onClick={() => {
+                          props.onTabChange(room.route);
+                        }}
+                        title={`${floor.lamp}F · ${room.label}`}
+                        data-tour-id={
+                          isPrimaryTourTarget
+                            ? `nav-${room.route}`
+                            : `nav-${floor.id}-${room.id}`
+                        }
+                      >
+                        <span className="mc-nav-label">{room.label}</span>
+                        <Badge
+                          count={badgeCount}
+                          tone={room.route === "focus" ? "danger" : "accent"}
+                          className="mc-nav-badge"
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
+        </div>
         <div className="mc-nav-spacer" />
         <button
           type="button"
           className="mc-nav-item"
           onClick={() => {
-            setAdvancedNavOpen(false);
             props.onOpenHelpDocs();
           }}
           title="Help and Docs"
@@ -456,7 +452,6 @@ export function AppShell(props: AppShellProps) {
           type="button"
           className="mc-nav-item"
           onClick={() => {
-            setAdvancedNavOpen(false);
             setSettingsOpen(true);
           }}
           title="Settings"
@@ -557,7 +552,6 @@ export function AppShell(props: AppShellProps) {
               type="button"
               className="mc-topbar-icon-btn"
               onClick={() => {
-                setAdvancedNavOpen(false);
                 props.onOpenGuidedTour();
               }}
               title="Start guided tour"
@@ -569,7 +563,6 @@ export function AppShell(props: AppShellProps) {
               type="button"
               className="mc-topbar-icon-btn"
               onClick={() => {
-                setAdvancedNavOpen(false);
                 props.onOpenHelpDocs();
               }}
               title="Help and docs"
@@ -587,7 +580,6 @@ export function AppShell(props: AppShellProps) {
               type="button"
               className="mc-topbar-icon-btn"
               onClick={() => {
-                setAdvancedNavOpen(false);
                 setSettingsOpen(true);
               }}
               title="Settings"
@@ -616,7 +608,6 @@ export function AppShell(props: AppShellProps) {
         onToggleIncidentMode={toggleIncidentMode}
         onRefresh={() => props.onRefresh?.()}
         onOpenSettings={() => {
-          setAdvancedNavOpen(false);
           setSettingsOpen(true);
           setCmdPaletteOpen(false);
         }}

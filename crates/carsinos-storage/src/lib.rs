@@ -53,7 +53,7 @@ pub fn init(paths: &AppPaths) -> Result<()> {
 }
 
 pub const EXECASS_APPLICATION_ID: i64 = 1_163_411_761;
-pub const EXECASS_SCHEMA_VERSION: i64 = 7;
+pub const EXECASS_SCHEMA_VERSION: i64 = 8;
 const EXECASS_REQUIRED_TABLES: &[&str] = &[
     "execass_accepted_confirmation_grants",
     "execass_action_branches",
@@ -134,6 +134,7 @@ const EXECASS_REQUIRED_TABLES: &[&str] = &[
 /// mutation.
 pub fn init_execass_fresh_root(paths: &AppPaths) -> Result<()> {
     if paths.db_path.exists() {
+        upgrade_execass_canonical_root_if_needed(paths)?;
         if execass_schema_is_exact(&paths.db_path)? {
             seed_default_entities(&paths.db_path)?;
             harden_permissions(paths)?;
@@ -345,6 +346,41 @@ fn execass_connection_schema_is_exact(conn: &Connection) -> Result<bool> {
     Ok(actual == expected)
 }
 
+pub(crate) fn upgrade_execass_canonical_root_if_needed(paths: &AppPaths) -> Result<()> {
+    if !paths.db_path.is_file() {
+        return Ok(());
+    }
+    let mut conn = open_sqlite_connection(&paths.db_path)?;
+    let application_id = conn.query_row("PRAGMA application_id", [], |row| row.get::<_, i64>(0))?;
+    if application_id != EXECASS_APPLICATION_ID {
+        return Ok(());
+    }
+    let user_version = conn.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))?;
+    if user_version != 7 {
+        return Ok(());
+    }
+    let tx = conn.transaction()?;
+    let versions = tx
+        .prepare("SELECT version FROM schema_migrations ORDER BY version")?
+        .query_map([], |row| row.get::<_, i64>(0))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let valid_v7 = versions == [1, 2, 3, 4, 5, 6, 7]
+        && tx.query_row(
+            "SELECT 1 FROM execass_schema_metadata WHERE singleton=1 AND application_id=?1 AND schema_version=7 AND contract_id='carsinos.execass.contract' AND contract_version='v1'",
+            params![EXECASS_APPLICATION_ID], |_| Ok(())).optional()?.is_some();
+    if !valid_v7 {
+        bail!("refusing to upgrade a claimed but non-canonical ExecAss v7 database");
+    }
+    tx.execute_batch(MIGRATION_0008)
+        .context("failed applying ExecAss v8 Glass Office upgrade")?;
+    tx.execute(
+        "INSERT INTO schema_migrations (version, applied_at) VALUES (8, ?1)",
+        params![now_ms()],
+    )?;
+    tx.commit()?;
+    Ok(())
+}
+
 fn sqlite_schema_inventory(conn: &Connection) -> Result<Vec<(String, String, String)>> {
     let mut stmt = conn
         .prepare(
@@ -394,6 +430,7 @@ fn install_execass_schema(conn: &mut Connection, execass_sql: &str) -> Result<()
         (5, MIGRATION_0005, "connector registry schema"),
         (6, MIGRATION_0006, "agent archival schema"),
         (7, execass_sql, "ExecAss incompatible replacement schema"),
+        (8, MIGRATION_0008, "Glass Office projections"),
     ] {
         tx.execute_batch(sql).with_context(|| {
             format!("failed installing clean-root migration {version:04} ({label})")
@@ -461,7 +498,7 @@ fn verify_execass_schema(conn: &Connection) -> Result<()> {
     let versions = stmt
         .query_map([], |row| row.get::<_, i64>(0))?
         .collect::<rusqlite::Result<Vec<_>>>()?;
-    if versions != [1, 2, 3, 4, 5, 6, EXECASS_SCHEMA_VERSION] {
+    if versions != [1, 2, 3, 4, 5, 6, 7, EXECASS_SCHEMA_VERSION] {
         bail!("ExecAss migration ledger is not the exact installed schema");
     }
 
@@ -1673,6 +1710,36 @@ pub struct AgentMailMessageRecord {
     pub body_text: String,
     pub metadata_json: Option<String>,
     pub created_at: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct OfficeFloorPresenceRecord {
+    pub agent_id: String,
+    pub display_name: String,
+    pub state: String,
+    pub observed_at: Option<i64>,
+    pub target_kind: Option<String>,
+    pub target_id: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct OfficeChatterMessageRecord {
+    pub message_id: String,
+    pub thread_id: String,
+    pub source_kind: String,
+    pub event_name: Option<String>,
+    pub delegation_id: String,
+    pub revision: Option<i64>,
+    pub body_text: String,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct OfficeChatterRoomRecord {
+    pub thread_id: String,
+    pub delegation_id: String,
+    pub safe_label: String,
+    pub last_activity_at: i64,
 }
 
 #[derive(Debug, Clone)]
@@ -4836,6 +4903,328 @@ impl Storage {
         )?;
         tx.commit()?;
         self.get_agent_mail_message(&message_id)
+    }
+
+    pub fn list_office_floor_presence(&self) -> Result<Vec<OfficeFloorPresenceRecord>> {
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(
+            r#"
+            WITH linked_delegations AS (
+              SELECT agent_id, delegation_id, phase, updated_at,
+                     ROW_NUMBER() OVER (
+                       PARTITION BY agent_id
+                       ORDER BY
+                         CASE phase
+                           WHEN 'recovering' THEN 0
+                           WHEN 'in_motion' THEN 1
+                           WHEN 'planning' THEN 2
+                           WHEN 'accepted' THEN 3
+                           ELSE 4
+                         END,
+                         updated_at DESC,
+                         delegation_id DESC
+                     ) AS rank
+              FROM (
+                SELECT
+                  COALESCE(
+                    linked_session.agent_id,
+                    linked_run_session.agent_id,
+                    linked_job.agent_id,
+                    linked_job_run_job.agent_id,
+                    linked_task.owner_agent_id,
+                    linked_task_job.agent_id
+                  ) AS agent_id,
+                  delegation.delegation_id,
+                  delegation.phase,
+                  delegation.updated_at
+                FROM execass_authority_links authority_link
+                JOIN execass_delegations delegation
+                  ON delegation.delegation_id = authority_link.delegation_id
+                LEFT JOIN sessions linked_session
+                  ON linked_session.session_id = authority_link.session_id
+                LEFT JOIN runs linked_run
+                  ON linked_run.run_id = authority_link.run_id
+                LEFT JOIN sessions linked_run_session
+                  ON linked_run_session.session_id = linked_run.session_id
+                LEFT JOIN jobs linked_job
+                  ON linked_job.job_id = authority_link.job_id
+                LEFT JOIN job_runs linked_job_run
+                  ON linked_job_run.job_run_id = authority_link.job_run_id
+                LEFT JOIN jobs linked_job_run_job
+                  ON linked_job_run_job.job_id = linked_job_run.job_id
+                LEFT JOIN tasks linked_task
+                  ON linked_task.task_id = authority_link.task_id
+                LEFT JOIN jobs linked_task_job
+                  ON linked_task_job.job_id = linked_task.linked_job_id
+                WHERE delegation.phase NOT IN ('completed', 'partially_completed', 'failed')
+                  AND COALESCE(
+                    linked_session.agent_id,
+                    linked_run_session.agent_id,
+                    linked_job.agent_id,
+                    linked_job_run_job.agent_id,
+                    linked_task.owner_agent_id,
+                    linked_task_job.agent_id
+                  ) IS NOT NULL
+              )
+            ),
+            active_runs AS (
+              SELECT
+                session.agent_id,
+                run.run_id,
+                COALESCE(run.started_at, run.created_at) AS observed_at,
+                ROW_NUMBER() OVER (
+                  PARTITION BY session.agent_id
+                  ORDER BY COALESCE(run.started_at, run.created_at) DESC, run.run_id DESC
+                ) AS rank
+              FROM sessions session
+              JOIN runs run ON run.session_id = session.session_id
+              WHERE run.ended_at IS NULL
+                AND run.status IN ('queued', 'running', 'in_progress')
+            ),
+            latest_sessions AS (
+              SELECT
+                session.agent_id,
+                session.session_id,
+                session.updated_at,
+                ROW_NUMBER() OVER (
+                  PARTITION BY session.agent_id
+                  ORDER BY session.updated_at DESC, session.session_id DESC
+                ) AS rank
+              FROM sessions session
+              WHERE session.closed_at IS NULL
+            )
+            SELECT a.agent_id, a.name,
+              CASE
+                WHEN linked.phase = 'recovering' THEN 'recovering'
+                WHEN active_run.run_id IS NOT NULL THEN 'busy'
+                WHEN linked.phase IN ('accepted', 'planning', 'in_motion') THEN 'busy'
+                WHEN linked.delegation_id IS NOT NULL OR latest_session.session_id IS NOT NULL
+                  THEN 'idle'
+                ELSE 'unknown'
+              END,
+              CASE
+                WHEN linked.phase = 'recovering' THEN linked.updated_at
+                WHEN active_run.run_id IS NOT NULL THEN active_run.observed_at
+                WHEN linked.delegation_id IS NOT NULL THEN linked.updated_at
+                ELSE latest_session.updated_at
+              END,
+              CASE
+                WHEN linked.delegation_id IS NOT NULL THEN 'delegation'
+                WHEN active_run.run_id IS NOT NULL THEN 'run'
+                WHEN latest_session.session_id IS NOT NULL THEN 'session'
+                ELSE NULL
+              END,
+              CASE
+                WHEN linked.delegation_id IS NOT NULL THEN linked.delegation_id
+                WHEN active_run.run_id IS NOT NULL THEN active_run.run_id
+                WHEN latest_session.session_id IS NOT NULL THEN latest_session.session_id
+                ELSE NULL
+              END
+            FROM agents a
+            LEFT JOIN linked_delegations linked
+              ON linked.agent_id = a.agent_id AND linked.rank = 1
+            LEFT JOIN active_runs active_run
+              ON active_run.agent_id = a.agent_id AND active_run.rank = 1
+            LEFT JOIN latest_sessions latest_session
+              ON latest_session.agent_id = a.agent_id AND latest_session.rank = 1
+            WHERE a.archived_at IS NULL
+            ORDER BY a.name ASC, a.agent_id ASC
+            "#,
+        )?;
+        let records = stmt
+            .query_map([], |row| {
+                Ok(OfficeFloorPresenceRecord {
+                    agent_id: row.get(0)?,
+                    display_name: row.get(1)?,
+                    state: row.get(2)?,
+                    observed_at: row.get(3)?,
+                    target_kind: row.get(4)?,
+                    target_id: row.get(5)?,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(records)
+    }
+
+    pub fn produce_office_chatter(&self, limit: u32) -> Result<Vec<OfficeChatterMessageRecord>> {
+        let mut conn = self.connect()?;
+        let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let cursor: i64 = tx.query_row(
+            "SELECT last_global_sequence FROM office_chatter_producer_cursor WHERE singleton=1",
+            [],
+            |row| row.get(0),
+        )?;
+        let mut event_stmt = tx.prepare(
+            "SELECT global_sequence,event_id,event_name,aggregate_id,aggregate_revision,occurred_at FROM execass_outbox_events WHERE global_sequence>?1 ORDER BY global_sequence ASC LIMIT ?2",
+        )?;
+        let events = event_stmt
+            .query_map(params![cursor, i64::from(limit.max(1))], |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, i64>(4)?,
+                    row.get::<_, i64>(5)?,
+                ))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        drop(event_stmt);
+        let mut out = Vec::new();
+        let mut last = cursor;
+        for (sequence, event_id, event_name, delegation_id, revision, occurred_at) in events {
+            last = sequence;
+            let template = match event_name.as_str() {
+                "execass.v1.delegation.transitioned" => Some("Workstream status changed."),
+                "execass.v1.continuation.claimed_or_result_recorded" => {
+                    Some("Work item progressed.")
+                }
+                "execass.v1.recovery.updated" => Some("Workstream recovery updated."),
+                "execass.v1.completion.assessed" => Some("Workstream completion assessed."),
+                _ => None,
+            };
+            let Some(body_text) = template else { continue };
+            let exists = tx
+                .query_row(
+                    "SELECT 1 FROM execass_delegations WHERE delegation_id=?1",
+                    params![delegation_id],
+                    |_| Ok(()),
+                )
+                .optional()?
+                .is_some();
+            if !exists {
+                continue;
+            }
+            let existing = tx
+                .query_row(
+                    "SELECT 1 FROM office_chatter_messages WHERE source_event_id=?1",
+                    params![event_id],
+                    |_| Ok(()),
+                )
+                .optional()?
+                .is_some();
+            if existing {
+                continue;
+            }
+            let thread_id = tx
+                .query_row(
+                    "SELECT thread_id FROM office_chatter_workstreams WHERE delegation_id=?1",
+                    params![delegation_id],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()?;
+            let thread_id = match thread_id {
+                Some(thread_id) => thread_id,
+                None => {
+                    let thread_id = uuid::Uuid::new_v4().to_string();
+                    tx.execute("INSERT INTO agent_mail_threads(thread_id,kind,subject,created_by_principal,created_at,updated_at,archived_at) VALUES(?1,'office_chatter','ExecAss activity','execass',?2,?2,NULL)", params![thread_id, occurred_at])?;
+                    tx.execute("INSERT INTO agent_mail_thread_participants(thread_id,principal_id,role,joined_at,last_read_at,muted) VALUES(?1,'execass','owner',?2,NULL,0)", params![thread_id, occurred_at])?;
+                    tx.execute("INSERT INTO office_chatter_workstreams(delegation_id,thread_id,safe_label,created_at) VALUES(?1,?2,'ExecAss workstream',?3)", params![delegation_id, thread_id, occurred_at])?;
+                    thread_id
+                }
+            };
+            let message_id = uuid::Uuid::new_v4().to_string();
+            tx.execute("INSERT INTO agent_mail_messages(message_id,thread_id,sender_principal,sender_kind,body_text,metadata_json,created_at) VALUES(?1,?2,'execass','system',?3,NULL,?4)", params![message_id, thread_id, body_text, occurred_at])?;
+            tx.execute(
+                "UPDATE agent_mail_threads SET updated_at=?1 WHERE thread_id=?2",
+                params![occurred_at, thread_id],
+            )?;
+            tx.execute("INSERT INTO office_chatter_messages(message_id,thread_id,source_event_id,source_kind,delegation_id,event_name,revision,created_at) VALUES(?1,?2,?3,'execass_event',?4,?5,?6,?7)", params![message_id, thread_id, event_id, delegation_id, event_name, revision, occurred_at])?;
+            out.push(OfficeChatterMessageRecord {
+                message_id,
+                thread_id,
+                source_kind: "execass_event".to_string(),
+                event_name: Some(event_name),
+                delegation_id,
+                revision: Some(revision),
+                body_text: body_text.to_string(),
+                created_at: occurred_at,
+            });
+        }
+        if last != cursor {
+            tx.execute("UPDATE office_chatter_producer_cursor SET last_global_sequence=?1,updated_at=?2 WHERE singleton=1", params![last, now_ms()])?;
+        }
+        tx.commit()?;
+        Ok(out)
+    }
+
+    pub fn create_office_chatter_owner_message(
+        &self,
+        thread_id: &str,
+        principal_id: &str,
+        body_text: &str,
+    ) -> Result<Option<OfficeChatterMessageRecord>> {
+        let mut conn = self.connect()?;
+        let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let workstream = tx
+            .query_row(
+                "SELECT delegation_id FROM office_chatter_workstreams WHERE thread_id=?1",
+                params![thread_id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()?;
+        let Some(delegation_id) = workstream else {
+            return Ok(None);
+        };
+        let message_id = uuid::Uuid::new_v4().to_string();
+        let now = now_ms();
+        tx.execute("INSERT OR IGNORE INTO agent_mail_thread_participants(thread_id,principal_id,role,joined_at,last_read_at,muted) VALUES(?1,?2,'member',?3,?3,0)", params![thread_id, principal_id, now])?;
+        tx.execute("INSERT INTO agent_mail_messages(message_id,thread_id,sender_principal,sender_kind,body_text,metadata_json,created_at) VALUES(?1,?2,?3,'owner',?4,NULL,?5)", params![message_id, thread_id, principal_id, body_text, now])?;
+        tx.execute(
+            "UPDATE agent_mail_threads SET updated_at=?1 WHERE thread_id=?2",
+            params![now, thread_id],
+        )?;
+        tx.execute("INSERT INTO office_chatter_messages(message_id,thread_id,source_event_id,source_kind,delegation_id,event_name,revision,created_at) VALUES(?1,?2,NULL,'owner_message',?3,NULL,NULL,?4)", params![message_id, thread_id, delegation_id, now])?;
+        tx.commit()?;
+        Ok(Some(OfficeChatterMessageRecord {
+            message_id,
+            thread_id: thread_id.to_string(),
+            source_kind: "owner_message".to_string(),
+            event_name: None,
+            delegation_id,
+            revision: None,
+            body_text: body_text.to_string(),
+            created_at: now,
+        }))
+    }
+
+    pub fn list_office_chatter(
+        &self,
+        room_limit: u32,
+        message_limit: u32,
+    ) -> Result<(
+        Vec<OfficeChatterRoomRecord>,
+        Vec<OfficeChatterMessageRecord>,
+    )> {
+        let conn = self.connect()?;
+        let mut room_stmt = conn.prepare("SELECT w.thread_id,w.delegation_id,w.safe_label,MAX(m.created_at) FROM office_chatter_workstreams w JOIN office_chatter_messages m ON m.thread_id=w.thread_id GROUP BY w.thread_id,w.delegation_id,w.safe_label ORDER BY MAX(m.created_at) DESC LIMIT ?1")?;
+        let rooms = room_stmt
+            .query_map(params![i64::from(room_limit.max(1))], |row| {
+                Ok(OfficeChatterRoomRecord {
+                    thread_id: row.get(0)?,
+                    delegation_id: row.get(1)?,
+                    safe_label: row.get(2)?,
+                    last_activity_at: row.get(3)?,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let mut message_stmt = conn.prepare("SELECT c.message_id,c.thread_id,c.source_kind,c.event_name,c.delegation_id,c.revision,m.body_text,c.created_at FROM office_chatter_messages c JOIN agent_mail_messages m ON m.message_id=c.message_id ORDER BY c.created_at DESC,c.message_id DESC LIMIT ?1")?;
+        let mut messages = message_stmt
+            .query_map(params![i64::from(message_limit.max(1))], |row| {
+                Ok(OfficeChatterMessageRecord {
+                    message_id: row.get(0)?,
+                    thread_id: row.get(1)?,
+                    source_kind: row.get(2)?,
+                    event_name: row.get(3)?,
+                    delegation_id: row.get(4)?,
+                    revision: row.get(5)?,
+                    body_text: row.get(6)?,
+                    created_at: row.get(7)?,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        messages.reverse();
+        Ok((rooms, messages))
     }
 
     pub fn get_agent_mail_message(
@@ -10081,6 +10470,7 @@ const MIGRATION_0004: &str = include_str!("../../../migrations/0004_agent_memory
 const MIGRATION_0005: &str = include_str!("../../../migrations/0005_connector_registry.sql");
 const MIGRATION_0006: &str = include_str!("../../../migrations/0006_agent_archival.sql");
 const MIGRATION_0007: &str = include_str!("../../../migrations/0007_execass_replacement.sql");
+const MIGRATION_0008: &str = include_str!("../../../migrations/0008_glass_office_projection.sql");
 
 #[cfg(test)]
 mod tests {
@@ -12197,7 +12587,7 @@ mod tests {
                 .collect::<rusqlite::Result<Vec<_>>>()
                 .expect("collect migration versions")
         };
-        assert_eq!(versions, [1, 2, 3, 4, 5, 6, 7]);
+        assert_eq!(versions, [1, 2, 3, 4, 5, 6, 7, 8]);
         for retired in ["approvals", "assistant_workers", "assistant_task_links"] {
             assert!(
                 !test_table_exists(&conn, retired),
@@ -13583,6 +13973,254 @@ mod tests {
         let error =
             init_execass_fresh_root(&paths).expect_err("incomplete schema must be rejected");
         assert!(error.to_string().contains("pre-existing database"));
+    }
+
+    #[test]
+    fn execass_v7_root_upgrades_atomically_to_the_exact_v8_office_schema() {
+        let temp_dir = project_local_tempdir();
+        let paths = AppPaths::from_root(temp_dir.path().join("v7-upgrade"));
+        ensure_dirs(&paths).expect("create upgrade root");
+        let mut conn = open_sqlite_connection(&paths.db_path).expect("open v7 database");
+        install_execass_schema(&mut conn, MIGRATION_0007).expect("install canonical v7 schema");
+        drop(conn);
+
+        upgrade_execass_canonical_root_if_needed(&paths).expect("upgrade canonical v7 root");
+        let conn = open_sqlite_connection(&paths.db_path).expect("open upgraded database");
+        verify_execass_schema(&conn).expect("v8 schema remains canonical");
+        assert!(conn
+            .query_row(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='office_chatter_messages'",
+                [],
+                |_| Ok(()),
+            )
+            .optional()
+            .expect("query projection table")
+            .is_some());
+        assert_eq!(
+            conn.query_row(
+                "SELECT last_global_sequence FROM office_chatter_producer_cursor",
+                [],
+                |row| row.get::<_, i64>(0)
+            )
+            .expect("read seeded producer cursor"),
+            0
+        );
+    }
+
+    #[test]
+    fn office_chatter_producer_is_allowlisted_deduplicated_and_payload_blind() {
+        let (_temp_dir, paths) = execass_test_root();
+        let storage = Storage::from_paths(&paths);
+        let conn = open_sqlite_connection(&paths.db_path).expect("open office projection root");
+        let events = [
+            ("transition", "execass.v1.delegation.transitioned"),
+            (
+                "continuation",
+                "execass.v1.continuation.claimed_or_result_recorded",
+            ),
+            ("recovery", "execass.v1.recovery.updated"),
+            ("completion", "execass.v1.completion.assessed"),
+            ("skipped", "execass.v1.summary.changed"),
+        ];
+        for (index, (suffix, event_name)) in events.iter().enumerate() {
+            conn.execute(
+                "INSERT INTO execass_outbox_events(event_id,event_name,aggregate_id,aggregate_revision,correlation_id,causation_id,occurred_at,schema_version,safe_payload_json,duplicate_identity) VALUES(?1,?2,'execass-global-control-carrier',?3,?4,?5,?6,'v1',?7,?8)",
+                params![
+                    format!("office-event-{suffix}"),
+                    event_name,
+                    i64::try_from(index + 1).expect("small revision"),
+                    format!("office-correlation-{suffix}"),
+                    format!("office-causation-{suffix}"),
+                    10_000_i64 + i64::try_from(index).expect("small timestamp"),
+                    r#"{"summary":"SECRET raw tool output must never be copied"}"#,
+                    format!("office-duplicate-{suffix}"),
+                ],
+            )
+            .expect("seed office source event");
+        }
+        drop(conn);
+
+        let produced = storage
+            .produce_office_chatter(32)
+            .expect("produce safe chatter");
+        assert_eq!(produced.len(), 4);
+        assert!(produced
+            .iter()
+            .all(|message| !message.body_text.contains("SECRET")));
+        assert!(storage
+            .produce_office_chatter(32)
+            .expect("replay producer")
+            .is_empty());
+
+        let (rooms, messages) = storage
+            .list_office_chatter(10, 10)
+            .expect("list safe chatter");
+        assert_eq!(rooms.len(), 1);
+        assert_eq!(messages.len(), 4);
+        assert!(messages
+            .iter()
+            .all(|message| message.source_kind == "execass_event"));
+
+        let owner = storage
+            .create_office_chatter_owner_message(
+                &rooms[0].thread_id,
+                "authenticated-owner",
+                "  Keep this safe and short.  ",
+            )
+            .expect("create owner message")
+            .expect("office room exists");
+        assert_eq!(owner.source_kind, "owner_message");
+        let canonical = storage
+            .get_agent_mail_message(&owner.message_id)
+            .expect("load canonical Agent Mail message")
+            .expect("owner message exists");
+        assert_eq!(canonical.sender_principal, "authenticated-owner");
+        assert_eq!(canonical.metadata_json, None);
+    }
+
+    #[test]
+    fn office_floor_presence_preserves_unknown_and_projects_authoritative_deep_links() {
+        let (_temp_dir, paths) = execass_test_root();
+        let storage = Storage::from_paths(&paths);
+        storage
+            .create_agent(NewAgent {
+                agent_id: "reef-agent".to_string(),
+                name: "Reef Agent".to_string(),
+                workspace_root: ".".to_string(),
+                model_provider: "mock".to_string(),
+                model_id: "mock-echo-v1".to_string(),
+                tool_profile: "default".to_string(),
+                reports_to_agent_id: None,
+                role_label: None,
+                memory_binding: None,
+            })
+            .expect("create presence agent");
+        let initial = storage
+            .list_office_floor_presence()
+            .expect("list unknown presence");
+        let initial_agent = initial
+            .iter()
+            .find(|item| item.agent_id == "reef-agent")
+            .expect("presence agent exists");
+        assert_eq!(initial_agent.state, "unknown");
+
+        let session = storage
+            .create_session(NewSession {
+                session_key: None,
+                agent_id: "reef-agent".to_string(),
+                title: Some("must not leak into presence".to_string()),
+            })
+            .expect("create presence session");
+        let idle = storage
+            .list_office_floor_presence()
+            .expect("list idle presence");
+        let idle_agent = idle
+            .iter()
+            .find(|item| item.agent_id == "reef-agent")
+            .expect("idle agent exists");
+        assert_eq!(idle_agent.state, "idle");
+        assert_eq!(idle_agent.target_kind.as_deref(), Some("session"));
+        assert_eq!(
+            idle_agent.target_id.as_deref(),
+            Some(session.session_id.as_str())
+        );
+
+        let run = storage
+            .create_run(NewRun {
+                session_id: session.session_id.clone(),
+                model_provider: "mock".to_string(),
+                model_id: "mock-echo-v1".to_string(),
+            })
+            .expect("create presence run")
+            .expect("presence run exists");
+        storage
+            .mark_run_started(&run.run_id)
+            .expect("start presence run");
+        let busy = storage
+            .list_office_floor_presence()
+            .expect("list busy presence");
+        let busy_agent = busy
+            .iter()
+            .find(|item| item.agent_id == "reef-agent")
+            .expect("busy agent exists");
+        assert_eq!(busy_agent.state, "busy");
+        assert_eq!(busy_agent.target_kind.as_deref(), Some("run"));
+        assert_eq!(busy_agent.target_id.as_deref(), Some(run.run_id.as_str()));
+
+        let job = storage
+            .create_job(NewJob {
+                agent_id: "reef-agent".to_string(),
+                name: "Reef recovery job".to_string(),
+                enabled: true,
+                schedule_kind: "interval".to_string(),
+                interval_seconds: Some(60),
+                run_at_ms: None,
+                next_run_at: Some(20_000),
+                payload_json: r#"{"mode":"noop"}"#.to_string(),
+                max_retries: 1,
+                retry_backoff_ms: 500,
+                timeout_ms: 2_000,
+            })
+            .expect("create authoritative recovery job");
+        let conn = open_sqlite_connection(&paths.db_path).expect("open presence authority root");
+        conn.execute(
+            r#"
+            INSERT INTO execass_delegations(
+              delegation_id,normalized_original_intent,intake_evidence_json,ingress_source,
+              ingress_credential_identity,source_correlation_id,ingress_idempotency_key,
+              classifier_version,classifier_reasons_json,phase,run_control,state_revision,
+              policy_revision,effective_authority_json,authority_provenance_id,stop_epoch,
+              receipt_chain_count,created_at,updated_at
+            )
+            SELECT
+              'reef-recovery','safe recovery projection','{}','internal-runtime',
+              'execass-global-control','reef-recovery-correlation','reef-recovery-idempotency',
+              'v1','["durable_work"]','recovering','running',1,
+              policy_revision,'{}',authority_provenance_id,0,0,20000,20000
+            FROM execass_delegations WHERE delegation_id='execass-global-control-carrier'
+            "#,
+            [],
+        )
+        .expect("seed recovering delegation");
+        conn.execute(
+            r#"
+            INSERT INTO execass_outbox_events(
+              event_id,event_name,aggregate_id,aggregate_revision,correlation_id,causation_id,
+              occurred_at,schema_version,safe_payload_json,duplicate_identity
+            ) VALUES(
+              'reef-recovery-event','execass.v1.delegation.transitioned','reef-recovery',1,
+              'reef-recovery-correlation','reef-recovery-causation',20000,'v1','{}',
+              'reef-recovery-event'
+            )
+            "#,
+            [],
+        )
+        .expect("seed recovering delegation event");
+        conn.execute(
+            r#"
+            INSERT INTO execass_authority_links(
+              link_id,delegation_id,link_revision,delegation_state_revision,correlation_id,
+              causation_id,outbox_event_id,authority_kind,job_id,authoritative_revision,linked_at
+            ) VALUES(
+              'reef-recovery-job-link','reef-recovery',1,1,'reef-recovery-correlation',
+              'reef-recovery-causation','reef-recovery-event','job',?1,0,20000
+            )
+            "#,
+            params![job.job_id],
+        )
+        .expect("link recovering delegation to authoritative job");
+        drop(conn);
+
+        let recovering = storage
+            .list_office_floor_presence()
+            .expect("list recovering presence");
+        let recovering_agent = recovering
+            .iter()
+            .find(|item| item.agent_id == "reef-agent")
+            .expect("recovering agent exists");
+        assert_eq!(recovering_agent.state, "recovering");
+        assert_eq!(recovering_agent.target_kind.as_deref(), Some("delegation"));
+        assert_eq!(recovering_agent.target_id.as_deref(), Some("reef-recovery"));
     }
 
     #[test]
