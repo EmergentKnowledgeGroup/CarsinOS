@@ -175,9 +175,7 @@ describe("Assistant's Desk slide-over", () => {
         ) as HTMLInputElement
       ).value,
     ).toBe("use the newer plan");
-    expect(desk()?.querySelector(".mc-desk-tag")?.textContent).not.toBe(
-      "revision",
-    );
+    expect(desk()?.querySelector(".mc-desk-tag")).toBeNull();
   });
 
   it("submits a revision only once while the authoritative request is pending", async () => {
