@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act } from "react";
+import { act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -39,7 +39,11 @@ async function mount() {
   document.body.appendChild(container);
   await act(async () => {
     root = createRoot(container);
-    root.render(<ExecassOfficePanel controller={makeController()} />);
+    root.render(
+      <StrictMode>
+        <ExecassOfficePanel controller={makeController()} />
+      </StrictMode>,
+    );
   });
 }
 
@@ -176,5 +180,22 @@ describe("Office block canvas", () => {
       "could not be saved",
     );
     failure.mockRestore();
+  });
+
+  it("persists and broadcasts each arrange action once under Strict Mode", async () => {
+    await mount();
+    await click("Arrange office");
+    const writes = vi.spyOn(Storage.prototype, "setItem");
+    const events = vi.fn();
+    window.addEventListener("mc-glass-config-changed", events);
+
+    await click("Move In motion earlier");
+    expect(
+      writes.mock.calls.filter(([key]) => key === GLASS_CONFIG_STORAGE_KEY),
+    ).toHaveLength(1);
+    expect(events).toHaveBeenCalledTimes(1);
+
+    window.removeEventListener("mc-glass-config-changed", events);
+    writes.mockRestore();
   });
 });
