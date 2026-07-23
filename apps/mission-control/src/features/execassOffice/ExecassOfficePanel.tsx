@@ -262,8 +262,9 @@ function NextRow(props: { item: NextItem }) {
  */
 function RoomShortcutBody(props: {
   def: OfficeBlockDef;
-  onOpenRoom: (roomId: string) => void;
+  onOpenRoom: (roomId: string) => boolean | void;
 }) {
+  const [unavailable, setUnavailable] = useState(false);
   const found = props.def.roomId
     ? findRoom(DEFAULT_FLOORS, props.def.roomId)
     : undefined;
@@ -284,9 +285,15 @@ function RoomShortcutBody(props: {
       <button
         type="button"
         className="mc-room-shortcut-open"
-        onClick={() => props.onOpenRoom(found.room.id)}
+        onClick={() => {
+          setUnavailable(props.onOpenRoom(found.room.id) === false);
+        }}
       >
-        Open {found.room.label}
+        {unavailable ? (
+          <span role="status">Unavailable — turn on in Config</span>
+        ) : (
+          <>Open {found.room.label}</>
+        )}
       </button>
     </div>
   );
@@ -295,7 +302,7 @@ function RoomShortcutBody(props: {
 export function ExecassOfficePanel(props: {
   controller: ExecassOfficeController;
   /** Opens a floor room by stable id; used by pinned room-shortcut blocks. */
-  onOpenRoom: (roomId: string) => void;
+  onOpenRoom: (roomId: string) => boolean | void;
 }) {
   const { controller, onOpenRoom } = props;
   const [askDraft, setAskDraft] = useState("");

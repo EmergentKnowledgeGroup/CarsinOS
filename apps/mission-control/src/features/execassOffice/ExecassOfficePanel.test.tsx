@@ -50,7 +50,7 @@ describe("ExecassOfficePanel room shortcuts", () => {
       root.render(
         <ExecassOfficePanel
           controller={fixtureController()}
-          onOpenRoom={() => {}}
+          onOpenRoom={() => true}
         />,
       );
     });
@@ -61,7 +61,7 @@ describe("ExecassOfficePanel room shortcuts", () => {
 
   it("renders a pinned Boards shortcut that opens the room by stable id", async () => {
     pinRoomBlocksToOffice("boards");
-    const onOpenRoom = vi.fn();
+    const onOpenRoom = vi.fn(() => true);
     container = document.createElement("div");
     document.body.appendChild(container);
     await act(async () => {
@@ -86,6 +86,35 @@ describe("ExecassOfficePanel room shortcuts", () => {
     expect(open).toBeTruthy();
     await act(async () => open!.click());
     expect(onOpenRoom).toHaveBeenCalledWith("boards");
+  });
+
+  it("explains when a pinned shortcut targets a disabled room", async () => {
+    pinRoomBlocksToOffice("calendar");
+    const onOpenRoom = vi.fn(() => false);
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    await act(async () => {
+      root = createRoot(container);
+      root.render(
+        <ExecassOfficePanel
+          controller={fixtureController()}
+          onOpenRoom={onOpenRoom}
+        />,
+      );
+    });
+
+    const block = container.querySelector(
+      '[data-testid="office-block-calendar"]',
+    );
+    const open = Array.from(block?.querySelectorAll("button") ?? []).find(
+      (button) => button.textContent?.includes("Open Calendar"),
+    );
+    expect(open).toBeTruthy();
+    await act(async () => open!.click());
+    expect(onOpenRoom).toHaveBeenCalledWith("calendar");
+    expect(block?.querySelector('[role="status"]')?.textContent).toContain(
+      "Unavailable — turn on in Config",
+    );
   });
 });
 
@@ -117,7 +146,7 @@ describe("ExecassOfficePanel decision controls", () => {
     await act(async () => {
       root = createRoot(container);
       root.render(
-        <ExecassOfficePanel controller={controller} onOpenRoom={() => {}} />,
+        <ExecassOfficePanel controller={controller} onOpenRoom={() => true} />,
       );
     });
 

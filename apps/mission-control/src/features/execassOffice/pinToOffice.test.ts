@@ -26,6 +26,14 @@ describe("OFFICE_BLOCK_REGISTRY room shortcuts", () => {
     expect(boards?.roomId).toBe("boards");
     expect(boards?.defaultVisible).toBe(false);
   });
+
+  test("registers the Calendar room shortcut hidden by default", () => {
+    const calendar = OFFICE_BLOCK_REGISTRY.find((def) => def.id === "calendar");
+    expect(calendar).toBeDefined();
+    expect(calendar?.rendererKey).toBe("room-shortcut");
+    expect(calendar?.roomId).toBe("calendar");
+    expect(calendar?.defaultVisible).toBe(false);
+  });
 });
 
 describe("pinRoomBlocksToOffice", () => {
@@ -36,6 +44,16 @@ describe("pinRoomBlocksToOffice", () => {
     const layout = loadGlassConfig().layout ?? [];
     const placement = layout.find((entry) => entry.id === "boards");
     expect(placement?.visible).toBe(true);
+  });
+
+  test("pins the Calendar room and both shortcuts fit the default canvas together", () => {
+    expect(pinRoomBlocksToOffice("boards").ok).toBe(true);
+    const result = pinRoomBlocksToOffice("calendar");
+    expect(result.ok).toBe(true);
+    expect(result.pinned).toEqual(["calendar"]);
+    const layout = loadGlassConfig().layout ?? [];
+    expect(layout.find((entry) => entry.id === "calendar")?.visible).toBe(true);
+    expect(layout.find((entry) => entry.id === "boards")?.visible).toBe(true);
   });
 
   test("is idempotent: pinning again succeeds without duplicating the placement", () => {
@@ -64,7 +82,7 @@ describe("pinRoomBlocksToOffice", () => {
   });
 
   test("fails honestly for rooms with no registered Office block yet", () => {
-    const result = pinRoomBlocksToOffice("calendar");
+    const result = pinRoomBlocksToOffice("plan");
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/pin/i);
     expect(loadGlassConfig().layout).toBeUndefined();

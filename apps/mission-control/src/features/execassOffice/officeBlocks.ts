@@ -58,4 +58,12 @@ export const OFFICE_BLOCK_REGISTRY: readonly OfficeBlockDef[] = [
     defaultSize: "s",
     defaultVisible: false,
   },
+  {
+    id: "calendar",
+    rendererKey: "room-shortcut",
+    roomId: "calendar",
+    title: "Calendar",
+    defaultSize: "s",
+    defaultVisible: false,
+  },
 ];

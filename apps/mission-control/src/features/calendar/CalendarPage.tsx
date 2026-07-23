@@ -15,6 +15,7 @@ import { Pagination } from "../../ui/Pagination";
 import { Modal } from "../../ui/Modal";
 import { usePagination } from "../../ui/usePagination";
 import { formatRelative } from "../../utils/datetime";
+import { PinRoomToOffice } from "../execassOffice/PinRoomToOffice";
 import { RunbookLinkPanel } from "../runbook/RunbookLinkPanel";
 import { StrategyTaskContextPanel } from "../strategy/StrategyTaskContextPanel";
 import type { StrategyTaskContextSnapshot } from "../strategy/useStrategyController";
@@ -1123,7 +1124,10 @@ export function CalendarPage(props: CalendarPageProps) {
         onCreateJob={props.onCreateExecAssHeartbeatJob}
       />
 
-      <Tabs tabs={tabsWithCounts} activeTab={activeTab} onTabChange={setActiveTab} />
+      <div className="mc-cal-tabs-row">
+        <Tabs tabs={tabsWithCounts} activeTab={activeTab} onTabChange={setActiveTab} />
+        <PinRoomToOffice roomId="calendar" />
+      </div>
 
       {activeTab === "week" ? (
         <WeekGrid

@@ -440,9 +440,7 @@ export default function App() {
   );
   const elevatorFloors = useResolvedElevator(availableTabs);
   const selectAvailableRoom = useCallback(
-    (roomId: string) => {
-      selectRoom(roomId, elevatorFloors);
-    },
+    (roomId: string) => selectRoom(roomId, elevatorFloors),
     [elevatorFloors, selectRoom],
   );
   const resolvedActiveRoomId =

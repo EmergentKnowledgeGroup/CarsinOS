@@ -84,9 +84,11 @@ describe("useAppController room identity", () => {
 
   test("selectRoom fails closed on unknown room ids", async () => {
     await render();
+    let selected: boolean | undefined;
     await act(async () => {
-      controller?.selectRoom("haunted-room");
+      selected = controller?.selectRoom("haunted-room");
     });
+    expect(selected).toBe(false);
     expect(controller?.activeTab).toBe("boards");
     expect(controller?.activeRoomId).toBe("boards");
   });
@@ -97,9 +99,11 @@ describe("useAppController room identity", () => {
       capabilities: ["execass", "agent-mail"],
       overrides: { basement: { hidden: true } },
     });
+    let selected: boolean | undefined;
     await act(async () => {
-      controller?.selectRoom("models", visibleFloors);
+      selected = controller?.selectRoom("models", visibleFloors);
     });
+    expect(selected).toBe(false);
     expect(controller?.activeTab).toBe("boards");
     expect(controller?.activeRoomId).toBe("boards");
   });

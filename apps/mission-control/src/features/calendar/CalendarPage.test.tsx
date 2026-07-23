@@ -40,6 +40,7 @@ describe("CalendarPage safety", () => {
   let previousActEnvironment: boolean | undefined;
 
   beforeEach(() => {
+    localStorage.clear();
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -127,5 +128,79 @@ describe("CalendarPage safety", () => {
       await Promise.resolve();
     });
     expect(onRunCalendarJobNow).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps every Calendar surface reachable and offers Pin to Office without new mutations", async () => {
+    if (!container || !root) {
+      throw new Error("test container was not initialized");
+    }
+    const onRunCalendarJobNow = vi.fn(async () => undefined);
+    const onToggleCalendarJob = vi.fn(async () => undefined);
+    const onCreateExecAssHeartbeatJob = vi.fn(async () => undefined);
+
+    await act(async () => {
+      root?.render(
+        <CalendarPage
+          calendarWeek={calendarWeek}
+          calendarAlwaysRunning={[job]}
+          calendarNextUp={[job]}
+          calendarJobs={[job]}
+          agents={[]}
+          execAssAgentId={null}
+          onRunCalendarJobNow={onRunCalendarJobNow}
+          onToggleCalendarJob={onToggleCalendarJob}
+          onLoadCalendarJobHistory={vi.fn(async () => [])}
+          onCreateExecAssHeartbeatJob={onCreateExecAssHeartbeatJob}
+          strategyReady={false}
+          taskByJobId={new Map()}
+          describeStrategyTask={() => null}
+          onOpenStrategyTask={() => false}
+          runbookEnabled={false}
+          runbookByJobId={new Map()}
+          onOpenJobRunbook={() => false}
+        />
+      );
+    });
+
+    // Parity anchors: the heartbeat panel and all three tabs stay present.
+    expect(
+      container.querySelector('[aria-label="ExecAss heartbeat setup"]')
+    ).not.toBeNull();
+    const tabLabels = Array.from(
+      container.querySelectorAll('[role="tab"]')
+    ).map((tab) => tab.textContent ?? "");
+    expect(tabLabels.some((label) => label.includes("Week View"))).toBe(true);
+    expect(tabLabels.some((label) => label.includes("Schedule"))).toBe(true);
+    expect(tabLabels.some((label) => label.includes("Active Jobs"))).toBe(true);
+
+    const scheduleTab = Array.from(
+      container.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+    ).find((tab) => tab.textContent?.includes("Schedule"));
+    await act(async () => scheduleTab?.click());
+    expect(scheduleTab?.getAttribute("aria-selected")).toBe("true");
+    expect(container.querySelector(".mc-table")).not.toBeNull();
+
+    const activeTab = Array.from(
+      container.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+    ).find((tab) => tab.textContent?.includes("Active Jobs"));
+    await act(async () => activeTab?.click());
+    expect(activeTab?.getAttribute("aria-selected")).toBe("true");
+    expect(container.querySelector(".mc-cal-active")).not.toBeNull();
+
+    // The pin affordance appears, and pressing it runs no job mutation.
+    const pin = Array.from(container.querySelectorAll("button")).find(
+      (button) =>
+        button.getAttribute("aria-label") === "Pin Calendar to Office"
+    );
+    expect(pin).toBeTruthy();
+    await act(async () => {
+      pin?.click();
+    });
+    expect(container.querySelector('[role="status"]')?.textContent).toContain(
+      "On the Office canvas"
+    );
+    expect(onRunCalendarJobNow).not.toHaveBeenCalled();
+    expect(onToggleCalendarJob).not.toHaveBeenCalled();
+    expect(onCreateExecAssHeartbeatJob).not.toHaveBeenCalled();
   });
 });
