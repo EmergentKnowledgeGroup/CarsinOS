@@ -2,18 +2,19 @@
 
 This is the single resume document for Claude after backend/ExecAss PR #98,
 Glass Office foundations PR #99, foundation UX PR #100, Assistant's Desk
-PR #101, P3 experiential PR #102, and the first P4 Trenches room slice
-PR #103.
+PR #101, P3 experiential PR #102, the first P4 Trenches room slice PR #103,
+and the Calendar room slice in PR #104.
 
 ## Resume point
 
 - Workspace: `Z:\carsinos-clean`
 - Branch: `codex/glass-office-p4-calendar`
-- Base/merged head: `0bbd65d4358ef78d557ebf1cc68775e2d7e521c1`
+- PR #104 base/last merged head: `0bbd65d4358ef78d557ebf1cc68775e2d7e521c1`
 - Checkpoint track: `GLASS_OFFICE_P4_TRENCHES WORK`
-- Repository state at handoff refresh: PR #103 merged into `main`; Calendar
-  continuation branch created at the exact merge commit; pre-existing root
-  `node_modules/` remains untracked and must not be staged
+- Repository state at handoff refresh: PR #103 is merged into `main`; PR #104
+  contains the Calendar slice and its hostile-QA correction. Do not resume
+  implementation until PR #104 is green and merged. The pre-existing root
+  `node_modules/` remains untracked and must not be staged.
 - Old `Z:\carsinos` tree: DEV/history only; do not implement there
 
 Start with:
@@ -58,6 +59,10 @@ Do not rebuild or replace these:
   toolbar/controller/mutations remain intact; Pin to Office reveals a real
   registry shortcut block that walks back to the Boards room without copying
   board data. External pin/config changes update the mounted Office canvas.
+- Calendar is the second parity-proven P4 room in PR #104. Week View,
+  Schedule, Active Jobs, heartbeat setup, job controls, Strategy context, and
+  Runbook links remain on the original Calendar surface. Its registry shortcut
+  returns by stable room ID and visibly refuses if Trenches is later disabled.
 - The Assistant's Desk slide-over: persona/decision entry, sitting-only
   conversation, real signed intake attachment, live decision lookup, real
   revise resolution, delegation detail over the shoulder, vanished-decision
@@ -139,7 +144,7 @@ unrelated first result.
 Rehome existing capabilities without losing parity:
 
 - Boards — complete in PR #103
-- Calendar
+- Calendar — complete in PR #104
 - Plan/Strategy
 - Staff Directory
 - History & Receipts / Runbook
@@ -149,9 +154,10 @@ shared-route lamp ownership, resolved-registry keyboard jumps, live external
 pin synchronization, honest pin failure/full-canvas states, and narrow-width
 room marks. Extend that path; do not create another navigation mechanism.
 
-The next bounded slice is Calendar. Preserve its existing Week View, Schedule,
-and Active Jobs tabs; run-now/toggle/history behavior; ExecAss heartbeat setup
-and wakeup audit; Strategy task context; and Runbook links.
+After PR #104 merges, the next bounded slice is Plan/Strategy. Preserve its
+existing Overview, Goals & Projects, Tasks, Task Detail, and Insights surfaces;
+draft-discard guards; goal/project/task mutations; summary lenses; Board and
+Calendar links; and Runbook context.
 
 Important boundaries:
 
@@ -230,20 +236,24 @@ Before PR:
 
 ## First implementation command
 
-After reading the references and writing the phase-start checkpoint, implement
-the Calendar room as the second parity-proven P4 slice:
+After reading the references, confirming PR #104 is merged, branching from its
+exact `main` merge commit, and writing the phase-start checkpoint, implement
+Plan/Strategy as the third parity-proven P4 room slice:
 
-1. Lock parity tests around Calendar's Week View, Schedule, Active Jobs,
-   run-now/toggle/history, ExecAss heartbeat/audit, Strategy context, and
-   Runbook links before changing presentation.
-2. Register a hidden-by-default `calendar` room-shortcut Office block and its
-   typed renderer, using the existing `calendar` room ID and the same
-   `onRoomSelect` path as Boards.
-3. Add the registry-backed `PinRoomToOffice roomId="calendar"` affordance to
-   the existing Calendar surface. Do not copy calendar/job data, duplicate a
-   mutation, or invent an ExecAss intake.
-4. Prove pin success, repeat pin, save failure, immediate mounted-Office
-   synchronization, Office shortcut return, stable lamp identity, desktop,
+1. Re-run the Calendar regression anchors from PR #104: all three surfaces,
+   existing job/heartbeat/integration coverage, stable Calendar lamp, pin and
+   repeat-pin truth, disabled-Trenches shortcut refusal, exact return, reload,
+   desktop, and 390px.
+2. Lock parity tests around Strategy's Overview, Goals & Projects, Tasks, Task
+   Detail, and Insights surfaces plus its draft guards, mutations, summary
+   lenses, and existing linked-work destinations before presentation changes.
+3. Register a hidden-by-default `plan` room-shortcut Office block using the
+   existing `plan` room ID and the shared resolved `onRoomSelect` path.
+4. Add `PinRoomToOffice roomId="plan"` to the existing Strategy surface. Do
+   not copy Strategy data, duplicate a mutation, or create another navigation
+   mechanism.
+5. Prove pin success/repeat/failure, live mounted-Office synchronization,
+   disabled-floor refusal, exact room return, stable lamp identity, desktop,
    390px, console cleanliness, and no horizontal overflow.
 
 Hand each bounded P4 slice back for hostile source and desktop/390 visual QA.
@@ -266,6 +276,11 @@ and P3 Window behavior are complete shared primitives.
   churn.
 - A test that only proves a destination tab opened is not proof of an exact
   deep link; assert the requested entity/detail.
+- A test that only finds tab labels is not proof that the surfaces are
+  reachable; enter every non-default surface and assert its content.
+- A persisted shortcut may outlive a floor override. Resolved room selection
+  must return rejection to its caller, and the small Office block must show the
+  refusal inside its visible bounds.
 - Preserve owner text typed while an earlier async send is in flight, and use a
   synchronous lock for same-tick duplicate sends.
 - Visually inspect both light and dark scoped themes; inherited global text can
