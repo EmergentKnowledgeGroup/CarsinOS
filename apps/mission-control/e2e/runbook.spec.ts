@@ -77,14 +77,10 @@ test.describe("mission-control runbook @core", () => {
       .getByRole("button", { name: "Open in Runbook" })
       .click();
     await expect(page.getByTestId("runbook-page")).toBeVisible();
-    const boardRunbookCard = page.getByRole("button", {
-      name: /Investigate gateway health/i,
-    });
-    await expect(boardRunbookCard).toBeVisible();
-    await boardRunbookCard.click();
     await expect(
       page.getByRole("heading", { name: "Investigate gateway health" }).first()
     ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Back to list" })).toBeVisible();
 
     await page.getByRole("button", { name: "Open board card" }).click();
     await expect(page.locator('[data-tour-id="nav-boards"]')).toHaveClass(/mc-nav-item-active/);

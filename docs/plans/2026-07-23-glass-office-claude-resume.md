@@ -1,15 +1,17 @@
 # Glass Office: Claude Resume Handoff
 
-This is the single resume document for Claude after backend/ExecAss PR #98 and
-Glass Office P0-P3 PR #99.
+This is the single resume document for Claude after backend/ExecAss PR #98,
+Glass Office P0-P3 PR #99, foundation UX PR #100, and Assistant's Desk PR #101.
 
 ## Resume point
 
 - Workspace: `Z:\carsinos-clean`
-- Branch: `codex/glass-office-p4-p5-resume`
-- Base/merged head: `cfd87e04bc7113c1818b0191abd11a0287fdc91e`
-- Checkpoint track: `GLASS_OFFICE_P3_INTEGRATION WORK`
-- Repository state at handoff creation: merged `main` plus this document only
+- Branch: `codex/glass-office-p3-experiential`
+- Base/merged head: `e7c3a3502f19ed1ca92985e62175716dca24db6a`
+- Checkpoint track: `GLASS_OFFICE_ASSISTANT_DESK WORK`
+- Repository state at handoff refresh: PR #101 merged into `main`; continuation
+  branch created at the exact merge commit; pre-existing root `node_modules/`
+  remains untracked and must not be staged
 - Old `Z:\carsinos` tree: DEV/history only; do not implement there
 
 Start with:
@@ -42,8 +44,13 @@ Do not rebuild or replace these:
   `GET /office/chatter` is read-only.
 - Protected theme values (`claw`, `claw-soft`, `ok`, `warn`) cannot be replaced
   through custom or persisted themes.
+- Theme Studio, Office arrange/size/hide/show, and registry-backed Pin to Office.
+- The Assistant's Desk slide-over: persona/decision entry, sitting-only
+  conversation, real signed intake attachment, live decision lookup, real
+  revise resolution, delegation detail over the shoulder, vanished-decision
+  handling, keyboard-modal isolation, and focus restoration.
 - Exact-head CI, CodeRabbit, frontend tests, browser tests, and Rust security
-  gates passed before PR #99 merged.
+  gates passed before PR #101 merged.
 
 ## Authoritative references
 
@@ -87,7 +94,7 @@ the websocket resume/refetch rules. Never guess request proofs or cursor fields.
 
 ## What Claude still owns
 
-### 1. Close the remaining deferred foundation UX
+### 1. Deferred foundation UX is complete
 
 Completed in PR #100:
 
@@ -98,11 +105,15 @@ Completed in PR #100:
 - “Pin to Office” adds or reactivates a registered block/config entry without
   copying data or creating a second source of truth.
 
-Remaining:
+Completed in PR #101:
 
-- Finish the Assistant’s Desk as the deliberate slide-over conversation
-  destination described in the design, without restoring the retired legacy
-  Assistant Desk data path.
+- Assistant's Desk is the deliberate slide-over conversation destination.
+- It uses the real Office controller/contracts and does not restore the retired
+  legacy Assistant Desk data path.
+- Conversation copy remains honest: the local log lasts only for this sitting;
+  durable work becomes a delegation with receipts.
+
+Do not rebuild these foundation pieces. Extend and consume them.
 
 ### 2. Finish the experiential layer of P3
 
@@ -111,6 +122,10 @@ Remaining:
 - Reduced-motion behavior and polished honest `unknown`/empty/error states.
 - Chatter room ergonomics, quiet unread treatment, and responsive expansion.
 - Do not invent typing/threading capabilities that Agent Mail does not expose.
+
+Start here. Keep this slice frontend-only unless a concrete missing backend
+contract is proven from source. Existing P3 presence and chatter routes are
+already merged.
 
 ### 3. P4 — The Trenches
 
@@ -199,9 +214,29 @@ Before PR:
 
 ## First implementation command
 
-After reading the references and writing the phase-start checkpoint, begin with
-the remaining Assistant’s Desk slide-over, using the real Office conversation
-path without restoring the retired legacy Assistant Desk data path. Then finish
-the P3 experiential polish before P4 rehoming. Theme Studio, arrange mode, and
-registered/config-backed pinning are complete shared primitives; consume them
+After reading the references and writing the phase-start checkpoint, begin the
+remaining P3 experiential slice:
+
+1. Reef crab/report-card interaction plus authoritative deep links.
+2. Honest unknown/empty/error and reduced-motion polish.
+3. Chatter room ergonomics, quiet unread treatment, and responsive expansion.
+
+Then hand the P3 slice back for hostile source and desktop/390 visual QA before
+starting P4 rehoming. Theme Studio, arrange mode, registered/config-backed
+pinning, and the Assistant's Desk are complete shared primitives; consume them
 without hardcoding Trenches or Basement navigation.
+
+## PR #101 QA lessons to carry forward
+
+- A local green claim is not proof until a fresh lint/CI run reproduces it.
+- Never display mutation success or clear owner input before the authoritative
+  request succeeds.
+- Use synchronous in-flight protection where same-tick duplicate submissions
+  are possible; React render state alone is not a lock.
+- Do not invent presence or runtime facts in friendly copy.
+- Portaled slide-overs must trap focus, inert the background, close by Escape,
+  restore the invoking control, and visually cover test/product overlays.
+- Browser screenshots are required because DOM tests cannot detect transformed
+  ancestor clipping, z-index collisions, or narrow-width presentation defects.
+- Keep diffs reviewable; do not bury a small fixture addition in line-ending
+  churn.

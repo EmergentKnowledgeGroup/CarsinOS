@@ -23,8 +23,17 @@ export function useGlassWindowController(props: {
   const [chatter, setChatter] = useState<OfficeChatterResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
   const refreshPromise = useRef<Promise<boolean> | null>(null);
   const requestGeneration = useRef(0);
+  const chatterGeneration = useRef(0);
+  const sendInFlight = useRef(false);
+
+  useEffect(() => {
+    requestGeneration.current += 1;
+    chatterGeneration.current += 1;
+    refreshPromise.current = null;
+  }, [settings.gateway_url, tokenConfigured]);
 
   const refresh = useCallback((): Promise<boolean> => {
     if (!tokenConfigured || !settings.gateway_url.trim()) {
@@ -41,6 +50,7 @@ export function useGlassWindowController(props: {
     }
     setLoading(true);
     const generation = requestGeneration.current;
+    const chatterRequest = ++chatterGeneration.current;
     const pending = Promise.all([
       getFloorPresence(settings),
       getOfficeChatter(settings),
@@ -48,7 +58,9 @@ export function useGlassWindowController(props: {
       .then(([nextPresence, nextChatter]) => {
         if (generation !== requestGeneration.current) return false;
         setPresence(nextPresence);
-        setChatter(nextChatter);
+        if (chatterRequest === chatterGeneration.current) {
+          setChatter(nextChatter);
+        }
         setError(null);
         return true;
       })
@@ -90,7 +102,10 @@ export function useGlassWindowController(props: {
   const sendMessage = useCallback(
     async (threadId: string, bodyText: string): Promise<boolean> => {
       const trimmed = bodyText.trim();
-      if (!trimmed) return false;
+      if (!trimmed || sendInFlight.current) return false;
+      sendInFlight.current = true;
+      setSending(true);
+      const chatterRequest = ++chatterGeneration.current;
       try {
         await postOfficeChatterMessage(
           settings,
@@ -103,13 +118,23 @@ export function useGlassWindowController(props: {
             ? reason.message
             : "That note could not be sent.",
         );
+        sendInFlight.current = false;
+        setSending(false);
         return false;
       }
       try {
-        setChatter(await getOfficeChatter(settings));
-        setError(null);
+        const nextChatter = await getOfficeChatter(settings);
+        if (chatterRequest === chatterGeneration.current) {
+          setChatter(nextChatter);
+          setError(null);
+        }
       } catch {
-        setError("Note sent, but the chatter feed could not refresh.");
+        if (chatterRequest === chatterGeneration.current) {
+          setError("Note sent, but the chatter feed could not refresh.");
+        }
+      } finally {
+        sendInFlight.current = false;
+        setSending(false);
       }
       return true;
     },
@@ -121,6 +146,7 @@ export function useGlassWindowController(props: {
     chatter,
     error,
     loading,
+    sending,
     refresh,
     sendMessage,
   };

@@ -10945,3 +10945,49 @@ p.mc-theme-errors { padding: 0; list-style: none; }
   .mc-desk-conversation { overflow-y: visible; }
   .mc-desk-shoulder { border-left: 0; border-top: 1px solid var(--line-soft, var(--mc-border-soft, #1f1f24)); }
 }
+
+/* ── Glass Office · 3F experiential: reef report cards + chatter calm ── */
+.mc-reef-agent { appearance: none; cursor: pointer; font: inherit; text-align: center; color: inherit; border: 1px solid transparent; border-radius: 10px; background: transparent; }
+.mc-reef-agent:hover { background: var(--surface-soft, rgba(255, 255, 255, 0.04)); }
+.mc-reef-agent:focus-visible { outline: 2px solid var(--accent, var(--mc-accent, #17766b)); outline-offset: 2px; }
+.mc-reef-agent .mc-reef-crab { display: inline-block; }
+.mc-reef-agent:hover .mc-reef-crab { animation: mc-reef-scuttle 480ms ease-in-out; }
+.mc-reef-agent[data-activity="busy"] .mc-reef-crab { animation: mc-reef-scuttle 3.2s ease-in-out infinite; }
+.mc-reef-agent[aria-expanded="true"] { outline: 2px solid var(--accent, var(--mc-accent, #17766b)); outline-offset: 2px; border-radius: 10px; }
+.mc-reef-agent.is-execass { padding: 12px 16px; }
+.mc-reef-agent.is-execass .mc-reef-crab { font-size: 28px; }
+.mc-reef-agent.is-execass strong { color: var(--claw, #e8541b); }
+.mc-reef-agent.is-unknown, .mc-reef-agent.is-offline { opacity: 0.62; }
+.mc-reef-agent.is-unknown .mc-reef-crab { filter: grayscale(1); animation: none; }
+.mc-reef-agent.is-recovering .mc-reef-crab { animation: mc-reef-scuttle 1.2s ease-in-out infinite; }
+@keyframes mc-reef-scuttle {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-3px) rotate(-4deg); }
+  40% { transform: translateX(2px) rotate(3deg); }
+  60% { transform: translateX(-2px) rotate(-2deg); }
+  80% { transform: translateX(1px) rotate(1deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mc-reef-agent .mc-reef-crab, .mc-reef-agent[data-activity="busy"] .mc-reef-crab, .mc-reef-agent.is-recovering .mc-reef-crab { animation: none; }
+}
+.mc-reef-report { margin-top: 10px; border: 1px solid var(--line, var(--mc-border, #2a2a2e)); border-radius: 10px; padding: 11px 13px; display: flex; flex-direction: column; gap: 6px; color: var(--ink, var(--mc-text, #e8eaed)); background: var(--surface, var(--mc-surface, #171717)); box-shadow: var(--shadow, none); }
+.mc-reef-report-head { display: flex; align-items: baseline; gap: 10px; }
+.mc-reef-report-head strong { font-size: 13.5px; }
+.mc-reef-mood { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft, var(--mc-text-soft, #9aa1a5)); flex: 1; }
+.mc-reef-mood.is-focused { color: var(--accent, var(--mc-accent, #17766b)); }
+.mc-reef-mood.is-recovering { color: var(--gold, var(--mc-warning, #97782a)); }
+.mc-reef-report-close { border: 0; background: none; color: var(--ink-faint, var(--mc-text-soft, #8c9598)); cursor: pointer; padding: 2px 6px; }
+.mc-reef-report-activity { margin: 0; font-size: 12.5px; }
+.mc-reef-report-observed { margin: 0; font-size: 11px; color: var(--ink-faint, var(--mc-text-soft, #8c9598)); }
+.mc-reef-report-observed.is-stale { color: var(--gold, var(--mc-warning, #97782a)); }
+.mc-reef-report-link { align-self: flex-start; padding: 6px 12px; border-radius: 9px; border: 1px solid var(--accent, var(--mc-accent, #17766b)); background: none; color: var(--accent, var(--mc-accent, #17766b)); font-size: 12px; cursor: pointer; }
+.mc-reef-report-link:hover { background: var(--accent-soft, rgba(23, 118, 107, 0.12)); }
+.mc-reef-report-none { margin: 0; font-size: 11.5px; font-style: italic; color: var(--ink-faint, var(--mc-text-soft, #8c9598)); }
+.mc-reef-collapse summary { cursor: pointer; font-size: 12.5px; color: var(--ink, var(--mc-text, #e8eaed)); padding: 6px 2px; }
+.mc-chatter-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--gold, var(--mc-warning, #97782a)); flex: none; }
+.mc-chatter-messages article p { margin: 2px 0 0; }
+@media (max-width: 700px) {
+  .mc-chatter-layout { display: flex; flex-direction: column; }
+  .mc-chatter-rooms { display: flex; flex-direction: row; overflow-x: auto; gap: 6px; padding-bottom: 6px; }
+  .mc-chatter-rooms button { flex: none; border-radius: 99px; }
+}

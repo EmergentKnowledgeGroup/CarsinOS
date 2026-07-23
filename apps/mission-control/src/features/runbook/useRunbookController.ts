@@ -18,6 +18,7 @@ import {
   buildRunbookSummaryIndex,
   getRunbookSummariesForEntity,
 } from "./runbookSummaryUtils";
+import { chooseRunbookSelection } from "./runbookSelection";
 
 type RunbookAvailability = "disabled" | "loading" | "ready" | "unsupported" | "error";
 
@@ -131,6 +132,7 @@ export function useRunbookController(options: UseRunbookControllerOptions) {
   const [generatedAtMs, setGeneratedAtMs] = useState<number | null>(null);
   const [selectedRunbookKind, setSelectedRunbookKind] = useState<string>("");
   const [selectedAnchorId, setSelectedAnchorId] = useState<string>("");
+  const [openRequestVersion, setOpenRequestVersion] = useState(0);
   const [detail, setDetail] = useState<RunbookDetailResponse | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -235,10 +237,11 @@ export function useRunbookController(options: UseRunbookControllerOptions) {
         setLastRefreshAtMs(Date.now());
         setAvailability("ready");
 
-        const preferredItem =
-          response.items.find((item) => item.runbook_id === selectedRunbookId) ??
-          response.items[0] ??
-          null;
+        const preferredItem = chooseRunbookSelection(
+          response.items,
+          globalResponse?.items ?? response.items,
+          selectedRunbookId,
+        );
         if (preferredItem) {
           setSelectedRunbookKind(preferredItem.runbook_kind);
           setSelectedAnchorId(preferredItem.anchor_id);
@@ -347,6 +350,7 @@ export function useRunbookController(options: UseRunbookControllerOptions) {
       }
       setSelectedRunbookKind(runbookKind);
       setSelectedAnchorId(anchorId);
+      setOpenRequestVersion((current) => current + 1);
       return true;
     },
     [enabled, setNotice]
@@ -427,6 +431,7 @@ export function useRunbookController(options: UseRunbookControllerOptions) {
     selectedRunbookKind,
     selectedAnchorId,
     selectedRunbookId,
+    openRequestVersion,
     selectedSummary,
     detail,
     detailError,

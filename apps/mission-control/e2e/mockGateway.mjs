@@ -3135,7 +3135,7 @@ async function routeRequest(req, res) {
           mood: "focused",
           observed_at_ms: Date.now() - 2_000,
           source: "local_storage",
-          target: { kind: "run", id: "run-office-e2e" },
+          target: { kind: "run", id: "run-assistant-001" },
         },
         {
           agent_id: "agent-reef",

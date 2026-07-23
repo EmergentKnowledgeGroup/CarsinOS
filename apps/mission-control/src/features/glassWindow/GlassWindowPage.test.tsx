@@ -63,6 +63,7 @@ describe("GlassWindowPage", () => {
       },
       error: null,
       loading: false,
+      sending: false,
       refresh: vi.fn().mockResolvedValue(true),
       sendMessage: vi.fn().mockResolvedValue(true),
     } as GlassWindowController;
@@ -88,6 +89,7 @@ describe("GlassWindowPage", () => {
       chatter: null,
       error: "The Window is not wired yet.",
       loading: false,
+      sending: false,
       refresh: vi.fn().mockResolvedValue(false),
       sendMessage: vi.fn().mockResolvedValue(false),
     } as unknown as GlassWindowController;
