@@ -34,6 +34,14 @@ describe("OFFICE_BLOCK_REGISTRY room shortcuts", () => {
     expect(calendar?.roomId).toBe("calendar");
     expect(calendar?.defaultVisible).toBe(false);
   });
+
+  test("registers the Plan room shortcut under its declared strategy block id", () => {
+    const strategy = OFFICE_BLOCK_REGISTRY.find((def) => def.id === "strategy");
+    expect(strategy).toBeDefined();
+    expect(strategy?.rendererKey).toBe("room-shortcut");
+    expect(strategy?.roomId).toBe("plan");
+    expect(strategy?.defaultVisible).toBe(false);
+  });
 });
 
 describe("pinRoomBlocksToOffice", () => {
@@ -81,8 +89,26 @@ describe("pinRoomBlocksToOffice", () => {
     expect(loadGlassConfig().layout).toBeUndefined();
   });
 
-  test("fails honestly for rooms with no registered Office block yet", () => {
+  test("pins the Plan room through its declared strategy block", () => {
     const result = pinRoomBlocksToOffice("plan");
+    expect(result.ok).toBe(true);
+    expect(result.pinned).toEqual(["strategy"]);
+    const layout = loadGlassConfig().layout ?? [];
+    expect(layout.find((entry) => entry.id === "strategy")?.visible).toBe(true);
+  });
+
+  test("all three Trenches shortcuts fit the default canvas together", () => {
+    expect(pinRoomBlocksToOffice("boards").ok).toBe(true);
+    expect(pinRoomBlocksToOffice("calendar").ok).toBe(true);
+    expect(pinRoomBlocksToOffice("plan").ok).toBe(true);
+    const layout = loadGlassConfig().layout ?? [];
+    for (const id of ["boards", "calendar", "strategy"]) {
+      expect(layout.find((entry) => entry.id === id)?.visible).toBe(true);
+    }
+  });
+
+  test("fails honestly for rooms with no registered Office block yet", () => {
+    const result = pinRoomBlocksToOffice("staff");
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/pin/i);
     expect(loadGlassConfig().layout).toBeUndefined();

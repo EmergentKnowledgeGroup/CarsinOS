@@ -66,4 +66,14 @@ export const OFFICE_BLOCK_REGISTRY: readonly OfficeBlockDef[] = [
     defaultSize: "s",
     defaultVisible: false,
   },
+  // The Plan room's registry-declared block id is "strategy" (its route),
+  // so the shortcut carries that id while opening the "plan" room.
+  {
+    id: "strategy",
+    rendererKey: "room-shortcut",
+    roomId: "plan",
+    title: "Plan",
+    defaultSize: "s",
+    defaultVisible: false,
+  },
 ];
