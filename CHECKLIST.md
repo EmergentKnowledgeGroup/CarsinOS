@@ -24,7 +24,7 @@ Authority: `docs/plans/2026-07-22-glass-office-design.md`,
   without creating a second message store or fabricated typing/thread state.
 - [x] `GO-304` Wire the Reef and Office Chatter frontend to the authoritative
   P3 seams with honest unavailable/unknown states and responsive browser proof.
-- [ ] `GO-305` Run targeted backend/frontend tests, full relevant regressions,
+- [x] `GO-305` Run targeted backend/frontend tests, full relevant regressions,
   diff-scope audit, docs/checkpoint reconciliation, and final source review.
 
 ## Current Active Lane — ExecAss Backend and Runtime Product Correction
