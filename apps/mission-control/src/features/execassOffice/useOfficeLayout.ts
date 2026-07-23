@@ -4,7 +4,7 @@
  * it back, preserving whatever else lives in the config blob.
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import {
   moveBlock,
@@ -41,27 +41,28 @@ export function useOfficeLayout(): OfficeLayoutController {
   const [placements, setPlacements] = useState<BlockPlacement[]>(() =>
     normalizeLayout(loadGlassConfig().layout, OFFICE_BLOCK_REGISTRY),
   );
+  const placementsRef = useRef(placements);
   const [arranging, setArranging] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const commit = useCallback(
     (op: (current: BlockPlacement[]) => BlockPlacement[]) => {
-      setPlacements((current) => {
-        const next = op(current);
-        if (next === current) return current;
-        if (!layoutFitsCanvas(next)) {
-          setError("That change would exceed the six-column, four-row Office canvas.");
-          return current;
-        }
-        const result = saveGlassConfig({ ...loadGlassConfig(), layout: next });
-        if (!result.ok) {
-          setError("Office arrangement could not be saved. Nothing was changed.");
-          return current;
-        }
-        setError(null);
-        notifyGlassConfigChanged();
-        return next;
-      });
+      const current = placementsRef.current;
+      const next = op(current);
+      if (next === current) return;
+      if (!layoutFitsCanvas(next)) {
+        setError("That change would exceed the six-column, four-row Office canvas.");
+        return;
+      }
+      const result = saveGlassConfig({ ...loadGlassConfig(), layout: next });
+      if (!result.ok) {
+        setError("Office arrangement could not be saved. Nothing was changed.");
+        return;
+      }
+      placementsRef.current = next;
+      setPlacements(next);
+      setError(null);
+      notifyGlassConfigChanged();
     },
     [],
   );

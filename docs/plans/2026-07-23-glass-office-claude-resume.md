@@ -80,21 +80,26 @@ Live additive Office routes:
 |---|---|
 | Coarse authoritative presence | `GET /api/v1/office/floor-presence` |
 | Read safe chatter rooms/messages | `GET /api/v1/office/chatter` |
-| Send authenticated owner note | `POST /api/v1/office/chatter/{thread_id}/messages` |
+| Send authenticated owner note | `POST /api/v1/office/chatter/rooms/{thread_id}/messages` |
 
 Use the ExecAss integration handoff for all 16 versioned ExecAss operations and
 the websocket resume/refetch rules. Never guess request proofs or cursor fields.
 
 ## What Claude still owns
 
-### 1. Close the deferred foundation UX
+### 1. Close the remaining deferred foundation UX
 
-- Theme editor MVP: edit allowed tokens, live preview, save/duplicate,
-  export/import JSON. Protected tokens remain immutable.
-- Office arrange mode: reorder, resize, hide/show, and add from the block
-  registry.
-- “Pin to Office” must add a registered block/config entry, not copy data or
-  create a second source of truth.
+Completed in PR #100:
+
+- Theme Studio edits allowed tokens with live preview, save/duplicate, and
+  export/import JSON while protected tokens remain immutable.
+- Office arrange mode reorders, resizes, hides/shows, and restores registered
+  blocks within the fixed desktop canvas.
+- “Pin to Office” adds or reactivates a registered block/config entry without
+  copying data or creating a second source of truth.
+
+Remaining:
+
 - Finish the Assistant’s Desk as the deliberate slide-over conversation
   destination described in the design, without restoring the retired legacy
   Assistant Desk data path.
@@ -195,6 +200,8 @@ Before PR:
 ## First implementation command
 
 After reading the references and writing the phase-start checkpoint, begin with
-the deferred foundation UX (theme editor + arrange/pin mechanics). Those are the
-shared primitives P4 and P5 should consume; do not start by hardcoding Trenches
-or Basement navigation.
+the remaining Assistant’s Desk slide-over, using the real Office conversation
+path without restoring the retired legacy Assistant Desk data path. Then finish
+the P3 experiential polish before P4 rehoming. Theme Studio, arrange mode, and
+registered/config-backed pinning are complete shared primitives; consume them
+without hardcoding Trenches or Basement navigation.
