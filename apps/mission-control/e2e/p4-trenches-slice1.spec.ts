@@ -96,6 +96,11 @@ test("@core @p4-trenches room identity, boards pin-to-office, and the office sho
   // overflows horizontally.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator('[data-tour-id="nav-boards"]').click();
+  const mobileBoardsRoom = page.locator('button[title="2F · Boards"]');
+  await expect(mobileBoardsRoom).toHaveClass(/mc-nav-item-active/);
+  await expect(
+    mobileBoardsRoom.locator(".mc-nav-room-mark"),
+  ).toHaveText("B");
   await expect(
     page.getByRole("button", { name: "Pin Boards to Office" }),
   ).toBeVisible();

@@ -1,5 +1,10 @@
 import { useCallback, useMemo, useState } from "react";
-import { DEFAULT_FLOORS, findRoom, roomForTab } from "../glass/floors";
+import {
+  DEFAULT_FLOORS,
+  findRoom,
+  roomForTab,
+  type FloorDef,
+} from "../glass/floors";
 import { loadConnectionSettings } from "../lib/runtime";
 import type { WsLifecycleState } from "../lib/ws";
 import type { RuntimeConnectionSettings } from "../types";
@@ -57,8 +62,11 @@ export function useAppController() {
   }, []);
 
   /** Navigate by stable room id; unknown ids fail closed. */
-  const selectRoom = useCallback((roomId: string) => {
-    const found = findRoom(DEFAULT_FLOORS, roomId);
+  const selectRoom = useCallback((
+    roomId: string,
+    resolvedFloors: readonly FloorDef[] = DEFAULT_FLOORS,
+  ) => {
+    const found = findRoom(resolvedFloors, roomId);
     if (!found) return;
     setSelectedRoomId(roomId);
     setActiveTabState(found.room.route);

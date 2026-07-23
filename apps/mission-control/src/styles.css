@@ -8845,6 +8845,10 @@ button.danger:hover {
     display: none;
   }
 
+  .mc-elevator-rooms .mc-nav-room-mark {
+    display: inline;
+  }
+
   .mc-connection {
     grid-template-columns: 1fr;
   }
@@ -10563,6 +10567,14 @@ button.danger:hover {
   min-height: 30px;
   padding-block: 5px;
   font-size: 0.74rem;
+}
+
+.mc-nav-room-mark {
+  display: none;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
 }
 
 .mc-window-floor {

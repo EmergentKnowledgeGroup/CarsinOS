@@ -5,8 +5,13 @@
  * the config save actually succeeded.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { normalizeLayout } from "../../glass/blocks";
+import {
+  GLASS_CONFIG_EVENT,
+  loadGlassConfig,
+} from "../../glass/config";
 import { DEFAULT_FLOORS, findRoom } from "../../glass/floors";
 import { OFFICE_BLOCK_REGISTRY } from "./officeBlocks";
 import { pinRoomBlocksToOffice } from "./pinToOffice";
@@ -20,10 +25,30 @@ type PinState =
 export function PinRoomToOffice(props: { roomId: string }) {
   const [state, setState] = useState<PinState>({ kind: "idle" });
   const found = findRoom(DEFAULT_FLOORS, props.roomId);
+  const room = found?.room;
   const pinnable =
-    found?.room.blocks.some((blockId) =>
+    room?.blocks.some((blockId) =>
       OFFICE_BLOCK_REGISTRY.some((def) => def.id === blockId),
     ) ?? false;
+
+  useEffect(() => {
+    const clearStaleFeedback = () => {
+      if (!room) return;
+      const layout = normalizeLayout(
+        loadGlassConfig().layout,
+        OFFICE_BLOCK_REGISTRY,
+      );
+      const visible = layout.some(
+        (placement) =>
+          room.blocks.includes(placement.id) && placement.visible,
+      );
+      if (!visible) setState({ kind: "idle" });
+    };
+    window.addEventListener(GLASS_CONFIG_EVENT, clearStaleFeedback);
+    return () =>
+      window.removeEventListener(GLASS_CONFIG_EVENT, clearStaleFeedback);
+  }, [room]);
+
   if (!found || !pinnable) return null;
 
   const handlePin = () => {

@@ -4,7 +4,7 @@
  * it back, preserving whatever else lives in the config blob.
  */
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   moveBlock,
@@ -18,6 +18,7 @@ import {
   type BlockPlacement,
 } from "../../glass/blocks";
 import {
+  GLASS_CONFIG_EVENT,
   loadGlassConfig,
   notifyGlassConfigChanged,
   saveGlassConfig,
@@ -44,6 +45,21 @@ export function useOfficeLayout(): OfficeLayoutController {
   const placementsRef = useRef(placements);
   const [arranging, setArranging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const syncFromPersistedConfig = () => {
+      const next = normalizeLayout(
+        loadGlassConfig().layout,
+        OFFICE_BLOCK_REGISTRY,
+      );
+      placementsRef.current = next;
+      setPlacements(next);
+      setError(null);
+    };
+    window.addEventListener(GLASS_CONFIG_EVENT, syncFromPersistedConfig);
+    return () =>
+      window.removeEventListener(GLASS_CONFIG_EVENT, syncFromPersistedConfig);
+  }, []);
 
   const commit = useCallback(
     (op: (current: BlockPlacement[]) => BlockPlacement[]) => {

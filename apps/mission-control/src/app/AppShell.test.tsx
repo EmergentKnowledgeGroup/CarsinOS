@@ -329,11 +329,17 @@ describe("AppShell live feed toggle", () => {
     expect(activeRooms[0]?.getAttribute("title")).toBe(
       "BF · Models & Providers"
     );
+    expect(
+      activeRooms[0]?.querySelector(".mc-nav-room-mark")?.textContent
+    ).toBe("MP");
 
     const staffButton = Array.from(container.querySelectorAll("button")).find(
       (button) => button.getAttribute("title") === "2F · Staff Directory"
     );
     expect(staffButton).toBeTruthy();
+    expect(
+      staffButton?.querySelector(".mc-nav-room-mark")?.textContent
+    ).toBe("SD");
     await act(async () => {
       staffButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });

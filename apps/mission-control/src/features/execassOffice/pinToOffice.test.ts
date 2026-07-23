@@ -2,7 +2,11 @@
 
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
-import { GLASS_CONFIG_EVENT, loadGlassConfig } from "../../glass/config";
+import {
+  GLASS_CONFIG_EVENT,
+  GLASS_CONFIG_STORAGE_KEY,
+  loadGlassConfig,
+} from "../../glass/config";
 import { OFFICE_BLOCK_REGISTRY } from "./officeBlocks";
 import { pinRoomBlocksToOffice } from "./pinToOffice";
 
@@ -64,5 +68,46 @@ describe("pinRoomBlocksToOffice", () => {
     expect(result.ok).toBe(false);
     expect(result.error).toMatch(/pin/i);
     expect(loadGlassConfig().layout).toBeUndefined();
+  });
+
+  test("reports storage failure without announcing or changing config", () => {
+    const listener = vi.fn();
+    window.addEventListener(GLASS_CONFIG_EVENT, listener);
+    const storage = {
+      getItem: () => null,
+      setItem: () => {
+        throw new Error("disk full");
+      },
+    } as unknown as Storage;
+    try {
+      const result = pinRoomBlocksToOffice("boards", storage);
+      expect(result.ok).toBe(false);
+      expect(result.error).toMatch(/nothing was changed/i);
+      expect(listener).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(GLASS_CONFIG_EVENT, listener);
+    }
+  });
+
+  test("rejects a pin that would exceed the fixed Office canvas", () => {
+    localStorage.setItem(
+      GLASS_CONFIG_STORAGE_KEY,
+      JSON.stringify({
+        themeId: "auto",
+        customThemes: [],
+        layout: [
+          { id: "needs-you", size: "l", visible: true },
+          { id: "in-motion", size: "l", visible: true },
+          { id: "done", size: "l", visible: true },
+          { id: "next", size: "s", visible: false },
+          { id: "boards", size: "s", visible: false },
+        ],
+      }),
+    );
+    const before = localStorage.getItem(GLASS_CONFIG_STORAGE_KEY);
+    const result = pinRoomBlocksToOffice("boards");
+    expect(result.ok).toBe(false);
+    expect(result.error).toMatch(/exceed/i);
+    expect(localStorage.getItem(GLASS_CONFIG_STORAGE_KEY)).toBe(before);
   });
 });

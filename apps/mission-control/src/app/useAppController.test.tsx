@@ -5,6 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 
 import { useAppController } from "./useAppController";
+import { DEFAULT_FLOORS, resolveElevator } from "../glass/floors";
 
 type AppController = ReturnType<typeof useAppController>;
 
@@ -85,6 +86,31 @@ describe("useAppController room identity", () => {
     await render();
     await act(async () => {
       controller?.selectRoom("haunted-room");
+    });
+    expect(controller?.activeTab).toBe("boards");
+    expect(controller?.activeRoomId).toBe("boards");
+  });
+
+  test("selectRoom fails closed when the resolved registry hides the room", async () => {
+    await render();
+    const visibleFloors = resolveElevator(DEFAULT_FLOORS, {
+      capabilities: ["execass", "agent-mail"],
+      overrides: { basement: { hidden: true } },
+    });
+    await act(async () => {
+      controller?.selectRoom("models", visibleFloors);
+    });
+    expect(controller?.activeTab).toBe("boards");
+    expect(controller?.activeRoomId).toBe("boards");
+  });
+
+  test("selectRoom fails closed for a capability-filtered room", async () => {
+    await render();
+    const visibleFloors = resolveElevator(DEFAULT_FLOORS, {
+      capabilities: ["execass"],
+    });
+    await act(async () => {
+      controller?.selectRoom("chatter", visibleFloors);
     });
     expect(controller?.activeTab).toBe("boards");
     expect(controller?.activeRoomId).toBe("boards");

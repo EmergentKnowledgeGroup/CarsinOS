@@ -1,11 +1,14 @@
 ﻿import { useState, useEffect, useCallback, useRef } from "react";
 import clsx from "clsx";
-import { useMemo } from "react";
 import type { ReactNode } from "react";
 import { useKeyboardShortcuts } from "./useKeyboardShortcuts";
 import { useTheme } from "./useTheme";
 import type { MissionControlTab } from "./useAppController";
-import { DEFAULT_FLOORS, resolveElevator } from "../glass/floors";
+import {
+  DEFAULT_FLOORS,
+  resolveElevator,
+  type FloorDef,
+} from "../glass/floors";
 import { GLASS_CONFIG_EVENT, loadGlassConfig } from "../glass/config";
 import { activeThemeName } from "../glass/themeEditor";
 import { Badge } from "../ui/Badge";
@@ -69,6 +72,7 @@ const NAV_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
 interface AppShellProps {
   activeTab: MissionControlTab;
   availableTabs: MissionControlTab[];
+  elevatorFloors?: readonly FloorDef[];
   onTabChange: (tab: MissionControlTab) => void;
   /** Stable room id owning the elevator lamp; null when no room owns the tab. */
   activeRoomId: string | null;
@@ -163,22 +167,19 @@ function applyDensity(density: "comfortable" | "compact") {
 /* ── Component ─────────────────────────────────────────────────────── */
 
 export function AppShell(props: AppShellProps) {
-  const glassConfig = useMemo(() => loadGlassConfig(), []);
-  const elevatorFloors = useMemo(
-    () =>
-      resolveElevator(DEFAULT_FLOORS, {
-        capabilities: ["execass", "agent-mail"],
-        overrides: glassConfig.floorOverrides,
-      })
-        .map((floor) => ({
-          ...floor,
-          rooms: floor.rooms.filter((room) =>
-            props.availableTabs.includes(room.route),
-          ),
-        }))
-        .filter((floor) => floor.rooms.length > 0),
-    [glassConfig.floorOverrides, props.availableTabs],
-  );
+  const elevatorFloors =
+    props.elevatorFloors ??
+    resolveElevator(DEFAULT_FLOORS, {
+      capabilities: ["execass", "agent-mail"],
+      overrides: loadGlassConfig().floorOverrides,
+    })
+      .map((floor) => ({
+        ...floor,
+        rooms: floor.rooms.filter((room) =>
+          props.availableTabs.includes(room.route),
+        ),
+      }))
+      .filter((floor) => floor.rooms.length > 0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
   const [clearTokenConfirmOpen, setClearTokenConfirmOpen] = useState(false);
@@ -321,7 +322,7 @@ export function AppShell(props: AppShellProps) {
     onOpenCommandPalette: toggleCommandPalette,
     onCloseOverlay: closeOverlay,
     overlayOpen: settingsOpen || cmdPaletteOpen,
-    floorOverrides: glassConfig.floorOverrides,
+    elevatorFloors,
   });
 
   // Connection status dot color
@@ -414,6 +415,12 @@ export function AppShell(props: AppShellProps) {
                 <div className="mc-elevator-rooms">
                   {floor.rooms.map((room) => {
                     const badgeCount = props.navBadges?.[room.route] ?? 0;
+                    const roomMark = room.label
+                      .split(/\s+/)
+                      .flatMap((word) => word.match(/[a-z0-9]/i)?.[0] ?? [])
+                      .join("")
+                      .slice(0, 2)
+                      .toUpperCase();
                     const isPrimaryTourTarget = !claimedTourRoutes.has(
                       room.route,
                     );
@@ -436,6 +443,9 @@ export function AppShell(props: AppShellProps) {
                             : `nav-${floor.id}-${room.id}`
                         }
                       >
+                        <span className="mc-nav-room-mark" aria-hidden="true">
+                          {roomMark}
+                        </span>
                         <span className="mc-nav-label">{room.label}</span>
                         <Badge
                           count={badgeCount}

@@ -1,5 +1,5 @@
 import { useEffect, useCallback } from "react";
-import { DEFAULT_FLOORS, resolveElevator } from "../glass/floors";
+import { DEFAULT_FLOORS, resolveElevator, type FloorDef } from "../glass/floors";
 import type { FloorOverride } from "../glass/floors";
 import type { MissionControlTab } from "./useAppController";
 
@@ -14,6 +14,8 @@ interface UseKeyboardShortcutsOptions {
   onCloseOverlay: () => void;
   /** True when a modal/overlay is open — suppresses tab shortcuts */
   overlayOpen: boolean;
+  /** The same capability/override/tab-filtered registry rendered by the elevator. */
+  elevatorFloors?: readonly FloorDef[];
   floorOverrides?: Partial<Record<string, FloorOverride>>;
 }
 
@@ -35,6 +37,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions) {
     onOpenCommandPalette,
     onCloseOverlay,
     overlayOpen,
+    elevatorFloors,
     floorOverrides,
   } = opts;
 
@@ -73,10 +76,16 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions) {
 
       // Elevator shortcuts — only when not editing and no overlay.
       if (!overlayOpen && !isEditableTarget(e) && !meta && !e.altKey && !e.shiftKey) {
-        const floor = resolveElevator(DEFAULT_FLOORS, {
-          capabilities: ["execass", "agent-mail"],
-          overrides: floorOverrides,
-        }).find((candidate) => candidate.shortcut.toLowerCase() === e.key.toLowerCase());
+        const floors =
+          elevatorFloors ??
+          resolveElevator(DEFAULT_FLOORS, {
+            capabilities: ["execass", "agent-mail"],
+            overrides: floorOverrides,
+          });
+        const floor = floors.find(
+          (candidate) =>
+            candidate.shortcut.toLowerCase() === e.key.toLowerCase(),
+        );
         const defaultRoom =
           floor?.rooms.find((room) => room.id === floor.defaultRoom) ??
           floor?.rooms[0];
@@ -109,6 +118,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions) {
       onOpenCommandPalette,
       onCloseOverlay,
       overlayOpen,
+      elevatorFloors,
       floorOverrides,
     ]
   );

@@ -13,6 +13,7 @@ import {
 import { useGatewayEvents } from "./app/useGatewayEvents";
 import { useLiveFeedController } from "./app/useLiveFeedController";
 import { useMissionControlController } from "./app/useMissionControlController";
+import { useResolvedElevator } from "./app/useResolvedElevator";
 import {
   useRuntimeConnectionController,
   type BoardSummary,
@@ -31,6 +32,7 @@ import type { SimpleIntegrationId } from "./features/connectors/simpleIntegratio
 import { useConnectorsController } from "./features/connectors/useConnectorsController";
 import { useExecassOfficeController } from "./features/execassOffice/useExecassOfficeController";
 import { useGlassWindowController } from "./features/glassWindow/useGlassWindowController";
+import { roomForTab } from "./glass/floors";
 import { useMemoryController } from "./features/memory/useMemoryController";
 import { OnboardingWizard } from "./features/onboarding/OnboardingWizard";
 import { useOnboardingController } from "./features/onboarding/useOnboardingController";
@@ -436,6 +438,16 @@ export default function App() {
       ],
     [connectorsHubEnabled, memoryHubEnabled, runbookHubEnabled]
   );
+  const elevatorFloors = useResolvedElevator(availableTabs);
+  const selectAvailableRoom = useCallback(
+    (roomId: string) => {
+      selectRoom(roomId, elevatorFloors);
+    },
+    [elevatorFloors, selectRoom],
+  );
+  const resolvedActiveRoomId =
+    roomForTab(elevatorFloors, activeTab, activeRoomId ?? undefined)?.room.id ??
+    null;
   const dismissQuickGuides = useCallback(() => {
     setQuickGuideState({
       collapsed: true,
@@ -1135,9 +1147,10 @@ export default function App() {
     <AppShell
       activeTab={activeTab}
       availableTabs={availableTabs}
+      elevatorFloors={elevatorFloors}
       onTabChange={setActiveTab}
-      activeRoomId={activeRoomId}
-      onRoomSelect={selectRoom}
+      activeRoomId={resolvedActiveRoomId}
+      onRoomSelect={selectAvailableRoom}
       healthState={healthState}
       wsState={wsState}
       tokenConfigured={tokenConfigured}
@@ -1228,7 +1241,7 @@ export default function App() {
       <AppContent
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        onRoomSelect={selectRoom}
+        onRoomSelect={selectAvailableRoom}
         onOpenHelpDocs={openHelpDocs}
         helpDocsTarget={helpDocsTarget}
         onStartGuidedTour={openGuidedTour}

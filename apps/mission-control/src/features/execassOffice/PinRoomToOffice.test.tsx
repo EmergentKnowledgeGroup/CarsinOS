@@ -4,7 +4,11 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { loadGlassConfig } from "../../glass/config";
+import {
+  loadGlassConfig,
+  notifyGlassConfigChanged,
+  saveGlassConfig,
+} from "../../glass/config";
 import { PinRoomToOffice } from "./PinRoomToOffice";
 
 let root: Root | null = null;
@@ -64,5 +68,23 @@ describe("PinRoomToOffice", () => {
   it("renders nothing for rooms that cannot be pinned yet", async () => {
     await render("calendar");
     expect(container.querySelector("button")).toBeNull();
+  });
+
+  it("clears stale success copy after the shortcut is hidden elsewhere", async () => {
+    await render("boards");
+    await act(async () => pinButton()!.click());
+    expect(container.querySelector('[role="status"]')).not.toBeNull();
+
+    const config = loadGlassConfig();
+    const layout = (config.layout ?? []).map((placement) =>
+      placement.id === "boards"
+        ? { ...placement, visible: false }
+        : placement,
+    );
+    await act(async () => {
+      expect(saveGlassConfig({ ...config, layout }).ok).toBe(true);
+      notifyGlassConfigChanged();
+    });
+    expect(container.querySelector('[role="status"]')).toBeNull();
   });
 });
