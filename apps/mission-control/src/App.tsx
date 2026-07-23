@@ -481,20 +481,25 @@ export default function App() {
 
   const patchOpsControls = useCallback(
     (patch: Partial<OpsUxFeatureControls>) => {
-      setOpsUxRuntime((current) => {
-        const nextConfig = withOpsUxControlPatch(current.config, patch);
-        const persisted = saveOpsUxRuntimeConfig(nextConfig);
-        if (!persisted.ok) {
-          setNotice({
-            tone: "error",
-            message: persisted.error ?? "Runtime config persistence failed.",
-          });
-        }
-        return {
-          config: nextConfig,
-          degraded: !persisted.ok,
-          error: persisted.error,
-        };
+      // Side effects stay out of the state updater: updaters run during
+      // render, and the store emit would synchronously update other
+      // subscribed components mid-render. The persisted store is the
+      // source of truth, so patch against a fresh load.
+      const nextConfig = withOpsUxControlPatch(
+        loadOpsUxRuntimeConfig().config,
+        patch,
+      );
+      const persisted = saveOpsUxRuntimeConfig(nextConfig);
+      if (!persisted.ok) {
+        setNotice({
+          tone: "error",
+          message: persisted.error ?? "Runtime config persistence failed.",
+        });
+      }
+      setOpsUxRuntime({
+        config: nextConfig,
+        degraded: !persisted.ok,
+        error: persisted.error,
       });
     },
     [setNotice]

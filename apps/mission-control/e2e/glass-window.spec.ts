@@ -65,6 +65,8 @@ test("@core @glass-window renders safe Reef presence and Agent Mail chatter", as
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(windowFloor).toBeVisible();
+  // Narrow widths summarize the reef before expanding (design 4.8).
+  await windowFloor.locator(".mc-reef-collapse summary").click();
   await expect(
     windowFloor.getByText("No recent observation", { exact: true }),
   ).toBeVisible();

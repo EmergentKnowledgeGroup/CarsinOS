@@ -1,28 +1,234 @@
-import { useMemo, useState, type FormEvent } from "react";
+/**
+ * The Window (3F): the Reef and Office Chatter. Everything here is a view
+ * over coarse authoritative truth - crabs render only observed presence,
+ * report cards deep-link to the authoritative detail, chatter is a
+ * read-first projection of Agent Mail with quiet unreads. Nothing on this
+ * floor invents activity, read-state, typing, or threading.
+ */
 
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
+
+import {
+  isExecassPresence,
+  presenceFreshness,
+  presenceTargetDestination,
+  sortPresence,
+} from "../../glass/window/presence";
+import {
+  formatChatterTime,
+  groupChatterMessages,
+  roomHasUnread,
+  sortRoomsByActivity,
+} from "../../glass/window/chatterView";
+import type {
+  FloorPresenceItem,
+  FloorPresenceTarget,
+} from "../../glass/window/types";
+import { useGlassSurfaceTheme } from "../../glass/useGlassSurfaceTheme";
 import type { GlassWindowController } from "./useGlassWindowController";
+
+function useNarrowViewport(): boolean {
+  const [narrow, setNarrow] = useState(
+    () => window.matchMedia?.("(max-width: 700px)").matches ?? false,
+  );
+  useEffect(() => {
+    const media = window.matchMedia?.("(max-width: 700px)");
+    if (!media) return;
+    const update = () => setNarrow(media.matches);
+    media.addEventListener?.("change", update);
+    return () => media.removeEventListener?.("change", update);
+  }, []);
+  return narrow;
+}
+
+function ReefCrab(props: {
+  item: FloorPresenceItem;
+  open: boolean;
+  onToggle: (agentId: string) => void;
+  buttonRef: (agentId: string, element: HTMLButtonElement | null) => void;
+}) {
+  const { item, open, onToggle, buttonRef } = props;
+  const big = isExecassPresence(item);
+  return (
+    <button
+      type="button"
+      data-testid="reef-crab"
+      className={`mc-reef-agent is-${item.mood}${big ? " is-execass" : ""}`}
+      data-activity={item.activity}
+      aria-label={`${item.display_name}'s report card`}
+      aria-expanded={open}
+      onClick={() => onToggle(item.agent_id)}
+      ref={(element) => buttonRef(item.agent_id, element)}
+    >
+      <span className="mc-reef-crab" aria-hidden="true">
+        🦀
+      </span>
+      <strong>{item.display_name}</strong>
+      <span>{item.activity_label}</span>
+    </button>
+  );
+}
+
+function ReportCard(props: {
+  item: FloorPresenceItem;
+  nowMs: number;
+  onClose: () => void;
+  onOpenTarget?: (target: FloorPresenceTarget) => boolean;
+}) {
+  const { item, nowMs, onClose, onOpenTarget } = props;
+  const [blocked, setBlocked] = useState(false);
+  const freshness = presenceFreshness(item.observed_at_ms, nowMs);
+  const destination = presenceTargetDestination(item.target);
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "Escape") {
+      event.stopPropagation();
+      onClose();
+    }
+  };
+  return (
+    <div
+      className="mc-reef-report"
+      data-testid="reef-report-card"
+      role="group"
+      aria-label={`${item.display_name}'s report card`}
+      onKeyDown={onKeyDown}
+    >
+      <div className="mc-reef-report-head">
+        <strong>{item.display_name}</strong>
+        <span className={`mc-reef-mood is-${item.mood}`}>
+          mood: {item.mood}
+        </span>
+        <button
+          type="button"
+          className="mc-reef-report-close"
+          aria-label="Close report card"
+          onClick={onClose}
+        >
+          ✕
+        </button>
+      </div>
+      <p className="mc-reef-report-activity">{item.activity_label}</p>
+      <p className={`mc-reef-report-observed is-${freshness.tone}`}>
+        {freshness.label}
+      </p>
+      {destination && item.target && onOpenTarget ? (
+        <>
+          <button
+            type="button"
+            className="mc-reef-report-link"
+            onClick={() => setBlocked(!onOpenTarget(item.target!))}
+          >
+            {destination.label}
+          </button>
+          {blocked ? (
+            <p className="mc-reef-report-none" role="status">
+              That room is switched off in Config.
+            </p>
+          ) : null}
+        </>
+      ) : (
+        <p className="mc-reef-report-none">Nothing to open for this crab.</p>
+      )}
+    </div>
+  );
+}
 
 export function GlassWindowPage(props: {
   controller: GlassWindowController;
+  /** Returns true when the authoritative destination could be opened. */
+  onOpenTarget?: (target: FloorPresenceTarget) => boolean;
 }) {
-  const { controller } = props;
+  const { controller, onOpenTarget } = props;
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const [openCrabId, setOpenCrabId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
-  const rooms = controller.chatter?.rooms ?? [];
+  const narrow = useNarrowViewport();
+  const [reefExpanded, setReefExpanded] = useState(false);
+  const crabRefs = useRef(new Map<string, HTMLButtonElement>());
+  const floorRef = useRef<HTMLElement | null>(null);
+  useGlassSurfaceTheme(floorRef);
+
+  const presenceItems = useMemo(
+    () => sortPresence(controller.presence?.items ?? []),
+    [controller.presence?.items],
+  );
+  const openCrab =
+    presenceItems.find((item) => item.agent_id === openCrabId) ?? null;
+  const unobservedCount = presenceItems.filter(
+    (item) => item.observed_at_ms === null || item.mood === "unknown",
+  ).length;
+
+  const rooms = useMemo(
+    () => sortRoomsByActivity(controller.chatter?.rooms ?? []),
+    [controller.chatter?.rooms],
+  );
   const activeRoomId =
     selectedRoomId && rooms.some((room) => room.thread_id === selectedRoomId)
       ? selectedRoomId
       : (rooms[0]?.thread_id ?? null);
-  const messages = useMemo(
+  const messageGroups = useMemo(
     () =>
-      (controller.chatter?.messages ?? []).filter(
-        (message) => message.thread_id === activeRoomId,
+      groupChatterMessages(
+        (controller.chatter?.messages ?? []).filter(
+          (message) => message.thread_id === activeRoomId,
+        ),
       ),
     [activeRoomId, controller.chatter?.messages],
   );
 
+  const registerCrabRef = (agentId: string, element: HTMLButtonElement | null) => {
+    if (element) crabRefs.current.set(agentId, element);
+    else crabRefs.current.delete(agentId);
+  };
+  const toggleCrab = (agentId: string) => {
+    setOpenCrabId((current) => (current === agentId ? null : agentId));
+  };
+  const closeCard = () => {
+    const owner = openCrabId ? crabRefs.current.get(openCrabId) : null;
+    setOpenCrabId(null);
+    owner?.focus();
+  };
+
+  const reefBody = (
+    <>
+      <div className="mc-reef-water">
+        {presenceItems.length === 0 ? (
+          <div className="mc-window-empty">
+            No authoritative presence observation yet.
+          </div>
+        ) : (
+          presenceItems.map((item) => (
+            <ReefCrab
+              key={item.agent_id}
+              item={item}
+              open={item.agent_id === openCrabId}
+              onToggle={toggleCrab}
+              buttonRef={registerCrabRef}
+            />
+          ))
+        )}
+      </div>
+      {openCrab ? (
+        <ReportCard
+          key={openCrab.agent_id}
+          item={openCrab}
+          nowMs={Date.now()}
+          onClose={closeCard}
+          onOpenTarget={onOpenTarget}
+        />
+      ) : null}
+    </>
+  );
+
   return (
-    <section className="mc-window-floor" aria-label="The Window">
+    <section className="mc-window-floor" aria-label="The Window" ref={floorRef}>
       <header className="mc-window-header">
         <div>
           <span className="mc-window-kicker">3F · THE WINDOW</span>
@@ -55,25 +261,23 @@ export function GlassWindowPage(props: {
             </div>
             <small>Never message content</small>
           </div>
-          <div className="mc-reef-water">
-            {(controller.presence?.items ?? []).length === 0 ? (
-              <div className="mc-window-empty">
-                No authoritative presence observation yet.
-              </div>
-            ) : (
-              controller.presence?.items.map((item) => (
-                <article
-                  key={item.agent_id}
-                  className={`mc-reef-agent is-${item.mood}`}
-                  data-activity={item.activity}
-                >
-                  <span className="mc-reef-crab" aria-hidden="true">🦀</span>
-                  <strong>{item.display_name}</strong>
-                  <span>{item.activity_label}</span>
-                </article>
-              ))
-            )}
-          </div>
+          {narrow ? (
+            <details
+              className="mc-reef-collapse"
+              open={reefExpanded}
+              onToggle={(event) => setReefExpanded(event.currentTarget.open)}
+            >
+              <summary>
+                {presenceItems.length} on the floor
+                {unobservedCount > 0
+                  ? ` · ${unobservedCount} without a recent observation`
+                  : ""}
+              </summary>
+              {reefBody}
+            </details>
+          ) : (
+            reefBody
+          )}
         </section>
 
         <section className="mc-chatter-panel" aria-label="Office Chatter">
@@ -97,30 +301,36 @@ export function GlassWindowPage(props: {
                     onClick={() => setSelectedRoomId(room.thread_id)}
                   >
                     <span># {room.label}</span>
-                    {room.unread_count ? <b>{room.unread_count}</b> : null}
+                    {roomHasUnread(room) ? (
+                      <i
+                        className="mc-chatter-dot"
+                        data-testid="chatter-unread"
+                        aria-label="unread notes"
+                        role="img"
+                      />
+                    ) : null}
                   </button>
                 ))
               )}
             </nav>
             <div className="mc-chatter-stream">
               <div className="mc-chatter-messages">
-                {messages.length === 0 ? (
+                {messageGroups.length === 0 ? (
                   <div className="mc-window-empty">
                     Nothing safe to overhear yet.
                   </div>
                 ) : (
-                  messages.map((message) => (
-                    <article key={message.message_id}>
+                  messageGroups.map((group) => (
+                    <article key={group.messages[0]?.message_id}>
                       <div>
-                        <strong>{message.author.display_name}</strong>
+                        <strong>{group.author.display_name}</strong>
                         <time>
-                          {new Date(message.created_at_ms).toLocaleTimeString(
-                            [],
-                            { hour: "numeric", minute: "2-digit" },
-                          )}
+                          {formatChatterTime(group.startedAtMs, Date.now())}
                         </time>
                       </div>
-                      <p>{message.text}</p>
+                      {group.messages.map((message) => (
+                        <p key={message.message_id}>{message.text}</p>
+                      ))}
                     </article>
                   ))
                 )}
