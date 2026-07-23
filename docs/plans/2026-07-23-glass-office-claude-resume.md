@@ -8,13 +8,12 @@ and the Calendar room slice in PR #104.
 ## Resume point
 
 - Workspace: `Z:\carsinos-clean`
-- Branch: `codex/glass-office-p4-calendar`
-- PR #104 base/last merged head: `0bbd65d4358ef78d557ebf1cc68775e2d7e521c1`
+- Branch: `codex/glass-office-p4-strategy`
+- Base/merged head: `c63e60e604c594d39f2ce4051f7af8f10b6cfd98`
 - Checkpoint track: `GLASS_OFFICE_P4_TRENCHES WORK`
-- Repository state at handoff refresh: PR #103 is merged into `main`; PR #104
-  contains the Calendar slice and its hostile-QA correction. Do not resume
-  implementation until PR #104 is green and merged. The pre-existing root
-  `node_modules/` remains untracked and must not be staged.
+- Repository state at handoff refresh: PR #104 is merged into `main`; the
+  Plan/Strategy continuation branch was created from the exact merge commit.
+  The pre-existing root `node_modules/` remains untracked and must not be staged.
 - Old `Z:\carsinos` tree: DEV/history only; do not implement there
 
 Start with:
@@ -59,7 +58,7 @@ Do not rebuild or replace these:
   toolbar/controller/mutations remain intact; Pin to Office reveals a real
   registry shortcut block that walks back to the Boards room without copying
   board data. External pin/config changes update the mounted Office canvas.
-- Calendar is the second parity-proven P4 room in PR #104. Week View,
+- Calendar is the second parity-proven P4 room, merged in PR #104. Week View,
   Schedule, Active Jobs, heartbeat setup, job controls, Strategy context, and
   Runbook links remain on the original Calendar surface. Its registry shortcut
   returns by stable room ID and visibly refuses if Trenches is later disabled.
@@ -154,7 +153,7 @@ shared-route lamp ownership, resolved-registry keyboard jumps, live external
 pin synchronization, honest pin failure/full-canvas states, and narrow-width
 room marks. Extend that path; do not create another navigation mechanism.
 
-After PR #104 merges, the next bounded slice is Plan/Strategy. Preserve its
+The next bounded slice is Plan/Strategy. Preserve its
 existing Overview, Goals & Projects, Tasks, Task Detail, and Insights surfaces;
 draft-discard guards; goal/project/task mutations; summary lenses; Board and
 Calendar links; and Runbook context.
@@ -236,8 +235,7 @@ Before PR:
 
 ## First implementation command
 
-After reading the references, confirming PR #104 is merged, branching from its
-exact `main` merge commit, and writing the phase-start checkpoint, implement
+After reading the references and writing the phase-start checkpoint, implement
 Plan/Strategy as the third parity-proven P4 room slice:
 
 1. Re-run the Calendar regression anchors from PR #104: all three surfaces,
