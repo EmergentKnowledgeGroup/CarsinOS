@@ -173,6 +173,10 @@ pub struct ChannelActionRequest {
     pub target: String,
     #[serde(default)]
     pub text: Option<String>,
+    /// Opaque protected-store reference for a direct outbound secret delivery.
+    /// The value itself is deliberately never part of the tool request.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub secret_ref: Option<String>,
     #[serde(default)]
     pub reaction: Option<String>,
 }
@@ -850,7 +854,27 @@ fn list_processes_output() -> Result<String, ToolError> {
         .stderr(Stdio::piped())
         .output()?;
     let text = String::from_utf8_lossy(&output.stdout).to_string();
-    Ok(text)
+    if output.status.success() && !text.trim().is_empty() {
+        return Ok(text);
+    }
+    let fallback = std::process::Command::new("powershell.exe")
+        .args([
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "Get-Process | Sort-Object Id | Select-Object -First 200 Id,ProcessName | Format-Table -HideTableHeaders",
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .output()?;
+    let fallback_text = String::from_utf8_lossy(&fallback.stdout).to_string();
+    if !fallback.status.success() || fallback_text.trim().is_empty() {
+        return Err(ToolError::Failed(
+            "native process listing is unavailable".to_string(),
+        ));
+    }
+    Ok(fallback_text)
 }
 
 #[cfg(unix)]
@@ -868,10 +892,31 @@ fn process_exists(pid: u32) -> Result<bool, ToolError> {
     let output = std::process::Command::new("tasklist")
         .args(["/FI", &format!("PID eq {pid}")])
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .output()?;
     let text = String::from_utf8_lossy(&output.stdout);
-    Ok(text.contains(&pid.to_string()))
+    if output.status.success() && !text.trim().is_empty() {
+        return Ok(text.contains(&pid.to_string()));
+    }
+    let fallback = std::process::Command::new("powershell.exe")
+        .args([
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            &format!(
+                "Get-Process -Id {pid} -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id"
+            ),
+        ])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .output()?;
+    if !fallback.status.success() {
+        return Ok(false);
+    }
+    Ok(String::from_utf8_lossy(&fallback.stdout)
+        .split_whitespace()
+        .any(|value| value == pid.to_string()))
 }
 
 #[cfg(unix)]
@@ -1209,7 +1254,7 @@ mod tests {
             }))
             .expect("exec should succeed");
 
-        assert_eq!(result.truncated, true);
+        assert!(result.truncated);
         assert_eq!(result.output["stdout"], "12345");
     }
 
@@ -1240,7 +1285,10 @@ mod tests {
             .expect("process list should succeed");
         assert_eq!(listed.tool, ToolName::Process);
         assert_eq!(listed.output["action"], "list");
-        assert!(listed.output["output"].as_str().unwrap_or_default().len() > 0);
+        assert!(!listed.output["output"]
+            .as_str()
+            .unwrap_or_default()
+            .is_empty());
 
         let status = runner
             .run(ToolRequest::Process(ProcessRequest {
@@ -1297,9 +1345,29 @@ mod tests {
 
         mock.assert();
         assert_eq!(result.tool, ToolName::WebFetch);
-        assert_eq!(result.truncated, true);
+        assert!(result.truncated);
         assert_eq!(result.output["status_code"], 200);
         assert_eq!(result.output["body"].as_str().unwrap().chars().count(), 32);
+    }
+
+    #[test]
+    fn channel_action_secret_request_serializes_only_its_opaque_reference() {
+        let request = ToolRequest::ChannelAction(ChannelActionRequest {
+            provider: "telegram".to_string(),
+            action: "send".to_string(),
+            target: "1001".to_string(),
+            text: None,
+            secret_ref: Some("secret://runtime.direct_delivery.test".to_string()),
+            reaction: None,
+        });
+
+        let serialized = serde_json::to_value(&request).expect("serialize channel action");
+        assert_eq!(
+            serialized["args"]["secret_ref"],
+            "secret://runtime.direct_delivery.test"
+        );
+        assert!(serialized["args"]["text"].is_null());
+        assert!(serialized["args"].get("secret_value").is_none());
     }
 
     #[test]

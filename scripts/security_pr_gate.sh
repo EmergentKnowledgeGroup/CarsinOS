@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ "$(uname -s)" == "Linux" && -z "${XDG_RUNTIME_DIR:-}" ]]; then
+  export XDG_RUNTIME_DIR="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/carsinos-runtime-${UID}"
+  install -d -m 700 "${XDG_RUNTIME_DIR}"
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPORT_DIR="${REPO_ROOT}/runtime/security/reports"
@@ -38,8 +43,8 @@ log "Log file: ${LOG_FILE}"
 cd "${REPO_ROOT}"
 
 run_step "fmt" cargo fmt --all --check
-run_step "clippy" cargo clippy -p carsinos-gateway -p carsinos-storage -p carsinos-protocol -p carsinos-gui -p carsinos-cli --all-targets -- -D warnings
-run_step "tests-core" cargo test -p carsinos-tools -p carsinos-storage -p carsinos-gateway -- --test-threads=1
+run_step "clippy" cargo clippy -p carsinos-gateway -p carsinos-storage -p carsinos-protocol -p carsinos-gui -p carsinos-cli --all-targets --features carsinos-gateway/execass-test-process-runtime -- -D warnings
+run_step "tests-core" cargo test -p carsinos-tools -p carsinos-storage -p carsinos-gateway --features carsinos-gateway/execass-test-process-runtime -- --test-threads=1
 run_step "tests-workspace" cargo test --workspace \
   --exclude carsinos-gateway \
   --exclude carsinos-storage \

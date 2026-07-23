@@ -5,13 +5,19 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 
+[features]
+default = []
+execass-test-process-runtime = ["carsinos-storage/execass-test-confirmation-runtime"]
+
 [dependencies]
 anyhow.workspace = true
 axum.workspace = true
 chrono.workspace = true
 carsinos-core = { path = "../carsinos-core" }
+carsinos-effect-recorder = { path = "../carsinos-effect-recorder" }
 carsinos-providers = { path = "../carsinos-providers" }
 carsinos-protocol = { path = "../carsinos-protocol" }
+carsinos-runtime-control = { path = "../carsinos-runtime-control" }
 carsinos-channels-discord = { path = "../carsinos-channels-discord" }
 carsinos-channels-telegram = { path = "../carsinos-channels-telegram" }
 carsinos-storage = { path = "../carsinos-storage" }
@@ -23,12 +29,14 @@ tokio = { workspace = true, features = ["fs", "io-util", "process"] }
 tokio-util = { version = "0.7", features = ["io"] }
 base64 = "0.22"
 fs2 = "0.4"
-keyring = "3"
+keyring.workspace = true
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 sha2 = "0.10"
 jsonwebtoken = "9"
 cron = "0.12"
+ed25519-dalek.workspace = true
 futures-util = "0.3"
+hmac.workspace = true
 tokio-tungstenite = { version = "0.28", features = ["rustls-tls-webpki-roots"] }
 tower = { version = "0.5", features = ["util"] }
 tower-http = { workspace = true, features = ["cors", "request-id", "trace"] }
@@ -37,9 +45,34 @@ tracing-subscriber.workspace = true
 tracing-appender = "0.2"
 url = "2"
 uuid.workspace = true
+zeroize.workspace = true
+async-trait.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.61.3", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_System_Com",
+  "Win32_System_Ole",
+  "Win32_System_TaskScheduler",
+  "Win32_System_Variant",
+] }
+windows-sys = { version = "0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Security_Authorization",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Memory",
+  "Win32_System_Threading",
+] }
 
 [dev-dependencies]
+carsinos-protocol = { path = "../carsinos-protocol", features = ["execass-test-binding-digest"] }
+carsinos-effect-recorder = { path = "../carsinos-effect-recorder", features = ["test-support"] }
+carsinos-core = { path = "../carsinos-core", features = ["execass-test-authority"] }
+carsinos-storage = { path = "../carsinos-storage", features = ["execass-test-confirmation-runtime"] }
 httpmock = "0.7"
 portpicker = "0.1"
+rusqlite.workspace = true
 tempfile = "3"
 urlencoding = "2.1"

@@ -1,0 +1,159 @@
+{
+  "$defs": {
+    "LocalRunControlProof": {
+      "additionalProperties": false,
+      "description": "HMAC returned by the native shell. It contains no owner secret and cannot\nclaim a runtime, connector, model, worker, or remote actor identity.",
+      "properties": {
+        "authenticated_client_id": {
+          "type": "string"
+        },
+        "proof_hex": {
+          "type": "string"
+        },
+        "request_correlation_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "authenticated_client_id",
+        "request_correlation_id",
+        "proof_hex"
+      ],
+      "type": "object"
+    },
+    "RunControlOperation": {
+      "enum": [
+        "global_stop",
+        "global_resume",
+        "delegation_stop",
+        "delegation_resume"
+      ],
+      "type": "string"
+    },
+    "RunControlRequestBinding": {
+      "additionalProperties": false,
+      "description": "Canonical local/remote request facts that may be selected by the desktop\ncaller. This intentionally excludes every field minted later by the fixed\nEd25519 confirmation authority.",
+      "properties": {
+        "idempotency_key": {
+          "type": "string"
+        },
+        "observed_at_ms": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "operation": {
+          "$ref": "#/$defs/RunControlOperation"
+        },
+        "request_correlation_id": {
+          "type": "string"
+        },
+        "resume": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunControlResumeSnapshot"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "target": {
+          "$ref": "#/$defs/RunControlTarget"
+        }
+      },
+      "required": [
+        "operation",
+        "target",
+        "idempotency_key",
+        "request_correlation_id",
+        "observed_at_ms"
+      ],
+      "type": "object"
+    },
+    "RunControlResumeSnapshot": {
+      "additionalProperties": false,
+      "description": "Exact server-provided state disclosed to a human before a resume request.",
+      "properties": {
+        "current_plan_revision": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "current_policy_revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "delegation_state_revision": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "stopped_epoch": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "unresolved_effect_disclosure_digest": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "stopped_epoch",
+        "current_policy_revision",
+        "unresolved_effect_disclosure_digest"
+      ],
+      "type": "object"
+    },
+    "RunControlTarget": {
+      "oneOf": [
+        {
+          "properties": {
+            "kind": {
+              "const": "global",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "delegation_id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "delegation",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "delegation_id"
+          ],
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "binding": {
+      "$ref": "#/$defs/RunControlRequestBinding"
+    },
+    "local_proof": {
+      "$ref": "#/$defs/LocalRunControlProof"
+    }
+  },
+  "required": [
+    "binding",
+    "local_proof"
+  ],
+  "title": "StopAllRequest",
+  "type": "object"
+}

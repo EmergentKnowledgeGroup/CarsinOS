@@ -6,7 +6,7 @@ use axum::routing::post;
 use axum::{Json, Router};
 use common::{json_body, GatewayProcess, WsStream};
 use futures_util::future::join_all;
-use futures_util::StreamExt;
+use futures_util::{SinkExt, StreamExt};
 use httpmock::MockServer;
 use reqwest::{Method, StatusCode};
 use serde_json::json;
@@ -18,6 +18,75 @@ use tempfile::TempDir;
 use tokio::net::TcpListener;
 use tokio::time::{sleep, timeout, Duration};
 use tokio_tungstenite::tungstenite::Message;
+
+fn insert_execass_outbox_event(
+    db_path: &std::path::Path,
+    event_id: &str,
+    revision: i64,
+) -> Result<()> {
+    rusqlite::Connection::open(db_path)
+        .context("open ExecAss test outbox database")?
+        .execute(
+            "INSERT INTO execass_outbox_events(event_id,event_name,aggregate_id,aggregate_revision,correlation_id,causation_id,occurred_at,schema_version,safe_payload_json,duplicate_identity) VALUES(?1,'execass.v1.delegation.transitioned','delegation-ws',?2,?3,?4,?5,'v1',?6,?7)",
+            rusqlite::params![event_id, revision, format!("corr-{event_id}"), format!("cause-{event_id}"), 1_800_000_000_000_i64 + revision, format!(r#"{{"summary":"event {revision}","delegation_id":"delegation-ws"}}"#), format!("duplicate-{event_id}")],
+        )
+        .context("seed durable ExecAss outbox event")?;
+    Ok(())
+}
+
+async fn wait_for_execass_cursor(db_path: &std::path::Path, expected: i64) -> Result<i64> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(3);
+    loop {
+        let cursor = rusqlite::Connection::open(db_path)
+            .context("open ExecAss cursor database")?
+            .query_row(
+                "SELECT COALESCE(MAX(last_global_sequence),0) FROM execass_outbox_cursors WHERE consumer_id LIKE 'execass-ws:%'",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .context("read ExecAss cursor")?;
+        if cursor >= expected {
+            return Ok(cursor);
+        }
+        if tokio::time::Instant::now() >= deadline {
+            return Err(anyhow!(
+                "timed out waiting for ExecAss cursor {expected}; got {cursor}"
+            ));
+        }
+        sleep(Duration::from_millis(20)).await;
+    }
+}
+
+async fn wait_for_execass_cursor_at_head(db_path: &std::path::Path) -> Result<i64> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(3);
+    loop {
+        let conn =
+            rusqlite::Connection::open(db_path).context("open ExecAss cursor-at-head database")?;
+        let cursor = conn
+            .query_row(
+                "SELECT COALESCE(MAX(last_global_sequence),0) FROM execass_outbox_cursors WHERE consumer_id LIKE 'execass-ws:%'",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .context("read ExecAss websocket cursor")?;
+        let head = conn
+            .query_row(
+                "SELECT COALESCE(MAX(global_sequence),0) FROM execass_outbox_events",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .context("read ExecAss outbox head")?;
+        if cursor == head {
+            return Ok(cursor);
+        }
+        if tokio::time::Instant::now() >= deadline {
+            return Err(anyhow!(
+                "timed out waiting for ExecAss websocket cursor to reach head; cursor={cursor}, head={head}"
+            ));
+        }
+        sleep(Duration::from_millis(20)).await;
+    }
+}
 
 async fn bind_default_agent_memory_lane(gateway: &GatewayProcess, base_url: &str) -> Result<()> {
     let response = gateway
@@ -282,6 +351,121 @@ async fn websocket_accepts_single_use_ticket_auth() -> Result<()> {
         .connect_ws_with_legacy_token_parameter()
         .await
         .is_err());
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn execass_durable_outbox_replays_over_authenticated_websocket() -> Result<()> {
+    let state_dir = TempDir::new_in(env!("CARGO_MANIFEST_DIR"))
+        .context("create ExecAss websocket state directory")?;
+    let paths = carsinos_storage::AppPaths::from_root(state_dir.path().to_path_buf());
+    carsinos_storage::init_execass_fresh_root(&paths)
+        .context("initialize canonical ExecAss websocket root")?;
+    insert_execass_outbox_event(&paths.db_path, "ws-event-1", 1)?;
+    let mut gateway = GatewayProcess::spawn_with_execass_test_runtime(
+        state_dir.path(),
+        "e2e-token-execass-ws",
+        None,
+        &[],
+    )
+    .await?;
+
+    let mut first = gateway.connect_ws().await?;
+    let _ = wait_for_ws_event(&mut first, "gateway.status", Duration::from_secs(2)).await?;
+    first
+        .send(Message::Text(
+            json!({"type":"execass.v1.resume","client_id":"desktop-e2e","cursor":0})
+                .to_string()
+                .into(),
+        ))
+        .await
+        .context("send first authenticated ExecAss resume")?;
+    let first_frame = next_ws_event(&mut first).await?;
+    assert_eq!(first_frame["type"], "execass.v1.event");
+    assert_eq!(first_frame["event"]["global_sequence"], 1);
+    assert_eq!(
+        first_frame["event"]["duplicate_identity"],
+        "duplicate-ws-event-1"
+    );
+    assert_eq!(wait_for_execass_cursor(&paths.db_path, 1).await?, 1);
+    let published: i64 = rusqlite::Connection::open(&paths.db_path)?.query_row(
+        "SELECT COUNT(*) FROM execass_outbox_events WHERE published_at IS NOT NULL",
+        [],
+        |row| row.get(0),
+    )?;
+    assert_eq!(published, 1);
+    first.close(None).await.context("close first websocket")?;
+    drop(first);
+    gateway
+        .force_kill_and_wait()
+        .context("stop first gateway before durable outbox replay")?;
+
+    insert_execass_outbox_event(&paths.db_path, "ws-event-2", 2)?;
+    let gateway = GatewayProcess::spawn_with_execass_test_runtime(
+        state_dir.path(),
+        "e2e-token-execass-ws",
+        None,
+        &[],
+    )
+    .await?;
+    let mut second = gateway.connect_ws().await?;
+    let _ = wait_for_ws_event(&mut second, "gateway.status", Duration::from_secs(2)).await?;
+    second
+        .send(Message::Text(
+            json!({"type":"execass.v1.resume","client_id":"desktop-e2e","cursor":1})
+                .to_string()
+                .into(),
+        ))
+        .await
+        .context("send resumed authenticated ExecAss cursor")?;
+    let second_frame = next_ws_event(&mut second).await?;
+    assert_eq!(second_frame["type"], "execass.v1.event");
+    assert_eq!(second_frame["event"]["global_sequence"], 2);
+    let resumed_cursor = wait_for_execass_cursor_at_head(&paths.db_path).await?;
+    assert!(resumed_cursor >= 2);
+
+    let mut future = gateway.connect_ws().await?;
+    let _ = wait_for_ws_event(&mut future, "gateway.status", Duration::from_secs(2)).await?;
+    future
+        .send(Message::Text(
+            json!({"type":"execass.v1.resume","client_id":"desktop-e2e","cursor":99})
+                .to_string()
+                .into(),
+        ))
+        .await
+        .context("send future ExecAss cursor")?;
+    let future_frame = next_ws_event(&mut future).await?;
+    assert_eq!(future_frame["type"], "execass.v1.summary_refetch_required");
+    assert_eq!(future_frame["reason"], "future_cursor");
+    assert_eq!(
+        wait_for_execass_cursor_at_head(&paths.db_path).await?,
+        resumed_cursor
+    );
+    Ok(())
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn execass_process_test_runtime_requires_explicit_opt_in() -> Result<()> {
+    let state_dir = TempDir::new_in(env!("CARGO_MANIFEST_DIR"))
+        .context("create ExecAss negative process-test state directory")?;
+    let paths = carsinos_storage::AppPaths::from_root(state_dir.path().to_path_buf());
+    carsinos_storage::init_execass_fresh_root(&paths)
+        .context("initialize canonical ExecAss negative process-test root")?;
+
+    let error =
+        match GatewayProcess::spawn(state_dir.path(), "e2e-token-no-test-runtime", None).await {
+            Ok(_) => anyhow::bail!(
+                "feature-built gateway activated test custody without explicit process opt-in"
+            ),
+            Err(error) => error,
+        };
+    assert!(
+        error
+            .to_string()
+            .contains("gateway exited before becoming ready"),
+        "unexpected fail-closed process result: {error:#}"
+    );
     Ok(())
 }
 
@@ -856,14 +1040,22 @@ async fn scheduler_marks_run_failed_when_payload_exceeds_timeout() -> Result<()>
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn second_process_disables_scheduler_when_instance_lock_is_held() -> Result<()> {
-    let state_dir = TempDir::new().context("failed to create temp state directory")?;
-    let primary = GatewayProcess::spawn(state_dir.path(), "e2e-token-scheduler-primary", None)
-        .await
-        .context("failed to start primary process")?;
-    let secondary = GatewayProcess::spawn(state_dir.path(), "e2e-token-scheduler-secondary", None)
-        .await
-        .context("failed to start secondary process")?;
+async fn tuple_bound_runtime_host_rejects_a_second_writer_and_advances_after_release() -> Result<()>
+{
+    let state_dir = TempDir::new_in(env!("CARGO_MANIFEST_DIR"))
+        .context("failed to create project-drive temp state directory")?;
+    let paths = carsinos_storage::AppPaths::from_root(state_dir.path().to_path_buf());
+    carsinos_storage::init_execass_fresh_root(&paths)
+        .context("initialize canonical ExecAss runtime-host root")?;
+    let native_owner_secret = "e2e-native-owner-secret-at-least-thirty-two-bytes";
+    let mut primary = GatewayProcess::spawn_with_execass_test_runtime(
+        state_dir.path(),
+        "e2e-token-scheduler-primary",
+        None,
+        &[("CARSINOS_EXECASS_LOCAL_OWNER_SECRET", native_owner_secret)],
+    )
+    .await
+    .context("failed to start primary process")?;
 
     let primary_status = primary
         .request(Method::GET, "/api/v1/jobs/status")
@@ -873,21 +1065,66 @@ async fn second_process_disables_scheduler_when_instance_lock_is_held() -> Resul
     assert_eq!(primary_status.status(), StatusCode::OK);
     let primary_status_json = json_body(primary_status).await?;
     assert_eq!(primary_status_json["scheduler_running"], true);
-
-    let secondary_status = secondary
-        .request(Method::GET, "/api/v1/jobs/status")
+    let primary_runtime = primary
+        .request(Method::GET, "/api/v1/execass/runtime-host")
         .send()
         .await
-        .context("secondary job status failed")?;
-    assert_eq!(secondary_status.status(), StatusCode::OK);
-    let secondary_status_json = json_body(secondary_status).await?;
-    assert_eq!(secondary_status_json["scheduler_running"], false);
+        .context("primary runtime-host status failed")?;
+    assert_eq!(primary_runtime.status(), StatusCode::OK);
+    let primary_generation = json_body(primary_runtime).await?["fencing_generation"]
+        .as_i64()
+        .context("primary runtime-host generation missing")?;
+    anyhow::ensure!(
+        primary_generation > 0,
+        "primary generation must be positive"
+    );
+    let canonical_root = state_dir.path().canonicalize()?;
+    let native_scope = carsinos_runtime_control::RuntimeControlScopeV1 {
+        canonical_root_identity:
+            carsinos_protocol::execass_recorder::canonical_root_identity_from_canonical_path(
+                &canonical_root.to_string_lossy(),
+            ),
+        profile_identity: carsinos_runtime_control::DEFAULT_PROFILE_IDENTITY.to_string(),
+        os_user_identity_digest: carsinos_runtime_control::current_os_user_identity_digest()?,
+    };
+    let native_client = carsinos_runtime_control::RuntimeControlClient::new(
+        state_dir.path(),
+        native_scope,
+        carsinos_runtime_control::derive_owner_control_key(native_owner_secret.as_bytes())?,
+    )?;
+    let native_status = native_client.status().await?;
+    assert_eq!(native_status.runtime_host_generation, primary_generation);
+    let attached = native_client
+        .attach(carsinos_runtime_control::AttachRequestV1 {
+            client_instance_id: "gateway-e2e-native-client".to_string(),
+        })
+        .await?;
+    assert_eq!(attached.runtime_host_generation, primary_generation);
+
+    let lexical_alias = state_dir.path().join(".");
+    let secondary_error = match GatewayProcess::spawn_with_execass_test_runtime(
+        &lexical_alias,
+        "e2e-token-scheduler-secondary",
+        None,
+        &[],
+    )
+    .await
+    {
+        Ok(_) => anyhow::bail!("a second process for the same ownership tuple became ready"),
+        Err(error) => error,
+    };
+    assert!(
+        secondary_error
+            .to_string()
+            .contains("gateway exited before becoming ready"),
+        "unexpected second-host failure: {secondary_error:#}"
+    );
 
     let now_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis() as i64;
-    let created_job = secondary
+    let created_job = primary
         .request(Method::POST, "/api/v1/jobs/add")
         .json(&json!({
             "agent_id": "default",
@@ -942,6 +1179,87 @@ async fn second_process_disables_scheduler_when_instance_lock_is_held() -> Resul
     let run = history_item.context("scheduler did not execute lock-test job in time")?;
     assert_eq!(run["status"], "succeeded");
     assert_eq!(run["trigger_kind"], "scheduler");
+
+    primary
+        .force_kill_and_wait()
+        .context("failed forcing predecessor crash")?;
+    drop(primary);
+    let successor = GatewayProcess::spawn_with_execass_test_runtime(
+        state_dir.path(),
+        "e2e-token-scheduler-successor",
+        None,
+        &[],
+    )
+    .await
+    .context("failed to start successor after the primary released ownership")?;
+    let successor_runtime = successor
+        .request(Method::GET, "/api/v1/execass/runtime-host")
+        .send()
+        .await
+        .context("successor runtime-host status failed")?;
+    assert_eq!(successor_runtime.status(), StatusCode::OK);
+    let successor_generation = json_body(successor_runtime).await?["fencing_generation"]
+        .as_i64()
+        .context("successor runtime-host generation missing")?;
+    assert_eq!(successor_generation, primary_generation + 1);
+
+    let recovery_summary = successor
+        .request(Method::GET, "/api/v1/execass/summary")
+        .header("x-request-id", "runtime-crash-recovery-summary")
+        .send()
+        .await
+        .context("runtime crash-recovery summary failed")?;
+    assert_eq!(recovery_summary.status(), StatusCode::OK);
+    let recovery_summary = json_body(recovery_summary).await?;
+    let runtime_attention = recovery_summary["needs_you"]
+        .as_array()
+        .and_then(|items| items.iter().find(|item| item["kind"] == "runtime_paused"))
+        .context("forced predecessor exit did not project runtime-paused attention")?;
+    assert_eq!(runtime_attention["subject"]["scope_kind"], "runtime_host");
+    assert_eq!(
+        runtime_attention["subject"]["runtime_host_generation"],
+        primary_generation
+    );
+    assert_eq!(runtime_attention["decision_kind"], serde_json::Value::Null);
+    assert!(runtime_attention["subject"].get("delegation_id").is_none());
+    let runtime_receipt = recovery_summary["receipts"]
+        .as_array()
+        .and_then(|items| {
+            items
+                .iter()
+                .find(|item| item["receipt_kind"] == "runtime_recovery")
+        })
+        .context("forced predecessor exit did not project its canonical runtime receipt")?;
+    assert_eq!(runtime_receipt["scope"]["scope_kind"], "runtime_host");
+    assert_eq!(runtime_receipt["subject_kind"], "runtime_host_generation");
+    assert_eq!(runtime_receipt["subject_revision"], primary_generation);
+    assert!(runtime_receipt["scope"].get("delegation_id").is_none());
+
+    let conn = rusqlite::Connection::open(&paths.db_path)?;
+    let predecessor_truth: (String, String, i64, i64) = conn.query_row(
+        r#"SELECT state.actual_state,generation.end_reason,
+                  (SELECT COUNT(*) FROM execass_attention_items
+                   WHERE scope_kind='runtime_host' AND runtime_host_generation=?1),
+                  (SELECT COUNT(*) FROM execass_receipts
+                   WHERE delegation_id IS NULL AND subject_kind='runtime_host_generation'
+                     AND subject_revision=?1)
+           FROM execass_runtime_host_generations generation
+           JOIN execass_runtime_host_states state
+             ON state.generation=generation.generation
+            AND state.host_instance_id=generation.host_instance_id
+           WHERE generation.generation=?1"#,
+        [primary_generation],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+    )?;
+    assert_eq!(
+        predecessor_truth,
+        (
+            "faulted".into(),
+            "gateway_forced_exit_takeover".into(),
+            1,
+            1,
+        )
+    );
 
     Ok(())
 }

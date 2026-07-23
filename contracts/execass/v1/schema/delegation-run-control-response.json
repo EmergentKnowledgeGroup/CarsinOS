@@ -1,0 +1,113 @@
+{
+  "$defs": {
+    "DelegationPhase": {
+      "enum": [
+        "accepted",
+        "planning",
+        "in_motion",
+        "waiting_for_user",
+        "waiting_external",
+        "recovering",
+        "completed",
+        "partially_completed",
+        "failed"
+      ],
+      "type": "string"
+    },
+    "RunControlState": {
+      "enum": [
+        "running",
+        "stop_requested",
+        "stopped"
+      ],
+      "type": "string"
+    },
+    "UnresolvedExternalEffectRef": {
+      "additionalProperties": false,
+      "properties": {
+        "continuation_id": {
+          "type": "string"
+        },
+        "delegation_id": {
+          "type": "string"
+        },
+        "latest_attempt_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "logical_effect_id": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "logical_effect_id",
+        "delegation_id",
+        "continuation_id",
+        "state"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "current_plan_revision": {
+      "format": "int64",
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "delegation_id": {
+      "type": "string"
+    },
+    "drain_state": {
+      "type": "string"
+    },
+    "phase": {
+      "$ref": "#/$defs/DelegationPhase"
+    },
+    "policy_revision": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "run_control": {
+      "$ref": "#/$defs/RunControlState"
+    },
+    "state_revision": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "stop_epoch": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "unresolved_effect_disclosure_digest": {
+      "type": "string"
+    },
+    "unresolved_external_effect_refs": {
+      "items": {
+        "$ref": "#/$defs/UnresolvedExternalEffectRef"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "delegation_id",
+    "phase",
+    "run_control",
+    "state_revision",
+    "stop_epoch",
+    "policy_revision",
+    "drain_state",
+    "unresolved_effect_disclosure_digest",
+    "unresolved_external_effect_refs"
+  ],
+  "title": "DelegationRunControlResponse",
+  "type": "object"
+}

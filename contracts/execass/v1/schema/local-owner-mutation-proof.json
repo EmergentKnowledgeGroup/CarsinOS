@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Native-shell authentication for one exact owner settings mutation.\nBearer identity, roles, authority kinds, and actor claims are deliberately absent.",
+  "properties": {
+    "authenticated_client_id": {
+      "type": "string"
+    },
+    "proof_hex": {
+      "type": "string"
+    },
+    "request_correlation_id": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "authenticated_client_id",
+    "request_correlation_id",
+    "proof_hex"
+  ],
+  "title": "LocalOwnerMutationProof",
+  "type": "object"
+}

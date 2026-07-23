@@ -2,6 +2,7 @@ use anyhow::{bail, Context, Result};
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
+use std::fmt;
 use std::fs;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
@@ -9,13 +10,19 @@ use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
 
+pub mod execass_actor;
+pub mod execass_danger;
+pub mod execass_manifest;
+pub mod execass_policy;
+pub mod execass_recovery;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenSource {
     Env,
     Generated,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct GatewayConfig {
     pub bind: SocketAddr,
     pub token: String,
@@ -23,12 +30,26 @@ pub struct GatewayConfig {
     pub state_dir: PathBuf,
 }
 
+impl fmt::Debug for GatewayConfig {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("GatewayConfig")
+            .field("bind", &self.bind)
+            .field("token_present", &(!self.token.is_empty()))
+            .field("token_source", &self.token_source)
+            .field(
+                "state_dir_present",
+                &(!self.state_dir.as_os_str().is_empty()),
+            )
+            .finish()
+    }
+}
+
 impl GatewayConfig {
     pub fn load_from_env() -> Result<Self> {
         let bind = std::env::var("CARSINOS_GATEWAY_BIND")
             .unwrap_or_else(|_| "127.0.0.1:18789".to_string());
-        let bind = SocketAddr::from_str(&bind)
-            .with_context(|| format!("invalid CARSINOS_GATEWAY_BIND: {bind}"))?;
+        let bind = SocketAddr::from_str(&bind).context("invalid CARSINOS_GATEWAY_BIND value")?;
 
         let (token, token_source) = match std::env::var("CARSINOS_GATEWAY_TOKEN") {
             Ok(token) if !token.trim().is_empty() => (token, TokenSource::Env),

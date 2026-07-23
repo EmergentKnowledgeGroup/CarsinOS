@@ -1,0 +1,107 @@
+{
+  "$defs": {
+    "EventName": {
+      "enum": [
+        "execass.v1.delegation.transitioned",
+        "execass.v1.decision.recorded",
+        "execass.v1.continuation.claimed_or_result_recorded",
+        "execass.v1.recovery.updated",
+        "execass.v1.completion.assessed",
+        "execass.v1.summary.changed",
+        "execass.v1.policy.changed",
+        "execass.v1.runtime_host.changed",
+        "execass.v1.receipt.integrity_failed",
+        "execass.v1.notification.scheduled",
+        "execass.v1.global_stop.changed"
+      ],
+      "type": "string"
+    },
+    "SafeEventPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "authoritative_deep_link": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "decision_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "delegation_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "receipt_ref": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "summary"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "aggregate_id": {
+      "type": "string"
+    },
+    "causation_id": {
+      "type": "string"
+    },
+    "correlation_id": {
+      "type": "string"
+    },
+    "duplicate_identity": {
+      "type": "string"
+    },
+    "event_name": {
+      "$ref": "#/$defs/EventName"
+    },
+    "global_sequence": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "occurred_at_ms": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "revision": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "safe_payload": {
+      "$ref": "#/$defs/SafeEventPayload"
+    },
+    "schema_version": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "event_name",
+    "aggregate_id",
+    "revision",
+    "correlation_id",
+    "causation_id",
+    "occurred_at_ms",
+    "schema_version",
+    "safe_payload",
+    "global_sequence",
+    "duplicate_identity"
+  ],
+  "title": "DurableEventEnvelope",
+  "type": "object"
+}

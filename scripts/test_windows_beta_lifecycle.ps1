@@ -96,6 +96,7 @@ try {
   Assert (-not [string]::IsNullOrWhiteSpace($appExe)) "installed application executable was not found"
   $installDir = Split-Path -Parent $appExe
   Assert (Test-Path -LiteralPath (Join-Path $installDir "carsinos-gateway.exe")) "gateway sidecar was not installed"
+  Assert (Test-Path -LiteralPath (Join-Path $installDir "carsinos-effect-recorder.exe")) "effect recorder sidecar was not installed"
 
   $appProcess = Start-Process -FilePath $appExe -PassThru
   Wait-Until { Test-Port $GatewayPort } 30 "packaged gateway did not bind loopback port $GatewayPort"

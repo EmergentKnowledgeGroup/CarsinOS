@@ -1,5 +1,5 @@
 use anyhow::Result;
-use carsinos_core::GatewayConfig;
+use carsinos_core::{GatewayConfig, TokenSource};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use std::process::Command as ProcessCommand;
@@ -10,6 +10,20 @@ use std::process::Command as ProcessCommand;
 struct Cli {
     #[command(subcommand)]
     command: Command,
+}
+
+fn config_summary(config: &GatewayConfig) -> String {
+    let token_source = match config.token_source {
+        TokenSource::Env => "environment",
+        TokenSource::Generated => "generated",
+    };
+    format!(
+        "bind={}\nstate_dir_present={}\ntoken_present={}\ntoken_source={}\n",
+        config.bind,
+        !config.state_dir.as_os_str().is_empty(),
+        !config.token.trim().is_empty(),
+        token_source,
+    )
 }
 
 #[derive(Debug, Subcommand)]
@@ -36,9 +50,7 @@ fn main() -> Result<()> {
     match cli.command {
         Command::PrintConfig => {
             let config = GatewayConfig::load_from_env()?;
-            println!("bind={}", config.bind);
-            println!("state_dir={}", config.state_dir.display());
-            println!("token={}", config.token);
+            print!("{}", config_summary(&config));
         }
         Command::PackageMacos {
             output_dir,
@@ -50,7 +62,7 @@ fn main() -> Result<()> {
                 .canonicalize()?;
             let script = workspace_root.join("scripts/package_macos_app.sh");
             if !script.exists() {
-                anyhow::bail!("packaging script not found: {}", script.display());
+                anyhow::bail!("the configured packaging script was not found");
             }
             let mut cmd = ProcessCommand::new("bash");
             cmd.arg(&script);
@@ -76,4 +88,34 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::SocketAddr;
+
+    #[test]
+    fn config_summary_never_includes_the_configured_gateway_token() {
+        let configured_token = format!("test-only-gateway-token-{}", std::process::id());
+        let config = GatewayConfig {
+            bind: "127.0.0.1:18789".parse::<SocketAddr>().expect("parse bind"),
+            token: configured_token.clone(),
+            token_source: TokenSource::Env,
+            state_dir: PathBuf::from("state-path-secret"),
+        };
+        let output = config_summary(&config);
+        assert!(output.contains("token_present=true"));
+        assert!(output.contains("token_source=environment"));
+        assert!(output.contains("state_dir_present=true"));
+        assert!(!output.contains(&configured_token));
+        assert!(!output.contains("state-path-secret"));
+
+        let debug_output = format!("{config:?}");
+        assert!(debug_output.contains("token_present: true"));
+        assert!(debug_output.contains("token_source: Env"));
+        assert!(debug_output.contains("state_dir_present: true"));
+        assert!(!debug_output.contains(&configured_token));
+        assert!(!debug_output.contains("state-path-secret"));
+    }
 }

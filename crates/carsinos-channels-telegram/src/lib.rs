@@ -69,6 +69,33 @@ pub struct TelegramTransportMessage {
     pub from: Option<TelegramTransportUser>,
     #[serde(default)]
     pub text: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reply_to_message: Option<TelegramTransportReplyTarget>,
+}
+
+/// Provider-supplied identifier for the message an inbound Telegram message replies to.
+///
+/// This deliberately retains no reply text or author data. Higher layers decide whether a
+/// correlated provider message may be used as an ExecAss attachment target.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TelegramTransportReplyTarget {
+    #[serde(deserialize_with = "deserialize_positive_telegram_message_id")]
+    pub message_id: i64,
+}
+
+fn deserialize_positive_telegram_message_id<'de, D>(
+    deserializer: D,
+) -> std::result::Result<i64, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let message_id = i64::deserialize(deserializer)?;
+    if message_id <= 0 {
+        return Err(serde::de::Error::custom(
+            "Telegram reply message_id must be positive",
+        ));
+    }
+    Ok(message_id)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -481,6 +508,47 @@ mod tests {
     use super::*;
     use httpmock::Method::POST;
     use httpmock::MockServer;
+
+    #[test]
+    fn transport_message_decodes_provider_reply_target_without_reply_text() {
+        let message: TelegramTransportMessage = serde_json::from_str(
+            r#"{"message_id":11,"chat":{"id":1001,"type":"private"},"text":"follow up","reply_to_message":{"message_id":7,"text":"untrusted nested text","from":{"id":44}}}"#,
+        )
+        .expect("parse Telegram reply message");
+
+        assert_eq!(
+            message.reply_to_message,
+            Some(TelegramTransportReplyTarget { message_id: 7 })
+        );
+        let serialized = serde_json::to_value(&message).expect("serialize Telegram message");
+        assert_eq!(
+            serialized["reply_to_message"],
+            serde_json::json!({"message_id": 7})
+        );
+    }
+
+    #[test]
+    fn transport_message_without_reply_target_preserves_existing_serialization() {
+        let payload = r#"{"message_id":11,"chat":{"id":1001,"type":"private"},"text":"follow up"}"#;
+        let message: TelegramTransportMessage =
+            serde_json::from_str(payload).expect("parse Telegram message without reply");
+
+        assert_eq!(message.reply_to_message, None);
+        let serialized = serde_json::to_value(&message).expect("serialize Telegram message");
+        assert!(serialized.get("reply_to_message").is_none());
+    }
+
+    #[test]
+    fn transport_message_rejects_malformed_reply_target_message_id() {
+        for malformed in [r#"""#, "0", "-1"] {
+            let payload = format!(
+                r#"{{"message_id":11,"chat":{{"id":1001,"type":"private"}},"reply_to_message":{{"message_id":{malformed}}}}}"#
+            );
+            let error = serde_json::from_str::<TelegramTransportMessage>(&payload)
+                .expect_err("invalid Telegram reply message ID must be rejected");
+            assert!(!error.to_string().is_empty());
+        }
+    }
 
     #[test]
     fn group_without_mention_is_ignored() {

@@ -740,11 +740,14 @@ impl GuiApp {
         if self.gateway_token.trim().is_empty() {
             self.gateway_token = generate_local_gateway_token();
         }
+        let development_state_root = legacy_gui_development_state_root()?;
         let mut command = resolve_gateway_binary_path()
             .map(Command::new)
             .unwrap_or_else(|| Command::new("carsinos-gateway"));
         command
             .env("CARSINOS_GATEWAY_TOKEN", self.gateway_token.clone())
+            .env("CARSINOS_STATE_DIR", development_state_root)
+            .env("CARSINOS_LEGACY_LAUNCH_PROFILE", "development")
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null());
@@ -3367,7 +3370,87 @@ fn auto_launch_gateway_enabled() -> bool {
     std::env::var("CARSINOS_GUI_AUTO_LAUNCH_GATEWAY")
         .ok()
         .and_then(|value| parse_boolish(&value))
-        .unwrap_or(true)
+        .unwrap_or(false)
+}
+
+fn legacy_gui_development_state_root() -> Result<PathBuf, String> {
+    let configured = std::env::var_os("CARSINOS_LEGACY_GUI_DEVELOPMENT_STATE_ROOT")
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            "legacy GUI gateway launch is development-only; set CARSINOS_LEGACY_GUI_DEVELOPMENT_STATE_ROOT to a separate state root"
+                .to_string()
+        })?;
+    let candidate = absolute_normalized_path(PathBuf::from(configured))?;
+    let production = canonical_mission_control_state_root()?;
+    let candidate_text = candidate.to_string_lossy();
+    let production_text = production.to_string_lossy();
+    let same = if cfg!(any(target_os = "windows", target_os = "macos")) {
+        candidate_text.eq_ignore_ascii_case(&production_text)
+    } else {
+        candidate_text == production_text
+    };
+    if same {
+        return Err(format!(
+            "legacy GUI refuses the canonical Mission Control production state root: {}",
+            production.display()
+        ));
+    }
+    Ok(candidate)
+}
+
+fn canonical_mission_control_state_root() -> Result<PathBuf, String> {
+    #[cfg(target_os = "windows")]
+    let root = std::env::var_os("LOCALAPPDATA")
+        .map(PathBuf::from)
+        .ok_or_else(|| "LOCALAPPDATA is unavailable".to_string())?
+        .join("io.carsinos.missioncontrol")
+        .join("state");
+    #[cfg(target_os = "macos")]
+    let root = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .ok_or_else(|| "HOME is unavailable".to_string())?
+        .join("Library/Application Support/io.carsinos.missioncontrol/state");
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    let root = match std::env::var_os("XDG_DATA_HOME") {
+        Some(value) => PathBuf::from(value),
+        None => std::env::var_os("HOME")
+            .map(PathBuf::from)
+            .ok_or_else(|| "HOME is unavailable".to_string())?
+            .join(".local/share"),
+    }
+    .join("io.carsinos.missioncontrol/state");
+    absolute_normalized_path(root)
+}
+
+fn absolute_normalized_path(path: PathBuf) -> Result<PathBuf, String> {
+    let absolute = if path.is_absolute() {
+        path
+    } else {
+        std::env::current_dir()
+            .map_err(|error| format!("cannot resolve current directory: {error}"))?
+            .join(path)
+    };
+    if absolute.exists() {
+        return std::fs::canonicalize(&absolute)
+            .map_err(|error| format!("cannot canonicalize {}: {error}", absolute.display()));
+    }
+    let mut missing = Vec::new();
+    let mut ancestor = absolute.as_path();
+    while !ancestor.exists() {
+        let name = ancestor
+            .file_name()
+            .ok_or_else(|| format!("cannot normalize {}", absolute.display()))?;
+        missing.push(name.to_os_string());
+        ancestor = ancestor
+            .parent()
+            .ok_or_else(|| format!("cannot normalize {}", absolute.display()))?;
+    }
+    let mut normalized = std::fs::canonicalize(ancestor)
+        .map_err(|error| format!("cannot canonicalize {}: {error}", ancestor.display()))?;
+    for component in missing.into_iter().rev() {
+        normalized.push(component);
+    }
+    Ok(normalized)
 }
 
 fn parse_boolish(raw: &str) -> Option<bool> {

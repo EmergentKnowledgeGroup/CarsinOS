@@ -4,10 +4,17 @@
 /.cargo-home/
 /.npm-cache/
 /.tmp/
+/.tmp??????/
+/.cargo-target/
 /playwright-browsers/
+__pycache__/
+*.py[cod]
 .state/
 .state*/
 runtime/security/reports/
+/crates/carsinos-gateway/.carsinos-receipt-integrity-*/
+/crates/carsinos-effect-recorder/.ea213-test-tmp/
+/crates/carsinos-storage/.tmp??????/
 runtime/channels/reports/
 runtime/checkpoints/context_checkpoint_*.json
 runtime/checkpoints/context_checkpoint_*.md

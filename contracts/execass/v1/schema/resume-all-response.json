@@ -1,0 +1,88 @@
+{
+  "$defs": {
+    "StopAllStatusResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "current_policy_revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "drain_state": {
+          "type": "string"
+        },
+        "engaged": {
+          "type": "boolean"
+        },
+        "stop_epoch": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "unresolved_effect_disclosure_digest": {
+          "type": "string"
+        },
+        "unresolved_external_effect_refs": {
+          "items": {
+            "$ref": "#/$defs/UnresolvedExternalEffectRef"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "engaged",
+        "stop_epoch",
+        "current_policy_revision",
+        "drain_state",
+        "unresolved_effect_disclosure_digest",
+        "unresolved_external_effect_refs"
+      ],
+      "type": "object"
+    },
+    "UnresolvedExternalEffectRef": {
+      "additionalProperties": false,
+      "properties": {
+        "continuation_id": {
+          "type": "string"
+        },
+        "delegation_id": {
+          "type": "string"
+        },
+        "latest_attempt_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "logical_effect_id": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "logical_effect_id",
+        "delegation_id",
+        "continuation_id",
+        "state"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "resumed_at_ms": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "stop_all": {
+      "$ref": "#/$defs/StopAllStatusResponse"
+    }
+  },
+  "required": [
+    "stop_all",
+    "resumed_at_ms"
+  ],
+  "title": "ResumeAllResponse",
+  "type": "object"
+}

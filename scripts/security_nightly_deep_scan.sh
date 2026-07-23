@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ "$(uname -s)" == "Linux" && -z "${XDG_RUNTIME_DIR:-}" ]]; then
+  export XDG_RUNTIME_DIR="${RUNNER_TEMP:-${TMPDIR:-/tmp}}/carsinos-runtime-${UID}"
+  install -d -m 700 "${XDG_RUNTIME_DIR}"
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 REPORT_DIR="${REPO_ROOT}/runtime/security/reports"
@@ -42,7 +47,7 @@ cd "${REPO_ROOT}"
 
 run_step "security-pr-gate" env REQUIRE_CARGO_AUDIT="${require_cargo_audit}" "${SCRIPT_DIR}/security_pr_gate.sh"
 run_step "benchmarks" cargo test -p carsinos-gateway --test benchmark_process -- --nocapture
-run_step "gateway-e2e" cargo test -p carsinos-gateway --test e2e_process
+run_step "gateway-e2e" cargo test -p carsinos-gateway --features execass-test-process-runtime --test e2e_process
 run_step "secret-lifecycle-drill" "${SCRIPT_DIR}/security_secret_lifecycle_drill.sh"
 run_step "killswitch-drill" "${SCRIPT_DIR}/security_killswitch_drill.sh"
 

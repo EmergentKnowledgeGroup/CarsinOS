@@ -1,7 +1,10 @@
 {
   "bundle": {
     "targets": ["msi"],
-    "externalBin": ["binaries/carsinos-gateway"],
+    "externalBin": [
+      "binaries/carsinos-gateway",
+      "binaries/carsinos-effect-recorder"
+    ],
     "publisher": "Emergent Knowledge Group",
     "windows": {
       "webviewInstallMode": {

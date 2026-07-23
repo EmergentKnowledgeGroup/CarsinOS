@@ -1,14 +1,35 @@
-use anyhow::{Context, Result};
-use rusqlite::{params, Connection, OptionalExtension, Transaction};
+use anyhow::{bail, Context, Result};
+use rusqlite::{params, Connection, OpenFlags, OptionalExtension, Transaction};
+use std::fmt;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-#[derive(Debug, Clone)]
+pub mod execass;
+
+#[derive(Clone)]
 pub struct AppPaths {
     pub root: PathBuf,
     pub db_path: PathBuf,
     pub attachments_dir: PathBuf,
     pub logs_dir: PathBuf,
+}
+
+impl fmt::Debug for AppPaths {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("AppPaths")
+            .field("root_configured", &(!self.root.as_os_str().is_empty()))
+            .field(
+                "database_configured",
+                &(!self.db_path.as_os_str().is_empty()),
+            )
+            .field(
+                "attachments_configured",
+                &(!self.attachments_dir.as_os_str().is_empty()),
+            )
+            .field("logs_configured", &(!self.logs_dir.as_os_str().is_empty()))
+            .finish()
+    }
 }
 
 impl AppPaths {
@@ -28,6 +49,118 @@ pub fn init(paths: &AppPaths) -> Result<()> {
     migrate(&paths.db_path)?;
     seed_default_entities(&paths.db_path)?;
     harden_permissions(paths)?;
+    Ok(())
+}
+
+pub const EXECASS_APPLICATION_ID: i64 = 1_163_411_761;
+pub const EXECASS_SCHEMA_VERSION: i64 = 7;
+const EXECASS_REQUIRED_TABLES: &[&str] = &[
+    "execass_accepted_confirmation_grants",
+    "execass_action_branches",
+    "execass_amendment_criteria_links",
+    "execass_attention_items",
+    "execass_authority_links",
+    "execass_authority_parent_bindings",
+    "execass_authority_provenance",
+    "execass_channel_reply_bindings",
+    "execass_completion_assessments",
+    "execass_confirmation_attestations",
+    "execass_confirmation_authority_keys",
+    "execass_confirmation_challenge_alternatives",
+    "execass_confirmation_challenges",
+    "execass_continuation_operation_history",
+    "execass_continuations",
+    "execass_criteria_sets",
+    "execass_decisions",
+    "execass_delegations",
+    "execass_duplicate_risk_bindings",
+    "execass_duplicate_risk_successors",
+    "execass_effect_recorder_evidence",
+    "execass_effect_recorder_keys",
+    "execass_effect_tombstones",
+    "execass_external_waits",
+    "execass_global_runtime_control",
+    "execass_lifecycle_transitions",
+    "execass_logical_effects",
+    "execass_notifications",
+    "execass_outbox_cursors",
+    "execass_outbox_events",
+    "execass_outcome_criteria",
+    "execass_owner_ingress_bindings",
+    "execass_plan_amendments",
+    "execass_plans",
+    "execass_policy_revisions",
+    "execass_provider_attempts",
+    "execass_receipt_anchor_state",
+    "execass_receipt_evidence_refs",
+    "execass_receipt_journal_state",
+    "execass_receipt_keys",
+    "execass_receipt_recorder_evidence_refs",
+    "execass_receipts",
+    "execass_recovery_episodes",
+    "execass_recovery_evaluations",
+    "execass_routine_driver_jobs",
+    "execass_routine_job_bindings",
+    "execass_routine_occurrences",
+    "execass_routine_schedule_state",
+    "execass_routine_trigger_operations",
+    "execass_routine_versions",
+    "execass_routines",
+    "execass_run_control_attestations",
+    "execass_runtime_host_generations",
+    "execass_runtime_host_leases",
+    "execass_runtime_host_states",
+    "execass_runtime_settings_revisions",
+    "execass_schema_metadata",
+    "execass_summary_acknowledgements",
+    "execass_summary_deliveries",
+    "execass_summary_delivery_items",
+    "execass_technical_resource_actuals",
+    "execass_technical_resource_quota_entries",
+    "execass_technical_resource_quota_snapshots",
+    "execass_technical_resource_requirement_sets",
+    "execass_technical_resource_requirements",
+    "execass_technical_resource_reservations",
+    "execass_terminal_corrections",
+    "execass_verifier_results",
+];
+
+/// Installs the incompatible ExecAss v1 schema into a brand-new state root.
+///
+/// This is deliberately separate from [`init`]: ordinary legacy startup stays
+/// on schema version 6 until the offline schema-replacement cutover exists.
+/// An already-installed exact ExecAss v1 root is accepted idempotently; every
+/// other pre-existing database or non-empty state root is rejected before any
+/// mutation.
+pub fn init_execass_fresh_root(paths: &AppPaths) -> Result<()> {
+    if paths.db_path.exists() {
+        if execass_schema_is_exact(&paths.db_path)? {
+            seed_default_entities(&paths.db_path)?;
+            harden_permissions(paths)?;
+            return Ok(());
+        }
+        bail!("ExecAss clean-root initialization refused a pre-existing database");
+    }
+
+    ensure_execass_root_is_fresh(paths)?;
+    ensure_dirs(paths)?;
+
+    let install_result = (|| -> Result<()> {
+        let mut conn = open_sqlite_connection(&paths.db_path)?;
+        install_execass_schema(&mut conn, MIGRATION_0007)?;
+        verify_execass_schema(&conn)?;
+        drop(conn);
+        seed_default_entities(&paths.db_path)?;
+        harden_permissions(paths)
+    })();
+
+    if let Err(error) = install_result {
+        // The file was created by this call after a strict fresh-root check.
+        // Removing the rolled-back empty database keeps a corrected retry safe.
+        let _ = std::fs::remove_file(&paths.db_path);
+        return Err(error);
+    }
+
     Ok(())
 }
 
@@ -144,22 +277,240 @@ fn seed_default_entities(db_path: &Path) -> Result<()> {
 }
 
 fn open_sqlite_connection(db_path: &Path) -> Result<Connection> {
-    let conn = Connection::open(db_path)
-        .with_context(|| format!("failed to open sqlite db at {}", db_path.display()))?;
-    conn.busy_timeout(Duration::from_secs(5)).with_context(|| {
-        format!(
-            "failed setting sqlite busy timeout at {}",
-            db_path.display()
-        )
-    })?;
+    let conn =
+        Connection::open(db_path).context("failed to open the configured sqlite database")?;
+    execass::register_recorder_evidence_sql_verifier(&conn)
+        .context("failed registering the ExecAss recorder evidence verifier")?;
+    conn.busy_timeout(Duration::from_secs(5))
+        .context("failed setting the configured sqlite busy timeout")?;
     conn.pragma_update(None, "foreign_keys", "ON")
-        .with_context(|| {
-            format!(
-                "failed enabling sqlite foreign keys at {}",
-                db_path.display()
-            )
-        })?;
+        .context("failed enabling configured sqlite foreign keys")?;
     Ok(conn)
+}
+
+fn open_sqlite_connection_read_only(db_path: &Path) -> Result<Connection> {
+    let conn = Connection::open_with_flags(db_path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .context("failed to inspect the configured sqlite database")?;
+    execass::register_recorder_evidence_sql_verifier(&conn)
+        .context("failed registering the read-only ExecAss recorder evidence verifier")?;
+    conn.busy_timeout(Duration::from_secs(5))
+        .context("failed setting the configured sqlite busy timeout")?;
+    conn.pragma_update(None, "foreign_keys", "ON")
+        .context("failed enabling configured sqlite foreign keys")?;
+    Ok(conn)
+}
+
+fn ensure_execass_root_is_fresh(paths: &AppPaths) -> Result<()> {
+    if !paths.root.exists() {
+        return Ok(());
+    }
+
+    for entry in std::fs::read_dir(&paths.root).context("failed to inspect ExecAss state root")? {
+        let entry = entry.context("failed to inspect ExecAss state-root entry")?;
+        let path = entry.path();
+        let is_expected_empty_directory = (path == paths.attachments_dir || path == paths.logs_dir)
+            && path.is_dir()
+            && std::fs::read_dir(&path)
+                .context("failed to inspect an expected ExecAss state directory")?
+                .next()
+                .is_none();
+        if !is_expected_empty_directory {
+            bail!("ExecAss clean-root initialization refused a non-empty state root entry");
+        }
+    }
+    Ok(())
+}
+
+fn execass_schema_is_exact(db_path: &Path) -> Result<bool> {
+    let conn = open_sqlite_connection_read_only(db_path)?;
+    execass_connection_schema_is_exact(&conn)
+}
+
+fn execass_connection_schema_is_exact(conn: &Connection) -> Result<bool> {
+    if verify_execass_schema(conn).is_err() {
+        return Ok(false);
+    }
+
+    let actual = sqlite_schema_inventory(conn)?;
+    let mut canonical =
+        Connection::open_in_memory().context("failed opening canonical ExecAss schema database")?;
+    execass::register_recorder_evidence_sql_verifier(&canonical)
+        .context("failed registering the canonical ExecAss recorder evidence verifier")?;
+    canonical
+        .pragma_update(None, "foreign_keys", "ON")
+        .context("failed enabling canonical ExecAss foreign keys")?;
+    install_execass_schema(&mut canonical, MIGRATION_0007)
+        .context("failed building canonical ExecAss schema")?;
+    let expected = sqlite_schema_inventory(&canonical)?;
+    Ok(actual == expected)
+}
+
+fn sqlite_schema_inventory(conn: &Connection) -> Result<Vec<(String, String, String)>> {
+    let mut stmt = conn
+        .prepare(
+            r#"
+            SELECT type, name, sql
+            FROM sqlite_schema
+            WHERE type IN ('table', 'index', 'trigger', 'view')
+              AND sql IS NOT NULL
+              AND name NOT LIKE 'sqlite_%'
+            ORDER BY type, name
+            "#,
+        )
+        .context("failed preparing SQLite schema inventory")?;
+    let inventory = stmt
+        .query_map([], |row| {
+            let sql = row.get::<_, String>(2)?;
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                sql.split_whitespace().collect::<Vec<_>>().join(" "),
+            ))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .context("failed collecting SQLite schema inventory")?;
+    Ok(inventory)
+}
+
+fn install_execass_schema(conn: &mut Connection, execass_sql: &str) -> Result<()> {
+    let tx = conn
+        .transaction()
+        .context("failed to start ExecAss clean-root schema transaction")?;
+    tx.execute_batch(
+        r#"
+        CREATE TABLE schema_migrations (
+          version INTEGER PRIMARY KEY,
+          applied_at INTEGER NOT NULL
+        );
+        "#,
+    )
+    .context("failed creating clean-root schema migration ledger")?;
+
+    for (version, sql, label) in [
+        (1, MIGRATION_0001, "initial authority schema"),
+        (2, MIGRATION_0002, "strategy authority schema"),
+        (3, MIGRATION_0003, "strategy hierarchy cleanup"),
+        (4, MIGRATION_0004, "assistant memory binding schema"),
+        (5, MIGRATION_0005, "connector registry schema"),
+        (6, MIGRATION_0006, "agent archival schema"),
+        (7, execass_sql, "ExecAss incompatible replacement schema"),
+    ] {
+        tx.execute_batch(sql).with_context(|| {
+            format!("failed installing clean-root migration {version:04} ({label})")
+        })?;
+        tx.execute(
+            "INSERT INTO schema_migrations (version, applied_at) VALUES (?1, ?2)",
+            params![version, now_ms()],
+        )
+        .with_context(|| format!("failed recording clean-root migration {version:04}"))?;
+    }
+
+    tx.commit()
+        .context("failed to commit ExecAss clean-root schema transaction")?;
+    Ok(())
+}
+
+fn verify_execass_schema(conn: &Connection) -> Result<()> {
+    let application_id = conn
+        .query_row("PRAGMA application_id", [], |row| row.get::<_, i64>(0))
+        .context("failed reading ExecAss application_id")?;
+    if application_id != EXECASS_APPLICATION_ID {
+        bail!(
+            "unexpected ExecAss application_id: expected {}, found {}",
+            EXECASS_APPLICATION_ID,
+            application_id
+        );
+    }
+
+    let user_version = conn
+        .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
+        .context("failed reading ExecAss user_version")?;
+    if user_version != EXECASS_SCHEMA_VERSION {
+        bail!(
+            "unexpected ExecAss schema version: expected {}, found {}",
+            EXECASS_SCHEMA_VERSION,
+            user_version
+        );
+    }
+
+    let metadata_matches = conn
+        .query_row(
+            r#"
+            SELECT 1
+            FROM execass_schema_metadata
+            WHERE singleton = 1
+              AND application_id = ?1
+              AND schema_version = ?2
+              AND contract_id = 'carsinos.execass.contract'
+              AND contract_version = 'v1'
+            LIMIT 1
+            "#,
+            params![EXECASS_APPLICATION_ID, EXECASS_SCHEMA_VERSION],
+            |_| Ok(()),
+        )
+        .optional()
+        .context("failed reading ExecAss schema metadata")?
+        .is_some();
+    if !metadata_matches {
+        bail!("ExecAss schema metadata is missing or incompatible");
+    }
+
+    let mut stmt = conn
+        .prepare("SELECT version FROM schema_migrations ORDER BY version")
+        .context("failed reading ExecAss migration ledger")?;
+    let versions = stmt
+        .query_map([], |row| row.get::<_, i64>(0))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    if versions != [1, 2, 3, 4, 5, 6, EXECASS_SCHEMA_VERSION] {
+        bail!("ExecAss migration ledger is not the exact installed schema");
+    }
+
+    let mut table_stmt = conn
+        .prepare(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'execass_%' ORDER BY name",
+        )
+        .context("failed reading ExecAss table inventory")?;
+    let tables = table_stmt
+        .query_map([], |row| row.get::<_, String>(0))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    if !tables
+        .iter()
+        .map(String::as_str)
+        .eq(EXECASS_REQUIRED_TABLES.iter().copied())
+    {
+        bail!("ExecAss table inventory is not the exact installed schema");
+    }
+
+    let retired_authority_exists = conn
+        .query_row(
+            r#"
+            SELECT 1
+            FROM sqlite_master
+            WHERE type = 'table'
+              AND name IN ('approvals', 'assistant_workers', 'assistant_task_links')
+            LIMIT 1
+            "#,
+            [],
+            |_| Ok(()),
+        )
+        .optional()
+        .context("failed checking retired orchestration authorities")?
+        .is_some();
+    if retired_authority_exists {
+        bail!("retired orchestration approval authority exists in ExecAss schema");
+    }
+
+    let foreign_key_violation = conn
+        .query_row("SELECT 1 FROM pragma_foreign_key_check LIMIT 1", [], |_| {
+            Ok(())
+        })
+        .optional()
+        .context("failed checking ExecAss foreign keys")?
+        .is_some();
+    if foreign_key_violation {
+        bail!("ExecAss schema contains foreign-key violations");
+    }
+    Ok(())
 }
 
 fn ensure_schema_migrations_table(conn: &Connection) -> Result<()> {
@@ -608,6 +959,16 @@ pub struct NewAssistantToolCallAudit {
     pub reason_code: Option<String>,
     pub audit_ref: Option<String>,
     pub metadata_json: Option<String>,
+}
+
+/// Exact persisted identity returned by assistant tool-call audit insertion.
+/// Callers that need lineage must retain this ID; querying a "latest" audit
+/// event is intentionally not an API.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AssistantToolCallAuditRecord {
+    pub event_id: String,
+    pub request_id: String,
+    pub created_at: i64,
 }
 
 #[derive(Debug, Clone)]
@@ -3321,6 +3682,51 @@ impl Storage {
         Ok(items)
     }
 
+    /// Record the health result of an actual connector invocation only while
+    /// the exact binding generation used for that invocation is still
+    /// current. A late response from a rotated/replaced credential therefore
+    /// cannot certify or poison its replacement.
+    pub fn record_connector_auth_binding_execution(
+        &self,
+        expected: &ConnectorAuthBindingRecord,
+        success: bool,
+    ) -> Result<bool> {
+        let conn = self.connect()?;
+        let observed_at = now_ms();
+        let next_updated_at = observed_at.max(expected.updated_at.saturating_add(1));
+        let changed = conn.execute(
+            r#"
+            UPDATE connector_auth_bindings
+            SET last_success_at = CASE WHEN ?1 = 1 THEN ?2 ELSE last_success_at END,
+                last_error = CASE WHEN ?1 = 1 THEN NULL ELSE 'connector_invocation_failed' END,
+                updated_at = ?3
+            WHERE auth_binding_id = ?4
+              AND connector_id = ?5
+              AND agent_id IS ?6
+              AND auth_kind = ?7
+              AND secret_ref IS ?8
+              AND oauth_session_id IS ?9
+              AND status = 'ready'
+              AND last_rotated_at IS ?10
+              AND updated_at = ?11
+            "#,
+            params![
+                if success { 1 } else { 0 },
+                observed_at,
+                next_updated_at,
+                expected.auth_binding_id,
+                expected.connector_id,
+                expected.agent_id,
+                expected.auth_kind,
+                expected.secret_ref,
+                expected.oauth_session_id,
+                expected.last_rotated_at,
+                expected.updated_at,
+            ],
+        )?;
+        Ok(changed == 1)
+    }
+
     pub fn list_connector_interactions(
         &self,
         connector_id: Option<&str>,
@@ -5656,7 +6062,10 @@ impl Storage {
         Ok(exists)
     }
 
-    pub fn create_assistant_tool_call_audit(&self, event: NewAssistantToolCallAudit) -> Result<()> {
+    pub fn create_assistant_tool_call_audit(
+        &self,
+        event: NewAssistantToolCallAudit,
+    ) -> Result<AssistantToolCallAuditRecord> {
         let conn = self.connect()?;
         let now = now_ms();
         let event_id = uuid::Uuid::new_v4().to_string();
@@ -5693,7 +6102,25 @@ impl Storage {
             ],
         )
         .context("failed to create assistant tool call audit event")?;
-        Ok(())
+        Ok(AssistantToolCallAuditRecord {
+            event_id,
+            request_id: event.request_id,
+            created_at: now,
+        })
+    }
+
+    pub fn get_assistant_tool_call_audit(
+        &self,
+        event_id: &str,
+    ) -> Result<Option<AssistantToolCallAuditRecord>> {
+        let conn = self.connect()?;
+        conn.query_row(
+            "SELECT event_id, request_id, created_at FROM assistant_tool_calls_audit WHERE event_id = ?1",
+            params![event_id],
+            |row| Ok(AssistantToolCallAuditRecord {
+                event_id: row.get(0)?, request_id: row.get(1)?, created_at: row.get(2)?,
+            }),
+        ).optional().context("failed reading assistant tool call audit by exact identity")
     }
 
     pub fn latest_user_message_text(&self, session_id: &str) -> Result<Option<String>> {
@@ -6769,6 +7196,12 @@ impl Storage {
     }
 
     pub fn create_job(&self, new_job: NewJob) -> Result<JobRecord> {
+        if execass::is_execass_continuation_job_payload(&new_job.payload_json)
+            || execass::is_execass_routine_driver_payload(&new_job.payload_json)
+            || execass::is_execass_routine_trigger_payload(&new_job.payload_json)
+        {
+            bail!("reserved ExecAss jobs must be created by their typed reconciler");
+        }
         let conn = self.connect()?;
         self.ensure_agent_exists(&conn, &new_job.agent_id)?;
         let job_id = uuid::Uuid::new_v4().to_string();
@@ -6860,6 +7293,12 @@ impl Storage {
             Some(record) => record,
             None => return Ok(None),
         };
+        if execass::is_execass_continuation_job_payload(&current.payload_json)
+            || execass::is_execass_routine_driver_payload(&current.payload_json)
+            || execass::is_execass_routine_trigger_payload(&current.payload_json)
+        {
+            bail!("reserved ExecAss jobs cannot be changed through the generic job API");
+        }
         let now = now_ms();
         let next_name = patch.name.unwrap_or(current.name);
         let next_enabled = patch.enabled.unwrap_or(current.enabled);
@@ -6868,6 +7307,12 @@ impl Storage {
         let mut next_run_at = patch.run_at_ms.or(current.run_at_ms);
         let next_next_run_at = patch.next_run_at.or(current.next_run_at);
         let next_payload = patch.payload_json.unwrap_or(current.payload_json);
+        if execass::is_execass_continuation_job_payload(&next_payload)
+            || execass::is_execass_routine_driver_payload(&next_payload)
+            || execass::is_execass_routine_trigger_payload(&next_payload)
+        {
+            bail!("generic job updates cannot forge a reserved ExecAss payload");
+        }
         let next_max_retries = patch.max_retries.unwrap_or(current.max_retries);
         let next_retry_backoff = patch.retry_backoff_ms.unwrap_or(current.retry_backoff_ms);
         let next_timeout = patch.timeout_ms.unwrap_or(current.timeout_ms);
@@ -6921,6 +7366,14 @@ impl Storage {
 
     pub fn remove_job(&self, job_id: &str) -> Result<bool> {
         let conn = self.connect()?;
+        if let Some(current) = self.get_job(job_id)? {
+            if execass::is_execass_continuation_job_payload(&current.payload_json)
+                || execass::is_execass_routine_driver_payload(&current.payload_json)
+                || execass::is_execass_routine_trigger_payload(&current.payload_json)
+            {
+                bail!("reserved ExecAss jobs cannot be removed through the generic job API");
+            }
+        }
         let now = now_ms();
         let changed = conn
             .execute(
@@ -9627,11 +10080,26 @@ const MIGRATION_0003: &str = include_str!("../../../migrations/0003_strategy_sch
 const MIGRATION_0004: &str = include_str!("../../../migrations/0004_agent_memory_bindings.sql");
 const MIGRATION_0005: &str = include_str!("../../../migrations/0005_connector_registry.sql");
 const MIGRATION_0006: &str = include_str!("../../../migrations/0006_agent_archival.sql");
+const MIGRATION_0007: &str = include_str!("../../../migrations/0007_execass_replacement.sql");
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::TempDir;
+
+    #[test]
+    fn app_paths_debug_never_exposes_configured_paths() {
+        let canary = format!("state-path-secret-debug-{}", std::process::id());
+        let paths = AppPaths::from_root(PathBuf::from(format!("Z:\\{canary}\\state")));
+        let output = format!("{paths:?}");
+
+        assert!(output.contains("root_configured: true"));
+        assert!(output.contains("database_configured: true"));
+        assert!(output.contains("attachments_configured: true"));
+        assert!(output.contains("logs_configured: true"));
+        assert!(!output.contains(&canary));
+        assert!(!output.contains("carsinos.db"));
+    }
 
     fn test_storage() -> (TempDir, Storage) {
         let temp_dir = TempDir::new().expect("tempdir");
@@ -10796,6 +11264,2357 @@ mod tests {
         );
     }
 
+    fn project_local_tempdir() -> TempDir {
+        TempDir::new_in(std::env::current_dir().expect("project working directory"))
+            .expect("project-local tempdir")
+    }
+
+    fn execass_test_root() -> (TempDir, AppPaths) {
+        let temp_dir = project_local_tempdir();
+        let paths = AppPaths::from_root(temp_dir.path().join("execass-state"));
+        init_execass_fresh_root(&paths).expect("initialize ExecAss clean root");
+        (temp_dir, paths)
+    }
+
+    fn sqlite_object_names(conn: &Connection, object_type: &str, prefix: &str) -> Vec<String> {
+        let mut stmt = conn
+            .prepare(
+                "SELECT name FROM sqlite_master WHERE type = ?1 AND name LIKE ?2 ORDER BY name",
+            )
+            .expect("prepare sqlite object inventory");
+        stmt.query_map(params![object_type, format!("{prefix}%")], |row| {
+            row.get::<_, String>(0)
+        })
+        .expect("query sqlite object inventory")
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .expect("collect sqlite object inventory")
+    }
+
+    fn table_columns(conn: &Connection, table: &str) -> Vec<String> {
+        let sql = format!("PRAGMA table_info({table})");
+        let mut stmt = conn.prepare(&sql).expect("prepare table_info");
+        stmt.query_map([], |row| row.get::<_, String>(1))
+            .expect("query table_info")
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .expect("collect table_info")
+    }
+
+    fn test_table_exists(conn: &Connection, table: &str) -> bool {
+        conn.query_row(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?1 LIMIT 1",
+            params![table],
+            |_| Ok(()),
+        )
+        .optional()
+        .expect("query table existence")
+        .is_some()
+    }
+
+    #[test]
+    fn execass_authority_schema_distinguishes_follow_up_from_decision_bound_amendments() {
+        let (_temp_dir, paths) = execass_test_root();
+        let conn = open_sqlite_connection(&paths.db_path).expect("open ExecAss database");
+        let insert = |id: &str,
+                      correlation: &str,
+                      kind: &str,
+                      scope: &str,
+                      decision_id: Option<&str>,
+                      decision_revision: Option<i64>,
+                      manifest: Option<&str>,
+                      nonce: Option<&str>| {
+            conn.execute(
+                "INSERT INTO execass_authority_provenance (authority_provenance_id,actor_type,credential_identity,authenticated_ingress,channel_assurance,source_correlation_id,authority_kind,normalized_scope_json,policy_revision,bound_decision_id,bound_decision_revision,bound_manifest_digest,bound_challenge_nonce_digest,evidence_digest,created_at) VALUES (?1,'human_local','owner','native-owner-intake','interactive-native-owner',?2,?3,?4,1,?5,?6,?7,?8,?9,1)",
+                params![
+                    id,
+                    correlation,
+                    kind,
+                    scope,
+                    decision_id,
+                    decision_revision,
+                    manifest,
+                    nonce,
+                    format!("evidence-{id}"),
+                ],
+            )
+        };
+
+        assert_eq!(
+            insert(
+                "follow-up",
+                "corr-follow-up",
+                "action_specific_owner_amendment",
+                r#"{"delegation_id":"delegation-1","delegation_revision":1,"plan_revision":1}"#,
+                None,
+                None,
+                None,
+                None,
+            )
+            .expect("typed follow-up amendment authority"),
+            1
+        );
+        assert!(insert(
+            "missing-plan",
+            "corr-missing-plan",
+            "action_specific_owner_amendment",
+            r#"{"delegation_id":"delegation-1","delegation_revision":1}"#,
+            None,
+            None,
+            None,
+            None,
+        )
+        .is_err());
+        assert!(insert(
+            "partial-decision",
+            "corr-partial-decision",
+            "action_specific_owner_amendment",
+            r#"{"delegation_id":"delegation-1","delegation_revision":1,"plan_revision":1}"#,
+            Some("decision-1"),
+            Some(1),
+            None,
+            None,
+        )
+        .is_err());
+        assert_eq!(
+            insert(
+                "decision-amendment",
+                "corr-decision-amendment",
+                "action_specific_owner_amendment",
+                r#"{"logical_action_id":"action-1"}"#,
+                Some("decision-2"),
+                Some(1),
+                Some("manifest-2"),
+                Some("nonce-2"),
+            )
+            .expect("decision-bound action-specific amendment authority"),
+            1
+        );
+        assert!(insert(
+            "original-with-decision",
+            "corr-original-bound",
+            "original_request",
+            r#"{"request":"new"}"#,
+            Some("decision-3"),
+            Some(1),
+            Some("manifest-3"),
+            Some("nonce-3"),
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn execass_clean_root_installs_exact_schema_contract() {
+        let (_temp_dir, paths) = execass_test_root();
+        let conn = open_sqlite_connection(&paths.db_path).expect("open ExecAss database");
+
+        assert_eq!(
+            conn.query_row("PRAGMA foreign_keys", [], |row| row.get::<_, i64>(0))
+                .expect("foreign_keys"),
+            1
+        );
+        assert_eq!(
+            conn.query_row("PRAGMA application_id", [], |row| row.get::<_, i64>(0))
+                .expect("application_id"),
+            EXECASS_APPLICATION_ID
+        );
+        assert_eq!(
+            conn.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
+                .expect("user_version"),
+            EXECASS_SCHEMA_VERSION
+        );
+
+        assert_eq!(
+            sqlite_object_names(&conn, "table", "execass_"),
+            [
+                "execass_accepted_confirmation_grants",
+                "execass_action_branches",
+                "execass_amendment_criteria_links",
+                "execass_attention_items",
+                "execass_authority_links",
+                "execass_authority_parent_bindings",
+                "execass_authority_provenance",
+                "execass_channel_reply_bindings",
+                "execass_completion_assessments",
+                "execass_confirmation_attestations",
+                "execass_confirmation_authority_keys",
+                "execass_confirmation_challenge_alternatives",
+                "execass_confirmation_challenges",
+                "execass_continuation_operation_history",
+                "execass_continuations",
+                "execass_criteria_sets",
+                "execass_decisions",
+                "execass_delegations",
+                "execass_duplicate_risk_bindings",
+                "execass_duplicate_risk_successors",
+                "execass_effect_recorder_evidence",
+                "execass_effect_recorder_keys",
+                "execass_effect_tombstones",
+                "execass_external_waits",
+                "execass_global_runtime_control",
+                "execass_lifecycle_transitions",
+                "execass_logical_effects",
+                "execass_notifications",
+                "execass_outbox_cursors",
+                "execass_outbox_events",
+                "execass_outcome_criteria",
+                "execass_owner_ingress_bindings",
+                "execass_plan_amendments",
+                "execass_plans",
+                "execass_policy_revisions",
+                "execass_provider_attempts",
+                "execass_receipt_anchor_state",
+                "execass_receipt_evidence_refs",
+                "execass_receipt_journal_state",
+                "execass_receipt_keys",
+                "execass_receipt_recorder_evidence_refs",
+                "execass_receipts",
+                "execass_recovery_episodes",
+                "execass_recovery_evaluations",
+                "execass_routine_driver_jobs",
+                "execass_routine_job_bindings",
+                "execass_routine_occurrences",
+                "execass_routine_schedule_state",
+                "execass_routine_trigger_operations",
+                "execass_routine_versions",
+                "execass_routines",
+                "execass_run_control_attestations",
+                "execass_runtime_host_generations",
+                "execass_runtime_host_leases",
+                "execass_runtime_host_states",
+                "execass_runtime_settings_revisions",
+                "execass_schema_metadata",
+                "execass_summary_acknowledgements",
+                "execass_summary_deliveries",
+                "execass_summary_delivery_items",
+                "execass_technical_resource_actuals",
+                "execass_technical_resource_quota_entries",
+                "execass_technical_resource_quota_snapshots",
+                "execass_technical_resource_requirement_sets",
+                "execass_technical_resource_requirements",
+                "execass_technical_resource_reservations",
+                "execass_terminal_corrections",
+                "execass_verifier_results",
+            ]
+        );
+        assert_eq!(
+            sqlite_object_names(&conn, "index", "idx_execass_"),
+            [
+                "idx_execass_action_branches_selection",
+                "idx_execass_attention_items_actionable",
+                "idx_execass_authority_link_assistant_audit_observation",
+                "idx_execass_authority_link_attachment_observation",
+                "idx_execass_authority_link_board_asset_observation",
+                "idx_execass_authority_link_board_card_observation",
+                "idx_execass_authority_link_board_observation",
+                "idx_execass_authority_link_job_observation",
+                "idx_execass_authority_link_job_run_observation",
+                "idx_execass_authority_link_mail_attachment_observation",
+                "idx_execass_authority_link_mail_message_observation",
+                "idx_execass_authority_link_mail_thread_observation",
+                "idx_execass_authority_link_run_observation",
+                "idx_execass_authority_link_security_audit_observation",
+                "idx_execass_authority_link_session_observation",
+                "idx_execass_authority_link_task_observation",
+                "idx_execass_authority_link_tool_call_observation",
+                "idx_execass_authority_links_delegation_kind",
+                "idx_execass_authority_links_outbox",
+                "idx_execass_confirmation_attestations_provider_event",
+                "idx_execass_confirmation_authority_one_active",
+                "idx_execass_confirmation_challenges_pending",
+                "idx_execass_continuation_one_nonreconcile_operation",
+                "idx_execass_continuations_claim",
+                "idx_execass_continuations_one_current_per_revision",
+                "idx_execass_continuations_one_job",
+                "idx_execass_criteria_sets_one_current",
+                "idx_execass_decisions_pending",
+                "idx_execass_delegations_source_message",
+                "idx_execass_delegations_summary",
+                "idx_execass_effect_recorder_active_generation",
+                "idx_execass_effect_recorder_evidence_attempt",
+                "idx_execass_effect_recorder_one_active",
+                "idx_execass_external_waits_waiting",
+                "idx_execass_logical_effects_reconcile",
+                "idx_execass_notifications_dedupe",
+                "idx_execass_notifications_due",
+                "idx_execass_outbox_one_delegation_transition_per_revision",
+                "idx_execass_outbox_unpublished",
+                "idx_execass_owner_ingress_one_active_local",
+                "idx_execass_receipt_evidence_source",
+                "idx_execass_receipt_keys_one_active",
+                "idx_execass_receipt_keys_one_provisioned",
+                "idx_execass_receipt_recorder_evidence_source",
+                "idx_execass_receipts_causation",
+                "idx_execass_recovery_evaluations_due",
+                "idx_execass_run_control_attestations_provider_event",
+                "idx_execass_runtime_host_one_live_lease",
+                "idx_execass_technical_resource_quota_entries_lookup",
+                "idx_execass_technical_resource_requirements_lookup",
+                "idx_execass_technical_resource_reservations_active",
+            ]
+        );
+        assert_eq!(
+            sqlite_object_names(&conn, "trigger", "execass_"),
+            [
+                "execass_accepted_confirmation_grants_no_delete",
+                "execass_action_branch_identity_immutable",
+                "execass_amendment_criteria_links_immutable",
+                "execass_amendment_criteria_links_no_delete",
+                "execass_attention_identity_immutable",
+                "execass_attention_runtime_generation_unique",
+                "execass_authority_links_immutable",
+                "execass_authority_links_insert_guard",
+                "execass_authority_links_no_delete",
+                "execass_authority_parent_binding_kind",
+                "execass_authority_parent_bindings_immutable",
+                "execass_authority_parent_bindings_no_delete",
+                "execass_authority_provenance_immutable",
+                "execass_authority_provenance_no_delete",
+                "execass_channel_reply_bindings_immutable",
+                "execass_channel_reply_bindings_no_delete",
+                "execass_completion_assessments_immutable",
+                "execass_completion_assessments_no_delete",
+                "execass_confirmation_attestation_insert_binding",
+                "execass_confirmation_attestations_immutable",
+                "execass_confirmation_attestations_no_delete",
+                "execass_confirmation_authority_keys_immutable",
+                "execass_confirmation_authority_keys_no_delete",
+                "execass_confirmation_challenge_alternative_insert_binding",
+                "execass_confirmation_challenge_alternatives_immutable",
+                "execass_confirmation_challenge_alternatives_no_delete",
+                "execass_confirmation_challenge_binding_immutable",
+                "execass_confirmation_challenge_insert_binding",
+                "execass_confirmation_challenge_resolution_once",
+                "execass_confirmation_challenge_selection_once",
+                "execass_confirmation_challenges_no_delete",
+                "execass_confirmation_grant_identity_immutable",
+                "execass_confirmation_grant_invalidation_is_action_specific",
+                "execass_confirmation_grant_owner_invalidation_provenance",
+                "execass_confirmation_grant_requires_resolved_challenge",
+                "execass_continuation_claim_transition_requires_history",
+                "execass_continuation_fence_monotonic",
+                "execass_continuation_job_binding_one_way",
+                "execass_continuation_operation_history_immutable",
+                "execass_continuation_operation_history_no_delete",
+                "execass_continuation_settle_transition_requires_history",
+                "execass_criteria_sets_lineage_immutable",
+                "execass_criteria_sets_no_delete",
+                "execass_decision_binding_immutable",
+                "execass_decision_resolution_requires_pending_record",
+                "execass_decision_resolution_requires_server_derived_owner",
+                "execass_decisions_no_delete",
+                "execass_delegation_criteria_set_guard",
+                "execass_delegation_revision_monotonic",
+                "execass_duplicate_risk_binding_insert_guard",
+                "execass_duplicate_risk_bindings_immutable",
+                "execass_duplicate_risk_bindings_no_delete",
+                "execass_duplicate_risk_successor_insert_guard",
+                "execass_duplicate_risk_successors_immutable",
+                "execass_duplicate_risk_successors_no_delete",
+                "execass_effect_recorder_evidence_immutable",
+                "execass_effect_recorder_evidence_insert_guard",
+                "execass_effect_recorder_evidence_no_delete",
+                "execass_effect_recorder_evidence_payload_guard",
+                "execass_effect_recorder_keys_immutable",
+                "execass_effect_recorder_keys_no_delete",
+                "execass_effect_tombstones_immutable",
+                "execass_effect_tombstones_no_delete",
+                "execass_external_wait_identity_immutable",
+                "execass_global_runtime_control_no_delete",
+                "execass_global_runtime_control_transition_guard",
+                "execass_internal_job_delete_forbidden",
+                "execass_internal_job_identity_immutable",
+                "execass_lifecycle_transitions_immutable",
+                "execass_lifecycle_transitions_no_delete",
+                "execass_logical_effect_identity_immutable",
+                "execass_logical_effect_no_delete",
+                "execass_logical_effect_recorder_execution_guard",
+                "execass_logical_effect_recorder_reconcile_guard",
+                "execass_notifications_identity_immutable",
+                "execass_notifications_monotonic",
+                "execass_notifications_no_delete",
+                "execass_outbox_cursor_monotonic",
+                "execass_outbox_cursors_no_delete",
+                "execass_outbox_events_immutable_identity",
+                "execass_outbox_events_no_delete",
+                "execass_outbox_global_sequence_gap_free",
+                "execass_outcome_criteria_immutable",
+                "execass_outcome_criteria_no_delete",
+                "execass_outcome_unknown_attempt_prohibition",
+                "execass_owner_ingress_bindings_immutable",
+                "execass_owner_ingress_bindings_no_delete",
+                "execass_plan_amendments_immutable",
+                "execass_plan_amendments_no_delete",
+                "execass_plans_immutable",
+                "execass_plans_no_delete",
+                "execass_policy_owner_provenance_guard",
+                "execass_policy_revision_progression_guard",
+                "execass_policy_revisions_immutable",
+                "execass_policy_revisions_no_delete",
+                "execass_provider_attempt_claim_binding_guard",
+                "execass_provider_attempt_identity_immutable",
+                "execass_provider_attempt_no_delete",
+                "execass_provider_attempt_recorder_execution_guard",
+                "execass_provider_attempt_recorder_reconcile_guard",
+                "execass_provider_attempt_terminal_fields_immutable",
+                "execass_provider_attempt_transition_guard",
+                "execass_receipt_anchor_delete_guard",
+                "execass_receipt_anchor_identity_immutable",
+                "execass_receipt_anchor_terminal_immutable",
+                "execass_receipt_anchor_transition_guard",
+                "execass_receipt_canonical_insert_guard",
+                "execass_receipt_evidence_immutable",
+                "execass_receipt_evidence_insert_guard",
+                "execass_receipt_evidence_no_delete",
+                "execass_receipt_journal_advance_guard",
+                "execass_receipt_keys_identity_immutable",
+                "execass_receipt_keys_no_delete",
+                "execass_receipt_keys_transition_guard",
+                "execass_receipt_recorder_evidence_immutable",
+                "execass_receipt_recorder_evidence_insert_guard",
+                "execass_receipt_recorder_evidence_no_delete",
+                "execass_receipt_recorder_evidence_receipt_guard",
+                "execass_receipts_immutable",
+                "execass_receipts_no_delete",
+                "execass_recovery_episodes_immutable",
+                "execass_recovery_episodes_no_delete",
+                "execass_recovery_evaluations_immutable",
+                "execass_recovery_evaluations_no_delete",
+                "execass_reserved_routine_job_immutable",
+                "execass_reserved_routine_job_no_delete",
+                "execass_routine_driver_jobs_immutable",
+                "execass_routine_driver_jobs_no_delete",
+                "execass_routine_job_bindings_immutable",
+                "execass_routine_job_bindings_no_delete",
+                "execass_routine_occurrence_identity_immutable",
+                "execass_routine_occurrences_no_delete",
+                "execass_routine_trigger_operations_immutable",
+                "execass_routine_trigger_operations_no_delete",
+                "execass_routine_versions_immutable",
+                "execass_routine_versions_no_delete",
+                "execass_run_control_attestation_insert_binding",
+                "execass_run_control_attestations_immutable",
+                "execass_run_control_attestations_no_delete",
+                "execass_runtime_generation_identity_immutable",
+                "execass_runtime_generation_terminal_irreversible",
+                "execass_runtime_host_state_identity_immutable",
+                "execass_runtime_host_state_no_delete",
+                "execass_runtime_lease_identity_immutable",
+                "execass_runtime_lease_release_irreversible",
+                "execass_runtime_settings_immutable",
+                "execass_runtime_settings_no_delete",
+                "execass_runtime_settings_owner_provenance_guard",
+                "execass_security_audit_archive_no_delete_when_linked",
+                "execass_security_audit_live_no_delete_without_archive",
+                "execass_summary_acknowledgements_immutable",
+                "execass_summary_acknowledgements_no_delete",
+                "execass_summary_deliveries_immutable",
+                "execass_summary_deliveries_no_delete",
+                "execass_summary_delivery_items_count_guard",
+                "execass_summary_delivery_items_immutable",
+                "execass_summary_delivery_items_no_delete",
+                "execass_technical_resource_actual_insert_guard",
+                "execass_technical_resource_actuals_immutable",
+                "execass_technical_resource_actuals_no_delete",
+                "execass_technical_resource_quota_entries_immutable",
+                "execass_technical_resource_quota_entries_no_delete",
+                "execass_technical_resource_quota_snapshots_immutable",
+                "execass_technical_resource_quota_snapshots_no_delete",
+                "execass_technical_resource_requirement_set_insert_guard",
+                "execass_technical_resource_requirement_sets_immutable",
+                "execass_technical_resource_requirement_sets_no_delete",
+                "execass_technical_resource_requirements_immutable",
+                "execass_technical_resource_requirements_no_delete",
+                "execass_technical_resource_reservation_capacity_guard",
+                "execass_technical_resource_reservation_identity_immutable",
+                "execass_technical_resource_reservation_insert_guard",
+                "execass_technical_resource_reservation_status_guard",
+                "execass_technical_resource_reservations_no_delete",
+                "execass_terminal_corrections_immutable",
+                "execass_terminal_corrections_no_delete",
+                "execass_verifier_results_immutable",
+                "execass_verifier_results_no_delete",
+            ]
+        );
+
+        assert_eq!(
+            table_columns(&conn, "execass_delegations"),
+            [
+                "delegation_id",
+                "normalized_original_intent",
+                "intake_evidence_json",
+                "ingress_source",
+                "ingress_credential_identity",
+                "source_message_id",
+                "source_correlation_id",
+                "ingress_idempotency_key",
+                "classifier_version",
+                "classifier_reasons_json",
+                "phase",
+                "run_control",
+                "state_revision",
+                "current_plan_revision",
+                "current_criteria_revision",
+                "policy_revision",
+                "effective_authority_json",
+                "authority_provenance_id",
+                "pending_decision_id",
+                "external_wait_json",
+                "stop_epoch",
+                "completion_assessment_json",
+                "receipt_chain_count",
+                "receipt_chain_head_digest",
+                "created_at",
+                "updated_at",
+                "acknowledged_at",
+                "terminal_at",
+            ]
+        );
+        assert_eq!(
+            table_columns(&conn, "execass_continuations"),
+            [
+                "continuation_id",
+                "delegation_id",
+                "target_delegation_revision",
+                "target_plan_revision",
+                "action_id",
+                "branch_kind",
+                "causation_kind",
+                "causation_id",
+                "status",
+                "job_id",
+                "lease_owner",
+                "lease_expires_at",
+                "fencing_token",
+                "host_generation",
+                "stop_epoch",
+                "global_stop_epoch",
+                "created_at",
+                "updated_at",
+                "completed_at",
+            ]
+        );
+        assert_eq!(
+            table_columns(&conn, "execass_routine_versions"),
+            [
+                "routine_id",
+                "routine_version",
+                "source_delegation_id",
+                "saved_owner_authority_provenance_id",
+                "normalized_original_intent",
+                "resolved_leaf_manifest_json",
+                "manifest_digest",
+                "saved_selector_json",
+                "saved_action_envelope_json",
+                "accepted_confirmation_grant_id",
+                "effective_policy_snapshot_json",
+                "effective_policy_revision",
+                "stable_leaf_digest",
+                "created_at",
+            ]
+        );
+        assert_eq!(
+            table_columns(&conn, "execass_global_runtime_control"),
+            [
+                "singleton",
+                "engaged",
+                "global_stop_epoch",
+                "current_policy_revision",
+                "updated_at",
+            ]
+        );
+        assert_eq!(
+            table_columns(&conn, "execass_run_control_attestations"),
+            [
+                "attestation_digest",
+                "replay_identity",
+                "authority_provenance_id",
+                "pinned_key_id",
+                "pinned_key_generation",
+                "actor_type",
+                "credential_identity",
+                "authenticated_ingress",
+                "channel_assurance",
+                "request_correlation_id",
+                "source_message_id",
+                "provider_event_id",
+                "operation",
+                "target_kind",
+                "target_delegation_id",
+                "idempotency_key",
+                "stopped_epoch",
+                "policy_revision",
+                "unresolved_effect_disclosure_digest",
+                "delegation_state_revision",
+                "current_plan_revision",
+                "canonical_root_identity",
+                "installation_identity",
+                "os_user_identity_digest",
+                "state_root_generation",
+                "normalized_scope_json",
+                "signed_payload_json",
+                "signature_hex",
+                "observed_at",
+                "issued_at",
+                "verified_at",
+                "receipt_id",
+                "outbox_event_id",
+                "receipt_command_digest",
+                "outbox_event_digest",
+            ]
+        );
+        assert_eq!(
+            table_columns(&conn, "execass_decisions"),
+            [
+                "decision_id",
+                "delegation_id",
+                "decision_revision",
+                "delegation_revision",
+                "plan_revision",
+                "policy_revision",
+                "decision_kind",
+                "status",
+                "result",
+                "exact_presented_action_json",
+                "confirmed_logical_action_identity",
+                "manifest_digest",
+                "payload_digest",
+                "payload_and_material_operands_json",
+                "target_audience_path_json",
+                "connector_tool_identity",
+                "connector_tool_version",
+                "side_effect_envelope_json",
+                "recommendation",
+                "consequence",
+                "alternatives_json",
+                "idempotency_key",
+                "requested_at",
+                "resolved_at",
+                "resolved_by_authority_provenance_id",
+            ]
+        );
+        assert_eq!(
+            table_columns(&conn, "execass_logical_effects"),
+            [
+                "logical_effect_id",
+                "delegation_id",
+                "continuation_id",
+                "action_kind",
+                "operation_reversible",
+                "declared_recovery_safe_boundary",
+                "state",
+                "internal_idempotency_key",
+                "provider_identity",
+                "provider_idempotency_key",
+                "reconciliation_key",
+                "manifest_digest",
+                "payload_digest",
+                "outcome_json",
+                "created_at",
+                "updated_at",
+            ]
+        );
+        assert_eq!(
+            table_columns(&conn, "execass_confirmation_challenges"),
+            [
+                "challenge_id",
+                "decision_id",
+                "delegation_id",
+                "decision_revision",
+                "exact_presented_action_json",
+                "confirmed_logical_action_identity",
+                "manifest_digest",
+                "payload_digest",
+                "payload_and_material_operands_json",
+                "connector_tool_identity",
+                "connector_tool_version",
+                "canonical_action_envelope_or_selector_json",
+                "declared_consequence",
+                "selected_logical_action_id",
+                "nonce_digest",
+                "status",
+                "created_at",
+                "expires_at",
+                "resolved_at",
+            ]
+        );
+        assert_eq!(
+            table_columns(&conn, "execass_confirmation_authority_keys"),
+            [
+                "key_id",
+                "key_generation",
+                "verifying_key_hex",
+                "verifying_key_digest",
+                "canonical_root_identity",
+                "installation_identity",
+                "os_user_identity_digest",
+                "state_root_generation",
+                "status",
+                "created_at",
+            ]
+        );
+        assert_eq!(
+            table_columns(&conn, "execass_owner_ingress_bindings"),
+            [
+                "binding_id",
+                "actor_type",
+                "credential_identity",
+                "authenticated_ingress",
+                "channel_assurance",
+                "provider_event_required",
+                "status",
+                "created_at",
+            ]
+        );
+        assert_eq!(
+            table_columns(&conn, "execass_channel_reply_bindings"),
+            [
+                "binding_id",
+                "delegation_id",
+                "provider",
+                "authenticated_ingress",
+                "owner_credential_identity",
+                "conversation_id",
+                "outbound_message_id",
+                "created_at",
+            ]
+        );
+        assert_eq!(
+            table_columns(&conn, "execass_confirmation_attestations"),
+            [
+                "attestation_digest",
+                "decision_id",
+                "authority_provenance_id",
+                "pinned_key_id",
+                "pinned_key_generation",
+                "actor_type",
+                "credential_identity",
+                "authenticated_ingress",
+                "channel_assurance",
+                "request_correlation_id",
+                "source_message_id",
+                "provider_event_id",
+                "selected_logical_action_id",
+                "signed_payload_json",
+                "signature_hex",
+                "issued_at",
+                "expires_at",
+                "verified_at",
+            ]
+        );
+        assert_eq!(
+            table_columns(&conn, "execass_accepted_confirmation_grants"),
+            [
+                "grant_id",
+                "delegation_id",
+                "decision_id",
+                "confirmed_logical_action_identity",
+                "canonical_action_envelope_or_selector_json",
+                "payload_and_material_operands_json",
+                "payload_and_material_operands_digest",
+                "connector_tool_identity",
+                "connector_tool_version",
+                "declared_consequence",
+                "accepted_by_authority_provenance_id",
+                "confirmation_attestation_digest",
+                "accepted_at",
+                "invalidated_at",
+                "invalidation_reason",
+                "invalidated_by_authority_provenance_id",
+            ]
+        );
+        assert_eq!(
+            table_columns(&conn, "execass_receipt_anchor_state"),
+            [
+                "anchor_id",
+                "root_identity",
+                "state_root_generation",
+                "anchor_generation",
+                "status",
+                "receipt_count",
+                "receipt_head_digest",
+                "key_id",
+                "key_generation",
+                "transaction_id",
+                "external_receipt_digest",
+                "prepared_document_digest",
+                "receipt_commit_confirmed",
+                "receipt_committed_at",
+                "receipt_commit_confirmation_tag",
+                "finalized_document_digest",
+                "prepared_at",
+                "finalized_at",
+                "quarantined_at",
+                "quarantine_reason",
+            ]
+        );
+        assert_eq!(
+            table_columns(&conn, "execass_receipt_keys"),
+            [
+                "key_id",
+                "key_generation",
+                "status",
+                "rotated_from_key_id",
+                "rotated_from_key_generation",
+                "created_at",
+                "registry_integrity_tag",
+                "activated_anchor_generation",
+            ]
+        );
+        assert_eq!(
+            table_columns(&conn, "execass_outbox_events"),
+            [
+                "global_sequence",
+                "event_id",
+                "event_name",
+                "aggregate_id",
+                "aggregate_revision",
+                "correlation_id",
+                "causation_id",
+                "occurred_at",
+                "schema_version",
+                "safe_payload_json",
+                "duplicate_identity",
+                "published_at",
+            ]
+        );
+        assert_eq!(
+            table_columns(&conn, "execass_summary_deliveries"),
+            [
+                "delivery_id",
+                "displayed_cursor",
+                "projection_version",
+                "through_global_sequence",
+                "item_set_digest",
+                "item_count",
+                "request_correlation_id",
+                "delivered_at",
+            ]
+        );
+        assert_eq!(
+            table_columns(&conn, "execass_notifications"),
+            [
+                "notification_id",
+                "attention_id",
+                "completion_assessment_id",
+                "outbox_event_id",
+                "delegation_id",
+                "decision_id",
+                "reason_revision",
+                "attention_variant",
+                "reason",
+                "channel",
+                "status",
+                "safe_payload_json",
+                "requested_at",
+                "scheduled_at",
+                "next_reminder_at",
+                "quiet_hours_json",
+                "reminder_count",
+                "last_reminded_at",
+                "dispatched_at",
+                "updated_at",
+                "idempotency_key",
+            ]
+        );
+
+        let authority_targets = {
+            let mut stmt = conn
+                .prepare("PRAGMA foreign_key_list(execass_authority_links)")
+                .expect("prepare authority-link foreign keys");
+            let mut rows = stmt
+                .query_map([], |row| row.get::<_, String>(2))
+                .expect("query authority-link foreign keys")
+                .collect::<rusqlite::Result<Vec<_>>>()
+                .expect("collect authority-link foreign keys");
+            rows.sort();
+            rows
+        };
+        assert_eq!(
+            authority_targets,
+            [
+                "agent_mail_attachments",
+                "agent_mail_messages",
+                "agent_mail_threads",
+                "assistant_tool_calls_audit",
+                "attachments",
+                "board_card_assets",
+                "board_cards",
+                "boards",
+                "execass_delegations",
+                "execass_outbox_events",
+                "job_runs",
+                "jobs",
+                "runs",
+                "sessions",
+                "tasks",
+                "tool_calls",
+            ]
+        );
+
+        let execass_tables = sqlite_object_names(&conn, "table", "execass_");
+        for table in execass_tables {
+            let pragma = format!("PRAGMA foreign_key_list({table})");
+            let mut stmt = conn
+                .prepare(&pragma)
+                .expect("prepare foreign-key inventory");
+            let delete_actions = stmt
+                .query_map([], |row| row.get::<_, String>(6))
+                .expect("query foreign-key inventory")
+                .collect::<rusqlite::Result<Vec<_>>>()
+                .expect("collect foreign-key inventory");
+            assert!(
+                delete_actions.iter().all(|action| action != "CASCADE"),
+                "{table} must not erase evidence through cascading deletes"
+            );
+        }
+
+        let delegation_sql: String = conn
+            .query_row(
+                "SELECT sql FROM sqlite_master WHERE type='table' AND name='execass_delegations'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("delegation DDL");
+        for closed_value in [
+            "accepted",
+            "partially_completed",
+            "failed",
+            "running",
+            "stop_requested",
+            "stopped",
+        ] {
+            assert!(
+                delegation_sql.contains(&format!("'{closed_value}'")),
+                "delegation CHECK must contain {closed_value}"
+            );
+        }
+
+        let versions = {
+            let mut stmt = conn
+                .prepare("SELECT version FROM schema_migrations ORDER BY version")
+                .expect("prepare migration versions");
+            stmt.query_map([], |row| row.get::<_, i64>(0))
+                .expect("query migration versions")
+                .collect::<rusqlite::Result<Vec<_>>>()
+                .expect("collect migration versions")
+        };
+        assert_eq!(versions, [1, 2, 3, 4, 5, 6, 7]);
+        for retired in ["approvals", "assistant_workers", "assistant_task_links"] {
+            assert!(
+                !test_table_exists(&conn, retired),
+                "clean ExecAss root must not retain retired authority table {retired}"
+            );
+        }
+    }
+
+    fn seed_execass_constraint_fixture(conn: &Connection) {
+        conn.execute(
+            r#"
+            INSERT INTO execass_authority_provenance (
+              authority_provenance_id, actor_type, credential_identity,
+              authenticated_ingress, channel_assurance, source_correlation_id,
+              authority_kind, normalized_scope_json, policy_revision,
+              evidence_digest, created_at
+            ) VALUES ('authority-1', 'human_local', 'local-user', 'local-ui',
+                      'interactive', 'correlation-1', 'original_request', '{}', 1,
+                      'evidence-1', 1)
+            "#,
+            [],
+        )
+        .expect("seed authority provenance");
+        conn.execute(
+            r#"
+            INSERT INTO execass_delegations (
+              delegation_id, normalized_original_intent, intake_evidence_json,
+              ingress_source, ingress_credential_identity, source_correlation_id,
+              ingress_idempotency_key, classifier_version, classifier_reasons_json,
+              phase, run_control, state_revision, policy_revision,
+              effective_authority_json, authority_provenance_id, created_at, updated_at
+            ) VALUES ('delegation-1', 'test', '{}', 'local-ui', 'local-user',
+                      'correlation-1', 'intake-key-1', 'v1', '[]', 'accepted',
+                      'running', 1, 1, '{}', 'authority-1', 1, 1)
+            "#,
+            [],
+        )
+        .expect("seed delegation");
+        conn.execute(
+            r#"
+            INSERT INTO execass_plans (
+              plan_id, delegation_id, plan_revision, based_on_delegation_revision,
+              policy_revision, plan_summary, resolved_leaf_manifest_json,
+              manifest_digest, created_by_authority_provenance_id, created_at
+            ) VALUES ('plan-1', 'delegation-1', 1, 1, 1, 'test plan', '[]',
+                      'manifest-1', 'authority-1', 1)
+            "#,
+            [],
+        )
+        .expect("seed plan");
+        conn.execute(
+            r#"
+            INSERT INTO execass_action_branches (
+              action_id, delegation_id, action_revision, target_delegation_revision,
+              target_plan_revision, stop_epoch, branch_kind, status, action_summary,
+              created_at, updated_at
+            ) VALUES ('seed-action', 'delegation-1', 1, 1, 1, 0, 'ordinary',
+                      'runnable', 'seed action', 1, 1)
+            "#,
+            [],
+        )
+        .expect("seed action branch");
+        conn.execute(
+            r#"
+            INSERT INTO execass_continuations (
+              continuation_id, delegation_id, target_delegation_revision,
+              target_plan_revision, action_id, branch_kind, causation_kind, causation_id, status,
+              fencing_token, host_generation, stop_epoch, global_stop_epoch, created_at, updated_at
+            ) VALUES ('continuation-1', 'delegation-1', 1, 1, 'seed-action', 'ordinary', 'plan', 'plan-1',
+                      'runnable', 0, 1, 0, 0, 1, 1)
+            "#,
+            [],
+        )
+        .expect("seed continuation");
+
+        assert!(conn
+            .execute(
+                "UPDATE execass_delegations SET phase='not_a_phase', state_revision=2 WHERE delegation_id='delegation-1'",
+                [],
+            )
+            .is_err());
+    }
+
+    #[test]
+    fn execass_v11_challenge_grant_and_technical_resource_schema_reject_stale_authority() {
+        let (_temp_dir, paths) = execass_test_root();
+        let conn = open_sqlite_connection(&paths.db_path).expect("open ExecAss database");
+        seed_execass_constraint_fixture(&conn);
+
+        let schema: String = conn
+            .query_row(
+                "SELECT group_concat(sql, '\n') FROM sqlite_schema WHERE name LIKE 'execass_%' AND sql IS NOT NULL",
+                [],
+                |row| row.get(0),
+            )
+            .expect("load exact ExecAss schema");
+        for forbidden in [
+            "ordinary_decision",
+            "hard_lock",
+            "maximum_budget",
+            "spending_or_financial_commitment",
+            "money",
+            "currency",
+            "payee",
+            "purchase",
+            "'approval'",
+        ] {
+            assert!(
+                !schema.contains(forbidden),
+                "retired ExecAss schema token must be absent: {forbidden}"
+            );
+        }
+        assert!(schema.contains("execass_confirmation_challenges"));
+        assert!(schema.contains("execass_accepted_confirmation_grants"));
+        assert!(schema.contains(
+            "technical_resource_kind IN ('tokens', 'time_ms', 'connector_calls', 'resource_units')"
+        ));
+
+        conn.execute(
+            r#"
+            INSERT INTO execass_decisions (
+              decision_id, delegation_id, decision_revision, delegation_revision,
+              plan_revision, policy_revision, decision_kind, status,
+              exact_presented_action_json, confirmed_logical_action_identity, manifest_digest, payload_digest,
+              payload_and_material_operands_json,
+              target_audience_path_json, connector_tool_identity, connector_tool_version,
+              side_effect_envelope_json, recommendation,
+              consequence, alternatives_json, idempotency_key, requested_at
+            ) VALUES ('danger-decision', 'delegation-1', 1, 1, 1, 1,
+                      'dangerous_action_confirmation', 'pending', '{}', 'logical-action-1', 'manifest-1',
+                      'payload-1', '{}', '[]', 'tool-1', 'v1', '{}', 'continue', 'concrete consequence',
+                      '["confirm_and_continue","revise","decline"]', 'danger-idempotency', 1)
+            "#,
+            [],
+        )
+        .expect("seed typed dangerous decision");
+        let insert_challenge = r#"
+            INSERT INTO execass_confirmation_challenges (
+              challenge_id, decision_id, delegation_id, decision_revision,
+              exact_presented_action_json, confirmed_logical_action_identity, manifest_digest,
+              payload_digest, payload_and_material_operands_json, connector_tool_identity,
+              connector_tool_version, canonical_action_envelope_or_selector_json,
+              declared_consequence, nonce_digest, status, created_at, expires_at, resolved_at
+            ) VALUES (?1, 'danger-decision', 'delegation-1', 1, ?2, ?3, 'manifest-1',
+                      ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, 1, 100, ?12)
+        "#;
+        for (
+            suffix,
+            action,
+            logical_action,
+            payload_digest,
+            operands,
+            tool,
+            version,
+            envelope,
+            consequence,
+            status,
+            resolved_at,
+        ) in [
+            (
+                "pre-resolved",
+                "{}",
+                "logical-action-1",
+                "payload-1",
+                "{}",
+                "tool-1",
+                "v1",
+                "{}",
+                "concrete consequence",
+                "resolved",
+                Some(2_i64),
+            ),
+            (
+                "pre-expired",
+                "{}",
+                "logical-action-1",
+                "payload-1",
+                "{}",
+                "tool-1",
+                "v1",
+                "{}",
+                "concrete consequence",
+                "expired",
+                None,
+            ),
+            (
+                "action",
+                "{\"other\":true}",
+                "logical-action-1",
+                "payload-1",
+                "{}",
+                "tool-1",
+                "v1",
+                "{}",
+                "concrete consequence",
+                "pending",
+                None,
+            ),
+            (
+                "consequence",
+                "{}",
+                "logical-action-1",
+                "payload-1",
+                "{}",
+                "tool-1",
+                "v1",
+                "{}",
+                "other consequence",
+                "pending",
+                None,
+            ),
+            (
+                "envelope",
+                "{}",
+                "logical-action-1",
+                "payload-1",
+                "{}",
+                "tool-1",
+                "v1",
+                "{\"other\":true}",
+                "concrete consequence",
+                "pending",
+                None,
+            ),
+            (
+                "tool",
+                "{}",
+                "logical-action-1",
+                "payload-1",
+                "{}",
+                "other-tool",
+                "v1",
+                "{}",
+                "concrete consequence",
+                "pending",
+                None,
+            ),
+            (
+                "payload",
+                "{}",
+                "logical-action-1",
+                "payload-1",
+                "{\"other\":true}",
+                "tool-1",
+                "v1",
+                "{}",
+                "concrete consequence",
+                "pending",
+                None,
+            ),
+        ] {
+            assert!(
+                conn.execute(
+                    insert_challenge,
+                    params![
+                        format!("challenge-{suffix}"),
+                        action,
+                        logical_action,
+                        payload_digest,
+                        operands,
+                        tool,
+                        version,
+                        envelope,
+                        consequence,
+                        format!("nonce-{suffix}"),
+                        status,
+                        resolved_at,
+                    ],
+                )
+                .is_err(),
+                "hostile challenge case {suffix} must fail"
+            );
+        }
+        conn.execute(
+            r#"
+            INSERT INTO execass_confirmation_challenges (
+              challenge_id, decision_id, delegation_id, decision_revision,
+              exact_presented_action_json, confirmed_logical_action_identity, manifest_digest, payload_digest,
+              payload_and_material_operands_json, connector_tool_identity, connector_tool_version,
+              canonical_action_envelope_or_selector_json, declared_consequence,
+              nonce_digest, status, created_at, expires_at
+            ) VALUES ('challenge-1', 'danger-decision', 'delegation-1', 1,
+                      '{}', 'logical-action-1', 'manifest-1', 'payload-1', '{}', 'tool-1', 'v1', '{}',
+                      'concrete consequence', 'nonce-1', 'pending', 1, 100)
+            "#,
+            [],
+        )
+        .expect("seed expiring single-resolution challenge");
+        conn.execute(
+            r#"
+            INSERT INTO execass_confirmation_challenge_alternatives (
+              challenge_id, logical_action_id, exact_presented_action_json,
+              confirmed_logical_action_identity, manifest_digest, payload_digest,
+              payload_and_material_operands_json, target_audience_path_json,
+              connector_tool_identity, connector_tool_version,
+              canonical_action_envelope_or_selector_json, declared_consequence
+            ) VALUES ('challenge-1', 'logical-action-1', '{}', 'logical-action-1',
+                      'manifest-1', 'payload-1', '{}', '[]', 'tool-1', 'v1', '{}',
+                      'concrete consequence')
+            "#,
+            [],
+        )
+        .expect("seed exact disclosed confirmation alternative");
+        conn.execute(
+            r#"
+            INSERT INTO execass_authority_provenance (
+              authority_provenance_id, actor_type, credential_identity,
+              authenticated_ingress, channel_assurance, source_correlation_id,
+              source_message_id,
+              authority_kind, normalized_scope_json, policy_revision,
+              bound_decision_id, bound_decision_revision, bound_manifest_digest,
+              bound_challenge_nonce_digest, evidence_digest, created_at, expires_at
+            ) VALUES ('remote-owner-resolution', 'human_remote', 'owner', 'allowlisted-channel',
+                      'authenticated', 'resolution-correlation', 'provider-message-1',
+                      'decision_resolution', '{}', 1, 'danger-decision', 1, 'manifest-1',
+                      'nonce-1', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 2, 100)
+            "#,
+            [],
+        )
+        .expect("seed authenticated remote owner resolution");
+        conn.execute(
+            "INSERT INTO execass_confirmation_authority_keys (key_id,key_generation,verifying_key_hex,verifying_key_digest,canonical_root_identity,installation_identity,os_user_identity_digest,state_root_generation,status,created_at) VALUES ('confirmation-key-1',1,'0000000000000000000000000000000000000000000000000000000000000000','bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb','sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc','install-1','dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',1,'active',1)",
+            [],
+        )
+        .expect("seed pinned confirmation key");
+        conn.execute(
+            "INSERT INTO execass_owner_ingress_bindings (binding_id,actor_type,credential_identity,authenticated_ingress,channel_assurance,provider_event_required,status,created_at) VALUES ('remote-binding-1','human_remote','owner','allowlisted-channel','authenticated',1,'active',1)",
+            [],
+        )
+        .expect("seed exact remote owner binding");
+        conn.execute(
+            r#"
+            INSERT INTO execass_confirmation_attestations (
+              attestation_digest,decision_id,authority_provenance_id,pinned_key_id,
+              pinned_key_generation,actor_type,credential_identity,authenticated_ingress,
+              channel_assurance,request_correlation_id,source_message_id,provider_event_id,
+              selected_logical_action_id,signed_payload_json,signature_hex,issued_at,expires_at,verified_at
+            ) VALUES (
+              'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+              'danger-decision','remote-owner-resolution','confirmation-key-1',1,
+              'human_remote','owner','allowlisted-channel','authenticated','resolution-correlation',
+              'provider-message-1','provider-event-1','logical-action-1',
+              '{"actor_type":"human_remote","credential_identity":"owner","authenticated_ingress":"allowlisted-channel","channel_assurance":"authenticated","request_correlation_id":"resolution-correlation","source_message_id":"provider-message-1","provider_event_id":"provider-event-1","policy_revision":1,"decision_id":"danger-decision","decision_revision":1,"decision_result":"confirm_and_continue","canonical_manifest_digest":"manifest-1","selected_logical_action_id":"logical-action-1","challenge_nonce_digest":"nonce-1","challenge_expires_at_ms":100,"issued_at_ms":2,"canonical_root_identity":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","installation_identity":"install-1","os_user_identity_digest":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","state_root_generation":1,"signer_key_generation":1}',
+              '00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+              2,100,2
+            )
+            "#,
+            [],
+        )
+        .expect("seed exact stored confirmation attestation");
+        assert!(conn
+            .execute(
+                "UPDATE execass_confirmation_challenges SET status='resolved', selected_logical_action_id='logical-action-1', resolved_at=101 WHERE challenge_id='challenge-1'",
+                [],
+            )
+            .is_err());
+        conn.execute(
+            "UPDATE execass_confirmation_challenges SET status='resolved', selected_logical_action_id='logical-action-1', resolved_at=2 WHERE challenge_id='challenge-1'",
+            [],
+        )
+        .expect("resolve challenge once");
+        assert!(conn
+            .execute(
+                "UPDATE execass_confirmation_challenges SET status='expired' WHERE challenge_id='challenge-1'",
+                [],
+            )
+            .is_err());
+        conn.execute(
+            "UPDATE execass_decisions SET status='resolved', result='confirm_and_continue', resolved_at=2, resolved_by_authority_provenance_id='remote-owner-resolution' WHERE decision_id='danger-decision'",
+            [],
+        )
+        .expect("authenticated remote owner resolves typed decision");
+        let insert_grant = r#"
+            INSERT INTO execass_accepted_confirmation_grants (
+              grant_id, delegation_id, decision_id, confirmed_logical_action_identity,
+              canonical_action_envelope_or_selector_json, payload_and_material_operands_json,
+              payload_and_material_operands_digest, connector_tool_identity, connector_tool_version,
+              declared_consequence, accepted_by_authority_provenance_id,
+              confirmation_attestation_digest, accepted_at
+            ) VALUES (?1, 'delegation-1', 'danger-decision', ?2, ?3, ?4, ?5, ?6, ?7, ?8,
+                      'remote-owner-resolution',
+                      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', ?9)
+        "#;
+        for (suffix, action, envelope, operands, digest, tool, version, consequence, accepted_at) in [
+            (
+                "action",
+                "other-logical-action",
+                "{}",
+                "{}",
+                "payload-1",
+                "tool-1",
+                "v1",
+                "concrete consequence",
+                2_i64,
+            ),
+            (
+                "envelope",
+                "logical-action-1",
+                "{\"other\":true}",
+                "{}",
+                "payload-1",
+                "tool-1",
+                "v1",
+                "concrete consequence",
+                2_i64,
+            ),
+            (
+                "payload",
+                "logical-action-1",
+                "{}",
+                "{\"other\":true}",
+                "payload-1",
+                "tool-1",
+                "v1",
+                "concrete consequence",
+                2_i64,
+            ),
+            (
+                "digest",
+                "logical-action-1",
+                "{}",
+                "{}",
+                "other-payload",
+                "tool-1",
+                "v1",
+                "concrete consequence",
+                2_i64,
+            ),
+            (
+                "tool",
+                "logical-action-1",
+                "{}",
+                "{}",
+                "payload-1",
+                "other-tool",
+                "v1",
+                "concrete consequence",
+                2_i64,
+            ),
+            (
+                "consequence",
+                "logical-action-1",
+                "{}",
+                "{}",
+                "payload-1",
+                "tool-1",
+                "v1",
+                "other consequence",
+                2_i64,
+            ),
+            (
+                "accepted-before-resolution",
+                "logical-action-1",
+                "{}",
+                "{}",
+                "payload-1",
+                "tool-1",
+                "v1",
+                "concrete consequence",
+                1_i64,
+            ),
+        ] {
+            assert!(
+                conn.execute(
+                    insert_grant,
+                    params![
+                        format!("grant-{suffix}"),
+                        action,
+                        envelope,
+                        operands,
+                        digest,
+                        tool,
+                        version,
+                        consequence,
+                        accepted_at,
+                    ],
+                )
+                .is_err(),
+                "hostile grant case {suffix} must fail"
+            );
+        }
+        conn.execute(
+            r#"
+            INSERT INTO execass_accepted_confirmation_grants (
+              grant_id, delegation_id, decision_id, confirmed_logical_action_identity,
+              canonical_action_envelope_or_selector_json, payload_and_material_operands_json,
+              payload_and_material_operands_digest,
+              connector_tool_identity, connector_tool_version,
+              declared_consequence, accepted_by_authority_provenance_id,
+              confirmation_attestation_digest, accepted_at
+            ) VALUES ('grant-1', 'delegation-1', 'danger-decision', 'logical-action-1',
+                      '{}', '{}', 'payload-1', 'tool-1', 'v1', 'concrete consequence',
+                      'remote-owner-resolution',
+                      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 2)
+            "#,
+            [],
+        )
+        .expect("persist durable accepted confirmation grant");
+        for statement in [
+            "DELETE FROM execass_accepted_confirmation_grants WHERE grant_id='grant-1'",
+            "DELETE FROM execass_confirmation_attestations WHERE decision_id='danger-decision'",
+            "DELETE FROM execass_confirmation_authority_keys WHERE key_id='confirmation-key-1'",
+            "DELETE FROM execass_owner_ingress_bindings WHERE binding_id='remote-binding-1'",
+            "DELETE FROM execass_confirmation_challenges WHERE challenge_id='challenge-1'",
+            "DELETE FROM execass_decisions WHERE decision_id='danger-decision'",
+        ] {
+            assert!(conn.execute(statement, []).is_err(), "{statement}");
+        }
+        for statement in [
+            "UPDATE execass_decisions SET confirmed_logical_action_identity='mutated' WHERE decision_id='danger-decision'",
+            "UPDATE execass_confirmation_challenges SET confirmed_logical_action_identity='mutated' WHERE challenge_id='challenge-1'",
+            "UPDATE execass_confirmation_challenges SET payload_digest='mutated' WHERE challenge_id='challenge-1'",
+            "UPDATE execass_confirmation_challenges SET payload_and_material_operands_json='{\"mutated\":true}' WHERE challenge_id='challenge-1'",
+            "UPDATE execass_confirmation_challenges SET connector_tool_identity='mutated' WHERE challenge_id='challenge-1'",
+            "UPDATE execass_confirmation_challenges SET connector_tool_version='mutated' WHERE challenge_id='challenge-1'",
+            "UPDATE execass_confirmation_challenges SET canonical_action_envelope_or_selector_json='{\"mutated\":true}' WHERE challenge_id='challenge-1'",
+            "UPDATE execass_confirmation_attestations SET signature_hex='ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff' WHERE decision_id='danger-decision'",
+            "UPDATE execass_confirmation_authority_keys SET status='retired' WHERE key_id='confirmation-key-1'",
+            "UPDATE execass_owner_ingress_bindings SET status='retired' WHERE binding_id='remote-binding-1'",
+            "UPDATE execass_accepted_confirmation_grants SET payload_and_material_operands_digest='mutated' WHERE grant_id='grant-1'",
+        ] {
+            assert!(conn.execute(statement, []).is_err(), "{statement}");
+        }
+        assert!(conn
+            .execute(
+                "UPDATE execass_accepted_confirmation_grants SET invalidated_at=3, invalidation_reason='explicit_action_specific_owner_revocation' WHERE grant_id='grant-1'",
+                [],
+            )
+            .is_err());
+        assert!(conn
+            .execute(
+                "UPDATE execass_accepted_confirmation_grants SET invalidated_at=3, invalidation_reason='material_target_drift', invalidated_by_authority_provenance_id='remote-owner-resolution' WHERE grant_id='grant-1'",
+                [],
+            )
+            .is_err());
+        conn.execute(
+            r#"
+            INSERT INTO execass_authority_provenance (
+              authority_provenance_id, actor_type, credential_identity,
+              authenticated_ingress, channel_assurance, source_correlation_id,
+              authority_kind, normalized_scope_json, policy_revision,
+              bound_decision_id, bound_decision_revision, bound_manifest_digest,
+              bound_challenge_nonce_digest, evidence_digest, created_at
+            ) VALUES ('missing-challenge-resolution', 'human_local', 'owner', 'native-control',
+                      'authenticated', 'missing-challenge-correlation', 'decision_resolution', '{}', 1,
+                      'missing-challenge-decision', 2, 'manifest-1', 'nonce-missing',
+                      'missing-challenge-evidence', 3)
+            "#,
+            [],
+        )
+        .expect("seed owner resolution without a challenge");
+        assert!(conn
+            .execute(
+                r#"
+                INSERT INTO execass_decisions (
+                  decision_id, delegation_id, decision_revision, delegation_revision,
+                  plan_revision, policy_revision, decision_kind, status, result,
+                  exact_presented_action_json, confirmed_logical_action_identity, manifest_digest, payload_digest,
+                  payload_and_material_operands_json,
+                  target_audience_path_json, side_effect_envelope_json, recommendation,
+                  consequence, alternatives_json, idempotency_key, requested_at, resolved_at,
+                  resolved_by_authority_provenance_id
+                ) VALUES ('missing-challenge-decision', 'delegation-1', 2, 1, 1, 1,
+                          'dangerous_action_confirmation', 'resolved', 'confirm_and_continue',
+                          '{}', 'missing-logical-action', 'manifest-1', 'payload-1', '{}', '[]', '{}', 'continue',
+                          'concrete consequence', '[]', 'missing-challenge-idempotency', 1, 3,
+                          'missing-challenge-resolution')
+                "#,
+                [],
+            )
+            .is_err());
+        assert!(conn
+            .execute(
+                "INSERT INTO execass_technical_resource_reservations (reservation_id, delegation_id, technical_resource_kind, unit, amount_reserved, status, idempotency_key, fencing_token, created_at, expires_at) VALUES ('bad-resource', 'delegation-1', 'money', 'unit', 1, 'reserved', 'bad-resource-key', 1, 1, 2)",
+                [],
+            )
+            .is_err());
+
+        for forbidden_column in ["expires_at", "maximum_uses", "uses_consumed"] {
+            assert!(
+                !table_columns(&conn, "execass_accepted_confirmation_grants")
+                    .iter()
+                    .any(|column| column == forbidden_column),
+                "durable accepted grant must not expose {forbidden_column}"
+            );
+        }
+    }
+
+    #[test]
+    fn execass_technical_resource_requirement_schema_is_exact_and_immutable() {
+        let (_temp_dir, paths) = execass_test_root();
+        let conn = open_sqlite_connection(&paths.db_path).expect("open ExecAss database");
+        seed_execass_constraint_fixture(&conn);
+        conn.execute(
+            r#"
+            INSERT INTO execass_logical_effects (
+              logical_effect_id, delegation_id, continuation_id, action_kind,
+              state, internal_idempotency_key, manifest_digest, payload_digest,
+              created_at, updated_at
+            ) VALUES ('resource-effect', 'delegation-1', 'continuation-1',
+                      'read_only_local_inspection_and_bounded_reversible_local_work',
+                      'planned', 'resource-effect-key', 'manifest-1', 'payload-1', 1, 1)
+            "#,
+            [],
+        )
+        .expect("seed resource-bound logical effect");
+        for (snapshot_id, entries_digest) in [("quota-1", "entries-1"), ("quota-2", "entries-2")] {
+            conn.execute(
+                r#"
+                INSERT INTO execass_technical_resource_quota_snapshots (
+                  quota_snapshot_id, delegation_id, policy_revision,
+                  effective_authority_digest, scope_key, canonical_entries_json,
+                  canonical_entries_digest, created_at
+                ) VALUES (?1, 'delegation-1', 1, 'authority-digest', 'delegation',
+                          '[{"kind":"tokens","unit":"token","limit":10}]', ?2, 1)
+                "#,
+                params![snapshot_id, entries_digest],
+            )
+            .expect("seed immutable shared quota snapshot");
+            conn.execute(
+                "INSERT INTO execass_technical_resource_quota_entries (quota_snapshot_id, technical_resource_kind, unit, amount_limit) VALUES (?1, 'tokens', 'token', 10)",
+                params![snapshot_id],
+            )
+            .expect("seed token quota entry");
+        }
+
+        let lowercase_connector = format!("connector:{}", "a".repeat(64));
+        conn.execute(
+            "INSERT INTO execass_technical_resource_quota_entries (quota_snapshot_id, technical_resource_kind, unit, amount_limit) VALUES ('quota-1', 'connector_calls', ?1, 2)",
+            params![lowercase_connector],
+        )
+        .expect("accept exact lowercase canonical connector unit");
+        for (kind, unit) in [
+            ("money", "unit".to_string()),
+            ("connector_calls", format!("connector:{}B", "a".repeat(63))),
+            ("connector_calls", format!("connector:{}g", "a".repeat(63))),
+            ("resource_units", format!("resource:{}A", "a".repeat(63))),
+        ] {
+            assert!(
+                conn.execute(
+                    "INSERT INTO execass_technical_resource_quota_entries (quota_snapshot_id, technical_resource_kind, unit, amount_limit) VALUES ('quota-1', ?1, ?2, 1)",
+                    params![kind, unit],
+                )
+                .is_err(),
+                "invalid technical resource kind/unit must be rejected: {kind}"
+            );
+        }
+
+        assert!(conn
+            .execute(
+                r#"
+                INSERT INTO execass_technical_resource_requirement_sets (
+                  requirement_set_id, quota_snapshot_id, delegation_id,
+                  logical_effect_id, action_id, manifest_digest,
+                  canonical_requirements_json, canonical_requirements_digest, created_at
+                ) VALUES ('bad-manifest-set', 'quota-1', 'delegation-1',
+                          'resource-effect', 'seed-action', 'other-manifest',
+                          '[]', 'bad-manifest-digest', 1)
+                "#,
+                [],
+            )
+            .is_err());
+        conn.execute(
+            r#"
+            INSERT INTO execass_technical_resource_requirement_sets (
+              requirement_set_id, quota_snapshot_id, delegation_id,
+              logical_effect_id, action_id, manifest_digest,
+              canonical_requirements_json, canonical_requirements_digest, created_at
+            ) VALUES ('requirements-1', 'quota-1', 'delegation-1',
+                      'resource-effect', 'seed-action', 'manifest-1',
+                      '[{"kind":"tokens","unit":"token","amount":6}]',
+                      'requirements-digest-1', 1)
+            "#,
+            [],
+        )
+        .expect("seed exact immutable requirement-set header");
+        for (kind, unit) in [
+            ("money", "token".to_string()),
+            ("connector_calls", format!("connector:{}B", "a".repeat(63))),
+        ] {
+            assert!(conn
+                .execute(
+                    "INSERT INTO execass_technical_resource_requirements (requirement_set_id, quota_snapshot_id, technical_resource_kind, unit, amount_required) VALUES ('requirements-1', 'quota-1', ?1, ?2, 1)",
+                    params![kind, unit],
+                )
+                .is_err());
+        }
+        assert!(conn
+            .execute(
+                "INSERT INTO execass_technical_resource_requirements (requirement_set_id, quota_snapshot_id, technical_resource_kind, unit, amount_required) VALUES ('requirements-1', 'quota-2', 'tokens', 'token', 6)",
+                [],
+            )
+            .is_err());
+        conn.execute(
+            "INSERT INTO execass_technical_resource_requirements (requirement_set_id, quota_snapshot_id, technical_resource_kind, unit, amount_required) VALUES ('requirements-1', 'quota-1', 'tokens', 'token', 6)",
+            [],
+        )
+        .expect("seed exact immutable requirement row");
+
+        let agent_id = conn
+            .query_row(
+                "SELECT agent_id FROM agents ORDER BY agent_id LIMIT 1",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .expect("load seeded agent for canonical jobs");
+        conn.execute(
+            "INSERT INTO execass_runtime_host_generations (generation, ownership_scope, state_root_generation, installation_identity, os_user_identity_digest, host_instance_id, started_at) VALUES (1, 'execass', 1, 'installation-1', 'user-1', 'host-1', 1)",
+            [],
+        )
+        .expect("seed runtime host generation");
+        conn.execute(
+            "INSERT INTO jobs (job_id, agent_id, name, enabled, schedule_kind, payload_json, max_retries, retry_backoff_ms, timeout_ms, created_at, updated_at) VALUES ('resource-job-1', ?1, 'resource job 1', 1, 'manual', '{}', 0, 0, 1000, 1, 1)",
+            params![agent_id],
+        )
+        .expect("seed first canonical job");
+        conn.execute(
+            "INSERT INTO execass_outbox_events (event_id, event_name, aggregate_id, aggregate_revision, correlation_id, causation_id, occurred_at, schema_version, safe_payload_json, duplicate_identity) VALUES ('resource-claim-1', 'execass.v1.continuation.claimed_or_result_recorded', 'delegation-1', 1, 'resource-correlation-1', 'continuation-1', 1, 'v1', '{}', 'resource-claim-1')",
+            [],
+        )
+        .expect("seed first claim event");
+        conn.execute(
+            r#"
+            INSERT INTO execass_continuation_operation_history (
+              event_id, claim_event_id, claim_receipt_id, operation, result_status,
+              continuation_id, delegation_id, action_id, job_id, worker_id,
+              job_lease_expires_at, continuation_fencing_token,
+              runtime_host_generation, runtime_host_instance_id, runtime_fencing_token,
+              state_root_generation, runtime_authority_provenance_id,
+              runtime_actor_identity, policy_revision, global_stop_epoch,
+              technical_quota_policy_digest, technical_quota_snapshot_id,
+              technical_resource_reservation_set_json,
+              technical_resource_reservation_set_digest, recorded_at
+            ) VALUES ('resource-claim-1', 'resource-claim-1', 'resource-receipt-1',
+                      'claim', 'executing', 'continuation-1', 'delegation-1',
+                      'seed-action', 'resource-job-1', 'worker-1', 100, 1,
+                      1, 'host-1', 1, 1, 'authority-1', 'runtime-1', 1, 0,
+                      'quota-policy-1', 'quota-1', '[]', 'reservation-set-1', 1)
+            "#,
+            [],
+        )
+        .expect("seed exact first claim provenance");
+        for (snapshot_id, amount) in [("quota-2", 6), ("quota-1", 5)] {
+            assert!(
+                conn.execute(
+                    r#"
+                    INSERT INTO execass_technical_resource_reservations (
+                      reservation_id, delegation_id, logical_effect_id,
+                      quota_snapshot_id, continuation_id, claim_event_id,
+                      claim_receipt_id, technical_resource_kind, unit,
+                      amount_reserved, status, idempotency_key,
+                      continuation_fencing_token, runtime_host_generation,
+                      runtime_fencing_token, created_at, expires_at
+                    ) VALUES (?1, 'delegation-1', 'resource-effect', ?2,
+                              'continuation-1', 'resource-claim-1', 'resource-receipt-1',
+                              'tokens', 'token', ?3, 'reserved', ?1, 1, 1, 1, 1, 100)
+                    "#,
+                    params![
+                        format!("mismatch-{snapshot_id}-{amount}"),
+                        snapshot_id,
+                        amount
+                    ],
+                )
+                .is_err(),
+                "reservation must match the exact claim snapshot and required amount"
+            );
+        }
+        conn.execute(
+            r#"
+            INSERT INTO execass_technical_resource_reservations (
+              reservation_id, delegation_id, logical_effect_id, quota_snapshot_id,
+              continuation_id, claim_event_id, claim_receipt_id,
+              technical_resource_kind, unit, amount_reserved, status, idempotency_key,
+              continuation_fencing_token, runtime_host_generation,
+              runtime_fencing_token, created_at, expires_at
+            ) VALUES ('reservation-1', 'delegation-1', 'resource-effect', 'quota-1',
+                      'continuation-1', 'resource-claim-1', 'resource-receipt-1',
+                      'tokens', 'token', 6, 'reserved', 'reservation-1', 1, 1, 1, 1, 100)
+            "#,
+            [],
+        )
+        .expect("reserve exact first-effect requirement");
+
+        conn.execute_batch(
+            r#"
+            INSERT INTO execass_plans (
+              plan_id, delegation_id, plan_revision, based_on_delegation_revision,
+              policy_revision, plan_summary, resolved_leaf_manifest_json,
+              manifest_digest, created_by_authority_provenance_id, created_at
+            ) VALUES ('resource-plan-2', 'delegation-1', 2, 2, 1,
+                      'resource plan 2', '[]', 'manifest-2', 'authority-1', 2);
+            INSERT INTO execass_action_branches (
+              action_id, delegation_id, action_revision, target_delegation_revision,
+              target_plan_revision, stop_epoch, branch_kind, status, action_summary,
+              created_at, updated_at
+            ) VALUES ('resource-action-2', 'delegation-1', 2, 2, 2, 0,
+                      'ordinary', 'waiting', 'resource action 2', 2, 2);
+            INSERT INTO execass_continuations (
+              continuation_id, delegation_id, target_delegation_revision,
+              target_plan_revision, action_id, branch_kind, causation_kind,
+              causation_id, status, fencing_token, host_generation,
+              stop_epoch, global_stop_epoch, created_at, updated_at
+            ) VALUES ('resource-continuation-2', 'delegation-1', 2, 2,
+                      'resource-action-2', 'ordinary', 'plan', 'resource-plan-2',
+                      'waiting', 0, 1, 0, 0, 2, 2);
+            INSERT INTO execass_logical_effects (
+              logical_effect_id, delegation_id, continuation_id, action_kind,
+              state, internal_idempotency_key, manifest_digest, payload_digest,
+              created_at, updated_at
+            ) VALUES ('resource-effect-2', 'delegation-1', 'resource-continuation-2',
+                      'read_only_local_inspection_and_bounded_reversible_local_work',
+                      'planned', 'resource-effect-key-2', 'manifest-2', 'payload-2', 2, 2);
+            INSERT INTO execass_technical_resource_requirement_sets (
+              requirement_set_id, quota_snapshot_id, delegation_id,
+              logical_effect_id, action_id, manifest_digest,
+              canonical_requirements_json, canonical_requirements_digest, created_at
+            ) VALUES ('requirements-2', 'quota-1', 'delegation-1',
+                      'resource-effect-2', 'resource-action-2', 'manifest-2',
+                      '[{"kind":"tokens","unit":"token","amount":5}]',
+                      'requirements-digest-2', 2);
+            INSERT INTO execass_technical_resource_requirements (
+              requirement_set_id, quota_snapshot_id, technical_resource_kind,
+              unit, amount_required
+            ) VALUES ('requirements-2', 'quota-1', 'tokens', 'token', 5);
+            "#,
+        )
+        .expect("seed second effect sharing the immutable quota snapshot");
+        conn.execute(
+            "INSERT INTO jobs (job_id, agent_id, name, enabled, schedule_kind, payload_json, max_retries, retry_backoff_ms, timeout_ms, created_at, updated_at) VALUES ('resource-job-2', ?1, 'resource job 2', 1, 'manual', '{}', 0, 0, 1000, 2, 2)",
+            params![agent_id],
+        )
+        .expect("seed second canonical job");
+        conn.execute(
+            "INSERT INTO execass_outbox_events (event_id, event_name, aggregate_id, aggregate_revision, correlation_id, causation_id, occurred_at, schema_version, safe_payload_json, duplicate_identity) VALUES ('resource-claim-2', 'execass.v1.continuation.claimed_or_result_recorded', 'delegation-1', 2, 'resource-correlation-2', 'resource-continuation-2', 2, 'v1', '{}', 'resource-claim-2')",
+            [],
+        )
+        .expect("seed second claim event");
+        conn.execute(
+            r#"
+            INSERT INTO execass_continuation_operation_history (
+              event_id, claim_event_id, claim_receipt_id, operation, result_status,
+              continuation_id, delegation_id, action_id, job_id, worker_id,
+              job_lease_expires_at, continuation_fencing_token,
+              runtime_host_generation, runtime_host_instance_id, runtime_fencing_token,
+              state_root_generation, runtime_authority_provenance_id,
+              runtime_actor_identity, policy_revision, global_stop_epoch,
+              technical_quota_policy_digest, technical_quota_snapshot_id,
+              technical_resource_reservation_set_json,
+              technical_resource_reservation_set_digest, recorded_at
+            ) VALUES ('resource-claim-2', 'resource-claim-2', 'resource-receipt-2',
+                      'claim', 'executing', 'resource-continuation-2', 'delegation-1',
+                      'resource-action-2', 'resource-job-2', 'worker-2', 100, 1,
+                      1, 'host-1', 1, 1, 'authority-1', 'runtime-1', 1, 0,
+                      'quota-policy-1', 'quota-1', '[]', 'reservation-set-2', 2)
+            "#,
+            [],
+        )
+        .expect("seed exact second claim provenance");
+        assert!(conn
+            .execute(
+                r#"
+                INSERT INTO execass_technical_resource_reservations (
+                  reservation_id, delegation_id, logical_effect_id, quota_snapshot_id,
+                  continuation_id, claim_event_id, claim_receipt_id,
+                  technical_resource_kind, unit, amount_reserved, status, idempotency_key,
+                  continuation_fencing_token, runtime_host_generation,
+                  runtime_fencing_token, created_at, expires_at
+                ) VALUES ('reservation-2', 'delegation-1', 'resource-effect-2', 'quota-1',
+                          'resource-continuation-2', 'resource-claim-2', 'resource-receipt-2',
+                          'tokens', 'token', 5, 'reserved', 'reservation-2', 1, 1, 1, 2, 100)
+                "#,
+                [],
+            )
+            .is_err());
+        assert_eq!(
+            conn.query_row(
+                "SELECT COUNT(*) FROM execass_technical_resource_reservations WHERE quota_snapshot_id='quota-1' AND technical_resource_kind='tokens' AND unit='token'",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("count shared-snapshot reservations"),
+            1,
+            "capacity must be shared by snapshot/kind/unit across logical effects"
+        );
+
+        for statement in [
+            "UPDATE execass_technical_resource_requirement_sets SET manifest_digest='mutated' WHERE requirement_set_id='requirements-1'",
+            "DELETE FROM execass_technical_resource_requirement_sets WHERE requirement_set_id='requirements-1'",
+            "UPDATE execass_technical_resource_requirements SET amount_required=7 WHERE requirement_set_id='requirements-1'",
+            "DELETE FROM execass_technical_resource_requirements WHERE requirement_set_id='requirements-1'",
+        ] {
+            assert!(conn.execute(statement, []).is_err(), "{statement}");
+        }
+    }
+
+    #[test]
+    fn execass_v11_local_confirmation_and_challenge_expiry_are_exact() {
+        let (_temp_dir, paths) = execass_test_root();
+        let conn = open_sqlite_connection(&paths.db_path).expect("open ExecAss database");
+        seed_execass_constraint_fixture(&conn);
+        let insert_decision = |decision_id: &str, revision: i64| {
+            conn.execute(
+                r#"
+                INSERT INTO execass_decisions (
+                  decision_id, delegation_id, decision_revision, delegation_revision,
+                  plan_revision, policy_revision, decision_kind, status,
+                  exact_presented_action_json, confirmed_logical_action_identity, manifest_digest,
+                  payload_digest, payload_and_material_operands_json, target_audience_path_json,
+                  side_effect_envelope_json, recommendation, consequence, alternatives_json,
+                  idempotency_key, requested_at
+                ) VALUES (?1, 'delegation-1', ?2, 1, 1, 1,
+                          'dangerous_action_confirmation', 'pending', '{}', ?1, 'manifest-1',
+                          'payload-1', '{}', '[]', '{}', 'continue', 'concrete consequence',
+                          '["confirm_and_continue","revise","decline"]', ?1, 1)
+                "#,
+                params![decision_id, revision],
+            )
+        };
+        let insert_challenge =
+            |challenge_id: &str, decision_id: &str, revision: i64, expires_at: i64| {
+                conn.execute(
+                    r#"
+                INSERT INTO execass_confirmation_challenges (
+                  challenge_id, decision_id, delegation_id, decision_revision,
+                  exact_presented_action_json, confirmed_logical_action_identity, manifest_digest,
+                  payload_digest, payload_and_material_operands_json,
+                  canonical_action_envelope_or_selector_json, declared_consequence,
+                  nonce_digest, status, created_at, expires_at
+                ) VALUES (?1, ?2, 'delegation-1', ?3, '{}', ?2, 'manifest-1',
+                          'payload-1', '{}', '{}', 'concrete consequence', ?1, 'pending', 1, ?4)
+                "#,
+                    params![challenge_id, decision_id, revision, expires_at],
+                )
+            };
+        let insert_local_resolution = |provenance_id: &str,
+                                       decision_id: &str,
+                                       revision: i64,
+                                       nonce: &str,
+                                       created_at: i64,
+                                       expires_at: i64| {
+            conn.execute(
+                r#"
+                INSERT INTO execass_authority_provenance (
+                  authority_provenance_id, actor_type, credential_identity,
+                  authenticated_ingress, channel_assurance, source_correlation_id,
+                  authority_kind, normalized_scope_json, policy_revision,
+                  bound_decision_id, bound_decision_revision, bound_manifest_digest,
+                  bound_challenge_nonce_digest, evidence_digest, created_at, expires_at
+                ) VALUES (?1, 'human_local', 'owner', 'native-control', 'authenticated', ?1,
+                          'decision_resolution', '{}', 1, ?2, ?3, 'manifest-1', ?4, ?1, ?5, ?6)
+                "#,
+                params![
+                    provenance_id,
+                    decision_id,
+                    revision,
+                    nonce,
+                    created_at,
+                    expires_at
+                ],
+            )
+        };
+
+        insert_decision("local-decision", 1).expect("seed local decision");
+        insert_challenge("local-challenge", "local-decision", 1, 10).expect("seed local challenge");
+        conn.execute(
+            r#"
+            INSERT INTO execass_confirmation_challenge_alternatives (
+              challenge_id, logical_action_id, exact_presented_action_json,
+              confirmed_logical_action_identity, manifest_digest, payload_digest,
+              payload_and_material_operands_json, target_audience_path_json,
+              canonical_action_envelope_or_selector_json, declared_consequence
+            ) VALUES ('local-challenge', 'local-decision', '{}', 'local-decision',
+                      'manifest-1', 'payload-1', '{}', '[]', '{}', 'concrete consequence')
+            "#,
+            [],
+        )
+        .expect("seed exact disclosed local alternative");
+        conn.execute(
+            r#"
+            INSERT INTO execass_confirmation_authority_keys (
+              key_id, key_generation, verifying_key_hex, verifying_key_digest,
+              canonical_root_identity, installation_identity, os_user_identity_digest,
+              state_root_generation, status, created_at
+            ) VALUES ('local-key', 1, ?1, ?2, ?3, 'local-install', ?4, 1, 'active', 1)
+            "#,
+            params![
+                "1".repeat(64),
+                "2".repeat(64),
+                format!("sha256:{}", "3".repeat(64)),
+                "4".repeat(64)
+            ],
+        )
+        .expect("seed pinned local confirmation key");
+        conn.execute(
+            "INSERT INTO execass_owner_ingress_bindings (binding_id,actor_type,credential_identity,authenticated_ingress,channel_assurance,provider_event_required,status,created_at) VALUES ('local-owner-binding','human_local','owner','native-control','authenticated',0,'active',1)",
+            [],
+        )
+        .expect("seed local owner ingress binding");
+        let local_resolution = "6".repeat(64);
+        insert_local_resolution(
+            &local_resolution,
+            "local-decision",
+            1,
+            "local-challenge",
+            4,
+            10,
+        )
+        .expect("seed local owner resolution");
+        conn.execute(
+            r#"
+            INSERT INTO execass_confirmation_attestations (
+              attestation_digest, decision_id, authority_provenance_id,
+              pinned_key_id, pinned_key_generation, actor_type, credential_identity,
+              authenticated_ingress, channel_assurance, request_correlation_id,
+              selected_logical_action_id, signed_payload_json, signature_hex,
+              issued_at, expires_at, verified_at
+            ) VALUES (
+              ?3, 'local-decision', ?3,
+              'local-key', 1, 'human_local', 'owner', 'native-control', 'authenticated',
+              ?3, 'local-decision',
+              json_object(
+                'actor_type','human_local',
+                'credential_identity','owner',
+                'authenticated_ingress','native-control',
+                'channel_assurance','authenticated',
+                'request_correlation_id',?3,
+                'source_message_id',NULL,
+                'provider_event_id',NULL,
+                'decision_id','local-decision',
+                'decision_revision',1,
+                'decision_result','confirm_and_continue',
+                'policy_revision',1,
+                'canonical_manifest_digest','manifest-1',
+                'selected_logical_action_id','local-decision',
+                'challenge_nonce_digest','local-challenge',
+                'challenge_expires_at_ms',10,
+                'issued_at_ms',4,
+                'canonical_root_identity',?1,
+                'installation_identity','local-install',
+                'os_user_identity_digest',?2,
+                'state_root_generation',1,
+                'signer_key_generation',1
+              ),
+              ?4, 4, 10, 5
+            )
+            "#,
+            params![
+                format!("sha256:{}", "3".repeat(64)),
+                "4".repeat(64),
+                local_resolution,
+                "5".repeat(128)
+            ],
+        )
+        .expect("seed structurally attested local resolution");
+        conn.execute(
+            "UPDATE execass_confirmation_challenges SET selected_logical_action_id='local-decision', status='resolved', resolved_at=5 WHERE challenge_id='local-challenge'",
+            [],
+        )
+        .expect("local challenge resolves before expiry");
+        conn.execute(
+            "UPDATE execass_decisions SET status='resolved', result='confirm_and_continue', resolved_at=5, resolved_by_authority_provenance_id=?1 WHERE decision_id='local-decision'",
+            params![local_resolution],
+        )
+        .expect("local owner resolves dangerous decision");
+
+        insert_decision("expired-decision", 2).expect("seed expiry decision");
+        insert_challenge("expired-challenge", "expired-decision", 2, 5)
+            .expect("seed expiry challenge");
+        conn.execute(
+            "UPDATE execass_confirmation_challenges SET status='expired' WHERE challenge_id='expired-challenge'",
+            [],
+        )
+        .expect("pending challenge may expire once");
+        assert!(conn
+            .execute(
+                "UPDATE execass_confirmation_challenges SET status='resolved', resolved_at=4 WHERE challenge_id='expired-challenge'",
+                [],
+            )
+            .is_err());
+
+        insert_decision("late-decision", 3).expect("seed late decision");
+        insert_challenge("late-challenge", "late-decision", 3, 5).expect("seed late challenge");
+        insert_local_resolution(
+            "late-resolution",
+            "late-decision",
+            3,
+            "late-challenge",
+            6,
+            7,
+        )
+        .expect("seed too-late owner resolution");
+        assert!(conn
+            .execute(
+                "UPDATE execass_confirmation_challenges SET status='resolved', resolved_at=5 WHERE challenge_id='late-challenge'",
+                [],
+            )
+            .is_err());
+        assert!(conn
+            .execute(
+                "UPDATE execass_decisions SET status='resolved', result='confirm_and_continue', resolved_at=5, resolved_by_authority_provenance_id='late-resolution' WHERE decision_id='late-decision'",
+                [],
+            )
+            .is_err());
+    }
+
+    #[test]
+    fn execass_schema_rejects_duplicate_continuation_effect_and_outbox_identities() {
+        let (_temp_dir, paths) = execass_test_root();
+        let conn = open_sqlite_connection(&paths.db_path).expect("open ExecAss database");
+        seed_execass_constraint_fixture(&conn);
+        conn.execute(
+            r#"
+            INSERT INTO execass_plans (
+              plan_id, delegation_id, plan_revision, based_on_delegation_revision,
+              policy_revision, plan_summary, resolved_leaf_manifest_json,
+              manifest_digest, created_by_authority_provenance_id, created_at
+            ) VALUES ('plan-2', 'delegation-1', 2, 2, 1, 'revised plan', '[]',
+                      'manifest-2', 'authority-1', 2)
+            "#,
+            [],
+        )
+        .expect("seed second plan revision");
+
+        assert!(conn
+            .execute(
+                r#"
+                INSERT INTO execass_continuations (
+                  continuation_id, delegation_id, target_delegation_revision,
+                  target_plan_revision, action_id, branch_kind, causation_kind, causation_id, status,
+                  fencing_token, host_generation, stop_epoch, global_stop_epoch, created_at, updated_at
+                ) VALUES ('continuation-duplicate', 'delegation-1', 2, 2, 'seed-action-duplicate', 'ordinary', 'plan',
+                          'plan-1', 'runnable', 0, 1, 0, 0, 1, 1)
+                "#,
+                [],
+            )
+            .is_err());
+
+        conn.execute(
+            r#"
+            INSERT INTO execass_logical_effects (
+              logical_effect_id, delegation_id, continuation_id, action_kind,
+              state, internal_idempotency_key, manifest_digest, payload_digest,
+              created_at, updated_at
+            ) VALUES ('effect-1', 'delegation-1', 'continuation-1',
+                      'read_only_local_inspection_and_bounded_reversible_local_work',
+                      'planned', 'effect-key-1', 'manifest-1', 'payload-1', 1, 1)
+            "#,
+            [],
+        )
+        .expect("seed logical effect");
+        assert!(conn
+            .execute(
+                r#"
+                INSERT INTO execass_logical_effects (
+                  logical_effect_id, delegation_id, continuation_id, action_kind,
+                  state, internal_idempotency_key, manifest_digest, payload_digest,
+                  created_at, updated_at
+                ) VALUES ('effect-2', 'delegation-1', 'continuation-1',
+                          'read_only_local_inspection_and_bounded_reversible_local_work',
+                          'planned', 'effect-key-1', 'manifest-2', 'payload-2', 1, 1)
+                "#,
+                [],
+            )
+            .is_err());
+
+        conn.execute(
+            r#"
+            INSERT INTO execass_outbox_events (
+              global_sequence, event_id, event_name, aggregate_id,
+              aggregate_revision, correlation_id, causation_id, occurred_at,
+              schema_version, safe_payload_json, duplicate_identity
+            ) VALUES (1, 'event-1', 'execass.v1.delegation.transitioned',
+                      'delegation-1', 1, 'correlation-1', 'plan-1', 1,
+                      'v1', '{}', 'duplicate-1')
+            "#,
+            [],
+        )
+        .expect("seed outbox event");
+        assert!(conn
+            .execute(
+                r#"
+                INSERT INTO execass_outbox_events (
+                  global_sequence, event_id, event_name, aggregate_id,
+                  aggregate_revision, correlation_id, causation_id, occurred_at,
+                  schema_version, safe_payload_json, duplicate_identity
+                ) VALUES (1, 'event-2', 'execass.v1.summary.changed',
+                          'delegation-1', 2, 'correlation-2', 'plan-2', 2,
+                          'v1', '{}', 'duplicate-2')
+                "#,
+                [],
+            )
+            .is_err());
+        assert!(conn
+            .execute(
+                r#"
+                INSERT INTO execass_outbox_events (
+                  event_id, event_name, aggregate_id, aggregate_revision,
+                  correlation_id, causation_id, occurred_at, schema_version,
+                  safe_payload_json, duplicate_identity
+                ) VALUES ('event-3', 'execass.v1.summary.changed', 'delegation-1', 3,
+                          'correlation-3', 'plan-3', 3, 'v1', '{}', 'duplicate-1')
+                "#,
+                [],
+            )
+            .is_err());
+    }
+
+    #[test]
+    fn execass_outcome_unknown_blocks_retry_and_raw_reconciliation_without_signed_evidence() {
+        let (_temp_dir, paths) = execass_test_root();
+        let conn = open_sqlite_connection(&paths.db_path).expect("open ExecAss database");
+        seed_execass_constraint_fixture(&conn);
+        conn.execute(
+            r#"
+            INSERT INTO execass_logical_effects (
+              logical_effect_id, delegation_id, continuation_id, action_kind,
+              state, internal_idempotency_key, provider_identity,
+              provider_idempotency_key, reconciliation_key, manifest_digest,
+              payload_digest, created_at, updated_at
+            ) VALUES ('unknown-effect', 'delegation-1', 'continuation-1',
+                      'public_or_externally_consequential_communication',
+                      'invoking', 'unknown-effect-key', 'unknown-provider',
+                      'unknown-provider-idempotency', 'unknown-reconciliation',
+                      'manifest-1', 'payload-1', 1, 1)
+            "#,
+            [],
+        )
+        .expect("seed invoking logical effect");
+        let agent_id = conn
+            .query_row(
+                "SELECT agent_id FROM agents ORDER BY agent_id LIMIT 1",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .expect("load canonical agent");
+        conn.execute(
+            "INSERT INTO execass_runtime_host_generations (generation, ownership_scope, state_root_generation, installation_identity, os_user_identity_digest, host_instance_id, started_at) VALUES (1, 'execass', 1, 'installation-1', 'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd', 'host-1', 1)",
+            [],
+        )
+        .expect("seed exact runtime generation");
+        conn.execute(
+            "INSERT INTO jobs (job_id, agent_id, name, enabled, schedule_kind, payload_json, max_retries, retry_backoff_ms, timeout_ms, created_at, updated_at) VALUES ('unknown-job', ?1, 'unknown job', 1, 'manual', '{}', 0, 0, 1000, 1, 1)",
+            params![agent_id],
+        )
+        .expect("seed exact attempt job");
+        conn.execute(
+            "INSERT INTO execass_outbox_events (event_id, event_name, aggregate_id, aggregate_revision, correlation_id, causation_id, occurred_at, schema_version, safe_payload_json, duplicate_identity) VALUES ('unknown-claim', 'execass.v1.continuation.claimed_or_result_recorded', 'delegation-1', 1, 'unknown-correlation', 'continuation-1', 1, 'v1', '{}', 'unknown-claim')",
+            [],
+        )
+        .expect("seed exact claim event");
+        conn.execute(
+            r#"
+            INSERT INTO execass_continuation_operation_history (
+              event_id, claim_event_id, claim_receipt_id, operation, result_status,
+              continuation_id, delegation_id, action_id, job_id, worker_id,
+              job_lease_expires_at, continuation_fencing_token,
+              runtime_host_generation, runtime_host_instance_id, runtime_fencing_token,
+              state_root_generation, runtime_authority_provenance_id,
+              runtime_actor_identity, policy_revision, global_stop_epoch,
+              technical_quota_policy_digest, technical_resource_reservation_set_json,
+              technical_resource_reservation_set_digest, recorded_at
+            ) VALUES ('unknown-claim', 'unknown-claim', 'unknown-receipt',
+                      'claim', 'executing', 'continuation-1', 'delegation-1',
+                      'seed-action', 'unknown-job', 'unknown-worker', 100, 1,
+                      1, 'host-1', 1, 1, 'authority-1', 'runtime-1', 1, 0,
+                      'quota-policy-1', '[]', 'reservation-set-1', 1)
+            "#,
+            [],
+        )
+        .expect("seed exact claim ancestry");
+        conn.execute(
+            r#"
+            INSERT INTO execass_provider_attempts (
+              attempt_id, delegation_id, logical_effect_id, continuation_id, action_id,
+              claim_event_id, claim_receipt_id, attempt_number, fencing_token,
+              host_generation, host_instance_id, runtime_fencing_token, status,
+              provider_request_digest, provider_response_digest, started_at, finished_at
+            ) VALUES ('attempt-1', 'delegation-1', 'unknown-effect', 'continuation-1',
+                      'seed-action', 'unknown-claim', 'unknown-receipt', 1, 1, 1,
+                      'host-1', 1, 'invoking',
+                      'sha256:2e91d232ca0387d09e48f86b54e80d9d64e9142ed7f0b606a013934b507d2f46',
+                      NULL, 1, NULL)
+            "#,
+            [],
+        )
+        .expect("record first ambiguous attempt");
+        execass::seed_signed_execution_unknown_fixture(&conn, "attempt-1", "unknown-effect", 2)
+            .expect("mark logical effect outcome unknown through signed recorder evidence");
+
+        let retry_sql = r#"
+            INSERT INTO execass_provider_attempts (
+              attempt_id, delegation_id, logical_effect_id, continuation_id, action_id,
+              claim_event_id, claim_receipt_id, attempt_number, fencing_token,
+              host_generation, host_instance_id, runtime_fencing_token, status,
+              provider_request_digest, started_at
+            ) VALUES ('attempt-2', 'delegation-1', 'unknown-effect', 'continuation-1',
+                      'seed-action', 'unknown-claim', 'unknown-receipt', 2, 1, 1,
+                      'host-1', 1, 'prepared', 'request-2', 2)
+        "#;
+        assert!(conn.execute(retry_sql, []).is_err());
+
+        assert!(conn
+            .execute(
+                "UPDATE execass_logical_effects SET state='reconciled_absent', updated_at=3 WHERE logical_effect_id='unknown-effect'",
+                [],
+            )
+            .is_err());
+        assert_eq!(
+            conn.query_row(
+                "SELECT state FROM execass_logical_effects WHERE logical_effect_id='unknown-effect'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .unwrap(),
+            "outcome_unknown"
+        );
+        assert!(conn.execute(retry_sql, []).is_err());
+    }
+
+    #[test]
+    fn execass_initializer_rejects_legacy_database_without_mutation() {
+        let temp_dir = project_local_tempdir();
+        let paths = AppPaths::from_root(temp_dir.path().join("legacy-state"));
+        init(&paths).expect("initialize legacy database");
+        let before = std::fs::read(&paths.db_path).expect("read legacy database before");
+
+        let error = init_execass_fresh_root(&paths).expect_err("legacy database must be rejected");
+        assert!(error.to_string().contains("pre-existing database"));
+        let after = std::fs::read(&paths.db_path).expect("read legacy database after");
+        assert_eq!(
+            after, before,
+            "rejected legacy database must remain byte-identical"
+        );
+    }
+
+    #[test]
+    fn execass_store_discovery_distinguishes_legacy_from_claimed_but_tampered_root() {
+        let legacy_temp = project_local_tempdir();
+        let legacy_paths = AppPaths::from_root(legacy_temp.path().join("legacy-discovery"));
+        init(&legacy_paths).expect("initialize legacy discovery root");
+        assert!(execass::ExecAssStore::open_if_canonical_root(&legacy_paths)
+            .expect("legacy discovery is non-fatal")
+            .is_none());
+
+        let (_exact_temp, exact_paths) = execass_test_root();
+        assert!(execass::ExecAssStore::open_if_canonical_root(&exact_paths)
+            .expect("discover exact replacement root")
+            .is_some());
+        let conn = open_sqlite_connection(&exact_paths.db_path).expect("open exact root to tamper");
+        conn.execute_batch("DROP TRIGGER execass_outcome_unknown_attempt_prohibition")
+            .expect("tamper claimed replacement root");
+        drop(conn);
+        assert!(execass::ExecAssStore::open_if_canonical_root(&exact_paths).is_err());
+    }
+
+    #[test]
+    fn execass_initializer_rejects_nonempty_state_root_without_creating_database() {
+        let temp_dir = project_local_tempdir();
+        let paths = AppPaths::from_root(temp_dir.path().join("occupied-state"));
+        std::fs::create_dir_all(&paths.root).expect("create occupied state root");
+        let marker = paths.root.join("existing-data.bin");
+        std::fs::write(&marker, b"do not mutate").expect("seed existing state-root data");
+
+        let error = init_execass_fresh_root(&paths).expect_err("occupied root must be rejected");
+        assert!(error.to_string().contains("non-empty state root"));
+        assert_eq!(
+            std::fs::read(&marker).expect("read preserved state-root data"),
+            b"do not mutate"
+        );
+        assert!(!paths.db_path.exists());
+    }
+
+    #[test]
+    fn execass_initializer_is_idempotent_only_for_exact_installed_schema() {
+        let (_temp_dir, paths) = execass_test_root();
+        init_execass_fresh_root(&paths).expect("second exact initialization");
+
+        let conn = open_sqlite_connection(&paths.db_path).expect("open exact ExecAss database");
+        conn.execute_batch("DROP TRIGGER execass_outcome_unknown_attempt_prohibition")
+            .expect("tamper exact trigger inventory");
+        drop(conn);
+
+        let error =
+            init_execass_fresh_root(&paths).expect_err("incomplete schema must be rejected");
+        assert!(error.to_string().contains("pre-existing database"));
+    }
+
+    #[test]
+    fn execass_schema_install_rolls_back_every_migration_on_failure() {
+        let temp_dir = project_local_tempdir();
+        let db_path = temp_dir.path().join("intentional-schema-failure.db");
+        let mut conn = open_sqlite_connection(&db_path).expect("open failure database");
+        let invalid_execass_sql = format!("{MIGRATION_0007}\nTHIS IS INTENTIONALLY INVALID SQL;");
+
+        install_execass_schema(&mut conn, &invalid_execass_sql)
+            .expect_err("intentional schema failure must roll back");
+
+        let application_tables = conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type IN ('table', 'index', 'trigger')",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .expect("count rolled-back objects");
+        assert_eq!(application_tables, 0);
+        assert_eq!(
+            conn.query_row("PRAGMA application_id", [], |row| row.get::<_, i64>(0))
+                .expect("rolled-back application_id"),
+            0
+        );
+        assert_eq!(
+            conn.query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))
+                .expect("rolled-back user_version"),
+            0
+        );
+    }
+
     #[test]
     fn remove_agent_deletes_unreferenced_agent() {
         let (_temp_dir, storage) = test_storage();
@@ -11708,6 +14527,81 @@ mod tests {
     }
 
     #[test]
+    fn generic_job_crud_cannot_forge_or_mutate_reserved_execass_modes() {
+        let (_temp_dir, storage) = test_storage();
+        let now = now_ms();
+        let new_job = |payload_json: &str| NewJob {
+            agent_id: "default".to_string(),
+            name: "reserved-forgery".to_string(),
+            enabled: true,
+            schedule_kind: "interval".to_string(),
+            interval_seconds: Some(60),
+            run_at_ms: None,
+            next_run_at: Some(now),
+            payload_json: payload_json.to_string(),
+            max_retries: 0,
+            retry_backoff_ms: 250,
+            timeout_ms: 2_000,
+        };
+        for payload in [
+            r#"{"mode":"execass.continuation","continuation_id":"c-forged"}"#,
+            r#"{"mode":"execass.routine_driver","routine_id":"r-forged"}"#,
+            r#"{"mode":"execass.routine_trigger","occurrence_id":"o-forged"}"#,
+        ] {
+            assert!(storage.create_job(new_job(payload)).is_err());
+        }
+
+        let ordinary = storage
+            .create_job(new_job(r#"{"mode":"noop"}"#))
+            .expect("create ordinary control job");
+        let forge_patch = JobUpdatePatch {
+            name: None,
+            enabled: None,
+            schedule_kind: None,
+            interval_seconds: None,
+            run_at_ms: None,
+            next_run_at: None,
+            payload_json: Some(
+                r#"{"mode":"execass.routine_driver","routine_id":"r-forged"}"#.into(),
+            ),
+            max_retries: None,
+            retry_backoff_ms: None,
+            timeout_ms: None,
+        };
+        assert!(storage.update_job(&ordinary.job_id, forge_patch).is_err());
+
+        storage
+            .connect()
+            .unwrap()
+            .execute(
+                "UPDATE jobs SET payload_json=?1 WHERE job_id=?2",
+                params![
+                    r#"{"mode":"execass.routine_trigger","occurrence_id":"o-forged"}"#,
+                    ordinary.job_id
+                ],
+            )
+            .unwrap();
+        assert!(storage
+            .update_job(
+                &ordinary.job_id,
+                JobUpdatePatch {
+                    name: Some("still-forged".into()),
+                    enabled: None,
+                    schedule_kind: None,
+                    interval_seconds: None,
+                    run_at_ms: None,
+                    next_run_at: None,
+                    payload_json: None,
+                    max_retries: None,
+                    retry_backoff_ms: None,
+                    timeout_ms: None,
+                },
+            )
+            .is_err());
+        assert!(storage.remove_job(&ordinary.job_id).is_err());
+    }
+
+    #[test]
     fn failed_job_run_updates_last_error_and_releases_lease() {
         let (_temp_dir, storage) = test_storage();
         let now = now_ms();
@@ -12074,7 +14968,7 @@ mod tests {
         );
         assert!(archived_worker_link.is_err());
 
-        storage
+        let audit = storage
             .create_assistant_tool_call_audit(NewAssistantToolCallAudit {
                 request_id: "req-assistant-audit-1".to_string(),
                 boss_key: "default".to_string(),
@@ -12088,6 +14982,14 @@ mod tests {
                 metadata_json: Some(r#"{"worker_key":"research_1"}"#.to_string()),
             })
             .expect("create assistant audit event");
+        assert_eq!(audit.request_id, "req-assistant-audit-1");
+        assert_eq!(
+            storage
+                .get_assistant_tool_call_audit(&audit.event_id)
+                .expect("read assistant audit by exact identity")
+                .expect("assistant audit exists"),
+            audit
+        );
         let conn = storage.connect().expect("open storage connection");
         let audit_count: i64 = conn
             .query_row(

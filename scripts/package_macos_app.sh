@@ -8,6 +8,14 @@ fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+: "${CARSINOS_APPLE_TEAM_ID:?CARSINOS_APPLE_TEAM_ID is required for Keychain custody}"
+: "${CARSINOS_APPLE_SIGNING_IDENTITY:?CARSINOS_APPLE_SIGNING_IDENTITY is required for Keychain custody}"
+if [[ ! "${CARSINOS_APPLE_TEAM_ID}" =~ ^[A-Z0-9]{10}$ ]]; then
+  echo "error: CARSINOS_APPLE_TEAM_ID must be the ten-character Apple Team ID" >&2
+  exit 1
+fi
+export CARSINOS_KEYCHAIN_ACCESS_GROUP="${CARSINOS_APPLE_TEAM_ID}.io.carsinos.missioncontrol"
+
 OUT_DIR="${ROOT_DIR}/target/dist"
 BUILD_MODE="--release"
 
@@ -44,12 +52,20 @@ fi
 
 cd "${ROOT_DIR}"
 
+mkdir -p "${OUT_DIR}"
+ENTITLEMENTS="${OUT_DIR}/carsinos-receipt-custody.entitlements.plist"
+cp "${ROOT_DIR}/apps/mission-control/src-tauri/Entitlements.plist" "${ENTITLEMENTS}"
+/usr/libexec/PlistBuddy -c "Set :keychain-access-groups:0 ${CARSINOS_KEYCHAIN_ACCESS_GROUP}" "${ENTITLEMENTS}"
+
 echo "[packaging] building binaries (${PROFILE})"
 if [[ "${BUILD_RELEASE}" == "true" ]]; then
-  cargo build -p carsinos-gateway -p carsinos-gui --release
+  cargo build -p carsinos-gateway -p carsinos-gui -p carsinos-storage --bin carsinos-receipt-integrity --release
 else
-  cargo build -p carsinos-gateway -p carsinos-gui
+  cargo build -p carsinos-gateway -p carsinos-gui -p carsinos-storage --bin carsinos-receipt-integrity
 fi
+
+CARSINOS_CARGO_TARGET_DIR="$(cargo metadata --no-deps --format-version 1 | python3 -c 'import json,sys; print(json.load(sys.stdin)["target_directory"])')"
+CARSINOS_BIN_DIR="${CARSINOS_CARGO_TARGET_DIR}/${PROFILE}"
 
 APP_NAME="carsinOS.app"
 APP_ROOT="${OUT_DIR}/${APP_NAME}"
@@ -60,9 +76,10 @@ RESOURCES_DIR="${APP_ROOT}/Contents/Resources"
 rm -rf -- "${APP_ROOT}"
 mkdir -p "${MACOS_DIR}" "${HELPERS_DIR}" "${RESOURCES_DIR}"
 
-cp "${ROOT_DIR}/target/${PROFILE}/carsinos-gui" "${MACOS_DIR}/carsinos-gui"
-cp "${ROOT_DIR}/target/${PROFILE}/carsinos-gateway" "${HELPERS_DIR}/carsinos-gateway"
-chmod +x "${MACOS_DIR}/carsinos-gui" "${HELPERS_DIR}/carsinos-gateway"
+cp "${CARSINOS_BIN_DIR}/carsinos-gui" "${MACOS_DIR}/carsinos-gui"
+cp "${CARSINOS_BIN_DIR}/carsinos-gateway" "${HELPERS_DIR}/carsinos-gateway"
+cp "${CARSINOS_BIN_DIR}/carsinos-receipt-integrity" "${HELPERS_DIR}/carsinos-receipt-integrity"
+chmod +x "${MACOS_DIR}/carsinos-gui" "${HELPERS_DIR}/carsinos-gateway" "${HELPERS_DIR}/carsinos-receipt-integrity"
 
 cat > "${MACOS_DIR}/carsinos" <<'LAUNCHER'
 #!/usr/bin/env bash
@@ -72,20 +89,38 @@ CONTENTS_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 GATEWAY_BIN="${CONTENTS_DIR}/Helpers/carsinos-gateway"
 GUI_BIN="${CONTENTS_DIR}/MacOS/carsinos-gui"
 TOKEN="${CARSINOS_GATEWAY_TOKEN:-carsinos-local-token}"
+DEV_STATE_ROOT="${CARSINOS_LEGACY_GUI_DEVELOPMENT_STATE_ROOT:-}"
+PRODUCTION_STATE_ROOT="${HOME}/Library/Application Support/io.carsinos.missioncontrol/state"
 
-start_gateway() {
-  CARSINOS_GATEWAY_TOKEN="${TOKEN}" nohup "${GATEWAY_BIN}" >/tmp/carsinos-gateway.log 2>&1 &
+if [[ -z "${DEV_STATE_ROOT}" ]]; then
+  echo "The legacy macOS GUI launcher is fenced from Mission Control production state." >&2
+  echo "For an isolated developer run, set CARSINOS_LEGACY_GUI_DEVELOPMENT_STATE_ROOT to a separate state root." >&2
+  exit 64
+fi
+
+canonical_path() {
+  python3 - "$1" <<'PY'
+from pathlib import Path
+import sys
+
+print(str(Path(sys.argv[1]).expanduser().resolve(strict=False)).casefold())
+PY
 }
 
-if command -v nc >/dev/null 2>&1; then
-  if ! nc -z 127.0.0.1 18789 >/dev/null 2>&1; then
-    start_gateway
-    sleep 0.4
-  fi
-else
-  start_gateway
-  sleep 0.4
+if [[ "$(canonical_path "${DEV_STATE_ROOT}")" == "$(canonical_path "${PRODUCTION_STATE_ROOT}")" ]]; then
+  echo "The legacy macOS GUI launcher refuses the canonical Mission Control production state root." >&2
+  exit 64
 fi
+
+start_gateway() {
+  CARSINOS_GATEWAY_TOKEN="${TOKEN}" \
+  CARSINOS_STATE_DIR="${DEV_STATE_ROOT}" \
+  CARSINOS_LEGACY_LAUNCH_PROFILE="development" \
+    nohup "${GATEWAY_BIN}" >/tmp/carsinos-gateway.log 2>&1 &
+}
+
+start_gateway
+sleep 0.4
 
 CARSINOS_GATEWAY_TOKEN="${TOKEN}" exec "${GUI_BIN}"
 LAUNCHER
@@ -102,7 +137,7 @@ cat > "${APP_ROOT}/Contents/Info.plist" <<'PLIST'
   <key>CFBundleExecutable</key>
   <string>carsinos</string>
   <key>CFBundleIdentifier</key>
-  <string>com.carsinos.desktop</string>
+  <string>io.carsinos.missioncontrol</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
@@ -122,6 +157,13 @@ cat > "${APP_ROOT}/Contents/Info.plist" <<'PLIST'
 PLIST
 
 echo "APPLCARO" > "${APP_ROOT}/Contents/PkgInfo"
+
+echo "[packaging] signing receipt-custody binaries and app with one access group"
+codesign --force --options runtime --timestamp --sign "${CARSINOS_APPLE_SIGNING_IDENTITY}" --entitlements "${ENTITLEMENTS}" "${HELPERS_DIR}/carsinos-gateway"
+codesign --force --options runtime --timestamp --sign "${CARSINOS_APPLE_SIGNING_IDENTITY}" --entitlements "${ENTITLEMENTS}" "${HELPERS_DIR}/carsinos-receipt-integrity"
+codesign --force --options runtime --timestamp --sign "${CARSINOS_APPLE_SIGNING_IDENTITY}" --entitlements "${ENTITLEMENTS}" "${MACOS_DIR}/carsinos-gui"
+codesign --force --options runtime --timestamp --sign "${CARSINOS_APPLE_SIGNING_IDENTITY}" --entitlements "${ENTITLEMENTS}" "${APP_ROOT}"
+codesign --verify --deep --strict --verbose=2 "${APP_ROOT}"
 
 echo "[packaging] app bundle created: ${APP_ROOT}"
 echo "[packaging] launch binary: ${APP_ROOT}/Contents/MacOS/carsinos"

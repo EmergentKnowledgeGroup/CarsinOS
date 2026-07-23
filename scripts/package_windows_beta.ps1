@@ -47,15 +47,32 @@ $env:TEMP = Join-Path $RepoRoot ".tmp"
 $env:TMP = $env:TEMP
 New-Item -ItemType Directory -Force -Path $env:TEMP, $CargoTargetDir | Out-Null
 
-Write-Host "Building CarsinOS gateway sidecar..."
-& cargo build --manifest-path (Join-Path $RepoRoot "Cargo.toml") -p carsinos-gateway --release --locked
-if ($LASTEXITCODE -ne 0) { throw "Gateway release build failed." }
+Write-Host "Building CarsinOS effect-recorder companion..."
+& cargo build --manifest-path (Join-Path $RepoRoot "Cargo.toml") -p carsinos-effect-recorder --release --locked
+if ($LASTEXITCODE -ne 0) { throw "Effect-recorder release build failed." }
+$recorderExe = Join-Path $CargoTargetDir "release\carsinos-effect-recorder.exe"
+if (-not (Test-Path -LiteralPath $recorderExe)) { throw "Effect-recorder executable not found: $recorderExe" }
+$recorderHash = (Get-FileHash -LiteralPath $recorderExe -Algorithm SHA256).Hash.ToLowerInvariant()
+
+Write-Host "Building CarsinOS gateway runtime host with exact recorder contract..."
+$env:CARSINOS_PACKAGED_EFFECT_RECORDER_FILE_NAME = "carsinos-effect-recorder.exe"
+$env:CARSINOS_PACKAGED_EFFECT_RECORDER_SHA256 = $recorderHash
+try {
+  & cargo build --manifest-path (Join-Path $RepoRoot "Cargo.toml") -p carsinos-gateway --release --locked
+  if ($LASTEXITCODE -ne 0) { throw "Gateway release build failed." }
+} finally {
+  Remove-Item Env:CARSINOS_PACKAGED_EFFECT_RECORDER_FILE_NAME -ErrorAction SilentlyContinue
+  Remove-Item Env:CARSINOS_PACKAGED_EFFECT_RECORDER_SHA256 -ErrorAction SilentlyContinue
+}
 $gatewayExe = Join-Path $CargoTargetDir "release\carsinos-gateway.exe"
 if (-not (Test-Path -LiteralPath $gatewayExe)) { throw "Gateway executable not found: $gatewayExe" }
 $sidecarDir = Join-Path $TauriDir "binaries"
 New-Item -ItemType Directory -Force -Path $sidecarDir | Out-Null
 $sidecarExe = Join-Path $sidecarDir "carsinos-gateway-$TargetTriple.exe"
 Copy-Item -LiteralPath $gatewayExe -Destination $sidecarExe -Force
+$recorderSidecarExe = Join-Path $sidecarDir "carsinos-effect-recorder-$TargetTriple.exe"
+Copy-Item -LiteralPath $recorderExe -Destination $recorderSidecarExe -Force
+$gatewayHash = (Get-FileHash -LiteralPath $gatewayExe -Algorithm SHA256).Hash.ToLowerInvariant()
 
 Push-Location $MissionControlDir
 try {
@@ -94,6 +111,21 @@ $manifest = [ordered]@{
     integrity = "sha256"
     note = "This beta is checksum-verified but not Authenticode-signed. Windows may show an Unknown Publisher warning."
   }
+  components = @(
+    [ordered]@{
+      role = "single-runtime-host"
+      installed_file = "carsinos-gateway.exe"
+      build_file = (Split-Path -Leaf $sidecarExe)
+      sha256 = $gatewayHash
+    },
+    [ordered]@{
+      role = "bounded-effect-recorder"
+      installed_file = "carsinos-effect-recorder.exe"
+      build_file = (Split-Path -Leaf $recorderSidecarExe)
+      sha256 = $recorderHash
+      compiled_into_runtime_host = $true
+    }
+  )
   artifacts = @(
     [ordered]@{
       file = $artifactName

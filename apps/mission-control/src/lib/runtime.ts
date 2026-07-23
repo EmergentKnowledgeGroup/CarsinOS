@@ -12,6 +12,18 @@ export interface DesktopBootstrap {
   startup_error: string | null;
 }
 
+export interface RuntimeCloseConfirmationBinding {
+  challenge: string;
+  original_request_id: string;
+  original_nonce: string;
+  original_issued_at_ms: number;
+}
+
+export interface RuntimeCloseConfirmation {
+  consequence: string;
+  binding: RuntimeCloseConfirmationBinding;
+}
+
 function normalizeGatewayUrlOrEmpty(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) {
@@ -122,6 +134,22 @@ export async function getDesktopBootstrap(): Promise<DesktopBootstrap | null> {
         ? bootstrap.startup_error.trim()
         : null,
   };
+}
+
+export async function confirmDesktopRuntimeClose(
+  binding: RuntimeCloseConfirmationBinding,
+): Promise<void> {
+  if (!isTauriRuntime()) {
+    throw new Error("runtime close confirmation is available only in the desktop app");
+  }
+  await invoke("confirm_runtime_close", { confirmation: { binding } });
+}
+
+export async function cancelDesktopRuntimeCloseConfirmation(): Promise<void> {
+  if (!isTauriRuntime()) {
+    return;
+  }
+  await invoke("cancel_runtime_close_confirmation");
 }
 
 export function persistConnectionSettings(settings: RuntimeConnectionSettings): void {
