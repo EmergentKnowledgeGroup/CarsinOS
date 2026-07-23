@@ -51,10 +51,11 @@ function useNarrowViewport(): boolean {
 function ReefCrab(props: {
   item: FloorPresenceItem;
   open: boolean;
+  reportId: string;
   onToggle: (agentId: string) => void;
   buttonRef: (agentId: string, element: HTMLButtonElement | null) => void;
 }) {
-  const { item, open, onToggle, buttonRef } = props;
+  const { item, open, reportId, onToggle, buttonRef } = props;
   const big = isExecassPresence(item);
   return (
     <button
@@ -64,6 +65,7 @@ function ReefCrab(props: {
       data-activity={item.activity}
       aria-label={`${item.display_name}'s report card`}
       aria-expanded={open}
+      aria-controls={reportId}
       onClick={() => onToggle(item.agent_id)}
       ref={(element) => buttonRef(item.agent_id, element)}
     >
@@ -78,12 +80,17 @@ function ReefCrab(props: {
 
 function ReportCard(props: {
   item: FloorPresenceItem;
+  reportId: string;
   nowMs: number;
   onClose: () => void;
   onOpenTarget?: (target: FloorPresenceTarget) => boolean;
 }) {
-  const { item, nowMs, onClose, onOpenTarget } = props;
+  const { item, reportId, nowMs, onClose, onOpenTarget } = props;
   const [blocked, setBlocked] = useState(false);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    cardRef.current?.focus();
+  }, []);
   const freshness = presenceFreshness(item.observed_at_ms, nowMs);
   const destination = presenceTargetDestination(item.target);
   const onKeyDown = (event: KeyboardEvent) => {
@@ -94,6 +101,9 @@ function ReportCard(props: {
   };
   return (
     <div
+      ref={cardRef}
+      id={reportId}
+      tabIndex={-1}
       className="mc-reef-report"
       data-testid="reef-report-card"
       role="group"
@@ -149,11 +159,16 @@ export function GlassWindowPage(props: {
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [openCrabId, setOpenCrabId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const narrow = useNarrowViewport();
   const [reefExpanded, setReefExpanded] = useState(false);
   const crabRefs = useRef(new Map<string, HTMLButtonElement>());
   const floorRef = useRef<HTMLElement | null>(null);
   useGlassSurfaceTheme(floorRef);
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const presenceItems = useMemo(
     () => sortPresence(controller.presence?.items ?? []),
@@ -209,6 +224,7 @@ export function GlassWindowPage(props: {
               key={item.agent_id}
               item={item}
               open={item.agent_id === openCrabId}
+              reportId={`reef-report-${encodeURIComponent(item.agent_id)}`}
               onToggle={toggleCrab}
               buttonRef={registerCrabRef}
             />
@@ -219,7 +235,8 @@ export function GlassWindowPage(props: {
         <ReportCard
           key={openCrab.agent_id}
           item={openCrab}
-          nowMs={Date.now()}
+          reportId={`reef-report-${encodeURIComponent(openCrab.agent_id)}`}
+          nowMs={nowMs}
           onClose={closeCard}
           onOpenTarget={onOpenTarget}
         />
@@ -325,7 +342,7 @@ export function GlassWindowPage(props: {
                       <div>
                         <strong>{group.author.display_name}</strong>
                         <time>
-                          {formatChatterTime(group.startedAtMs, Date.now())}
+                          {formatChatterTime(group.startedAtMs, nowMs)}
                         </time>
                       </div>
                       {group.messages.map((message) => (
@@ -339,15 +356,22 @@ export function GlassWindowPage(props: {
                 className="mc-chatter-compose"
                 onSubmit={(event: FormEvent) => {
                   event.preventDefault();
-                  if (!activeRoomId) return;
+                  const submitted = draft.trim();
+                  if (!activeRoomId || !submitted || controller.sending) return;
                   void controller
-                    .sendMessage(activeRoomId, draft)
-                    .then((sent) => sent && setDraft(""));
+                    .sendMessage(activeRoomId, submitted)
+                    .then(
+                      (sent) =>
+                        sent &&
+                        setDraft((current) =>
+                          current.trim() === submitted ? "" : current,
+                        ),
+                    );
                 }}
               >
                 <input
                   value={draft}
-                  disabled={!activeRoomId}
+                  disabled={!activeRoomId || controller.sending}
                   maxLength={1_000}
                   aria-label="Add a safe owner note"
                   placeholder={
@@ -359,9 +383,11 @@ export function GlassWindowPage(props: {
                 />
                 <button
                   type="submit"
-                  disabled={!activeRoomId || !draft.trim()}
+                  disabled={
+                    !activeRoomId || controller.sending || !draft.trim()
+                  }
                 >
-                  Send
+                  {controller.sending ? "Sending…" : "Send"}
                 </button>
               </form>
             </div>

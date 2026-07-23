@@ -131,6 +131,7 @@ export function useRunbookController(options: UseRunbookControllerOptions) {
   const [generatedAtMs, setGeneratedAtMs] = useState<number | null>(null);
   const [selectedRunbookKind, setSelectedRunbookKind] = useState<string>("");
   const [selectedAnchorId, setSelectedAnchorId] = useState<string>("");
+  const [openRequestVersion, setOpenRequestVersion] = useState(0);
   const [detail, setDetail] = useState<RunbookDetailResponse | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -347,6 +348,7 @@ export function useRunbookController(options: UseRunbookControllerOptions) {
       }
       setSelectedRunbookKind(runbookKind);
       setSelectedAnchorId(anchorId);
+      setOpenRequestVersion((current) => current + 1);
       return true;
     },
     [enabled, setNotice]
@@ -427,6 +429,7 @@ export function useRunbookController(options: UseRunbookControllerOptions) {
     selectedRunbookKind,
     selectedAnchorId,
     selectedRunbookId,
+    openRequestVersion,
     selectedSummary,
     detail,
     detailError,

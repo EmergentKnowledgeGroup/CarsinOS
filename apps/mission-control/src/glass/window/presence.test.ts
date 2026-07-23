@@ -60,17 +60,27 @@ describe("presenceTargetDestination", () => {
   it("routes delegations and sessions to the Office floor", () => {
     expect(
       presenceTargetDestination({ kind: "delegation", id: "dlg-1" }),
-    ).toEqual({ tab: "assistant", label: "Open in the Office" });
+    ).toEqual({
+      kind: "office",
+      tab: "assistant",
+      label: "Go to the Office",
+      delegationId: "dlg-1",
+    });
     expect(presenceTargetDestination({ kind: "session", id: "s-1" })).toEqual({
+      kind: "session",
       tab: "assistant",
       label: "Open the conversation",
+      sessionId: "s-1",
     });
   });
 
   it("routes runs to the run history", () => {
     expect(presenceTargetDestination({ kind: "run", id: "run-1" })).toEqual({
+      kind: "runbook",
       tab: "runbook",
       label: "Open the run history",
+      runbookKind: "assistant_session_run",
+      anchorId: "run-1",
     });
   });
 

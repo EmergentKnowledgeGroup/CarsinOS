@@ -12,6 +12,7 @@ test("@core @glass-window-experiential report cards, deep links, and reduced mot
   page,
 }) => {
   const browserErrors: string[] = [];
+  const requestedRunbookDetails: string[] = [];
   page.on("pageerror", (error) => browserErrors.push(error.message));
   page.on("console", (message) => {
     if (
@@ -24,6 +25,11 @@ test("@core @glass-window-experiential report cards, deep links, and reduced mot
   page.on("response", (response) => {
     if (response.status() >= 400) {
       browserErrors.push(`${response.status()} ${response.url()}`);
+    }
+  });
+  page.on("request", (request) => {
+    if (request.url().includes("/api/v1/mission-control/runbooks/")) {
+      requestedRunbookDetails.push(request.url());
     }
   });
 
@@ -50,8 +56,10 @@ test("@core @glass-window-experiential report cards, deep links, and reduced mot
   await expect(card).toContainText("No recent observation");
   await expect(card).toContainText("Nothing to open for this crab.");
 
-  // Escape closes and hands focus back to the crab that opened it.
-  await card.getByRole("button", { name: "Close report card" }).press("Escape");
+  // Opening moves focus into the card; immediate Escape closes it and hands
+  // focus back to the crab without requiring a Tab first.
+  await expect(card).toBeFocused();
+  await page.keyboard.press("Escape");
   await expect(card).not.toBeVisible();
   await expect(
     page.getByRole("button", { name: "Reef's report card" }),
@@ -84,6 +92,16 @@ test("@core @glass-window-experiential report cards, deep links, and reduced mot
   // The card is still open from the refused attempt; the link now works.
   await page.getByRole("button", { name: "Open the run history" }).click();
   await expect(page.getByTestId("runbook-page")).toBeVisible();
+  await expect(
+    page.getByTestId("runbook-page").getByRole("button", {
+      name: "Back to list",
+    }),
+  ).toBeVisible();
+  expect(
+    requestedRunbookDetails.some((url) =>
+      url.endsWith("/assistant_session_run/run-assistant-001"),
+    ),
+  ).toBe(true);
 
   // Narrow width: the reef summarizes before it expands; nothing overflows.
   await page.setViewportSize({ width: 390, height: 844 });

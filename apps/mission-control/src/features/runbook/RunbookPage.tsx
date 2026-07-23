@@ -261,7 +261,11 @@ const HISTORY_PER_PAGE = 5;
 const ARTIFACT_FACTS_PREVIEW_LIMIT = 4;
 
 export function RunbookPage({ controller, agents, onOpenDeepLink }: RunbookPageProps) {
-  const [viewMode, setViewMode] = useState<"browse" | "detail">("browse");
+  const [viewMode, setViewMode] = useState<"browse" | "detail">(() =>
+    controller.openRequestVersion > 0 && controller.selectedRunbookId
+      ? "detail"
+      : "browse",
+  );
   const [listPage, setListPage] = useState(0);
   const [detailTab, setDetailTab] = useState<"overview" | "flow" | "artifacts" | "history">("overview");
   const [flowPage, setFlowPage] = useState(0);

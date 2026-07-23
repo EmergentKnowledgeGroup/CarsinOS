@@ -31,10 +31,26 @@ export function presenceFreshness(
   return { label: `Observed ${Math.floor(age / (60 * 60_000))}h ago`, tone };
 }
 
-export interface PresenceDestination {
-  tab: "assistant" | "runbook";
-  label: string;
-}
+export type PresenceDestination =
+  | {
+      kind: "office";
+      tab: "assistant";
+      label: string;
+      delegationId: string;
+    }
+  | {
+      kind: "session";
+      tab: "assistant";
+      label: string;
+      sessionId: string;
+    }
+  | {
+      kind: "runbook";
+      tab: "runbook";
+      label: string;
+      runbookKind: "assistant_session_run";
+      anchorId: string;
+    };
 
 /**
  * Honest deep-link mapping: delegations and sessions live on the Office
@@ -47,11 +63,27 @@ export function presenceTargetDestination(
   if (!target) return null;
   switch (target.kind) {
     case "delegation":
-      return { tab: "assistant", label: "Open in the Office" };
+      return {
+        kind: "office",
+        tab: "assistant",
+        label: "Go to the Office",
+        delegationId: target.id,
+      };
     case "session":
-      return { tab: "assistant", label: "Open the conversation" };
+      return {
+        kind: "session",
+        tab: "assistant",
+        label: "Open the conversation",
+        sessionId: target.id,
+      };
     case "run":
-      return { tab: "runbook", label: "Open the run history" };
+      return {
+        kind: "runbook",
+        tab: "runbook",
+        label: "Open the run history",
+        runbookKind: "assistant_session_run",
+        anchorId: target.id,
+      };
   }
 }
 

@@ -114,6 +114,7 @@ function makeController(
     chatter: chatter(),
     error: null,
     loading: false,
+    sending: false,
     refresh: vi.fn().mockResolvedValue(true),
     sendMessage: vi.fn().mockResolvedValue(true),
     ...overrides,
@@ -166,6 +167,7 @@ describe("Reef report cards", () => {
     await act(async () => crab("Vale").click());
     const card = container.querySelector("[data-testid='reef-report-card']");
     expect(card).not.toBeNull();
+    expect(crab("Vale").getAttribute("aria-controls")).toBe(card?.id);
     expect(card?.textContent).toContain("Vale");
     expect(card?.textContent).toContain("No recent observation");
     expect(card?.textContent).toContain("unknown");
@@ -200,8 +202,9 @@ describe("Reef report cards", () => {
     const owner = crab("ExecAss");
     await act(async () => owner.click());
     const card = container.querySelector("[data-testid='reef-report-card']")!;
+    expect(document.activeElement).toBe(card);
     await act(async () => {
-      card.dispatchEvent(
+      document.activeElement?.dispatchEvent(
         new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
       );
     });
@@ -233,5 +236,41 @@ describe("Chatter ergonomics", () => {
     ).map((el) => el.textContent);
     expect(authors).toEqual(["ExecAss", "You"]);
     expect(container.textContent).toContain("Venue shortlist drafted.");
+  });
+
+  it("keeps newer owner text when an earlier send finishes", async () => {
+    let finish!: (sent: boolean) => void;
+    const pending = new Promise<boolean>((resolve) => {
+      finish = resolve;
+    });
+    const sendMessage = vi.fn().mockReturnValue(pending);
+    await mount(makeController({ sendMessage }));
+    const input = container.querySelector(
+      "input[aria-label='Add a safe owner note']",
+    ) as HTMLInputElement;
+    const form = input.closest("form")!;
+
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      setter?.call(input, "first note");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    expect(sendMessage).toHaveBeenCalledWith("room-new", "first note");
+
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value",
+      )?.set;
+      setter?.call(input, "newer unsent note");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      finish(true);
+      await pending;
+    });
+    expect(input.value).toBe("newer unsent note");
   });
 });

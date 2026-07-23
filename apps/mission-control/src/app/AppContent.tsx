@@ -764,14 +764,22 @@ export function AppContent(props: AppContentProps) {
           onOpenTarget={(target) => {
             const destination = presenceTargetDestination(target);
             if (!destination) return false;
-            if (
-              destination.tab === "runbook" &&
-              !props.runbookController.enabled
-            ) {
-              return false;
+            switch (destination.kind) {
+              case "runbook":
+                return openRunbook(
+                  destination.runbookKind,
+                  destination.anchorId,
+                );
+              case "session":
+                openAssistantContext("session", destination.sessionId);
+                return true;
+              case "office":
+                // The current Office has no programmatic delegation-detail
+                // selection seam. Navigate honestly without claiming the
+                // specific delegation was opened.
+                props.onTabChange("assistant");
+                return true;
             }
-            props.onTabChange(destination.tab);
-            return true;
           }}
         />
       </TabBoundaryPane>
@@ -893,6 +901,7 @@ export function AppContent(props: AppContentProps) {
       >
         {renderQuickGuide("runbook")}
         <RunbookPage
+          key={props.runbookController.openRequestVersion}
           controller={props.runbookController}
           agents={props.agents}
           onOpenDeepLink={openRunbookDeepLink}
