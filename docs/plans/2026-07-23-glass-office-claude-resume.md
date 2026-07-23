@@ -2,17 +2,18 @@
 
 This is the single resume document for Claude after backend/ExecAss PR #98,
 Glass Office foundations PR #99, foundation UX PR #100, Assistant's Desk
-PR #101, and P3 experiential PR #102.
+PR #101, P3 experiential PR #102, and the first P4 Trenches room slice
+PR #103.
 
 ## Resume point
 
 - Workspace: `Z:\carsinos-clean`
-- Branch: `codex/glass-office-p4-trenches`
-- Base/merged head: `ea8a144ee76e179067af182026053daff36ae2ab`
+- Branch: `codex/glass-office-p4-calendar`
+- Base/merged head: `0bbd65d4358ef78d557ebf1cc68775e2d7e521c1`
 - Checkpoint track: `GLASS_OFFICE_P4_TRENCHES WORK`
-- Repository state at handoff refresh: PR #102 merged into `main`; continuation
-  branch created at the exact merge commit; pre-existing root `node_modules/`
-  remains untracked and must not be staged
+- Repository state at handoff refresh: PR #103 merged into `main`; Calendar
+  continuation branch created at the exact merge commit; pre-existing root
+  `node_modules/` remains untracked and must not be staged
 - Old `Z:\carsinos` tree: DEV/history only; do not implement there
 
 Start with:
@@ -39,6 +40,9 @@ Do not rebuild or replace these:
 - Registry-driven elevator data, capability filtering, room identity, floor
   overrides, keyboard floor shortcuts, theme tokens, config persistence, block
   normalization, and density.
+- Stable room IDs own navigation end to end. Shared-route rooms light exactly
+  one lamp; direct clicks and floor shortcuts use the same capability,
+  floor-override, and available-tab-filtered registry.
 - The Window: authoritative Reef presence plus safe Office Chatter.
 - P3 experiential Window: focus-correct crab report cards, honest freshness and
   unknown states, exact session/run targets with disabled-room refusal,
@@ -50,12 +54,16 @@ Do not rebuild or replace these:
 - Protected theme values (`claw`, `claw-soft`, `ok`, `warn`) cannot be replaced
   through custom or persisted themes.
 - Theme Studio, Office arrange/size/hide/show, and registry-backed Pin to Office.
+- Boards is the first parity-proven P4 room. Its original board
+  toolbar/controller/mutations remain intact; Pin to Office reveals a real
+  registry shortcut block that walks back to the Boards room without copying
+  board data. External pin/config changes update the mounted Office canvas.
 - The Assistant's Desk slide-over: persona/decision entry, sitting-only
   conversation, real signed intake attachment, live decision lookup, real
   revise resolution, delegation detail over the shoulder, vanished-decision
   handling, keyboard-modal isolation, and focus restoration.
 - Exact-head CI, CodeRabbit, frontend tests, browser tests, and Rust security
-  gates passed before PR #102 merged.
+  gates passed before PR #103 merged.
 
 ## Authoritative references
 
@@ -130,11 +138,20 @@ unrelated first result.
 
 Rehome existing capabilities without losing parity:
 
-- Boards
+- Boards — complete in PR #103
 - Calendar
 - Plan/Strategy
 - Staff Directory
 - History & Receipts / Runbook
+
+PR #103 also completed the shared P4 room path: stable room-ID selection,
+shared-route lamp ownership, resolved-registry keyboard jumps, live external
+pin synchronization, honest pin failure/full-canvas states, and narrow-width
+room marks. Extend that path; do not create another navigation mechanism.
+
+The next bounded slice is Calendar. Preserve its existing Week View, Schedule,
+and Active Jobs tabs; run-now/toggle/history behavior; ExecAss heartbeat setup
+and wakeup audit; Strategy task context; and Runbook links.
 
 Important boundaries:
 
@@ -213,20 +230,27 @@ Before PR:
 
 ## First implementation command
 
-After reading the references and writing the phase-start checkpoint, begin P4
-Trenches rehoming from the existing registry and controllers:
+After reading the references and writing the phase-start checkpoint, implement
+the Calendar room as the second parity-proven P4 slice:
 
-1. Inventory current Boards, Calendar, Plan/Strategy, Staff, and
-   History/Receipts behavior and lock parity assertions before moving UI.
-2. Rehome one bounded room slice at a time through stable room IDs; keep its
-   existing tab/controller reachable until the replacement proves parity.
-3. Consume registry-backed Pin to Office without copying data.
+1. Lock parity tests around Calendar's Week View, Schedule, Active Jobs,
+   run-now/toggle/history, ExecAss heartbeat/audit, Strategy context, and
+   Runbook links before changing presentation.
+2. Register a hidden-by-default `calendar` room-shortcut Office block and its
+   typed renderer, using the existing `calendar` room ID and the same
+   `onRoomSelect` path as Boards.
+3. Add the registry-backed `PinRoomToOffice roomId="calendar"` affordance to
+   the existing Calendar surface. Do not copy calendar/job data, duplicate a
+   mutation, or invent an ExecAss intake.
+4. Prove pin success, repeat pin, save failure, immediate mounted-Office
+   synchronization, Office shortcut return, stable lamp identity, desktop,
+   390px, console cleanliness, and no horizontal overflow.
 
 Hand each bounded P4 slice back for hostile source and desktop/390 visual QA.
 Theme Studio, arrange mode, registered/config-backed pinning, Assistant's Desk,
 and P3 Window behavior are complete shared primitives.
 
-## PR #101/#102 QA lessons to carry forward
+## PR #101/#102/#103 QA lessons to carry forward
 
 - A local green claim is not proof until a fresh lint/CI run reproduces it.
 - Never display mutation success or clear owner input before the authoritative
@@ -246,3 +270,10 @@ and P3 Window behavior are complete shared primitives.
   synchronous lock for same-tick duplicate sends.
 - Visually inspect both light and dark scoped themes; inherited global text can
   become unreadable when a local surface token changes.
+- Navigation acceptance must use the exact resolved elevator registry rendered
+  to the user. Validating against raw default floors can make hidden or
+  capability-disabled rooms navigable.
+- Config-backed mutations must notify live consumers, and mounted consumers
+  must subscribe when the UI promises immediate feedback.
+- When responsive CSS hides a room label, preserve a tested visible room mark;
+  an active pill with no readable identity is not a mobile navigation state.
