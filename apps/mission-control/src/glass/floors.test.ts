@@ -15,12 +15,18 @@ describe("DEFAULT_FLOORS registry", () => {
     expect(ids).toEqual(["office", "window", "trenches", "basement"]);
   });
 
-  test("every floor declares a lamp, label, shortcut, and at least one room", () => {
+  test("every floor and room declares the complete shell descriptor", () => {
     for (const floor of DEFAULT_FLOORS) {
       expect(floor.lamp.length).toBeGreaterThan(0);
+      expect(floor.icon.length).toBeGreaterThan(0);
       expect(floor.label.length).toBeGreaterThan(0);
       expect(floor.shortcut.length).toBeGreaterThan(0);
       expect(floor.rooms.length).toBeGreaterThan(0);
+      for (const room of floor.rooms) {
+        expect(room.floorId).toBe(floor.id);
+        expect(room.route.length).toBeGreaterThan(0);
+        expect(Array.isArray(room.blocks)).toBe(true);
+      }
     }
   });
 
@@ -30,6 +36,30 @@ describe("DEFAULT_FLOORS registry", () => {
       const resolved = floor.defaultRoom ?? floor.rooms[0]?.id;
       expect(roomIds).toContain(resolved);
     }
+  });
+
+  test("keeps every routable product surface reachable from registry data", () => {
+    const routes = new Set(
+      DEFAULT_FLOORS.flatMap((floor) => floor.rooms.map((room) => room.route)),
+    );
+    expect(routes).toEqual(
+      new Set([
+        "assistant",
+        "boards",
+        "calendar",
+        "chatrooms",
+        "cockpit",
+        "connectors",
+        "events",
+        "focus",
+        "mail",
+        "memory",
+        "runbook",
+        "strategy",
+        "team",
+        "window",
+      ]),
+    );
   });
 });
 
@@ -53,7 +83,8 @@ describe("resolveElevator", () => {
         label: "The Penthouse",
         shortcut: "5",
         order: 5,
-        rooms: [{ id: "spa", label: "Spa" }],
+        icon: "sparkles",
+        rooms: [{ id: "spa", floorId: "penthouse", label: "Spa", route: "cockpit", blocks: [] }],
         requiresCapabilities: ["jacuzzi"],
       },
     ];

@@ -72,13 +72,14 @@ const PROOF = {
 let container: HTMLDivElement;
 let root: Root | null = null;
 let controller: ExecassOfficeController | null = null;
+let notices: Array<{ tone: "info" | "error" | "critical"; message: string } | null> = [];
 
 function Harness(props: { active: boolean }) {
   const current = useExecassOfficeController({
     settings,
     tokenConfigured: true,
     active: props.active,
-    setNotice: () => {},
+    setNotice: (notice) => notices.push(notice),
   });
   useEffect(() => {
     controller = current;
@@ -98,6 +99,7 @@ async function mount(active = true) {
 beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
+  notices = [];
   vi.mocked(getExecassSummary).mockResolvedValue(fixtureSummaryResponse());
   vi.mocked(acknowledgeExecassSummary).mockResolvedValue({
     acknowledged: true,
@@ -151,6 +153,10 @@ describe("useExecassOfficeController", () => {
     expect(request.local_proof).toEqual(PROOF);
     expect(request.local_proof_binding).toEqual(binding);
     expect(request.challenge_response).toBe("nonce-1");
+    expect(binding.challenge_response_digest).toBe(
+      "9e3f156324d42f0ea4b6f4fce81d56fbd64a2143a3fdd60a130d9c90e5b4d688",
+    );
+    expect(notices.at(-1)?.message).toMatch(/work continues/i);
     // work continues: the summary is refetched, never trusted from memory
     expect(vi.mocked(getExecassSummary).mock.calls.length).toBeGreaterThan(1);
   });
@@ -220,6 +226,77 @@ describe("useExecassOfficeController", () => {
     // ...and resumed with consumer_cursor 941, never 970 or 999
     const resume = JSON.parse(sent[sent.length - 1]!);
     expect(resume).toMatchObject({ type: "execass.v1.resume", cursor: 941 });
+  });
+
+  it("does not persist or resume a consumer cursor when authoritative refetch fails", async () => {
+    await mount();
+    const sent: string[] = [];
+    act(() => {
+      controller!.handleWsOpen((text) => sent.push(text));
+      controller!.notifyGatewayStatus();
+    });
+    vi.mocked(getExecassSummary).mockRejectedValueOnce(new Error("offline"));
+    await act(async () => {
+      controller!.handleExecassFrame({
+        type: "execass.v1.summary_refetch_required",
+        reason: "gap",
+        consumer_cursor: 941,
+        requested_cursor: 970,
+        head_global_sequence: 999,
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(sent).toHaveLength(1);
+    expect(localStorage.getItem("mc-execass-cursor-v1:mission-control-desktop")).toBeNull();
+  });
+
+  it("serializes overlapping refetch demands into one authoritative summary request", async () => {
+    await mount();
+    const sent: string[] = [];
+    let release!: (value: ReturnType<typeof fixtureSummaryResponse>) => void;
+    const pending = new Promise<ReturnType<typeof fixtureSummaryResponse>>((resolve) => {
+      release = resolve;
+    });
+    vi.mocked(getExecassSummary).mockReturnValueOnce(pending);
+    act(() => {
+      controller!.handleWsOpen((text) => sent.push(text));
+      controller!.handleExecassFrame({
+        type: "execass.v1.summary_refetch_required",
+        reason: "gap",
+        consumer_cursor: 940,
+        requested_cursor: 970,
+        head_global_sequence: 999,
+      });
+      controller!.handleExecassFrame({
+        type: "execass.v1.summary_refetch_required",
+        reason: "gap",
+        consumer_cursor: 941,
+        requested_cursor: 970,
+        head_global_sequence: 999,
+      });
+    });
+    expect(vi.mocked(getExecassSummary)).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      release(fixtureSummaryResponse());
+      await pending;
+    });
+    expect(JSON.parse(sent.at(-1)!)).toMatchObject({ cursor: 941 });
+    expect(vi.mocked(getExecassSummary)).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not claim continuation when a recorded decision has no continuation id", async () => {
+    vi.mocked(signExecassLocalDecision).mockResolvedValue(PROOF);
+    vi.mocked(resolveExecassDecision).mockResolvedValue({
+      ...fixtureResolveDecisionResponse(),
+      continuation_id: null,
+    });
+    await mount();
+    await act(async () => {
+      await controller!.resolveDecision(fixtureDecisionSummary(), "decline");
+    });
+    expect(notices.at(-1)?.message).toMatch(/declined/i);
+    expect(notices.at(-1)?.message).not.toMatch(/continues/i);
   });
 
   it("resolves an attention item via the authoritative pending decision", async () => {
@@ -321,8 +398,8 @@ describe("useExecassOfficeController", () => {
           delegation_id: null,
           receipt_ref: null,
         },
-        global_sequence: 2001,
-        duplicate_identity: "dup-2001",
+        global_sequence: 1,
+        duplicate_identity: "dup-1",
       },
     };
     act(() => {

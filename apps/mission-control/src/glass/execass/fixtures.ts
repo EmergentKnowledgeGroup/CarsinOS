@@ -134,10 +134,10 @@ export function fixtureDelegationSummary(
 
 export function fixtureNextItem(overrides: Partial<NextItem> = {}): NextItem {
   return {
-    next_item_id: "next-payroll",
+    next_item_id: "next-quarterly-review",
     kind: "routine",
-    summary: "Payroll run",
-    authoritative_deep_link: "carsinos://jobs/payroll",
+    summary: "Quarterly planning review",
+    authoritative_deep_link: "carsinos://jobs/quarterly-review",
     delegation_id: null,
     due_at_ms: null,
     scheduled_for_ms: T0 + 72 * 3_600_000,

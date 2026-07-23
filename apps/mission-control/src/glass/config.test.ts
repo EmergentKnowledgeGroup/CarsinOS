@@ -54,6 +54,28 @@ describe("loadGlassConfig", () => {
     const config = loadGlassConfig();
     expect(config.customThemes).toEqual([]);
   });
+
+  test("keeps floor overrides data-only and drops undeclared shell fields", () => {
+    localStorage.setItem(
+      "mc-glass-config-v1",
+      JSON.stringify({
+        themeId: "auto",
+        customThemes: [],
+        floorOverrides: {
+          window: {
+            hidden: true,
+            label: "  Observatory  ",
+            order: 2,
+            rooms: [{ route: "help" }],
+            requiresCapabilities: [],
+          },
+        },
+      }),
+    );
+    expect(loadGlassConfig().floorOverrides).toEqual({
+      window: { hidden: true, label: "Observatory", order: 2 },
+    });
+  });
 });
 
 describe("resolveActiveTheme", () => {

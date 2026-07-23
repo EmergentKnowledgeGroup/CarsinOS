@@ -66,7 +66,10 @@ function preferEnvGatewayToken(): boolean {
 }
 
 function isE2EMode(): boolean {
-  if (typeof window === "undefined") {
+  // Vite replaces import.meta.env.DEV at build time, so the harness path and
+  // its inert proof objects are removed from production bundles. A URL query
+  // alone must never enable proof or token test behavior in a shipped build.
+  if (!import.meta.env.DEV || typeof window === "undefined") {
     return false;
   }
   try {
@@ -245,7 +248,7 @@ export async function getGatewayToken(): Promise<string | null> {
  * and discard it.
  */
 function requireDesktopSigner(): void {
-  if (!isTauriRuntime() && !isE2EMode()) {
+  if (!isTauriRuntime() && !hasInjectedE2ETestSigner()) {
     throw new Error(
       "ExecAss owner proofs are available only in the desktop app.",
     );
@@ -253,23 +256,53 @@ function requireDesktopSigner(): void {
 }
 
 /**
- * Browser Playwright runs (?e2e=1) exercise the full intake/decision flow
- * against the mock gateway, which validates proof PRESENCE and shape, not
- * cryptography. This inert stub exists only on that path; the production
- * browser build still refuses, and the desktop path always uses the
- * native keyring signer.
+ * Playwright may inject a development-only signer before the application
+ * loads. Runtime code never manufactures proof-shaped material: without the
+ * injected harness function or the real Tauri bridge, signing fails closed.
  */
-const E2E_STUB_PROOF = {
-  authenticated_client_id: "e2e-browser",
-  proof_hex: "00".repeat(32),
-};
+type E2ETestSigner = (
+  kind: "run_control" | "intake" | "mutation" | "decision",
+  payload: unknown,
+) => unknown;
+
+function e2eTestSigner(): E2ETestSigner | null {
+  if (!isE2EMode() || typeof window === "undefined") {
+    return null;
+  }
+  const candidate = (
+    window as unknown as { __CARSINOS_E2E_TEST_SIGNER__?: unknown }
+  ).__CARSINOS_E2E_TEST_SIGNER__;
+  return typeof candidate === "function"
+    ? (candidate as E2ETestSigner)
+    : null;
+}
+
+function hasInjectedE2ETestSigner(): boolean {
+  return e2eTestSigner() !== null;
+}
+
+function invokeInjectedE2ETestSigner<T>(
+  kind: Parameters<E2ETestSigner>[0],
+  payload: unknown,
+): T {
+  const signer = e2eTestSigner();
+  if (!signer) {
+    throw new Error(
+      "ExecAss owner proofs are available only in the desktop app.",
+    );
+  }
+  return signer(kind, payload) as T;
+}
 
 export async function signExecassLocalRunControl(
   binding: RunControlRequestBinding,
 ): Promise<LocalRunControlProof> {
   requireDesktopSigner();
   if (!isTauriRuntime()) {
-    return { ...E2E_STUB_PROOF, request_correlation_id: binding.request_correlation_id };
+    return invokeInjectedE2ETestSigner<LocalRunControlProof>(
+      "run_control",
+      binding,
+    );
   }
   return invoke<LocalRunControlProof>("sign_execass_local_run_control", {
     binding,
@@ -281,15 +314,10 @@ export async function signExecassLocalOwnerIntake(
 ): Promise<LocalOwnerIntakeProof> {
   requireDesktopSigner();
   if (!isTauriRuntime()) {
-    return {
-      ...E2E_STUB_PROOF,
-      request_correlation_id: request.source_correlation_id,
-      request_id: request.request_id,
-      idempotency_key: request.idempotency_key,
-      attach_to_delegation_id: request.attach_to_delegation_id ?? null,
-      normalized_intent_digest: "sha256:e2e",
-      instruction_digest: "sha256:e2e",
-    };
+    return invokeInjectedE2ETestSigner<LocalOwnerIntakeProof>(
+      "intake",
+      request,
+    );
   }
   return invoke<LocalOwnerIntakeProof>("sign_execass_local_owner_intake", {
     request,
@@ -301,7 +329,10 @@ export async function signExecassLocalOwnerMutation(
 ): Promise<LocalOwnerMutationProof> {
   requireDesktopSigner();
   if (!isTauriRuntime()) {
-    return { ...E2E_STUB_PROOF, request_correlation_id: binding.request_correlation_id };
+    return invokeInjectedE2ETestSigner<LocalOwnerMutationProof>(
+      "mutation",
+      binding,
+    );
   }
   return invoke<LocalOwnerMutationProof>("sign_execass_local_owner_mutation", {
     binding,
@@ -314,7 +345,10 @@ export async function signExecassLocalDecision(
 ): Promise<LocalDecisionProof> {
   requireDesktopSigner();
   if (!isTauriRuntime()) {
-    return { ...E2E_STUB_PROOF, request_correlation_id: requestCorrelationId };
+    return invokeInjectedE2ETestSigner<LocalDecisionProof>("decision", {
+      binding,
+      request_correlation_id: requestCorrelationId,
+    });
   }
   return invoke<LocalDecisionProof>("sign_execass_local_decision", {
     binding,

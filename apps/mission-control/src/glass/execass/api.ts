@@ -134,12 +134,14 @@ interface ExecassRequestOptions {
   idempotencyKey?: string;
   /** Pre-encoded owner-proof header value. */
   ownerProof?: string;
+  /** Required top-level wire fields from the checked response schema. */
+  responseKeys: readonly string[];
 }
 
 async function execassRequest<T>(
   settings: RuntimeConnectionSettings,
   path: string,
-  options: ExecassRequestOptions = {},
+  options: ExecassRequestOptions,
 ): Promise<T> {
   const token = await getGatewayToken();
   if (!token) {
@@ -212,7 +214,20 @@ async function execassRequest<T>(
     });
   }
 
-  return (await response.json()) as T;
+  const parsed: unknown = await response.json();
+  if (
+    typeof parsed !== "object" ||
+    parsed === null ||
+    !options.responseKeys.every((key) => key in parsed)
+  ) {
+    throw new ExecassApiError({
+      kind: "http",
+      path,
+      status: 502,
+      message: GENERIC_SAFE_MESSAGE,
+    });
+  }
+  return parsed as T;
 }
 
 // ————————————————————————————————————————————————— operations (16)
@@ -227,13 +242,16 @@ export async function execassIntake(
     body: request,
     idempotencyKey: request.idempotency_key,
     ownerProof: encodeOwnerProofHeader(proof),
+    responseKeys: ["kind"],
   });
 }
 
 export async function getExecassSummary(
   settings: RuntimeConnectionSettings,
 ): Promise<SummaryResponse> {
-  return execassRequest(settings, `${API_PREFIX}/summary`);
+  return execassRequest(settings, `${API_PREFIX}/summary`, {
+    responseKeys: ["needs_you", "in_motion", "done", "next", "receipts", "displayed"],
+  });
 }
 
 export async function acknowledgeExecassSummary(
@@ -244,6 +262,7 @@ export async function acknowledgeExecassSummary(
     method: "POST",
     body: request,
     idempotencyKey: request.idempotency_key,
+    responseKeys: ["acknowledged", "displayed", "acknowledged_at_ms"],
   });
 }
 
@@ -259,7 +278,9 @@ export async function listExecassDelegations(
   if (query.phase) params.set("phase", query.phase);
   if (query.run_control) params.set("run_control", query.run_control);
   const suffix = params.toString() ? `?${params.toString()}` : "";
-  return execassRequest(settings, `${API_PREFIX}/delegations${suffix}`);
+  return execassRequest(settings, `${API_PREFIX}/delegations${suffix}`, {
+    responseKeys: ["items"],
+  });
 }
 
 export async function getExecassDelegation(
@@ -269,6 +290,7 @@ export async function getExecassDelegation(
   return execassRequest(
     settings,
     `${API_PREFIX}/delegations/${encodeURIComponent(delegationId)}`,
+    { responseKeys: ["detail"] },
   );
 }
 
@@ -279,6 +301,7 @@ export async function listExecassDelegationReceipts(
   return execassRequest(
     settings,
     `${API_PREFIX}/delegations/${encodeURIComponent(delegationId)}/receipts`,
+    { responseKeys: ["delegation_id", "receipts"] },
   );
 }
 
@@ -294,6 +317,7 @@ export async function resolveExecassDecision(
       method: "POST",
       body: request,
       idempotencyKey: request.idempotency_key,
+      responseKeys: ["decision", "delegation"],
     },
   );
 }
@@ -310,6 +334,7 @@ export async function stopExecassDelegation(
       method: "POST",
       body: request,
       idempotencyKey: request.binding.idempotency_key,
+      responseKeys: ["delegation_id", "phase", "run_control", "state_revision"],
     },
   );
 }
@@ -326,6 +351,7 @@ export async function resumeExecassDelegation(
       method: "POST",
       body: request,
       idempotencyKey: request.binding.idempotency_key,
+      responseKeys: ["delegation_id", "phase", "run_control", "state_revision"],
     },
   );
 }
@@ -333,7 +359,9 @@ export async function resumeExecassDelegation(
 export async function getExecassStopAllStatus(
   settings: RuntimeConnectionSettings,
 ): Promise<StopAllStatusResponse> {
-  return execassRequest(settings, `${API_PREFIX}/stop-all`);
+  return execassRequest(settings, `${API_PREFIX}/stop-all`, {
+    responseKeys: ["engaged", "drain_state", "stop_epoch", "current_policy_revision"],
+  });
 }
 
 export async function engageExecassStopAll(
@@ -344,6 +372,7 @@ export async function engageExecassStopAll(
     method: "POST",
     body: request,
     idempotencyKey: request.binding.idempotency_key,
+    responseKeys: ["engaged", "drain_state", "stop_epoch", "current_policy_revision"],
   });
 }
 
@@ -355,13 +384,16 @@ export async function resumeExecassAll(
     method: "POST",
     body: request,
     idempotencyKey: request.binding.idempotency_key,
+    responseKeys: ["resumed_at_ms", "stop_all"],
   });
 }
 
 export async function getExecassPolicy(
   settings: RuntimeConnectionSettings,
 ): Promise<PolicyResponse> {
-  return execassRequest(settings, `${API_PREFIX}/policy`);
+  return execassRequest(settings, `${API_PREFIX}/policy`, {
+    responseKeys: ["policy_id", "configured", "revision", "rules"],
+  });
 }
 
 export interface OwnerMutationAuthorization {
@@ -379,13 +411,16 @@ export async function updateExecassPolicy(
     body: request,
     idempotencyKey: request.idempotency_key,
     ownerProof: encodeOwnerProofHeader(authorization),
+    responseKeys: ["policy", "updated_at_ms"],
   });
 }
 
 export async function getExecassRuntimeHost(
   settings: RuntimeConnectionSettings,
 ): Promise<RuntimeHostStatusResponse> {
-  return execassRequest(settings, `${API_PREFIX}/runtime-host`);
+  return execassRequest(settings, `${API_PREFIX}/runtime-host`, {
+    responseKeys: ["actual_state", "desired_mode", "fencing_generation", "health"],
+  });
 }
 
 export async function configureExecassRuntimeHost(
@@ -398,5 +433,6 @@ export async function configureExecassRuntimeHost(
     body: request,
     idempotencyKey: request.idempotency_key,
     ownerProof: encodeOwnerProofHeader(authorization),
+    responseKeys: ["bounded_settings_revision", "start_at_login", "status"],
   });
 }

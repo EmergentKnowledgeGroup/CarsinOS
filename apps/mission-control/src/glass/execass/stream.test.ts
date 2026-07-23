@@ -54,6 +54,23 @@ describe("reduceFrame", () => {
     expect(second.state.cursor).toBe(1001);
   });
 
+  test("fails closed on a forward gap instead of advancing past unseen events", () => {
+    const state = initialStreamState(1000);
+    const { state: next, effect } = reduceFrame(state, eventFrame(1002));
+    expect(effect.kind).toBe("refetch-summary");
+    expect(next.refetchRequired).toBe(true);
+    expect(next.cursor).toBe(1000);
+    expect(next.resumeCursor).toBe(1000);
+  });
+
+  test("an out-of-order late event cannot move the cursor after a detected gap", () => {
+    const gap = reduceFrame(initialStreamState(1000), eventFrame(1002)).state;
+    const { state: next, effect } = reduceFrame(gap, eventFrame(1001));
+    expect(effect.kind).toBe("ignore");
+    expect(next.cursor).toBe(1000);
+    expect(next.refetchRequired).toBe(true);
+  });
+
   test("a refetch frame demands a summary refetch and records ONLY consumer_cursor", () => {
     const state = initialStreamState(1000);
     const { state: next, effect } = reduceFrame(state, refetchFrame(950, 1000));

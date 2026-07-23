@@ -2,6 +2,31 @@
 
 Execution checklist derived from `PLAN.md`. IDs are stable and must be used by `CHECKPOINT.md`.
 
+## Current Active Lane — Glass Office P0-P3 Integration
+
+Authority: `docs/plans/2026-07-22-glass-office-design.md`,
+`docs/plans/2026-07-22-glass-office-backend-asks.md`,
+`docs/plans/2026-07-22-glass-office-claude-brief.md`, and
+`docs/EXECASS_FRONTEND_INTEGRATION_HANDOFF.md`.
+
+- [x] `GO-QA1` Independently audit P0-P2 source behavior against the generated
+  ExecAss contract, gateway/Tauri implementation, and locked product decisions.
+- [x] `GO-QA2` Re-run frontend typecheck, lint, unit, production build, core E2E,
+  and generated-contract gates from the clean SSoT.
+- [x] `GO-QA3` Perform desktop and narrow-viewport browser QA with console,
+  overflow, interaction, and visual evidence.
+- [x] `GO-301` Add an authoritative, read-only, safe coarse floor-presence
+  projection; never infer operational truth in the frontend.
+- [x] `GO-302` Add a deliberately authored safe working-note producer over
+  approved lifecycle milestones; never copy raw transcripts, tool output,
+  secrets, or caller-controlled identity into ambient chatter.
+- [x] `GO-303` Present Office Chatter over canonical Agent Mail rooms/messages
+  without creating a second message store or fabricated typing/thread state.
+- [x] `GO-304` Wire the Reef and Office Chatter frontend to the authoritative
+  P3 seams with honest unavailable/unknown states and responsive browser proof.
+- [ ] `GO-305` Run targeted backend/frontend tests, full relevant regressions,
+  diff-scope audit, docs/checkpoint reconciliation, and final source review.
+
 ## Current Active Lane — ExecAss Backend and Runtime Product Correction
 
 The exact source-of-truth order for this lane is `docs/EXECASS_BACKEND_RUNTIME_PRODUCT_CORRECTION_CHECKLIST.md`, governed by its locked specification and blockerboard. Its stable IDs are incorporated into this root checklist by reference:

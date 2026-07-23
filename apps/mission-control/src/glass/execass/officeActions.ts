@@ -32,11 +32,24 @@ export type DecisionResolutionBuild =
     }
   | { ok: false; reason: string };
 
-export function buildDecisionResolution(
+async function optionalTextDigest(value: string | null): Promise<string | null> {
+  if (value === null) {
+    return null;
+  }
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(value),
+  );
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+}
+
+export async function buildDecisionResolution(
   decision: DecisionSummary,
   result: DecisionResult,
   options: { now: number; ids: ActionIds; revisionText?: string },
-): DecisionResolutionBuild {
+): Promise<DecisionResolutionBuild> {
   const serverChallenge = decision.local_owner_proof_challenge;
   if (!serverChallenge) {
     return {
@@ -51,6 +64,8 @@ export function buildDecisionResolution(
       reason: "This decision challenge expired - it will be presented again.",
     };
   }
+  const challengeResponse = decision.challenge?.nonce_or_token ?? null;
+  const revisionText = options.revisionText ?? null;
   const binding: LocalDecisionProofBinding = {
     decision_id: serverChallenge.decision_id,
     decision_revision: serverChallenge.decision_revision,
@@ -67,15 +82,15 @@ export function buildDecisionResolution(
     decision_result: result,
     idempotency_key: options.ids.idempotencyKey,
     observed_at_ms: options.now,
-    challenge_response_digest: null,
-    revision_text_digest: null,
+    challenge_response_digest: await optionalTextDigest(challengeResponse),
+    revision_text_digest: await optionalTextDigest(revisionText),
   };
   return {
     ok: true,
     binding,
     correlationId: options.ids.correlationId,
-    challengeResponse: decision.challenge?.nonce_or_token ?? null,
-    revisionText: options.revisionText ?? null,
+    challengeResponse,
+    revisionText,
   };
 }
 

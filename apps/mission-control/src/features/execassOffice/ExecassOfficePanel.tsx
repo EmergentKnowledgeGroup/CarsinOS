@@ -109,6 +109,14 @@ function AttentionCard(props: {
           >
             Decline
           </button>
+          <button
+            type="button"
+            className="mc-execass-danger"
+            disabled={busy}
+            onClick={() => onResolve(item, "stop")}
+          >
+            Stop
+          </button>
         </div>
       ) : (
         <p className="mc-execass-informational">

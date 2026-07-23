@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import http from "node:http";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { WebSocketServer } from "ws";
 
 function parsePort(argv) {
@@ -939,8 +939,10 @@ const seedState = {
 // ExecAss v1.1 mock (contracts/execass/v1) - the sole product truth
 // ============================================================
 let execassState = null;
+let officeOwnerMessages = [];
 
 function resetExecassState() {
+  officeOwnerMessages = [];
   execassState = {
     summaryRevision: 412,
     globalSequence: 1000,
@@ -1163,10 +1165,10 @@ function buildExecassSummary() {
     ],
     next: [
       {
-        next_item_id: "next-payroll",
+        next_item_id: "next-quarterly-review",
         kind: "routine",
-        summary: "Payroll run",
-        authoritative_deep_link: "carsinos://jobs/payroll",
+        summary: "Quarterly planning review",
+        authoritative_deep_link: "carsinos://jobs/quarterly-review",
         delegation_id: null,
         due_at_ms: null,
         scheduled_for_ms: Date.now() + 72 * 3_600_000,
@@ -3117,6 +3119,104 @@ async function routeRequest(req, res) {
     return;
   }
 
+  if (
+    req.method === "GET" &&
+    requestUrl.pathname === "/api/v1/office/floor-presence"
+  ) {
+    sendJson(res, 200, {
+      generated_at_ms: Date.now(),
+      refresh_after_ms: 5_000,
+      items: [
+        {
+          agent_id: "agent-execass",
+          display_name: "ExecAss",
+          activity: "busy",
+          activity_label: "Working",
+          mood: "focused",
+          observed_at_ms: Date.now() - 2_000,
+          source: "local_storage",
+          target: { kind: "run", id: "run-office-e2e" },
+        },
+        {
+          agent_id: "agent-reef",
+          display_name: "Reef",
+          activity: "unknown",
+          activity_label: "No recent observation",
+          mood: "unknown",
+          observed_at_ms: null,
+          source: "local_storage",
+          target: null,
+        },
+      ],
+    });
+    return;
+  }
+
+  if (
+    req.method === "GET" &&
+    requestUrl.pathname === "/api/v1/office/chatter"
+  ) {
+    const seededMessage = {
+      message_id: "office-message-e2e-1",
+      thread_id: "office-thread-main",
+      author: { kind: "execass", display_name: "ExecAss" },
+      text: "The launch brief moved into active work.",
+      created_at_ms: Date.now() - 30_000,
+      source: {
+        kind: "execass_event",
+        event_name: "delegation.transition",
+        workstream_id: "main",
+        revision: 1,
+      },
+    };
+    const messages = [seededMessage, ...officeOwnerMessages];
+    sendJson(res, 200, {
+      rooms: [
+        {
+          thread_id: "office-thread-main",
+          workstream_id: "main",
+          label: "Main workstream",
+          unread_count: null,
+          last_activity_at_ms: Math.max(
+            ...messages.map((message) => message.created_at_ms),
+          ),
+        },
+      ],
+      messages,
+    });
+    return;
+  }
+
+  const officeChatterPostMatch = requestUrl.pathname.match(
+    /^\/api\/v1\/office\/chatter\/rooms\/([^/]+)\/messages$/,
+  );
+  if (req.method === "POST" && officeChatterPostMatch) {
+    const body = await readJson(req);
+    const bodyText = typeof body?.body_text === "string" ? body.body_text.trim() : "";
+    if (!bodyText || bodyText.length > 1_000) {
+      sendJson(res, 400, {
+        safe_human_message: "Keep the note between 1 and 1000 characters.",
+      });
+      return;
+    }
+    const message = {
+      message_id: `office-owner-${officeOwnerMessages.length + 1}`,
+      thread_id: decodeURIComponent(officeChatterPostMatch[1]),
+      author: { kind: "owner", display_name: "Owner" },
+      text: bodyText,
+      created_at_ms: Date.now(),
+      source: {
+        kind: "owner_message",
+        event_name: null,
+        workstream_id: "main",
+        revision: null,
+      },
+    };
+    officeOwnerMessages.push(message);
+    sendJson(res, 201, { message });
+    return;
+  }
+
   if (req.method === "GET" && requestUrl.pathname === "/api/v1/execass/summary") {
     sendJson(res, 200, buildExecassSummary());
     return;
@@ -3284,6 +3384,25 @@ async function routeRequest(req, res) {
         403,
         "execass.v1.decision_assurance_required",
         "A verified owner decision is required.",
+        false,
+      );
+      return;
+    }
+    const optionalTextDigest = (value) =>
+      value === null || value === undefined
+        ? null
+        : createHash("sha256").update(String(value), "utf8").digest("hex");
+    if (
+      body.local_proof_binding.challenge_response_digest !==
+        optionalTextDigest(body.challenge_response) ||
+      body.local_proof_binding.revision_text_digest !==
+        optionalTextDigest(body.revision_text)
+    ) {
+      execassApiError(
+        res,
+        400,
+        "execass.v1.invalid_request",
+        "The verified decision details do not match this request.",
         false,
       );
       return;
@@ -4818,6 +4937,19 @@ async function routeRequest(req, res) {
     && requestUrl.pathname === "/api/v1/channels/telegram/pairing/status"
   ) {
     sendJson(res, 200, telegramPairingStatus);
+    return;
+  }
+
+  if (
+    req.method === "GET"
+    && requestUrl.pathname === "/api/v1/channels/discord/pairing/status"
+  ) {
+    sendJson(res, 200, {
+      dm_policy: channelConfig.discord.dm_policy,
+      pending_requests: [],
+      blocked_senders: [],
+      updated_at: Date.now(),
+    });
     return;
   }
 

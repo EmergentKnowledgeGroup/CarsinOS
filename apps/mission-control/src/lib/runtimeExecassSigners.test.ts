@@ -52,6 +52,16 @@ describe("signExecassLocalRunControl", () => {
     );
     expect(invoke).not.toHaveBeenCalled();
   });
+
+  test("does not treat an arbitrary browser URL as a desktop signer", async () => {
+    delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
+    window.history.replaceState({}, "", "/?unrelated=1");
+    const { binding } = fixtureRunControlRequest("global_stop");
+    await expect(signExecassLocalRunControl(binding)).rejects.toThrow(
+      /desktop/i,
+    );
+    expect(invoke).not.toHaveBeenCalled();
+  });
 });
 
 describe("signExecassLocalOwnerIntake", () => {

@@ -12,6 +12,7 @@ const TAB_TO_HELP_SECTION: Record<HelpTab, string> = {
   mail: "mail",
   chatrooms: "rooms",
   assistant: "assistant",
+  window: "window",
   team: "team",
   events: "events",
   cockpit: "cockpit",
@@ -103,6 +104,16 @@ const HELP_COPY: Record<HelpTab, HelpCopy> = {
       "Select your agent from the dropdown, choose a provider and model, then type your question.",
       "Click 'New Chat' to start fresh with a clean conversation.",
       "Want to save the response? Use 'Send to Boards' to turn it into a task card.",
+    ],
+  },
+  window: {
+    title: "Watch without interrupting",
+    summary:
+      "Reef shows only coarse, authoritative crew activity. Office Chatter shows deliberately safe workstream notes over Agent Mail.",
+    examples: [
+      "A busy crab means the backend observed active work; silence never means offline.",
+      "Open a chatter room to follow safe milestones without reading raw transcripts.",
+      "Anything needing your decision still appears in the Office, not here.",
     ],
   },
   team: {

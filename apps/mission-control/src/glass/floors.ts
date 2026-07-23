@@ -4,15 +4,22 @@
  * lamp, shortcut, default room, capability requirements, and visibility.
  */
 
+import type { MissionControlTab } from "../app/useAppController";
+
 export interface RoomDef {
   id: string;
   label: string;
+  floorId: string;
+  route: MissionControlTab;
+  capabilityRequirements?: string[];
+  blocks: string[];
 }
 
 export interface FloorDef {
   id: string;
   /** Elevator lamp text, e.g. "4" or "B". */
   lamp: string;
+  icon: string;
   label: string;
   hint?: string;
   /** Bare keyboard key that jumps to this floor. */
@@ -39,13 +46,13 @@ export const DEFAULT_FLOORS: FloorDef[] = [
   {
     id: "office",
     lamp: "4",
+    icon: "bot",
     label: "The Office",
     hint: "brief · delegate · decide",
     shortcut: "4",
     order: 1,
     rooms: [
-      { id: "desk", label: "Your desk" },
-      { id: "assistant-desk", label: "The Assistant's Desk" },
+      { id: "desk", floorId: "office", label: "Your desk", route: "assistant", blocks: ["briefing", "ask", "needs-you", "in-motion", "done", "next"] },
     ],
     defaultRoom: "desk",
     requiresCapabilities: ["execass"],
@@ -53,47 +60,52 @@ export const DEFAULT_FLOORS: FloorDef[] = [
   {
     id: "window",
     lamp: "3",
+    icon: "waves",
     label: "The Window",
     hint: "the floor · the chatter",
     shortcut: "3",
     order: 2,
     rooms: [
-      { id: "reef", label: "Reef" },
-      { id: "chatter", label: "Office chatter" },
+      { id: "reef", floorId: "window", label: "Reef", route: "window", blocks: ["presence"] },
+      { id: "chatter", floorId: "window", label: "Office chatter", route: "window", capabilityRequirements: ["agent-mail"], blocks: ["chatter"] },
     ],
     defaultRoom: "reef",
   },
   {
     id: "trenches",
     lamp: "2",
+    icon: "kanban",
     label: "The Trenches",
     hint: "boards · calendar · staff",
     shortcut: "2",
     order: 3,
     rooms: [
-      { id: "boards", label: "Boards" },
-      { id: "calendar", label: "Calendar" },
-      { id: "plan", label: "Plan" },
-      { id: "staff", label: "Staff Directory" },
-      { id: "history", label: "History & Receipts" },
+      { id: "boards", floorId: "trenches", label: "Boards", route: "boards", blocks: ["boards"] },
+      { id: "calendar", floorId: "trenches", label: "Calendar", route: "calendar", blocks: ["calendar"] },
+      { id: "plan", floorId: "trenches", label: "Plan", route: "strategy", blocks: ["strategy"] },
+      { id: "staff", floorId: "trenches", label: "Staff Directory", route: "team", blocks: ["staff"] },
+      { id: "history", floorId: "trenches", label: "History & Receipts", route: "runbook", blocks: ["history"] },
     ],
     defaultRoom: "boards",
   },
   {
     id: "basement",
     lamp: "B",
+    icon: "cable",
     label: "The Basement",
     hint: "machinery · setup",
     shortcut: "b",
     order: 4,
     rooms: [
-      { id: "connectors", label: "Connectors" },
-      { id: "models", label: "Models & Providers" },
-      { id: "breakers", label: "Breakers & Scheduler" },
-      { id: "events", label: "Event stream" },
-      { id: "directory", label: "Directory / Front Desk" },
-      { id: "memory", label: "Memory plant" },
-      { id: "setup", label: "Setup" },
+      { id: "connectors", floorId: "basement", label: "Connectors", route: "connectors", blocks: ["connectors"] },
+      { id: "models", floorId: "basement", label: "Models & Providers", route: "team", blocks: ["models"] },
+      { id: "breakers", floorId: "basement", label: "Breakers & Scheduler", route: "focus", blocks: ["breakers"] },
+      { id: "cockpit", floorId: "basement", label: "Cockpit", route: "cockpit", blocks: ["cockpit"] },
+      { id: "events", floorId: "basement", label: "Event stream", route: "events", blocks: ["events"] },
+      { id: "directory", floorId: "basement", label: "Directory / Front Desk", route: "mail", blocks: ["directory"] },
+      { id: "rooms", floorId: "basement", label: "Agent rooms", route: "chatrooms", blocks: ["rooms"] },
+      { id: "memory", floorId: "basement", label: "Memory plant", route: "memory", blocks: ["memory"] },
+      { id: "setup", floorId: "basement", label: "Setup", route: "connectors", blocks: ["setup"] },
     ],
     defaultRoom: "setup",
   },

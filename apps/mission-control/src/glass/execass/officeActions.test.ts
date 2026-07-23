@@ -17,9 +17,9 @@ const IDS = { idempotencyKey: "idem-t", correlationId: "corr-t" };
 const NOW = 1_753_200_100_000;
 
 describe("buildDecisionResolution", () => {
-  test("derives every binding field from the server proof challenge, never client state", () => {
+  test("derives every binding field and exact payload digest before native signing", async () => {
     const decision = fixtureDecisionSummary();
-    const built = buildDecisionResolution(decision, "confirm_and_continue", {
+    const built = await buildDecisionResolution(decision, "confirm_and_continue", {
       now: NOW,
       ids: IDS,
     });
@@ -54,10 +54,14 @@ describe("buildDecisionResolution", () => {
     expect(binding.idempotency_key).toBe("idem-t");
     expect(binding.observed_at_ms).toBe(NOW);
     expect(challengeResponse).toBe(decision.challenge!.nonce_or_token);
+    expect(binding.challenge_response_digest).toBe(
+      "9e3f156324d42f0ea4b6f4fce81d56fbd64a2143a3fdd60a130d9c90e5b4d688",
+    );
+    expect(binding.revision_text_digest).toBeNull();
   });
 
-  test("carries revision text for a revise result", () => {
-    const built = buildDecisionResolution(fixtureDecisionSummary(), "revise", {
+  test("carries revision text and its exact canonical digest for a revise result", async () => {
+    const built = await buildDecisionResolution(fixtureDecisionSummary(), "revise", {
       now: NOW,
       ids: IDS,
       revisionText: "Only close it after exporting the templates too",
@@ -67,13 +71,16 @@ describe("buildDecisionResolution", () => {
     expect(built.revisionText).toBe(
       "Only close it after exporting the templates too",
     );
+    expect(built.binding.revision_text_digest).toBe(
+      "4e2b740362e9c750e3be15176254dceb644c36c7f5524c1dcdc64678f43df28e",
+    );
   });
 
-  test("refuses when the server challenge is missing instead of inventing one", () => {
+  test("refuses when the server challenge is missing instead of inventing one", async () => {
     const decision = fixtureDecisionSummary({
       local_owner_proof_challenge: null,
     });
-    const built = buildDecisionResolution(decision, "confirm_and_continue", {
+    const built = await buildDecisionResolution(decision, "confirm_and_continue", {
       now: NOW,
       ids: IDS,
     });
@@ -82,9 +89,9 @@ describe("buildDecisionResolution", () => {
     expect(built.reason).toMatch(/challenge/i);
   });
 
-  test("refuses an expired challenge so the UI re-presents instead of failing server-side", () => {
+  test("refuses an expired challenge so the UI re-presents instead of failing server-side", async () => {
     const decision = fixtureDecisionSummary();
-    const built = buildDecisionResolution(decision, "confirm_and_continue", {
+    const built = await buildDecisionResolution(decision, "confirm_and_continue", {
       now: decision.local_owner_proof_challenge!.expires_at_ms + 1,
       ids: IDS,
     });

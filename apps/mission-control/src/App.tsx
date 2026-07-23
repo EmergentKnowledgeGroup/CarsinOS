@@ -30,6 +30,7 @@ import { SimpleIntegrationWizard } from "./features/connectors/SimpleIntegration
 import type { SimpleIntegrationId } from "./features/connectors/simpleIntegrations";
 import { useConnectorsController } from "./features/connectors/useConnectorsController";
 import { useExecassOfficeController } from "./features/execassOffice/useExecassOfficeController";
+import { useGlassWindowController } from "./features/glassWindow/useGlassWindowController";
 import { useMemoryController } from "./features/memory/useMemoryController";
 import { OnboardingWizard } from "./features/onboarding/OnboardingWizard";
 import { useOnboardingController } from "./features/onboarding/useOnboardingController";
@@ -423,6 +424,7 @@ export default function App() {
         "mail",
         "chatrooms",
         "assistant",
+        "window",
         "team",
         "cockpit",
         "strategy",
@@ -646,6 +648,11 @@ export default function App() {
     tokenConfigured,
     active: activeTab === "assistant",
     setNotice,
+  });
+  const glassWindowController = useGlassWindowController({
+    settings,
+    tokenConfigured,
+    active: activeTab === "window",
   });
 
   const liveFeed = useLiveFeedController({
@@ -1225,6 +1232,7 @@ export default function App() {
         mailController={mailController}
         assistantController={assistantController}
         officeController={officeController}
+        glassWindowController={glassWindowController}
         cockpitController={cockpitController}
         strategyController={strategyController}
         runbookController={runbookController}

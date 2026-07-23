@@ -1,5 +1,6 @@
 import { useEffect, useCallback } from "react";
-import { MISSION_CONTROL_TABS } from "./tabs";
+import { DEFAULT_FLOORS, resolveElevator } from "../glass/floors";
+import type { FloorOverride } from "../glass/floors";
 import type { MissionControlTab } from "./useAppController";
 
 interface UseKeyboardShortcutsOptions {
@@ -11,6 +12,7 @@ interface UseKeyboardShortcutsOptions {
   onCloseOverlay: () => void;
   /** True when a modal/overlay is open — suppresses tab shortcuts */
   overlayOpen: boolean;
+  floorOverrides?: Partial<Record<string, FloorOverride>>;
 }
 
 /** Returns true if focus is inside an editable field */
@@ -30,6 +32,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions) {
     onOpenCommandPalette,
     onCloseOverlay,
     overlayOpen,
+    floorOverrides,
   } = opts;
 
   const handler = useCallback(
@@ -65,14 +68,26 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions) {
         return;
       }
 
-      // Tab shortcuts — only when not editing and no overlay
+      // Elevator shortcuts — only when not editing and no overlay.
       if (!overlayOpen && !isEditableTarget(e) && !meta && !e.altKey && !e.shiftKey) {
-        const match = MISSION_CONTROL_TABS.find(
-          (item) => item.shortcut === e.key && availableTabs.includes(item.tab)
-        );
-        if (match) {
+        const floor = resolveElevator(DEFAULT_FLOORS, {
+          capabilities: ["execass", "agent-mail"],
+          overrides: floorOverrides,
+        }).find((candidate) => candidate.shortcut.toLowerCase() === e.key.toLowerCase());
+        const defaultRoom =
+          floor?.rooms.find((room) => room.id === floor.defaultRoom) ??
+          floor?.rooms[0];
+        if (defaultRoom && availableTabs.includes(defaultRoom.route)) {
           e.preventDefault();
-          onTabChange(match.tab);
+          onTabChange(defaultRoom.route);
+          return;
+        }
+        const fallbackRoom = floor?.rooms.find((room) =>
+          availableTabs.includes(room.route),
+        );
+        if (fallbackRoom) {
+          e.preventDefault();
+          onTabChange(fallbackRoom.route);
         }
       }
     },
@@ -84,6 +99,7 @@ export function useKeyboardShortcuts(opts: UseKeyboardShortcutsOptions) {
       onOpenCommandPalette,
       onCloseOverlay,
       overlayOpen,
+      floorOverrides,
     ]
   );
 

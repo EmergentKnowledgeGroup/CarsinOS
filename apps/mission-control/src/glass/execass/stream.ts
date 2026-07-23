@@ -68,6 +68,16 @@ export function reduceFrame(
   if (state.seenDuplicateIdentities.includes(envelope.duplicate_identity)) {
     return { state, effect: { kind: "ignore" } };
   }
+  if (envelope.global_sequence !== state.cursor + 1) {
+    return {
+      state: {
+        ...state,
+        refetchRequired: true,
+        resumeCursor: state.cursor,
+      },
+      effect: { kind: "refetch-summary" },
+    };
+  }
 
   const seen = [...state.seenDuplicateIdentities, envelope.duplicate_identity];
   if (seen.length > DEDUPE_CAP) {

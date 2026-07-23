@@ -63,7 +63,25 @@ export function loadGlassConfig(storage: Storage = localStorage): GlassConfig {
     typeof candidate.floorOverrides === "object" &&
     candidate.floorOverrides !== null
   ) {
-    config.floorOverrides = candidate.floorOverrides;
+    const floorOverrides: NonNullable<GlassConfig["floorOverrides"]> = {};
+    for (const [floorId, rawOverride] of Object.entries(
+      candidate.floorOverrides,
+    )) {
+      if (typeof rawOverride !== "object" || rawOverride === null) continue;
+      const value = rawOverride as Record<string, unknown>;
+      const override: FloorOverride = {};
+      if (typeof value.hidden === "boolean") override.hidden = value.hidden;
+      if (typeof value.label === "string" && value.label.trim()) {
+        override.label = value.label.trim();
+      }
+      if (typeof value.order === "number" && Number.isFinite(value.order)) {
+        override.order = value.order;
+      }
+      if (Object.keys(override).length > 0) floorOverrides[floorId] = override;
+    }
+    if (Object.keys(floorOverrides).length > 0) {
+      config.floorOverrides = floorOverrides;
+    }
   }
   return config;
 }

@@ -19,6 +19,7 @@ export type MissionControlTab =
   | "mail"
   | "chatrooms"
   | "assistant"
+  | "window"
   | "team"
   | "cockpit"
   | "strategy"

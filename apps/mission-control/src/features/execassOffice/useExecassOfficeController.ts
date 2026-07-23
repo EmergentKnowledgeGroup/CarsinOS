@@ -140,7 +140,8 @@ export function useExecassOfficeController(
   );
   const sendRef = useRef<((text: string) => void) | null>(null);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const inFlightRef = useRef(false);
+  const summaryRefreshPromiseRef = useRef<Promise<boolean> | null>(null);
+  const streamReconcilePromiseRef = useRef<Promise<void> | null>(null);
   const lastAckedCursorRef = useRef<string | null>(null);
   const enabled = tokenConfigured && settings.gateway_url.trim().length > 0;
 
@@ -166,24 +167,40 @@ export function useExecassOfficeController(
     [settings],
   );
 
-  const refreshSummary = useCallback(async () => {
-    if (!enabled || inFlightRef.current) {
-      return;
+  const refreshSummaryAuthoritatively = useCallback((): Promise<boolean> => {
+    if (!enabled) {
+      return Promise.resolve(false);
     }
-    inFlightRef.current = true;
+    if (summaryRefreshPromiseRef.current) {
+      return summaryRefreshPromiseRef.current;
+    }
     setSummaryLoading(true);
-    try {
-      const loaded = await getExecassSummary(settings);
-      setSummary(loaded);
-      setSummaryError(null);
-      acknowledgeDisplayed(loaded);
-    } catch (error: unknown) {
-      setSummaryError(safeErrorMessage(error));
-    } finally {
-      inFlightRef.current = false;
-      setSummaryLoading(false);
-    }
+    const request = (async () => {
+      try {
+        const loaded = await getExecassSummary(settings);
+        setSummary(loaded);
+        setSummaryError(null);
+        acknowledgeDisplayed(loaded);
+        return true;
+      } catch (error: unknown) {
+        setSummaryError(safeErrorMessage(error));
+        return false;
+      } finally {
+        setSummaryLoading(false);
+      }
+    })();
+    summaryRefreshPromiseRef.current = request;
+    void request.finally(() => {
+      if (summaryRefreshPromiseRef.current === request) {
+        summaryRefreshPromiseRef.current = null;
+      }
+    });
+    return request;
   }, [acknowledgeDisplayed, enabled, settings]);
+
+  const refreshSummary = useCallback(async () => {
+    await refreshSummaryAuthoritatively();
+  }, [refreshSummaryAuthoritatively]);
 
   const refreshStopAll = useCallback(async () => {
     if (!enabled) {
@@ -235,14 +252,40 @@ export function useExecassOfficeController(
     }
   }, [clientId]);
 
+  const reconcileStreamAfterRefetch = useCallback(() => {
+    if (streamReconcilePromiseRef.current) {
+      return streamReconcilePromiseRef.current;
+    }
+    const request = (async () => {
+      const refreshed = await refreshSummaryAuthoritatively();
+      if (!refreshed || !streamRef.current.refetchRequired) {
+        return;
+      }
+      streamRef.current = resumeAfterRefetch(streamRef.current);
+      saveStreamCursor(clientId, streamRef.current.cursor);
+      sendResume();
+    })();
+    streamReconcilePromiseRef.current = request;
+    void request.finally(() => {
+      if (streamReconcilePromiseRef.current === request) {
+        streamReconcilePromiseRef.current = null;
+      }
+    });
+    return request;
+  }, [clientId, refreshSummaryAuthoritatively, sendResume]);
+
   const handleWsOpen = useCallback((send: (text: string) => void) => {
     sendRef.current = send;
   }, []);
 
   const notifyGatewayStatus = useCallback(() => {
     // Per the live-update contract the resume frame follows gateway.status.
-    sendResume();
-  }, [sendResume]);
+    if (streamRef.current.refetchRequired) {
+      void reconcileStreamAfterRefetch();
+    } else {
+      sendResume();
+    }
+  }, [reconcileStreamAfterRefetch, sendResume]);
 
   const handleExecassFrame = useCallback(
     (frame: ExecassWsFrame) => {
@@ -277,15 +320,10 @@ export function useExecassOfficeController(
         return;
       }
       if (effect.kind === "refetch-summary") {
-        void (async () => {
-          await refreshSummary();
-          streamRef.current = resumeAfterRefetch(streamRef.current);
-          saveStreamCursor(clientId, streamRef.current.cursor);
-          sendResume();
-        })();
+        void reconcileStreamAfterRefetch();
       }
     },
-    [clientId, queueSummaryRefresh, refreshStopAll, refreshSummary, sendResume, setNotice],
+    [clientId, queueSummaryRefresh, reconcileStreamAfterRefetch, refreshStopAll, setNotice],
   );
 
   const resolveDecision = useCallback(
@@ -297,23 +335,23 @@ export function useExecassOfficeController(
       if (resolvingDecisionIds.includes(decision.decision_id)) {
         return;
       }
-      const built = buildDecisionResolution(decision, result, {
-        now: Date.now(),
-        ids: { idempotencyKey: newId(), correlationId: newId() },
-        revisionText,
-      });
-      if (!built.ok) {
-        setNotice({ tone: "info", message: built.reason });
-        void refreshSummary();
-        return;
-      }
-      setResolvingDecisionIds((current) => [...current, decision.decision_id]);
       try {
+        const built = await buildDecisionResolution(decision, result, {
+          now: Date.now(),
+          ids: { idempotencyKey: newId(), correlationId: newId() },
+          revisionText,
+        });
+        if (!built.ok) {
+          setNotice({ tone: "info", message: built.reason });
+          void refreshSummary();
+          return;
+        }
+        setResolvingDecisionIds((current) => [...current, decision.decision_id]);
         const proof = await signExecassLocalDecision(
           built.binding,
           built.correlationId,
         );
-        await resolveExecassDecision(settings, decision.decision_id, {
+        const outcome = await resolveExecassDecision(settings, decision.decision_id, {
           idempotency_key: built.binding.idempotency_key,
           decision_revision: built.binding.decision_revision,
           result,
@@ -322,10 +360,22 @@ export function useExecassOfficeController(
           challenge_response: built.challengeResponse,
           revision_text: built.revisionText,
         });
-        setNotice({
-          tone: "info",
-          message: "Done - the work continues. No second nudge.",
-        });
+        const message = outcome.continuation_id
+          ? result === "confirm_and_continue"
+            ? "Confirmed - the work continues. No second nudge."
+            : result === "revise"
+              ? "Revision accepted - the updated work continues."
+              : result === "decline"
+                ? "Declined - ExecAss is continuing only the unaffected work."
+                : "Stop recorded - ExecAss is continuing only to the safe boundary."
+          : result === "revise"
+              ? "Revision sent. ExecAss will show the updated plan when it is ready."
+              : result === "decline"
+                ? "Declined. ExecAss will reconcile the remaining work."
+                : result === "stop"
+                  ? "Stop recorded. ExecAss will hold at a safe boundary."
+                  : "Decision recorded. ExecAss will show the next authoritative state.";
+        setNotice({ tone: "info", message });
         await refreshSummary();
       } catch (error: unknown) {
         if (

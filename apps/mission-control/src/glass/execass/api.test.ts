@@ -86,6 +86,16 @@ describe("getExecassSummary", () => {
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  test("rejects a malformed success body before it reaches controller state", async () => {
+    fetchMock.mockResolvedValue(
+      okResponse({ needs_you: [], raw_secret: "must-not-be-trusted" }),
+    );
+    await expect(getExecassSummary(SETTINGS)).rejects.toMatchObject({
+      kind: "http",
+      status: 502,
+    });
+  });
 });
 
 describe("execassIntake", () => {
