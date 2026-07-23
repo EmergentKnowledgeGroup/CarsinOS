@@ -8,6 +8,8 @@
 import type {
   AttentionItem,
   DecisionSummary,
+  DelegationDetail,
+  DelegationDetailResponse,
   DelegationRunControlResponse,
   DelegationSummary,
   DurableEventEnvelope,
@@ -306,6 +308,62 @@ export function fixtureIntakeConversationalResponse(): IntakeResponse {
     kind: "conversational",
     response_text: "Both June invoices are already paid - nothing to chase.",
     request_audit_ref: "audit-1",
+  };
+}
+
+export function fixtureDelegationDetailResponse(
+  overrides: Partial<DelegationDetail> = {},
+): DelegationDetailResponse {
+  return {
+    detail: {
+      delegation: fixtureDelegationSummary({
+        delegation_id: "dlg-retreat",
+        phase: "in_motion",
+        intent_summary: "Plan the October team retreat",
+        outcome_summary: "Drafting the agenda - section 3 of 5",
+      }),
+      original_intent: "Plan the October team retreat for the whole team",
+      plan_summary:
+        "Pick a venue, draft the agenda, confirm the caterer, send invites.",
+      actions: [
+        {
+          action_id: "act-agenda",
+          branch_state: "executing",
+          danger_assessments: [],
+          manifest_digest: "sha256:agenda",
+          manifest_revision: 3,
+          requires_assurance: "mechanical_resolution",
+          safe_boundary_description: "Draft only - nothing sent yet",
+          technical_resources: [],
+          required_decision_kind: null,
+        },
+      ],
+      continuations: [
+        {
+          continuation_id: "cont-1",
+          delegation_id: "dlg-retreat",
+          plan_revision: 3,
+          policy_revision: 1,
+          safe_summary: "Drafting agenda section 3 of 5",
+          status: "runnable",
+          claimed_at_ms: null,
+          completed_at_ms: null,
+          scheduled_for_ms: null,
+        },
+      ],
+      effects: [],
+      completion_verifiers: [],
+      outcome_criteria: [],
+      authority_snapshot_ref: "auth-retreat",
+      immutable_intake_evidence_ref: "evid-retreat",
+      ingress_source: "local",
+      internal_record_refs: [],
+      source_correlation_id: "corr-retreat",
+      technical_resource_summary: "well within limits",
+      receipt_chain_head: null,
+      recovery: null,
+      ...overrides,
+    },
   };
 }
 

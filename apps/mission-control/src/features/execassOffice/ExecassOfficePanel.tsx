@@ -15,12 +15,20 @@ import {
 
 import { useGlassSurfaceTheme } from "../../glass/useGlassSurfaceTheme";
 
+import {
+  closeDesk,
+  initialDeskState,
+  openDesk,
+  openDeskForAttention,
+  type DeskState,
+} from "../../glass/execass/desk";
 import type {
   AttentionItem,
   DelegationSummary,
   NextItem,
   ReceiptSummary,
 } from "../../glass/execass/types";
+import { AssistantDesk } from "./AssistantDesk";
 import { OFFICE_BLOCK_REGISTRY } from "./officeBlocks";
 import { useOfficeLayout } from "./useOfficeLayout";
 import type { ExecassOfficeController } from "./useExecassOfficeController";
@@ -47,10 +55,10 @@ function AttentionCard(props: {
     result: "confirm_and_continue" | "revise" | "decline" | "stop",
     revisionText?: string,
   ) => void;
+  /** "Let's talk it through" walks the boss over to the Assistant's Desk. */
+  onTalk: (item: AttentionItem) => void;
 }) {
-  const { item, busy, onResolve } = props;
-  const [talkOpen, setTalkOpen] = useState(false);
-  const [revisionDraft, setRevisionDraft] = useState("");
+  const { item, busy, onResolve, onTalk } = props;
   const isDecision = Boolean(item.decision_id);
   const isDangerous = item.decision_kind === "dangerous_action_confirmation";
   const isClarification = item.decision_kind === "clarification";
@@ -107,7 +115,7 @@ function AttentionCard(props: {
             type="button"
             className="mc-execass-talk"
             disabled={busy}
-            onClick={() => setTalkOpen((open) => !open)}
+            onClick={() => onTalk(item)}
           >
             Let's talk it through
           </button>
@@ -133,30 +141,6 @@ function AttentionCard(props: {
           Informational - handled where it lives.
         </p>
       )}
-      {talkOpen && isDecision ? (
-        <form
-          className="mc-execass-revise"
-          onSubmit={(event: FormEvent) => {
-            event.preventDefault();
-            if (revisionDraft.trim()) {
-              onResolve(item, "revise", revisionDraft.trim());
-              setTalkOpen(false);
-              setRevisionDraft("");
-            }
-          }}
-        >
-          <input
-            type="text"
-            value={revisionDraft}
-            placeholder="Tell ExecAss how to change it..."
-            aria-label="Revise this decision"
-            onChange={(event) => setRevisionDraft(event.target.value)}
-          />
-          <button type="submit" disabled={busy || !revisionDraft.trim()}>
-            Send revision
-          </button>
-        </form>
-      ) : null}
     </article>
   );
 }
@@ -279,6 +263,20 @@ export function ExecassOfficePanel(props: {
   const layout = useOfficeLayout();
   const surfaceRef = useRef<HTMLElement | null>(null);
   useGlassSurfaceTheme(surfaceRef);
+  const [deskState, setDeskState] = useState<DeskState>(initialDeskState);
+  const walkToDesk = useCallback(
+    () => setDeskState((current) => openDesk(current)),
+    [],
+  );
+  const talkItThrough = useCallback(
+    (item: AttentionItem) =>
+      setDeskState((current) => openDeskForAttention(current, item)),
+    [],
+  );
+  const leaveDesk = useCallback(
+    () => setDeskState((current) => closeDesk(current)),
+    [],
+  );
   const summary = controller.summary;
   const briefing = controller.briefing;
   const stopEngaged = controller.stopAll?.engaged === true;
@@ -302,7 +300,15 @@ export function ExecassOfficePanel(props: {
       data-testid="execass-office"
     >
       <header className="mc-execass-header">
-        <span className="mc-execass-title">ExecAss</span>
+        <button
+          type="button"
+          className="mc-execass-persona"
+          aria-label="Walk to the Assistant's Desk"
+          title="Walk over for a proper conversation"
+          onClick={walkToDesk}
+        >
+          ExecAss
+        </button>
         <span className="mc-execass-status">
           {stopEngaged
             ? "⏸ everybody froze - work is holding at a safe boundary"
@@ -470,6 +476,7 @@ export function ExecassOfficePanel(props: {
                             revisionText,
                           )
                         }
+                        onTalk={talkItThrough}
                       />
                     ))
                   )}
@@ -618,6 +625,15 @@ export function ExecassOfficePanel(props: {
             );
           })()
         : null}
+
+      {deskState.open ? (
+        <AssistantDesk
+          controller={controller}
+          state={deskState}
+          onStateChange={setDeskState}
+          onClose={leaveDesk}
+        />
+      ) : null}
     </section>
   );
 }

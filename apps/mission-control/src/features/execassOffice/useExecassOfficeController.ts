@@ -45,6 +45,8 @@ import type {
   AttentionItem,
   DecisionResult,
   DecisionSummary,
+  DelegationDetail,
+  DelegationSummary,
   ExecassWsFrame,
   ReceiptSummary,
   StopAllStatusResponse,
@@ -71,6 +73,15 @@ export interface ExecassOfficeControllerOptions {
   clientId?: string;
 }
 
+/**
+ * Outcome of one desk exchange. Errors come back as data so the desk can
+ * log them in the conversation instead of raising a global notice.
+ */
+export type ConverseOutcome =
+  | { kind: "conversational"; text: string }
+  | { kind: "delegation"; delegation: DelegationSummary }
+  | { kind: "error"; message: string };
+
 export interface ExecassOfficeController {
   summary: SummaryResponse | null;
   summaryLoading: boolean;
@@ -94,6 +105,11 @@ export interface ExecassOfficeController {
     revisionText?: string,
   ) => Promise<void>;
   delegate: (text: string) => Promise<void>;
+  converse: (
+    text: string,
+    attachToDelegationId?: string | null,
+  ) => Promise<ConverseOutcome>;
+  loadDelegationDetail: (delegationId: string) => Promise<DelegationDetail>;
   clearConversationalReply: () => void;
   freezeAll: () => Promise<void>;
   resumeAllWork: () => Promise<void>;
@@ -465,6 +481,55 @@ export function useExecassOfficeController(
     [intakeBusy, refreshSummary, setNotice, settings],
   );
 
+  const converse = useCallback(
+    async (
+      text: string,
+      attachToDelegationId?: string | null,
+    ): Promise<ConverseOutcome> => {
+      const trimmed = text.trim();
+      if (!trimmed) {
+        return { kind: "error", message: "Say something first." };
+      }
+      if (intakeBusy) {
+        return {
+          kind: "error",
+          message: "One exchange at a time - the last one is still landing.",
+        };
+      }
+      setIntakeBusy(true);
+      try {
+        const request = buildIntakeRequest(trimmed, {
+          ids: {
+            requestId: newId(),
+            idempotencyKey: newId(),
+            correlationId: newId(),
+          },
+          attachToDelegationId: attachToDelegationId ?? null,
+        });
+        const proof = await signExecassLocalOwnerIntake(request);
+        const outcome = await execassIntake(settings, request, proof);
+        if (outcome.kind === "conversational") {
+          return { kind: "conversational", text: outcome.response_text };
+        }
+        await refreshSummary();
+        return { kind: "delegation", delegation: outcome.delegation };
+      } catch (error: unknown) {
+        return { kind: "error", message: safeErrorMessage(error) };
+      } finally {
+        setIntakeBusy(false);
+      }
+    },
+    [intakeBusy, refreshSummary, settings],
+  );
+
+  const loadDelegationDetail = useCallback(
+    async (delegationId: string): Promise<DelegationDetail> => {
+      const response = await getExecassDelegation(settings, delegationId);
+      return response.detail;
+    },
+    [settings],
+  );
+
   const clearConversationalReply = useCallback(() => {
     setConversationalReply(null);
   }, []);
@@ -556,6 +621,8 @@ export function useExecassOfficeController(
     resolveDecision,
     resolveAttention,
     delegate,
+    converse,
+    loadDelegationDetail,
     clearConversationalReply,
     freezeAll,
     resumeAllWork,
