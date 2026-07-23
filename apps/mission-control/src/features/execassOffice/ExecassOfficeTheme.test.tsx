@@ -39,7 +39,7 @@ async function mount() {
   document.body.appendChild(container);
   await act(async () => {
     root = createRoot(container);
-    root.render(<ExecassOfficePanel controller={controller} />);
+    root.render(<ExecassOfficePanel controller={controller} onOpenRoom={() => {}} />);
   });
 }
 

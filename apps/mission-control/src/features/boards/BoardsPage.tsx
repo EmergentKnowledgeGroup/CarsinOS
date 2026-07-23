@@ -18,6 +18,7 @@ import { Pagination } from "../../ui/Pagination";
 import { Tabs } from "../../ui/Tabs";
 import { TagPicker } from "../../ui/TagPicker";
 import { usePagination } from "../../ui/usePagination";
+import { PinRoomToOffice } from "../execassOffice/PinRoomToOffice";
 import { RunbookLinkPanel } from "../runbook/RunbookLinkPanel";
 import { StrategyTaskContextPanel } from "../strategy/StrategyTaskContextPanel";
 import type { StrategyTaskContextSnapshot } from "../strategy/useStrategyController";
@@ -257,6 +258,7 @@ export function BoardsPage({
           <span>In Progress: {inProgressCount}</span>
           <span>Done: {doneCount}</span>
         </div>
+        <PinRoomToOffice roomId="boards" />
       </div>
 
       {/* ── Owner filter dropdown ── */}

@@ -1,15 +1,16 @@
 # Glass Office: Claude Resume Handoff
 
 This is the single resume document for Claude after backend/ExecAss PR #98,
-Glass Office P0-P3 PR #99, foundation UX PR #100, and Assistant's Desk PR #101.
+Glass Office foundations PR #99, foundation UX PR #100, Assistant's Desk
+PR #101, and P3 experiential PR #102.
 
 ## Resume point
 
 - Workspace: `Z:\carsinos-clean`
-- Branch: `codex/glass-office-p3-experiential`
-- Base/merged head: `e7c3a3502f19ed1ca92985e62175716dca24db6a`
-- Checkpoint track: `GLASS_OFFICE_ASSISTANT_DESK WORK`
-- Repository state at handoff refresh: PR #101 merged into `main`; continuation
+- Branch: `codex/glass-office-p4-trenches`
+- Base/merged head: `ea8a144ee76e179067af182026053daff36ae2ab`
+- Checkpoint track: `GLASS_OFFICE_P4_TRENCHES WORK`
+- Repository state at handoff refresh: PR #102 merged into `main`; continuation
   branch created at the exact merge commit; pre-existing root `node_modules/`
   remains untracked and must not be staged
 - Old `Z:\carsinos` tree: DEV/history only; do not implement there
@@ -39,6 +40,10 @@ Do not rebuild or replace these:
   overrides, keyboard floor shortcuts, theme tokens, config persistence, block
   normalization, and density.
 - The Window: authoritative Reef presence plus safe Office Chatter.
+- P3 experiential Window: focus-correct crab report cards, honest freshness and
+  unknown states, exact session/run targets with disabled-room refusal,
+  reduced-motion scuttling, quiet unread treatment, grouped chatter, and
+  responsive Reef disclosure.
 - Agent Mail remains the canonical communication store. A bounded backend
   projector creates allowlisted safe work notes from ExecAss lifecycle events.
   `GET /office/chatter` is read-only.
@@ -50,7 +55,7 @@ Do not rebuild or replace these:
   revise resolution, delegation detail over the shoulder, vanished-decision
   handling, keyboard-modal isolation, and focus restoration.
 - Exact-head CI, CodeRabbit, frontend tests, browser tests, and Rust security
-  gates passed before PR #101 merged.
+  gates passed before PR #102 merged.
 
 ## Authoritative references
 
@@ -115,17 +120,11 @@ Completed in PR #101:
 
 Do not rebuild these foundation pieces. Extend and consume them.
 
-### 2. Finish the experiential layer of P3
+### 2. P3 experiential is complete
 
-- Reef crab/report-card interaction and authoritative deep links for
-  delegation/session/run targets.
-- Reduced-motion behavior and polished honest `unknown`/empty/error states.
-- Chatter room ergonomics, quiet unread treatment, and responsive expansion.
-- Do not invent typing/threading capabilities that Agent Mail does not expose.
-
-Start here. Keep this slice frontend-only unless a concrete missing backend
-contract is proven from source. Existing P3 presence and chatter routes are
-already merged.
+Completed in PR #102. Do not rebuild it. Preserve the exact-target selection
+rule: an active Runbook filter may not replace an explicit Reef target with an
+unrelated first result.
 
 ### 3. P4 — The Trenches
 
@@ -214,19 +213,20 @@ Before PR:
 
 ## First implementation command
 
-After reading the references and writing the phase-start checkpoint, begin the
-remaining P3 experiential slice:
+After reading the references and writing the phase-start checkpoint, begin P4
+Trenches rehoming from the existing registry and controllers:
 
-1. Reef crab/report-card interaction plus authoritative deep links.
-2. Honest unknown/empty/error and reduced-motion polish.
-3. Chatter room ergonomics, quiet unread treatment, and responsive expansion.
+1. Inventory current Boards, Calendar, Plan/Strategy, Staff, and
+   History/Receipts behavior and lock parity assertions before moving UI.
+2. Rehome one bounded room slice at a time through stable room IDs; keep its
+   existing tab/controller reachable until the replacement proves parity.
+3. Consume registry-backed Pin to Office without copying data.
 
-Then hand the P3 slice back for hostile source and desktop/390 visual QA before
-starting P4 rehoming. Theme Studio, arrange mode, registered/config-backed
-pinning, and the Assistant's Desk are complete shared primitives; consume them
-without hardcoding Trenches or Basement navigation.
+Hand each bounded P4 slice back for hostile source and desktop/390 visual QA.
+Theme Studio, arrange mode, registered/config-backed pinning, Assistant's Desk,
+and P3 Window behavior are complete shared primitives.
 
-## PR #101 QA lessons to carry forward
+## PR #101/#102 QA lessons to carry forward
 
 - A local green claim is not proof until a fresh lint/CI run reproduces it.
 - Never display mutation success or clear owner input before the authoritative
@@ -240,3 +240,9 @@ without hardcoding Trenches or Basement navigation.
   ancestor clipping, z-index collisions, or narrow-width presentation defects.
 - Keep diffs reviewable; do not bury a small fixture addition in line-ending
   churn.
+- A test that only proves a destination tab opened is not proof of an exact
+  deep link; assert the requested entity/detail.
+- Preserve owner text typed while an earlier async send is in flight, and use a
+  synchronous lock for same-tick duplicate sends.
+- Visually inspect both light and dark scoped themes; inherited global text can
+  become unreadable when a local surface token changes.
