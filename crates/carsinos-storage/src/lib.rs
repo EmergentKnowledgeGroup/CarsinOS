@@ -14025,7 +14025,9 @@ mod tests {
             })
             .expect("create presence run")
             .expect("presence run exists");
-        storage.mark_run_started(&run.run_id).expect("start presence run");
+        storage
+            .mark_run_started(&run.run_id)
+            .expect("start presence run");
         let busy = storage
             .list_office_floor_presence()
             .expect("list busy presence");
@@ -14034,7 +14036,10 @@ mod tests {
             .find(|item| item.agent_id == "reef-agent")
             .expect("busy agent exists");
         assert_eq!(busy_agent.state, "busy");
-        assert_eq!(busy_agent.target_run_id.as_deref(), Some(run.run_id.as_str()));
+        assert_eq!(
+            busy_agent.target_run_id.as_deref(),
+            Some(run.run_id.as_str())
+        );
     }
 
     #[test]
