@@ -28,7 +28,10 @@ function makeController(
     intakeBusy: false,
     freezeBusy: false,
     conversationalReply: null,
-    resolveAttention: vi.fn().mockResolvedValue(undefined),
+    resolveAttention: vi.fn().mockResolvedValue({
+      ok: true,
+      message: "Revision accepted.",
+    }),
     delegate: vi.fn(),
     converse: vi
       .fn()
@@ -152,6 +155,63 @@ describe("Assistant's Desk slide-over", () => {
     );
   });
 
+  it("does not claim a revision landed when authoritative resolution rejects it", async () => {
+    const controller = makeController({
+      resolveAttention: vi.fn().mockResolvedValue({
+        ok: false,
+        message: "That decision was superseded.",
+      }),
+    });
+    await mount(controller);
+    await click("Let's talk it through");
+    await typeInto("[data-testid='desk-revision'] input", "use the newer plan");
+    await click("Send revision");
+
+    expect(desk()?.textContent).toContain("That decision was superseded.");
+    expect(
+      (
+        document.querySelector(
+          "[data-testid='desk-revision'] input",
+        ) as HTMLInputElement
+      ).value,
+    ).toBe("use the newer plan");
+    expect(desk()?.querySelector(".mc-desk-tag")?.textContent).not.toBe(
+      "revision",
+    );
+  });
+
+  it("submits a revision only once while the authoritative request is pending", async () => {
+    let finish:
+      | ((value: { ok: true; message: string }) => void)
+      | undefined;
+    const pending = new Promise<{ ok: true; message: string }>((resolve) => {
+      finish = resolve;
+    });
+    const resolveAttention = vi.fn().mockReturnValue(pending);
+    const controller = makeController({ resolveAttention });
+    await mount(controller);
+    await click("Let's talk it through");
+    await typeInto("[data-testid='desk-revision'] input", "one revision only");
+    const form = document.querySelector(
+      "[data-testid='desk-revision']",
+    ) as HTMLFormElement;
+
+    await act(async () => {
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    expect(resolveAttention).toHaveBeenCalledTimes(1);
+    expect(
+      form.querySelector<HTMLButtonElement>("button[type='submit']")?.disabled,
+    ).toBe(true);
+
+    await act(async () => {
+      finish?.({ ok: true, message: "Revision accepted." });
+      await pending;
+    });
+    expect(desk()?.textContent).toContain("one revision only");
+  });
+
   it("attaches desk asks to the focused delegation", async () => {
     const controller = makeController();
     await mount(controller);
@@ -217,6 +277,40 @@ describe("Assistant's Desk slide-over", () => {
 
     await click("Walk to the Assistant's Desk");
     expect(desk()?.textContent).toContain("remember this");
+  });
+
+  it("traps focus, inerts the office, and restores the invoking control", async () => {
+    const controller = makeController();
+    await mount(controller);
+    const trigger = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent === "Let's talk it through",
+    ) as HTMLButtonElement;
+    trigger.focus();
+    await act(async () => trigger.click());
+
+    expect(container.inert).toBe(true);
+    const dialog = desk()!;
+    const focusable = Array.from(
+      dialog.querySelectorAll<HTMLElement>(
+        "button:not([disabled]), input:not([disabled])",
+      ),
+    );
+    const last = focusable.at(-1)!;
+    last.focus();
+    await act(async () => {
+      last.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Tab",
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+    expect(document.activeElement).toBe(focusable[0]);
+
+    await click("Back to the office");
+    expect(container.inert).toBe(false);
+    expect(document.activeElement).toBe(trigger);
   });
 
   it("logs delegation-created outcomes as durable work", async () => {

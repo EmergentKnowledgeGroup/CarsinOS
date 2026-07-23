@@ -70,7 +70,7 @@ test("@core @assistant-desk walking over, talking it through, and revising hold 
     "Closing the old Mailchimp account is permanent.",
   );
   await expect(desk).toContainText("Over the shoulder");
-  await expect(desk).toContainText("Plan on record");
+  await expect(desk).toContainText("The plan");
   // The earlier exchange survived the walk back and over again.
   await expect(desk).toContainText("already paid");
 

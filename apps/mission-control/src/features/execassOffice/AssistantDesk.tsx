@@ -47,6 +47,15 @@ type ShoulderState =
   | { kind: "loaded"; detail: DelegationDetail }
   | { kind: "error" };
 
+type ShoulderResult =
+  | {
+      delegationId: string;
+      outcome:
+        | { kind: "loaded"; detail: DelegationDetail }
+        | { kind: "error" };
+    }
+  | null;
+
 function DeskLogEntry(props: { entry: DeskEntry }) {
   const { entry } = props;
   switch (entry.kind) {
@@ -155,9 +164,12 @@ export function AssistantDesk(props: {
   const { controller, state, onStateChange, onClose } = props;
   const [draft, setDraft] = useState("");
   const [revisionDraft, setRevisionDraft] = useState("");
+  const [revisionSending, setRevisionSending] = useState(false);
   const [sending, setSending] = useState(false);
-  const [shoulder, setShoulder] = useState<ShoulderState>({ kind: "idle" });
+  const [shoulderResult, setShoulderResult] = useState<ShoulderResult>(null);
   const composerRef = useRef<HTMLInputElement | null>(null);
+  const revisionInFlightRef = useRef(false);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
   // Portaled out of the office subtree, the desk carries its own glass scope.
   const deskRef = useRef<HTMLElement | null>(null);
   useGlassSurfaceTheme(deskRef);
@@ -168,25 +180,62 @@ export function AssistantDesk(props: {
   );
   const focusVanished = state.focus !== null && focusItem === null;
   const focusedDelegationId = state.focus?.delegation_id ?? null;
+  const shoulder: ShoulderState = !focusedDelegationId
+    ? { kind: "idle" }
+    : shoulderResult?.delegationId === focusedDelegationId
+      ? shoulderResult.outcome
+      : { kind: "loading" };
 
   useEffect(() => {
+    returnFocusRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const backdrop = deskRef.current?.parentElement;
+    const outside = Array.from(document.body.children).filter(
+      (child): child is HTMLElement =>
+        child instanceof HTMLElement && child !== backdrop,
+    );
+    const snapshots = outside.map((element) => ({
+      element,
+      inert: element.inert === true,
+      ariaHidden: element.getAttribute("aria-hidden"),
+    }));
+    for (const { element } of snapshots) {
+      element.inert = true;
+      element.setAttribute("aria-hidden", "true");
+    }
     composerRef.current?.focus();
+    return () => {
+      for (const { element, inert, ariaHidden } of snapshots) {
+        element.inert = inert;
+        if (ariaHidden === null) element.removeAttribute("aria-hidden");
+        else element.setAttribute("aria-hidden", ariaHidden);
+      }
+      returnFocusRef.current?.focus();
+    };
   }, []);
 
   useEffect(() => {
-    if (!focusedDelegationId) {
-      setShoulder({ kind: "idle" });
-      return;
-    }
+    if (!focusedDelegationId) return;
     let cancelled = false;
-    setShoulder({ kind: "loading" });
     controller
       .loadDelegationDetail(focusedDelegationId)
       .then((detail) => {
-        if (!cancelled) setShoulder({ kind: "loaded", detail });
+        if (!cancelled) {
+          setShoulderResult({
+            delegationId: focusedDelegationId,
+            outcome: { kind: "loaded", detail },
+          });
+        }
       })
       .catch(() => {
-        if (!cancelled) setShoulder({ kind: "error" });
+        if (!cancelled) {
+          setShoulderResult({
+            delegationId: focusedDelegationId,
+            outcome: { kind: "error" },
+          });
+        }
       });
     return () => {
       cancelled = true;
@@ -231,19 +280,64 @@ export function AssistantDesk(props: {
     async (event: FormEvent) => {
       event.preventDefault();
       const text = revisionDraft.trim();
-      if (!text || !focusItem) return;
-      setRevisionDraft("");
-      append(revisionSentEntry(text, { id: newId(), atMs: Date.now() }));
-      await controller.resolveAttention(focusItem, "revise", text);
+      if (
+        !text ||
+        !focusItem ||
+        revisionSending ||
+        revisionInFlightRef.current
+      ) {
+        return;
+      }
+      revisionInFlightRef.current = true;
+      setRevisionSending(true);
+      try {
+        const outcome = await controller.resolveAttention(
+          focusItem,
+          "revise",
+          text,
+        );
+        if (outcome.ok) {
+          setRevisionDraft("");
+          append(revisionSentEntry(text, { id: newId(), atMs: Date.now() }));
+        } else {
+          append(noteEntry(outcome.message, { id: newId(), atMs: Date.now() }));
+        }
+      } finally {
+        revisionInFlightRef.current = false;
+        setRevisionSending(false);
+      }
     },
-    [append, controller, focusItem, revisionDraft],
+    [append, controller, focusItem, revisionDraft, revisionSending],
   );
 
   const onKeyDown = useCallback(
     (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        event.preventDefault();
         event.stopPropagation();
         onClose();
+        return;
+      }
+      if (event.key === "Tab" && deskRef.current) {
+        const focusable = Array.from(
+          deskRef.current.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          ),
+        );
+        if (focusable.length === 0) {
+          event.preventDefault();
+          deskRef.current.focus();
+          return;
+        }
+        const first = focusable[0]!;
+        const last = focusable[focusable.length - 1]!;
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
       }
     },
     [onClose],
@@ -261,12 +355,13 @@ export function AssistantDesk(props: {
         aria-label="The Assistant's Desk"
         data-testid="assistant-desk"
         className="mc-desk"
+        tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
         onKeyDown={onKeyDown}
       >
         <header className="mc-desk-header">
           <span className="mc-desk-title">The Assistant&apos;s Desk</span>
-          <span className="mc-desk-presence">● ExecAss is at the desk</span>
+          <span className="mc-desk-presence">Conversation with ExecAss</span>
           <button
             type="button"
             className="mc-desk-close"
@@ -315,8 +410,11 @@ export function AssistantDesk(props: {
                     aria-label="Revise this decision"
                     onChange={(event) => setRevisionDraft(event.target.value)}
                   />
-                  <button type="submit" disabled={!revisionDraft.trim()}>
-                    Send revision
+                  <button
+                    type="submit"
+                    disabled={revisionSending || !revisionDraft.trim()}
+                  >
+                    {revisionSending ? "Sending..." : "Send revision"}
                   </button>
                 </form>
               </article>

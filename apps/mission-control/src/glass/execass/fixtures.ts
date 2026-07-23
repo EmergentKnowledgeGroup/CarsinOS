@@ -366,7 +366,6 @@ export function fixtureDelegationDetailResponse(
     },
   };
 }
-
 export function fixtureDecisionProofBinding(
   overrides: Partial<LocalDecisionProofBinding> = {},
 ): LocalDecisionProofBinding {

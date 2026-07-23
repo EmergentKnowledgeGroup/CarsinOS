@@ -10893,7 +10893,7 @@ p.mc-theme-errors { padding: 0; list-style: none; }
 .mc-theme-transfer .mc-theme-editor-actions { margin-top: 8px; }
 
 /* ── Glass Office · the Assistant's Desk (slide-over destination) ───── */
-.mc-desk-backdrop { position: fixed; inset: 0; z-index: 70; background: rgba(12, 12, 15, 0.35); backdrop-filter: blur(2px); }
+.mc-desk-backdrop { position: fixed; inset: 0; z-index: 10000; background: rgba(12, 12, 15, 0.35); backdrop-filter: blur(2px); }
 .mc-desk { position: fixed; top: 0; right: 0; bottom: 0; width: min(780px, 96vw); display: flex; flex-direction: column; background: var(--surface, var(--mc-surface, #171717)); color: var(--ink, inherit); border-left: 1px solid var(--line, var(--mc-border, #2a2a2e)); box-shadow: var(--shadow-pop, 0 24px 60px rgba(0,0,0,.4)); animation: mc-desk-walk-over 240ms cubic-bezier(0.22, 1, 0.36, 1); }
 @keyframes mc-desk-walk-over { from { transform: translateX(24px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .mc-desk { animation: none; } }
