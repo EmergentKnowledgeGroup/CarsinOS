@@ -114,28 +114,27 @@ async function render(controller: StrategyController) {
 }
 
 describe("StrategyPage Trenches parity", () => {
-  it("keeps all five Strategy sections reachable and offers Pin to Office without mutations", async () => {
+  it("renders distinct content for all five Strategy sections and pins without mutations", async () => {
     const { controller, mutations } = stubController();
     await render(controller);
 
     const sections = [
-      "Overview",
-      "Goals & Projects",
-      "Tasks",
-      "Task Detail",
-      "Insights",
+      ["Overview", "strategy-panel-overview", "Blocked Work"],
+      ["Goals & Projects", "strategy-panel-plan", "Goals + Projects"],
+      ["Tasks", "strategy-panel-tasks", "No tasks match"],
+      ["Task Detail", "strategy-panel-detail", "Select a project"],
+      ["Insights", "strategy-panel-insights", "Spend by Agent"],
     ];
-    for (const label of sections) {
+    for (const [label, panelId, expectedContent] of sections) {
       const tab = Array.from(
         container.querySelectorAll<HTMLButtonElement>('[role="tab"]'),
       ).find((candidate) => candidate.textContent === label);
       expect(tab, `missing section tab ${label}`).toBeTruthy();
       await act(async () => tab!.click());
       expect(tab!.getAttribute("aria-selected")).toBe("true");
-      expect(
-        container.querySelector('[role="tabpanel"]'),
-        `section ${label} rendered no panel`,
-      ).not.toBeNull();
+      const panel = container.querySelector(`#${panelId}`);
+      expect(panel, `section ${label} rendered no exact panel`).not.toBeNull();
+      expect(panel?.textContent).toContain(expectedContent);
     }
 
     const pin = Array.from(container.querySelectorAll("button")).find(
@@ -149,6 +148,131 @@ describe("StrategyPage Trenches parity", () => {
     for (const mutation of Object.values(mutations)) {
       expect(mutation).not.toHaveBeenCalled();
     }
+  });
+
+  it("preserves the overview summary lens and goal creation mutation", async () => {
+    const { controller, mutations } = stubController();
+    await render(controller);
+
+    const clickButton = async (label: string) => {
+      const button = Array.from(container.querySelectorAll("button")).find(
+        (candidate) => candidate.textContent?.includes(label),
+      );
+      expect(button, `missing button ${label}`).toBeTruthy();
+      await act(async () => button!.click());
+    };
+    await clickButton("Overview");
+    await clickButton("Blocked Work");
+    expect(controller.applySummaryLens).toHaveBeenCalledWith("blocked");
+    expect(container.querySelector("#strategy-panel-tasks")).not.toBeNull();
+
+    await clickButton("Goals & Projects");
+    await clickButton("New Goal");
+    const setLabeledInput = async (labelText: string, value: string) => {
+      const label = Array.from(container.querySelectorAll("label")).find(
+        (candidate) => candidate.textContent?.includes(labelText),
+      );
+      const input = label?.querySelector("input");
+      expect(input, `missing input ${labelText}`).toBeTruthy();
+      const setter = Object.getOwnPropertyDescriptor(
+        Object.getPrototypeOf(input),
+        "value",
+      )?.set;
+      setter?.call(input, value);
+      await act(async () => {
+        input!.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    };
+    await setLabeledInput("Slug", "owner-goal");
+    await setLabeledInput("Title", "Owner Goal");
+    await clickButton("Save Goal");
+    expect(mutations.createGoal).toHaveBeenCalledWith(
+      expect.objectContaining({ slug: "owner-goal", title: "Owner Goal" }),
+    );
+  });
+
+  it("preserves project and task creation through their real forms", async () => {
+    const goal = {
+      goal_id: "goal-1",
+      slug: "owner-goal",
+      title: "Owner Goal",
+      summary: "",
+      status: "active",
+      owner_agent_id: null,
+      progress_pct: 0,
+    };
+    const project = {
+      project_id: "project-1",
+      goal_id: goal.goal_id,
+      slug: "office",
+      name: "Glass Office",
+      summary: "",
+      status: "active",
+      owner_agent_id: null,
+      budget_month_usd: null,
+    };
+    const { controller, mutations } = stubController({
+      goals: [goal],
+      goalById: new Map([[goal.goal_id, goal]]),
+      selectedGoalId: goal.goal_id,
+      selectedGoal: goal,
+      projects: [project],
+      projectById: new Map([[project.project_id, project]]),
+      projectsForSelectedGoal: [project],
+      selectedProjectId: project.project_id,
+      selectedProject: project,
+    });
+    mutations.createTask.mockResolvedValue({
+      task: { task_id: "task-new" },
+    });
+    await render(controller);
+
+    const clickButton = async (label: string) => {
+      const button = Array.from(container.querySelectorAll("button")).find(
+        (candidate) => candidate.textContent?.includes(label),
+      );
+      expect(button, `missing button ${label}`).toBeTruthy();
+      await act(async () => button!.click());
+    };
+    const setLabeledInput = async (labelText: string, value: string) => {
+      const label = Array.from(container.querySelectorAll("label")).find(
+        (candidate) => candidate.textContent?.trim().startsWith(labelText),
+      );
+      const input = label?.querySelector("input");
+      expect(input, `missing input ${labelText}`).toBeTruthy();
+      const setter = Object.getOwnPropertyDescriptor(
+        Object.getPrototypeOf(input),
+        "value",
+      )?.set;
+      setter?.call(input, value);
+      await act(async () => {
+        input!.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    };
+
+    await clickButton("Goals & Projects");
+    await clickButton("New Project");
+    await setLabeledInput("Slug", "review");
+    await setLabeledInput("Name", "Review Throughput");
+    await clickButton("Save Project");
+    expect(mutations.createProject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        goal_id: goal.goal_id,
+        slug: "review",
+        name: "Review Throughput",
+      }),
+    );
+
+    await clickButton("Tasks");
+    await clickButton("New Task");
+    await setLabeledInput("Title", "Verify the room");
+    await clickButton("Create Task");
+    expect(mutations.createTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        project_id: project.project_id,
+        title: "Verify the room",
+      }),
+    );
   });
 
   it("keeps the honest disabled state when the Strategy hub is off", async () => {

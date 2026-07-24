@@ -115,6 +115,10 @@ test("@core @p4-strategy plan parity, pin-to-office, and the office shortcut hol
   await expect(
     page.getByTestId("office-block-strategy").getByRole("status"),
   ).toHaveText("Unavailable — turn on in Config");
+  await page.screenshot({
+    path: "../../runtime/qa/p4-strategy-slice/strategy-disabled-door.png",
+    fullPage: true,
+  });
 
   // Restore the floor for the narrow-width proof.
   await page.evaluate(() => {
@@ -125,6 +129,18 @@ test("@core @p4-strategy plan parity, pin-to-office, and the office shortcut hol
     window.dispatchEvent(new Event("mc-glass-config-changed"));
   });
   await expect(page.locator('button[title="2F · Plan"]')).toHaveCount(1);
+  await expect(
+    page.getByTestId("office-block-strategy").getByRole("status"),
+  ).toHaveCount(0);
+  await expect(
+    page
+      .getByTestId("office-block-strategy")
+      .getByRole("button", { name: "Open Plan" }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "../../runtime/qa/p4-strategy-slice/strategy-restored-door.png",
+    fullPage: true,
+  });
 
   // Narrow width: the Plan room keeps a readable mark, the pin stays
   // reachable, and nothing overflows horizontally.

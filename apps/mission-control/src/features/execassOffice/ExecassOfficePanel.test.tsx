@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { fixtureSummaryResponse } from "../../glass/execass/fixtures";
 import { ExecassOfficePanel } from "./ExecassOfficePanel";
+import { GLASS_CONFIG_EVENT } from "../../glass/config";
 import { pinRoomBlocksToOffice } from "./pinToOffice";
 import type { ExecassOfficeController } from "./useExecassOfficeController";
 
@@ -115,6 +116,11 @@ describe("ExecassOfficePanel room shortcuts", () => {
     expect(block?.querySelector('[role="status"]')?.textContent).toContain(
       "Unavailable — turn on in Config",
     );
+    await act(async () => {
+      window.dispatchEvent(new Event(GLASS_CONFIG_EVENT));
+    });
+    expect(block?.querySelector('[role="status"]')).toBeNull();
+    expect(open?.textContent).toContain("Open Calendar");
   });
 });
 

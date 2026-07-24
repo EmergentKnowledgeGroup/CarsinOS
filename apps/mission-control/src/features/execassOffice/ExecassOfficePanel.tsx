@@ -7,6 +7,7 @@
 
 import {
   useCallback,
+  useEffect,
   useRef,
   useState,
   type FormEvent,
@@ -14,6 +15,7 @@ import {
 } from "react";
 
 import { useGlassSurfaceTheme } from "../../glass/useGlassSurfaceTheme";
+import { GLASS_CONFIG_EVENT } from "../../glass/config";
 
 import { DEFAULT_FLOORS, findRoom } from "../../glass/floors";
 
@@ -265,6 +267,12 @@ function RoomShortcutBody(props: {
   onOpenRoom: (roomId: string) => boolean | void;
 }) {
   const [unavailable, setUnavailable] = useState(false);
+  useEffect(() => {
+    const clearStaleAvailability = () => setUnavailable(false);
+    window.addEventListener(GLASS_CONFIG_EVENT, clearStaleAvailability);
+    return () =>
+      window.removeEventListener(GLASS_CONFIG_EVENT, clearStaleAvailability);
+  }, [props.def.roomId]);
   const found = props.def.roomId
     ? findRoom(DEFAULT_FLOORS, props.def.roomId)
     : undefined;
