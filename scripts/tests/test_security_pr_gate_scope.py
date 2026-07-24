@@ -1,8 +1,10 @@
 import unittest
+from unittest.mock import Mock, patch
 
 from scripts.security_pr_gate_scope import (
     evaluate,
     evaluate_github_files,
+    main,
     security_relevant_path,
 )
 
@@ -71,6 +73,32 @@ class SecurityPrGateScopeTests(unittest.TestCase):
         )
         self.assertTrue(required)
         self.assertIn("3001", explanation)
+
+    def test_malformed_github_file_records_fail_safe(self) -> None:
+        for record in (
+            {},
+            {"filename": ""},
+            {"filename": 12},
+            {"filename": "docs/ui.md", "previous_filename": ""},
+            {"filename": "docs/ui.md", "previous_filename": 12},
+        ):
+            with self.subTest(record=record):
+                required, explanation = evaluate_github_files(
+                    [[record]], expected_count=1
+                )
+                self.assertTrue(required)
+                self.assertIn("malformed", explanation)
+
+    def test_stdin_decode_failure_fails_safe(self) -> None:
+        decode_error = UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid")
+        with (
+            patch("sys.argv", ["security_pr_gate_scope.py"]),
+            patch(
+                "scripts.security_pr_gate_scope.sys.stdin",
+                Mock(read=Mock(side_effect=decode_error)),
+            ),
+        ):
+            self.assertEqual(main(), 0)
 
 
 if __name__ == "__main__":

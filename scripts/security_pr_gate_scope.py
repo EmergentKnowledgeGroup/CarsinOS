@@ -80,9 +80,16 @@ def evaluate_github_files(
     for item in files:
         filename = item.get("filename")
         previous_filename = item.get("previous_filename")
-        if isinstance(filename, str) and filename.strip():
-            paths.append(filename)
-        if isinstance(previous_filename, str) and previous_filename.strip():
+        if not isinstance(filename, str) or not filename.strip():
+            return True, "GitHub returned a malformed filename; running heavy fail-safe."
+        if previous_filename is not None and (
+            not isinstance(previous_filename, str) or not previous_filename.strip()
+        ):
+            return True, (
+                "GitHub returned a malformed previous filename; running heavy fail-safe."
+            )
+        paths.append(filename)
+        if previous_filename is not None:
             paths.append(previous_filename)
     return evaluate(paths)
 
@@ -98,12 +105,17 @@ def main() -> int:
             parser.error("--expected-count is required with --github-files-json")
         try:
             payload = json.loads(args.github_files_json.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as error:
+        except (OSError, UnicodeError, json.JSONDecodeError) as error:
             print(f"Could not read GitHub's PR file list ({error}); running heavy fail-safe.")
             return 0
         required, explanation = evaluate_github_files(payload, args.expected_count)
     else:
-        required, explanation = evaluate(sys.stdin.read().splitlines())
+        try:
+            paths = sys.stdin.read().splitlines()
+        except UnicodeError as error:
+            print(f"Could not decode changed paths ({error}); running heavy fail-safe.")
+            return 0
+        required, explanation = evaluate(paths)
     print(explanation)
     return 0 if required else 1
 
