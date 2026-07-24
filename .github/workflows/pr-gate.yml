@@ -35,12 +35,20 @@ jobs:
             exit 0
           fi
 
-          changed_files="$(
-            gh api --paginate \
-              "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
-              --jq '.[].filename'
-          )"
-          if explanation="$(printf '%s\n' "${changed_files}" | python3 scripts/security_pr_gate_scope.py)"; then
+          files_json="${RUNNER_TEMP}/carsinos-pr-files.json"
+          if ! gh api --paginate --slurp \
+            "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            > "${files_json}"; then
+            echo "security_required=true" >> "${GITHUB_OUTPUT}"
+            echo "Could not retrieve the PR file list; running the full security gate fail-safe."
+            exit 0
+          fi
+
+          if explanation="$(
+            python3 scripts/security_pr_gate_scope.py \
+              --github-files-json "${files_json}" \
+              --expected-count "${{ github.event.pull_request.changed_files }}"
+          )"; then
             echo "security_required=true" >> "${GITHUB_OUTPUT}"
           else
             status=$?
