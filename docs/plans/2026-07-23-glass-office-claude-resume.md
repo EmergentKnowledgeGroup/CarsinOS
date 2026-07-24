@@ -3,18 +3,19 @@
 This is the single resume document for Claude after backend/ExecAss PR #98,
 Glass Office foundations PR #99, foundation UX PR #100, Assistant's Desk
 PR #101, P3 experiential PR #102, Boards PR #103, Calendar PR #104, and the
-Plan/Strategy candidate slice.
+Plan/Strategy PR #106.
 
 ## Resume point
 
 - Workspace: `Z:\carsinos-clean`
-- Branch: `codex/glass-office-p4-strategy`
-- Base/merged head: `451430165b3646dbafbb6b0953b1c9ec68df5503`
+- Branch: `codex/glass-office-p4-staff`
+- Base/merged head: `6806f4709eae98f9636324314ee63549186f0cbb`
 - Checkpoint track: `GLASS_OFFICE_P4_TRENCHES WORK`
-- Repository state at handoff refresh: PR #105's path-aware required Security
-  gate is merged into `main`; the Plan/Strategy candidate includes that exact
-  baseline plus hostile-QA corrections. Do not begin Staff Directory until the
-  Strategy PR is green and merged. The pre-existing root `node_modules/`
+- Repository state at handoff refresh: Plan/Strategy PR #106 is merged green
+  into `main` at the exact base above after hostile-QA corrections. PR #105's
+  path-aware required Security gate is also merged and proved the frontend-only
+  follow-up path in 8 seconds without installing or testing Rust. Staff
+  Directory may begin from this branch. The pre-existing root `node_modules/`
   remains untracked and must not be staged.
 - Old `Z:\carsinos` tree: DEV/history only; do not implement there
 
@@ -64,11 +65,12 @@ Do not rebuild or replace these:
   Schedule, Active Jobs, heartbeat setup, job controls, Strategy context, and
   Runbook links remain on the original Calendar surface. Its registry shortcut
   returns by stable room ID and visibly refuses if Trenches is later disabled.
-- Plan/Strategy is the third parity-proven P4 room in the current candidate.
+- Plan/Strategy is the third parity-proven P4 room, merged in PR #106.
   Its five distinct surfaces, summary lenses, Goal/Project/Task mutations,
   linked runtime context, draft protections, and in-page disabled state remain
   on the original Strategy surface. Its registry block is `strategy` while its
-  stable room ID is `plan`.
+  stable room ID is `plan`. Its Office shortcut also clears stale unavailable
+  feedback immediately when its floor is restored.
 - The Assistant's Desk slide-over: persona/decision entry, sitting-only
   conversation, real signed intake attachment, live decision lookup, real
   revise resolution, delegation detail over the shoulder, vanished-decision
@@ -151,7 +153,7 @@ Rehome existing capabilities without losing parity:
 
 - Boards — complete in PR #103
 - Calendar — complete in PR #104
-- Plan/Strategy — complete in the current candidate
+- Plan/Strategy — complete in PR #106
 - Staff Directory
 - History & Receipts / Runbook
 
@@ -160,7 +162,7 @@ shared-route lamp ownership, resolved-registry keyboard jumps, live external
 pin synchronization, honest pin failure/full-canvas states, and narrow-width
 room marks. Extend that path; do not create another navigation mechanism.
 
-After the Strategy PR merges, the next bounded slice is Staff Directory.
+The next bounded slice is Staff Directory.
 Preserve the existing Team surface: Agents; People & Routing; strategy-gated
 Presets and Org; create/edit/remove agent behavior; routing assignments; role
 cards and existing memory bindings.
@@ -242,9 +244,9 @@ Before PR:
 
 ## First implementation command
 
-After confirming the Strategy PR is merged, branching from its exact `main`
-merge commit, reading the references, and writing the phase-start checkpoint,
-implement Staff Directory as the fourth parity-proven P4 room slice:
+From the exact merged head and Staff branch above, read the references, write
+the phase-start checkpoint, and implement Staff Directory as the fourth
+parity-proven P4 room slice:
 
 1. Re-run the Strategy regression anchors: five exact surfaces, real mutation
    anchors, stable Plan lamp, pin/repeat, disabled/restored-floor shortcut
