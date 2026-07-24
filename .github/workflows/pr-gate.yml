@@ -12,6 +12,7 @@ concurrency:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   security-pr-gate:
@@ -22,13 +23,44 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Detect Rust and security-sensitive changes
+        id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "security_required=true" >> "${GITHUB_OUTPUT}"
+            echo "Manual run requested; running the full security gate."
+            exit 0
+          fi
+
+          changed_files="$(
+            gh api --paginate \
+              "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+              --jq '.[].filename'
+          )"
+          if explanation="$(printf '%s\n' "${changed_files}" | python3 scripts/security_pr_gate_scope.py)"; then
+            echo "security_required=true" >> "${GITHUB_OUTPUT}"
+          else
+            status=$?
+            if [[ "${status}" -ne 1 ]]; then
+              exit "${status}"
+            fi
+            echo "security_required=false" >> "${GITHUB_OUTPUT}"
+          fi
+          echo "${explanation}"
+
       - name: Install Rust toolchain
+        if: steps.scope.outputs.security_required == 'true'
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache cargo and target
+        if: steps.scope.outputs.security_required == 'true'
         uses: Swatinem/rust-cache@v2
 
       - name: Ensure cargo-audit is installed (pinned)
+        if: steps.scope.outputs.security_required == 'true'
         run: |
           set -euo pipefail
           required_version="0.22.2"
@@ -38,4 +70,9 @@ jobs:
           fi
 
       - name: Run security PR gate
+        if: steps.scope.outputs.security_required == 'true'
         run: scripts/security_pr_gate.sh
+
+      - name: Record scoped skip
+        if: steps.scope.outputs.security_required == 'false'
+        run: echo "Security PR Gate passed without Rust rebuild; no security-sensitive files changed."
