@@ -2,19 +2,20 @@
 
 This is the single resume document for Claude after backend/ExecAss PR #98,
 Glass Office foundations PR #99, foundation UX PR #100, Assistant's Desk
-PR #101, P3 experiential PR #102, the first P4 Trenches room slice PR #103,
-and the Calendar room slice in PR #104.
+PR #101, P3 experiential PR #102, Boards PR #103, Calendar PR #104, and the
+Plan/Strategy candidate slice.
 
 ## Resume point
 
 - Workspace: `Z:\carsinos-clean`
-- Branch: `codex/glass-office-p4-calendar`
-- PR #104 base/last merged head: `0bbd65d4358ef78d557ebf1cc68775e2d7e521c1`
+- Branch: `codex/glass-office-p4-strategy`
+- Base/merged head: `451430165b3646dbafbb6b0953b1c9ec68df5503`
 - Checkpoint track: `GLASS_OFFICE_P4_TRENCHES WORK`
-- Repository state at handoff refresh: PR #103 is merged into `main`; PR #104
-  contains the Calendar slice and its hostile-QA correction. Do not resume
-  implementation until PR #104 is green and merged. The pre-existing root
-  `node_modules/` remains untracked and must not be staged.
+- Repository state at handoff refresh: PR #105's path-aware required Security
+  gate is merged into `main`; the Plan/Strategy candidate includes that exact
+  baseline plus hostile-QA corrections. Do not begin Staff Directory until the
+  Strategy PR is green and merged. The pre-existing root `node_modules/`
+  remains untracked and must not be staged.
 - Old `Z:\carsinos` tree: DEV/history only; do not implement there
 
 Start with:
@@ -59,10 +60,15 @@ Do not rebuild or replace these:
   toolbar/controller/mutations remain intact; Pin to Office reveals a real
   registry shortcut block that walks back to the Boards room without copying
   board data. External pin/config changes update the mounted Office canvas.
-- Calendar is the second parity-proven P4 room in PR #104. Week View,
+- Calendar is the second parity-proven P4 room, merged in PR #104. Week View,
   Schedule, Active Jobs, heartbeat setup, job controls, Strategy context, and
   Runbook links remain on the original Calendar surface. Its registry shortcut
   returns by stable room ID and visibly refuses if Trenches is later disabled.
+- Plan/Strategy is the third parity-proven P4 room in the current candidate.
+  Its five distinct surfaces, summary lenses, Goal/Project/Task mutations,
+  linked runtime context, draft protections, and in-page disabled state remain
+  on the original Strategy surface. Its registry block is `strategy` while its
+  stable room ID is `plan`.
 - The Assistant's Desk slide-over: persona/decision entry, sitting-only
   conversation, real signed intake attachment, live decision lookup, real
   revise resolution, delegation detail over the shoulder, vanished-decision
@@ -145,7 +151,7 @@ Rehome existing capabilities without losing parity:
 
 - Boards — complete in PR #103
 - Calendar — complete in PR #104
-- Plan/Strategy
+- Plan/Strategy — complete in the current candidate
 - Staff Directory
 - History & Receipts / Runbook
 
@@ -154,10 +160,10 @@ shared-route lamp ownership, resolved-registry keyboard jumps, live external
 pin synchronization, honest pin failure/full-canvas states, and narrow-width
 room marks. Extend that path; do not create another navigation mechanism.
 
-After PR #104 merges, the next bounded slice is Plan/Strategy. Preserve its
-existing Overview, Goals & Projects, Tasks, Task Detail, and Insights surfaces;
-draft-discard guards; goal/project/task mutations; summary lenses; Board and
-Calendar links; and Runbook context.
+After the Strategy PR merges, the next bounded slice is Staff Directory.
+Preserve the existing Team surface: Agents; People & Routing; strategy-gated
+Presets and Org; create/edit/remove agent behavior; routing assignments; role
+cards and existing memory bindings.
 
 Important boundaries:
 
@@ -236,25 +242,27 @@ Before PR:
 
 ## First implementation command
 
-After reading the references, confirming PR #104 is merged, branching from its
-exact `main` merge commit, and writing the phase-start checkpoint, implement
-Plan/Strategy as the third parity-proven P4 room slice:
+After confirming the Strategy PR is merged, branching from its exact `main`
+merge commit, reading the references, and writing the phase-start checkpoint,
+implement Staff Directory as the fourth parity-proven P4 room slice:
 
-1. Re-run the Calendar regression anchors from PR #104: all three surfaces,
-   existing job/heartbeat/integration coverage, stable Calendar lamp, pin and
-   repeat-pin truth, disabled-Trenches shortcut refusal, exact return, reload,
-   desktop, and 390px.
-2. Lock parity tests around Strategy's Overview, Goals & Projects, Tasks, Task
-   Detail, and Insights surfaces plus its draft guards, mutations, summary
-   lenses, and existing linked-work destinations before presentation changes.
-3. Register a hidden-by-default `plan` room-shortcut Office block using the
-   existing `plan` room ID and the shared resolved `onRoomSelect` path.
-4. Add `PinRoomToOffice roomId="plan"` to the existing Strategy surface. Do
-   not copy Strategy data, duplicate a mutation, or create another navigation
-   mechanism.
-5. Prove pin success/repeat/failure, live mounted-Office synchronization,
-   disabled-floor refusal, exact room return, stable lamp identity, desktop,
-   390px, console cleanliness, and no horizontal overflow.
+1. Re-run the Strategy regression anchors: five exact surfaces, real mutation
+   anchors, stable Plan lamp, pin/repeat, disabled/restored-floor shortcut
+   truth, exact return, reload, desktop, and 390px.
+2. Lock parity around Team's Agents and People & Routing surfaces plus the
+   strategy-gated Presets and Org surfaces; create/edit/remove behavior; routing
+   assignment; role cards; and existing memory-binding presentation.
+3. Register a hidden-by-default `staff` room-shortcut block with `id: "staff"`
+   and `roomId: "staff"`, using the shared resolved `onRoomSelect` path.
+4. Add `PinRoomToOffice roomId="staff"` to the existing Team surface without
+   copying agent data or duplicating any Team mutation.
+5. Show only authoritative persistent agents as staff. Preserve the existing
+   permanent-agent Org view, but do not label any agent as a temporary worker,
+   create task-worker chips, or infer worker lineage from names or
+   `reports_to_agent_id`.
+6. Prove parity, pin success/repeat/failure, live Office synchronization,
+   disabled/restored-floor truth, exact room return, stable lamp identity,
+   desktop, 390px, console cleanliness, and no horizontal overflow.
 
 Hand each bounded P4 slice back for hostile source and desktop/390 visual QA.
 Theme Studio, arrange mode, registered/config-backed pinning, Assistant's Desk,
@@ -281,6 +289,8 @@ and P3 Window behavior are complete shared primitives.
 - A persisted shortcut may outlive a floor override. Resolved room selection
   must return rejection to its caller, and the small Office block must show the
   refusal inside its visible bounds.
+- A config change must also clear stale shortcut refusal feedback immediately;
+  re-enabling a floor may not leave an enabled door labeled unavailable.
 - Preserve owner text typed while an earlier async send is in flight, and use a
   synchronous lock for same-tick duplicate sends.
 - Visually inspect both light and dark scoped themes; inherited global text can

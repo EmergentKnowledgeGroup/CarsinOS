@@ -66,7 +66,7 @@ describe("PinRoomToOffice", () => {
   });
 
   it("renders nothing for rooms that cannot be pinned yet", async () => {
-    await render("plan");
+    await render("staff");
     expect(container.querySelector("button")).toBeNull();
   });
 

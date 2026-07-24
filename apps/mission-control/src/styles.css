@@ -10857,6 +10857,8 @@ button.danger:hover {
 /* ── Trenches · pin to office ──────────────────────────────────────── */
 .mc-cal-tabs-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .mc-cal-tabs-row .mc-sub-tabs { flex: 1 1 auto; min-width: 0; }
+.mc-room-tabs-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.mc-room-tabs-row .mc-page-section-tabs { flex: 1 1 auto; min-width: 0; }
 .mc-pin-to-office { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .mc-pin-to-office-button { padding: 5px 11px; border-radius: 99px; border: 1px solid var(--line, var(--mc-border, #2a2a2e)); background: none; color: var(--ink-soft, var(--mc-text-soft, #9aa1a5)); font-size: 12px; cursor: pointer; white-space: nowrap; }
 .mc-pin-to-office-button:hover, .mc-pin-to-office-button:focus-visible { border-color: var(--claw, #e8541b); color: var(--claw, #e8541b); }

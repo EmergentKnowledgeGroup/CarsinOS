@@ -18,6 +18,7 @@ import type {
   TaskResponse,
 } from "../../types";
 import { formatRelative, fromInputDateTimeValue, toInputDateTimeValue } from "../../utils/datetime";
+import { PinRoomToOffice } from "../execassOffice/PinRoomToOffice";
 import { RunbookLinkPanel } from "../runbook/RunbookLinkPanel";
 import {
   isGoalDraftDirty,
@@ -587,6 +588,7 @@ export function StrategyPage({
 
   return (
     <section className="mc-strategy-page" data-testid="strategy-page">
+      <div className="mc-room-tabs-row">
       <div className="mc-page-section-tabs" aria-label="Strategy sections" role="tablist">
         <button
           type="button"
@@ -643,6 +645,8 @@ export function StrategyPage({
         >
           Insights
         </button>
+      </div>
+      <PinRoomToOffice roomId="plan" />
       </div>
 
       {activeSection === "overview" ? (
