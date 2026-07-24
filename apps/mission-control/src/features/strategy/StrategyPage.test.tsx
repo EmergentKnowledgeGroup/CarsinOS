@@ -113,6 +113,30 @@ async function render(controller: StrategyController) {
   });
 }
 
+async function clickButton(label: string) {
+  const button = Array.from(container.querySelectorAll("button")).find(
+    (candidate) => candidate.textContent?.includes(label),
+  );
+  expect(button, `missing button ${label}`).toBeTruthy();
+  await act(async () => button!.click());
+}
+
+async function setLabeledInput(labelText: string, value: string) {
+  const label = Array.from(container.querySelectorAll("label")).find(
+    (candidate) => candidate.textContent?.trim().startsWith(labelText),
+  );
+  const input = label?.querySelector("input");
+  expect(input, `missing input ${labelText}`).toBeTruthy();
+  const setter = Object.getOwnPropertyDescriptor(
+    Object.getPrototypeOf(input),
+    "value",
+  )?.set;
+  setter?.call(input, value);
+  await act(async () => {
+    input!.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
 describe("StrategyPage Trenches parity", () => {
   it("renders distinct content for all five Strategy sections and pins without mutations", async () => {
     const { controller, mutations } = stubController();
@@ -154,13 +178,6 @@ describe("StrategyPage Trenches parity", () => {
     const { controller, mutations } = stubController();
     await render(controller);
 
-    const clickButton = async (label: string) => {
-      const button = Array.from(container.querySelectorAll("button")).find(
-        (candidate) => candidate.textContent?.includes(label),
-      );
-      expect(button, `missing button ${label}`).toBeTruthy();
-      await act(async () => button!.click());
-    };
     await clickButton("Overview");
     await clickButton("Blocked Work");
     expect(controller.applySummaryLens).toHaveBeenCalledWith("blocked");
@@ -168,21 +185,6 @@ describe("StrategyPage Trenches parity", () => {
 
     await clickButton("Goals & Projects");
     await clickButton("New Goal");
-    const setLabeledInput = async (labelText: string, value: string) => {
-      const label = Array.from(container.querySelectorAll("label")).find(
-        (candidate) => candidate.textContent?.includes(labelText),
-      );
-      const input = label?.querySelector("input");
-      expect(input, `missing input ${labelText}`).toBeTruthy();
-      const setter = Object.getOwnPropertyDescriptor(
-        Object.getPrototypeOf(input),
-        "value",
-      )?.set;
-      setter?.call(input, value);
-      await act(async () => {
-        input!.dispatchEvent(new Event("input", { bubbles: true }));
-      });
-    };
     await setLabeledInput("Slug", "owner-goal");
     await setLabeledInput("Title", "Owner Goal");
     await clickButton("Save Goal");
@@ -226,29 +228,6 @@ describe("StrategyPage Trenches parity", () => {
       task: { task_id: "task-new" },
     });
     await render(controller);
-
-    const clickButton = async (label: string) => {
-      const button = Array.from(container.querySelectorAll("button")).find(
-        (candidate) => candidate.textContent?.includes(label),
-      );
-      expect(button, `missing button ${label}`).toBeTruthy();
-      await act(async () => button!.click());
-    };
-    const setLabeledInput = async (labelText: string, value: string) => {
-      const label = Array.from(container.querySelectorAll("label")).find(
-        (candidate) => candidate.textContent?.trim().startsWith(labelText),
-      );
-      const input = label?.querySelector("input");
-      expect(input, `missing input ${labelText}`).toBeTruthy();
-      const setter = Object.getOwnPropertyDescriptor(
-        Object.getPrototypeOf(input),
-        "value",
-      )?.set;
-      setter?.call(input, value);
-      await act(async () => {
-        input!.dispatchEvent(new Event("input", { bubbles: true }));
-      });
-    };
 
     await clickButton("Goals & Projects");
     await clickButton("New Project");
