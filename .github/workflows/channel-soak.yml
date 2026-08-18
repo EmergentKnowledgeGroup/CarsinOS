@@ -1,0 +1,116 @@
+name: Channel Soak Slice
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run in dry-run mode (no gateway calls)"
+        required: true
+        default: "true"
+      run_telegram:
+        description: "Include Telegram probes"
+        required: true
+        default: "true"
+      run_discord:
+        description: "Include Discord probes"
+        required: true
+        default: "true"
+      iterations:
+        description: "Optional fixed iteration count (leave empty to use duration_hours)"
+        required: false
+        default: ""
+      duration_hours:
+        description: "Duration hours when iterations is empty"
+        required: true
+        default: "1"
+      interval_seconds:
+        description: "Sleep interval between iterations"
+        required: true
+        default: "300"
+      min_success_rate:
+        description: "Minimum success rate threshold (0-1)"
+        required: true
+        default: "0.99"
+      max_failure_rate:
+        description: "Maximum failure rate threshold (0-1)"
+        required: true
+        default: "0.01"
+      skip_approval_roundtrip:
+        description: "Skip channel approval callback probe"
+        required: true
+        default: "false"
+      label:
+        description: "Report label suffix"
+        required: true
+        default: "workflow"
+
+concurrency:
+  group: channel-soak
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  channel-soak:
+    name: Channel Soak Slice
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run channel soak slice
+        env:
+          CARSINOS_BASE_URL: ${{ secrets.CARSINOS_BASE_URL }}
+          CARSINOS_AUTH_TOKEN: ${{ secrets.CARSINOS_AUTH_TOKEN }}
+          CARSINOS_TELEGRAM_CHAT_ID: ${{ secrets.CARSINOS_TELEGRAM_CHAT_ID }}
+          CARSINOS_TELEGRAM_USER_ID: ${{ secrets.CARSINOS_TELEGRAM_USER_ID }}
+          CARSINOS_DISCORD_CHANNEL_ID: ${{ secrets.CARSINOS_DISCORD_CHANNEL_ID }}
+          CARSINOS_DISCORD_AUTHOR_ID: ${{ secrets.CARSINOS_DISCORD_AUTHOR_ID }}
+          CARSINOS_OPERATOR_PEER_ID: ${{ secrets.CARSINOS_OPERATOR_PEER_ID }}
+        run: |
+          set -euo pipefail
+          args=(
+            --base-url "${CARSINOS_BASE_URL}"
+            --token "${CARSINOS_AUTH_TOKEN}"
+            --interval-seconds "${{ inputs.interval_seconds }}"
+            --min-success-rate "${{ inputs.min_success_rate }}"
+            --max-failure-rate "${{ inputs.max_failure_rate }}"
+            --label "workflow-${{ github.run_id }}-${{ inputs.label }}"
+            --output-dir "runtime/channels/reports"
+          )
+
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            args+=(--dry-run)
+          fi
+          if [[ "${{ inputs.run_telegram }}" != "true" ]]; then
+            args+=(--skip-telegram)
+          fi
+          if [[ "${{ inputs.run_discord }}" != "true" ]]; then
+            args+=(--skip-discord)
+          fi
+          if [[ "${{ inputs.skip_approval_roundtrip }}" == "true" ]]; then
+            args+=(--skip-approval-roundtrip)
+          fi
+          if [[ -n "${{ inputs.iterations }}" ]]; then
+            args+=(--iterations "${{ inputs.iterations }}")
+          else
+            args+=(--duration-hours "${{ inputs.duration_hours }}")
+          fi
+
+          python3 scripts/channel_soak_runner.py "${args[@]}"
+
+      - name: Upload soak report artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: channel-soak-${{ github.run_id }}
+          path: runtime/channels/reports/
+          if-no-files-found: warn

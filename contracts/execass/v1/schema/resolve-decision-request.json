@@ -1,0 +1,157 @@
+{
+  "$defs": {
+    "DecisionResult": {
+      "enum": [
+        "confirm_and_continue",
+        "revise",
+        "decline",
+        "stop"
+      ],
+      "type": "string"
+    },
+    "LocalDecisionProof": {
+      "additionalProperties": false,
+      "description": "HMAC returned by the native shell for one exact decision response.\n\nThis is authentication evidence only. It does not carry actor selection,\npurpose, category, commerce, tenant, role, or delegated-authority facts.\nThe proof authenticates the separate server-derived\n[`LocalDecisionProofBinding`] encoded by [`local_decision_proof_bytes`].",
+      "properties": {
+        "authenticated_client_id": {
+          "type": "string"
+        },
+        "proof_hex": {
+          "type": "string"
+        },
+        "request_correlation_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "authenticated_client_id",
+        "request_correlation_id",
+        "proof_hex"
+      ],
+      "type": "object"
+    },
+    "LocalDecisionProofBinding": {
+      "additionalProperties": false,
+      "description": "Exact current decision and requested response facts authenticated by a\n[`LocalDecisionProof`]. Callers must derive the current fields from\nauthoritative server state, never from bearer/JWT claims or request input.",
+      "properties": {
+        "canonical_manifest_digest": {
+          "type": "string"
+        },
+        "challenge_digest": {
+          "type": "string"
+        },
+        "challenge_response_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "decision_id": {
+          "type": "string"
+        },
+        "decision_result": {
+          "$ref": "#/$defs/DecisionResult"
+        },
+        "decision_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "declared_consequence_digest": {
+          "type": "string"
+        },
+        "expires_at_ms": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "idempotency_key": {
+          "type": "string"
+        },
+        "normalized_intent_digest": {
+          "type": "string"
+        },
+        "observed_at_ms": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "policy_revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "presented_action_digest": {
+          "type": "string"
+        },
+        "response_selected_logical_action_id": {
+          "type": "string"
+        },
+        "revision_text_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "selected_logical_action_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision_id",
+        "decision_revision",
+        "normalized_intent_digest",
+        "policy_revision",
+        "canonical_manifest_digest",
+        "selected_logical_action_id",
+        "presented_action_digest",
+        "declared_consequence_digest",
+        "challenge_digest",
+        "expires_at_ms",
+        "response_selected_logical_action_id",
+        "decision_result",
+        "idempotency_key",
+        "observed_at_ms"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "challenge_response": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "decision_revision": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "idempotency_key": {
+      "type": "string"
+    },
+    "local_proof": {
+      "$ref": "#/$defs/LocalDecisionProof"
+    },
+    "local_proof_binding": {
+      "$ref": "#/$defs/LocalDecisionProofBinding"
+    },
+    "result": {
+      "$ref": "#/$defs/DecisionResult"
+    },
+    "revision_text": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "idempotency_key",
+    "decision_revision",
+    "result",
+    "local_proof",
+    "local_proof_binding"
+  ],
+  "title": "ResolveDecisionRequest",
+  "type": "object"
+}

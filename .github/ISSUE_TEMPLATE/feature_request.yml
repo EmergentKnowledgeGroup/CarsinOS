@@ -1,0 +1,52 @@
+name: Feature request
+description: Propose a focused improvement to CarsinOS.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Start with the operator problem. A useful request explains who is blocked, what safe outcome they need, and how success can be verified.
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Preflight
+      options:
+        - label: I searched existing issues and did not find this request.
+          required: true
+        - label: This request does not contain secrets, personal data, or private runtime information.
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Operator problem
+      description: What is difficult, unsafe, unclear, or impossible today?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe the smallest useful result without prescribing unnecessary implementation details.
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Safety and audit expectations
+      description: What must require approval, stay local, be redacted, or appear in the audit trail?
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance evidence
+      description: What observable behavior or test would prove the feature works?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Optional. What workaround or smaller approach have you tried?

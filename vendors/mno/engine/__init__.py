@@ -1,0 +1,45 @@
+"""NumquamOblita core engine package."""
+
+from .config import NumquamOblitaConfig, default_config, load_config
+from .continuity import ContinuityBuilder, ContinuityStore, Consolidator
+from .contracts import (
+    AtomType,
+    CandidateAtom,
+    MemoryPack,
+    MemoryPackItem,
+    NormalizedTurn,
+    SourceRef,
+    WriteAction,
+    WriteDecision,
+    contract_to_dict,
+)
+from .retrieval import ClaimVerifier, MemoryRetriever
+from .write_gate import StageAWriteGate, StageBWriteGate
+
+try:
+    from .runtime import RuntimeSession
+except ModuleNotFoundError:
+    RuntimeSession = None  # type: ignore[assignment]
+
+__all__ = [
+    "AtomType",
+    "CandidateAtom",
+    "ClaimVerifier",
+    "Consolidator",
+    "ContinuityBuilder",
+    "ContinuityStore",
+    "MemoryPack",
+    "MemoryPackItem",
+    "MemoryRetriever",
+    "NormalizedTurn",
+    "NumquamOblitaConfig",
+    "RuntimeSession",
+    "SourceRef",
+    "StageAWriteGate",
+    "StageBWriteGate",
+    "WriteAction",
+    "WriteDecision",
+    "contract_to_dict",
+    "default_config",
+    "load_config",
+]

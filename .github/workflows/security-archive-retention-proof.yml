@@ -1,0 +1,38 @@
+name: Security Archive Retention Proof
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: security-archive-retention-proof
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  retention-proof:
+    name: Retention Proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo and target
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run archive retention operational proof
+        run: scripts/security_archive_retention_proof.sh
+
+      - name: Upload retention proof artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-archive-retention-proof-${{ github.run_id }}
+          path: runtime/security/reports/
+          if-no-files-found: warn

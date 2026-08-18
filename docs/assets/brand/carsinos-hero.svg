@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="560" viewBox="0 0 1600 560" role="img" aria-labelledby="title desc">
+  <title id="title">CarsinOS — local AI operations under your control</title>
+  <desc id="desc">CarsinOS wordmark beside a diagram connecting assistants, approvals, tools, memory, and channels inside a local control plane.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#070910"/>
+      <stop offset="0.58" stop-color="#111522"/>
+      <stop offset="1" stop-color="#071419"/>
+    </linearGradient>
+    <radialGradient id="orangeGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(325 170) rotate(31) scale(520 360)">
+      <stop stop-color="#ff6b1a" stop-opacity=".2"/>
+      <stop offset="1" stop-color="#ff6b1a" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="cyanGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1360 430) rotate(180) scale(500 330)">
+      <stop stop-color="#2bc0d3" stop-opacity=".14"/>
+      <stop offset="1" stop-color="#2bc0d3" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="line" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#ff6b1a" stop-opacity=".76"/>
+      <stop offset=".5" stop-color="#ffc43d" stop-opacity=".44"/>
+      <stop offset="1" stop-color="#2bc0d3" stop-opacity=".7"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="18" stdDeviation="28" flood-color="#000" flood-opacity=".42"/>
+    </filter>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M32 0H0V32" fill="none" stroke="#8993a8" stroke-opacity=".055"/>
+    </pattern>
+  </defs>
+
+  <rect width="1600" height="560" rx="28" fill="url(#bg)"/>
+  <rect width="1600" height="560" rx="28" fill="url(#grid)"/>
+  <rect width="1600" height="560" rx="28" fill="url(#orangeGlow)"/>
+  <rect width="1600" height="560" rx="28" fill="url(#cyanGlow)"/>
+  <rect x="1" y="1" width="1598" height="558" rx="27" fill="none" stroke="#30384a"/>
+
+  <g transform="translate(96 78)">
+    <g transform="translate(54 54)">
+      <circle r="43" fill="none" stroke="#ffc43d" stroke-width="17" stroke-dasharray="178 93" transform="rotate(-74)"/>
+      <circle r="43" fill="none" stroke="#2bc0d3" stroke-width="17" stroke-dasharray="178 93" transform="rotate(106)"/>
+      <circle cx="17" cy="-17" r="8" fill="#ffc43d"/>
+      <circle cx="-17" cy="17" r="8" fill="#2bc0d3"/>
+    </g>
+    <text x="126" y="47" fill="#f7f8fb" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="26" font-weight="800" letter-spacing="4">CARSINOS</text>
+    <text x="126" y="78" fill="#8d97ab" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="16" font-weight="600" letter-spacing="2">MISSION CONTROL FOR LOCAL AI</text>
+
+    <text x="0" y="210" fill="#f7f8fb" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="58" font-weight="780" letter-spacing="-2">Run AI like an operation.</text>
+    <text x="0" y="262" fill="#a9b1c2" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="24">Assistants, approvals, schedules, memory, channels, and tools—</text>
+    <text x="0" y="298" fill="#a9b1c2" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="24">inside one local, auditable control plane.</text>
+
+    <g transform="translate(0 356)" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="15" font-weight="700" letter-spacing="1">
+      <rect width="194" height="46" rx="23" fill="#ff6b1a" fill-opacity=".1" stroke="#ff6b1a" stroke-opacity=".72"/>
+      <circle cx="24" cy="23" r="5" fill="#ff6b1a"/>
+      <text x="40" y="29" fill="#ffd1b8">WINDOWS BETA</text>
+      <g transform="translate(210)">
+        <rect width="168" height="46" rx="23" fill="#2bc0d3" fill-opacity=".08" stroke="#2bc0d3" stroke-opacity=".58"/>
+        <circle cx="24" cy="23" r="5" fill="#2bc0d3"/>
+        <text x="40" y="29" fill="#b7f3f8">LOCAL-FIRST</text>
+      </g>
+      <g transform="translate(394)">
+        <rect width="164" height="46" rx="23" fill="#22c55e" fill-opacity=".08" stroke="#22c55e" stroke-opacity=".6"/>
+        <circle cx="24" cy="23" r="5" fill="#22c55e"/>
+        <text x="40" y="29" fill="#b9f6cc">AUDITABLE</text>
+      </g>
+    </g>
+  </g>
+
+  <g transform="translate(965 76)" filter="url(#shadow)" font-family="Inter,Segoe UI,Arial,sans-serif">
+    <rect width="530" height="408" rx="26" fill="#111622" stroke="#31394b"/>
+    <rect x="1" y="1" width="528" height="58" rx="25" fill="#171d2b"/>
+    <circle cx="28" cy="30" r="5" fill="#ff5d57"/>
+    <circle cx="48" cy="30" r="5" fill="#ffc43d"/>
+    <circle cx="68" cy="30" r="5" fill="#22c55e"/>
+    <text x="98" y="36" fill="#9da6b8" font-size="14" font-weight="700" letter-spacing="1.5">LOCAL CONTROL PLANE</text>
+
+    <path d="M109 158H210M320 158H421M265 202V274" fill="none" stroke="url(#line)" stroke-width="2" stroke-dasharray="5 7"/>
+    <circle cx="165" cy="158" r="4" fill="#ff6b1a"/>
+    <circle cx="365" cy="158" r="4" fill="#2bc0d3"/>
+    <circle cx="265" cy="238" r="4" fill="#ffc43d"/>
+
+    <g transform="translate(42 112)">
+      <rect width="132" height="92" rx="16" fill="#171d2a" stroke="#343d50"/>
+      <circle cx="26" cy="28" r="9" fill="#2bc0d3" fill-opacity=".15" stroke="#2bc0d3"/>
+      <text x="45" y="33" fill="#f3f5f8" font-size="15" font-weight="750">ASSISTANTS</text>
+      <text x="18" y="63" fill="#818ba0" font-size="13">Roles + routing</text>
+    </g>
+    <g transform="translate(199 100)">
+      <rect width="132" height="116" rx="18" fill="#211914" stroke="#ff6b1a" stroke-opacity=".7"/>
+      <path d="M61 26l13 5v11c0 9-5 16-13 20-8-4-13-11-13-20V31l13-5z" fill="#ff6b1a" fill-opacity=".16" stroke="#ff6b1a"/>
+      <text x="25" y="82" fill="#ffd7c1" font-size="15" font-weight="800">APPROVALS</text>
+      <text x="30" y="101" fill="#a98d7e" font-size="12">Human in the loop</text>
+    </g>
+    <g transform="translate(356 112)">
+      <rect width="132" height="92" rx="16" fill="#171d2a" stroke="#343d50"/>
+      <circle cx="26" cy="28" r="9" fill="#ffc43d" fill-opacity=".15" stroke="#ffc43d"/>
+      <text x="45" y="33" fill="#f3f5f8" font-size="15" font-weight="750">ACTIONS</text>
+      <text x="18" y="63" fill="#818ba0" font-size="13">Tools + channels</text>
+    </g>
+
+    <g transform="translate(42 282)" font-size="13" font-weight="700">
+      <rect width="138" height="72" rx="14" fill="#121924" stroke="#2a3548"/>
+      <text x="18" y="30" fill="#9da8bb">SCHEDULES</text><text x="18" y="52" fill="#22c55e">RUNNING</text>
+      <g transform="translate(154)">
+        <rect width="138" height="72" rx="14" fill="#121924" stroke="#2a3548"/>
+        <text x="18" y="30" fill="#9da8bb">MEMORY</text><text x="18" y="52" fill="#2bc0d3">LOCAL</text>
+      </g>
+      <g transform="translate(308)">
+        <rect width="138" height="72" rx="14" fill="#121924" stroke="#2a3548"/>
+        <text x="18" y="30" fill="#9da8bb">AUDIT LOG</text><text x="18" y="52" fill="#ffc43d">RECORDED</text>
+      </g>
+    </g>
+  </g>
+</svg>

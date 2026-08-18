@@ -1,0 +1,933 @@
+{
+  "$defs": {
+    "AcceptedConfirmationGrant": {
+      "additionalProperties": false,
+      "properties": {
+        "canonical_action_envelope_or_selector": {
+          "type": "string"
+        },
+        "confirmed_logical_action_identity": {
+          "type": "string"
+        },
+        "connector_or_tool_identity_and_version": {
+          "type": "string"
+        },
+        "declared_consequence": {
+          "type": "string"
+        },
+        "delegation_id": {
+          "type": "string"
+        },
+        "normalized_intent": {
+          "type": "string"
+        },
+        "payload_and_material_operands_digest": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "delegation_id",
+        "normalized_intent",
+        "confirmed_logical_action_identity",
+        "canonical_action_envelope_or_selector",
+        "payload_and_material_operands_digest",
+        "connector_or_tool_identity_and_version",
+        "declared_consequence"
+      ],
+      "type": "object"
+    },
+    "AssuranceRequirement": {
+      "enum": [
+        "verified_owner_resolution",
+        "mechanical_resolution"
+      ],
+      "type": "string"
+    },
+    "AttentionItem": {
+      "additionalProperties": false,
+      "properties": {
+        "alternatives_or_actions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "assurance_required": {
+          "$ref": "#/$defs/AssuranceRequirement"
+        },
+        "attention_id": {
+          "type": "string"
+        },
+        "authoritative_deep_link": {
+          "type": "string"
+        },
+        "deadline_at_ms": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "deadline_reminder_state": {
+          "type": "string"
+        },
+        "decision_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "decision_kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DecisionKind"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Reply and runtime-paused attention are not decisions. Every\ndecision-backed attention item carries its exact kind; non-decision\nvariants serialize this field as `null` so the versioned wire shape\nstays explicit rather than inventing a faux decision."
+        },
+        "decision_revision": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/AttentionKind"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "recommendation": {
+          "type": "string"
+        },
+        "subject": {
+          "$ref": "#/$defs/AttentionSubject"
+        }
+      },
+      "required": [
+        "attention_id",
+        "kind",
+        "subject",
+        "reason",
+        "recommendation",
+        "alternatives_or_actions",
+        "assurance_required",
+        "deadline_reminder_state",
+        "authoritative_deep_link"
+      ],
+      "type": "object"
+    },
+    "AttentionKind": {
+      "enum": [
+        "confirmation",
+        "clarification",
+        "reply",
+        "recovery_choice",
+        "runtime_paused"
+      ],
+      "type": "string"
+    },
+    "AttentionSubject": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "delegation_id": {
+              "type": "string"
+            },
+            "delegation_revision": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "scope_kind": {
+              "const": "delegation",
+              "type": "string"
+            }
+          },
+          "required": [
+            "scope_kind",
+            "delegation_id",
+            "delegation_revision"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "active_work_binding_digest": {
+              "type": "string"
+            },
+            "runtime_actual_state": {
+              "$ref": "#/$defs/RuntimeHostActualState"
+            },
+            "runtime_end_reason": {
+              "type": "string"
+            },
+            "runtime_fencing_token": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "runtime_host_generation": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "runtime_host_instance_id": {
+              "type": "string"
+            },
+            "scope_kind": {
+              "const": "runtime_host",
+              "type": "string"
+            }
+          },
+          "required": [
+            "scope_kind",
+            "runtime_host_generation",
+            "runtime_host_instance_id",
+            "runtime_fencing_token",
+            "runtime_actual_state",
+            "runtime_end_reason",
+            "active_work_binding_digest"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "DecisionChallenge": {
+      "additionalProperties": false,
+      "properties": {
+        "decision_revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "declared_consequence": {
+          "type": "string"
+        },
+        "exact_presented_action_or_alternative": {
+          "type": "string"
+        },
+        "expires_at_ms": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "nonce_or_token": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision_revision",
+        "exact_presented_action_or_alternative",
+        "declared_consequence",
+        "nonce_or_token",
+        "expires_at_ms"
+      ],
+      "type": "object"
+    },
+    "DecisionKind": {
+      "enum": [
+        "clarification",
+        "dangerous_action_confirmation",
+        "owner_configured_checkpoint",
+        "recovery_choice",
+        "duplicate_risk_retry",
+        "stop",
+        "policy_change"
+      ],
+      "type": "string"
+    },
+    "DecisionProofChallenge": {
+      "additionalProperties": false,
+      "description": "Server-derived current decision facts a native owner signer needs before\nit can add one exact response and authenticate the resulting binding.",
+      "properties": {
+        "canonical_manifest_digest": {
+          "type": "string"
+        },
+        "challenge_digest": {
+          "type": "string"
+        },
+        "decision_id": {
+          "type": "string"
+        },
+        "decision_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "declared_consequence_digest": {
+          "type": "string"
+        },
+        "expires_at_ms": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "normalized_intent_digest": {
+          "type": "string"
+        },
+        "policy_revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "presented_action_digest": {
+          "type": "string"
+        },
+        "selected_logical_action_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision_id",
+        "decision_revision",
+        "normalized_intent_digest",
+        "policy_revision",
+        "canonical_manifest_digest",
+        "selected_logical_action_id",
+        "presented_action_digest",
+        "declared_consequence_digest",
+        "challenge_digest",
+        "expires_at_ms"
+      ],
+      "type": "object"
+    },
+    "DecisionResult": {
+      "enum": [
+        "confirm_and_continue",
+        "revise",
+        "decline",
+        "stop"
+      ],
+      "type": "string"
+    },
+    "DecisionStatus": {
+      "enum": [
+        "pending",
+        "resolved",
+        "superseded",
+        "expired"
+      ],
+      "type": "string"
+    },
+    "DecisionSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted_confirmation_grant": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AcceptedConfirmationGrant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "alternatives": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "assurance_required": {
+          "$ref": "#/$defs/AssuranceRequirement"
+        },
+        "authoritative_deep_link": {
+          "type": "string"
+        },
+        "challenge": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DecisionChallenge"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "consequence": {
+          "type": "string"
+        },
+        "decision_id": {
+          "type": "string"
+        },
+        "delegation_id": {
+          "type": "string"
+        },
+        "exact_manifest_digest": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/DecisionKind"
+        },
+        "local_owner_proof_challenge": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DecisionProofChallenge"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recommendation": {
+          "type": "string"
+        },
+        "requested_at_ms": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "resolved_at_ms": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "resolved_owner": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OwnerResolutionSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DecisionResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "status": {
+          "$ref": "#/$defs/DecisionStatus"
+        },
+        "technical_resources": {
+          "items": {
+            "$ref": "#/$defs/TechnicalResourceQuota"
+          },
+          "type": "array"
+        },
+        "why_now": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision_id",
+        "delegation_id",
+        "revision",
+        "status",
+        "kind",
+        "assurance_required",
+        "recommendation",
+        "why_now",
+        "consequence",
+        "alternatives",
+        "exact_manifest_digest",
+        "technical_resources",
+        "requested_at_ms",
+        "authoritative_deep_link"
+      ],
+      "type": "object"
+    },
+    "DelegationPhase": {
+      "enum": [
+        "accepted",
+        "planning",
+        "in_motion",
+        "waiting_for_user",
+        "waiting_external",
+        "recovering",
+        "completed",
+        "partially_completed",
+        "failed"
+      ],
+      "type": "string"
+    },
+    "DelegationSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "acknowledged_at_ms": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "authoritative_deep_link": {
+          "type": "string"
+        },
+        "created_at_ms": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "delegation_id": {
+          "type": "string"
+        },
+        "intent_summary": {
+          "type": "string"
+        },
+        "outcome_summary": {
+          "type": "string"
+        },
+        "pending_decision": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DecisionSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pending_external_wait": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "phase": {
+          "$ref": "#/$defs/DelegationPhase"
+        },
+        "policy_revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "run_control": {
+          "$ref": "#/$defs/RunControlState"
+        },
+        "state_revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "stop_epoch": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "terminal_at_ms": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "updated_at_ms": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "delegation_id",
+        "phase",
+        "run_control",
+        "state_revision",
+        "intent_summary",
+        "outcome_summary",
+        "policy_revision",
+        "stop_epoch",
+        "created_at_ms",
+        "updated_at_ms",
+        "authoritative_deep_link"
+      ],
+      "type": "object"
+    },
+    "DeliveredItem": {
+      "additionalProperties": false,
+      "properties": {
+        "item_id": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "item_id",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "NextItem": {
+      "additionalProperties": false,
+      "properties": {
+        "authoritative_deep_link": {
+          "type": "string"
+        },
+        "delegation_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "due_at_ms": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "kind": {
+          "$ref": "#/$defs/NextItemKind"
+        },
+        "next_item_id": {
+          "type": "string"
+        },
+        "scheduled_for_ms": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "next_item_id",
+        "kind",
+        "summary",
+        "authoritative_deep_link"
+      ],
+      "type": "object"
+    },
+    "NextItemKind": {
+      "enum": [
+        "routine",
+        "commitment",
+        "deadline",
+        "follow_up"
+      ],
+      "type": "string"
+    },
+    "OwnerResolutionIngress": {
+      "enum": [
+        "local_owner_session",
+        "authenticated_remote_owner_channel"
+      ],
+      "type": "string"
+    },
+    "OwnerResolutionSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "ingress": {
+          "$ref": "#/$defs/OwnerResolutionIngress"
+        },
+        "verified_evidence_ref": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ingress",
+        "verified_evidence_ref"
+      ],
+      "type": "object"
+    },
+    "ReceiptEvidenceSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "authoritative_revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "authority_kind": {
+          "type": "string"
+        },
+        "authority_link_id": {
+          "type": "string"
+        },
+        "deep_link": {
+          "type": "string"
+        },
+        "observation_digest": {
+          "type": "string"
+        },
+        "source_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "authority_kind",
+        "source_id",
+        "authoritative_revision",
+        "authority_link_id",
+        "observation_digest",
+        "deep_link"
+      ],
+      "type": "object"
+    },
+    "ReceiptScope": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "delegation_id": {
+              "type": "string"
+            },
+            "delegation_sequence": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "scope_kind": {
+              "const": "delegation",
+              "type": "string"
+            }
+          },
+          "required": [
+            "scope_kind",
+            "delegation_id",
+            "delegation_sequence"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "runtime_host_aggregate_id": {
+              "type": "string"
+            },
+            "scope_kind": {
+              "const": "runtime_host",
+              "type": "string"
+            }
+          },
+          "required": [
+            "scope_kind",
+            "runtime_host_aggregate_id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ReceiptSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "committed_at_ms": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "delegation_previous_receipt_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "evidence_refs": {
+          "items": {
+            "$ref": "#/$defs/ReceiptEvidenceSummary"
+          },
+          "type": "array"
+        },
+        "global_previous_receipt_digest": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "global_sequence": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "integrity_tag": {
+          "type": "string"
+        },
+        "key_generation": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "key_id": {
+          "type": "string"
+        },
+        "occurred_at_ms": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "previous_key_integrity_tag": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "receipt_digest": {
+          "type": "string"
+        },
+        "receipt_id": {
+          "type": "string"
+        },
+        "receipt_kind": {
+          "type": "string"
+        },
+        "safe_summary": {
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/ReceiptScope"
+        },
+        "subject_id": {
+          "type": "string"
+        },
+        "subject_kind": {
+          "type": "string"
+        },
+        "subject_revision": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "receipt_id",
+        "scope",
+        "global_sequence",
+        "receipt_kind",
+        "subject_kind",
+        "subject_id",
+        "subject_revision",
+        "occurred_at_ms",
+        "committed_at_ms",
+        "evidence_refs",
+        "receipt_digest",
+        "key_id",
+        "key_generation",
+        "integrity_tag",
+        "safe_summary"
+      ],
+      "type": "object"
+    },
+    "RunControlState": {
+      "enum": [
+        "running",
+        "stop_requested",
+        "stopped"
+      ],
+      "type": "string"
+    },
+    "RuntimeHostActualState": {
+      "enum": [
+        "stopped",
+        "starting",
+        "running_app_bound",
+        "handoff",
+        "running_background",
+        "draining",
+        "faulted"
+      ],
+      "type": "string"
+    },
+    "SummaryCursor": {
+      "additionalProperties": false,
+      "properties": {
+        "cursor": {
+          "type": "string"
+        },
+        "delivered": {
+          "items": {
+            "$ref": "#/$defs/DeliveredItem"
+          },
+          "type": "array"
+        },
+        "displayed_at_ms": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cursor",
+        "displayed_at_ms",
+        "delivered"
+      ],
+      "type": "object"
+    },
+    "TechnicalResourceKind": {
+      "enum": [
+        "tokens",
+        "time_ms",
+        "connector_calls",
+        "resource_units"
+      ],
+      "type": "string"
+    },
+    "TechnicalResourceQuota": {
+      "additionalProperties": false,
+      "properties": {
+        "consumed": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/TechnicalResourceKind"
+        },
+        "limit": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "reserved": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "limit",
+        "reserved",
+        "consumed"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "displayed": {
+      "$ref": "#/$defs/SummaryCursor"
+    },
+    "done": {
+      "items": {
+        "$ref": "#/$defs/DelegationSummary"
+      },
+      "type": "array"
+    },
+    "in_motion": {
+      "items": {
+        "$ref": "#/$defs/DelegationSummary"
+      },
+      "type": "array"
+    },
+    "needs_you": {
+      "items": {
+        "$ref": "#/$defs/AttentionItem"
+      },
+      "type": "array"
+    },
+    "next": {
+      "items": {
+        "$ref": "#/$defs/NextItem"
+      },
+      "type": "array"
+    },
+    "receipts": {
+      "items": {
+        "$ref": "#/$defs/ReceiptSummary"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "needs_you",
+    "in_motion",
+    "done",
+    "next",
+    "receipts",
+    "displayed"
+  ],
+  "title": "SummaryResponse",
+  "type": "object"
+}

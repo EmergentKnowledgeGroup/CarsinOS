@@ -1,0 +1,382 @@
+import { invoke } from "@tauri-apps/api/core";
+import type {
+  IntakeRequest,
+  LocalDecisionProof,
+  LocalDecisionProofBinding,
+  LocalOwnerIntakeProof,
+  LocalOwnerMutationBinding,
+  LocalOwnerMutationProof,
+  LocalRunControlProof,
+  RunControlRequestBinding,
+} from "../glass/execass/types";
+import type { RuntimeConnectionSettings } from "../types";
+import { STORAGE_KEYS } from "../storageKeys";
+
+const SETTINGS_KEY = STORAGE_KEYS.gatewaySettings;
+const TOKEN_KEY_FALLBACK = STORAGE_KEYS.gatewayTokenFallback;
+let browserGatewayToken: string | null = null;
+
+export interface DesktopBootstrap {
+  gateway_url: string;
+  managed_gateway: boolean;
+  startup_error: string | null;
+}
+
+export interface RuntimeCloseConfirmationBinding {
+  challenge: string;
+  original_request_id: string;
+  original_nonce: string;
+  original_issued_at_ms: number;
+}
+
+export interface RuntimeCloseConfirmation {
+  consequence: string;
+  binding: RuntimeCloseConfirmationBinding;
+}
+
+function normalizeGatewayUrlOrEmpty(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+  const normalized = trimmed.toLowerCase();
+  const withScheme =
+    normalized.startsWith("http://") || normalized.startsWith("https://")
+      ? trimmed
+      : `http://${trimmed}`;
+  try {
+    return `${new URL(withScheme).origin}/`;
+  } catch {
+    return "";
+  }
+}
+
+function readEnvGatewayUrl(): string {
+  return normalizeGatewayUrlOrEmpty(import.meta.env.VITE_CARSINOS_GATEWAY_URL ?? "");
+}
+
+function readEnvGatewayToken(): string | null {
+  const value = (import.meta.env.VITE_CARSINOS_GATEWAY_TOKEN ?? "").trim();
+  return value.length > 0 ? value : null;
+}
+
+function preferEnvGatewayToken(): boolean {
+  const value = (import.meta.env.VITE_CARSINOS_PREFER_ENV_TOKEN ?? "").trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes" || value === "on";
+}
+
+function isE2EMode(): boolean {
+  // Vite replaces import.meta.env.DEV at build time, so the harness path and
+  // its inert proof objects are removed from production bundles. A URL query
+  // alone must never enable proof or token test behavior in a shipped build.
+  if (!import.meta.env.DEV || typeof window === "undefined") {
+    return false;
+  }
+  try {
+    return new URL(window.location.href).searchParams.get("e2e") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function isE2ESessionTokenStorageEnabled(): boolean {
+  const flag = (import.meta.env.VITE_CARSINOS_E2E_TOKEN_STORAGE ?? "")
+    .trim()
+    .toLowerCase();
+  return (
+    flag === "1" ||
+    flag === "true" ||
+    flag === "yes" ||
+    flag === "on" ||
+    isE2EMode()
+  );
+}
+
+function clearLegacyGatewayTokenFallback(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.removeItem(TOKEN_KEY_FALLBACK);
+}
+
+export function isTauriRuntime(): boolean {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+export function loadConnectionSettings(): RuntimeConnectionSettings {
+  const envGatewayUrl = readEnvGatewayUrl();
+  if (envGatewayUrl && !isE2EMode()) {
+    // One-click/dev launch should override stale persisted URLs (for example old busy ports).
+    return { gateway_url: envGatewayUrl };
+  }
+  if (isTauriRuntime() && !isE2EMode()) {
+    return { gateway_url: "http://127.0.0.1:18789/" };
+  }
+  if (typeof window === "undefined") {
+    return { gateway_url: "" };
+  }
+  const raw = window.localStorage.getItem(SETTINGS_KEY);
+  if (!raw) {
+    return { gateway_url: "" };
+  }
+  try {
+    const parsed = JSON.parse(raw) as Partial<RuntimeConnectionSettings>;
+    const configuredUrl = normalizeGatewayUrlOrEmpty(parsed.gateway_url ?? "");
+    return {
+      gateway_url: configuredUrl,
+    };
+  } catch {
+    return { gateway_url: "" };
+  }
+}
+
+export async function getDesktopBootstrap(): Promise<DesktopBootstrap | null> {
+  if (!isTauriRuntime()) {
+    return null;
+  }
+  const bootstrap = await invoke<DesktopBootstrap>("get_desktop_bootstrap");
+  const gatewayUrl = normalizeGatewayUrlOrEmpty(bootstrap.gateway_url);
+  if (!gatewayUrl) {
+    throw new Error("desktop gateway bootstrap returned an invalid URL");
+  }
+  return {
+    gateway_url: gatewayUrl,
+    managed_gateway: Boolean(bootstrap.managed_gateway),
+    startup_error:
+      typeof bootstrap.startup_error === "string" && bootstrap.startup_error.trim()
+        ? bootstrap.startup_error.trim()
+        : null,
+  };
+}
+
+export async function confirmDesktopRuntimeClose(
+  binding: RuntimeCloseConfirmationBinding,
+): Promise<void> {
+  if (!isTauriRuntime()) {
+    throw new Error("runtime close confirmation is available only in the desktop app");
+  }
+  await invoke("confirm_runtime_close", { confirmation: { binding } });
+}
+
+export async function cancelDesktopRuntimeCloseConfirmation(): Promise<void> {
+  if (!isTauriRuntime()) {
+    return;
+  }
+  await invoke("cancel_runtime_close_confirmation");
+}
+
+export function persistConnectionSettings(settings: RuntimeConnectionSettings): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const normalizedUrl = normalizeGatewayUrlOrEmpty(settings.gateway_url) || settings.gateway_url.trim();
+  window.localStorage.setItem(
+    SETTINGS_KEY,
+    JSON.stringify({ gateway_url: normalizedUrl })
+  );
+}
+
+export async function setGatewayToken(token: string): Promise<void> {
+  const value = token.trim();
+  if (!value) {
+    throw new Error("token cannot be empty");
+  }
+  clearLegacyGatewayTokenFallback();
+  if (isTauriRuntime()) {
+    await invoke("set_gateway_token", { token: value });
+    return;
+  }
+  if (typeof window === "undefined") {
+    return;
+  }
+  if (isE2ESessionTokenStorageEnabled()) {
+    browserGatewayToken = null;
+    window.sessionStorage.setItem(TOKEN_KEY_FALLBACK, value);
+  } else {
+    window.sessionStorage.removeItem(TOKEN_KEY_FALLBACK);
+    browserGatewayToken = value;
+  }
+}
+
+export async function clearGatewayToken(): Promise<void> {
+  if (isTauriRuntime()) {
+    await invoke("clear_gateway_token");
+  }
+  if (typeof window === "undefined") {
+    return;
+  }
+  browserGatewayToken = null;
+  window.sessionStorage.removeItem(TOKEN_KEY_FALLBACK);
+  clearLegacyGatewayTokenFallback();
+}
+
+export async function getGatewayToken(): Promise<string | null> {
+  const envToken = readEnvGatewayToken();
+  if (!isE2EMode() && preferEnvGatewayToken() && envToken) {
+    return envToken;
+  }
+  if (isTauriRuntime()) {
+    const storedToken = await invoke<string | null>("get_gateway_token");
+    if (storedToken && storedToken.trim().length > 0) {
+      return storedToken.trim();
+    }
+    return envToken;
+  }
+  if (typeof window === "undefined") {
+    return envToken;
+  }
+  clearLegacyGatewayTokenFallback();
+  if (browserGatewayToken) {
+    return browserGatewayToken;
+  }
+  if (isE2ESessionTokenStorageEnabled()) {
+    const storedToken = window.sessionStorage.getItem(TOKEN_KEY_FALLBACK);
+    if (storedToken && storedToken.trim().length > 0) {
+      return storedToken.trim();
+    }
+  }
+  return envToken;
+}
+
+/**
+ * ExecAss native proof signers.
+ *
+ * Proofs are produced only by the registered Tauri commands backed by the
+ * OS-keyring owner secret. The browser build must never generate, persist,
+ * or approximate signing material - hence the hard desktop guard. Callers
+ * request a proof for one exact server-derived binding, submit it once,
+ * and discard it.
+ */
+function requireDesktopSigner(): void {
+  if (!isTauriRuntime() && !hasInjectedE2ETestSigner()) {
+    throw new Error(
+      "ExecAss owner proofs are available only in the desktop app.",
+    );
+  }
+}
+
+/**
+ * Playwright may inject a development-only signer before the application
+ * loads. Runtime code never manufactures proof-shaped material: without the
+ * injected harness function or the real Tauri bridge, signing fails closed.
+ */
+type E2ETestSigner = (
+  kind: "run_control" | "intake" | "mutation" | "decision",
+  payload: unknown,
+) => unknown;
+
+function e2eTestSigner(): E2ETestSigner | null {
+  if (!isE2EMode() || typeof window === "undefined") {
+    return null;
+  }
+  const candidate = (
+    window as unknown as { __CARSINOS_E2E_TEST_SIGNER__?: unknown }
+  ).__CARSINOS_E2E_TEST_SIGNER__;
+  return typeof candidate === "function"
+    ? (candidate as E2ETestSigner)
+    : null;
+}
+
+function hasInjectedE2ETestSigner(): boolean {
+  return e2eTestSigner() !== null;
+}
+
+function invokeInjectedE2ETestSigner<T>(
+  kind: Parameters<E2ETestSigner>[0],
+  payload: unknown,
+): T {
+  const signer = e2eTestSigner();
+  if (!signer) {
+    throw new Error(
+      "ExecAss owner proofs are available only in the desktop app.",
+    );
+  }
+  return signer(kind, payload) as T;
+}
+
+export async function signExecassLocalRunControl(
+  binding: RunControlRequestBinding,
+): Promise<LocalRunControlProof> {
+  requireDesktopSigner();
+  if (!isTauriRuntime()) {
+    return invokeInjectedE2ETestSigner<LocalRunControlProof>(
+      "run_control",
+      binding,
+    );
+  }
+  return invoke<LocalRunControlProof>("sign_execass_local_run_control", {
+    binding,
+  });
+}
+
+export async function signExecassLocalOwnerIntake(
+  request: IntakeRequest,
+): Promise<LocalOwnerIntakeProof> {
+  requireDesktopSigner();
+  if (!isTauriRuntime()) {
+    return invokeInjectedE2ETestSigner<LocalOwnerIntakeProof>(
+      "intake",
+      request,
+    );
+  }
+  return invoke<LocalOwnerIntakeProof>("sign_execass_local_owner_intake", {
+    request,
+  });
+}
+
+export async function signExecassLocalOwnerMutation(
+  binding: LocalOwnerMutationBinding,
+): Promise<LocalOwnerMutationProof> {
+  requireDesktopSigner();
+  if (!isTauriRuntime()) {
+    return invokeInjectedE2ETestSigner<LocalOwnerMutationProof>(
+      "mutation",
+      binding,
+    );
+  }
+  return invoke<LocalOwnerMutationProof>("sign_execass_local_owner_mutation", {
+    binding,
+  });
+}
+
+export async function signExecassLocalDecision(
+  binding: LocalDecisionProofBinding,
+  requestCorrelationId: string,
+): Promise<LocalDecisionProof> {
+  requireDesktopSigner();
+  if (!isTauriRuntime()) {
+    return invokeInjectedE2ETestSigner<LocalDecisionProof>("decision", {
+      binding,
+      request_correlation_id: requestCorrelationId,
+    });
+  }
+  return invoke<LocalDecisionProof>("sign_execass_local_decision", {
+    binding,
+    requestCorrelationId,
+  });
+}
+
+export async function isGatewayTokenConfigured(): Promise<boolean> {
+  const envToken = readEnvGatewayToken();
+  if (!isE2EMode() && preferEnvGatewayToken() && envToken) {
+    return true;
+  }
+  if (isTauriRuntime()) {
+    const hasStoredToken = await invoke<boolean>("gateway_token_present");
+    return hasStoredToken || Boolean(envToken);
+  }
+  if (typeof window === "undefined") {
+    return Boolean(envToken);
+  }
+  clearLegacyGatewayTokenFallback();
+  if (browserGatewayToken) {
+    return true;
+  }
+  if (isE2ESessionTokenStorageEnabled()) {
+    const storedToken = window.sessionStorage.getItem(TOKEN_KEY_FALLBACK);
+    if (storedToken && storedToken.trim().length > 0) {
+      return true;
+    }
+  }
+  return Boolean(envToken);
+}

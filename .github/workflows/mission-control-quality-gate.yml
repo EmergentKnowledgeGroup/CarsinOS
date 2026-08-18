@@ -1,0 +1,136 @@
+name: Mission Control Quality Gate
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "Quality gate profile"
+        required: true
+        default: "release"
+        type: choice
+        options:
+          - pr
+          - release
+
+concurrency:
+  group: mission-control-quality-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  mission-control-quality-gate:
+    name: Mission Control Quality Gate (PR Web)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: ${{ github.event_name == 'pull_request' || github.event.inputs.profile == 'pr' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/mission-control/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: apps/mission-control
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        working-directory: apps/mission-control
+        run: npx playwright install --with-deps chromium
+
+      - name: Run quality gate
+        run: |
+          set -euo pipefail
+          python3 scripts/mission_control_quality_gate.py --profile pr
+
+      - name: Upload quality gate artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mission-control-quality-gate-pr-${{ github.run_id }}
+          path: runtime/quality-gate/reports/
+          if-no-files-found: warn
+
+  runtime-control-macos-pr-gate:
+    name: Runtime Control Gate (macOS PR)
+    runs-on: macos-latest
+    timeout-minutes: 30
+    if: ${{ github.event_name == 'pull_request' || github.event.inputs.profile == 'pr' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Verify macOS runtime control
+        run: |
+          set -euo pipefail
+          cargo clippy -p carsinos-runtime-control --all-targets --locked -- -D warnings
+          cargo test -p carsinos-runtime-control --locked -- --test-threads=1
+
+  mission-control-desktop-release-gate:
+    name: Mission Control Desktop Release Gate (macOS)
+    runs-on: macos-latest
+    timeout-minutes: 90
+    if: ${{ github.event.inputs.profile == 'release' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/mission-control/package-lock.json
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        working-directory: apps/mission-control
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        working-directory: apps/mission-control
+        run: npx playwright install --with-deps chromium
+
+      - name: Run release quality gate (desktop)
+        run: |
+          set -euo pipefail
+          python3 scripts/mission_control_quality_gate.py --profile release --fail-on-blocked
+
+      - name: Build signed macOS receipt-custody package
+        env:
+          CARSINOS_APPLE_TEAM_ID: ${{ secrets.CARSINOS_APPLE_TEAM_ID }}
+          CARSINOS_APPLE_SIGNING_IDENTITY: ${{ secrets.CARSINOS_APPLE_SIGNING_IDENTITY }}
+        run: scripts/package_macos_app.sh runtime/quality-gate/artifacts/macos-package --release
+
+      - name: Upload desktop gate artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mission-control-quality-gate-release-macos-${{ github.run_id }}
+          path: |
+            runtime/quality-gate/reports/
+            runtime/quality-gate/artifacts/tauri-smoke/
+            runtime/quality-gate/artifacts/macos-package/
+          if-no-files-found: warn

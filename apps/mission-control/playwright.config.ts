@@ -1,0 +1,43 @@
+import { defineConfig } from "@playwright/test";
+
+const appPort = 1420;
+const gatewayPort = 19_789;
+const localBaseUrl = `http://127.0.0.1:${appPort}`;
+const externalBaseUrl = process.env.MC_E2E_BASE_URL?.trim();
+const hasExternalBaseUrl = Boolean(externalBaseUrl);
+const browserChannel = process.env.MC_E2E_BROWSER_CHANNEL?.trim();
+
+export default defineConfig({
+  testDir: "./e2e",
+  fullyParallel: false,
+  timeout: 45_000,
+  expect: {
+    timeout: 10_000,
+  },
+  retries: process.env.CI ? 1 : 0,
+  workers: 1,
+  reporter: "list",
+  use: {
+    baseURL: externalBaseUrl || localBaseUrl,
+    ...(browserChannel ? { channel: browserChannel } : {}),
+    trace: "retain-on-failure",
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
+  },
+  webServer: hasExternalBaseUrl
+    ? undefined
+    : [
+        {
+          command: `node ./e2e/mockGateway.mjs --port ${gatewayPort}`,
+          port: gatewayPort,
+          timeout: 120_000,
+          reuseExistingServer: !process.env.CI,
+        },
+        {
+          command: `npm run dev -- --host 127.0.0.1 --port ${appPort}`,
+          port: appPort,
+          timeout: 120_000,
+          reuseExistingServer: !process.env.CI,
+        },
+      ],
+});

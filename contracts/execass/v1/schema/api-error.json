@@ -1,0 +1,61 @@
+{
+  "$defs": {
+    "ApiErrorCode": {
+      "enum": [
+        "execass.v1.invalid_request",
+        "execass.v1.authentication_required",
+        "execass.v1.idempotency_conflict",
+        "execass.v1.authority_denied",
+        "execass.v1.decision_assurance_required",
+        "execass.v1.decision_challenge_expired",
+        "execass.v1.not_found",
+        "execass.v1.revision_conflict",
+        "execass.v1.invalid_transition",
+        "execass.v1.stop_all_engaged",
+        "execass.v1.outcome_unknown_retry_prohibited",
+        "execass.v1.technical_resource_exhausted",
+        "execass.v1.receipt_integrity_quarantined",
+        "execass.v1.decision_superseded",
+        "execass.v1.runtime_host_conflict",
+        "execass.v1.schema_replace_requires_quiescence",
+        "execass.v1.rate_limited",
+        "execass.v1.external_dependency",
+        "execass.v1.schema_version_unsupported",
+        "execass.v1.internal_safe_failure"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "code": {
+      "$ref": "#/$defs/ApiErrorCode"
+    },
+    "correlation_id": {
+      "type": "string"
+    },
+    "exposes_sensitive_metadata": {
+      "type": "boolean"
+    },
+    "retryable": {
+      "type": "boolean"
+    },
+    "safe_for_display": {
+      "type": "boolean"
+    },
+    "safe_human_message": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "code",
+    "safe_human_message",
+    "retryable",
+    "correlation_id",
+    "safe_for_display",
+    "exposes_sensitive_metadata"
+  ],
+  "title": "ApiError",
+  "type": "object"
+}

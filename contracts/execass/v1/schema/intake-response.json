@@ -1,0 +1,503 @@
+{
+  "$defs": {
+    "AcceptedConfirmationGrant": {
+      "additionalProperties": false,
+      "properties": {
+        "canonical_action_envelope_or_selector": {
+          "type": "string"
+        },
+        "confirmed_logical_action_identity": {
+          "type": "string"
+        },
+        "connector_or_tool_identity_and_version": {
+          "type": "string"
+        },
+        "declared_consequence": {
+          "type": "string"
+        },
+        "delegation_id": {
+          "type": "string"
+        },
+        "normalized_intent": {
+          "type": "string"
+        },
+        "payload_and_material_operands_digest": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "delegation_id",
+        "normalized_intent",
+        "confirmed_logical_action_identity",
+        "canonical_action_envelope_or_selector",
+        "payload_and_material_operands_digest",
+        "connector_or_tool_identity_and_version",
+        "declared_consequence"
+      ],
+      "type": "object"
+    },
+    "AssuranceRequirement": {
+      "enum": [
+        "verified_owner_resolution",
+        "mechanical_resolution"
+      ],
+      "type": "string"
+    },
+    "DecisionChallenge": {
+      "additionalProperties": false,
+      "properties": {
+        "decision_revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "declared_consequence": {
+          "type": "string"
+        },
+        "exact_presented_action_or_alternative": {
+          "type": "string"
+        },
+        "expires_at_ms": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "nonce_or_token": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision_revision",
+        "exact_presented_action_or_alternative",
+        "declared_consequence",
+        "nonce_or_token",
+        "expires_at_ms"
+      ],
+      "type": "object"
+    },
+    "DecisionKind": {
+      "enum": [
+        "clarification",
+        "dangerous_action_confirmation",
+        "owner_configured_checkpoint",
+        "recovery_choice",
+        "duplicate_risk_retry",
+        "stop",
+        "policy_change"
+      ],
+      "type": "string"
+    },
+    "DecisionProofChallenge": {
+      "additionalProperties": false,
+      "description": "Server-derived current decision facts a native owner signer needs before\nit can add one exact response and authenticate the resulting binding.",
+      "properties": {
+        "canonical_manifest_digest": {
+          "type": "string"
+        },
+        "challenge_digest": {
+          "type": "string"
+        },
+        "decision_id": {
+          "type": "string"
+        },
+        "decision_revision": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "declared_consequence_digest": {
+          "type": "string"
+        },
+        "expires_at_ms": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "normalized_intent_digest": {
+          "type": "string"
+        },
+        "policy_revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "presented_action_digest": {
+          "type": "string"
+        },
+        "selected_logical_action_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision_id",
+        "decision_revision",
+        "normalized_intent_digest",
+        "policy_revision",
+        "canonical_manifest_digest",
+        "selected_logical_action_id",
+        "presented_action_digest",
+        "declared_consequence_digest",
+        "challenge_digest",
+        "expires_at_ms"
+      ],
+      "type": "object"
+    },
+    "DecisionResult": {
+      "enum": [
+        "confirm_and_continue",
+        "revise",
+        "decline",
+        "stop"
+      ],
+      "type": "string"
+    },
+    "DecisionStatus": {
+      "enum": [
+        "pending",
+        "resolved",
+        "superseded",
+        "expired"
+      ],
+      "type": "string"
+    },
+    "DecisionSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted_confirmation_grant": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AcceptedConfirmationGrant"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "alternatives": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "assurance_required": {
+          "$ref": "#/$defs/AssuranceRequirement"
+        },
+        "authoritative_deep_link": {
+          "type": "string"
+        },
+        "challenge": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DecisionChallenge"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "consequence": {
+          "type": "string"
+        },
+        "decision_id": {
+          "type": "string"
+        },
+        "delegation_id": {
+          "type": "string"
+        },
+        "exact_manifest_digest": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/DecisionKind"
+        },
+        "local_owner_proof_challenge": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DecisionProofChallenge"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "recommendation": {
+          "type": "string"
+        },
+        "requested_at_ms": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "resolved_at_ms": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "resolved_owner": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OwnerResolutionSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "result": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DecisionResult"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "status": {
+          "$ref": "#/$defs/DecisionStatus"
+        },
+        "technical_resources": {
+          "items": {
+            "$ref": "#/$defs/TechnicalResourceQuota"
+          },
+          "type": "array"
+        },
+        "why_now": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision_id",
+        "delegation_id",
+        "revision",
+        "status",
+        "kind",
+        "assurance_required",
+        "recommendation",
+        "why_now",
+        "consequence",
+        "alternatives",
+        "exact_manifest_digest",
+        "technical_resources",
+        "requested_at_ms",
+        "authoritative_deep_link"
+      ],
+      "type": "object"
+    },
+    "DelegationPhase": {
+      "enum": [
+        "accepted",
+        "planning",
+        "in_motion",
+        "waiting_for_user",
+        "waiting_external",
+        "recovering",
+        "completed",
+        "partially_completed",
+        "failed"
+      ],
+      "type": "string"
+    },
+    "DelegationSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "acknowledged_at_ms": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "authoritative_deep_link": {
+          "type": "string"
+        },
+        "created_at_ms": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "delegation_id": {
+          "type": "string"
+        },
+        "intent_summary": {
+          "type": "string"
+        },
+        "outcome_summary": {
+          "type": "string"
+        },
+        "pending_decision": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DecisionSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pending_external_wait": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "phase": {
+          "$ref": "#/$defs/DelegationPhase"
+        },
+        "policy_revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "run_control": {
+          "$ref": "#/$defs/RunControlState"
+        },
+        "state_revision": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "stop_epoch": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "terminal_at_ms": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "updated_at_ms": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "delegation_id",
+        "phase",
+        "run_control",
+        "state_revision",
+        "intent_summary",
+        "outcome_summary",
+        "policy_revision",
+        "stop_epoch",
+        "created_at_ms",
+        "updated_at_ms",
+        "authoritative_deep_link"
+      ],
+      "type": "object"
+    },
+    "OwnerResolutionIngress": {
+      "enum": [
+        "local_owner_session",
+        "authenticated_remote_owner_channel"
+      ],
+      "type": "string"
+    },
+    "OwnerResolutionSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "ingress": {
+          "$ref": "#/$defs/OwnerResolutionIngress"
+        },
+        "verified_evidence_ref": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ingress",
+        "verified_evidence_ref"
+      ],
+      "type": "object"
+    },
+    "RunControlState": {
+      "enum": [
+        "running",
+        "stop_requested",
+        "stopped"
+      ],
+      "type": "string"
+    },
+    "TechnicalResourceKind": {
+      "enum": [
+        "tokens",
+        "time_ms",
+        "connector_calls",
+        "resource_units"
+      ],
+      "type": "string"
+    },
+    "TechnicalResourceQuota": {
+      "additionalProperties": false,
+      "properties": {
+        "consumed": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/TechnicalResourceKind"
+        },
+        "limit": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "reserved": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "limit",
+        "reserved",
+        "consumed"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "oneOf": [
+    {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "conversational",
+          "type": "string"
+        },
+        "request_audit_ref": {
+          "type": "string"
+        },
+        "response_text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "response_text",
+        "request_audit_ref"
+      ],
+      "type": "object"
+    },
+    {
+      "additionalProperties": false,
+      "properties": {
+        "created": {
+          "type": "boolean"
+        },
+        "delegation": {
+          "$ref": "#/$defs/DelegationSummary"
+        },
+        "kind": {
+          "const": "delegation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "delegation",
+        "created"
+      ],
+      "type": "object"
+    }
+  ],
+  "title": "IntakeResponse"
+}

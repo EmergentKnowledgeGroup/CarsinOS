@@ -1,0 +1,58 @@
+{
+  "schema": "carsinos.mission_control_quality_gate.v1",
+  "active_blockers": [],
+  "profiles": {
+    "pr": {
+      "description": "PR merge gate for Mission Control",
+      "steps": [
+        {
+          "id": "mc-lint",
+          "cwd": "apps/mission-control",
+          "command": ["npm", "run", "lint"]
+        },
+        {
+          "id": "mc-typecheck",
+          "cwd": "apps/mission-control",
+          "command": ["npm", "run", "typecheck"]
+        },
+        {
+          "id": "mc-unit",
+          "cwd": "apps/mission-control",
+          "command": ["npm", "run", "test:unit"]
+        },
+        {
+          "id": "mc-e2e-core",
+          "cwd": "apps/mission-control",
+          "command": ["npm", "run", "test:e2e:core"],
+          "timeout_sec": 900
+        },
+        {
+          "id": "mc-build-web",
+          "cwd": "apps/mission-control",
+          "command": ["npm", "run", "build"]
+        }
+      ]
+    },
+    "release": {
+      "description": "Release gate for Mission Control",
+      "extends": "pr",
+      "steps": [
+        {
+          "id": "mc-e2e-full",
+          "cwd": "apps/mission-control",
+          "command": ["npm", "run", "test:e2e:full"]
+        },
+        {
+          "id": "mc-e2e-tauri-smoke",
+          "cwd": "apps/mission-control",
+          "command": ["npm", "run", "test:e2e:tauri-smoke"]
+        },
+        {
+          "id": "mc-build-tauri",
+          "cwd": "apps/mission-control",
+          "command": ["npm", "run", "tauri:build", "--", "--debug", "--no-bundle"]
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,60 @@
+[package]
+name = "carsinos-effect-recorder"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[features]
+default = []
+test-support = []
+
+[dependencies]
+anyhow.workspace = true
+carsinos-protocol = { path = "../carsinos-protocol" }
+clap.workspace = true
+ed25519-dalek.workspace = true
+fs2.workspace = true
+getrandom.workspace = true
+hmac.workspace = true
+keyring.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["io-std", "io-util", "process", "sync"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+zeroize.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Security_Authorization",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Memory",
+  "Win32_System_Pipes",
+  "Win32_System_Threading",
+] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+rusqlite.workspace = true
+
+[[bin]]
+name = "carsinos-effect-recorder"
+path = "src/main.rs"
+
+[[bin]]
+name = "ea213-fake-provider"
+path = "src/bin/ea213-fake-provider.rs"
+required-features = ["test-support"]
+
+[[bin]]
+name = "ea213-runtime-harness"
+path = "src/bin/ea213-runtime-harness.rs"
+required-features = ["test-support"]

@@ -1,0 +1,63 @@
+# Build output and local dependency trees
+/target/
+/.cargo/.shared-cargo-targets/
+/.shared-cargo-targets/
+/.cargo-home/
+/.cargo-target/
+/.npm-cache/
+/node_modules/
+**/node_modules/
+**/dist/
+**/.playwright-cli/
+/playwright-browsers/
+/.playwright-browsers/
+__pycache__/
+*.py[cod]
+
+# Local runtime state, generated evidence, and test residue
+/runtime/
+/.state/
+/.state*/
+/.tmp/
+/.tmp??????/
+/crates/carsinos-gateway/.carsinos-receipt-integrity-*/
+/crates/carsinos-effect-recorder/.ea213-test-tmp/
+/crates/carsinos-storage/.tmp??????/
+*.db
+*.db-shm
+*.db-wal
+
+# Operator-local tooling and packaged output
+/.claude/
+/.codex/
+/.agents/
+/.tools/
+/.playwright-cli/
+/release-output/
+/missioncontrolSS/
+.DS_Store
+
+# This public repository intentionally contains only the curated public docs.
+/docs/**
+!/docs/assets/
+!/docs/assets/**
+!/docs/GETTING_STARTED.md
+!/docs/ARCHITECTURE.md
+!/docs/SECURITY_MODEL.md
+!/docs/RELEASES.md
+
+# Keep developmental planning, execution records, handoffs, and local-agent
+# instructions out of the public project history.
+/AGENTS*.md
+/APPDEX_*.md
+/CHECKLIST.md
+/CHECKPOINT.md
+/PLAN.md
+/CLAUDE.md
+/CODEX_*.md
+/OPENCLAW_*.md
+/SECURITY_HARDENING_PROGRAM.md
+/frontend_claudit.md
+/apps/**/README.md
+/apps/**/API_CONTRACT.md
+/vendors/**/*.md

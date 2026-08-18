@@ -1,0 +1,13 @@
+# Keep automated review focused on implementation-bearing source. The excluded
+# paths are generated contracts, locked/evidence documents, Python test fixtures,
+# and repository-local planning/ignore metadata already covered by deterministic
+# generators, independent hostile review, and CI.
+reviews:
+  path_filters:
+    - "!contracts/execass/v1/**"
+    - "!docs/EXECASS_*.md"
+    - "!docs/EXECASS_*.json"
+    - "!PLAN.md"
+    - "!CHECKLIST.md"
+    - "!scripts/tests/**"
+    - "!.gitignore"

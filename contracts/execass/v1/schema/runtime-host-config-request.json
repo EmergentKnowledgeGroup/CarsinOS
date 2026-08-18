@@ -1,0 +1,36 @@
+{
+  "$defs": {
+    "RuntimeHostDesiredMode": {
+      "enum": [
+        "app_bound",
+        "background"
+      ],
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "desired_mode": {
+      "$ref": "#/$defs/RuntimeHostDesiredMode"
+    },
+    "expected_settings_revision": {
+      "format": "int64",
+      "type": "integer"
+    },
+    "idempotency_key": {
+      "type": "string"
+    },
+    "start_at_login": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "idempotency_key",
+    "expected_settings_revision",
+    "desired_mode",
+    "start_at_login"
+  ],
+  "title": "RuntimeHostConfigRequest",
+  "type": "object"
+}
