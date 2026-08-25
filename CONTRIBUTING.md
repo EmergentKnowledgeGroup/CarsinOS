@@ -22,14 +22,20 @@ a second source of state or a cosmetic workaround.
 ## Development setup
 
 ~~~powershell
-git clone https://github.com/<your-user>/CarsinOS.git
+git clone https://github.com/EmergentKnowledgeGroup/CarsinOS.git
 cd CarsinOS
-git remote add upstream https://github.com/EmergentKnowledgeGroup/CarsinOS.git
+git remote rename origin upstream
+# If you will push from a fork, replace <your-user> with your GitHub account
+# before running the next command.
+git remote add origin https://github.com/<your-user>/CarsinOS.git
 git fetch upstream
 git switch -c your-focused-change upstream/main
 ~~~
 
-For Mission Control:
+For a connected Mission Control session, first follow the two-terminal
+[gateway and Vite setup](docs/GETTING_STARTED.md#2-start-a-deliberate-local-development-gateway).
+Once the gateway is running with its isolated state directory and matching
+token, the frontend development command is:
 
 ~~~powershell
 cd apps/mission-control

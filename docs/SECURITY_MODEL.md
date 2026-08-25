@@ -99,9 +99,12 @@ local attacker cannot alter files, keys, or binaries.
 
 ## Network exposure is a separate deployment decision
 
-The gateway defaults to loopback 127.0.0.1:18789. Non-loopback startup is not
-an ordinary default: public bind and TLS-termination contracts must be enabled
-explicitly.
+The gateway defaults to loopback 127.0.0.1:18789. The gateway's
+[`enforce_network_exposure_policy`](../crates/carsinos-gateway/src/main.rs)
+runs before it binds the listener. Non-loopback startup is not an ordinary
+default: `CARSINOS_PUBLIC_BIND_ALLOWED=true` and
+`CARSINOS_EDGE_TLS_TERMINATED=true` must both be enabled explicitly before the
+public-bind path can proceed.
 
 Public binds, reverse proxies, TLS, remote access, shared machines, backups,
 and operating-system hardening require their own design and review. Do not

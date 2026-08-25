@@ -60,6 +60,14 @@ $env:CARSINOS_STATE_DIR = "$PWD\runtime\dev-state"
 cargo run -p carsinos-gateway
 ```
 
+In a macOS/Linux POSIX shell, use the same names and the same token value:
+
+```bash
+export CARSINOS_GATEWAY_TOKEN="replace-with-a-long-private-local-token"
+export CARSINOS_STATE_DIR="$PWD/runtime/dev-state"
+cargo run -p carsinos-gateway
+```
+
 `CARSINOS_STATE_DIR` keeps this source-development state separate from any
 installed application state. Do not commit it, copy it into screenshots, or
 reuse a real production token in a development checkout.
@@ -73,7 +81,17 @@ token value:
 cd CarsinOS\apps\mission-control
 npm ci
 $env:VITE_CARSINOS_GATEWAY_URL = "http://127.0.0.1:18789"
-$env:VITE_CARSINOS_GATEWAY_TOKEN = "the-same-private-local-token"
+$env:VITE_CARSINOS_GATEWAY_TOKEN = "replace-with-a-long-private-local-token"
+npm run dev
+```
+
+In a macOS/Linux POSIX shell:
+
+```bash
+cd CarsinOS/apps/mission-control
+npm ci
+export VITE_CARSINOS_GATEWAY_URL="http://127.0.0.1:18789"
+export VITE_CARSINOS_GATEWAY_TOKEN="replace-with-a-long-private-local-token"
 npm run dev
 ```
 
@@ -101,15 +119,20 @@ release or assume it has release-only token/keyring/runtime custody behavior.
 Once Mission Control is connected, do not try to learn every room at once.
 
 1. Go to **The Office** and read the briefing.
-2. Give ExecAss one concrete outcome in the ask box, in ordinary words.
-3. Watch **Needs You** for the decisions that actually require you.
-4. Use **Boards** or **Plan** when you want work to have an explicit durable
+2. Watch **Needs You** to understand which decisions require the owner.
+3. Use **Boards** or **Plan** when you want work to have an explicit durable
    shape.
-5. Use **Calendar** for intentional wakeups and scheduled work.
-6. Use **Staff Directory**, **Models & Providers**, and **Connectors** to
+4. Use **Calendar** for intentional wakeups and scheduled work.
+5. Use **Staff Directory**, **Models & Providers**, and **Connectors** to
    understand who operates and through what configured route.
-7. Open a receipt or history item when you need evidence for an important
+6. Open a receipt or history item when you need evidence for an important
    result.
+
+That is the right browser/Vite learning path. Do not expect a browser session
+to hand off a new owner-bound ExecAss outcome: that operation needs the native
+owner proof that browsers deliberately cannot create. For that workflow, use a
+desktop runtime configured with matching native owner-proof and gateway custody;
+debug Tauri alone is not a release-equivalent runtime.
 
 The product model is intentionally simple: one owner and one ExecAss
 coordinator, with configured workers and tools operating inside that authority.
