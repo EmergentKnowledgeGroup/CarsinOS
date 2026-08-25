@@ -74,11 +74,11 @@ reuse a real production token in a development checkout.
 
 ## 3. Start Mission Control in browser development mode
 
-Open a second PowerShell terminal from the same checkout and use the **same**
-token value:
+Open a second PowerShell terminal at the CarsinOS checkout root and use the
+**same** token value:
 
 ```powershell
-cd CarsinOS\apps\mission-control
+cd apps\mission-control
 npm ci
 $env:VITE_CARSINOS_GATEWAY_URL = "http://127.0.0.1:18789"
 $env:VITE_CARSINOS_GATEWAY_TOKEN = "replace-with-a-long-private-local-token"
@@ -88,7 +88,7 @@ npm run dev
 In a macOS/Linux POSIX shell:
 
 ```bash
-cd CarsinOS/apps/mission-control
+cd apps/mission-control
 npm ci
 export VITE_CARSINOS_GATEWAY_URL="http://127.0.0.1:18789"
 export VITE_CARSINOS_GATEWAY_TOKEN="replace-with-a-long-private-local-token"
@@ -105,8 +105,10 @@ decisions. That limitation is a safety boundary, not a missing form field.
 
 ## 4. Run the Tauri shell for desktop work
 
+From the CarsinOS checkout root:
+
 ```powershell
-cd CarsinOS\apps\mission-control
+cd apps\mission-control
 npm run tauri:dev
 ```
 
