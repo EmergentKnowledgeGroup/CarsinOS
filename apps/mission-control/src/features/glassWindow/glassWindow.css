@@ -204,7 +204,7 @@
 .mc-window-floor--glass .mc-chatter-rooms button { min-height: 2.75rem; padding: 0.45rem 0.6rem; border-radius: 0.5rem; color: var(--gw-muted); font-size: 0.8125rem; }
 .mc-window-floor--glass .mc-chatter-rooms button.is-active { color: var(--gw-ink); background: color-mix(in srgb, var(--gw-accent) 14%, transparent); }
 .mc-window-floor--glass .mc-chatter-dot { background: var(--gw-gold); }
-.mc-window-floor--glass .mc-chatter-stream { min-height: 19rem; }
+.mc-window-floor--glass .mc-chatter-stream { min-height: 19rem; max-height: 40dvh; }
 .mc-window-floor--glass .mc-chatter-messages { gap: 1rem; padding: 1rem 1.125rem; }
 .mc-window-floor--glass .mc-chatter-messages article { padding-bottom: 0.9rem; border-bottom: 1px solid color-mix(in srgb, var(--gw-line) 78%, transparent); }
 .mc-window-floor--glass .mc-chatter-messages p { line-height: 1.55; }
