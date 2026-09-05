@@ -34,6 +34,7 @@ import type {
 import { useNarrowViewport } from "../../app/useNarrowViewport";
 import { useGlassSurfaceTheme } from "../../glass/useGlassSurfaceTheme";
 import type { GlassWindowController } from "./useGlassWindowController";
+import "./glassWindow.css";
 
 function ReefCrab(props: {
   item: FloorPresenceItem;
@@ -233,7 +234,11 @@ export function GlassWindowPage(props: {
   );
 
   return (
-    <section className="mc-window-floor" aria-label="The Window" ref={floorRef}>
+    <section
+      className="mc-window-floor mc-window-floor--glass"
+      aria-label="The Window"
+      ref={floorRef}
+    >
       <header className="mc-window-header">
         <div>
           <span className="mc-window-kicker">3F · THE WINDOW</span>

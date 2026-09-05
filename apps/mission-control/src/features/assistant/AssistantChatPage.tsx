@@ -42,7 +42,7 @@ function FieldHelpIcon({ text }: { text: string }) {
   );
 }
 
-export function AssistantChatPage(props: AssistantChatPageProps) {
+function AssistantChatWorkspace(props: AssistantChatPageProps) {
   const c = props.controller;
   const assistantRunId = c.lastRunId;
   const [promptOpen, setPromptOpen] = useState(false);
@@ -287,11 +287,6 @@ export function AssistantChatPage(props: AssistantChatPageProps) {
         </div>
       </article>
 
-      <ExecassOfficePanel
-        controller={props.officeController}
-        onOpenRoom={props.onOpenRoom}
-      />
-
       <div className="mc-page-section-tabs" aria-label="Assistant sections">
         <button
           type="button"
@@ -447,5 +442,26 @@ export function AssistantChatPage(props: AssistantChatPageProps) {
         </article>
       )}
     </section>
+  );
+}
+
+/** The Office is the landing canvas; detailed lane controls remain available. */
+export function AssistantChatPage(props: AssistantChatPageProps) {
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
+  const workspaceRequired = props.agents.length === 0 ||
+    (props.controller.runtimeRoutingLoaded && props.controller.availableAgents.length === 0) ||
+    props.controller.sessionMode === "pinned_session";
+  return (
+    <div className="mc-office-floor">
+      <ExecassOfficePanel controller={props.officeController} onOpenRoom={props.onOpenRoom} />
+      <details
+        className="mc-office-workspace"
+        open={workspaceOpen || workspaceRequired}
+        onToggle={(event) => { if (!workspaceRequired) setWorkspaceOpen(event.currentTarget.open); }}
+      >
+        <summary>Assistant chat &amp; shared instructions</summary>
+        <AssistantChatWorkspace {...props} />
+      </details>
+    </div>
   );
 }

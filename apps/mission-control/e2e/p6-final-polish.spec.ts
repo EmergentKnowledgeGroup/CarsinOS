@@ -415,7 +415,7 @@ test("@core @p6-polish 390px shell law: unclipped chrome, mark/badge separation,
   const topbar = await expectVisibleNonZeroRect(page, ".mc-topbar");
   const title = await expectVisibleNonZeroRect(page, ".mc-topbar-title");
   expectContained(title, topbar);
-  await expect(page.locator(".mc-topbar-title")).toHaveText("Mission Control");
+  await expect(page.locator(".mc-topbar-title")).toHaveText("Your desk");
   const posture = await expectVisibleNonZeroRect(
     page,
     '[data-testid="incident-posture-status"]',

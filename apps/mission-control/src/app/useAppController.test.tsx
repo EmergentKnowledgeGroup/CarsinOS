@@ -45,8 +45,8 @@ afterEach(async () => {
 describe("useAppController room identity", () => {
   test("derives the active room from the initial tab", async () => {
     await render();
-    expect(controller?.activeTab).toBe("boards");
-    expect(controller?.activeRoomId).toBe("boards");
+    expect(controller?.activeTab).toBe("assistant");
+    expect(controller?.activeRoomId).toBe("desk");
   });
 
   test("selectRoom navigates by stable room id and keeps it lit on a shared route", async () => {
@@ -142,8 +142,8 @@ describe("useAppController room identity", () => {
       selected = controller?.selectRoom("haunted-room");
     });
     expect(selected).toBe(false);
-    expect(controller?.activeTab).toBe("boards");
-    expect(controller?.activeRoomId).toBe("boards");
+    expect(controller?.activeTab).toBe("assistant");
+    expect(controller?.activeRoomId).toBe("desk");
   });
 
   test("selectRoom fails closed when the resolved registry hides the room", async () => {
@@ -157,8 +157,8 @@ describe("useAppController room identity", () => {
       selected = controller?.selectRoom("models", visibleFloors);
     });
     expect(selected).toBe(false);
-    expect(controller?.activeTab).toBe("boards");
-    expect(controller?.activeRoomId).toBe("boards");
+    expect(controller?.activeTab).toBe("assistant");
+    expect(controller?.activeRoomId).toBe("desk");
   });
 
   test("selectRoom fails closed for a capability-filtered room", async () => {
@@ -169,8 +169,8 @@ describe("useAppController room identity", () => {
     await act(async () => {
       controller?.selectRoom("chatter", visibleFloors);
     });
-    expect(controller?.activeTab).toBe("boards");
-    expect(controller?.activeRoomId).toBe("boards");
+    expect(controller?.activeTab).toBe("assistant");
+    expect(controller?.activeRoomId).toBe("desk");
   });
 
   test("tabs no registry room owns report no active room", async () => {

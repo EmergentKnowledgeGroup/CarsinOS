@@ -72,7 +72,7 @@ pub(crate) fn hex_decode<const N: usize>(value: &str) -> anyhow::Result<[u8; N]>
         anyhow::bail!("hex value has the wrong length");
     }
     let mut output = [0u8; N];
-    for (index, pair) in value.as_bytes().chunks_exact(2).enumerate() {
+    for (index, pair) in value.as_bytes().as_chunks::<2>().0.iter().enumerate() {
         let high = decode_nibble(pair[0])?;
         let low = decode_nibble(pair[1])?;
         output[index] = (high << 4) | low;

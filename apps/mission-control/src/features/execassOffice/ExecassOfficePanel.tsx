@@ -14,6 +14,8 @@ import {
   type ReactNode,
 } from "react";
 
+import "./glassOffice.css";
+
 import { useNarrowViewport } from "../../app/useNarrowViewport";
 import { useGlassSurfaceTheme } from "../../glass/useGlassSurfaceTheme";
 import { GLASS_CONFIG_EVENT } from "../../glass/config";
@@ -382,7 +384,7 @@ export function ExecassOfficePanel(props: {
         <span className="mc-execass-status">
           {stopEngaged
             ? "⏸ everybody froze - work is holding at a safe boundary"
-            : "● on duty"}
+            : summary ? "● on duty" : "Connecting to your office"}
         </span>
         <span className="mc-execass-spacer" />
         {stopEngaged ? (
@@ -475,30 +477,44 @@ export function ExecassOfficePanel(props: {
         </p>
       ) : null}
 
-      {briefing ? (
-        <div className="mc-execass-briefing" data-tone={briefing.tone}>
-          <h2>{briefing.headline}</h2>
-          <p>{briefing.paragraph}</p>
-        </div>
-      ) : controller.summaryLoading ? (
-        <div className="mc-execass-briefing">
-          <p>Pulling this morning's brief...</p>
-        </div>
-      ) : null}
+      <div className="mc-office-brief-band">
+        {briefing ? (
+          <div className="mc-execass-briefing" data-tone={briefing.tone}>
+            <h2>{briefing.headline}</h2>
+            <p>{briefing.paragraph}</p>
+          </div>
+        ) : controller.summaryLoading ? (
+          <div className="mc-execass-briefing">
+            <p>Pulling this morning's brief...</p>
+          </div>
+        ) : controller.summaryError ? (
+          <div className="mc-execass-briefing">
+            <h2>Your briefing is unavailable.</h2>
+            <p>The request failed. Retry to fetch the latest office state.</p>
+            <button type="button" className="mc-execass-quiet" onClick={() => void controller.refreshSummary()}>Retry briefing</button>
+          </div>
+        ) : (
+          <div className="mc-execass-briefing">
+            <h2>Your office is ready.</h2>
+            <p>Connect your gateway to bring in your briefing, work, and decisions.</p>
+            <button type="button" className="mc-execass-quiet" onClick={() => onOpenRoom("setup")}>Open setup</button>
+          </div>
+        )}
 
-      <form className="mc-execass-ask" onSubmit={submitAsk}>
-        <input
-          type="text"
-          value={askDraft}
-          placeholder="What do you need? Say it like you'd say it out loud..."
-          aria-label="Delegate an outcome to ExecAss"
-          disabled={controller.intakeBusy}
-          onChange={(event) => setAskDraft(event.target.value)}
-        />
-        <button type="submit" disabled={controller.intakeBusy || !askDraft.trim()}>
-          {controller.intakeBusy ? "Handing off..." : "Hand it off"}
-        </button>
-      </form>
+        <form className="mc-execass-ask" onSubmit={submitAsk}>
+          <input
+            type="text"
+            value={askDraft}
+            placeholder="What do you need? Say it like you'd say it out loud..."
+            aria-label="Delegate an outcome to ExecAss"
+            disabled={controller.intakeBusy}
+            onChange={(event) => setAskDraft(event.target.value)}
+          />
+          <button type="submit" disabled={controller.intakeBusy || !askDraft.trim()}>
+            {controller.intakeBusy ? "Handing off..." : "Hand it off"}
+          </button>
+        </form>
+      </div>
       {controller.conversationalReply ? (
         <div className="mc-execass-reply" data-testid="execass-reply">
           <span>{controller.conversationalReply}</span>

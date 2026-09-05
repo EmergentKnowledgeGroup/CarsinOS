@@ -1,0 +1,1124 @@
+<meta charset="utf-8">
+<title>CarsinOS - Glass Office Demo</title>
+<style>
+  :root {
+    --ground: #F6F5F1;
+    --surface: #FFFFFF;
+    --glass: rgba(255,255,255,0.74);
+    --ink: #21282B;
+    --ink-soft: #596467;
+    --ink-faint: #8C9598;
+    --line: #E5E1D8;
+    --line-soft: #EEEBE3;
+    --accent: #17766B;
+    --accent-soft: #E2EFEB;
+    --accent-ink: #0E5A50;
+    --coral: #E8541B; /* claw orange */
+    --coral-soft: #FDE8DD;
+    --gold: #97782A;
+    --gold-soft: #F6EED9;
+    --gold-line: #E2D4AB;
+    --ok: #3E7A4E;
+    --warn: #A8402F;
+    --skyline: linear-gradient(180deg, rgba(23,118,107,0.06), rgba(23,118,107,0) 70%);
+    --shadow: 0 1px 2px rgba(33,40,43,.05), 0 8px 26px rgba(33,40,43,.07);
+    --shadow-pop: 0 4px 12px rgba(33,40,43,.12), 0 24px 60px rgba(33,40,43,.2);
+    --font-brief: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
+    --font-ui: 'Seravek', 'Gill Sans Nova', 'Segoe UI', Calibri, 'Trebuchet MS', sans-serif;
+    --font-data: 'Cascadia Code', 'SF Mono', Consolas, 'DejaVu Sans Mono', monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #0C0C0F; --surface: #17171B; --glass: rgba(23,23,27,0.82);
+      --ink: #EAE8E2; --ink-soft: #A8A9AC; --ink-faint: #6F7074;
+      --line: #29292F; --line-soft: #1F1F24;
+      --accent: #4FB3A5; --accent-soft: #1A2F2C; --accent-ink: #7CC9BE;
+      --coral: #FF5A1F; --coral-soft: #351D10;
+      --gold: #CFAE5E; --gold-soft: #2A2516; --gold-line: #493E21;
+      --ok: #6FAE7E; --warn: #D3705F;
+      --skyline: linear-gradient(180deg, rgba(79,179,165,0.07), rgba(79,179,165,0) 70%);
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 26px rgba(0,0,0,.35);
+      --shadow-pop: 0 4px 12px rgba(0,0,0,.4), 0 24px 60px rgba(0,0,0,.55);
+    }
+  }
+  :root[data-theme="light"] {
+    --ground: #F6F5F1; --surface: #FFFFFF; --glass: rgba(255,255,255,0.74);
+    --ink: #21282B; --ink-soft: #596467; --ink-faint: #8C9598;
+    --line: #E5E1D8; --line-soft: #EEEBE3;
+    --accent: #17766B; --accent-soft: #E2EFEB; --accent-ink: #0E5A50;
+    --coral: #E8541B; --coral-soft: #FDE8DD;
+    --gold: #97782A; --gold-soft: #F6EED9; --gold-line: #E2D4AB;
+    --ok: #3E7A4E; --warn: #A8402F;
+    --skyline: linear-gradient(180deg, rgba(23,118,107,0.06), rgba(23,118,107,0) 70%);
+    --shadow: 0 1px 2px rgba(33,40,43,.05), 0 8px 26px rgba(33,40,43,.07);
+    --shadow-pop: 0 4px 12px rgba(33,40,43,.12), 0 24px 60px rgba(33,40,43,.2);
+  }
+  :root[data-theme="dark"] {
+    --ground: #0C0C0F; --surface: #17171B; --glass: rgba(23,23,27,0.82);
+    --ink: #EAE8E2; --ink-soft: #A8A9AC; --ink-faint: #6F7074;
+    --line: #29292F; --line-soft: #1F1F24;
+    --accent: #4FB3A5; --accent-soft: #1A2F2C; --accent-ink: #7CC9BE;
+    --coral: #FF5A1F; --coral-soft: #351D10;
+    --gold: #CFAE5E; --gold-soft: #2A2516; --gold-line: #493E21;
+    --ok: #6FAE7E; --warn: #D3705F;
+    --skyline: linear-gradient(180deg, rgba(79,179,165,0.07), rgba(79,179,165,0) 70%);
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 26px rgba(0,0,0,.35);
+    --shadow-pop: 0 4px 12px rgba(0,0,0,.4), 0 24px 60px rgba(0,0,0,.55);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-ui);
+    font-size: 14.5px;
+    line-height: 1.45;
+    overflow: hidden; /* the office is a room, not a document */
+  }
+  body::after { /* grain */
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 100; opacity: .35;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0.04 0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  button { font-family: inherit; font-size: inherit; cursor: pointer; }
+  button:focus-visible, input:focus-visible, a:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px;
+  }
+  a { color: var(--accent-ink); }
+
+  .app { display: grid; grid-template-columns: 216px 1fr; height: 100dvh; }
+
+  /* ═════════ Elevator rail ═════════ */
+  .rail {
+    border-right: 1px solid var(--line);
+    padding: 22px 16px 18px;
+    display: flex; flex-direction: column; gap: 3px;
+    background: linear-gradient(180deg, var(--surface), var(--ground) 30%);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; margin: 0 6px 4px; }
+  .brand svg { flex: none; }
+  .brand .wordmark { font-family: var(--font-brief); font-size: 19px; letter-spacing: .01em; }
+  .brand .wordmark b { font-weight: 600; color: var(--coral); }
+  .brand small { display: block; font-size: 9.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-faint); }
+  .rail-label { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-faint); margin: 16px 8px 6px; }
+  .floor {
+    display: flex; align-items: center; gap: 11px;
+    padding: 8px 10px; border: 0; background: none; text-align: left;
+    border-radius: 9px; color: var(--ink-soft); width: 100%;
+  }
+  .floor:hover { background: var(--line-soft); color: var(--ink); }
+  .floor.active { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+  .floor .lamp {
+    width: 22px; height: 22px; border-radius: 50%; flex: none;
+    border: 1.5px solid var(--line); display: grid; place-items: center;
+    font-family: var(--font-data); font-size: 10px; color: var(--ink-faint);
+    transition: all .25s;
+  }
+  .floor.active .lamp { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-soft); box-shadow: 0 0 10px rgba(23,118,107,.35); }
+  .floor .name { font-size: 14px; }
+  .floor .hint { display: block; font-size: 11px; color: var(--ink-faint); margin-top: 0; }
+  .floor .badge {
+    margin-left: auto; flex: none;
+    background: var(--gold-soft); color: var(--gold); border: 1px solid var(--gold-line);
+    font-size: 11px; font-weight: 700; border-radius: 99px; padding: 0 8px; line-height: 18px;
+  }
+  .rail-foot { margin-top: auto; display: flex; flex-direction: column; gap: 7px; }
+  .ghost-btn {
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft);
+    border-radius: 8px; padding: 6px 10px; font-size: 12.5px; text-align: left;
+  }
+  .ghost-btn:hover { color: var(--ink); border-color: var(--ink-faint); }
+  .ea-status { display: flex; align-items: center; gap: 9px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+  .ea-seal {
+    width: 30px; height: 30px; border-radius: 50%; flex: none; position: relative;
+    background: var(--ink); color: var(--ground); display: grid; place-items: center;
+    font-family: var(--font-brief); font-size: 12px; font-style: italic;
+  }
+  .ea-seal::after { content: ""; position: absolute; inset: -3px; border-radius: 50%; border: 1px solid var(--accent); opacity: .6; }
+  .ea-status .who { font-size: 12.5px; font-weight: 600; }
+  .ea-status .who small { display: block; font-weight: 400; color: var(--ok); font-size: 11px; }
+
+  /* ═════════ Main / floors ═════════ */
+  .main { position: relative; overflow: hidden; display: flex; flex-direction: column; }
+  .view { display: none; flex-direction: column; height: 100%; min-height: 0; padding: 20px 28px 22px; background: var(--skyline); }
+  .view.active { display: flex; }
+
+  .topline { display: flex; align-items: baseline; gap: 14px; margin-bottom: 4px; flex: none; }
+  .topline .date { font-size: 11px; letter-spacing: .13em; text-transform: uppercase; color: var(--ink-faint); }
+  .topline .spacer { flex: 1; }
+  .quiet-note { font-size: 12px; color: var(--ink-faint); }
+  .quiet-note .dot { color: var(--ok); }
+
+  /* Office header band: brief + ask */
+  .brief-band { display: grid; grid-template-columns: 1.5fr 1fr; gap: 26px; align-items: end; margin-bottom: 14px; flex: none; }
+  h1.greet {
+    font-family: var(--font-brief); font-weight: 400;
+    font-size: clamp(21px, 2.4vw, 27px); line-height: 1.22;
+    margin: 0 0 6px; text-wrap: balance;
+  }
+  .briefing {
+    font-family: var(--font-brief); font-size: 14.5px; line-height: 1.55;
+    color: var(--ink-soft); max-width: 66ch; margin: 0;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .briefing strong { color: var(--ink); font-weight: 600; }
+  .brief-sign { font-family: var(--font-brief); font-style: italic; color: var(--ink-faint); font-size: 12px; margin: 4px 0 0; }
+  .ask-col { display: flex; flex-direction: column; gap: 8px; }
+  .ask {
+    display: flex; gap: 8px; align-items: center;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 13px;
+    padding: 6px 6px 6px 15px; box-shadow: var(--shadow);
+  }
+  .ask .ea-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex: none; box-shadow: 0 0 0 4px var(--accent-soft); }
+  .ask input { flex: 1; border: 0; background: none; color: var(--ink); font-family: var(--font-brief); font-size: 15px; padding: 8px 0; min-width: 0; }
+  .ask input::placeholder { color: var(--ink-faint); }
+  .ask .send { border: 0; background: var(--ink); color: var(--ground); border-radius: 9px; padding: 9px 16px; font-size: 13px; font-weight: 600; flex: none; }
+  .ask .send:hover { background: var(--accent-ink); color: #fff; }
+  .ask-hints { display: flex; gap: 7px; overflow: hidden; }
+  .hint-chip { border: 1px dashed var(--line); background: none; color: var(--ink-faint); border-radius: 99px; padding: 3px 11px; font-size: 11.5px; white-space: nowrap; }
+  .hint-chip:hover { color: var(--accent-ink); border-color: var(--accent); }
+
+  /* ═════════ Office canvas: fixed, never grows ═════════ */
+  .office { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .arrange-bar { display: none; align-items: center; gap: 10px; margin: 0 0 10px; padding: 7px 13px; border: 1px dashed var(--accent); border-radius: 10px; color: var(--accent-ink); font-size: 12.5px; background: var(--accent-soft); flex: none; }
+  .office.customize .arrange-bar { display: flex; }
+  .office-grid {
+    flex: 1; min-height: 0;
+    display: grid; grid-template-columns: repeat(6, 1fr); grid-auto-rows: minmax(0, 1fr);
+    grid-template-rows: repeat(4, minmax(0, 1fr));
+    gap: 14px; grid-auto-flow: dense;
+  }
+  .block {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    box-shadow: var(--shadow); padding: 13px 16px; position: relative;
+    display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+  }
+  .block[data-size="s"] { grid-column: span 2; grid-row: span 1; }
+  .block[data-size="m"] { grid-column: span 2; grid-row: span 2; }
+  .block[data-size="l"] { grid-column: span 4; grid-row: span 2; }
+  .block-head { display: flex; align-items: baseline; gap: 9px; margin-bottom: 8px; flex: none; }
+  .block-head h2 { font-size: 11px; letter-spacing: .13em; text-transform: uppercase; color: var(--ink-faint); margin: 0; font-weight: 600; }
+  .block-head .count { font-family: var(--font-data); font-size: 11px; color: var(--accent); }
+  .block-head .more { margin-left: auto; font-size: 11.5px; color: var(--ink-faint); text-decoration: none; white-space: nowrap; }
+  .block-head .more:hover { color: var(--accent-ink); }
+  .block-body { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+
+  /* density: what shows at each size */
+  .block .d-m, .block .d-l { display: none; }
+  .block[data-size="m"] .d-m { display: block; }
+  .block[data-size="l"] .d-m, .block[data-size="l"] .d-l { display: block; }
+  .block[data-size="s"] .block-body > .list { display: none; }
+  .block[data-size="s"] .summary-line { display: flex; }
+  .summary-line { display: none; align-items: baseline; gap: 10px; flex: 1; }
+  .summary-line .big { font-family: var(--font-brief); font-size: 34px; line-height: 1; }
+  .summary-line .lab { font-size: 12px; color: var(--ink-faint); max-width: 16ch; }
+  .block[data-size="m"] .summary-line, .block[data-size="l"] .summary-line { display: none; }
+
+  /* arrange mode */
+  .office.customize .block { outline: 1.5px dashed var(--accent); outline-offset: 3px; }
+  .block-tools { display: none; position: absolute; top: 8px; right: 10px; gap: 5px; z-index: 5; }
+  .office.customize .block-tools { display: flex; }
+  .tool { border: 1px solid var(--line); background: var(--surface); color: var(--ink-soft); font-size: 10.5px; border-radius: 6px; padding: 1px 7px; box-shadow: var(--shadow); }
+  .tool.grip { cursor: grab; }
+
+  /* Needs You */
+  .needs { border-color: var(--gold-line); background: linear-gradient(var(--gold-soft), var(--surface) 90px); }
+  .decision { border: 1px solid var(--line); background: var(--surface); border-radius: 11px; padding: 11px 13px; margin-bottom: 9px; }
+  .decision:last-child { margin-bottom: 0; }
+  .decision .kind { font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; }
+  .decision .kind.confirm { color: var(--gold); }
+  .decision .kind.clarify { color: var(--accent-ink); }
+  .decision h3 { font-family: var(--font-brief); font-weight: 600; font-size: 15px; margin: 3px 0 4px; }
+  .decision p { margin: 0 0 5px; font-size: 12.5px; color: var(--ink-soft); }
+  .decision .consequence { color: var(--ink); background: var(--gold-soft); border: 1px solid var(--gold-line); border-radius: 8px; padding: 6px 9px; font-size: 12px; }
+  .decision .why { font-size: 11.5px; color: var(--ink-faint); }
+  .d-actions { display: flex; align-items: center; gap: 8px; margin-top: 9px; flex-wrap: wrap; }
+  .btn-yes { border: 0; background: var(--ink); color: var(--ground); border-radius: 8px; padding: 7px 14px; font-weight: 600; font-size: 12.5px; }
+  .btn-yes:hover { background: var(--accent-ink); color: #fff; }
+  .btn-talk { border: 1px solid var(--line); background: none; color: var(--ink); border-radius: 8px; padding: 7px 12px; font-size: 12.5px; }
+  .btn-talk:hover { border-color: var(--ink-faint); }
+  .d-links { margin-left: auto; font-size: 11px; color: var(--ink-faint); display: flex; gap: 10px; }
+  .d-links a { color: var(--ink-faint); }
+  .d-links a:hover { color: var(--accent-ink); }
+  .option-chips { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 8px; }
+  .opt { border: 1px solid var(--line); background: var(--surface); border-radius: 99px; padding: 4px 12px; font-size: 12px; color: var(--ink); }
+  .opt:hover { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-soft); }
+  .resolved-note { display: none; align-items: center; gap: 8px; color: var(--ok); font-size: 12.5px; margin-top: 8px; }
+  .decision.done-state .d-actions, .decision.done-state .option-chips { display: none; }
+  .decision.done-state .resolved-note { display: flex; }
+
+  /* rows */
+  .motion-row { display: flex; align-items: center; gap: 10px; padding: 7px 2px; border-bottom: 1px solid var(--line-soft); }
+  .motion-row:last-child { border-bottom: 0; }
+  .pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; animation: pulse 2.4s ease-in-out infinite; }
+  .pulse.ext { background: var(--ink-faint); animation: none; }
+  .pulse.rec { background: var(--gold); }
+  @keyframes pulse { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
+  .motion-row .what { font-size: 13px; min-width: 0; }
+  .motion-row .sub { display: block; font-size: 11.5px; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .phase { margin-left: auto; flex: none; font-size: 10px; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-soft); border: 1px solid var(--line); border-radius: 99px; padding: 1px 8px; }
+  .phase.ext { color: var(--ink-faint); border-style: dashed; }
+  .done-row { display: flex; align-items: baseline; gap: 9px; padding: 7px 2px; border-bottom: 1px solid var(--line-soft); font-size: 13px; }
+  .done-row:last-child { border-bottom: 0; }
+  .tick { color: var(--ok); font-weight: 700; flex: none; }
+  .tick.part { color: var(--gold); }
+  .done-row .receipt { margin-left: auto; flex: none; font-size: 11px; font-family: var(--font-data); }
+  .done-row .sub { color: var(--ink-faint); font-size: 11.5px; }
+  .next-row { display: flex; align-items: baseline; gap: 9px; padding: 6px 2px; font-size: 13px; border-bottom: 1px solid var(--line-soft); }
+  .next-row:last-child { border-bottom: 0; }
+  .when { font-family: var(--font-data); font-size: 10.5px; color: var(--accent-ink); flex: none; width: 64px; }
+  .next-row .tag { margin-left: auto; font-size: 10.5px; color: var(--ink-faint); }
+
+  .peek-msg { display: flex; gap: 9px; padding: 6px 0; border-bottom: 1px solid var(--line-soft); font-size: 12.5px; }
+  .peek-msg:last-child { border-bottom: 0; }
+  .avatar { width: 24px; height: 24px; border-radius: 7px; flex: none; display: grid; place-items: center; font-size: 10px; font-weight: 700; background: var(--accent-soft); color: var(--accent-ink); }
+  .avatar.ea { background: var(--ink); color: var(--ground); border-radius: 50%; font-family: var(--font-brief); font-style: italic; }
+  .peek-msg .who { font-weight: 600; font-size: 11.5px; }
+  .peek-msg .chan { color: var(--ink-faint); font-weight: 400; font-family: var(--font-data); font-size: 10px; }
+  .peek-msg p { margin: 0; color: var(--ink-soft); }
+
+  .shortcut-chips { display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; }
+  .shortcut { border: 1px solid var(--line); background: var(--ground); border-radius: 9px; padding: 6px 12px; font-size: 12.5px; color: var(--ink); display: flex; gap: 7px; align-items: baseline; text-decoration: none; }
+  .shortcut small { color: var(--ink-faint); font-size: 10.5px; }
+  .shortcut:hover { border-color: var(--accent); color: var(--accent-ink); }
+  .ghost-slot { border: 1.5px dashed var(--line); border-radius: 14px; display: grid; place-items: center; color: var(--ink-faint); font-size: 12.5px; grid-column: span 2; grid-row: span 1; }
+  .ghost-slot button { border: 0; background: none; color: var(--ink-faint); }
+  .ghost-slot button:hover { color: var(--accent-ink); }
+
+  /* ═════════ 3F Window ═════════ */
+  .reef-wrap { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.35fr 1fr; gap: 16px; }
+  .tank { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; min-height: 0; }
+  .tank canvas { display: block; width: 100%; height: 100%; }
+  .tank-cap { position: absolute; left: 16px; top: 13px; font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-faint); }
+  .tank-cap b { color: var(--coral); }
+  .tank-tip { position: absolute; right: 16px; top: 13px; font-size: 11.5px; color: var(--ink-faint); }
+  .fish-report { position: absolute; display: none; max-width: 270px; background: var(--glass); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--line); border-radius: 12px; padding: 11px 13px; box-shadow: var(--shadow-pop); }
+  .fish-report h4 { margin: 0 0 3px; font-size: 13.5px; }
+  .fish-report p { margin: 0 0 7px; font-size: 12px; color: var(--ink-soft); }
+  .fish-report a { font-size: 11.5px; }
+
+  /* COLACK viewport */
+  .colack { display: grid; grid-template-columns: 118px 1fr; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; min-height: 0; }
+  .colack-side { border-right: 1px solid var(--line); background: var(--ground); padding: 12px 0; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .colack-logo { display: flex; align-items: center; gap: 6px; padding: 0 12px 10px; font-weight: 700; font-size: 12px; letter-spacing: .06em; }
+  .colack-logo .cl-mark { width: 16px; height: 16px; border-radius: 4px; background: var(--accent); position: relative; }
+  .colack-logo .cl-mark::after { content: ""; position: absolute; inset: 4px; border-radius: 2px; background: var(--surface); }
+  .chan-item { display: flex; align-items: center; gap: 6px; padding: 5px 12px; font-size: 12px; color: var(--ink-soft); border: 0; background: none; width: 100%; text-align: left; font-family: var(--font-data); }
+  .chan-item:hover { background: var(--line-soft); }
+  .chan-item.active { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
+  .chan-item .unread { margin-left: auto; width: 6px; height: 6px; border-radius: 50%; background: var(--coral); }
+  .colack-main { display: flex; flex-direction: column; min-height: 0; }
+  .colack-head { padding: 10px 16px; border-bottom: 1px solid var(--line); display: flex; align-items: baseline; gap: 10px; flex: none; }
+  .colack-head .chan-name { font-family: var(--font-data); font-weight: 600; font-size: 13px; }
+  .colack-head .topic { font-size: 11.5px; color: var(--ink-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .colack-feed { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 16px; display: flex; flex-direction: column; gap: 2px; }
+  .cmsg { display: flex; gap: 10px; padding: 5px 0; }
+  .cmsg .avatar { width: 28px; height: 28px; border-radius: 8px; font-size: 11px; }
+  .cmsg .body { min-width: 0; }
+  .cmsg .meta { display: flex; align-items: baseline; gap: 8px; }
+  .cmsg .meta .who { font-weight: 700; font-size: 12.5px; }
+  .cmsg .meta .ts { font-family: var(--font-data); font-size: 10px; color: var(--ink-faint); }
+  .cmsg p { margin: 1px 0 0; font-size: 13px; color: var(--ink-soft); }
+  .cmsg p code { font-family: var(--font-data); font-size: 11.5px; background: var(--line-soft); border-radius: 4px; padding: 0 5px; }
+  .cmsg .thread-pill { display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--line); border-radius: 99px; font-size: 11px; color: var(--accent-ink); padding: 2px 10px; margin-top: 4px; background: var(--surface); }
+  .cmsg.action p { font-style: italic; color: var(--ink-faint); }
+  .typing { display: flex; align-items: center; gap: 8px; padding: 6px 0 2px; font-size: 11.5px; color: var(--ink-faint); min-height: 24px; }
+  .typing .t-dots { display: inline-flex; gap: 3px; }
+  .typing .t-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--ink-faint); animation: tdot 1.2s infinite; }
+  .typing .t-dots i:nth-child(2) { animation-delay: .2s; } .typing .t-dots i:nth-child(3) { animation-delay: .4s; }
+  @keyframes tdot { 0%,100% { opacity: .25; transform: translateY(0);} 50% { opacity: 1; transform: translateY(-2px);} }
+  .colack-compose { flex: none; margin: 8px 12px 12px; border: 1px solid var(--line); border-radius: 10px; display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 12px; }
+  .colack-compose input { flex: 1; border: 0; background: none; color: var(--ink); font-size: 13px; padding: 7px 0; min-width: 0; }
+  .colack-compose .send { border: 0; background: var(--accent); color: #fff; border-radius: 7px; padding: 6px 12px; font-size: 12px; font-weight: 600; }
+  .colack-foot { font-size: 10px; color: var(--ink-faint); text-align: right; padding: 0 14px 8px; }
+
+  /* ═════════ 2F Trenches ═════════ */
+  .trench-tabs { display: flex; gap: 4px; margin-bottom: 12px; flex: none; }
+  .ttab { border: 1px solid transparent; background: none; color: var(--ink-soft); border-radius: 9px; padding: 6px 14px; font-size: 13px; }
+  .ttab:hover { background: var(--line-soft); color: var(--ink); }
+  .ttab.active { background: var(--surface); border-color: var(--line); box-shadow: var(--shadow); color: var(--ink); font-weight: 600; }
+  .ttab .n { font-family: var(--font-data); font-size: 10.5px; color: var(--accent); margin-left: 6px; }
+  .trench-pane { display: none; flex: 1; min-height: 0; }
+  .trench-pane.active { display: flex; }
+
+  /* kanban */
+  .kanban { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 13px; }
+  .kcol { background: var(--surface); border: 1px solid var(--line); border-radius: 13px; box-shadow: var(--shadow); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .kcol-head { padding: 10px 14px 8px; display: flex; align-items: baseline; gap: 8px; border-bottom: 1px solid var(--line-soft); flex: none; }
+  .kcol-head h3 { margin: 0; font-size: 11px; letter-spacing: .11em; text-transform: uppercase; color: var(--ink-faint); font-weight: 700; }
+  .kcol-head .n { font-family: var(--font-data); font-size: 11px; color: var(--accent); }
+  .kcol-body { padding: 10px; display: flex; flex-direction: column; gap: 9px; overflow: hidden; }
+  .kcard { border: 1px solid var(--line); border-radius: 10px; background: var(--ground); padding: 9px 11px; box-shadow: var(--shadow); cursor: grab; }
+  .kcard:hover { border-color: var(--accent); }
+  .kcard h4 { margin: 0 0 4px; font-size: 12.5px; font-weight: 600; }
+  .kcard .krow { display: flex; align-items: center; gap: 6px; }
+  .ktag { font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; border-radius: 5px; padding: 1px 7px; font-weight: 700; }
+  .ktag.retreat { background: var(--accent-soft); color: var(--accent-ink); }
+  .ktag.money { background: var(--gold-soft); color: var(--gold); }
+  .ktag.infra { background: var(--coral-soft); color: var(--coral); }
+  .kcard .avatar { width: 18px; height: 18px; border-radius: 6px; font-size: 8.5px; margin-left: auto; }
+  .kcard .due { font-family: var(--font-data); font-size: 10px; color: var(--ink-faint); }
+  .kcard.ghosted { opacity: .55; border-style: dashed; }
+
+  /* calendar */
+  .cal-wrap { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.5fr 1fr; gap: 14px; }
+  .cal { background: var(--surface); border: 1px solid var(--line); border-radius: 13px; box-shadow: var(--shadow); padding: 14px 16px; display: flex; flex-direction: column; min-height: 0; }
+  .cal-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; flex: none; }
+  .cal-head h3 { margin: 0; font-family: var(--font-brief); font-size: 17px; font-weight: 600; }
+  .cal-head .nav { margin-left: auto; display: flex; gap: 4px; }
+  .cal-head .nav button { border: 1px solid var(--line); background: none; border-radius: 7px; padding: 2px 9px; color: var(--ink-soft); }
+  .cal-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: minmax(0,1fr); gap: 4px; }
+  .cal-dow { font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); text-align: center; align-self: end; padding-bottom: 3px; }
+  .cal-day { border: 1px solid var(--line-soft); border-radius: 8px; padding: 4px 6px; font-family: var(--font-data); font-size: 10.5px; color: var(--ink-soft); position: relative; min-height: 0; overflow: hidden; }
+  .cal-day.dim { opacity: .35; }
+  .cal-day.today { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-ink); font-weight: 700; }
+  .cal-ev { display: block; font-family: var(--font-ui); font-size: 9.5px; border-radius: 4px; padding: 0 5px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cal-ev.a { background: var(--accent-soft); color: var(--accent-ink); }
+  .cal-ev.g { background: var(--gold-soft); color: var(--gold); }
+  .cal-ev.c { background: var(--coral-soft); color: var(--coral); }
+  .agenda { background: var(--surface); border: 1px solid var(--line); border-radius: 13px; box-shadow: var(--shadow); padding: 14px 16px; display: flex; flex-direction: column; min-height: 0; }
+  .agenda h3 { margin: 0 0 8px; font-size: 11px; letter-spacing: .13em; text-transform: uppercase; color: var(--ink-faint); }
+
+  /* teams */
+  .teams { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: minmax(0,1fr); gap: 13px; }
+  .team-card { background: var(--surface); border: 1px solid var(--line); border-radius: 13px; box-shadow: var(--shadow); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow: hidden; }
+  .team-card .t-head { display: flex; align-items: center; gap: 10px; }
+  .team-card .avatar { width: 34px; height: 34px; border-radius: 10px; font-size: 13px; }
+  .team-card h3 { margin: 0; font-size: 14.5px; }
+  .team-card h3 small { display: block; font-weight: 400; font-size: 11.5px; color: var(--ink-faint); }
+  .load { height: 6px; border-radius: 99px; background: var(--line-soft); overflow: hidden; }
+  .load i { display: block; height: 100%; border-radius: 99px; background: var(--accent); }
+  .load.hot i { background: var(--gold); }
+  .team-card .t-now { font-size: 12px; color: var(--ink-soft); }
+  .team-card .t-stat { display: flex; gap: 12px; font-family: var(--font-data); font-size: 10.5px; color: var(--ink-faint); margin-top: auto; }
+  .sub-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .schip { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); border-radius: 99px; padding: 2px 9px; font-size: 10.5px; color: var(--ink-soft); background: var(--ground); }
+  .schip .pulse { width: 5px; height: 5px; }
+  .schip.idle { opacity: .55; }
+  .t-role { font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--coral); font-weight: 700; margin-left: auto; }
+
+  /* history */
+  .hist { flex: 1; min-height: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 13px; box-shadow: var(--shadow); overflow: hidden; display: flex; flex-direction: column; }
+  .hist table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .hist th { text-align: left; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); padding: 11px 16px 8px; border-bottom: 1px solid var(--line); }
+  .hist td { padding: 9px 16px; border-bottom: 1px solid var(--line-soft); color: var(--ink-soft); }
+  .hist td:first-child { color: var(--ink); }
+  .hist .mono { font-family: var(--font-data); font-size: 11px; color: var(--ink-faint); }
+  .hist .ok-chip { color: var(--ok); font-weight: 600; }
+  .hist .part-chip { color: var(--gold); font-weight: 600; }
+
+  /* ═════════ Basement ═════════ */
+  .noc { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(2, minmax(0,1fr)); gap: 13px; }
+  .noc-panel { background: var(--surface); border: 1px solid var(--line); border-radius: 13px; box-shadow: var(--shadow); padding: 13px 15px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .noc-panel h3 { margin: 0 0 8px; font-size: 10.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--ink-faint); display: flex; align-items: baseline; gap: 8px; }
+  .noc-panel h3 .stat { margin-left: auto; font-family: var(--font-data); font-size: 10.5px; }
+  .stat.good { color: var(--ok); } .stat.warm { color: var(--gold); }
+  .conn-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--line-soft); font-size: 12.5px; }
+  .conn-row:last-child { border-bottom: 0; }
+  .lamp2 { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); flex: none; }
+  .lamp2.warm { background: var(--gold); } .lamp2.off { background: var(--ink-faint); }
+  .conn-row .lat { margin-left: auto; font-family: var(--font-data); font-size: 10.5px; color: var(--ink-faint); }
+  .meter { margin: 6px 0 2px; }
+  .meter .m-lab { display: flex; font-size: 11.5px; color: var(--ink-soft); }
+  .meter .m-lab b { font-weight: 600; }
+  .meter .m-lab .m-val { margin-left: auto; font-family: var(--font-data); font-size: 10.5px; color: var(--ink-faint); }
+  .ticker { flex: 1; min-height: 0; overflow: hidden; font-family: var(--font-data); font-size: 10.5px; color: var(--ink-soft); display: flex; flex-direction: column; justify-content: flex-end; }
+  .ticker div { padding: 2px 0; border-bottom: 1px dotted var(--line-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ticker .t-ts { color: var(--accent-ink); }
+  .breaker-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+  .breaker { border: 1px solid var(--line); border-radius: 9px; padding: 7px 10px; font-size: 11.5px; display: flex; align-items: center; gap: 8px; }
+  .breaker .lamp2 { width: 8px; height: 8px; }
+  .tech-console { grid-column: span 2; }
+  .tech-log { flex: 1; min-height: 0; overflow: hidden; background: var(--ground); border: 1px solid var(--line-soft); border-radius: 9px; padding: 9px 12px; font-family: var(--font-data); font-size: 11px; color: var(--ink-soft); display: flex; flex-direction: column; justify-content: flex-end; }
+  .tech-log .you { color: var(--accent-ink); }
+  .tech-log .tech { color: var(--ink); }
+  .tech-line { display: flex; gap: 8px; margin-top: 8px; flex: none; }
+  .tech-line input { flex: 1; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); padding: 7px 11px; font-size: 12.5px; min-width: 0; }
+  .tech-line button { border: 0; background: var(--ink); color: var(--ground); border-radius: 8px; padding: 7px 13px; font-size: 12px; font-weight: 600; }
+
+  /* ═════════ Codec + toast ═════════ */
+  .codec {
+    position: fixed; right: 26px; bottom: 26px; width: 375px; z-index: 50;
+    background: var(--glass); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-pop);
+    padding: 15px 17px; transform: translateY(150%); transition: transform .45s cubic-bezier(.2,.9,.25,1.05);
+  }
+  .codec.up { transform: translateY(0); }
+  .codec-head { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; }
+  .codec-head .who { font-weight: 600; font-size: 13px; }
+  .codec-head .who small { display: block; font-weight: 400; color: var(--ink-faint); font-size: 10.5px; }
+  .codec-close { margin-left: auto; border: 0; background: none; color: var(--ink-faint); font-size: 15px; line-height: 1; }
+  .codec p.msg { font-family: var(--font-brief); font-size: 14.5px; margin: 0 0 11px; }
+  .codec .beeboop { display: none; color: var(--ok); font-size: 13px; font-weight: 600; }
+  .codec.acked .d-actions { display: none; }
+  .codec.acked .beeboop { display: block; }
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 200%); background: var(--ink); color: var(--ground); border-radius: 99px; padding: 8px 19px; font-size: 13px; box-shadow: var(--shadow-pop); transition: transform .35s ease; z-index: 60; }
+  .toast.up { transform: translate(-50%, 0); }
+
+  @media (max-width: 980px) {
+    body { overflow: auto; }
+    .app { grid-template-columns: 1fr; height: auto; }
+    .rail { flex-direction: row; align-items: center; flex-wrap: wrap; border-right: 0; border-bottom: 1px solid var(--line); padding: 12px 14px; }
+    .brand small, .rail-label, .floor .hint, .ea-status { display: none; }
+    .floor { width: auto; }
+    .rail-foot { margin: 0 0 0 auto; flex-direction: row; }
+    .view { height: auto; padding: 18px 14px 120px; }
+    .brief-band, .office-grid, .reef-wrap, .kanban, .cal-wrap, .teams, .noc { display: flex; flex-direction: column; }
+    .office-grid > .block { min-height: 160px; }
+    .tank { min-height: 320px; }
+    .colack { min-height: 420px; }
+    .codec { right: 10px; left: 10px; width: auto; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pulse, .typing .t-dots i { animation: none; }
+    .codec, .toast { transition: none; }
+  }
+</style>
+
+<div class="app">
+  <!-- ═══ Elevator ═══ -->
+  <nav class="rail" aria-label="Floors">
+    <div class="brand">
+      <svg width="36" height="36" viewBox="0 0 40 40" aria-hidden="true">
+        <path d="M36 11 A17 17 0 1 0 36 29 L30 26 A11 11 0 1 1 30 14 Z
+                 M36 11 L26 15 l3.4 2.6 L25 20 l4.4 2.4 L26 25 l10 4
+                 A17 17 0 0 0 36 11 Z" fill="var(--coral)" fill-rule="evenodd" transform="rotate(-14 20 20)"/>
+        <path d="M14 9 l5 4 l-4 3 l5 4" fill="none" stroke="var(--ground)" stroke-width="1.7" transform="rotate(-14 20 20)"/>
+        <path d="M20 16.5 l7 3.5 l-7 3.5" fill="none" stroke="var(--ink)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span class="wordmark">Carsin<b>OS</b><small>design demo / simulated data</small></span>
+    </div>
+    <p class="rail-label">Elevator / Design demo</p>
+    <button class="floor active" data-view="office"><span class="lamp">4</span><span><span class="name">The Office</span><span class="hint">brief · delegate · decide</span></span><span class="badge">2</span></button>
+    <button class="floor" data-view="window"><span class="lamp">3</span><span><span class="name">The Window</span><span class="hint">the floor · the chatter</span></span></button>
+    <button class="floor" data-view="trenches"><span class="lamp">2</span><span><span class="name">The Trenches</span><span class="hint">boards · calendar · teams</span></span></button>
+    <button class="floor" data-view="basement"><span class="lamp">B</span><span><span class="name">The Basement</span><span class="hint">machinery · NOC</span></span></button>
+    <div class="rail-foot">
+      <div class="ea-status"><span class="ea-seal">ea</span><span class="who">ExecAss<small>● on duty · 4 crew out</small></span></div>
+      <button class="ghost-btn" id="themeBtn">☀ / ☾ &nbsp;After hours</button>
+      <button class="ghost-btn" id="dingBtn">🔔 Simulate a ding</button>
+      <button class="ghost-btn" id="arrangeBtn">⠿ Arrange office</button>
+    </div>
+  </nav>
+
+  <main class="main">
+
+    <!-- ═══════════ 4F · THE OFFICE ═══════════ -->
+    <section class="view active" id="view-office">
+      <div class="topline">
+        <span class="date">Tuesday · July 22 · 9:41 AM</span>
+        <span class="spacer"></span>
+        <span class="quiet-note"><span class="dot">●</span> all quiet · nothing is stuck</span>
+      </div>
+      <div class="brief-band">
+        <div>
+          <h1 class="greet">Morning, boss. Quiet night — two things for you.</h1>
+          <p class="briefing">The <strong>Q3 supplier report</strong> went out at 6:12 and Hartline already opened it. Storefront keys rotated clean, receipts attached. I need <strong>one venue call</strong> on the retreat, and your word on closing the old Mailchimp account — that one's permanent, so it waits for you.</p>
+          <p class="brief-sign">— ExecAss · <a href="#" data-toast="Would open the full briefing and its history.">read the full brief</a></p>
+        </div>
+        <div class="ask-col">
+          <div class="ask">
+            <span class="ea-dot" aria-hidden="true"></span>
+            <input id="askInput" type="text" placeholder="What do you need?" aria-label="Delegate an outcome to ExecAss">
+            <button class="send" data-toast="Delegated. ExecAss takes it from here — watch In Motion.">Hand it off</button>
+          </div>
+          <div class="ask-hints">
+            <button class="hint-chip" data-fill="Move the workers off the newsletter cleanup and onto the retreat plan">“move workers X → Z”</button>
+            <button class="hint-chip" data-fill="What if we paused the storefront refresh and pivoted to the wholesale portal — how would that look?">“what if we pivoted…”</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="office" id="officeGrid">
+        <div class="arrange-bar">⠿ Arrange mode — resize with the corner button; the canvas <b>never grows</b>, blocks trade space and change density instead. (Drag is still imaginary. Legal is on it.)</div>
+        <div class="office-grid">
+
+          <!-- Needs You -->
+          <div class="block needs" data-size="l" data-block="needs">
+            <div class="block-tools"><button class="tool grip">⠿</button><button class="tool sizer">size</button><button class="tool">👁</button></div>
+            <div class="block-head"><h2>Needs you</h2><span class="count">2</span><a class="more" href="#" data-toast="This is genuinely all. Everything else is handled.">why only 2?</a></div>
+            <div class="block-body">
+              <div class="summary-line"><span class="big">2</span><span class="lab">decisions waiting — one is permanent</span></div>
+              <div class="list">
+                <article class="decision" id="dec-mailchimp">
+                  <span class="kind confirm">One confirmation · permanent</span>
+                  <h3>Close the old Mailchimp account for good</h3>
+                  <p class="consequence">Permanent. All 41,204 contacts exported &amp; verified — closing deletes the account and its history. <span class="d-l">Recommendation: close it, we're fully off it.</span></p>
+                  <div class="d-actions">
+                    <button class="btn-yes" data-resolve="dec-mailchimp">Yep — close it</button>
+                    <button class="btn-talk" data-toast="Would take you to ExecAss's desk with full context.">Let's talk it through</button>
+                    <span class="d-links"><a href="#" data-toast="Would decline and keep the account.">decline</a><a href="#" data-toast="Would open the export receipt & verification proof.">see the proof</a></span>
+                  </div>
+                  <p class="resolved-note">✓ Done — closing it now. Receipt will land in “Done.” No second nudge, ever.</p>
+                </article>
+                <article class="decision" id="dec-venue">
+                  <span class="kind clarify">Quick question</span>
+                  <h3>Retreat in October — which venue?</h3>
+                  <p class="why d-l">Both fit budget and 14 people. Pines: better rooms. Harbor House: better meeting space. I lean Harbor House.</p>
+                  <div class="option-chips">
+                    <button class="opt" data-resolve="dec-venue">Harbor House ★</button>
+                    <button class="opt" data-resolve="dec-venue">The Pines</button>
+                    <button class="opt" data-resolve="dec-venue">Surprise me</button>
+                  </div>
+                  <p class="resolved-note">✓ Got it — booking now. I'll confirm in tonight's brief.</p>
+                </article>
+              </div>
+            </div>
+          </div>
+
+          <!-- In Motion -->
+          <div class="block" data-size="m" data-block="motion">
+            <div class="block-tools"><button class="tool grip">⠿</button><button class="tool sizer">size</button><button class="tool">👁</button></div>
+            <div class="block-head"><h2>In motion</h2><span class="count">4</span><a class="more" href="#" data-view-link="trenches">boards →</a></div>
+            <div class="block-body">
+              <div class="summary-line"><span class="big">4</span><span class="lab">moving · none stuck</span></div>
+              <div class="list">
+                <div class="motion-row"><span class="pulse"></span><span class="what">Retreat plan<span class="sub">agenda · section 3 of 5</span></span><span class="phase">working</span></div>
+                <div class="motion-row"><span class="pulse"></span><span class="what">June invoice chase<span class="sub">nudge queued · 11:00</span></span><span class="phase">working</span></div>
+                <div class="motion-row"><span class="pulse ext"></span><span class="what">Hartline contract<span class="sub">their signature — not on you</span></span><span class="phase ext">external</span></div>
+                <div class="motion-row d-m"><span class="pulse rec"></span><span class="what">Newsletter cleanup<span class="sub">12 bounces re-verifying</span></span><span class="phase">recovering</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Done -->
+          <div class="block" data-size="m" data-block="done">
+            <div class="block-tools"><button class="tool grip">⠿</button><button class="tool sizer">size</button><button class="tool">👁</button></div>
+            <div class="block-head"><h2>Done since you checked</h2><span class="count">3</span></div>
+            <div class="block-body">
+              <div class="summary-line"><span class="big">3</span><span class="lab">outcomes · receipts attached</span></div>
+              <div class="list">
+                <div class="done-row"><span class="tick">✓</span><span>Q3 report sent<span class="sub d-m"> · opened 7:03</span></span><a class="receipt" href="#" data-toast="Would open the authoritative receipt.">receipt</a></div>
+                <div class="done-row"><span class="tick">✓</span><span>Storefront keys rotated</span><a class="receipt" href="#" data-toast="Would open the authoritative receipt.">receipt</a></div>
+                <div class="done-row"><span class="tick part">◐</span><span>List cleanup — 96%<span class="sub d-m"> · honest partial</span></span><a class="receipt" href="#" data-toast="Would open the partial-completion detail. No sugar-coating.">details</a></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Next -->
+          <div class="block" data-size="s" data-block="next">
+            <div class="block-tools"><button class="tool grip">⠿</button><button class="tool sizer">size</button><button class="tool">👁</button></div>
+            <div class="block-head"><h2>Next</h2><a class="more" href="#" data-view-link="trenches">calendar →</a></div>
+            <div class="block-body">
+              <div class="summary-line"><span class="big">3</span><span class="lab">payroll Fri · Nadia tmrw</span></div>
+              <div class="list">
+                <div class="next-row"><span class="when">Tomorrow</span><span>Reply to Nadia</span><span class="tag">promise</span></div>
+                <div class="next-row"><span class="when">Fri 9:00</span><span>Payroll run</span><span class="tag">routine</span></div>
+                <div class="next-row d-m"><span class="when">Aug 3</span><span>Domain renewal</span><span class="tag">deadline</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chatter peek -->
+          <div class="block" data-size="s" data-block="chatter">
+            <div class="block-tools"><button class="tool grip">⠿</button><button class="tool sizer">size</button><button class="tool">👁</button></div>
+            <div class="block-head"><h2>Office chatter</h2><a class="more" href="#" data-view-link="window">the Window →</a></div>
+            <div class="block-body">
+              <div class="summary-line"><span class="big" id="chatterCount">37</span><span class="lab">messages this morning</span></div>
+              <div class="list">
+                <div class="peek-msg" id="peekSlot"><span class="avatar">LG</span><span><span class="who">Ledger <span class="chan">#invoices</span></span><p>Baxter paid #1042 in full. One left.</p></span></div>
+                <div class="peek-msg d-m"><span class="avatar ea">ea</span><span><span class="who">ExecAss <span class="chan">#retreat</span></span><p>Holding both venues 48h.</p></span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pinned -->
+          <div class="block" data-size="s" data-block="pins">
+            <div class="block-tools"><button class="tool grip">⠿</button><button class="tool sizer">size</button><button class="tool">👁</button></div>
+            <div class="block-head"><h2>Pinned from the Trenches</h2></div>
+            <div class="block-body">
+              <div class="summary-line" style="display:none"></div>
+              <div class="shortcut-chips">
+                <a class="shortcut" href="#" data-view-link="trenches">Q3 board <small>12 cards</small></a>
+                <a class="shortcut" href="#" data-view-link="trenches">Routines <small>6</small></a>
+                <a class="shortcut" href="#" data-view-link="trenches">Receipts</a>
+              </div>
+            </div>
+          </div>
+
+          <!-- ghost slot: the config-driven promise -->
+          <div class="ghost-slot"><button data-toast="Would open the block library — pin anything from the Trenches or Basement.">+ add a block to your office</button></div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ 3F · THE WINDOW ═══════════ -->
+    <section class="view" id="view-window">
+      <div class="topline">
+        <span class="date">3F · The Window</span>
+        <span class="spacer"></span>
+        <span class="quiet-note">the floor, from up here · asks nothing of you</span>
+      </div>
+      <div class="reef-wrap">
+        <div class="tank" id="tank">
+          <canvas id="reefCanvas" aria-label="Reef: ambient view of the crew scuttling about their work"></canvas>
+          <span class="tank-cap"><b>Reef</b> · live</span>
+          <span class="tank-tip">touch a crab, it reports</span>
+          <div class="fish-report" id="fishReport">
+            <h4 id="frName">Scout</h4>
+            <p id="frText"></p>
+            <a href="#" data-toast="Would deep-link to this worker's session detail in the Trenches.">go deeper ↓</a>
+          </div>
+        </div>
+        <div class="colack">
+          <div class="colack-side">
+            <div class="colack-logo"><span class="cl-mark"></span> COLACK</div>
+            <button class="chan-item active"># retreat-plan <span class="unread"></span></button>
+            <button class="chan-item" data-toast="Sketch shows one live channel — they'd all be real."># invoices</button>
+            <button class="chan-item" data-toast="Sketch shows one live channel — they'd all be real."># q3-report</button>
+            <button class="chan-item" data-toast="Sketch shows one live channel — they'd all be real."># storefront</button>
+            <button class="chan-item" data-toast="Sketch shows one live channel — they'd all be real."># ops-floor</button>
+            <button class="chan-item" data-toast="DMs between you and ExecAss — the codec, archived.">@ execass</button>
+          </div>
+          <div class="colack-main">
+            <div class="colack-head"><span class="chan-name"># retreat-plan</span><span class="topic">October team retreat — venue, agenda, travel</span></div>
+            <div class="colack-feed" id="colackFeed">
+              <div class="cmsg"><span class="avatar">SC</span><div class="body"><div class="meta"><span class="who">Scout</span><span class="ts">9:12</span></div><p>Taking the venue research task. Three candidates under budget.</p></div></div>
+              <div class="cmsg"><span class="avatar">SC</span><div class="body"><div class="meta"><span class="who">Scout</span><span class="ts">9:26</span></div><p>Harbor House confirmed availability Oct 14–16. Holding it. <code>hold_ref: HH-3391</code></p><span class="thread-pill">🧵 3 replies · Pines comparison</span></div></div>
+              <div class="cmsg"><span class="avatar ea">ea</span><div class="body"><div class="meta"><span class="who">ExecAss</span><span class="ts">9:28</span></div><p>Good. Holding both 48h. Taking the venue call to the boss — everything else keeps moving.</p></div></div>
+              <div class="cmsg action"><span class="avatar">QL</span><div class="body"><div class="meta"><span class="who">Quill</span><span class="ts">9:31</span></div><p>drafted agenda §3 → attached to the board card</p></div></div>
+            </div>
+            <div class="typing" id="typingLine"><span style="opacity:0">·</span></div>
+            <div class="colack-compose">
+              <input type="text" placeholder="Message #retreat-plan (the boss may speak, but never has to)" aria-label="Message channel">
+              <button class="send" data-toast="Sent. The floor hears you.">Send</button>
+            </div>
+            <div class="colack-foot">wired to Agent Mail / rooms · a Dex conversation</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ 2F · THE TRENCHES ═══════════ -->
+    <section class="view" id="view-trenches">
+      <div class="topline">
+        <span class="date">2F · The Trenches</span>
+        <span class="spacer"></span>
+        <span class="quiet-note">where you get out of the chair — on purpose</span>
+      </div>
+      <div class="trench-tabs">
+        <button class="ttab active" data-pane="boards">Boards <span class="n">12</span></button>
+        <button class="ttab" data-pane="calendar">Calendar <span class="n">7</span></button>
+        <button class="ttab" data-pane="teams">Teams <span class="n">5</span></button>
+        <button class="ttab" data-pane="history">History &amp; Receipts</button>
+      </div>
+
+      <!-- Boards -->
+      <div class="trench-pane active" id="pane-boards">
+        <div class="kanban">
+          <div class="kcol"><div class="kcol-head"><h3>Backlog</h3><span class="n">3</span></div>
+            <div class="kcol-body">
+              <div class="kcard"><h4>Wholesale portal scoping</h4><div class="krow"><span class="ktag infra">storefront</span><span class="avatar">PT</span></div></div>
+              <div class="kcard"><h4>Vendor list refresh</h4><div class="krow"><span class="ktag money">finance</span><span class="due">no date</span><span class="avatar">LG</span></div></div>
+              <div class="kcard ghosted"><h4>“What if we pivoted…” — parked</h4><div class="krow"><span class="due">waiting on boss</span></div></div>
+            </div>
+          </div>
+          <div class="kcol"><div class="kcol-head"><h3>In motion</h3><span class="n">4</span></div>
+            <div class="kcol-body">
+              <div class="kcard"><h4>Retreat plan — agenda §3/5</h4><div class="krow"><span class="ktag retreat">retreat</span><span class="due">Oct 14</span><span class="avatar">SC</span></div></div>
+              <div class="kcard"><h4>June invoice chase — Corvid</h4><div class="krow"><span class="ktag money">finance</span><span class="due">11:00</span><span class="avatar">LG</span></div></div>
+              <div class="kcard"><h4>Newsletter cleanup — recovery</h4><div class="krow"><span class="ktag infra">lists</span><span class="due">re-verify</span><span class="avatar">QL</span></div></div>
+              <div class="kcard"><h4>Q3 follow-up watch</h4><div class="krow"><span class="ktag money">q3</span><span class="avatar">QL</span></div></div>
+            </div>
+          </div>
+          <div class="kcol"><div class="kcol-head"><h3>Waiting</h3><span class="n">2</span></div>
+            <div class="kcol-body">
+              <div class="kcard"><h4>Hartline contract — signature</h4><div class="krow"><span class="ktag money">q3</span><span class="due">external</span><span class="avatar ea avatar">ea</span></div></div>
+              <div class="kcard"><h4>Venue decision</h4><div class="krow"><span class="ktag retreat">retreat</span><span class="due">on the boss ☝</span></div></div>
+            </div>
+          </div>
+          <div class="kcol"><div class="kcol-head"><h3>Done</h3><span class="n">3</span></div>
+            <div class="kcol-body">
+              <div class="kcard"><h4>Q3 supplier report → sent</h4><div class="krow"><span class="ktag money">q3</span><span class="due">rcpt_8841</span></div></div>
+              <div class="kcard"><h4>Storefront key rotation</h4><div class="krow"><span class="ktag infra">storefront</span><span class="due">rcpt_8839</span></div></div>
+              <div class="kcard"><h4>Baxter invoice — paid</h4><div class="krow"><span class="ktag money">finance</span><span class="due">rcpt_8843</span></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Calendar -->
+      <div class="trench-pane" id="pane-calendar">
+        <div class="cal-wrap">
+          <div class="cal">
+            <div class="cal-head"><h3>July 2026</h3><div class="nav"><button data-toast="Would page to June.">‹</button><button data-toast="Would page to August.">›</button></div></div>
+            <div class="cal-grid" id="calGrid"></div>
+          </div>
+          <div class="agenda">
+            <h3>Coming up</h3>
+            <div class="next-row"><span class="when">Wed 23</span><span>Reply to Nadia</span><span class="tag">promise</span></div>
+            <div class="next-row"><span class="when">Fri 25</span><span>Payroll run 9:00</span><span class="tag">routine</span></div>
+            <div class="next-row"><span class="when">Mon 28</span><span>Supplier digest 7:00</span><span class="tag">routine</span></div>
+            <div class="next-row"><span class="when">Aug 3</span><span>Domain renewal</span><span class="tag">deadline</span></div>
+            <div class="next-row"><span class="when">Oct 14</span><span>Team retreat begins</span><span class="tag">event</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Teams: who's employed, not who's-doing-what-where -->
+      <div class="trench-pane" id="pane-teams">
+        <div class="teams">
+          <div class="team-card"><div class="t-head"><span class="avatar ea">ea</span><h3>ExecAss<small>executive assistant</small></h3><span class="t-role">staff</span></div>
+            <div class="load"><i style="width:62%"></i></div>
+            <p class="t-now">Running the floor: 2 decisions with you, 1 external wait.</p>
+            <div class="sub-chips"><span class="schip"><span class="pulse"></span>Scout · venues</span><span class="schip"><span class="pulse"></span>Ledger · invoices</span><span class="schip"><span class="pulse"></span>Quill · agenda</span><span class="schip idle">Porter · idle</span></div>
+            <div class="t-stat"><span>runs 41</span><span>ok 97%</span><span>tokens 118k</span></div></div>
+          <div class="team-card"><div class="t-head"><span class="avatar">CL</span><h3>Claude<small>design &amp; frontend</small></h3><span class="t-role">staff</span></div>
+            <div class="load"><i style="width:34%"></i></div>
+            <p class="t-now">On the Glass Office build. Reachable at the tech desk downstairs.</p>
+            <div class="sub-chips"><span class="schip"><span class="pulse"></span>reviewer · PR #212</span><span class="schip idle">no other subagents out</span></div>
+            <div class="t-stat"><span>runs 18</span><span>ok 100%</span></div></div>
+          <div class="team-card"><div class="t-head"><span class="avatar">VA</span><h3>Vale<small>brand &amp; creative</small></h3><span class="t-role">staff</span></div>
+            <div class="load"><i style="width:8%"></i></div>
+            <p class="t-now">Last seen arguing that crabs drive cars. Brand collage delivered.</p>
+            <div class="sub-chips"><span class="schip idle">no subagents out</span></div>
+            <div class="t-stat"><span>runs 7</span><span>ok 100%</span></div></div>
+          <div class="team-card"><div class="t-head"><span class="avatar">LY</span><h3>Lyra<small>comms &amp; channels</small></h3><span class="t-role">staff</span></div>
+            <div class="load"><i style="width:0%"></i></div>
+            <p class="t-now">Not wired in yet — seat reserved.</p>
+            <div class="sub-chips"><span class="schip idle">offline</span></div>
+            <div class="t-stat"><span>—</span></div></div>
+          <div class="team-card" style="border-style:dashed; opacity:.7"><div class="t-head"><span class="avatar">+</span><h3>Hire<small>add permanent staff</small></h3></div><p class="t-now">“ExecAss, I need someone on customer replies — permanently.”</p><p class="t-now" style="font-size:11px; color:var(--ink-faint)">Task-workers are spawned by staff and live inside their employer's card — this room is the payroll, not the floor.</p></div>
+        </div>
+      </div>
+
+      <!-- History -->
+      <div class="trench-pane" id="pane-history">
+        <div class="hist">
+          <table>
+            <thead><tr><th>Outcome</th><th>Delegation</th><th>Finished</th><th>Status</th><th>Receipt</th></tr></thead>
+            <tbody>
+              <tr><td>Q3 supplier report sent &amp; opened</td><td class="mono">dlg_2107</td><td>Today 6:12</td><td class="ok-chip">✓ evidenced</td><td class="mono"><a href="#" data-toast="Would open the receipt chain with integrity tags.">rcpt_8841</a></td></tr>
+              <tr><td>Storefront API keys rotated (3 services)</td><td class="mono">dlg_2106</td><td>Today 5:58</td><td class="ok-chip">✓ evidenced</td><td class="mono"><a href="#" data-toast="Would open the receipt chain with integrity tags.">rcpt_8839</a></td></tr>
+              <tr><td>Newsletter list cleanup</td><td class="mono">dlg_2101</td><td>Today 5:40</td><td class="part-chip">◐ 96% — honest partial</td><td class="mono"><a href="#" data-toast="Would open the partial-completion detail.">rcpt_8836</a></td></tr>
+              <tr><td>Baxter &amp; Co. invoice #1042 collected</td><td class="mono">dlg_2099</td><td>Yesterday</td><td class="ok-chip">✓ evidenced</td><td class="mono"><a href="#" data-toast="Would open the receipt chain with integrity tags.">rcpt_8843</a></td></tr>
+              <tr><td>Weekly supplier digest #29</td><td class="mono">dlg_2095</td><td>Mon 7:02</td><td class="ok-chip">✓ evidenced</td><td class="mono"><a href="#" data-toast="Would open the receipt chain with integrity tags.">rcpt_8820</a></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════ B · THE BASEMENT ═══════════ -->
+    <section class="view" id="view-basement">
+      <div class="topline">
+        <span class="date">B · The Basement</span>
+        <span class="spacer"></span>
+        <span class="quiet-note">the machinery hums · it never shouts upstairs</span>
+      </div>
+      <div class="noc">
+        <div class="noc-panel">
+          <h3>Connectors <span class="stat good">7/7 healthy</span></h3>
+          <div class="conn-row"><span class="lamp2"></span>Discord<span class="lat">41ms</span></div>
+          <div class="conn-row"><span class="lamp2"></span>Telegram<span class="lat">88ms</span></div>
+          <div class="conn-row"><span class="lamp2"></span>Slack bridge<span class="lat">63ms</span></div>
+          <div class="conn-row"><span class="lamp2"></span>E-mail (SMTP)<span class="lat">queue 0</span></div>
+          <div class="conn-row"><span class="lamp2 warm"></span>Storefront API<span class="lat">210ms ↑</span></div>
+          <div class="conn-row"><span class="lamp2"></span>COLACK<span class="lat">12ms</span></div>
+          <div class="conn-row"><span class="lamp2 off"></span>WhatsApp<span class="lat">not configured</span></div>
+        </div>
+        <div class="noc-panel">
+          <h3>Models &amp; budgets <span class="stat good">routing normal</span></h3>
+          <div class="meter"><div class="m-lab"><b>anthropic / primary</b><span class="m-val">118k / 500k tok · day</span></div><div class="load"><i style="width:24%"></i></div></div>
+          <div class="meter"><div class="m-lab"><b>openrouter / fallback</b><span class="m-val">3k / 200k</span></div><div class="load"><i style="width:2%"></i></div></div>
+          <div class="meter"><div class="m-lab"><b>ollama / local</b><span class="m-val">idle</span></div><div class="load"><i style="width:0%"></i></div></div>
+          <div class="meter"><div class="m-lab"><b>connector calls</b><span class="m-val">412 / 2,000</span></div><div class="load"><i style="width:21%"></i></div></div>
+          <div class="meter"><div class="m-lab"><b>spend guardrail</b><span class="m-val">technical quota, not a wallet</span></div><div class="load hot"><i style="width:36%"></i></div></div>
+        </div>
+        <div class="noc-panel">
+          <h3>Breakers &amp; scheduler <span class="stat good">leader ok</span></h3>
+          <div class="breaker-grid">
+            <div class="breaker"><span class="lamp2"></span>provider</div>
+            <div class="breaker"><span class="lamp2"></span>channels</div>
+            <div class="breaker"><span class="lamp2"></span>tools</div>
+            <div class="breaker"><span class="lamp2 warm"></span>storefront <small>(watching)</small></div>
+          </div>
+          <div style="margin-top:10px" class="meter"><div class="m-lab"><b>scheduler</b><span class="m-val">6 routines · lease held</span></div><div class="load"><i style="width:100%; background:var(--ok)"></i></div></div>
+          <div class="meter"><div class="m-lab"><b>stop-all</b><span class="m-val">disengaged</span></div><div class="load"><i style="width:0%"></i></div></div>
+        </div>
+        <div class="noc-panel">
+          <h3>Event stream <span class="stat">14,206 today</span></h3>
+          <div class="ticker" id="ticker">
+            <div><span class="t-ts">9:41:02</span> delegation.transitioned dlg_2108 → in_motion</div>
+            <div><span class="t-ts">9:40:56</span> summary.changed rev 412</div>
+            <div><span class="t-ts">9:40:31</span> continuation.claimed dlg_2104</div>
+            <div><span class="t-ts">9:39:58</span> receipt committed rcpt_8843</div>
+          </div>
+        </div>
+        <div class="noc-panel tech-console">
+          <h3>Call the tech <span class="stat">MCP · concept</span></h3>
+          <div class="tech-log">
+            <div><span class="you">boss ›</span> bro wtf is the storefront light doing</div>
+            <div><span class="tech">tech ›</span> looking… <span style="opacity:.6">taptaptaptap</span></div>
+            <div><span class="tech">tech ›</span> well there's your problem right there — their API's slow today (210ms, usually ~60). Not us. Breaker's watching it; nothing to do unless it gets worse. Want me to keep an eye on it?</div>
+            <div><span class="you">boss ›</span> yes. also never make me read a log</div>
+            <div><span class="tech">tech ›</span> deal. 🤝</div>
+          </div>
+          <div class="tech-line">
+            <input type="text" placeholder="Ask the tech anything about the machinery…" aria-label="Ask the tech">
+            <button data-toast="A Claude/Dex/any-MCP-model jack-in point — the boss never reads raw logs unless he asks.">Ask</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Codec ding -->
+<div class="codec" id="codec" role="dialog" aria-label="ExecAss check-in">
+  <div class="codec-head">
+    <span class="ea-seal">ea</span>
+    <span class="who">ExecAss<small>quick check-in · 0:09</small></span>
+    <button class="codec-close" id="codecClose" aria-label="Dismiss">✕</button>
+  </div>
+  <p class="msg">Hey boss — for the June invoices: Baxter just paid in full, so I'd only chase Corvid now. That's what you meant, right?</p>
+  <div class="d-actions">
+    <button class="btn-yes" id="codecYes">Yep, that's it</button>
+    <button class="btn-talk" data-toast="Would take you to ExecAss's desk to talk it through.">Let's talk</button>
+  </div>
+  <p class="beeboop">✓ Got it — I'll check in later. <span style="opacity:.6">*BEEBOOP*</span></p>
+</div>
+
+<div class="toast" id="toast">toast</div>
+
+<script>
+  // theme
+  document.getElementById('themeBtn').addEventListener('click', () => {
+    const root = document.documentElement;
+    const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+    const cur = root.dataset.theme || (dark ? 'dark' : 'light');
+    root.dataset.theme = cur === 'dark' ? 'light' : 'dark';
+  });
+
+  // floors
+  const floors = document.querySelectorAll('.floor');
+  function goto(view) {
+    floors.forEach(f => f.classList.toggle('active', f.dataset.view === view));
+    document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + view));
+    if (view === 'window') startReef();
+  }
+  floors.forEach(f => f.addEventListener('click', () => goto(f.dataset.view)));
+  document.querySelectorAll('[data-view-link]').forEach(a =>
+    a.addEventListener('click', e => { e.preventDefault(); goto(a.dataset.viewLink); }));
+
+  // toast
+  const toast = document.getElementById('toast');
+  let toastT;
+  function showToast(msg) {
+    toast.textContent = msg; toast.classList.add('up');
+    clearTimeout(toastT); toastT = setTimeout(() => toast.classList.remove('up'), 2600);
+  }
+  document.querySelectorAll('[data-toast]').forEach(el =>
+    el.addEventListener('click', e => { e.preventDefault(); showToast(el.dataset.toast); }));
+
+  // ask box
+  document.querySelectorAll('[data-fill]').forEach(chip =>
+    chip.addEventListener('click', () => {
+      const inp = document.getElementById('askInput');
+      inp.value = chip.dataset.fill; inp.focus();
+    }));
+
+  // decisions
+  document.querySelectorAll('[data-resolve]').forEach(btn =>
+    btn.addEventListener('click', () => {
+      document.getElementById(btn.dataset.resolve).classList.add('done-state');
+      showToast('Resolved. Work continues — no second nudge, ever.');
+    }));
+
+  // arrange + density sizing
+  const office = document.getElementById('officeGrid');
+  document.getElementById('arrangeBtn').addEventListener('click', () => office.classList.toggle('customize'));
+  const sizeCycle = { s: 'm', m: 'l', l: 's' };
+  document.querySelectorAll('.tool.sizer').forEach(t =>
+    t.addEventListener('click', () => {
+      const b = t.closest('.block');
+      b.dataset.size = sizeCycle[b.dataset.size] || 'm';
+    }));
+
+  // trench tabs
+  document.querySelectorAll('.ttab').forEach(t =>
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.ttab').forEach(x => x.classList.toggle('active', x === t));
+      document.querySelectorAll('.trench-pane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + t.dataset.pane));
+    }));
+
+  // board moves are the boss's — but ExecAss always hears about it
+  document.querySelectorAll('.kcard').forEach(c =>
+    c.addEventListener('click', () =>
+      showToast('Cards move by your hand — and ExecAss gets pinged with the what and the why. Nothing shuffles silently.')));
+
+  // codec
+  const codec = document.getElementById('codec');
+  function ding() { codec.classList.remove('acked'); codec.classList.add('up'); }
+  document.getElementById('dingBtn').addEventListener('click', ding);
+  document.getElementById('codecClose').addEventListener('click', () => codec.classList.remove('up'));
+  document.getElementById('codecYes').addEventListener('click', () => {
+    codec.classList.add('acked');
+    setTimeout(() => codec.classList.remove('up'), 1400);
+  });
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!reduceMotion) setTimeout(ding, 6000);
+
+  // calendar build (July 2026: 1st = Wednesday, 31 days)
+  (function buildCal() {
+    const grid = document.getElementById('calGrid');
+    ['M','T','W','T','F','S','S'].forEach(d => { const e = document.createElement('div'); e.className = 'cal-dow'; e.textContent = d; grid.appendChild(e); });
+    const events = { 3: ['a|digest'], 6: ['a|digest'], 13: ['a|digest'], 20: ['a|digest'], 23: ['c|Nadia'], 25: ['g|payroll'], 28: ['a|digest'], 31: ['g|month close'] };
+    for (let i = 0; i < 2; i++) { const e = document.createElement('div'); e.className = 'cal-day dim'; e.textContent = 29 + i; grid.appendChild(e); }
+    for (let d = 1; d <= 31; d++) {
+      const e = document.createElement('div'); e.className = 'cal-day' + (d === 22 ? ' today' : ''); e.textContent = d;
+      (events[d] || []).forEach(ev => { const [k, t] = ev.split('|'); const s = document.createElement('span'); s.className = 'cal-ev ' + k; s.textContent = t; e.appendChild(s); });
+      e.style.cursor = 'pointer';
+      e.addEventListener('click', () => showToast('Would open July ' + d + ' — every date walks somewhere real.'));
+      grid.appendChild(e);
+    }
+    for (let i = 1; i <= 2; i++) { const e = document.createElement('div'); e.className = 'cal-day dim'; e.textContent = i; grid.appendChild(e); }
+  })();
+
+  // COLACK live simulation
+  const script = [
+    { who: 'Ledger', init: 'LG', ts: '9:43', text: 'Corvid nudge is drafted — friendly tone, invoice attached. Sending at 11:00 sharp.' },
+    { who: 'ExecAss', init: 'ea', ea: true, ts: '9:44', text: 'Good. If Corvid pays before 11, stand down automatically.' },
+    { who: 'Scout', init: 'SC', ts: '9:46', text: 'Harbor House sent the group menu. Uploading to the board card. 🧵' },
+    { who: 'Quill', init: 'QL', ts: '9:47', action: true, text: 'finished agenda §4 → one section left' },
+    { who: 'Porter', init: 'PT', ts: '9:49', text: 'Storefront latency is up (210ms). Breaker is watching. Not blocking anything.' },
+    { who: 'ExecAss', init: 'ea', ea: true, ts: '9:50', text: 'Noted. Boss has two decisions upstairs — everything else stays in motion.' },
+  ];
+  let si = 0;
+  const feed = document.getElementById('colackFeed');
+  const typing = document.getElementById('typingLine');
+  function nextMsg() {
+    if (si >= script.length) si = 0;
+    const m = script[si++];
+    typing.innerHTML = `<span class="t-dots"><i></i><i></i><i></i></span> ${m.who} is typing…`;
+    setTimeout(() => {
+      typing.innerHTML = '<span style="opacity:0">·</span>';
+      const div = document.createElement('div');
+      div.className = 'cmsg' + (m.action ? ' action' : '');
+      div.innerHTML = `<span class="avatar${m.ea ? ' ea' : ''}">${m.init}</span><div class="body"><div class="meta"><span class="who">${m.who}</span><span class="ts">${m.ts}</span></div><p>${m.text}</p></div>`;
+      feed.appendChild(div);
+      feed.scrollTop = feed.scrollHeight;
+      const cc = document.getElementById('chatterCount');
+      cc.textContent = String(Number(cc.textContent) + 1);
+    }, reduceMotion ? 100 : 1600);
+  }
+  if (!reduceMotion) { setTimeout(nextMsg, 3000); setInterval(nextMsg, 7000); }
+
+  // basement ticker
+  const tickerEl = document.getElementById('ticker');
+  const tickLines = [
+    'delegation.transitioned dlg_2104 → recovering',
+    'decision.recorded dec_venue rev 3 (pending)',
+    'summary.changed rev 413',
+    'continuation.result dlg_2107 ok',
+    'runtime_host.heartbeat gen 12 fenced',
+    'notification.scheduled reminder dlg_2103',
+  ];
+  let ti = 0, tmin = 41, tsec = 12;
+  if (!reduceMotion) setInterval(() => {
+    tsec += 7 + Math.floor(ti % 5); if (tsec > 59) { tsec -= 60; tmin++; }
+    const d = document.createElement('div');
+    d.innerHTML = `<span class="t-ts">9:${String(tmin).padStart(2,'0')}:${String(tsec).padStart(2,'0')}</span> ${tickLines[ti++ % tickLines.length]}`;
+    tickerEl.appendChild(d);
+    while (tickerEl.children.length > 8) tickerEl.removeChild(tickerEl.firstChild);
+  }, 4000);
+
+  // reef
+  const workers = [
+    { name: 'Scout',  init: 'SC', task: 'Venue research — menus and travel options for Oct 14–16.', mood: 'healthy · 34 min on task' },
+    { name: 'Ledger', init: 'LG', task: 'Invoice chase — Corvid nudge armed for the 11:00 window.', mood: 'busy · on schedule' },
+    { name: 'Quill',  init: 'QL', task: 'Agenda drafting — §4 done, one to go.', mood: 'steady' },
+    { name: 'Porter', init: 'PT', task: 'Idle after key rotation — available for pivot scoping.', mood: 'idle · available' },
+    { name: 'ExecAss', init: 'ea', task: 'Coordinating the floor. Two decisions upstairs with you.', mood: 'on duty' },
+  ];
+  let reefStarted = false;
+  function startReef() {
+    if (reefStarted) return; reefStarted = true;
+    const cv = document.getElementById('reefCanvas');
+    const ctx = cv.getContext('2d');
+    function fit() { cv.width = cv.clientWidth; cv.height = cv.clientHeight; }
+    fit(); addEventListener('resize', fit);
+    const fish = workers.map((w, i) => ({
+      ...w, x: 80 + i * 120, y: 80 + (i * 83) % 260,
+      a: i * 1.3, sp: 0.16 + (i % 3) * 0.05, r: w.init === 'ea' ? 24 : 18,
+    }));
+    const css = getComputedStyle(document.documentElement);
+    function tick() {
+      const W = cv.width, H = cv.height;
+      const accent = css.getPropertyValue('--accent').trim();
+      const coral = css.getPropertyValue('--coral').trim();
+      const acSoft = css.getPropertyValue('--accent-soft').trim();
+      const ink = css.getPropertyValue('--ink').trim();
+      const faint = css.getPropertyValue('--ink-faint').trim();
+      ctx.clearRect(0, 0, W, H);
+      for (let i = 0; i < 3; i++) {
+        ctx.fillStyle = acSoft; ctx.globalAlpha = 0.18 - i * 0.05;
+        ctx.beginPath(); ctx.ellipse(W/2, H - 20 - i * 80, W * 0.7, 50 + i * 28, 0, 0, 7); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      fish.forEach((f, idx) => {
+        if (!reduceMotion) {
+          f.a += 0.004 + f.sp * 0.004;
+          // crabs scuttle: mostly sideways, a little bob, and they keep to the lower water
+          f.x += Math.cos(f.a) * f.sp * 1.7;
+          f.y += Math.sin(f.a * 2.3) * f.sp * 0.25;
+          if (f.x < 60) f.x = 60; if (f.x > W - 60) f.x = W - 60;
+          const floor = H * 0.34;
+          if (f.y < floor) f.y = floor; if (f.y > H - 52) f.y = H - 52;
+        }
+        const body = f.init === 'ea' ? ink : (idx === 3 ? faint : accent);
+        const clawC = f.init === 'ea' ? coral : body;
+        const bob = reduceMotion ? 0 : Math.sin(f.a * 6) * 1.5;
+        const y = f.y + bob;
+        // legs (3 a side)
+        ctx.strokeStyle = body; ctx.lineWidth = 1.5; ctx.globalAlpha = .8;
+        for (let l = -1; l <= 1; l++) {
+          const ly = y + l * (f.r * 0.32) + f.r * 0.25;
+          const step = reduceMotion ? 0 : Math.sin(f.a * 8 + l) * 2;
+          ctx.beginPath(); ctx.moveTo(f.x - f.r * 0.85, ly); ctx.lineTo(f.x - f.r * 1.35, ly + 5 + step); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(f.x + f.r * 0.85, ly); ctx.lineTo(f.x + f.r * 1.35, ly + 5 - step); ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+        // claws up top
+        ctx.fillStyle = clawC;
+        ctx.beginPath(); ctx.arc(f.x - f.r * 0.78, y - f.r * 0.62, f.r * 0.4, 0, 7); ctx.fill();
+        ctx.beginPath(); ctx.arc(f.x + f.r * 0.78, y - f.r * 0.62, f.r * 0.4, 0, 7); ctx.fill();
+        // pincer nicks
+        ctx.strokeStyle = f.init === 'ea' ? ink : (idx === 3 ? faint : accent);
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(f.x - f.r * 0.78, y - f.r * 1.0); ctx.lineTo(f.x - f.r * 0.78, y - f.r * 0.72); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(f.x + f.r * 0.78, y - f.r * 1.0); ctx.lineTo(f.x + f.r * 0.78, y - f.r * 0.72); ctx.stroke();
+        // eye stalks
+        ctx.fillStyle = body;
+        ctx.beginPath(); ctx.arc(f.x - f.r * 0.3, y - f.r * 0.85, 2, 0, 7); ctx.fill();
+        ctx.beginPath(); ctx.arc(f.x + f.r * 0.3, y - f.r * 0.85, 2, 0, 7); ctx.fill();
+        // body shell
+        ctx.beginPath(); ctx.fillStyle = body;
+        ctx.ellipse(f.x, y, f.r, f.r * 0.74, 0, 0, 7); ctx.fill();
+        if (f.init === 'ea') { ctx.beginPath(); ctx.strokeStyle = coral; ctx.lineWidth = 1.5; ctx.globalAlpha = .8; ctx.ellipse(f.x, y, f.r + 4, f.r * 0.74 + 4, 0, 0, 7); ctx.stroke(); ctx.globalAlpha = 1; }
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '600 10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(f.init, f.x, y);
+        ctx.fillStyle = faint; ctx.font = '10px sans-serif';
+        ctx.fillText(f.name, f.x, y + f.r + 14);
+      });
+      requestAnimationFrame(tick);
+    }
+    tick();
+    const report = document.getElementById('fishReport');
+    cv.addEventListener('click', e => {
+      const rect = cv.getBoundingClientRect();
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      const hit = fish.find(f => (f.x - mx) ** 2 + (f.y - my) ** 2 < (f.r + 14) ** 2);
+      if (hit) {
+        document.getElementById('frName').textContent = hit.name;
+        document.getElementById('frText').textContent = hit.task + ' — ' + hit.mood + '.';
+        report.style.display = 'block';
+        report.style.left = Math.min(mx + 14, rect.width - 290) + 'px';
+        report.style.top = Math.min(my + 10, rect.height - 120) + 'px';
+      } else report.style.display = 'none';
+    });
+  }
+</script>

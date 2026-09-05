@@ -1,0 +1,8 @@
+path_regex,line_regex,owner,expires_on_utc,reason
+"crates/carsinos-channels-discord/src/lib.rs","channel_id: .*channel","platform-security","2026-12-31","unit-test fixture channel id literal"
+"crates/carsinos-channels-signal/src/lib.rs","chat_id: .*group-id","platform-security","2026-12-31","unit-test fixture chat id literal"
+"crates/carsinos-channels-signal/src/lib.rs","chat_id: .*dm-id","platform-security","2026-12-31","unit-test fixture chat id literal"
+"crates/carsinos-channels-slack/src/lib.rs","channel_id: .*C123","platform-security","2026-12-31","unit-test fixture channel id literal"
+"crates/carsinos-channels-slack/src/lib.rs","channel_id: .*D111","platform-security","2026-12-31","unit-test fixture channel id literal"
+"crates/carsinos-channels-whatsapp/src/lib.rs","chat_id: .*group-1","platform-security","2026-12-31","unit-test fixture chat id literal"
+"crates/carsinos-channels-whatsapp/src/lib.rs","chat_id: .*dm-1","platform-security","2026-12-31","unit-test fixture chat id literal"
