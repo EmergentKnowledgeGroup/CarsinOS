@@ -196,9 +196,11 @@ export function AppShell(props: AppShellProps) {
   const theme = useTheme();
   useGlassSurfaceTheme(glassSurfaceRef);
   const setGlobalMode = theme.setMode;
+  const selectGlobalFamily = theme.selectFamily;
   useEffect(() => {
     const media = window.matchMedia?.("(prefers-color-scheme: dark)");
     const syncMode = () => setGlobalMode(resolveActiveTheme(loadGlassConfig(), { prefersDark: media?.matches ?? false }).mode);
+    selectGlobalFamily("obsidian");
     syncMode();
     window.addEventListener(GLASS_CONFIG_EVENT, syncMode);
     media?.addEventListener?.("change", syncMode);
@@ -206,7 +208,7 @@ export function AppShell(props: AppShellProps) {
       window.removeEventListener(GLASS_CONFIG_EVENT, syncMode);
       media?.removeEventListener?.("change", syncMode);
     };
-  }, [setGlobalMode]);
+  }, [setGlobalMode, selectGlobalFamily]);
 
   useEffect(() => {
     applyDensity(density);

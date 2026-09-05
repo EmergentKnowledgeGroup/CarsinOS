@@ -487,6 +487,12 @@ export function ExecassOfficePanel(props: {
           <div className="mc-execass-briefing">
             <p>Pulling this morning's brief...</p>
           </div>
+        ) : controller.summaryError ? (
+          <div className="mc-execass-briefing">
+            <h2>Your briefing is unavailable.</h2>
+            <p>The request failed. Retry to fetch the latest office state.</p>
+            <button type="button" className="mc-execass-quiet" onClick={() => void controller.refreshSummary()}>Retry briefing</button>
+          </div>
         ) : (
           <div className="mc-execass-briefing">
             <h2>Your office is ready.</h2>

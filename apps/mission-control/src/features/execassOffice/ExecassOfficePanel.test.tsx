@@ -341,3 +341,25 @@ describe("ExecassOfficePanel mobile stacked feed", () => {
     );
   });
 });
+
+
+describe("Office summary recovery", () => {
+  it("offers retry instead of setup for a failed summary", async () => {
+    const controller = fixtureController();
+    controller.summary = null;
+    controller.summaryError = "Briefing request failed";
+    controller.refreshSummary = vi.fn().mockResolvedValue(undefined);
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    await act(async () => {
+      root = createRoot(container);
+      root.render(<ExecassOfficePanel controller={controller} onOpenRoom={() => true} />);
+    });
+    expect(container.textContent).not.toContain("Connect your gateway");
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("Briefing request failed");
+    const retry = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Retry briefing");
+    expect(retry).toBeDefined();
+    await act(async () => retry!.click());
+    expect(controller.refreshSummary).toHaveBeenCalledOnce();
+  });
+});

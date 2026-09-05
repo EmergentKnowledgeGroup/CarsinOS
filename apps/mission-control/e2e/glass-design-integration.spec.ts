@@ -6,7 +6,9 @@ test("@core Glass Office design stays usable across floors and at 390px", async 
   page.on("pageerror", (error) => errors.push(error.message));
   await page.setViewportSize({ width: 1600, height: 1000 });
   await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
+  await page.addInitScript(() => localStorage.setItem("mc-theme-name", "phosphor"));
   await completeQuickstartLocalOnboarding(page);
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "obsidian-dark");
   // The harness-only crash sentinel is not application chrome.
   await page.getByRole("button", { name: "Force crash active tab" }).evaluateAll(
     (buttons) => buttons.forEach((button) => { button.style.display = "none"; }),
