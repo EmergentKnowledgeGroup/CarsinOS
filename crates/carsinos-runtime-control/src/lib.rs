@@ -950,7 +950,7 @@ fn hex_decode_32(value: &str) -> Result<[u8; 32], RuntimeControlError> {
         return Err(RuntimeControlError::Authentication);
     }
     let mut output = [0u8; 32];
-    for (index, pair) in value.as_bytes().chunks_exact(2).enumerate() {
+    for (index, pair) in value.as_bytes().as_chunks::<2>().0.iter().enumerate() {
         output[index] = (decode_nibble(pair[0])? << 4) | decode_nibble(pair[1])?;
     }
     Ok(output)
