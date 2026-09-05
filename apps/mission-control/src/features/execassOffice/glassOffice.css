@@ -1,0 +1,107 @@
+/* The confirmed Glass Office canvas, backed by the existing Office controller. */
+.mc-execass-office.mc-execass-office {
+  padding: clamp(18px, 2.2vw, 32px);
+  border: 0;
+  border-radius: 0;
+  margin: 0;
+  background: var(--ground);
+  box-shadow: none;
+  gap: 18px;
+}
+.mc-execass-office .mc-execass-header {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.mc-office-brief-band {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr);
+  align-items: center;
+  gap: 26px;
+}
+.mc-execass-office .mc-execass-briefing h2 {
+  font-family: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  font-size: clamp(23px, 2.4vw, 30px);
+  line-height: 1.22;
+  font-weight: 400;
+  color: var(--ink);
+  margin: 0 0 10px;
+}
+.mc-execass-office .mc-execass-briefing p {
+  font-family: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  font-size: 15px;
+  line-height: 1.6;
+}
+.mc-execass-office .mc-execass-ask {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  padding: 6px;
+  box-shadow: var(--shadow);
+  align-items: center;
+}
+.mc-execass-office .mc-execass-ask input {
+  border: 0;
+  background: transparent;
+  font-family: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  font-size: 16px;
+}
+.mc-execass-office .mc-execass-ask button,
+.mc-execass-office .mc-execass-yes {
+  background: var(--ink);
+  color: var(--ground);
+  flex-shrink: 0;
+}
+.mc-execass-office .mc-office-block {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+.mc-execass-office [data-testid="office-block-needs-you"] {
+  border-color: var(--gold-line);
+  background: linear-gradient(var(--gold-soft), var(--surface) 110px);
+}
+.mc-execass-office .mc-execass-buckets h3 {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .13em;
+  color: var(--ink-faint);
+  margin-bottom: 12px;
+}
+.mc-execass-office .mc-execass-decision {
+  background: var(--surface);
+  border-color: var(--line);
+  border-radius: 11px;
+}
+.mc-execass-office .mc-execass-decision.is-dangerous { border-color: var(--gold-line); }
+.mc-execass-office .mc-execass-reason {
+  font-family: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  font-size: 16px;
+  line-height: 1.4;
+}
+.mc-execass-office .mc-execass-row { padding: 10px 2px; }
+.mc-execass-office .mc-execass-freeze-confirm { flex-wrap: wrap; }
+@media (min-width: 1180px) {
+  .mc-execass-office .mc-execass-buckets {
+    height: clamp(460px, calc(100dvh - 310px), 760px);
+  }
+}
+@media (max-width: 1000px) {
+  .mc-office-brief-band { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+}
+@media (max-width: 760px) {
+  .mc-execass-office.mc-execass-office { padding: 16px; }
+  .mc-execass-office .mc-execass-buckets {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+    overflow: visible;
+  }
+  .mc-execass-office .mc-office-block { overflow: visible; }
+  .mc-execass-office .mc-execass-ask { flex-wrap: wrap; }
+  .mc-execass-office .mc-execass-ask input { flex-basis: 180px; }
+}
+.mc-office-floor { min-width: 0; }
+.mc-office-workspace { margin: 0 24px 24px; border-top: 1px solid var(--mc-border); }
+.mc-office-workspace > summary { padding: 14px 0; cursor: pointer; color: var(--mc-text-soft); font-size: 13px; }
+.mc-office-workspace > summary:hover { color: var(--mc-text); }

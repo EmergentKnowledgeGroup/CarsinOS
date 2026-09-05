@@ -43,7 +43,7 @@ export interface EventStreamItem {
 }
 
 export function useAppController() {
-  const [activeTab, setActiveTabState] = useState<MissionControlTab>("boards");
+  const [activeTab, setActiveTabState] = useState<MissionControlTab>("assistant");
   /**
    * The last room chosen by an explicit room selection. Stable room ids own
    * navigation identity: a selection stays lit only while the active tab is

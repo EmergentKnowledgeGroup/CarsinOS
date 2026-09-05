@@ -42,6 +42,7 @@ __pycache__/
 !/docs/assets/
 !/docs/assets/**
 !/docs/GETTING_STARTED.md
+!/docs/GLASS_OFFICE_STATUS.md
 !/docs/ARCHITECTURE.md
 !/docs/SECURITY_MODEL.md
 !/docs/RELEASES.md

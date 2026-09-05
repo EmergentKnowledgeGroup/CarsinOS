@@ -1,0 +1,362 @@
+/* Glass Office shell: the surface receives its theme from useGlassSurfaceTheme.
+   These aliases let existing room CSS inherit that local Carbon/Porcelain surface. */
+.mc-glass-shell {
+  --bg-void: var(--ground, #f6f5f1);
+  --bg: var(--ground, #f6f5f1);
+  --bg-raised: var(--surface, #ffffff);
+  --bg-overlay: var(--surface, #ffffff);
+  --surface-hover: var(--line-soft, #eeebe3);
+  --line-strong: color-mix(in srgb, var(--line, #e5e1d8) 82%, var(--ink, #21282b));
+  --ink-primary: var(--ink, #21282b);
+  --ink-secondary: var(--ink-soft, #596467);
+  --ink-tertiary: var(--ink-soft, #596467);
+  --ink-muted: var(--ink-faint, #8c9598);
+  --accent-hover: var(--accent-ink, #0e5a50);
+  --accent-glow: color-mix(in srgb, var(--accent, #17766b) 18%, transparent);
+  --accent-muted: var(--accent-soft, #e2efeb);
+  --accent-subtle: color-mix(in srgb, var(--accent-soft, #e2efeb) 76%, transparent);
+  --ok-muted: color-mix(in srgb, var(--ok, #3e7a4e) 15%, transparent);
+  --ok-ink: var(--ok, #3e7a4e);
+  --warn-muted: var(--gold-soft, #f6eed9);
+  --warn-ink: var(--gold, #97782a);
+  --danger: var(--warn, #a8402f);
+  --danger-bg: var(--claw-soft, #fde8dd);
+  --danger-muted: var(--claw-soft, #fde8dd);
+  --danger-ink: var(--warn, #a8402f);
+  --info: var(--accent, #17766b);
+  --info-muted: var(--accent-soft, #e2efeb);
+  --info-ink: var(--accent-ink, #0e5a50);
+  --shadow-sm: 0 1px 2px color-mix(in srgb, var(--ink, #21282b) 6%, transparent);
+  --shadow-md: var(--shadow, 0 1px 2px rgba(33, 40, 43, 0.05));
+  --shadow-lg: var(--shadow-pop, 0 4px 12px rgba(33, 40, 43, 0.12));
+  --shadow-glow: 0 0 18px var(--accent-glow);
+  --overlay-bg: color-mix(in srgb, var(--ink, #21282b) 38%, transparent);
+  --overlay-bg-heavy: color-mix(in srgb, var(--ink, #21282b) 54%, transparent);
+  --mc-bg: var(--ground, #f6f5f1);
+  --mc-surface: var(--surface, #ffffff);
+  --mc-surface-2: var(--ground, #f6f5f1);
+  --mc-text: var(--ink, #21282b);
+  --mc-text-soft: var(--ink-soft, #596467);
+  --mc-border: var(--line, #e5e1d8);
+  --mc-border-soft: var(--line-soft, #eeebe3);
+  --mc-accent: var(--accent, #17766b);
+  --mc-warning: var(--gold, #97782a);
+  --mc-danger: var(--warn, #a8402f);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent, #17766b) 6%, transparent), transparent 34%), var(--ground, #f6f5f1);
+}
+
+.mc-glass-shell.mc-shell-layout {
+  display: grid;
+  grid-template-columns: 13.5rem minmax(0, 1fr);
+  height: 100dvh;
+  min-height: 100dvh;
+}
+
+.mc-glass-shell .mc-glass-elevator-rail {
+  width: 13.5rem;
+  height: 100dvh;
+  align-items: stretch;
+  gap: 0;
+  padding: 1.375rem 1rem 1.125rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: linear-gradient(180deg, var(--surface, #fff), var(--ground, #f6f5f1) 30%);
+  border-right-color: var(--line, #e5e1d8);
+}
+
+.mc-glass-shell .mc-glass-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0 0.375rem 0.625rem;
+  color: var(--claw, #e8541b);
+}
+
+.mc-glass-shell .mc-glass-brand svg { flex: none; }
+
+.mc-glass-shell .mc-glass-wordmark {
+  display: block;
+  color: var(--ink, #21282b);
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-size: 1.2rem;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+
+.mc-glass-shell .mc-glass-wordmark b { color: var(--claw, #e8541b); font-weight: 600; }
+
+.mc-glass-shell .mc-glass-brand small,
+.mc-glass-shell .mc-glass-elevator-label,
+.mc-glass-shell .mc-glass-topbar-kicker {
+  color: var(--ink-faint, #8c9598);
+  font-family: "Seravek", "Gill Sans Nova", "Segoe UI", Calibri, sans-serif;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.mc-glass-shell .mc-glass-brand small { display: block; margin-top: 0.15rem; font-size: 0.58rem; }
+.mc-glass-shell .mc-glass-elevator-label { margin: 0.5rem 0.5rem 0.45rem; font-size: 0.6rem; }
+
+.mc-glass-shell .mc-elevator {
+  gap: 0.15rem;
+  overflow-y: auto;
+  padding: 0.15rem;
+}
+
+.mc-glass-shell .mc-elevator-floor {
+  padding: 0.42rem 0.3rem;
+  border-color: transparent;
+  border-radius: 0.72rem;
+}
+
+.mc-glass-shell .mc-elevator-floor.is-active {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--surface, #fff) 76%, var(--accent-soft, #e2efeb));
+}
+
+.mc-glass-shell .mc-elevator-floor-label {
+  grid-template-columns: 1.38rem 1rem minmax(0, 1fr);
+  gap: 0.55rem;
+  padding: 0.1rem 0.35rem 0.36rem;
+  color: var(--ink-soft, #596467);
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-size: 0.9rem;
+  font-weight: 400;
+}
+
+.mc-glass-shell .mc-elevator-floor.is-active .mc-elevator-floor-label { color: var(--ink, #21282b); }
+
+.mc-glass-shell .mc-elevator-lamp {
+  width: 1.38rem;
+  height: 1.38rem;
+  border-color: var(--line, #e5e1d8);
+  background: transparent;
+  color: var(--ink-faint, #8c9598);
+  font-size: 0.62rem;
+}
+
+.mc-glass-shell .mc-elevator-floor.is-active .mc-elevator-lamp {
+  border-color: var(--accent, #17766b);
+  background: var(--accent-soft, #e2efeb);
+  color: var(--accent-ink, #0e5a50);
+  box-shadow: 0 0 0.65rem color-mix(in srgb, var(--accent, #17766b) 36%, transparent);
+}
+
+.mc-glass-shell .mc-elevator-rooms { gap: 0.12rem; padding-left: 1.95rem; }
+
+.mc-glass-shell .mc-elevator-rooms .mc-nav-item,
+.mc-glass-shell .mc-glass-elevator-rail > .mc-nav-item {
+  position: relative;
+  width: 100%;
+  min-height: 2.1rem;
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 0.55rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 0.55rem;
+  color: var(--ink-soft, #596467);
+  font-size: 0.78rem;
+  text-align: left;
+}
+
+.mc-glass-shell .mc-elevator-rooms .mc-nav-item:hover,
+.mc-glass-shell .mc-glass-elevator-rail > .mc-nav-item:hover {
+  color: var(--ink, #21282b);
+  background: var(--line-soft, #eeebe3);
+}
+
+.mc-glass-shell .mc-elevator-rooms .mc-nav-item-active {
+  color: var(--ink, #21282b);
+  background: var(--surface, #fff);
+  border-color: transparent;
+  box-shadow: var(--shadow, 0 1px 2px rgba(33, 40, 43, 0.05));
+}
+
+.mc-glass-shell .mc-elevator-rooms .mc-nav-item-active::before {
+  position: absolute;
+  left: -0.3rem;
+  width: 0.18rem;
+  height: 1.05rem;
+  border-radius: 99px;
+  background: var(--accent, #17766b);
+  content: "";
+}
+
+.mc-glass-shell .mc-nav-room-mark {
+  display: none;
+}
+
+.mc-glass-shell .mc-nav-label {
+  overflow: hidden;
+  font-family: "Seravek", "Gill Sans Nova", "Segoe UI", Calibri, sans-serif;
+  font-size: 0.76rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.mc-glass-shell .mc-nav-badge { position: static; margin-left: auto; animation: none; }
+.mc-glass-shell .mc-glass-elevator-rail > .mc-nav-item { margin-top: 0.15rem; }
+
+.mc-glass-shell .mc-main-column {
+  height: 100dvh;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent, #17766b) 5%, transparent), transparent 10rem);
+}
+
+.mc-glass-shell .mc-glass-topbar {
+  height: 4.5rem;
+  padding: 0 1.75rem;
+  gap: 1.25rem;
+  background: color-mix(in srgb, var(--surface, #fff) 88%, transparent);
+  border-bottom-color: var(--line, #e5e1d8);
+}
+
+.mc-glass-shell .mc-topbar-left { gap: 0.65rem; }
+
+.mc-glass-shell .mc-glass-floor-context {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  border: 1px solid var(--line, #e5e1d8);
+  border-radius: 50%;
+  background: var(--surface, #fff);
+  box-shadow: var(--shadow-sm);
+  color: var(--accent-ink, #0e5a50);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+
+.mc-glass-shell .mc-glass-topbar-kicker { margin: 0 0 0.15rem; font-size: 0.56rem; line-height: 1; }
+
+.mc-glass-shell .mc-topbar-title {
+  color: var(--ink, #21282b);
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-size: 1.22rem;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.mc-glass-shell .mc-topbar-center { justify-content: flex-start; gap: 0.4rem; }
+.mc-glass-shell .mc-topbar-right { gap: 0.25rem; }
+.mc-glass-shell .mc-topbar-icon-btn { border-radius: 0.55rem; }
+.mc-glass-shell .mc-glass-after-hours {
+  min-height: 2rem;
+  border: 1px solid var(--line, #e5e1d8);
+  border-radius: 0.55rem;
+  background: var(--surface, #fff);
+  color: var(--ink-soft, #596467);
+  font-family: "Seravek", "Gill Sans Nova", "Segoe UI", Calibri, sans-serif;
+  font-size: 0.68rem;
+  padding: 0.35rem 0.55rem;
+}
+.mc-glass-shell .mc-glass-after-hours:hover { border-color: var(--accent, #17766b); color: var(--accent-ink, #0e5a50); }
+.mc-glass-shell .mc-content-area { padding: 1.25rem 1.75rem 1.5rem; }
+.mc-glass-shell .mc-live-feed-drawer { background: linear-gradient(180deg, var(--surface, #fff), var(--ground, #f6f5f1)); border-left-color: var(--line, #e5e1d8); }
+
+@media (max-width: 760px) {
+  .mc-glass-shell.mc-shell-layout { display: flex; flex-direction: column; height: 100dvh; min-height: 100dvh; }
+  .mc-glass-shell .mc-main-column { order: 1; height: auto; min-height: 0; }
+  .mc-glass-shell .mc-glass-elevator-rail {
+    order: 2;
+    width: 100%;
+    height: auto;
+    max-height: 11.5rem;
+    flex: none;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 0.7rem;
+    padding: 0.55rem 0.75rem;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-top: 1px solid var(--line, #e5e1d8);
+    border-right: 0;
+  }
+  .mc-glass-shell .mc-glass-brand { min-width: 8.7rem; padding: 0.3rem 0.6rem 0.3rem 0; border-right: 1px solid var(--line, #e5e1d8); }
+  .mc-glass-shell .mc-glass-elevator-label,
+  .mc-glass-shell .mc-nav-spacer { display: none; }
+  .mc-glass-shell .mc-elevator { display: flex; flex: none; flex-direction: row; gap: 0.7rem; overflow: visible; padding: 0; }
+  .mc-glass-shell .mc-elevator-floor { min-width: 9.75rem; margin: 0; padding: 0.15rem 0.2rem; }
+  .mc-glass-shell .mc-elevator-rooms { display: grid; grid-auto-flow: column; grid-template-columns: repeat(2, max-content); padding-left: 0; }
+  .mc-glass-shell .mc-elevator-rooms .mc-nav-item,
+  .mc-glass-shell .mc-glass-elevator-rail > .mc-nav-item { width: auto; min-width: 2.75rem; min-height: 2.75rem; justify-content: center; padding: 0.55rem; }
+  .mc-glass-shell .mc-elevator-rooms .mc-nav-label,
+  .mc-glass-shell .mc-glass-elevator-rail > .mc-nav-item .mc-nav-label { display: none; }
+  .mc-glass-shell .mc-elevator-rooms .mc-nav-room-mark { display: inline; }
+  .mc-glass-shell .mc-elevator-rooms .mc-nav-badge { position: absolute; top: 0.1rem; right: 0.1rem; margin: 0; }
+  .mc-glass-shell .mc-glass-topbar { height: auto; min-height: 4rem; padding: 0.5rem 0.75rem; }
+  .mc-glass-shell .mc-topbar-right { gap: 0.1rem; }
+  .mc-glass-shell .mc-glass-after-hours { display: none; }
+  .mc-glass-shell .mc-topbar-icon-btn,
+  .mc-glass-shell .mc-live-feed-toggle { min-width: 2.75rem; min-height: 2.75rem; }
+  .mc-glass-shell .mc-content-area { padding: 0.9rem; }
+}
+
+@media (max-width: 420px) {
+  .mc-glass-shell .mc-glass-brand { min-width: 3.15rem; }
+  .mc-glass-shell .mc-glass-brand > span { display: none; }
+  .mc-glass-shell .mc-glass-floor-context { width: 1.9rem; height: 1.9rem; }
+}
+
+/* Match the reference's quiet typography and secondary guidance. */
+.mc-glass-shell {
+  --font-body: 'Seravek', 'Gill Sans Nova', 'Segoe UI', Calibri, sans-serif;
+  --font-display: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+  --font-mono: 'Cascadia Code', Consolas, monospace;
+  font-family: var(--font-body);
+}
+.mc-glass-shell button, .mc-glass-shell input, .mc-glass-shell select, .mc-glass-shell textarea {
+  font-family: var(--font-body);
+}
+.mc-glass-shell .mc-topbar-center .chip {
+  min-height: 28px;
+  padding: 3px 7px;
+  border-color: var(--line);
+  background: transparent;
+  font-size: 10px;
+  letter-spacing: .02em;
+}
+.mc-glass-shell .mc-tab-help-banner {
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: none;
+}
+.mc-glass-shell .mc-tab-help-head { justify-content: space-between; }
+.mc-glass-shell .mc-tab-help-main { align-items: baseline; justify-content: flex-start; }
+.mc-glass-shell .mc-tab-help-main p { font-size: 12px; color: var(--ink-soft); }
+.mc-glass-shell .mc-tab-help-actions { justify-content: flex-start; margin-top: 5px; gap: 8px; }
+.mc-glass-shell .mc-tab-help-actions button {
+  padding: 3px 6px;
+  min-height: 28px;
+  background: transparent;
+  color: var(--ink-soft);
+  border-color: var(--line);
+  font-size: 11px;
+}
+.mc-glass-shell .mc-tab-help-dismiss { min-width: 28px; min-height: 28px; border: 0; }
+.mc-glass-shell .mc-elevator-floor-label strong { white-space: normal; font-weight: 500; }
+@media (max-width: 760px) {
+  .mc-glass-shell .mc-tab-help-actions button { min-height: 44px; }
+  .mc-glass-shell .mc-tab-help-main { display: block; }
+}
+
+.mc-glass-shell .mc-nav-spacer { flex: none; height: 8px; }
+@media (max-width: 760px) {
+  .mc-glass-shell .mc-elevator-floor { min-width: 200px; }
+  .mc-glass-shell .mc-elevator-rooms { grid-auto-flow: row; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .mc-glass-shell .mc-elevator-rooms .mc-nav-item { gap: 2px; padding: 6px; }
+  .mc-glass-shell .mc-elevator-rooms .mc-nav-badge { position: static; margin: 0 0 0 2px; flex-shrink: 0; }
+}
+
+/* Keep operational detail actions reachable within the fixed application shell. */
+.mc-glass-shell .mc-runbook-detail-view .mc-runbook-detail-body { overflow-y: auto; }
+.mc-glass-shell .mc-runbook-detail-body > * { flex-shrink: 0; }
+
+.mc-glass-shell .mc-runbook-tab-content { flex: 0 0 auto; overflow: visible; }
+.mc-glass-shell .mc-runbook-overview-grid { flex: 0 0 auto; }

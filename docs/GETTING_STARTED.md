@@ -116,6 +116,44 @@ Debug Tauri is useful for desktop UI development but does not start the
 release-managed gateway sidecar. Do not mistake a debug window for a packaged
 release or assume it has release-only token/keyring/runtime custody behavior.
 
+## Complete the Setup Wizard
+
+The wizard opens automatically when configuration is incomplete, after initial
+loading settles. You can always reopen it from **Settings → Setup Wizard** or
+**The Basement → Setup → Open setup wizard**. **Dismiss (24h)** temporarily
+suppresses automatic reopening; it does not complete setup.
+
+![Choose Quickstart or Manual in the real Setup Wizard](assets/screenshots/mission-control-onboarding.png)
+
+| Step | What to do |
+| --- | --- |
+| **1. Choose Setup Mode** | Choose Quickstart for the default path, or Manual to expose advanced fields. |
+| **2. Preflight Checks** | Check gateway reachability, token acceptance, and core reads. Before connecting, checks may be pending or fail; you can continue to enter the connection. Setup-write capability is checked when changes are applied. |
+| **3. Connect** | Enter the running gateway's URL and token, then use **Save connection + Continue**. |
+| **4. Assistant and provider** | Create or select an assistant. Choose a local connector, an Anthropic API key, or OpenAI OAuth; select the model and apply setup. A local connector needs a running model service. |
+| **5. Review** | Check connection, agent, provider, and routing readiness before finishing. |
+| **6. Done** | Open Assistant or Boards, or continue into Discord/Telegram integration setup. |
+
+Keep credentials out of screenshots. The connection field clears after saving;
+use your own private token, never the demonstration values in test fixtures.
+
+### Take the guided tour
+
+The interface tour is separate from connection setup. It appears when the setup
+wizard is closed if you have not completed the tour. Use **Start guided tour**
+in the top bar or the tour controls in Setup/Settings to revisit the elevator
+rooms, Help, Settings, and command palette.
+
+### What completion means
+
+Automatic setup detection checks for a gateway URL, configured token, an agent,
+and an enabled cloud profile or local-provider agent. The review screen also
+checks connection and routing readiness. Neither is proof that a paid provider
+request, local inference, or an actual task has succeeded. Verify your intended
+provider with a first request in the appropriate configured runtime. Browser
+mode still cannot sign native ExecAss owner proofs; the wizard does not remove
+that boundary.
+
 ## Your first useful pass
 
 Once Mission Control is connected, do not try to learn every room at once.

@@ -367,6 +367,7 @@ test.describe("mission-control core onboarding + crash-proofing @core", () => {
     await completeQuickstartLocalOnboarding(page);
 
     await page.locator('[data-tour-id="nav-assistant"]').click();
+    await page.getByText("Assistant chat & shared instructions", { exact: true }).click();
     await expect(page.getByRole("heading", { name: "Chat", exact: true })).toBeVisible();
     await expect(page.getByLabel("Assistant provider")).toHaveValue("ollama");
     await expect(page.getByLabel("Assistant model", { exact: true })).toHaveValue(ASSISTANT_MODEL_ID);

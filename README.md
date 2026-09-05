@@ -12,11 +12,12 @@
 </p>
 
 <p align="center">
-  <strong>A local control plane for an executive assistant, its work, its tools, and the evidence that backs important outcomes.</strong>
+  <strong>Give your assistant an outcome. Follow the work. Inspect the result.</strong>
 </p>
 
 <p align="center">
   <a href="docs/GETTING_STARTED.md"><strong>Get started</strong></a>
+  · <a href="docs/GETTING_STARTED.md#complete-the-setup-wizard">First-run setup</a>
   · <a href="docs/CONCEPTS.md">How it works</a>
   · <a href="docs/ARCHITECTURE.md">Architecture</a>
   · <a href="docs/ENGINEERING.md">Engineering</a>
@@ -25,7 +26,7 @@
 
 ---
 
-## A local system for a real assistant—not another chat window
+## Your assistant. Your office. Your control.
 
 CarsinOS is for one owner running one ExecAss coordinator through one local
 instance. You give ExecAss an outcome in plain language. CarsinOS keeps the
@@ -54,24 +55,28 @@ a fresh decision.
    calm system, a specific incident, and a state that is still checking its
    authoritative facts.
 
-## See the current product
+## The Glass Office
 
-These are current captures from the Glass Office interface, using deterministic
-local demo data. They show the product shape—not a hosted customer account or
-an implied production deployment.
+Four floors, one workspace: **4F The Office**, **3F The Window**,
+**2F The Trenches**, and **B The Basement**.
 
-| The Office | Boards |
-| --- | --- |
-| [![ExecAss Office with a briefing, one-confirmation decision, work in motion, and receipts](docs/assets/screenshots/mission-control-office.png)](docs/assets/screenshots/mission-control-office.png) | [![Mission Control Boards showing durable backlog, doing, and done lanes](docs/assets/screenshots/mission-control-boards.png)](docs/assets/screenshots/mission-control-boards.png) |
+[![CarsinOS Glass Office: elevator navigation, briefing, decisions, and work canvas](docs/assets/screenshots/mission-control-office.png)](docs/assets/screenshots/mission-control-office.png)
 
-| Calendar and wakeups | Staff Directory |
-| --- | --- |
-| [![Mission Control Calendar showing heartbeat setup, schedules, and active jobs](docs/assets/screenshots/mission-control-calendar.png)](docs/assets/screenshots/mission-control-calendar.png) | [![Mission Control Staff Directory showing configured assistants and routing](docs/assets/screenshots/mission-control-staff-directory.png)](docs/assets/screenshots/mission-control-staff-directory.png) |
+The application opens at your Office. Read the briefing, delegate an outcome,
+resolve decisions, inspect receipts, or open detailed assistant chat.
+The elevator connects to the crew, boards, schedules, and operational rooms.
+Carbon and Porcelain themes follow you across the building.
 
-<p align="center">
-  <a href="docs/assets/screenshots/mission-control-policy.png"><img src="docs/assets/screenshots/mission-control-policy.png" alt="Mission Control Policy showing exact one-confirmation language and autonomy profiles" width="100%" /></a><br />
-  <sub>Policy governs derived and unattended work; it does not replace the owner’s direct instruction.</sub>
-</p>
+[The Window](docs/assets/screenshots/mission-control-window.png) ·
+[Boards](docs/assets/screenshots/mission-control-boards.png) ·
+[Calendar](docs/assets/screenshots/mission-control-calendar.png) ·
+[Setup](docs/assets/screenshots/mission-control-setup.png) ·
+[Design history and runtime boundaries](docs/GLASS_OFFICE_STATUS.md)
+
+These are captures of the real React application with isolated test data.
+They do not represent live customer work or prove a configured model/provider.
+[Run the application](docs/GETTING_STARTED.md), or explore the
+[original standalone design prototype](demos/glass-office/README.md).
 
 ## What lives in Mission Control
 
@@ -88,11 +93,25 @@ hidden, ordered, or capability-gated without turning navigation into a pile of
 route-specific special cases. See [Architecture](docs/ARCHITECTURE.md) for the
 engineering view.
 
+## A guided start
+
+**Yes, CarsinOS has onboarding.** A six-step Setup Wizard opens when configuration
+is incomplete: choose Quickstart or Manual, check readiness, connect the gateway,
+configure an assistant and provider, review, and choose where to start. A separate
+guided tour introduces the interface.
+
+[View the current application's Setup Wizard](docs/assets/screenshots/mission-control-onboarding.png).
+
+Reopen it through **Settings → Setup Wizard** or **The Basement → Setup**.
+[Follow the setup walkthrough](docs/GETTING_STARTED.md#complete-the-setup-wizard).
+The wizard configures an already-running instance; it does not install Rust,
+download a local model, or turn browser mode into a native owner runtime.
+
 ## A first useful session
 
 1. [Build and run a local instance](docs/GETTING_STARTED.md).
-2. Use the Setup flow to connect the local gateway and select the assistant and
-   provider path you intend to operate.
+2. Complete the [Setup Wizard](docs/GETTING_STARTED.md#complete-the-setup-wizard)
+   to connect the gateway and configure your assistant and provider.
 3. At the Office, tell ExecAss the outcome as you would tell a capable
    secretary.
 4. Open **Needs You** only when a decision is actually required. Read the
