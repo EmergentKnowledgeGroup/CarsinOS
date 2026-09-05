@@ -1,6 +1,33 @@
 import { expect, test } from "./testHarness";
 import { completeQuickstartLocalOnboarding, openWizard } from "./onboardingFlow";
 
+test("@core Glass Window composer and topbar remain reachable on short screens", async ({ page }) => {
+  await completeQuickstartLocalOnboarding(page);
+  await page.getByRole("button", { name: "Force crash active tab" }).evaluateAll(
+    (buttons) => buttons.forEach((button) => { button.style.display = "none"; }),
+  );
+  await page.locator('[data-tour-id="nav-window"]').click();
+  while (await page.locator(".mc-toast-dismiss").count()) await page.locator(".mc-toast-dismiss").first().click();
+  for (const width of [800, 1000, 390, 1600]) {
+    await page.setViewportSize({ width, height: 650 });
+    await page.locator(".mc-window-floor details").evaluateAll((items) => items.forEach((item) => { (item as HTMLDetailsElement).open = true; }));
+    const composer = page.locator(".mc-chatter-compose input");
+    await page.locator(".mc-window-floor").evaluate((el) => { el.scrollTop = 0; });
+    await page.locator(".mc-window-floor").hover({ position: { x: 4, y: 4 } });
+    await page.mouse.wheel(0, 100);
+    await expect.poll(() => page.locator(".mc-window-floor").evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+    await composer.scrollIntoViewIfNeeded();
+    await expect(composer).toBeInViewport();
+    await composer.click({ trial: true });
+    for (const button of await page.locator(".mc-topbar button:visible").all()) {
+      const bounds = await button.boundingBox();
+      expect(bounds!.x).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    }
+    await page.screenshot({ path: `../../runtime/qa/glass-design/review-window-${width}.png` });
+  }
+});
+
 test("@core Glass Office design stays usable across floors and at 390px", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));

@@ -17,7 +17,7 @@
   isolation: isolate;
   gap: 1.25rem;
   padding: clamp(1rem, 3vw, 2.25rem);
-  overflow: hidden;
+  overflow: auto;
   color: var(--gw-ink);
   background:
     radial-gradient(circle at 14% 12%, color-mix(in srgb, var(--gw-accent) 12%, transparent), transparent 26rem),
@@ -106,6 +106,7 @@
 
 .mc-window-floor--glass .mc-window-grid {
   display: grid;
+  flex-shrink: 0;
   grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
 }
