@@ -43,6 +43,8 @@ __pycache__/
 !/docs/assets/**
 !/docs/GETTING_STARTED.md
 !/docs/GLASS_OFFICE_STATUS.md
+!/docs/security/
+!/docs/security/HARDCODED_VALUE_ALLOWLIST.csv
 !/docs/ARCHITECTURE.md
 !/docs/SECURITY_MODEL.md
 !/docs/RELEASES.md
